@@ -89,7 +89,7 @@ The approval queue groups submitted receipts by event. Each receipt links to a r
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Approving or rejecting this receipt records the review status only. Notify the submitter manually after saving.',
+        'Approving or rejecting this receipt records the review status and queues a submitter email after saving.',
       ),
     ).toBeVisible();
 
@@ -97,7 +97,7 @@ The approval queue groups submitted receipts by event. Each receipt links to a r
       body: `
 ## Review Details
 
-The review page shows the receipt file, normalized receipt data, tax/deposit/alcohol fields, and the manual-notification caveat. Approving or rejecting updates Evorto's receipt status; it does not send an automatic submitter email yet.
+The review page shows the receipt file, normalized receipt data, tax/deposit/alcohol fields, and the queued-notification caveat. Approving or rejecting updates Evorto's receipt status and queues the submitter email for delivery.
 `,
     });
     await takeScreenshot(

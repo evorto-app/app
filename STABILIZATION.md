@@ -6,18 +6,18 @@ and useful for small cleanup batches.
 
 ## Review Status
 
-| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                                                                                                                                              |
-| ----------------------------------------------- | ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, refund copy, and the event archival snapshot model.                                                                                                                                                                         |
-| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, unpaid transfer boundaries, tenant participant registration limits, and transfer-completed email outbox records have coverage; paid transfer/resale, registration confirmation/cancellation/waitlist email side effects, and provider dispatch still need implementation. |
-| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                                                                                                                                                      |
-| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                                                                                                                                                     |
-| Finance/receipts                                | Blocked    | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt review now enqueues receipt-reviewed email outbox records, but provider dispatch still needs implementation.                                                                                   |
-| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                                                                                                                                            |
-| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; Browser verification for home-tenant warning is still pending.                                                                                                                        |
-| Tenant/global admin                             | Blocked    | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; tenant operations-policy settings for review policy and tenant-admin Stripe account management remain deferred.                                                                                                                                                |
-| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                                                                                                                     |
-| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                                                                                                                                                         |
+| Area                                            | Status     | Confidence | Notes                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------- | ---------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Events                                          | Stabilized | high       | Docker-backed specs/docs cover browsing, creation, management, unlisted visibility, registration state, price labels, scanner handoff, refund copy, and the event archival snapshot model.                                                                                                                                                                        |
+| Registrations                                   | Blocked    | high       | Free/paid registration, guests, add-ons, waitlist, negative states, cancellation/refund, unpaid transfer boundaries, tenant participant registration limits, transfer-completed email outbox records, and provider dispatch have coverage; paid transfer/resale and registration confirmation/cancellation/waitlist email side effects still need implementation. |
+| Templates                                       | Stabilized | high       | Simple-mode templates now cover planning tips, ESNcard discounts, reusable add-ons/questions, role pickers, tax-rate behavior, and event creation copy paths.                                                                                                                                                                                                     |
+| Roles and permissions                           | Stabilized | high       | Route denial, role lookup, role management, permission metadata, tenant isolation, and user-list deferral are pinned by source, unit, spec, and docs coverage.                                                                                                                                                                                                    |
+| Finance/receipts                                | Stabilized | high       | Finance navigation, transaction visibility, receipt review, reimbursement recording, receipt submission, and refund boundaries have deterministic coverage; receipt review now enqueues receipt-reviewed email outbox records, and the Resend-backed outbox dispatcher processes pending/failed email records when enabled.                                       |
+| Scanning/check-in                               | Stabilized | high       | QR scanner reads, selected guest check-in, later guest arrival, idempotent counters, and organizer aggregates are covered by specs/docs against Docker.                                                                                                                                                                                                           |
+| Profile/account flows                           | Blocked    | high       | Profile edit, event cards, receipts, account creation contracts, seeded ESNcard behavior, deterministic ESNcard provider outcomes, and Browser discount-card UX are covered; Browser verification for home-tenant warning is still pending.                                                                                                                       |
+| Tenant/global admin                             | Blocked    | high       | Tenant settings and global-admin list/detail/create/edit have coverage for the implemented surface; tenant operations-policy settings for review policy and tenant-admin Stripe account management remain deferred.                                                                                                                                               |
+| Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                                                                                                                    |
+| Local runtime/developer workflow                | Stabilized | high       | Docker, env preflight, CI, Font Awesome token paths, and the first in-app Browser queue pass are healthy; repeat Browser review uses generated `BASE_URL`.                                                                                                                                                                                                        |
 
 ## Product Decision Draft
 
@@ -614,11 +614,17 @@ the current working direction until a product decision overrides them.
   a tenant-scoped `registrationTransferred` email outbox record in the same
   transaction as the transfer update, using the new owner's notification email
   when configured and preserving event/registration context for delivery.
+- **Addressed in stabilization pass:** the server has an explicit
+  disabled-by-default Resend-backed email outbox dispatcher. When
+  `EMAIL_OUTBOX_DISPATCH_ENABLED` is configured with `EMAIL_FROM_ADDRESS` and
+  `RESEND_API_KEY`, server startup processes pending and failed email outbox
+  rows, marks successful deliveries as sent, and leaves provider failures in a
+  retryable failed state with the provider error message.
 - **Should fix before relaunch:** `PRODUCT.md` lists email as the first
   notification channel and still includes successful registration confirmation
   with QR code, waitlist spot-available, and registration-cancelled emails as
-  in-scope notifications. Those registration lifecycle side effects, plus
-  provider dispatch/retry for email outbox records, still need implementation;
+  in-scope notifications. Those registration lifecycle side effects still need
+  implementation;
   client `NotificationService` calls are local snackbar feedback only.
 - **Addressed in this stabilization pass:** tenant settings now store editable
   participant registration-limit count and rolling window fields, and the
@@ -1072,10 +1078,11 @@ the current working direction until a product decision overrides them.
   the receipt review update, using the submitter's notification email when
   configured and preserving the event/receipt review context needed for
   delivery.
-- **Should fix before relaunch:** provider dispatch/retry for email outbox
-  records is still missing. The review detail page, success feedback, and
-  finance docs still tell finance reviewers that submitter notification is
-  manual until a real delivery worker/provider path exists.
+- **Addressed in stabilization pass:** the review detail page, success
+  feedback, finance docs, and source coverage now say receipt review queues a
+  submitter email. The Resend-backed email outbox dispatcher processes pending
+  and failed rows when explicitly enabled, marking successful deliveries sent
+  and preserving failed provider responses for retry.
 - **Addressed in this stabilization pass:** finance receipt approval and reimbursement lists now prefer the user's editable notification email over the Auth0 login email when rendering submitter contact details.
 - **Addressed in this stabilization pass:** the event organizer receipt action now stays disabled while the original receipt upload is pending, not only while the final submit mutation is pending, and the click handler shares the same guard.
 - **Addressed in this stabilization pass:** the event organizer receipt dialog
@@ -1103,12 +1110,14 @@ the current working direction until a product decision overrides them.
   approval, and receipt reimbursement links appear only for users with the
   matching finance capability.
 - **Addressed in stabilization pass:** `tests/specs/finance/receipts-flows.spec.ts` now hard-fails when the seeded pending receipt, refundable receipt group, row checkbox, enabled reimbursement action, or tenant "Other" country option is missing.
-- Finance overview docs now describe the current navigation-style finance UI, current finance capability names, and the manual submitter-notification caveat before and after receipt review.
+- Finance overview docs now describe the current navigation-style finance UI,
+  current finance capability names, and the queued submitter-email behavior
+  before and after receipt review.
 - **Addressed in stabilization pass:** `tests/docs/finance/finance-overview.doc.ts`
   now seeds visible and cancelled transaction rows, proves the transaction list
   renders the non-cancelled row, and proves cancelled rows stay omitted before
   generating the transaction-list screenshot.
-- **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the exact seeded receipt through the approval queue, approval detail page, manual submitter-notification caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording, then reads back the final receipt state and restores the seeded row.
+- **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the exact seeded receipt through the approval queue, approval detail page, queued submitter-email caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording, then reads back the final receipt state and restores the seeded row.
 - `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, payout-detail gating, payout-detail labels, selected-total math, and reimbursement record disabled guard. The receipt reimbursement doc/spec assert the manual-money notice on the page.
 - `src/app/finance/receipt-approval-detail/receipt-approval-detail.component.spec.ts`
   pins the approval/rejection action guard for invalid forms, loading receipt
@@ -2583,8 +2592,9 @@ implement those decisions or explicitly revise them there before changing code.
   registry exception, preserving the premium/brand Font Awesome package path for
   app action and brand icons.
 - Finance docs source-guard pass: pinned generated finance receipt docs to the
-  current manual submitter-notification and manual reimbursement money-movement
-  scope so relaunch docs do not imply automatic email or payout behavior.
+  current queued submitter-email and manual reimbursement money-movement scope
+  so relaunch docs do not imply missing email delivery or automatic payout
+  behavior.
 - Template docs source-guard pass: pinned generated template docs to the
   current simple-mode relaunch surface with one organizer block, one participant
   block, reusable add-ons, registration questions, and private organizer
@@ -3204,14 +3214,13 @@ template flow and should be kept aligned as those surfaces evolve. Normal genera
 `test:e2e:docs:publish` is run intentionally. New Playwright
 skips/fixmes should be added only as explicit credential gates or honest
 Browser-backed stabilization placeholders. Registration confirmation,
-cancellation, waitlist spot-available, and provider dispatch/retry remain
-relaunch blockers because `PRODUCT.md` lists them as in-scope email
-notifications. Unpaid transfer now records durable `registrationTransferred`
-outbox rows with new-owner notification-email details. Receipt review now
-records a durable `receiptReviewed` email outbox row with submitter
-notification-email details, but provider dispatch/retry for those outbox
-records remains a relaunch blocker and the UI still carries explicit manual
-submitter-notification copy. Profile/account
+cancellation, and waitlist spot-available remain relaunch blockers because
+`PRODUCT.md` lists them as in-scope email notifications. Unpaid transfer now
+records durable `registrationTransferred` outbox rows with new-owner
+notification-email details. Receipt review now records a durable
+`receiptReviewed` email outbox row with submitter notification-email details,
+and the disabled-by-default Resend-backed dispatcher processes pending/failed
+outbox records when configured. Profile/account
 home-tenant data model and profile warning UI are implemented, but the
 home-tenant warning still needs Browser verification once the local Docker
 runtime is healthy. Tenant/global admin remains blocked on tenant

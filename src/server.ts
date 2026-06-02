@@ -38,6 +38,7 @@ import {
   handleAppRpcHttpRequest,
 } from './server/effect/rpc/app-rpcs.web-handler';
 import { serverLoggerLayer } from './server/effect/server-logger.layer';
+import { EmailNotificationDispatcher } from './server/email/email-notification-dispatcher';
 import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
 import { applySecurityHeaders } from './server/http/security-headers';
@@ -539,10 +540,25 @@ const serveEffect = Effect.gen(function* () {
       ),
     ),
   );
+  const emailDispatcherRuntimeLayer = EmailNotificationDispatcher.Default.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        RuntimeConfig.Default,
+        ConfigProvider.layer(requestHandlerRuntimeConfigProvider),
+      ),
+    ),
+  );
 
   return yield* Effect.scoped(
     Effect.gen(function* () {
       const databaseContext = yield* Layer.build(configuredDatabaseLayer);
+      yield* EmailNotificationDispatcher.use(
+        (dispatcher) => dispatcher.runScheduled,
+      ).pipe(
+        Effect.provide(emailDispatcherRuntimeLayer),
+        Effect.provide(databaseContext),
+        Effect.forkScoped,
+      );
       const serverFiber = yield* Layer.launch(serverLayer).pipe(
         Effect.provide(databaseContext),
         Effect.forkScoped,

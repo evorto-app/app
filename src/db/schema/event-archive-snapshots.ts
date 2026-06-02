@@ -1,5 +1,3 @@
-import type { EventLocationType } from '@types/location';
-
 import {
   integer,
   jsonb,
@@ -8,6 +6,8 @@ import {
   timestamp,
   varchar,
 } from 'drizzle-orm/pg-core';
+
+import type { EventLocationType } from '../../types/location';
 
 import { eventInstances } from './event-instances';
 import { modelOfTenant } from './model';

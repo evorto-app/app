@@ -264,9 +264,13 @@ describe('stabilization source', () => {
     const registrationHandlerSpec = readSource(
       'src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts',
     );
-    const serverSources = listFiles('src/server', '.ts')
-      .map((sourceFile) => readSource(sourceFile))
-      .join('\n');
+    const emailDispatcher = readSource(
+      'src/server/email/email-notification-dispatcher.ts',
+    );
+    const emailConfig = readSource(
+      'src/server/config/email-notifications-config.ts',
+    );
+    const serverEntry = readSource('src/server.ts');
     const packageJson = readSource('package.json');
     const statusTable = readSection(
       source,
@@ -293,8 +297,19 @@ describe('stabilization source', () => {
     expect(registrationHandlerSpec).toContain(
       'builds transfer-completed email copy for the new registration owner',
     );
-    expect(`${serverSources}\n${packageJson}`).not.toMatch(
-      /send(?:Mail|Email)|smtp|resend|mailgun|postmark|nodemailer|aws.*ses|EmailService|MailService/u,
+    expect(packageJson).not.toContain('"resend"');
+    expect(emailDispatcher).toContain('https://api.resend.com/emails');
+    expect(emailDispatcher).toContain("'pending', 'failed'");
+    expect(emailDispatcher).toContain("status: 'sent'");
+    expect(emailDispatcher).toContain("status: 'failed'");
+    expect(emailConfig).toContain('EMAIL_OUTBOX_DISPATCH_ENABLED');
+    expect(emailConfig).toContain('EMAIL_FROM_ADDRESS');
+    expect(emailConfig).toContain('RESEND_API_KEY');
+    expect(serverEntry).toContain('EmailNotificationDispatcher.Default');
+    expect(serverEntry).toContain('dispatcher.runScheduled');
+    expect(statusTable).toContain('provider dispatch have coverage');
+    expect(statusTable).not.toContain(
+      'provider dispatch still need implementation',
     );
     expect(statusTable).toContain('| Registrations');
     expect(statusTable).toContain('| Blocked');
@@ -306,10 +321,10 @@ describe('stabilization source', () => {
       /unpaid registration transfer now writes\s+a tenant-scoped `registrationTransferred` email outbox record/u,
     );
     expect(source).toMatch(
-      /Those registration lifecycle side effects, plus\s+provider dispatch\/retry for email outbox records, still need implementation/u,
+      /disabled-by-default Resend-backed email outbox dispatcher/u,
     );
     expect(source).toMatch(
-      /Registration confirmation,\s+cancellation, waitlist spot-available, and provider dispatch\/retry remain\s+relaunch blockers/u,
+      /Registration confirmation,\s+cancellation, and waitlist spot-available remain\s+relaunch blockers/u,
     );
   });
 
@@ -324,6 +339,12 @@ describe('stabilization source', () => {
     );
     const financeSpec = readSource(
       'src/server/effect/rpc/handlers/finance/finance.handlers.spec.ts',
+    );
+    const emailDispatcher = readSource(
+      'src/server/email/email-notification-dispatcher.ts',
+    );
+    const receiptApprovalDetail = readSource(
+      'src/app/finance/receipt-approval-detail/receipt-approval-detail.component.ts',
     );
     const statusTable = readSection(
       source,
@@ -343,15 +364,21 @@ describe('stabilization source', () => {
       'enqueues a receipt-reviewed email notification with the review update',
     );
     expect(statusTable).toContain('| Finance/receipts');
-    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('| Stabilized');
     expect(statusTable).toContain(
       'receipt review now enqueues receipt-reviewed email outbox records',
+    );
+    expect(statusTable).toContain(
+      'Resend-backed outbox dispatcher processes pending/failed email records when enabled',
     );
     expect(source).toMatch(
       /receipt review now writes a\s+tenant-scoped `receiptReviewed` email outbox record/u,
     );
+    expect(emailDispatcher).toContain('https://api.resend.com/emails');
+    expect(emailDispatcher).toContain("'pending', 'failed'");
+    expect(receiptApprovalDetail).toContain('Submitter email queued');
     expect(source).toMatch(
-      /provider dispatch\/retry for email outbox\s+records is still missing/u,
+      /review detail page, success\s+feedback, finance docs, and source coverage now say receipt review queues a\s+submitter email/u,
     );
   });
 
@@ -414,7 +441,7 @@ describe('stabilization source', () => {
       'Receipt review should support email notification when a receipt is reviewed.',
     );
     expect(statusTable).toContain('| Finance/receipts');
-    expect(statusTable).toContain('| Blocked');
+    expect(statusTable).toContain('| Stabilized');
     expect(statusTable).toContain(
       'receipt review now enqueues receipt-reviewed email outbox records',
     );
@@ -423,7 +450,7 @@ describe('stabilization source', () => {
       /receipt review now writes a\s+tenant-scoped `receiptReviewed` email outbox record/u,
     );
     expect(source).toMatch(
-      /provider dispatch\/retry for email outbox\s+records is still missing/u,
+      /Resend-backed email outbox dispatcher processes pending\s+and failed rows/u,
     );
   });
 

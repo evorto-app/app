@@ -7,6 +7,10 @@ import {
 } from './cloudflare-images-config';
 import { databaseConfig, type DatabaseConfig } from './database-config';
 import {
+  emailNotificationsConfig,
+  type EmailNotificationsConfig,
+} from './email-notifications-config';
+import {
   type ObjectStorageConfigState,
   objectStorageStateConfig,
 } from './object-storage-config';
@@ -21,6 +25,7 @@ export interface RuntimeConfigShape {
   auth: AuthConfig;
   cloudflareImages: CloudflareImagesConfigState;
   database: DatabaseConfig;
+  emailNotifications: EmailNotificationsConfig;
   objectStorage: ObjectStorageConfigState;
   server: ServerConfig;
   stripe: StripeConfig;
@@ -32,6 +37,7 @@ const runtimeConfigEffect = Effect.gen(function* () {
     auth: yield* authConfig,
     cloudflareImages: yield* cloudflareImagesStateConfig,
     database: yield* databaseConfig,
+    emailNotifications: yield* emailNotificationsConfig,
     objectStorage: yield* objectStorageStateConfig,
     server: yield* serverConfig,
     stripe: yield* stripeConfig,

@@ -188,7 +188,7 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('tenant-specific notification email');
   });
 
-  it('keeps finance receipt docs aligned with manual notification and reimbursement scope', () => {
+  it('keeps finance receipt docs aligned with queued notification and manual reimbursement scope', () => {
     const overviewSource = readSource(
       'tests/docs/finance/finance-overview.doc.ts',
     );
@@ -198,11 +198,9 @@ describe('generated docs source current behavior', () => {
     const combinedSource = `${overviewSource}\n${receiptSource}`;
 
     expect(combinedSource).toContain(
-      'Submitter email notification is still manual in the current relaunch scope.',
+      'queues the submitter email notification for delivery',
     );
-    expect(combinedSource).toContain(
-      'Notify the submitter manually after saving.',
-    );
+    expect(combinedSource).toContain('queues a submitter email after saving');
     expect(combinedSource).toContain(
       'Recording a reimbursement creates the Evorto finance transaction only.',
     );
@@ -212,9 +210,7 @@ describe('generated docs source current behavior', () => {
     expect(combinedSource).toContain(
       'actual money movement remains a manual finance operation',
     );
-    expect(combinedSource).toContain(
-      'it does not send an automatic submitter email yet',
-    );
+    expect(combinedSource).toContain('queues the submitter email for delivery');
     expect(receiptSource).toContain(
       'Expected generated receipt review docs receipt',
     );
