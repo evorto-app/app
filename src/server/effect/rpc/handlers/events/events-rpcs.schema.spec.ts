@@ -52,8 +52,10 @@ describe('events RPC registration status schema', () => {
     expect(() =>
       Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
         addonPurchases: [],
+        eventId: 'event-1',
         guestCount: 0,
         id: 'registration-1',
+        paidTransferCodeAvailable: false,
         paymentPending: false,
         registrationOptionId: 'option-1',
         registrationOptionTitle: 'Participant',
@@ -73,8 +75,10 @@ describe('events RPC registration status schema', () => {
             unitPrice: 500,
           },
         ],
+        eventId: 'event-1',
         guestCount: 0,
         id: 'registration-1',
+        paidTransferCodeAvailable: false,
         paymentPending: false,
         registrationOptionId: 'option-1',
         registrationOptionTitle: 'Participant',

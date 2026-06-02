@@ -13,10 +13,8 @@ import {
   transferCodeRedemptionActionDisabled,
 } from './event-details.component';
 
-const repositoryRoot = new URL('../../../..', import.meta.url).pathname;
-
 const readSource = (sourcePath: string): string =>
-  readFileSync(nodePath.join(repositoryRoot, sourcePath), 'utf8');
+  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
 
 describe('registrationOptionsState', () => {
   it('shows available registration options when at least one option is visible', () => {
