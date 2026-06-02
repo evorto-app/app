@@ -3286,6 +3286,12 @@ fallback rather than a profile discount-card defect.
   captures, or generated product docs for global-admin functionality. The
   unlisted-event user doc still emits the quoted YAML title
   `User: understanding unlisted events`.
+- Current Browser reseed checkpoint: after the full docs baseline left the
+  local `localhost` tenant without the normal visible event list,
+  `bun run db:reset` restored the seeded Docker data. The in-app Browser then
+  opened the generated `BASE_URL` `/events`, showed the expected seeded event
+  list, clicked `Soccer Match 1`, and rendered the event detail with the
+  participant registration card and inclusive VAT label.
 
 ## Review Next
 
