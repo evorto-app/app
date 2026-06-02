@@ -66,6 +66,28 @@ describe('event organize participants query state', () => {
   });
 });
 
+describe('event organize receipts query state', () => {
+  it('guards receipt rows behind loaded event receipt data', () => {
+    const template = readSource(
+      'src/app/events/event-organize/event-organize.html',
+    );
+    const receiptSection = template.slice(
+      template.indexOf('<h2 class="title-large">Receipts</h2>'),
+      template.indexOf('</section>', template.indexOf('receiptsByEventQuery')),
+    );
+
+    expect(receiptSection).toContain('receiptsByEventQuery.isPending()');
+    expect(receiptSection).toContain('receiptsByEventQuery.isError()');
+    expect(receiptSection).toContain('receiptsByEventQuery.isSuccess()');
+    expect(receiptSection).toContain('Failed to load receipts.');
+    expect(receiptSection).toContain(
+      'No receipts submitted for this event yet.',
+    );
+    expect(receiptSection).toContain('receiptsByEventQuery.data().length');
+    expect(receiptSection).not.toContain('receiptsByEventQuery.data()?.length');
+  });
+});
+
 describe('transferParticipantLabel', () => {
   it('shows the participant identity before organizer-assisted transfer', () => {
     expect(

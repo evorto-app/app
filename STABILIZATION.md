@@ -1169,6 +1169,10 @@ the current working direction until a product decision overrides them.
   types, tenant receipt-country settings, invalid amount breakdowns, invalid
   dates, attachment-name fallback, and cents normalization before the submit
   mutation payload is built.
+- **Addressed in this stabilization pass:** the event organizer receipt list now
+  renders empty and receipt-row states only after the event receipt query
+  succeeds, keeping pending and failed receipt reads behind explicit stable
+  states.
 - **Addressed in stabilization pass:** receipt reimbursement recording now
   shares one disabled guard between the queue button and handler so missing
   selections, missing payout details, and mutation-pending writes cannot record
