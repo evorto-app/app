@@ -1,0 +1,61 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "e0e184590807",
+  "session_id": "019e8c4a-fce8-7c63-a3e9-08fd96884c12",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-03T16:06:06.194398Z",
+  "branch": "codex/stabilization-flow-coverage",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "src/app/admin/components/role-form/role-form.component.html",
+    "src/app/admin/role-create/role-create.component.html"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "24f3d4976e1e",
+  "token_usage": {
+    "input_tokens": 12381038,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 351092224,
+    "output_tokens": 728016,
+    "api_call_count": 2631
+  },
+  "session_metrics": {
+    "turn_count": 61
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-03T16:06:05.384454Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 42,
+    "human_modified": 3,
+    "human_removed": 0,
+    "total_committed": 42,
+    "total_lines_changed": 47,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
