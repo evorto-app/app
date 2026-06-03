@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "56317aa5e4fd",
+  "strategy": "manual-commit",
+  "branch": "codex/stabilization-flow-coverage",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "tests/specs/admin/roles-viewports.spec.ts",
+    "tests/specs/events/event-viewports.spec.ts",
+    "tests/specs/finance/finance-viewports.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/56/317aa5e4fd/0/metadata.json",
+      "transcript": "/56/317aa5e4fd/0/full.jsonl",
+      "content_hash": "/56/317aa5e4fd/0/content_hash.txt",
+      "prompt": "/56/317aa5e4fd/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6543924,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 180855168,
+    "output_tokens": 386054,
+    "api_call_count": 1375
+  }
+}
