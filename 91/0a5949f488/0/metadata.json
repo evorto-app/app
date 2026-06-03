@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "910a5949f488",
+  "session_id": "019e8c4a-fce8-7c63-a3e9-08fd96884c12",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-03T17:10:35.811079Z",
+  "branch": "codex/stabilization-flow-coverage",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "51f85fe2457c",
+  "token_usage": {
+    "input_tokens": 13007435,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 381329152,
+    "output_tokens": 770434,
+    "api_call_count": 2871
+  },
+  "session_metrics": {
+    "turn_count": 61
+  }
+}
