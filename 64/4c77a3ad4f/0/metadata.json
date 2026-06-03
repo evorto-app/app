@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "644c77a3ad4f",
+  "session_id": "019e8c4a-fce8-7c63-a3e9-08fd96884c12",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-03T10:05:41.470899Z",
+  "branch": "codex/stabilization-flow-coverage",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "tests/test-inventory.md",
+    "tests/test-inventory.md",
+    "src/app/admin/admin-overview/admin-overview.component.html"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "24f3d4976e1e",
+  "token_usage": {
+    "input_tokens": 2027646,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 60404992,
+    "output_tokens": 120679,
+    "api_call_count": 462
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-03T10:05:41.341332Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 273,
+    "human_modified": 15,
+    "human_removed": 0,
+    "total_committed": 273,
+    "total_lines_changed": 319,
+    "agent_percentage": 0,
+    "metric_version": 2
+  }
+}
