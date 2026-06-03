@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "4a307c127eb0",
+  "session_id": "019e8c4a-fce8-7c63-a3e9-08fd96884c12",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-03T15:09:08.593953Z",
+  "branch": "codex/stabilization-flow-coverage",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/finance/finance-overview/finance-overview.component.html",
+    "src/app/admin/user-list/user-list.component.html",
+    "src/app/admin/role-list/role-list.component.html"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "24f3d4976e1e",
+  "token_usage": {
+    "input_tokens": 11305491,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 316167296,
+    "output_tokens": 667355,
+    "api_call_count": 2384
+  },
+  "session_metrics": {
+    "turn_count": 58
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-03T15:09:07.839207Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 352,
+    "human_modified": 6,
+    "human_removed": 0,
+    "total_committed": 352,
+    "total_lines_changed": 998,
+    "agent_percentage": 0,
+    "metric_version": 2
+  }
+}
