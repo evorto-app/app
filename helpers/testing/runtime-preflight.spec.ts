@@ -163,6 +163,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['docker:ps']).toBe(
       'bun run env:runtime && dotenv -c dev -- docker compose ps',
     );
+    expect(packageJson.scripts['docker:reset']).toBe(
+      'bun run docker:check && dotenv -c dev -- docker compose down',
+    );
 
     for (const scriptName of [
       'docker:start',
@@ -170,7 +173,10 @@ describe('evaluateRuntimePreflight', () => {
       'docker:start:foreground',
     ]) {
       expect(packageJson.scripts[scriptName]).toMatch(
-        /^bun run docker:check && dotenv -c dev -- docker compose down && /,
+        /^bun run docker:reset && /,
+      );
+      expect(packageJson.scripts[scriptName]).not.toContain(
+        'docker compose down && dotenv -c dev -- docker compose up',
       );
     }
 
@@ -992,7 +998,7 @@ describe('evaluateRuntimePreflight', () => {
     const normalizedStabilization = stabilization.replaceAll(/\s+/g, ' ');
 
     expect(normalizedStabilization).toContain(
-      'Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker stack start/resume/webServer/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.',
+      'Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker stack start/reset/resume/webServer/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.',
     );
 
     const visibleScriptGroups = [
@@ -1005,7 +1011,13 @@ describe('evaluateRuntimePreflight', () => {
         'test:e2e:layout-helper',
         'test:e2e:public-general-viewports',
       ],
-      ['docker:start', 'docker:resume', 'docker:webserver', 'docker:stop'],
+      [
+        'docker:start',
+        'docker:reset',
+        'docker:resume',
+        'docker:webserver',
+        'docker:stop',
+      ],
       ['db:push', 'db:reset', 'db:migrate'],
       ['deps:update:angular', 'deps:update:drizzle'],
       ['ops:stripe:listen', 'ops:sentry:sourcemaps'],

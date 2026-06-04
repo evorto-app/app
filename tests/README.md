@@ -55,6 +55,12 @@ bun run lint
 - Check whether required local Docker secrets are available:
   `bun run docker:check`
 - Show the generated worktree Compose project status: `bun run docker:ps`
+- Attempt bounded cleanup when generated Compose project containers are stuck
+  in `created`, `dead`, `removing`, or unhealthy state:
+  `bun run docker:clean-stale`. If cleanup cannot stop an unhealthy running
+  generated container, shut down the generated project or restart Docker Desktop
+  before Browser verification.
+- Reset the local runtime stack after Docker preflight: `bun run docker:reset`
 - Start the local runtime stack: `bun run docker:start`
 - Resume an existing local runtime stack without recreating containers:
   `bun run docker:resume`
@@ -134,8 +140,8 @@ bun run lint
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 - Starting the Docker stack with `docker:start`, `docker:start:foreground`, or
   `docker:start:watch` is destructive for local database state by design because
-  those scripts run `docker compose down` and then `db-setup` clears the
-  `public` schema, pushes schema, and resets/seeds the Docker database.
+  those scripts run `docker:reset`, then `db-setup` clears the `public` schema,
+  pushes schema, and resets/seeds the Docker database.
   Playwright `webServer` uses
   `docker:webserver`, which still builds and starts the Compose stack in the
   foreground but does not force a Compose teardown first. Use `docker:resume`

@@ -19,10 +19,10 @@ into `.env` or exported before Docker can start. `bun run docker:check` reports
 which required values are still missing before any Docker containers are
 stopped, reset, or started.
 
-`bun run docker:start` intentionally resets the Docker-backed local runtime.
-When a Docker stack has already been initialized and you only need to bring
-stopped containers back, use `bun run docker:resume` to avoid container
-recreation.
+`bun run docker:start` intentionally resets the Docker-backed local runtime via
+`bun run docker:reset` before rebuilding. When a Docker stack has already been
+initialized and you only need to bring stopped containers back, use
+`bun run docker:resume` to avoid container recreation.
 
 Use `bun run docker:ps` to inspect the generated worktree Compose project.
 Bare `docker compose ps` does not load `.env.dev`, so it can show an empty

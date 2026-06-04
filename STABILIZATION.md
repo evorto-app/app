@@ -432,9 +432,10 @@ the current working direction until a product decision overrides them.
   non-destructive start/restart.
   - Option A: `docker:start` keeps resetting data.
   - Option B: `docker:start` is non-destructive; add `docker:reset`.
-  - Option C: keep current behavior but rename it to make reset explicit.
-  - Decision: Option A. `docker:start` may reset local data because the intended
-    workflow is to seed enough data to get going from zero.
+  - Option C: keep current behavior but name the reset subcommand explicitly.
+  - Decision: Option C. `docker:start` may reset local data because the intended
+    workflow is to seed enough data to get going from zero, and the shared
+    destructive step is now visible as `bun run docker:reset`.
 - **Finance docs in CI baseline:** include finance docs in the normal docs
   baseline now that finance behavior and documentation have been rewritten to
   current behavior.
@@ -1879,8 +1880,8 @@ the current working direction until a product decision overrides them.
 
 ### Current Behavior
 
-- The repo is Bun-first. `packageManager`, the Docker base image, local Bun, and CI setup now agree on Bun `1.3.11`.
-- Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs, Docker stack start/resume/webServer/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.
+- The repo is Bun-first. `packageManager`, the Docker base image, local Bun, and CI setup now agree on Bun `1.3.11`; local source coverage keeps the package manager, Docker, Compose, and GitHub workflow Bun versions aligned.
+- Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker stack start/reset/resume/webServer/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup. Local source coverage now fails if any of those command groups disappear from the visible package-script surface.
 - Local runtime config uses `.env.dev.local` for tracked shared defaults, `.env.dev` for generated worktree-specific values, and `.env` for untracked developer secrets.
 - `bun run env:runtime` writes `.env.dev` with worktree-specific `COMPOSE_PROJECT_NAME`, Neon Local port, MinIO ports, `BASE_URL`, and local `DATABASE_URL`.
 - Local `test:e2e`, `test:e2e:ui`, `test:e2e:integration`,
@@ -1914,9 +1915,12 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** CI e2e docs no longer skip `@finance` docs in the baseline docs run, so rewritten finance docs participate in the normal documentation artifact.
 - **Addressed in stabilization pass:** Playwright `webServer` now runs
   `docker:webserver`, a foreground Compose command that keeps the preflight and
-  build/start behavior but does not force `docker compose down` first.
-- **Addressed in stabilization pass:** `bun run docker:resume` now provides a non-recreating resume path for an already initialized Docker stack, while `docker:start`, `docker:start:foreground`, and `docker:start:watch` keep the explicit reset-from-zero behavior.
-- **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. Docker now writes the same Font Awesome registry scopes as the checked-in `.npmrc`, so premium and brand icon packages can use the same build-secret token path. It also reports local tool readiness and warns when Playwright browsers are missing without blocking Docker start. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. After reusing the main checkout's untracked `.env` secrets locally, this worktree's Docker preflight passes with all required runtime variables present.
+  build/start behavior but does not force `docker compose down` first. The
+  command also removes stopped/created service containers before startup, so a
+  timed-out Playwright webServer attempt cannot leave a stale created Compose
+  stack that blocks the next focused run.
+- **Addressed in stabilization pass:** `bun run docker:resume` now provides a non-recreating resume path for an already initialized Docker stack, while `docker:start`, `docker:start:foreground`, and `docker:start:watch` keep the explicit reset-from-zero behavior through the shared `bun run docker:reset` preflight/teardown step.
+- **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, and session variables before Docker Compose mutates local containers. It also reports local tool readiness and warns when Playwright browsers are missing without blocking Docker start. Font Awesome icons now install from public npm packages only, so local, Docker, Copilot, and E2E dependency installs no longer rely on a project `.npmrc` or private Font Awesome registry token. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. After reusing the main checkout's untracked `.env` secrets locally, this worktree's required runtime variables are present. Earlier Docker preflight retries failed only at the disposable container start-path probe because the host Docker engine could inspect config but could not start containers; the current running-Docker Browser evidence in the review queue supersedes that historical local blocker.
 - **Addressed in this stabilization pass:** Docker `db-setup` now drops/recreates the `public` schema before `drizzle-kit push --force`, preventing Drizzle's non-TTY confirmation prompt from blocking reset-from-zero startup on older local Neon branch state.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now relies on the Compose `db-setup` service instead of running a separate host `bun run db:push` step, so CI uses the same non-interactive Docker schema reset path as local Docker startup.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now exports and validates `ISSUER_BASE_URL` and `SECRET` before starting the Docker app container, matching the auth config fields required for runtime startup. CI uses the tracked dev Auth0 issuer and a disposable CI session secret as defaults when repository settings do not override them.
@@ -2381,12 +2385,15 @@ implement those decisions or explicitly revise them there before changing code.
 - Migration docs alignment pass: refreshed `migration/README.md` to document
   the current global migration-step phase, including idempotent DDL cleanup for
   legacy physical fields, and removed stale conductor/track guidance.
-- Docker resume command pass: added `bun run docker:resume` as a non-recreating
-  path for already initialized Docker stacks and documented the difference from
-  reset-from-zero `docker:start*` commands.
-- Font Awesome registry contract pass: pinned that both the premium duotone icon
-  package and the brand icon package stay installed through the shared Font
-  Awesome registry path used by local installs and Docker builds.
+- Docker reset/resume command pass: added `bun run docker:reset` as the shared
+  destructive preflight/teardown step for reset-from-zero Docker starts, kept
+  `docker:start*` behavior unchanged through that subcommand, added
+  `bun run docker:resume` as a non-recreating path for already initialized
+  Docker stacks, and documented the difference.
+- Font Awesome public icon dependency pass: removed the private Duotone registry
+  package and project `.npmrc`, kept brand icons on the public package, and
+  routed app icon imports through `@shared/icons/fontawesome` so local, Docker,
+  Copilot, and E2E installs do not require `FONT_AWESOME_TOKEN`.
 - Playwright browser-channel pass: made bundled Chromium the default local/CI
   browser channel while adding `E2E_BROWSER_CHANNEL=chrome` as an explicit
   system-Chrome opt-in for exploratory local runs without a browser-cache
@@ -5204,7 +5211,7 @@ database/auth setup and open `/admin/settings`, `/global-admin/tenants`, and
 needs logged-in starting points without running the full authenticated viewport
 pack. Important entrypoints remain visible in `package.json`: app build/dev,
 unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker
-stack start/resume/webServer/stop, database commands, dependency updates,
+stack start/reset/resume/webServer/stop, database commands, dependency updates,
 Stripe/Sentry ops, theme generation, and receipt-image cleanup. The runtime
 preflight source guard now protects the focused authenticated viewport, public
 General viewport, layout-helper, and authenticated MCP planner scripts as

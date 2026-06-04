@@ -1103,7 +1103,10 @@ describe('stabilization source', () => {
     expect(ciStartDockerStackHelper).toContain('return "${start_status}"');
     expect(endToEndWorkflow).not.toContain('compose_status=$?');
     expect(packageJson).toContain(
-      '"docker:start": "bun run docker:check && dotenv -c dev -- docker compose down && dotenv -c dev -- docker compose up --build -d"',
+      '"docker:reset": "bun run docker:check && dotenv -c dev -- docker compose down"',
+    );
+    expect(packageJson).toContain(
+      '"docker:start": "bun run docker:reset && dotenv -c dev -- docker compose up --build -d"',
     );
     expect(endToEndWorkflow).not.toContain('docker compose up -d evorto');
     expect(ciStartDockerStackHelper).toContain(
