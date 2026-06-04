@@ -722,6 +722,14 @@ describe('generated docs source current behavior', () => {
 
     expect(source).toContain('Category docs ${seedDate.getTime()}');
     expect(source).toContain(
+      'Template category create form with the category title field highlighted',
+    );
+    expect(source).toContain('New template category row after saving');
+    expect(source).toContain(
+      'Template category edit form with the existing title loaded',
+    );
+    expect(source).toContain('Updated template category row after renaming');
+    expect(source).toContain(
       'Expected generated category docs to persist the category',
     );
     expect(source).toContain(

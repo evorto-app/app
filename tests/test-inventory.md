@@ -92,6 +92,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Templates and categories:
   - `docs/templates/templates.doc.ts`
   - `docs/template-categories/categories.doc.ts`
+    documents the category create/edit form states and saved/renamed rows with
+    focused screenshots plus deterministic persistence checks
   - `specs/templates/**`
   - template create/detail/tax-rate specs that fail explicitly when seeded
     template categories/templates or reusable attachment/question readbacks are

@@ -44,6 +44,12 @@ Click on _Create category_ to create a new category.`,
     await expect(
       page.getByRole('textbox', { name: 'Category title' }),
     ).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      page.getByRole('textbox', { name: 'Category title' }),
+      page,
+      'Template category create form with the category title field highlighted',
+    );
     await testInfo.attach('markdown', {
       body: `
 You can now enter the name for your category and save it. The new category will be created and added to the list.`,
@@ -58,6 +64,12 @@ You can now enter the name for your category and save it. The new category will 
       .filter({ hasText: categoryTitle })
       .first();
     await expect(categoryRow).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      categoryRow,
+      page,
+      'New template category row after saving',
+    );
 
     const createdCategory =
       await database.query.eventTemplateCategories.findFirst({
@@ -84,16 +96,27 @@ After you have changed the name, click on _Save_ to save your changes.`,
     await expect(
       page.getByRole('textbox', { name: 'Category title' }),
     ).toHaveValue(categoryTitle);
+    await takeScreenshot(
+      testInfo,
+      page.getByRole('textbox', { name: 'Category title' }),
+      page,
+      'Template category edit form with the existing title loaded',
+    );
     await page
       .getByRole('textbox', { name: 'Category title' })
       .fill(updatedCategoryTitle);
     await page.getByRole('button', { name: 'Save' }).click();
-    await expect(
-      categoriesTable
-        .getByRole('row')
-        .filter({ hasText: updatedCategoryTitle })
-        .first(),
-    ).toBeVisible();
+    const updatedCategoryRow = categoriesTable
+      .getByRole('row')
+      .filter({ hasText: updatedCategoryTitle })
+      .first();
+    await expect(updatedCategoryRow).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      updatedCategoryRow,
+      page,
+      'Updated template category row after renaming',
+    );
 
     const updatedCategory =
       await database.query.eventTemplateCategories.findFirst({
