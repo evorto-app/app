@@ -948,6 +948,44 @@ describe('evaluateRuntimePreflight', () => {
     expect(serverSource).not.toContain("if (request.method === 'GET') {");
   });
 
+  it('keeps the documented command surface visible in package scripts', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+    const stabilization = fs.readFileSync(
+      path.join(process.cwd(), 'STABILIZATION.md'),
+      'utf8',
+    );
+    const normalizedStabilization = stabilization.replaceAll(/\s+/g, ' ');
+
+    expect(normalizedStabilization).toContain(
+      'Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker stack start/resume/webServer/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.',
+    );
+
+    const visibleScriptGroups = [
+      ['build:app', 'build:watch', 'dev:start'],
+      ['test:unit', 'test:unit:server'],
+      ['test:e2e', 'test:e2e:docs', 'test:e2e:docs:publish'],
+      [
+        'test:e2e:authenticated-viewports',
+        'test:e2e:mcp-browser-authenticated-planner',
+        'test:e2e:layout-helper',
+        'test:e2e:public-general-viewports',
+      ],
+      ['docker:start', 'docker:resume', 'docker:webserver', 'docker:stop'],
+      ['db:push', 'db:reset', 'db:migrate'],
+      ['deps:update:angular', 'deps:update:drizzle'],
+      ['ops:stripe:listen', 'ops:sentry:sourcemaps'],
+      ['ui:theme:generate', 'ui:theme:generate:esn'],
+      ['test:cleanup:receipt-images', 'test:cleanup:receipt-images:dry-run'],
+    ];
+
+    for (const scriptName of visibleScriptGroups.flat()) {
+      expect(packageJson.scripts).toHaveProperty(scriptName);
+      expect(packageJson.scripts[scriptName]?.trim()).not.toBe('');
+    }
+  });
+
   it('keeps Playwright package scripts on the generated runtime environment path', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
@@ -959,6 +997,10 @@ describe('evaluateRuntimePreflight', () => {
       'test:e2e:integration',
       'test:e2e:create-account',
       'test:e2e:esncard-provider',
+      'test:e2e:authenticated-viewports',
+      'test:e2e:mcp-browser-authenticated-planner',
+      'test:e2e:layout-helper',
+      'test:e2e:public-general-viewports',
       'test:e2e:docs',
       'test:e2e:docs:publish',
     ]) {
@@ -1004,6 +1046,39 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(packageJson.scripts['test:e2e:esncard-provider']).toContain(
       "--grep '@esncard-provider'",
+    );
+    expect(packageJson.scripts['test:e2e:authenticated-viewports']).toContain(
+      'tests/specs/admin/global-admin-tenants.spec.ts',
+    );
+    expect(packageJson.scripts['test:e2e:authenticated-viewports']).toContain(
+      '--workers=1',
+    );
+    expect(
+      packageJson.scripts['test:e2e:mcp-browser-authenticated-planner'],
+    ).toContain('tests/setup/mcp-browser-authenticated.seed.ts');
+    expect(
+      packageJson.scripts['test:e2e:mcp-browser-authenticated-planner'],
+    ).toContain('--project=mcp-browser-authenticated-planner');
+    expect(packageJson.scripts['test:e2e:layout-helper']).toContain(
+      'NO_WEBSERVER=true',
+    );
+    expect(packageJson.scripts['test:e2e:layout-helper']).toContain(
+      'tests/specs/smoke/page-layout-helper.test.ts',
+    );
+    expect(packageJson.scripts['test:e2e:layout-helper']).toContain(
+      '--no-deps',
+    );
+    expect(packageJson.scripts['test:e2e:public-general-viewports']).toContain(
+      'NO_WEBSERVER=true',
+    );
+    expect(packageJson.scripts['test:e2e:public-general-viewports']).toContain(
+      'tests/specs/smoke/public-general-viewports.spec.ts',
+    );
+    expect(packageJson.scripts['test:e2e:public-general-viewports']).toContain(
+      '--workers=1',
+    );
+    expect(packageJson.scripts['test:e2e:public-general-viewports']).toContain(
+      '--no-deps',
     );
   });
 

@@ -837,6 +837,19 @@ provider outcomes without live identifiers.
 - Playwright list/discovery output is intentionally readable:
   `helpers/testing/playwright-skip-inventory.spec.ts` guards that real spec/doc
   titles no longer include placeholder `@track`, `@req`, or `@doc` metadata.
+- Local workflow entrypoints stay visible in `package.json` for app build/dev,
+  unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker
+  start/resume/webServer/stop, database commands, dependency updates,
+  Stripe/Sentry ops, theme generation, and receipt-image cleanup.
+  `helpers/testing/runtime-preflight.spec.ts` guards that command surface so
+  core workflows do not drift into hidden helper-only paths.
+- The same runtime-preflight source coverage keeps the configured Bun version
+  aligned across `package.json`, Docker, Compose-managed Bun services, and
+  GitHub workflows.
+- `helpers/testing/remove-stale-compose-containers.spec.ts` guards generated
+  Compose cleanup target detection for unhealthy Compose JSON health, unhealthy
+  Docker `ps` status text fallback, stale created/dead states, healthy running
+  exclusions, and duplicate target de-duplication.
 - `docs/users/create-account.doc.ts` and
   `specs/profile/create-account.spec.ts` are the current Auth0
   Management-gated integration paths. The doc covers the generated walkthrough;

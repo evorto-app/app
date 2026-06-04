@@ -5184,9 +5184,16 @@ database/auth setup and open `/admin/settings`, `/global-admin/tenants`, and
 `/profile` with the admin, global-admin, and regular-user storage states. Use
 `bun run test:e2e:mcp-browser-authenticated-planner` when MCP Browser planning
 needs logged-in starting points without running the full authenticated viewport
-pack. The next stabilization work should continue with small cleanup commits
-around evidence drift, relaunch-scope watchpoints, Browser setup recovery, and
-richer authenticated Browser evidence as those surfaces change. ESNcard provider
+pack. Important entrypoints remain visible in `package.json`: app build/dev,
+unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker
+stack start/resume/webServer/stop, database commands, dependency updates,
+Stripe/Sentry ops, theme generation, and receipt-image cleanup. The runtime
+preflight source guard now protects the focused authenticated viewport, public
+General viewport, layout-helper, and authenticated MCP planner scripts as
+generated-env entrypoints so local stabilization reruns stay simple and
+discoverable. The next stabilization work should continue with small cleanup
+commits around evidence drift, relaunch-scope watchpoints, and richer
+authenticated Browser evidence as those surfaces change. ESNcard provider
 add/refresh/remove outcomes now use deterministic ESNcard provider test mode.
 Event archival data-model support now exists as a tenant-scoped
 non-personal snapshot model; automatic archival remains out of scope without an
