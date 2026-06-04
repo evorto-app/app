@@ -91,12 +91,33 @@ bun run lint
   authenticated checks with `APP_HOST_PORT=4200 bun run docker:start` unless the
   generated worktree port has also been added to the Auth0 application.
 - Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default. Use `bun run docker:ps` rather than bare `docker compose ps` when checking a worktree stack because the generated `COMPOSE_PROJECT_NAME` must be loaded from `.env.dev`.
-- `bun run docker:check` fails before Docker Compose mutates local containers
-  when required local runtime variables are missing. The check covers Neon
-  Local, Auth0, Stripe, the application session secret, and Font Awesome package
-  registry access for the premium and brand icon packages. It also reports Bun,
-  Docker Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright
-  browser cache status. ESNcard provider coverage uses tenant-scoped
+- `bun run dev:start` runs `bun run dev:check` before Angular starts. If the
+  generated local `DATABASE_URL` points at a closed Neon Local port, the
+  preflight fails instead of starting a dev server that returns SSR HTTP 500
+  pages during Browser review. The dev server binds to `0.0.0.0` so localhost
+  and IPv4 loopback checks reach the same generated `BASE_URL` once the database
+  runtime is available.
+- `bun run docker:check` fails before Docker Compose mutates local app
+  containers when required local runtime variables are missing. The check covers
+  Neon Local, Auth0, Stripe, and the application session secret. It also reports
+  Bun, Docker Compose, Compose config, a disposable Alpine container start path,
+  Playwright CLI, `.env.dev`, and Playwright browser cache status. If the
+  disposable container start probe times out, Docker can inspect local
+  configuration but cannot start containers; Browser verification and
+  Docker-backed Playwright are blocked below the app tooling layer until Docker
+  Desktop or the Docker engine recovers. The preflight gives that probe a
+  bounded cleanup window before returning so the disposable
+  `evorto-runtime-preflight-*` container is removed when Docker removal is still
+  responsive. Font Awesome icons install from public npm packages only, so
+  local, Docker, and CI dependency installs must not require
+  `FONT_AWESOME_TOKEN` or a project `.npmrc`. Codex setup also writes the
+  temporary public Font Awesome npm user config before `bun install` and reuses
+  the Bun package cache. CI workflows call
+  `helpers/testing/prepare-public-fontawesome-ci.sh` for the same public
+  registry override and private-package guard. CI also persists the Docker BuildKit
+  `bun-install-cache` mount as a separate `buildkit-bun-cache` Actions cache so
+  Docker rebuilds do not repeatedly fetch public Font Awesome packages when
+  normal layer caches miss. ESNcard provider coverage uses tenant-scoped
   deterministic test mode, so Docker startup no longer depends on live ESNcard
   identifiers. Missing Playwright browsers are warnings
   because they affect Playwright runs, not Docker startup.

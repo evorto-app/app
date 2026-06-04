@@ -313,6 +313,13 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), '.github/workflows/copilot-setup-steps.yml'),
       'utf8',
     );
+    const fontAwesomeCiHelper = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        'helpers/testing/prepare-public-fontawesome-ci.sh',
+      ),
+      'utf8',
+    );
     const dockerfile = fs.readFileSync(
       path.join(process.cwd(), 'Dockerfile'),
       'utf8',
@@ -582,30 +589,30 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(workflow).not.toContain('bunx playwright');
     expect(workflow).toContain('Restore Docker build cache');
-    expect(workflow).toContain('Force public Font Awesome registry');
-    expect(workflow).toContain('Validate public Font Awesome dependencies');
-    expect(workflow).toContain(
-      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+    expect(workflow).toContain('Prepare public Font Awesome registry');
+    expect(
+      workflow.match(
+        /run: bash helpers\/testing\/prepare-public-fontawesome-ci\.sh/g,
+      )?.length ?? 0,
+    ).toBe(2);
+    expect(fontAwesomeCiHelper).toContain('Repository .npmrc is not supported');
+    expect(fontAwesomeCiHelper).toContain(
+      "privateRegistry = ['npm', 'fontawesome', 'com'].join('.')",
     );
-    expect(workflow).toContain(
+    expect(fontAwesomeCiHelper).toContain(
       String.raw`const privatePackage = /@fortawesome\/(?:duotone|pro|sharp)[^"'\s]*/u;`,
     );
-    expect(workflow).toContain(
+    expect(fontAwesomeCiHelper).toContain(
       'Font Awesome must stay on free public npm packages in CI.',
     );
-    expect(workflow).toContain(
-      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
+    expect(fontAwesomeCiHelper).toContain(
+      'npm_config_userconfig="${RUNNER_TEMP:-/tmp}/npmrc-public-fontawesome"',
     );
-    expect(workflow).toContain(
+    expect(fontAwesomeCiHelper).toContain(
       "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
     );
-    expect(workflow).toContain(
-      'echo "NPM_CONFIG_USERCONFIG=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
-    );
-    expect(workflow).toContain(
-      'echo "npm_config_userconfig=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
-    );
-    expect(workflow).toContain('Repository .npmrc is not supported');
+    expect(fontAwesomeCiHelper).toContain('NPM_CONFIG_USERCONFIG=');
+    expect(fontAwesomeCiHelper).toContain('npm_config_userconfig=');
     expect(workflow).toContain(
       'DOCKER_BUILD_CACHE_DIR: /tmp/evorto-docker-build-cache',
     );
@@ -664,16 +671,10 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).not.toContain('FONT_AWESOME_TOKEN');
     expect(workflow).not.toContain('npm.fontawesome.com');
     expect(copilotSetupWorkflow).toContain(
-      'Force public Font Awesome registry',
+      'Prepare public Font Awesome registry',
     );
     expect(copilotSetupWorkflow).toContain(
-      'Validate public Font Awesome dependencies',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
-    );
-    expect(copilotSetupWorkflow).toContain(
-      'Font Awesome must stay on free public npm packages in CI.',
+      'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
     );
     expect(copilotSetupWorkflow).toContain('Restore Bun package cache');
     expect(copilotSetupWorkflow).toContain('Restore Bun dependency tree');
@@ -688,21 +689,6 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(copilotSetupWorkflow).not.toContain('FONT_AWESOME_TOKEN');
     expect(copilotSetupWorkflow).not.toContain('npm.fontawesome.com');
-    expect(copilotSetupWorkflow).toContain(
-      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
-    );
-    expect(copilotSetupWorkflow).toContain(
-      'echo "NPM_CONFIG_USERCONFIG=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      'echo "npm_config_userconfig=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      'Repository .npmrc is not supported',
-    );
     expect(copilotSetupWorkflow).toContain('Restore Bun package cache');
     expect(copilotSetupWorkflow).toContain('id: bun-package-cache');
     expect(copilotSetupWorkflow).toContain('path: ~/.bun/install/cache');

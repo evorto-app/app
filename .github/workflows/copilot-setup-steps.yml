@@ -49,7 +49,7 @@ jobs:
         with:
           bun-version: "1.3.11"
 
-      - name: Enforce public Font Awesome dependencies
+      - name: Prepare public Font Awesome registry
         run: bash helpers/testing/prepare-public-fontawesome-ci.sh
 
       - name: Restore Bun package cache

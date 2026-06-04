@@ -681,7 +681,55 @@ provider outcomes without live identifiers.
     coverage now fails if app templates or components reintroduce direct
     Material icon elements, `MatIconModule`, or new Material icon-package
     imports outside the existing root bootstrap registry exception, preserving
-    the shared premium/brand icon package path.
+    the shared public Font Awesome package path. The same source guard rejects
+    unlabeled `mat-icon-button` controls, so icon-only Material actions must
+    expose an accessible `aria-label`, `aria-labelledby`, or `title`.
+    CI cache coverage also keeps the E2E matrix behind a `warm-ci-caches` job
+    so Bun package, dependency-tree, and Docker BuildKit cache misses are warmed
+    once before Playwright shards run. The same guard pins Docker Buildx setup
+    and separate BuildKit cache scopes for the `db-setup` and `evorto` images;
+    CI also explicitly enables Docker BuildKit before Compose builds. The
+    Dockerfile writes the public Font Awesome npm user config before container
+    installs, locks the shared BuildKit Bun cache mount, and derives the
+    production dependency stage from the cache-warmed build stage with an
+    offline production install.
+    `helpers/testing/prepare-public-fontawesome-ci.sh` centralizes the GitHub
+    Actions public registry override and private Font Awesome dependency guard.
+    Source coverage now fails if a new GitHub workflow adds `bun install`
+    without the same public Font Awesome registry override and Bun cache
+    protections, or if a workflow runs a Docker Compose build without the CI
+    build-cache override.
+    E2E matrix jobs and Copilot setup also fail on a missing warmed
+    dependency-tree cache instead of running their own registry installs,
+    keeping Font Awesome package downloads limited to the serial cache warmer.
+    The Bun package cache and dependency-tree cache are keyed by the same
+    package, lockfile, Bun config, and patch inputs, so registry-scope changes
+    cannot reuse a stale package cache.
+    The E2E matrix is also capped at one active suite so Docker/BuildKit cache
+    misses cannot fan out across the functional/docs jobs.
+    CI dependency-install retries also preserve `~/.bun/install/cache` instead
+    of clearing it before retrying, reducing repeated public Font Awesome
+    downloads after transient install failures. The install steps also print
+    package-cache and dependency-tree cache-hit values before the skip decision,
+    so CI logs make Font Awesome bandwidth regressions traceable to cache misses
+    or unexpected install paths. The Codex setup environment no longer copies a
+    main-checkout `.npmrc`, no longer requires `FONT_AWESOME_TOKEN`, writes the
+    same temporary public Font Awesome npm user config before `bun install`, and
+    installs through `~/.bun/install/cache`.
+    Local design-token coverage now also fails if app UI files introduce
+    hardcoded hex/rgb/hsl color literals or arbitrary color utilities instead
+    of Material/Tailwind semantic color tokens, and it fails on app UI
+    letter-spacing utilities/declarations or viewport-scaled text/font-size
+    rules so typography stays stable across viewport coverage. The same source
+    guard rejects no-wrap, truncate, and line-clamp utilities in app UI files so
+    mobile labels wrap instead of clipping, and rejects full viewport-width
+    sizing so app layouts do not reintroduce narrow-mobile horizontal overflow.
+    The same app-source guard rejects direct `console.*` or `debugger` usage
+    instead of scoped browser loggers, and keeps app card surfaces on semantic
+    Material/Tailwind containers instead of reintroducing Angular Material card
+    shells. It also rejects decorative gradient/orb backgrounds, CSS gradient
+    declarations, and large decorative blur utilities so app surfaces stay on
+    Material/Tailwind tokens instead of drifting into non-Material decoration.
   - Keep server authorization checks on `includesPermission` or
     `RpcAccess.ensurePermission`; local source coverage now fails if RPC/HTTP
     handlers reintroduce raw permission-array includes checks.

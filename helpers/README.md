@@ -150,14 +150,50 @@ driven by Auth0 app metadata claims, not tenant roles.
 
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
-containers, including Neon Local, Auth0, Stripe, the app session secret, and
-Font Awesome package registry access for premium and brand icons. It also
-reports local tooling readiness such as Bun, Docker Compose, Compose config
-validation, Playwright CLI availability, and whether the matching Playwright
-browser cache is installed. Required and optional variables that are already
-available are listed without printing their values, so token paths such as
-Font Awesome registry access can be confirmed even when another required secret
-still blocks startup. The Docker
+containers, including Neon Local, Auth0, Stripe, and the app session secret. It
+also reports local tooling readiness such as Bun, Docker Compose, Compose config
+validation, the Docker container start path through a disposable Alpine
+container, generated Compose project container state, Playwright CLI
+availability, and whether the matching Playwright browser cache is installed.
+If service containers for the generated project are stuck in `created`, `dead`,
+or `removing`, the preflight fails before Docker startup can hang while trying
+to start or tear down them. The same check also fails if the generated Compose
+project container inspection times out, because uninspectable project state can
+make `docker compose up/down` hang before Browser verification can run.
+If the disposable Alpine container start probe times out, Docker can inspect
+local configuration but cannot start containers; Browser verification and
+Docker-backed Playwright are blocked below the app tooling layer until Docker
+Desktop or the Docker engine recovers. The preflight gives that probe a bounded
+cleanup window before returning so the disposable `evorto-runtime-preflight-*`
+container is removed when Docker removal is still responsive.
+Run `bun run docker:clean-stale` to attempt bounded cleanup before retrying
+Docker startup; it uses the generated `COMPOSE_PROJECT_NAME`, falls back to the
+Docker `com.docker.compose.project` label when Compose inspection hangs, and
+times out Docker inspect/remove subprocesses instead of relying on GNU
+`timeout`. The cleanup removes stale or unhealthy containers one at a time, so
+one stuck container does not prevent reporting or removing the remaining
+generated-project containers. If bounded cleanup cannot stop an unhealthy
+running generated container, shut down the generated project with Docker Compose
+before retrying; if that shutdown also times out, restart Docker Desktop or the
+Docker engine because container removal is blocked below the app tooling layer.
+Required and optional variables that are already available are listed without
+printing their values, so secret availability can be confirmed even when another
+required secret still blocks startup. Font Awesome icons use public npm packages
+only; Docker and CI installs must not depend on a private Font Awesome registry
+token or project `.npmrc`. CI install retries preserve the restored Bun package
+cache instead of clearing it before retrying, so transient failures do not
+force another Font Awesome package download.
+`helpers/testing/prepare-public-fontawesome-ci.sh` centralizes the GitHub
+Actions public registry override and private Font Awesome dependency guard.
+Docker builds also write a temporary public Font Awesome npm user config before
+container installs and lock the shared BuildKit Bun cache mount so parallel
+install stages do not race the cache. CI persists that `bun-install-cache` mount as a separate
+`buildkit-bun-cache` Actions cache and injects it back into the BuildKit builder
+before Docker Compose builds, because BuildKit layer caches alone do not carry
+`RUN --mount=type=cache` contents between GitHub-hosted runners. Codex setup
+also ignores copied `.npmrc` files, writes the same
+temporary public Font Awesome npm user config, and installs through the Bun
+package cache instead of requiring `FONT_AWESOME_TOKEN`. The Docker
 Stripe webhook sidecar is pinned in `docker-compose.yml`; if
 its logs report a newer CLI version, update that image pin and rebuild with
 `APP_HOST_PORT=4200 bun run docker:start` before relying on paid-flow webhook

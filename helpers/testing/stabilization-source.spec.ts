@@ -1388,6 +1388,9 @@ describe('stabilization source', () => {
     const lockfile = readSource('bun.lock');
     const bunfig = readSource('bunfig.toml');
     const dockerfile = readSource('Dockerfile');
+    const fontAwesomeCiHelper = readSource(
+      'helpers/testing/prepare-public-fontawesome-ci.sh',
+    );
     const composeFile = readSource('docker-compose.yml');
     const ciBuildCacheCompose = readSource(
       '.github/docker-compose.build-cache.yml',
@@ -1429,15 +1432,9 @@ describe('stabilization source', () => {
     expect(uncachedWorkflowDockerBuildLines).toEqual([]);
     for (const workflowPath of workflowDependencyInstallSources) {
       const workflowSource = readSource(workflowPath);
-      expect(workflowSource).toContain('Force public Font Awesome registry');
+      expect(workflowSource).toContain('Prepare public Font Awesome registry');
       expect(workflowSource).toContain(
-        'Validate public Font Awesome dependencies',
-      );
-      expect(workflowSource).toContain(
-        "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
-      );
-      expect(workflowSource).toContain(
-        'Font Awesome must stay on free public npm packages in CI.',
+        'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
       );
       expect(workflowSource).toContain('Restore Bun package cache');
       expect(workflowSource).toContain('id: bun-package-cache');
@@ -1468,13 +1465,19 @@ describe('stabilization source', () => {
       expect(workflowSource).toContain(
         'Save Bun dependency tree from package cache',
       );
-      expect(workflowSource).toContain(
-        'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
-      );
-      expect(workflowSource).toContain('Repository .npmrc is not supported');
       expect(workflowSource).not.toContain('FONT_AWESOME_TOKEN');
       expect(workflowSource).not.toContain('npm.fontawesome.com');
     }
+    expect(fontAwesomeCiHelper).toContain('Repository .npmrc is not supported');
+    expect(fontAwesomeCiHelper).toContain(
+      "privateRegistry = ['npm', 'fontawesome', 'com'].join('.')",
+    );
+    expect(fontAwesomeCiHelper).toContain(
+      'Font Awesome must stay on free public npm packages in CI.',
+    );
+    expect(fontAwesomeCiHelper).toContain(
+      'npm_config_userconfig="${RUNNER_TEMP:-/tmp}/npmrc-public-fontawesome"',
+    );
     expect(copilotSetupWorkflow).toContain(
       'bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache',
     );
@@ -1482,13 +1485,10 @@ describe('stabilization source', () => {
       'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
     );
     expect(copilotSetupWorkflow).toContain(
-      'Force public Font Awesome registry',
+      'Prepare public Font Awesome registry',
     );
     expect(copilotSetupWorkflow).toContain(
-      'Validate public Font Awesome dependencies',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+      'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
     );
     expect(copilotSetupWorkflow).toContain('Restore Bun package cache');
     expect(copilotSetupWorkflow).toContain('Restore Bun dependency tree');
@@ -1609,27 +1609,10 @@ describe('stabilization source', () => {
       'Retrying once without clearing the package cache',
     );
     expect(workflow).not.toContain('bun pm cache rm');
-    expect(workflow).toContain('Force public Font Awesome registry');
-    expect(workflow).toContain('Validate public Font Awesome dependencies');
+    expect(workflow).toContain('Prepare public Font Awesome registry');
     expect(workflow).toContain(
-      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+      'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
     );
-    expect(workflow).toContain(
-      'Font Awesome must stay on free public npm packages in CI.',
-    );
-    expect(workflow).toContain(
-      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
-    );
-    expect(workflow).toContain(
-      "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
-    );
-    expect(workflow).toContain(
-      'echo "NPM_CONFIG_USERCONFIG=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
-    );
-    expect(workflow).toContain(
-      'echo "npm_config_userconfig=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
-    );
-    expect(workflow).toContain('Repository .npmrc is not supported');
     expect(workflow).not.toContain('Configure Font Awesome registry auth');
     expect(workflow).not.toContain('Validate Font Awesome registry auth');
     expect(workflow).not.toContain('Remove Font Awesome registry auth');
@@ -1665,28 +1648,10 @@ describe('stabilization source', () => {
     );
     expect(copilotSetupWorkflow).not.toContain('bun pm cache rm');
     expect(copilotSetupWorkflow).toContain(
-      'Force public Font Awesome registry',
+      'Prepare public Font Awesome registry',
     );
     expect(copilotSetupWorkflow).toContain(
-      'Validate public Font Awesome dependencies',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
-    );
-    expect(copilotSetupWorkflow).toContain(
-      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
-    );
-    expect(copilotSetupWorkflow).toContain(
-      'echo "NPM_CONFIG_USERCONFIG=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      'echo "npm_config_userconfig=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      'Repository .npmrc is not supported',
+      'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
     );
     expect(copilotSetupWorkflow).not.toContain(
       'Configure Font Awesome registry auth',
@@ -3253,6 +3218,9 @@ describe('stabilization source', () => {
     const ciBuildCacheCompose = readSource(
       '.github/docker-compose.build-cache.yml',
     );
+    const fontAwesomeCiHelper = readSource(
+      'helpers/testing/prepare-public-fontawesome-ci.sh',
+    );
     const codexEnvironment = readSource('.codex/environments/environment.toml');
     const queue = readSection(source, 'Browser Review Queue', 'Review Next');
     const checkpoint = queue.match(
@@ -3357,7 +3325,7 @@ describe('stabilization source', () => {
     expect(checkpoint).toMatch(/offline\s+production-dependency install/u);
     expect(checkpoint).toContain('local head `f41715149`');
     expect(checkpoint).toContain('scheduled `Neon Branch Cleanup` workflow');
-    expect(checkpoint).toMatch(/does not run\s+dependency installation/u);
+    expect(checkpoint).toMatch(/does\s+not\s+run\s+dependency installation/u);
     expect(checkpoint).toMatch(/runner-temp `NPM_CONFIG_USERCONFIG`/u);
     expect(checkpoint).toContain('`npm_config_userconfig`');
     expect(checkpoint).toMatch(
@@ -3385,16 +3353,18 @@ describe('stabilization source', () => {
       "key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
     );
     expect(workflow).toContain('path: node_modules');
-    expect(workflow).toContain('Force public Font Awesome registry');
-    expect(workflow).toContain('Validate public Font Awesome dependencies');
+    expect(workflow).toContain('Prepare public Font Awesome registry');
     expect(workflow).toContain(
-      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+      'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
     );
-    expect(workflow).toContain(
+    expect(fontAwesomeCiHelper).toContain(
+      "privateRegistry = ['npm', 'fontawesome', 'com'].join('.')",
+    );
+    expect(fontAwesomeCiHelper).toContain(
       'Font Awesome must stay on free public npm packages in CI.',
     );
-    expect(workflow).toContain(
-      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
+    expect(fontAwesomeCiHelper).toContain(
+      'npm_config_userconfig="${RUNNER_TEMP:-/tmp}/npmrc-public-fontawesome"',
     );
     expect(workflow).toContain(
       "key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
@@ -3482,15 +3452,9 @@ describe('stabilization source', () => {
     );
     expect(copilotWorkflow).toContain('uses: actions/cache/restore@v4');
     expect(copilotWorkflow).toContain('path: node_modules');
-    expect(copilotWorkflow).toContain('Force public Font Awesome registry');
+    expect(copilotWorkflow).toContain('Prepare public Font Awesome registry');
     expect(copilotWorkflow).toContain(
-      'Validate public Font Awesome dependencies',
-    );
-    expect(copilotWorkflow).toContain(
-      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
-    );
-    expect(copilotWorkflow).toContain(
-      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
+      'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
     );
     expect(copilotWorkflow).toContain(
       "key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
@@ -3530,27 +3494,9 @@ describe('stabilization source', () => {
     expect(copilotWorkflow).toContain('Restore Playwright browser cache');
     expect(copilotWorkflow).not.toContain('bunx playwright');
     expect(cleanupWorkflow).toContain('name: Neon Branch Cleanup');
-    expect(cleanupWorkflow).toContain('Force public Font Awesome registry');
+    expect(cleanupWorkflow).toContain('Prepare public Font Awesome registry');
     expect(cleanupWorkflow).toContain(
-      'Validate public Font Awesome dependencies',
-    );
-    expect(cleanupWorkflow).toContain(
-      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
-    );
-    expect(cleanupWorkflow).toContain(
-      "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
-    );
-    expect(cleanupWorkflow).toContain(
-      'echo "NPM_CONFIG_USERCONFIG=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
-    );
-    expect(cleanupWorkflow).toContain(
-      'echo "npm_config_userconfig=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
-    );
-    expect(cleanupWorkflow).toContain(
-      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
-    );
-    expect(cleanupWorkflow).toContain(
-      'Font Awesome must stay on free public npm packages in CI.',
+      'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
     );
     expect(cleanupWorkflow).not.toContain('bun install');
     expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');
@@ -4581,8 +4527,10 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain('two-hour TTL');
     expect(checkpointText).toContain('cleanup finalizer');
     expect(workflow).toContain('name: Warm CI dependency caches');
-    expect(workflow).toContain('Force public Font Awesome registry');
-    expect(workflow).toContain('Validate public Font Awesome dependencies');
+    expect(workflow).toContain('Prepare public Font Awesome registry');
+    expect(workflow).toContain(
+      'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
+    );
     expect(workflow).toContain('Require warmed Docker Bun cache mount');
     expect(workflow).toContain('if: always()');
     expect(workflow).toContain('Stop Docker stack');

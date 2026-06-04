@@ -7,6 +7,7 @@ if [ -f .npmrc ]; then
 fi
 
 npm_config_userconfig="${RUNNER_TEMP:-/tmp}/npmrc-public-fontawesome"
+<<<<<<< HEAD
 npm_config_globalconfig="${RUNNER_TEMP:-/tmp}/npmrc-empty-global"
 printf '%s\n' '@fortawesome:registry=https://registry.npmjs.org/' > "${npm_config_userconfig}"
 : > "${npm_config_globalconfig}"
@@ -21,6 +22,9 @@ fontawesome_token_environment_names=(
 for fontawesome_token_environment_name in "${fontawesome_token_environment_names[@]}"; do
   unset "${fontawesome_token_environment_name}"
 done
+=======
+printf '%s\n' '@fortawesome:registry=https://registry.npmjs.org/' > "${npm_config_userconfig}"
+>>>>>>> ea8c58cd (Centralize Font Awesome CI guard)
 
 if [ -n "${GITHUB_ENV:-}" ]; then
   {

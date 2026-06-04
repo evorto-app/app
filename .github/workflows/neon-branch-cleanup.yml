@@ -1,0 +1,54 @@
+name: Neon Branch Cleanup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_run:
+    workflows: ["E2E Baseline"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-branch-cleanup
+  cancel-in-progress: false
+
+env:
+  DELETE_BRANCH: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+  NEON_LOCAL_BRANCH_TTL_HOURS: 2
+  NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+
+jobs:
+  cleanup:
+    name: Prune stale Neon Local branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+
+      - name: Prepare public Font Awesome registry
+        run: bash helpers/testing/prepare-public-fontawesome-ci.sh
+
+      - name: Validate required configuration
+        run: |
+          if [ -z "${NEON_API_KEY}" ]; then
+            echo "::error::Missing required secret: NEON_API_KEY"
+            exit 1
+          fi
+          if [ -z "${NEON_PROJECT_ID}" ]; then
+            echo "::error::Missing required repository variable: NEON_PROJECT_ID"
+            exit 1
+          fi
+
+      - name: Prune branches outside the active-test TTL
+        run: bun helpers/testing/delete-neon-local-branches.ts
