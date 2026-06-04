@@ -16,6 +16,22 @@ const findApprovedListedEvent = (
   }[],
 ) => events.find((event) => event.status === 'APPROVED' && !event.unlisted);
 
+const findDifferentApprovedListedEvent = (
+  events: {
+    id: string;
+    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+    title: string;
+    unlisted: boolean;
+  }[],
+  hiddenEventId: string,
+) =>
+  events.find(
+    (event) =>
+      event.id !== hiddenEventId &&
+      event.status === 'APPROVED' &&
+      !event.unlisted,
+  );
+
 test('User: understanding unlisted events', async ({
   database,
   events,
@@ -24,6 +40,12 @@ test('User: understanding unlisted events', async ({
   const event = findApprovedListedEvent(events);
   if (!event) {
     throw new Error('Expected an approved listed event in the seeded events');
+  }
+  const visibleEvent = findDifferentApprovedListedEvent(events, event.id);
+  if (!visibleEvent) {
+    throw new Error(
+      'Expected a second approved listed event for unlisted docs list context',
+    );
   }
 
   try {
@@ -49,11 +71,14 @@ What this means for you:
     });
 
     await expect(page.getByRole('link', { name: event.title })).toHaveCount(0);
+    await expect(
+      page.getByRole('link', { name: visibleEvent.title }),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('h1:has-text("Events")').first(),
+      page.locator('app-event-list nav').first(),
       page,
-      'User-facing events list with unlisted events hidden',
+      'User-facing events list with visible events while unlisted event stays hidden',
     );
 
     await page.goto(`/events/${event.id}`);

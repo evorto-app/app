@@ -530,9 +530,16 @@ describe('generated docs source current behavior', () => {
     expect(unlistedUserSource).toContain(
       'Expected an approved listed event in the seeded events',
     );
+    expect(unlistedUserSource).toContain(
+      'Expected a second approved listed event for unlisted docs list context',
+    );
     expect(unlistedUserSource).toContain('set({ unlisted: true })');
     expect(unlistedUserSource).toContain(
-      'User-facing events list with unlisted events hidden',
+      "page.getByRole('link', { name: visibleEvent.title })",
+    );
+    expect(unlistedUserSource).toContain("page.locator('app-event-list nav')");
+    expect(unlistedUserSource).toContain(
+      'User-facing events list with visible events while unlisted event stays hidden',
     );
     expect(unlistedUserSource).toContain(
       'Direct link opens the unlisted event detail page',
