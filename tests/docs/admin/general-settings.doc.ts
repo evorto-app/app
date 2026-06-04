@@ -36,8 +36,12 @@ Tenant admins can manage the settings that are currently implemented for the act
       name: 'Deferred settings',
     }),
   ).toBeVisible();
-  await expect(generalSettings.getByText('Custom domains')).toBeVisible();
-  await expect(generalSettings.getByText('Multi-domain routing')).toBeVisible();
+  await expect(generalSettings.getByText('Domain onboarding')).toBeVisible();
+  await expect(
+    generalSettings.getByText(
+      'Custom-domain verification and multi-domain automation are deferred.',
+    ),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     generalSettings.getByRole('heading', {

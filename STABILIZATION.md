@@ -4656,6 +4656,26 @@ E2E` long enough to be treated as stale; it was cancelled, and GitHub still
   the same 25-minute step timeout while the versioned helper makes the Docker
   startup path easier to audit beside the existing teardown and Neon prune
   helpers.
+- Current PR #62 docs assertion checkpoint: after PR head `23dcc9c53`, E2E
+  run `26982986517` proved the bounded Docker startup and teardown path for all
+  three shards. The functional-1 and functional-2 Playwright E2E shards were
+  green, each completed `Start Docker stack for E2E`,
+  `Confirm Neon branch expiration`, app readiness, Docker log collection,
+  `Stop Docker stack`, and `Prune expired Neon branches after E2E`.
+  `Playwright E2E (docs)` also completed Docker startup, branch-expiration
+  confirmation, app readiness, Docker log collection, stack shutdown, and Neon
+  pruning, then failed only because
+  `tests/docs/admin/general-settings.doc.ts` still expected stale
+  custom-domain labels (`Custom domains` and `Multi-domain routing`). The
+  implemented page now exposes `Domain onboarding` and the deferred text
+  `Custom-domain verification and multi-domain automation are deferred.` The
+  docs shard finalizer reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`, so the failed
+  docs run still returned the live Neon project to protected `main` only. The
+  local fix aligns the docs assertion and generated-documentation source guard
+  with the implemented general-settings copy; a full local Docker docs rerun
+  remains blocked by the local Docker start path, but the focused docs
+  `--list` check and source-guard tests pass.
 - Current Docker/Browser runtime recovered checkpoint: the Docker app is again
   serving the current local branch after the protected SSR route fix at local
   head `db7845e5e`. `node_modules/.bin/dotenv -c dev -- docker compose ps`

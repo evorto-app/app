@@ -4631,6 +4631,46 @@ describe('stabilization source', () => {
     expect(cleanupWorkflow).toContain('NEON_LOCAL_BRANCH_TTL_HOURS: 2');
   });
 
+  it('keeps the PR docs assertion checkpoint tied to current-head CI evidence', () => {
+    const source = readSource('STABILIZATION.md');
+    const checkpoint = source.match(
+      /Current PR #62 docs assertion checkpoint:[\s\S]*?(?=\n- Current |\n- Observed |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    const checkpointText = normalizeWhitespace(checkpoint ?? '');
+    expect(checkpointText).toContain('PR head `23dcc9c53`');
+    expect(checkpointText).toContain('E2E run `26982986517`');
+    expect(checkpointText).toContain(
+      'bounded Docker startup and teardown path',
+    );
+    expect(checkpointText).toContain(
+      'functional-1 and functional-2 Playwright E2E shards',
+    );
+    expect(checkpointText).toContain('`Playwright E2E (docs)`');
+    expect(checkpointText).toContain('`Start Docker stack for E2E`');
+    expect(checkpointText).toContain('`Confirm Neon branch expiration`');
+    expect(checkpointText).toContain('`Stop Docker stack`');
+    expect(checkpointText).toContain('`Prune expired Neon branches after E2E`');
+    expect(checkpointText).toContain(
+      '`tests/docs/admin/general-settings.doc.ts`',
+    );
+    expect(checkpointText).toContain('stale custom-domain labels');
+    expect(checkpointText).toContain('`Custom domains`');
+    expect(checkpointText).toContain('`Multi-domain routing`');
+    expect(checkpointText).toContain('`Domain onboarding`');
+    expect(checkpointText).toContain(
+      '`Custom-domain verification and multi-domain automation are deferred.`',
+    );
+    expect(checkpointText).toContain(
+      '`total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`',
+    );
+    expect(checkpointText).toContain('protected `main` only');
+    expect(checkpointText).toContain('generated-documentation source guard');
+    expect(checkpointText).toContain('focused docs `--list` check');
+    expect(checkpointText).toContain('source-guard tests pass');
+  });
+
   it('keeps public General viewport coverage durable and compact', () => {
     const source = readSource('STABILIZATION.md');
     const inventory = readSource('tests/test-inventory.md');

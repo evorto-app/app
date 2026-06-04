@@ -401,9 +401,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 2,\n      name: 'Tenant identity',\n    })",
     );
-    expect(source).toContain("generalSettings.getByText('Custom domains')");
+    expect(source).toContain("generalSettings.getByText('Domain onboarding')");
     expect(source).toContain(
-      "generalSettings.getByText('Multi-domain routing')",
+      'Custom-domain verification and multi-domain automation are deferred.',
     );
     expect(source).toContain("generalSettings.getByText('Primary domain')");
     expect(source).toContain("generalSettings.getByText('Stripe connection')");
