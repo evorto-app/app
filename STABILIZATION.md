@@ -3405,8 +3405,10 @@ fallback rather than a profile discount-card defect.
 - Current generated-docs guard checkpoint: grouped documentation reporter output
   now has regression cases for colon-bearing page titles and captioned figure
   output with escaped caption attributes. The reporter also rejects image
-  attachments that were not paired with an `image-caption` attachment, so
-  generated docs cannot silently publish an uncaptioned raw markdown image.
+  attachments that were not paired with an `image-caption` attachment and
+  rejects orphan `image-caption` attachments that do not immediately follow an
+  image, so generated docs cannot silently publish an uncaptioned raw markdown image
+  or drop a misplaced caption.
   Generated-docs source coverage pins the user-facing unlisted-event guide while continuing to reject
   global-admin and admin-only unlisted-event product docs.
 - Current generated-docs evidence-quality guard checkpoint:

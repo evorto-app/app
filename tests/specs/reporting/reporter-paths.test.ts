@@ -91,6 +91,33 @@ test('documentation reporter rejects uncaptioned image attachments', async ({}, 
   );
 });
 
+test('documentation reporter rejects orphan image-caption attachments', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-orphan-caption');
+  const imgsRoot = testInfo.outputPath('docs-img-orphan-caption');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from('Caption without an image attachment'),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Orphan caption' } as any, result),
+  ).toThrow(
+    'Documentation image-caption attachment in Orphan caption is missing a preceding image attachment.',
+  );
+});
+
 test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time', async ({}, testInfo) => {
   const previous = process.env.DOCS_IMG_OUT_DIR;
   const imgsRoot = testInfo.outputPath('docs-img-call-time');

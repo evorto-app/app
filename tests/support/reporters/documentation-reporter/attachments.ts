@@ -106,7 +106,11 @@ export const buildSectionContent = (
         if (!body) continue;
 
         const last = sectionContent.at(-1) ?? '';
-        if (!last.startsWith('![')) break;
+        if (!last.startsWith('![')) {
+          throw new Error(
+            `Documentation image-caption attachment in ${test.title} is missing a preceding image attachment.`,
+          );
+        }
         const imageUrl = last.split('(')[1]?.split(')')[0] ?? '';
         sectionContent[sectionContent.length - 1] =
           `{% figure src="${escapeAttribute(imageUrl)}" caption="${escapeAttribute(body.toString())}" /%}`;

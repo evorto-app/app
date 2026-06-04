@@ -389,8 +389,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   include the highlighted focus target before attachment, rejects generic page-root
   screenshot targets such as `body`, `html`, or `app-root`, covers the
   weak-caption and missing-highlight runtime failures in reporter-path tests,
-  rejects uncaptioned image attachments before generated markdown is written,
-  rejects raw `page.screenshot` calls, and keeps
+  rejects uncaptioned image attachments and orphan image-caption attachments
+  before generated markdown is written, rejects raw `page.screenshot` calls, and keeps
   `tests/docs/roles/about-permissions.doc.ts` as the only text-only
   permission-reference exception. Reporter-path coverage verifies those captions
   become generated `{% figure %}` blocks and escapes caption attributes so
