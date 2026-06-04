@@ -297,6 +297,9 @@ describe('generated docs source current behavior', () => {
 
     expect(documentFiles.length).toBe(15);
     expect(screenshotHelper).toContain("htmlElement.style.outline = 'thick");
+    expect(screenshotHelper).toContain('htmlElement.setAttribute');
+    expect(screenshotHelper).toContain("'data-docs-highlight-target'");
+    expect(screenshotHelper).toContain('element.querySelectorAll');
     expect(screenshotHelper).toContain('countDocumentationHighlightPixels');
     expect(screenshotHelper).toContain(
       'Documentation screenshots must include the highlighted focus target.',
@@ -308,6 +311,11 @@ describe('generated docs source current behavior', () => {
     );
     expect(screenshotHelper).toContain("testInfo.attach('image'");
     expect(screenshotHelper).toContain("testInfo.attach('image-caption'");
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation screenshot helper highlights a visible child for zero-box hosts',
+    );
 
     for (const path of documentFiles) {
       const source = readSource(path);

@@ -238,12 +238,37 @@ export async function takeScreenshot(
     if (lastError) throw lastError;
   };
 
-  for (const locator of focusPoints) {
+  for (const [index, locator] of focusPoints.entries()) {
+    const highlightId = `docs-highlight-${index}`;
     await runWithRetry(async () => {
       const target = locator.first();
       await target.waitFor({ state: 'attached' });
-      await target.evaluate((element) => {
-        const htmlElement = element as HTMLElement;
+      await target.evaluate((element, currentHighlightId) => {
+        const isRenderable = (candidate: Element): boolean => {
+          const bounds = candidate.getBoundingClientRect();
+          const style = getComputedStyle(candidate);
+
+          return (
+            bounds.width >= 1 &&
+            bounds.height >= 1 &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.opacity !== '0'
+          );
+        };
+        const highlightElement = (
+          isRenderable(element)
+            ? element
+            : [element, ...Array.from(element.querySelectorAll('*'))].find(
+                isRenderable,
+              )
+        ) as HTMLElement | undefined;
+        const htmlElement = highlightElement ?? (element as HTMLElement);
+
+        htmlElement.setAttribute(
+          'data-docs-highlight-target',
+          currentHighlightId,
+        );
         htmlElement.scrollIntoView({ behavior: 'instant', block: 'center' });
         htmlElement.dataset['docsPrevOutline'] =
           htmlElement.style.outline ?? '';
@@ -251,7 +276,7 @@ export async function takeScreenshot(
         htmlElement.style.outline = 'thick solid rgb(236, 72, 153)';
         htmlElement.style.zIndex = '10000';
         return htmlElement;
-      });
+      }, highlightId);
       await waitForStableLocator(page, target);
     });
   }
@@ -271,21 +296,33 @@ export async function takeScreenshot(
     body: caption,
   });
 
-  for (const locator of focusPoints) {
+  for (const [index, locator] of focusPoints.entries()) {
+    const highlightId = `docs-highlight-${index}`;
     try {
       await runWithRetry(async () => {
         const target = locator.first();
         await target.waitFor({ state: 'attached' });
-        await target.evaluate((element) => {
-          const htmlElement = element as HTMLElement;
-          htmlElement.style.outline =
-            htmlElement.dataset['docsPrevOutline'] ?? '';
-          htmlElement.style.zIndex =
-            htmlElement.dataset['docsPrevZIndex'] ?? '';
-          delete htmlElement.dataset['docsPrevOutline'];
-          delete htmlElement.dataset['docsPrevZIndex'];
-          return htmlElement;
-        });
+        await target.evaluate((element, currentHighlightId) => {
+          const highlightedElements = [
+            element,
+            ...Array.from(element.querySelectorAll('*')),
+          ].filter(
+            (candidate): candidate is HTMLElement =>
+              candidate instanceof HTMLElement &&
+              candidate.getAttribute('data-docs-highlight-target') ===
+                currentHighlightId,
+          );
+
+          for (const htmlElement of highlightedElements) {
+            htmlElement.style.outline =
+              htmlElement.dataset['docsPrevOutline'] ?? '';
+            htmlElement.style.zIndex =
+              htmlElement.dataset['docsPrevZIndex'] ?? '';
+            delete htmlElement.dataset['docsPrevOutline'];
+            delete htmlElement.dataset['docsPrevZIndex'];
+            htmlElement.removeAttribute('data-docs-highlight-target');
+          }
+        }, highlightId);
       });
     } catch (error) {
       if (!isDetachedError(error)) {

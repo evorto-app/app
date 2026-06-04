@@ -183,6 +183,40 @@ test('documentation screenshot helper captures the highlighted target', async ({
   ).toBeGreaterThanOrEqual(16);
 });
 
+test('documentation screenshot helper highlights a visible child for zero-box hosts', async ({
+  page,
+}, testInfo) => {
+  await page.setContent(`
+    <main>
+      <app-doc-host style="display: contents;">
+        <section id="target" style="margin: 48px; padding: 24px;">
+          Documented UI state rendered inside a component host
+        </section>
+      </app-doc-host>
+    </main>
+  `);
+
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-doc-host'),
+    page,
+    'Highlighted child element inside a zero-box documentation host',
+  );
+
+  const imageAttachment = testInfo.attachments.find(
+    (attachment) => attachment.name === 'image',
+  );
+
+  expect(imageAttachment?.body).toBeInstanceOf(Buffer);
+  expect(
+    countDocumentationHighlightPixels(imageAttachment?.body ?? Buffer.alloc(0)),
+  ).toBeGreaterThanOrEqual(16);
+  await expect(page.locator('#target')).not.toHaveAttribute(
+    'data-docs-highlight-target',
+    /.+/u,
+  );
+});
+
 test('documentation screenshot helper rejects captures without the highlighted target', async ({
   page,
 }, testInfo) => {
