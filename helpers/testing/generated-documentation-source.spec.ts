@@ -933,6 +933,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(rolesSource).toContain('Role docs ${seedDate.getTime()}');
     expect(rolesSource).toContain(
+      'Saved role detail page with dependent permissions visible',
+    );
+    expect(rolesSource).toContain(
       "throw new Error('Expected generated roles doc to persist the role')",
     );
     expect(rolesSource).toContain(

@@ -127,6 +127,12 @@ Permissions that are required by another permission are automatically included a
     await expect(page.getByText(roleDescription)).toBeVisible();
     await expect(page.getByText('Create events')).toBeVisible();
     await expect(page.getByText('View templates')).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      page.getByRole('heading', { name: roleName }),
+      page,
+      'Saved role detail page with dependent permissions visible',
+    );
 
     const createdRole = await database.query.roles.findFirst({
       where: { name: roleName, tenantId: tenant.id },

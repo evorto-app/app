@@ -794,8 +794,9 @@ provider outcomes without live identifiers.
     including the labels used for role-form dependency copy and the generated
     permission reference. Generated-doc source coverage keeps the role guide
     linked to that permission reference and keeps the reference aligned with
-    tenant-scoped roles, wildcard permissions, dependent permissions, and
-    separate global-admin semantics.
+    tenant-scoped roles, wildcard permissions, dependent permissions, separate
+    global-admin semantics, and the saved role detail screenshot after role
+    creation.
   - Keep role create/edit submit guards aligned with the write lifecycle. Local
     app coverage now pins that invalid, submitting, and mutation-pending role
     forms stay disabled, and the component submit path shares the same guard.
