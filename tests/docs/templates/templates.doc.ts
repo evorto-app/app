@@ -226,6 +226,12 @@ You will be redirected to the detail page for that template.
   await expect(page.getByText(planningTips)).toBeVisible();
   await expect(page.getByText(addOnTitle)).toBeVisible();
   await expect(page.getByText(questionTitle)).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page.getByRole('heading', { name: templateTitle }),
+    page,
+    'Saved template detail page with planning tips add-on and question',
+  );
 
   const createdTemplate = await database.query.eventTemplates.findFirst({
     where: {

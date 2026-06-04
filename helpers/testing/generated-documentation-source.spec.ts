@@ -719,6 +719,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('fillTemplateBasics');
     expect(source).toContain('createdTemplate.planningTips');
+    expect(source).toContain(
+      'Saved template detail page with planning tips add-on and question',
+    );
     expect(source).toContain('addonToTemplateRegistrationOptions');
     expect(source).toContain('templateRegistrationQuestions.findFirst');
     expect(source).toContain(
