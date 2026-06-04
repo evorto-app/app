@@ -259,6 +259,31 @@ const findScreenshotHelperBypasses = (
 };
 
 describe('generated docs source current behavior', () => {
+  it('detects screenshot helper bypass patterns before generated docs can use them', () => {
+    const bypassSource = `
+      import { takeScreenshot as grabImage } from '../../support/reporters/documentation-reporter';
+      import { takeScreenshot } from '../../support/reporters/documentation-reporter/take-screenshot';
+
+      const captureScreenshotEvidence = takeScreenshot;
+
+      function localScreenshot() {
+        return captureScreenshotEvidence;
+      }
+    `;
+
+    expect(
+      findScreenshotHelperBypasses(
+        'tests/docs/example/bypass.doc.ts',
+        bypassSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/bypass.doc.ts:2:16',
+      'tests/docs/example/bypass.doc.ts:3:16',
+      'tests/docs/example/bypass.doc.ts:5:13',
+      'tests/docs/example/bypass.doc.ts:7:16',
+    ]);
+  });
+
   it('keeps generated documentation pages explanatory and image-backed', () => {
     const documentFiles = findFiles('tests/docs')
       .filter((path) => path.endsWith('.doc.ts'))

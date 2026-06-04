@@ -392,7 +392,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   rejects uncaptioned image attachments and orphan image-caption attachments
   before generated markdown is written, rejects raw `page.screenshot` calls,
   rejects aliased/helper-internal screenshot imports and local screenshot
-  wrappers, and keeps `tests/docs/roles/about-permissions.doc.ts` as the only text-only
+  wrappers, self-tests those bypass examples, and keeps
+  `tests/docs/roles/about-permissions.doc.ts` as the only text-only
   permission-reference exception. Reporter-path coverage verifies those captions
   become generated `{% figure %}` blocks and escapes caption attributes so
   quotes or ampersands in descriptive captions cannot break the generated docs.

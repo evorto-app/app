@@ -3421,7 +3421,9 @@ fallback rather than a profile discount-card defect.
   `html`, or `app-root`. It also rejects aliased `takeScreenshot` imports,
   direct imports from the helper implementation path, and local screenshot
   wrapper declarations, so docs cannot route around the meaningful-image checks
-  while still appearing to use the shared helper. The only text-only exception is
+  while still appearing to use the shared helper. Synthetic failing examples now
+  exercise those bypass patterns directly so the guard is protected even when
+  the current docs remain clean. The only text-only exception is
   `tests/docs/roles/about-permissions.doc.ts`, because it is a permission
   reference generated from `PERMISSION_GROUPS` rather than an app screen.
 - Current generated-docs runtime caption checkpoint:

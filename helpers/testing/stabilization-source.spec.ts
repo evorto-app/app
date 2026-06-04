@@ -883,6 +883,7 @@ describe('stabilization source', () => {
     expect(source).toContain('generic page-root screenshot targets');
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toContain('local screenshot\n  wrapper declarations');
+    expect(source).toContain('Synthetic failing examples');
     expect(source).toContain('app-root');
     expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
     expect(source).toContain('PERMISSION_GROUPS');
@@ -896,6 +897,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('generic page-root\n  screenshot targets');
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toContain('local screenshot\n  wrappers');
+    expect(inventory).toContain('self-tests those bypass examples');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('missing-highlight');
     expect(inventory).toContain('uncaptioned image attachments');
@@ -940,6 +942,13 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'findScreenshotHelperBypasses',
     );
+    expect(generatedDocumentationSource).toContain(
+      'detects screenshot helper bypass patterns before generated docs can use them',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'takeScreenshot as grabImage',
+    );
+    expect(generatedDocumentationSource).toContain('localScreenshot');
     expect(generatedDocumentationSource).toContain(
       'documentation-reporter/take-screenshot',
     );
