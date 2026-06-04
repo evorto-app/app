@@ -1814,7 +1814,7 @@ describe('stabilization source', () => {
       'Richer authenticated Browser planning remains part of the authenticated Browser evidence path',
     );
     expect(statusTable).toContain(
-      'current PR head `08d9b07a8` has all visible checks green',
+      'current PR head `f501b55e8` has all visible checks green',
     );
     expect(statusTable).toContain('merge-blocked only by draft status');
     expect(playwrightConfig).toContain(
