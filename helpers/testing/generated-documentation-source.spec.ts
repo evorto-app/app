@@ -592,6 +592,9 @@ describe('generated docs source current behavior', () => {
       'Existing global users with the same Auth0 id join the current tenant instead of creating a duplicate global user.',
     );
     expect(source).toContain(
+      'Profile page after tenant account creation succeeds',
+    );
+    expect(source).toContain(
       'If account creation fails, the page shows a retryable server error instead of silently losing the submit attempt.',
     );
     expect(source).not.toContain('login email as your notification email');

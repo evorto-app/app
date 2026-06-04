@@ -1485,8 +1485,8 @@ the current working direction until a product decision overrides them.
   and duplicate-submit guards without Auth0 Management credentials. Its live
   Auth0 login/create-account journey remains integration-tagged and skips
   without Auth0 Management credentials; when it runs, it reads back the
-  persisted user, tenant assignment, default role assignment, and cleans up the
-  generated rows.
+  persisted user, tenant assignment, default role assignment, screenshots the
+  post-create profile landing state, and cleans up the generated rows.
 - `tests/specs/profile/create-account.spec.ts` adds the matching functional
   integration coverage for Auth0-backed tenant account creation: a generated
   Auth0 user signs in, creates the current-tenant account, lands on profile,

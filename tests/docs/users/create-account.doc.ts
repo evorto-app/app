@@ -229,6 +229,15 @@ If the same global login already exists for another tenant, this step joins the 
       body: `
 You should now be on your profile page for the current tenant. From here you can review your profile, manage discount cards when the tenant supports them, and register for events.`,
     });
+    await takeScreenshot(
+      testInfo,
+      page.getByRole('heading', {
+        level: 1,
+        name: `${newUser.firstName} ${newUser.lastName}`,
+      }),
+      page,
+      'Profile page after tenant account creation succeeds',
+    );
   } finally {
     if (createdUserId) {
       const tenantUsers = await database.query.usersToTenants.findMany({
