@@ -3402,6 +3402,1615 @@ fallback rather than a profile discount-card defect.
   stayed absent. Contact-sheet review of the generated screenshots found no
   obvious snackbar bars, blank/loading captures, or half-transition images;
   modal/backdrop screenshots were limited to documented dialog states.
+- Current generated-docs guard checkpoint: grouped documentation reporter output
+  now has a regression case for colon-bearing page titles, and generated-docs
+  source coverage pins the user-facing unlisted-event guide while continuing to
+  reject global-admin and admin-only unlisted-event product docs.
+- Current generated-docs evidence-quality guard checkpoint:
+  `helpers/testing/generated-documentation-source.spec.ts` now fails if generated
+  docs stop attaching explanatory markdown or if UI docs stop using the shared
+  highlighted screenshot helper, and it parses `takeScreenshot(...)` calls so
+  UI docs must provide a literal screenshot caption with enough context to
+  explain what the captured image proves. The only text-only exception is
+  `tests/docs/roles/about-permissions.doc.ts`, because it is a permission
+  reference generated from `PERMISSION_GROUPS` rather than an app screen.
+- Current docs screenshot-stability checkpoint: the focused generated-docs
+  screenshot helper now waits for target locator bounds to stabilize before
+  capture, matching the full documentation reporter path. The shared stability
+  polling was corrected to use RAF-polled synchronous geometry snapshots instead
+  of an async `page.waitForFunction` predicate, and the focused screenshot spec
+  now includes a regression case for a target whose bounds shift once before
+  settling. This keeps generated documentation image review biased toward
+  settled UI frames without introducing fixed timeout sleeps.
+- Current public General viewport coverage checkpoint: the manual Browser
+  General/legal viewport sweep now has durable Playwright smoke coverage.
+  `tests/specs/smoke/public-general-viewports.spec.ts` reuses one seeded tenant
+  and checks `/`, `/events`, a seeded public `/events/:id` detail route,
+  `/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`, `/404`, `/500`,
+  and a wildcard-not-found redirect route at 320x740, 390x844, and 1440x900.
+  The spec asserts
+  expected route content, no rendered application-error text, no horizontal
+  overflow, no horizontally clipped visible controls, and no overflowing visible
+  text or panel elements outside intentional horizontal scroll containers while
+  allowing normal vertical page scrolling. The source guard pins the exact
+  public route list and content assertions against `src/app/app.routes.ts` so
+  coverage cannot silently shrink or gain a new anonymous General route while
+  keeping the mobile General-page requirement covered without adding a heavy
+  per-route tenant seed to CI.
+  `/create-account` remains excluded from this public General sweep because it
+  is auth-guarded account coverage, not anonymous General-page coverage. A
+  focused in-app Browser check then opened `/legal/privacy` at 390x844 with
+  `stabilizationEvidence=public-general-viewport-spec-8cfe2965`, rendered the
+  privacy heading and tenant-missing legal-text message, reported no application
+  error text, no horizontal overflow, and no horizontally clipped visible
+  controls, then reset the temporary Browser viewport override.
+  A fresh rebuilt-Docker in-app Browser pass at 390x844 also opened `/events`,
+  `/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`, `/500`, and
+  `/404`; every route reported `clientWidth=390`, `scrollWidth=390`, no
+  horizontal overflow, and no clipped visible controls, with the `/404` mobile
+  screenshot showing the bottom navigation without overlap.
+- Current public event-detail Browser checkpoint: after expanding the public
+  General viewport spec to include a seeded event detail, the in-app Browser
+  opened `/events/a337282edc8eec44fc28` with
+  `stabilizationEvidence=public-event-detail-viewport-coverage`. The route
+  rendered `Hörnle hike 1 | E2E jmc6jxw8po`, showed the registration section
+  and anonymous `Log in now` action, reported no rendered application-error
+  text, and had no horizontal overflow at the active Browser viewport.
+- Current auth-only create-account mobile-shell checkpoint:
+  `/create-account` remains excluded from the anonymous public General viewport
+  sweep because it is auth-guarded account coverage, but the source guard now
+  pins that the create-account shell keeps its heading/action row wrapping on
+  mobile, lets the heading shrink inside the page, and keeps the logout action
+  as a stable Material button while the full Auth0-backed journey remains
+  covered only by the credential-gated spec/doc path.
+- Current tenant-admin General settings viewport coverage checkpoint:
+  `tests/specs/admin/general-settings.spec.ts` now includes authenticated
+  Docker-backed system-Chrome coverage for `/admin/settings` at 320x740,
+  390x844, and 1440x900. The viewport guard asserts the General settings,
+  Deferred settings, Tenant identity, and tenant-domain content, then rejects
+  application-error text, horizontal overflow, and horizontally clipped visible
+  controls. It now also reports and rejects any overflowing visible text or
+  panel elements outside intentional horizontal scroll containers, while
+  allowing the long settings form to scroll vertically on mobile. A fresh June
+  4, 2026 authenticated in-app Browser pass at current local head `5062964dc`
+  opened `/admin/settings` on the running Docker app at the generated `BASE_URL`
+  with explicit 320x740, 390x844, and 1440x900 viewport checks. The route
+  rendered Admin settings and General settings content, including Deferred
+  settings and tenant operations fields; it reported 20 Material form fields, 4
+  Material buttons, and 1 Material slide toggle, with no Browser error logs, no
+  rendered application-error text, no horizontal overflow, and no horizontally
+  clipped visible controls. The 390x844 screenshot showed the mobile General
+  settings form and Material controls fitting the viewport without visual
+  overlap, and the temporary Browser viewport override was reset after the pass.
+  A later June 4, 2026 authenticated in-app Browser pass at current local head
+  `f7141ca02` reopened `/admin/settings` on the still-running Docker app at the
+  generated `BASE_URL` with 320x740, 390x844, and 1440x900 viewport checks. The
+  route rendered General settings, Deferred settings, and Tenant identity
+  content in the existing authenticated session; all three viewport checks
+  reported no rendered application-error text, no horizontal overflow, and no
+  horizontally clipped visible controls. The 390x844 screenshot showed the
+  Material deferred-settings surface, tenant identity values, and fixed mobile
+  bottom navigation fitting without visual overlap; it was saved at
+  `/tmp/evorto-admin-settings-20260604-refresh-mobile.jpg`, and the temporary
+  Browser viewport override was reset after the pass.
+- Current tenant-admin overview/tax/review viewport coverage checkpoint:
+  `tests/specs/admin/admin-viewports.spec.ts` now covers `/admin`,
+  `/admin/tax-rates`, and `/admin/event-reviews` at 320x740, 390x844, and
+  1440x900 with the admin storage state and a deterministic seeded tax-rate
+  row. The viewport guard asserts admin overview navigation, the tax-rate table,
+  and the event-review queue route; rejects rendered application-error text,
+  page-level horizontal overflow, and horizontally clipped visible controls; and
+  treats the tax-rate table's horizontal scroll container as intentional. The
+  admin overview links, tax-rate shell/table wrappers, and event-review cards now
+  use `min-w-0`, wrapping labels/actions, or bounded scroll containers so narrow
+  mobile layouts do not widen the page. A fresh June 4, 2026 Browser pass on the
+  rebuilt Docker app first reproduced a 4px mobile overflow on
+  `/admin/event-reviews` from Angular Material icon-button touch-target spans at
+  the page-header edges. The event-review header now insets its back and refresh
+  icon buttons by that touch-target bleed while keeping them shrink-safe, and the
+  rebuilt app was rechecked at `/admin`, `/admin/tax-rates`, and
+  `/admin/event-reviews` with 320x740, 390x844, and 1440x900 Browser viewports.
+  All nine checks rendered the expected admin overview, compatible tax-rate, and
+  no-pending-review content with no application error, no Auth0 login redirect,
+  no horizontal overflow, and no clipped visible controls. The 390x844
+  event-review screenshot showed Material icon buttons and the fixed mobile
+  bottom navigation fitting without overlap; it was saved at
+  `/tmp/evorto-admin-overview-tax-review-20260604-refresh-mobile.jpg`, and the
+  temporary Browser viewport override was reset after the pass.
+- Current global-admin viewport coverage checkpoint:
+  `tests/specs/admin/global-admin-tenants.spec.ts` now includes authenticated
+  Docker-backed system-Chrome coverage for the global-admin tenant list, create,
+  detail, and edit pages at 320x740, 390x844, and 1440x900. The viewport guard
+  asserts the expected page headings, then rejects application-error text,
+  horizontal overflow, horizontally clipped visible controls, and overflowing
+  visible text or panel elements outside intentional horizontal scroll
+  containers while allowing normal vertical scrolling on mobile. A current
+  in-app Browser pass also opened
+  `/global-admin/tenants` at 390x844 after normal Auth0 login with
+  `stabilizationEvidence=global-admin-viewport-coverage`, rendered the Tenants
+  heading, Search tenants control, and Create tenant action, and reported no
+  application-error text, no horizontal overflow, no horizontally clipped
+  visible controls, and a reset temporary Browser viewport override.
+  A later June 4, 2026 authenticated in-app Browser pass at current local head
+  `35208bb6a` reopened `/global-admin/tenants` on the still-running Docker app
+  at the generated `BASE_URL` with 320x740, 390x844, and 1440x900 viewport
+  checks. The existing authenticated global-admin session rendered the Tenants
+  heading, Search tenants field, Review tenant action, tenant operational
+  details, and Create tenant floating action; all three viewport checks reported
+  no rendered application-error text, no horizontal overflow, and no
+  horizontally clipped visible controls. The 390x844 screenshot showed the
+  Material search field, tenant card, review action, floating create action, and
+  fixed mobile bottom navigation fitting without visual overlap; it was saved at
+  `/tmp/evorto-global-admin-tenants-20260604-refresh-mobile.jpg`, and the
+  temporary Browser viewport override was reset after the pass.
+- Current authenticated SSR deep-link checkpoint:
+  `src/app/app.routes.server.ts` now client-renders authenticated route groups
+  and auth-only entry points (`admin/**`, `create-account`, `finance/**`,
+  `global-admin/**`, `internal/**`, `profile/**`, `scan/**`, and
+  `templates/**`) before the public server-rendered catch-all, with
+  `src/app/app.routes.server.spec.ts` guarding the route modes. This fixes
+  production SSR deep links that previously returned the server 404 shell for
+  routes such as `/admin/settings`, `/create-account`, and
+  `/global-admin/tenants` before auth/hydration could handle them. A rebuilt
+  Docker app returned `200` app shells for `/admin/settings`,
+  `/create-account`, `/global-admin/tenants`, `/profile`, `/templates`,
+  `/finance`, and `/scan`. A 390x844 in-app Browser pass then
+  opened those same routes and rendered route-specific content with
+  `clientWidth=390`, `scrollWidth=390`, no horizontal overflow, and no clipped
+  visible controls. A focused `tests/specs/admin/general-settings.spec.ts`
+  rerun with `NO_WEBSERVER=true` and `--no-deps` now reaches Auth0 login instead
+  of the previous SSR 404 shell, but still fails before app assertions because
+  the Playwright admin storage state is not accepted by the regenerated runtime
+  session.
+- Current create-account SSR refresh checkpoint: a June 4, 2026 production
+  bundle check at the current local head ran the app build, launched
+  `dist/evorto/server/server.mjs` on a temporary `localhost:4303` port, and
+  confirmed direct HTTP `200` app shells for
+  `/create-account`, `/admin/settings`, `/global-admin/tenants`, `/profile`,
+  `/templates`, `/finance`, `/scan`, and `/events`. This followed a failed live
+  Docker restart where the rebuilt `evorto` image compiled successfully but the
+  recreated app container stayed in `Created`, so the created container was
+  removed and the production bundle was used for route proof. A Node-backed
+  Browser/Chromium check then opened `/create-account` at 320x740, 390x844, and
+  1440x900 with `stabilizationEvidence=create-account-ssr-fixed-*`; all three
+  runs reached the Auth0 authorize URL instead of the app/server 404 shell, and
+  the app-side document reported matching `clientWidth`/`scrollWidth`, no
+  horizontal overflow, no clipped visible controls, and no rendered application
+  error before leaving the app origin. The only browser console error was the
+  external Auth0 `403` for the temporary callback origin, which is not treated as
+  an app layout or SSR-route regression. The mobile evidence screenshot was
+  saved at `/tmp/evorto-create-account-ssr-fixed-20260604-mobile.jpg`.
+- Current durable viewport inventory guard checkpoint: local stabilization
+  source coverage now discovers every Playwright spec under `tests/specs` that
+  uses the shared `expectedStablePageLayout` assertion and requires the exact
+  active inventory to stay documented: public General pages, tenant admin
+  General settings, tenant admin overview/tax/review, role/user management,
+  global-admin tenants, profile sections, templates, events, finance, scanner,
+  and members hub. Each active viewport spec must keep the shared 320x740,
+  390x844, and 1440x900 matrix and labelled viewport loop, so adding or
+  removing stable-layout coverage cannot silently drift away from this
+  stabilization record.
+- Current authenticated profile viewport coverage checkpoint:
+  `tests/specs/profile/user-profile-viewports.spec.ts` now covers `/profile` at
+  320x740, 390x844, and 1440x900 with the regular-user storage state. The
+  viewport guard asserts the profile overview, Events, Receipts, and Discounts
+  sections using seeded event cards, a submitted receipt, and the seeded ESNcard
+  fixture, then rejects application-error text, horizontal overflow, and
+  horizontally clipped visible controls while allowing normal vertical scrolling
+  on mobile.
+- Current authenticated template viewport coverage checkpoint:
+  `tests/specs/templates/template-viewports.spec.ts` now covers `/templates`,
+  `/templates/create`, `/templates/categories`,
+  `/templates/create/:categoryId`, a seeded `/templates/:id` detail route,
+  `/templates/:id/edit`, and `/templates/:id/create-event` at 320x740, 390x844,
+  and 1440x900 with the admin storage state. The viewport guard asserts the
+  template list, create form, category manager, category-prefilled create form,
+  detail page, edit form, and template-to-event create form content, then
+  rejects application-error text, horizontal overflow, and horizontally clipped
+  visible controls while allowing normal vertical scrolling on mobile. This
+  checkpoint also caught and fixed the mobile bottom navigation shell: the fixed
+  navigation now spans with `left-0 right-0` instead of `w-screen`, avoiding
+  scrollbar-gutter horizontal overflow on tall mobile pages. The category
+  manager also now uses stacked Material surface cards on mobile instead of a
+  horizontally scrolling table, while keeping the table layout on desktop. The
+  categories route assertion targets the visible create-category action instead
+  of the category title that can also exist in the hidden mobile parent list,
+  and the category-prefilled create-form route targets the visible Template
+  Category field label instead of the same duplicated category title.
+- Current authenticated event viewport coverage checkpoint:
+  `tests/specs/events/event-viewports.spec.ts` now covers `/events`, a seeded
+  event detail, seeded draft event edit, and seeded event organizer overview at
+  320x740, 390x844, and 1440x900 with the organizer storage state. The viewport
+  guard asserts event list/detail/edit/organizer content, rejects rendered
+  application-error text, horizontal overflow, and horizontally clipped visible
+  controls, and ignores Angular Material's empty touch-target shim while still
+  reporting any real overflowing visible element labels for future failures.
+- Current authenticated finance viewport coverage checkpoint:
+  `tests/specs/finance/finance-viewports.spec.ts` now covers `/finance`,
+  `/finance/transactions`, receipt approval list/detail, and receipt
+  reimbursement pages at 320x740, 390x844, and 1440x900 with the admin storage
+  state and deterministic seeded receipt rows. The viewport guard asserts
+  finance navigation, transaction headers, approval/review content, and
+  reimbursement content; rejects rendered application-error text, page-level
+  horizontal overflow, and horizontally clipped visible controls; and treats
+  Material table horizontal scroll containers as intentional while still
+  reporting non-table overflowing element labels for future failures.
+  The first CI run caught the mobile reimbursement table widening the route;
+  the finance shell/router outlet and reimbursement cards now use `min-w-0` so
+  intentional table scrolling stays inside its own container.
+- Current authenticated role/user-management viewport coverage checkpoint:
+  `tests/specs/admin/roles-viewports.spec.ts` now covers `/admin/users`,
+  `/admin/roles`, `/admin/roles/create`, a seeded `/admin/roles/:id` detail,
+  and `/admin/roles/:id/edit` at 320x740, 390x844, and 1440x900 with the admin
+  storage state and a deterministic seeded role. The viewport guard asserts
+  read-only user-list, role-list, create-form, detail, and edit-form content;
+  rejects rendered application-error text, page-level horizontal overflow, and
+  horizontally clipped visible controls; and treats the user-list table's
+  horizontal scroll container as intentional. The admin shell/router outlet,
+  user-list table container, and role cards/forms/details now use `min-w-0` or
+  bounded scroll containers so long role or table content stays inside the page
+  on mobile.
+- Current authenticated scanner viewport coverage checkpoint:
+  `tests/specs/scanning/scanner-viewports.spec.ts` now covers `/scan` and a
+  seeded `/scan/registration/:registrationId` result route at 320x740, 390x844,
+  and 1440x900 with the admin storage state and a deterministic confirmed
+  registration against the seeded past event. The viewport guard asserts the
+  scanner camera/fallback instructions and scan-result guest copy, then rejects
+  rendered application-error text, horizontal overflow, and horizontally clipped
+  visible controls. The scanner camera surface now has a bounded aspect-ratio
+  video region, and the scanned-registration result panels use `min-w-0`,
+  wrapping copy, and Material error-container surfaces so phone-width check-in
+  flows do not widen the page.
+- Current authenticated members-hub viewport coverage checkpoint:
+  `tests/specs/internal/members-hub-viewports.spec.ts` now covers
+  `/internal/members-hub` at 320x740, 390x844, and 1440x900 with the admin
+  storage state, a deterministic visible hub role, and an assigned tenant user.
+  The viewport guard asserts the Members Hub and Who's who headings, the seeded
+  role name, and the assigned member name, then rejects rendered
+  application-error text, horizontal overflow, and horizontally clipped visible
+  controls. The members-hub host, card shell, role chips, descriptions, and
+  member-name rows now use `min-w-0`, wrapping copy, and token-driven Material
+  surfaces so long directory content stays inside the page on mobile.
+- Current shared viewport guard checkpoint:
+  `tests/support/utils/page-layout.ts` now centralizes the viewport layout
+  guard used by the public General, tenant-admin General settings, tenant-admin
+  overview/tax/review, global-admin tenant, profile, template, event, finance,
+  scanner, role/user-management, and members-hub viewport specs. The shared
+  guard rejects rendered application-error text, page-level horizontal overflow
+  with real visible overflow, horizontally clipped visible controls with
+  actionable labels, horizontally clipped readable text with actionable labels,
+  controls covered by another visible layer with covering element labels and
+  center-point coordinates, readable text covered by another visible layer with
+  covering element labels and center-point coordinates,
+  vertically clipped fixed/sticky visible controls with edge and position
+  labels, vertically clipped fixed/sticky readable text with edge and position
+  labels, and overflowing visible text or panel elements outside intentional
+  horizontal scroll containers. It also ignores Angular Material's empty
+  touch-target shim, document-root or ancestor hit-test targets, controls inside
+  readable text, and same-form-field Material floating-label or
+  required-marker decorations, and allows bounded table/list scroll containers
+  plus normal vertical scrolling content, so the mobile no-glitch invariant is
+  enforced consistently instead of depending on copy-pasted evaluator variants.
+  The control labels also fall back to accessible names such as `aria-label` or
+  `title`, so clipped or covered icon-only control diagnostics use accessible
+  labels instead of blank text.
+  It also reports visible controls without accessible labels, so icon-only
+  Material-style controls cannot pass viewport coverage as anonymous tap
+  targets. The shared control detector now also includes common ARIA/Material
+  interactive roles such as `switch`, `checkbox`, `combobox`, `menuitem`,
+  `option`, `radio`, `slider`, and `spinbutton`, plus editable content, so
+  clipped or covered custom controls do not pass as passive
+  readable text in mobile viewport sweeps. A fresh June 4, 2026 no-Docker
+  `bun run test:e2e:layout-helper` run at local head `932e23257` passed all
+  three layout-helper tests after adding synthetic clipped `switch` and
+  `menuitem` controls to the helper fixture. A follow-up local head
+  `754c1dc51` slice added clipped synthetic `combobox`, `radio`, `slider`, and
+  `spinbutton` controls so Material select, radio, slider, and numeric-input
+  style widgets stay inside the shared no-glitch detector. It now also treats
+  focusable `tabindex` elements as controls, so future custom Material-style
+  actions cannot escape clipped/covered control diagnostics by omitting an ARIA
+  role.
+  `tests/specs/smoke/page-layout-helper.test.ts` now exercises the shared helper
+  directly without app startup, proving the stable-layout return shape, labeled
+  page-level overflow, covered controls, covered readable text, clipped
+  controls, clipped readable text, vertically clipped fixed/sticky readable
+  text, the intentional horizontal-scroll-container escape hatch used by
+  Material table surfaces, and the same-paginator touch-target overlap used by
+  Angular Material paginators. The shared guard ignores
+  `.mat-mdc-paginator-touch-target` only when it covers a control inside the
+  same `.mat-mdc-paginator`, preserving real covered-control failures while
+  avoiding false positives for the paginator's own `Items per page` select.
+  `bun run test:e2e:layout-helper` runs that contract with `NO_WEBSERVER=true`
+  and `--no-deps` for fast no-Docker verification after helper or viewport
+  assertion changes. A fresh June 4, 2026 run at local head `bb9431e66`
+  passed all three layout-helper tests with app startup disabled, so the
+  shared mobile/no-glitch detector remains locally verifiable while Docker and
+  Browser route startup are blocked below the app layer. A later June 4, 2026
+  pushed-head fix `a9d4544e1` added the Material paginator touch-target case;
+  `NO_WEBSERVER=true bun run test:e2e -- tests/specs/smoke/page-layout-helper.test.ts --project=local-chrome-baseline --workers=1 --no-deps`
+  passed all four layout-helper tests locally, and PR #62 then passed the E2E
+  warm-cache, functional-1, functional-2, and docs jobs on the same head after
+  the previous paginator false positive in `/finance/transactions` and
+  `/admin/users` was removed.
+  Stabilization source coverage also pins the
+  durable viewport spec matrix to 320x740 narrow mobile, 390x844 mobile, and
+  1440x900 desktop entries and requires each durable spec to loop that matrix,
+  label the viewport step, and call `page.setViewportSize(viewport)`, so future
+  edits cannot silently drop or stop exercising the mobile or desktop viewports
+  while still importing the shared guard. The same source coverage now pins the
+  explicit `/404` route in the public General viewport sweep, so the not-found
+  page itself cannot silently drop out while only the wildcard redirect remains
+  covered.
+- Current source-guard and Browser sanity checkpoint: the local stabilization
+  guard bundle passed again across stabilization source coverage, generated-docs
+  source coverage, runtime preflight, skip inventory, permission-matrix source
+  coverage, and authorization source coverage. The Docker app remained healthy
+  on the generated `BASE_URL`, and the in-app Browser opened `/events`, rendered
+  the seeded event list, extracted the `Soccer Match 1` event link, and opened
+  the event detail. The detail surface showed the registration card, inclusive
+  VAT label, and payment registration action with no Browser warning/error logs.
+- Current Browser evidence-drift checkpoint: after the older Browser-blocker
+  notes were reworded as historical checkpoints, the Docker app stayed healthy
+  on the generated `BASE_URL`. The in-app Browser opened `/events`, the settled
+  body showed the seeded event list including `Soccer Match 1`, and Browser
+  warning/error logs were empty.
+- Current live Browser route refresh checkpoint: the Docker stack stayed healthy
+  on the generated `BASE_URL`, the in-app Browser opened `/events`, found the
+  seeded `Soccer Match 1` event link, and loaded that event detail page. The
+  detail page title was `Soccer Match 1 | Development`, the visible detail
+  surface included registration/payment and inclusive-VAT signals, and Browser
+  warning/error logs were empty.
+- Current Browser scanner fallback checkpoint: with the Docker stack healthy on
+  the generated `BASE_URL`, the authenticated regular-user in-app Browser
+  opened `/scan`, rendered the scanner page, and showed the retryable camera
+  fallback. The page text told users to check camera permissions or scan the
+  ticket with a phone camera, the `Try camera again` action was visible, and
+  Browser warning/error logs were empty.
+- Current Browser profile-discounts checkpoint: with the Docker stack healthy on
+  the generated `BASE_URL`, the active `localhost` tenant was re-enabled for
+  ESNcard test-provider review and the regular user was restored with the seeded
+  `TEST-ESN-0001` card. A cache-busted in-app Browser reload of
+  `/profile#discounts` rendered the `Discount Cards` section, the verified
+  seeded card, refresh/remove actions, and the `Save ESN card` control. Browser
+  warning/error logs were empty for the settled discount-card view.
+- Current Browser profile events/receipts checkpoint: with the Docker stack
+  healthy on the generated `BASE_URL`, cache-busted in-app Browser reloads of
+  `/profile#events` and `/profile#receipts` used the authenticated regular-user
+  session. The events tab rendered a confirmed checked-in `Murnau City Tour 2`
+  registration with no-payment, checked-in, and cancellation/transfer-unavailable
+  copy plus the event-page action. The receipts tab rendered the submitted
+  `profile-receipt.pdf` receipt for `Munich City Tour 2` with the submitted
+  status and `12.50 €` amount. Browser warning/error logs were empty for both
+  settled profile views.
+- Current Browser unlisted-event checkpoint: with the Docker stack healthy on
+  the generated `BASE_URL`, the current `localhost` seed temporarily marked the
+  approved `Bavarian Forest Trip 1` event unlisted, then restored it after
+  Browser review. A fresh in-app Browser `/events` reload no longer showed that
+  event in the public list, while the direct `/events/cb6fd355fe42785bb255`
+  link still opened the event detail with title, description, participant
+  registration option, and login-required registration action. Fresh Browser
+  warning/error logs were empty for the list and direct-link checks.
+- Current inventory evidence refresh checkpoint: `tests/test-inventory.md` no
+  longer describes submitted-receipt Browser review as waiting on in-app Browser
+  transport recovery. It now points at the existing generated-doc/functional
+  profile receipt coverage and the authenticated Browser `/profile#receipts`
+  checkpoint that verified the seeded submitted receipt card. A current in-app
+  Browser sanity pass reopened the generated `BASE_URL` `/events` route, saw the
+  seeded `Soccer Match 1` list entry, and confirmed the Docker app is still
+  reachable from Browser. Direct `/profile#receipts` navigation in the current
+  Browser tab returned an auth-gated HTTP response failure, so the fresh Browser
+  pass is recorded as public route sanity rather than new authenticated profile
+  evidence. The inventory header now carries the June 3 stabilization date, and
+  source coverage pins that timestamp to this active evidence refresh. The
+  current Playwright skip/fixme audit found exactly three credential-gated
+  `test.skip` calls, zero `test.fixme` calls, and no unclassified Playwright
+  skips. The skip inventory guard now also requires each allowlisted credential
+  skip to name the exact required environment variables in nearby source,
+  and the inventory must document the skipped file plus the same credential
+  variable names, keeping Auth0 Management and Stripe webhook gates explicit
+  instead of generic integration placeholders. A fresh in-app Browser tab then
+  opened `/events`
+  with
+  `stabilizationEvidence=inventory-date-refresh-clean`, rendered
+  `Events | Development`, showed the seeded `Soccer Match 1` list entry, and
+  showed no rendered application error text. Browser log reads still returned
+  earlier scanner warnings from the reused browser session by timestamp, so this
+  is recorded as route/content evidence rather than clean-console evidence.
+  A fresh June 4, 2026 focused inventory guard run at local head `75a9a462f`
+  passed `helpers/testing/playwright-skip-inventory.spec.ts` through
+  `bun run test:unit:server -- ...` with 15 tests. The guard still found only
+  the three credential-gated skips, zero fixmes, no focused-only Playwright
+  declarations, no interactive `page.pause()` or `debugger` hooks, no fixed
+  `waitForTimeout` waits in specs/docs, and no fixed `setTimeout` sleeps in the
+  documentation screenshot helpers.
+- Current profile viewport inventory alignment checkpoint: after adding
+  `tests/specs/profile/user-profile-viewports.spec.ts`, the Active Files
+  inventory now lists that spec in addition to the Profile/account suite
+  ownership notes. The Playwright skip/inventory guard remains the source-level
+  check that every Playwright doc/spec on disk is represented in the inventory.
+- Current Neon branch-expiration guard checkpoint: runtime source coverage now
+  pins the Neon Local branch-expiration mitigation after the earlier
+  too-many-branches cleanup: Docker Compose keeps `db-expiration` on the same
+  metadata mount as `db`, gates `db-setup` and `evorto` on successful expiration
+  handling, and the CI workflow prepares a writable metadata directory, uses a
+  two-hour branch TTL, waits 180 seconds for metadata, confirms the expiration
+  helper after detached Compose startup, and runs a metadata-backed branch
+  cleanup helper after giving the Neon Local `db` container a 60-second stop
+  window inside a bounded command, running bounded Compose down, and
+  force-removing leftover Compose containers; the workflow also prunes stale
+  branches before E2E startup, and the helper prunes non-main Neon branches
+  whose `expires_at` has already passed or whose missing expiration metadata has
+  aged beyond the two-hour active-test TTL. With the Docker stack still healthy on the
+  generated `BASE_URL`, the in-app Browser opened `/events` with
+  `stabilizationEvidence=neon-branch-expiration-guard`, rendered
+  `Events | Development`, showed `Soccer Match 1`, and showed no rendered
+  application error text. Browser log reads still returned the earlier scanner
+  warnings from the reused browser session by timestamp, so this checkpoint is
+  route/content evidence rather than clean-console evidence.
+- Current applied-fixes evidence-drift checkpoint: the `Fixes Applied In This
+Pass` section no longer starts with the stale audit-only "None" note now that
+  this PR contains focused server, app, Playwright, docs, Browser, runtime, and
+  CI cleanup slices. Source coverage pins the section to the active cleanup
+  record and rejects the old no-op wording. With the Docker stack still healthy
+  on the generated `BASE_URL`, the in-app Browser opened `/events` with
+  `stabilizationEvidence=applied-fixes-drift-cleanup`, rendered
+  `Events | Development`, showed `Soccer Match 1`, and showed no rendered
+  application error text. Browser log reads still returned the earlier scanner
+  warnings from the reused browser session by timestamp, so this checkpoint is
+  route/content evidence rather than clean-console evidence.
+- Current credential-state Browser refresh checkpoint: after the PR branch was
+  pushed and realigned through the GitHub CLI HTTPS credential-helper path, the
+  Docker stack stayed healthy on the generated `BASE_URL`. The in-app Browser
+  opened `/events` with
+  `stabilizationEvidence=credential-state-refresh-browser`, rendered the
+  current public event feed, showed `Upcoming Events`, and showed no rendered
+  application error text. Browser log reads still returned older warnings and
+  Apollo timeout entries from the reused browser session, including stale
+  `section-app/legacy-app` cache paths, so this checkpoint is route/content
+  evidence rather than clean-console evidence. A later fresh Browser route
+  check opened `/events` with
+  `stabilizationEvidence=review-thread-clean-refresh`, rendered the same public
+  feed shape with `Upcoming Events`, and showed no rendered application error
+  text; the log channel still returned stale `section-app/legacy-app` Apollo
+  warnings from the reused session, so the later check is also route/content
+  evidence only.
+- Current pushed evidence refresh checkpoint: the latest fully green coverage
+  evidence head before this documentation-only refresh was
+  `a0113b27bf49d47bc1477e156738484d51a21c41`. At that head, PR #62 remained
+  draft, mergeable, and merge-blocked only by draft/status state. Thread-aware
+  review inspection still found zero review threads, CodeRabbit was green as a
+  status context while its latest status said review was skipped for draft PRs,
+  and formal bot review was expected only after the PR is marked ready.
+  `origin/main` at `35ebb9a2b37606a4bdc5ac2ea53378eed2600d6d` was still an
+  ancestor of the local branch, so there was no current main merge conflict to
+  resolve. The local branch was clean and aligned with
+  `origin/codex/stabilization-flow-coverage` before the documentation-only
+  evidence refresh commit. Fresh GitHub checks on that coverage head were
+  green: Analyze, CodeQL, Git Town branch stack, Copilot setup, CodeRabbit,
+  Playwright E2E docs, Playwright E2E functional-1, and Playwright E2E
+  functional-2 all passed after the public General event-detail viewport
+  coverage refresh commit. The E2E run completed
+  Docker startup, Neon branch-expiration confirmation, application readiness,
+  the generated-docs shard, both functional shards, Docker log collection,
+  stack shutdown, and artifact uploads. Local validation for the public General
+  viewport coverage checkpoint and this non-moving evidence refresh passed
+  format, lint, focused stabilization/skip-inventory source guards, WebStorm
+  errors-only diagnostics, the compact
+  `tests/specs/smoke/public-general-viewports.spec.ts` run, and
+  `git diff --check`. The durable viewport spec now covers `/events`, a seeded
+  public `/events/:id` detail route, `/legal/imprint`, `/legal/privacy`, and
+  `/legal/terms` at 320x740, 390x844, and 1440x900 for expected route content,
+  no rendered application-error text, no horizontal overflow, and no
+  horizontally clipped visible controls. Current in-app Browser evidence also
+  opened `/events` at 390x844 with
+  `stabilizationEvidence=fb4a3671-mobile-events`, rendered the Events route
+  heading on the current tenant feed, reported no application error text, no
+  horizontal overflow, and no horizontally clipped visible controls, then reset
+  the temporary Browser viewport override. The same current Browser session had
+  previously opened `/legal/privacy` at 390x844 with
+  `stabilizationEvidence=public-general-viewport-spec-8cfe2965`, rendered the
+  privacy heading and tenant-missing legal-text message, and reported no
+  application error text, no horizontal overflow, and no horizontally clipped
+  visible controls. The current `/events` tenant feed did not show the older
+  `Soccer Match 1` fixture, so this latest Browser pass is route/layout
+  evidence rather than seeded-event content evidence. Earlier Browser screenshot
+  evidence still covers the wider public General/legal viewport sweep. A fresh
+  June 4, 2026 current local in-app Browser refresh at unpushed head
+  `92ed02dac` opened `/events`, `/legal/imprint`, `/legal/privacy`,
+  `/legal/terms`, `/403`, `/500`, and `/404` on the running Docker app at the
+  generated `BASE_URL` with explicit 390x844, 320x740, and 1440x900 viewport
+  checks. The sweep reported route-specific content for each page, no rendered
+  application-error text, no Browser error logs, no horizontal overflow, and no
+  horizontally clipped visible controls; the 390x844 `/404` screenshot showed
+  the Material-style bottom navigation clear of the page-not-found content. The
+  temporary Browser viewport override was reset after the pass. Authenticated
+  tenant General settings evidence remains the existing page-backed Playwright
+  spec/docs coverage plus prior authenticated Browser review until a fresh
+  logged-in in-app Browser session is available.
+- Earlier Font Awesome cleanup CI and Neon checkpoint: PR #62 head
+  `74714fc1038a018fa0987a104c3c8ad0b4b31bd1` was clean and aligned with
+  `origin/codex/stabilization-flow-coverage`. The fresh E2E and
+  `copilot-setup-steps` checks previously failed before dependency installation
+  at the private Font Awesome registry-auth boundary. A later pushed source
+  slice addressed that blocker by removing the private Duotone package and
+  project `.npmrc`, routing app icon imports through
+  `@shared/icons/fontawesome`, and keeping Docker, Compose, Copilot, and E2E
+  installs on public npm packages only. `bun install --frozen-lockfile` passed
+  locally without Font Awesome registry auth, and later pushed heads moved past
+  the old token failure and proved the public install path in GitHub before the
+  current local-ahead cache and source-guard follow-ups. An earlier E2E log
+  confirms
+  `PARENT_BRANCH_ID` was initially empty, resolved to `br-soft-forest-a9khi8e8`,
+  and was exported before dependency install. Even though Docker never started,
+  the workflow still ran its `if: always()` stop path on the new head,
+  including
+  bounded Neon Local container stop, bounded Compose down with orphan removal,
+  leftover container force-removal, and
+  `bun helpers/testing/delete-neon-local-branches.ts`; the cleanup helper on
+  the current head found no Neon Local metadata, no stale branches outside the
+  two-hour active-test TTL, and reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. A live Neon
+  API check after the failed checks found exactly
+  one branch, `main`, and a local live Neon API check on the pushed head again
+  found exactly one branch, `main` (`br-soft-forest-a9khi8e8`), so the current
+  branch-count issue is clean and the CI cleanup/fallback behavior is documented
+  rather than speculative. Local validation for this evidence refresh passed
+  format, lint, focused runtime-preflight/stabilization source guards,
+  WebStorm errors-only diagnostics, live Neon cleanup/API checks, and
+  `git diff --check`. The latest local focused public General viewport retry
+  also proved the stale Playwright webServer container failure mode is fixed:
+  `docker:webserver` removed stopped/created service containers before startup
+  and no longer timed out waiting for the webServer. Browser was not used for
+  this checkpoint update because the current worktree had no successful Docker
+  app startup before the public icon dependency fix, and the older local stack
+  on port 4200 returned HTTP 500 for `/events`, so it was not reliable evidence
+  for the current branch. A follow-up pushed viewport-diagnostic slice on the
+  same PR head strengthened the shared viewport helper so covered-control
+  failures include center-point coordinates and covering element labels. Local
+  validation for that slice passed format, lint, the focused stabilization
+  source guard, Playwright public General viewport spec discovery, WebStorm
+  errors-only diagnostics, and `git diff --check`. A live local Neon cleanup
+  plus read-only branch inventory on that pushed head again found no stale
+  branches outside the two-hour active-test TTL and exactly one branch total:
+  `main`. The next source-only viewport guard slice added vertical clipping
+  detection for fixed/sticky controls while leaving normal scrollable below-fold
+  content alone, so mobile bottom navigation and sticky action bars can fail
+  with actionable top/bottom/position labels instead of being hidden behind
+  broad horizontal-overflow checks. A source-guard follow-up now also requires
+  every durable viewport spec to keep the same 320x740, 390x844, and 1440x900
+  viewport matrix and to exercise that matrix through labelled viewport steps,
+  so the mobile/general-page matrix cannot be declared without being run.
+- Earlier Browser/dev-runtime retry checkpoint: before the public Font Awesome
+  package migration, the Docker build path remained blocked by Font Awesome
+  registry `401`, so `bun run dev:start` built the Angular dev server from
+  existing dependencies on loopback port 4224.
+  The non-Docker server was not usable as current Browser evidence:
+  `/events` returned HTTP 500 with a server-side Effect stack, and the in-app
+  Browser could not reach the IPv4 loopback form while the dev server listened
+  on IPv6 loopback only. The shared viewport guard was therefore strengthened
+  with covered-control detection and local source validation. A follow-up
+  runtime check found the generated dev `DATABASE_URL` pointing at
+  `localhost:55443` while no Neon Local proxy was listening there; an older
+  Docker app on port 4200 came from another worktree and also returned HTTP 500
+  for `/events`, so it is not current-branch Browser evidence. `dev:start` now
+  runs `dev:check` before Angular starts, fails early when a local
+  `DATABASE_URL` endpoint is closed, and binds the dev server to `0.0.0.0` so
+  Browser localhost and IPv4 loopback checks can reach the same generated
+  `BASE_URL` once a database runtime is available. Fresh Browser layout evidence
+  still requires a working app runtime.
+- Current Neon active-test branch cleanup checkpoint: the attached Neon Local
+  docs confirm the repo's model: `PARENT_BRANCH_ID` makes Neon Local create an
+  ephemeral branch, `DELETE_BRANCH=true` ties deletion to container shutdown,
+  and the branch expiration is the fallback when a local or CI shutdown is
+  interrupted. After the reported fourteen-branch spike, a live Neon API check
+  on 2026-06-03 found exactly one branch, `main` (`br-soft-forest-a9khi8e8`),
+  and the cleanup helper reported no stale branches outside the two-hour
+  active-test TTL. The helper now also logs a sanitized cleanup summary with
+  total, protected, active-test, and stale-deleted branch counts plus any active
+  branches still inside the TTL. Recent Neon operations still showed the GitHub
+  E2E mechanism clearly: CI-created non-main branches appeared around 10:43-10:49
+  UTC and matching `delete_timeline` operations removed them within minutes. The
+  E2E workflow now runs the stale Neon branch prune immediately after required
+  configuration validation, before Font Awesome registry auth can fail the job,
+  and still runs the `if: always()` shutdown cleanup after timeout-bound Docker
+  log/status collection and server-log copy. Every GitHub E2E Docker Compose
+  status/log/debug/stop/down/kill/remove path now uses the generated dotenv
+  Compose project when `node_modules/.bin/dotenv` exists, while the final Neon
+  branch deletion runs directly against the exported dependency-free CI
+  environment. That still matches startup once the project runtime has been
+  generated, but prevents cleanup from failing before it can target the exported
+  CI Compose project. The timed stop/down path wraps the real Compose executable
+  instead of a shell function, then force-removes leftover Compose containers
+  before metadata/API cleanup. The CI teardown now includes a whole-stack
+  `compose kill` fallback after the graceful database stop and timed
+  `docker compose down`, so a non-db service cannot keep the Compose project
+  alive before the final timeout-bound project-label discovery, per-container
+  force-remove, and Neon API cleanup. A later local CI-teardown hardening pass
+  also bounds the whole-stack `compose kill` and `compose rm` fallback calls
+  through the same `compose_timeout` wrapper, force-removes leftover Compose
+  containers one at a time, gives the Docker cleanup step a 10-minute cleanup
+  step timeout, and gives the dependency-free post-teardown Neon prune a
+  5-minute final prune timeout. That keeps a stuck Docker client or stuck
+  leftover container from consuming the rest of the E2E job while branch cleanup
+  remains ambiguous.
+  That keeps the intended invariant explicit: outside currently active tests and
+  their short two-hour TTL, only `main` should remain. The E2E workflow now also
+  runs a separate dependency-free `if: always()` Neon prune after Docker
+  teardown, so a Compose shutdown problem is not the only in-job cleanup path. A
+  standalone `Neon Branch Cleanup` workflow now runs the same dependency-free helper
+  hourly, on manual dispatch, and after the E2E workflow completes, so canceled
+  or crashed GitHub runner cleanup does not have to wait for the next
+  Playwright attempt before stale branches are pruned. The standalone cleanup
+  job is pinned to `contents: read`, a non-canceling `neon-branch-cleanup`
+  concurrency group, required `NEON_API_KEY`/`NEON_PROJECT_ID` validation,
+  `DELETE_BRANCH=true`, the two-hour TTL, and a 10-minute job timeout. That
+  keeps the active-test branch rule separate from application E2E success and
+  from the then-current Font Awesome install blocker. The latest pushed
+  cleanup-hardening head, `bde138ec9411543b2d303b94ea021854755e4c18`,
+  repeated that evidence
+  across all three matrix jobs on 2026-06-03: each job ran the pre-E2E
+  stale-branch prune, the `if: always()` stop/cleanup path with the whole-stack
+  `compose kill` fallback, and the final dependency-free prune. Every cleanup
+  summary reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`, and each job
+  then failed at the then-current Font Awesome registry-auth probe before Docker
+  startup could create a Neon Local branch. CodeQL and Git Town passed on that
+  head. A
+  local live cleanup on the same date and project (`polished-frost-79768881`)
+  also reported exactly one branch: `main`, with zero active-test branches
+  inside the two-hour TTL. A later local cleanup run after the Font Awesome
+  bandwidth-cache slice again found no Neon Local metadata, no stale branches
+  outside the two-hour active-test TTL, and
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`, so the live
+  branch-count invariant remains restored while the cache workflow change is
+  still waiting on workflow-scoped push auth. A fresh current-branch live cleanup
+  run on June 3, 2026 used the generated `.env.dev` dotenv cascade, again found
+  no Neon Local metadata in `/tmp/.neon_local/.branches`, found no stale Neon
+  Local branches outside the two-hour active-test TTL, and reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. The current
+  live Neon branch state therefore still satisfies the active-test rule: outside
+  active tests and their two-hour TTL, only the protected branch remains.
+  A fresh June 4, 2026 current-head cleanup run at
+  `1083690b2b4518ca4ef4701dc1b92cb35286c489` again found no Neon Local
+  metadata in `/tmp/.neon_local/.branches`, found no stale Neon Local branches
+  outside the two-hour active-test TTL, and reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. The live
+  branch count is therefore clean after the reported fourteen-branch spike. A
+  GitHub workflow lookup also showed `.github/workflows/neon-branch-cleanup.yml`
+  is still not present on the default branch, so its scheduled and
+  `workflow_run` cleanup hooks will only become active after the workflow-file
+  change lands there. Until then, PR E2E runs must not rely on cancellation to
+  stop old work after Neon Local has created a branch: the E2E concurrency group
+  is now non-canceling (`cancel-in-progress: false`) so an already-running
+  Docker/Neon job can reach its timeout-bound `if: always()` teardown and final
+  dependency-free Neon prune. GitHub can still coalesce pending runs for the
+  same PR ref before they start, avoiding extra active-test branches and
+  repeated Font Awesome cache warmups.
+- Current template-extra post-push CI checkpoint: PR #62 head
+  `445967d29e2be2ecfaab7be3895862bcb2448241` passed Analyze, CodeQL,
+  CodeRabbit, Display the branch stack, Copilot setup, Playwright E2E docs,
+  Playwright E2E functional-1, and Playwright E2E functional-2 on 2026-06-03
+  after the page-backed create-from-template spec was extended to assert copied
+  reusable template add-ons, add-on registration-option attachments, and
+  registration questions. The three E2E jobs created three active Neon Local
+  branches while running, `functional-2` completed first, and the final cleanup
+  returned the project to exactly one branch: `main`. A fresh local dry-run of
+  `bun helpers/testing/delete-neon-local-branches.ts` after the green run
+  reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`, so the latest
+  pushed coverage slice is green and the active-test branch invariant is
+  restored.
+- Current Font Awesome bandwidth mitigation checkpoint: latest E2E and Copilot
+  setup logs on PR #62 restored the primary `~/.bun/install/cache` key before
+  `bun install --frozen-lockfile`, and repository sources no longer contain
+  `npm.fontawesome.com`, `FONT_AWESOME_TOKEN`, or the removed private Duotone
+  package path. CI now also restores OS/Bun-version/package/config/patch-hash
+  keyed `~/.bun/install/cache` and `node_modules` caches in both E2E and
+  Copilot setup; on cache hits the workflows skip the registry install path.
+  E2E cache misses still run
+  `bun install --frozen-lockfile --cache-dir ~/.bun/install/cache` only in the
+  serial cache warmer. E2E worker jobs and Copilot setup now recover a missing
+  dependency-tree cache by running
+  `bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache`
+  only when the warmed Bun package cache was restored; if that offline install
+  fails or the package cache is absent, they fail fast instead of opening another
+  registry install path. After a successful warm or offline install, the
+  workflows save the refreshed `node_modules` dependency-tree cache with
+  `actions/cache/save@v4` before Playwright browser or Docker cache work can fail
+  later in the job. Lock, package, Bun config, or patch changes intentionally
+  invalidate both dependency caches, so the E2E warmer can still fetch public
+  Font Awesome packages from npm when it refreshes the shared caches.
+  Source coverage now also fails if any workflow outside the E2E and Copilot
+  setup install paths starts running `bun install`, and those allowed install
+  workflows must keep the public Font Awesome registry override, Bun package
+  cache restore, dependency-tree cache restore, and private-registry bans.
+  Install retries now preserve `~/.bun/install/cache`; the serial E2E cache
+  warmer retries once without clearing the package cache so transient install
+  failures do not turn cache-backed Font Awesome packages into another full
+  registry download.
+  The install steps now also print the Bun package-cache and dependency-tree
+  cache-hit values before deciding whether to skip `bun install`, so the CI logs
+  show whether a Font Awesome bandwidth warning came from an expected cache miss
+  or from an unexpected install path.
+  A fresh June 4, 2026 Copilot setup check on pushed head `49782fc8c` exposed a
+  cache-output edge case: `actions/cache/restore@v4` restored
+  `~/.bun/install/cache` from the `Linux-bun-1.3.11-` restore key, but
+  `steps.bun-package-cache.outputs.cache-hit` was `false` because the primary
+  package/config/patch hash key had changed. Copilot setup therefore failed
+  before trying the intended offline install. The E2E worker and Copilot install
+  steps now also inspect `~/.bun/install/cache` for restored package contents and
+  print `Bun package cache restored: ...`; they still refuse network registry
+  fallback installs, but a restore-key package cache can drive
+  `bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache` and
+  refresh the `node_modules` dependency-tree cache for the exact key.
+  The Codex setup environment now matches that public-registry path: it no
+  longer copies `.npmrc` from the main checkout, no longer requires
+  `FONT_AWESOME_TOKEN`, writes a temporary `@fortawesome` public npm user
+  config before `bun install`, and installs through `~/.bun/install/cache`.
+  A fresh CI bandwidth hardening pass also writes a runner-temp npm user config
+  containing `@fortawesome:registry=https://registry.npmjs.org/` in the E2E and
+  Copilot setup workflows, exports both `NPM_CONFIG_USERCONFIG` and
+  `npm_config_userconfig` through `$GITHUB_ENV` before dependency installs, and
+  fails fast if a tracked `.npmrc` appears. That keeps GitHub-hosted installs
+  from inheriting a user/account-level Font Awesome registry configuration while
+  preserving the existing `bunfig.toml` public-registry pin and cache-hit
+  install skip.
+  The E2E workflow now starts with a `warm-ci-caches` job that restores or warms
+  the Bun package cache, the `node_modules` dependency-tree cache, and the
+  Docker BuildKit cache before the `functional-1`, `functional-2`, and `docs`
+  matrix jobs are allowed to run. That serial cache warmer reduces first-run
+  cache-miss fan-out, so a lockfile or Docker-cache invalidation no longer asks
+  all three Playwright jobs to independently download the same public Font
+  Awesome packages. The E2E matrix now also uses `max-parallel: 1`, trading some
+  runtime for lower bandwidth risk when Docker or dependency caches miss.
+  A fresh CI run on pushed head
+  `1083690b2b4518ca4ef4701dc1b92cb35286c489` proved the normal dependency
+  bandwidth path again: the serial warmer restored the Bun package cache,
+  restored the dependency-tree cache, skipped `bun install`, restored the Docker
+  Bun cache mount, and completed the Angular bundle without a Font Awesome
+  registry-auth failure. That run failed later because the serial Docker
+  cache-warm command hit its 12-minute timeout while Docker was still finishing
+  build/export/cache work, so the warmer command now gets 20 minutes. The E2E
+  worker jobs still remain behind `needs: warm-ci-caches` and still refuse
+  independent registry installs when the warmed caches are absent.
+  Docker image installs now also pass
+  `--cache-dir /home/bun/.bun/install/cache` in both build and production
+  dependency stages, matching the existing BuildKit
+  `id=bun-install-cache,target=/home/bun/.bun/install/cache` mount so container
+  rebuilds use the persisted Bun package cache explicitly instead of relying on
+  Bun's default cache-path resolution.
+  The E2E cache warmer now also persists that Docker-specific Bun cache mount
+  as a separate `buildkit-bun-cache` Actions cache keyed by Bun version,
+  `package.json`, `bun.lock`, `bunfig.toml`, and patches. The workflow injects
+  the cache back into the BuildKit builder with
+  `reproducible-containers/buildkit-cache-dance@v3.4.0` and the same
+  `bun-install-cache` mount id before Docker Compose builds run. The E2E matrix
+  restores and injects that cache read-only with `skip-extraction: true`, so
+  the serial cache warmer remains the write path while worker jobs avoid opening
+  a fresh Docker `bun install` registry path on ordinary cache hits.
+  The E2E matrix now restores the Bun package cache, `node_modules`
+  dependency-tree cache, Docker build cache, and Playwright browser cache with
+  `actions/cache/restore@v4`, so the serial cache warmer remains the write path
+  and the parallel jobs do not compete to create the same dependency caches
+  after a cache miss. The matrix dependency step now fails fast instead of
+  running a parallel fallback registry install when the warmed dependency-tree
+  cache is missing, so `functional-1`, `functional-2`, and `docs` cannot
+  multiply Font Awesome package downloads after a cache restore failure. E2E
+  matrix Docker builds now also print the Docker Bun cache-mount hit value
+  and fail fast when the warmed `buildkit-bun-cache` cache was not restored
+  after `warm-ci-caches`, preventing worker Docker build stages from reopening
+  independent Font Awesome package-download paths inside BuildKit. Both E2E and
+  Copilot setup also set
+  `PLAYWRIGHT_BROWSERS_PATH=/home/runner/.cache/ms-playwright` and restore a
+  Playwright browser cache before running `node_modules/.bin/playwright install`,
+  reducing repeated browser downloads from GitHub-hosted runners. The workflows
+  now call `node_modules/.bin/playwright` directly and no longer call `bunx playwright`,
+  reducing repeated package-resolution traffic from GitHub-hosted runners. The
+  other repeated install surface was the GitHub-hosted Docker
+  Compose build, where each E2E matrix job rebuilt the Dockerfile install stages
+  on an ephemeral runner. CI restores a persisted
+  `/tmp/evorto-docker-build-cache` Actions cache, builds `db-setup` and `evorto`
+  through `.github/docker-compose.build-cache.yml`, explicitly enables
+  `DOCKER_BUILDKIT` and `COMPOSE_DOCKER_CLI_BUILD`, and exports both the GitHub
+  Actions BuildKit cache backend and the local cache directory. Source coverage
+  now fails if a GitHub workflow runs a Docker Compose build without that cache
+  override. The workflow now installs the latest Docker Buildx before Compose
+  builds so the `type=gha` backend has a non-default builder and current GitHub
+  Cache API support, and the Compose override gives `db-setup` and `evorto`
+  separate cache scopes so one image cannot overwrite the other's BuildKit cache
+  entry. The `type=gha` backend lets completed Docker builds persist
+  package-install layers before the later Playwright job outcome, which reduces
+  repeated Font Awesome package fetches when the E2E step itself fails or is
+  cancelled. `bunfig.toml` also
+  pins the `@fortawesome` scope to `https://registry.npmjs.org/` so public Font
+  Awesome packages cannot be routed through a runner or developer account-level
+  Font Awesome registry configuration. The Dockerfile now also writes the same
+  public Font Awesome registry user config at `/tmp/npmrc-public-fontawesome`
+  before container `bun install` runs and uses `sharing=locked` on the shared
+  BuildKit Bun cache mount, so Docker install stages reuse the cache without
+  inheriting account-level registry configuration. The production dependency
+  stage now derives from the cache-warmed build stage and uses an offline
+  production-dependency install, avoiding a second networked dependency install
+  during CI and remote Docker builds. The
+  current local branch has validated but unpushed cache and source-guard
+  follow-up commits, including the E2E cache warmer, Docker
+  Buildx/cache-scope hardening, app diagnostics logging guard, and related
+  docs/source guards.
+  A fresh CI bandwidth hardening pass at local head `f41715149` also added the
+  public Font Awesome registry override and private-package guard to the
+  scheduled `Neon Branch Cleanup` workflow. That workflow still does not run
+  dependency installation, but the runner-temp `NPM_CONFIG_USERCONFIG` and
+  `npm_config_userconfig` export now prevents the hourly cleanup runner from
+  inheriting an account-level Font Awesome registry configuration before it
+  executes the Bun helper.
+  SSH push is blocked by local key-agent signing and HTTPS push is blocked
+  because the current GitHub OAuth token lacks `workflow` scope for
+  workflow-file updates. Earlier push attempts either hung in the SSH transport
+  or timed out before updating `codex/stabilization-flow-coverage`. The latest
+  local cache-key hardening slice is `544b64a7a`, and after that commit the
+  branch was clean and ahead of origin by 107 commits. Its bounded push attempt
+  failed with `sign_and_send_pubkey: signing failed for ED25519 "Github" from
+agent: agent refused operation`, followed by GitHub public-key denial, so the
+  SSH push path remains blocked without a promptable key-agent/signing flow.
+  `gh auth status` still reports `gist`, `read:org`, and `repo` scopes only, so
+  the workflow-file commits still cannot be pushed through HTTPS either. The
+  current remote PR #62 checks are still green on the last pushed
+  `445967d29e2be2ecfaab7be3895862bcb2448241` head, so those green checks do not
+  prove the newer local cache/source-guard slices until workflow-scoped push
+  auth is available. A fresh June 4, 2026 push-blocker refresh at local head
+  `a47e3419d` found the branch clean and 128 commits ahead of
+  `origin/codex/stabilization-flow-coverage`. SSH push still failed with
+  `sign_and_send_pubkey: signing failed for ED25519 "Github" from agent:
+  communication with agent failed`, followed by GitHub public-key denial. HTTPS
+  push still failed because the current OAuth token cannot update
+  `.github/workflows/copilot-setup-steps.yml` without `workflow` scope.
+- Current PR CI watch checkpoint: a Codex heartbeat automation named
+  `PR 62 CI watch` is active for this thread with id `pr-62-ci-watch` and a
+  five-hour `FREQ=HOURLY;INTERVAL=5` cadence. Its prompt checks PR #62 for the
+  Evorto stabilization branch, compares the remote PR head and status checks
+  against the local branch state, inspects failing GitHub checks when present,
+  and explicitly reports local commits that remain unpushed because of auth or
+  workflow-scope constraints instead of treating old green checks as proof for
+  newer local commits. A fresh June 4, 2026 automation audit also read
+  `/Users/hedde/.codex/automations/pr-62-ci-watch/automation.toml` and confirmed
+  `kind = "heartbeat"`, `status = "ACTIVE"`, the same five-hour cadence, and the
+  prompt text requiring the remote-vs-local comparison plus explicit reporting
+  of auth/workflow-scope push constraints. A fresh June 4, 2026 manual CI watch
+  check at local head `fd0a6e057` found PR #62 still at remote head
+  `445967d29e2be2ecfaab7be3895862bcb2448241`; Analyze, CodeQL, Copilot setup,
+  Git Town branch stack, CodeRabbit, and all three E2E jobs are green only for
+  that old remote head. At that check the local branch was clean and 65 commits
+  ahead; later local evidence-refresh commits can increase the ahead count while
+  the same push-auth blocker remains. `gh auth status` still reports only
+  `gist`, `read:org`, and `repo` scopes, so workflow-file commits still cannot
+  be pushed over the current HTTPS auth. A fresh June 4, 2026 manual CI watch at
+  local head `cbf4bdba1` found PR #62 still on the same remote
+  `445967d29e2be2ecfaab7be3895862bcb2448241` head with Analyze, CodeQL, Copilot
+  setup, Git Town, CodeRabbit, and the three E2E jobs green only for that stale
+  remote head. The local branch was clean and 89 commits ahead of
+  `origin/codex/stabilization-flow-coverage`; `gh auth status` still showed only
+  `gist`, `read:org`, and `repo`, so the local workflow-file commits still
+  cannot be pushed over the current HTTPS auth. A fresh June 4, 2026 manual CI
+  watch at local head `bfc9517da` again found PR #62 still on the same remote
+  `445967d29e2be2ecfaab7be3895862bcb2448241` head with Analyze, CodeQL,
+  Copilot setup, Git Town, CodeRabbit, and all three E2E jobs green only for
+  that stale remote head. The local branch was clean and 93 commits ahead of
+  `origin/codex/stabilization-flow-coverage`; `gh auth status` still showed only
+  `gist`, `read:org`, and `repo`, so workflow-file commits still cannot be
+  pushed over the current HTTPS auth. A fresh June 4, 2026 manual CI watch at
+  local head `ed2675278` found PR #62 still on the same remote
+  `445967d29e2be2ecfaab7be3895862bcb2448241` head with Analyze, CodeQL,
+  Copilot setup, Git Town, CodeRabbit, and all three E2E jobs green only for
+  that stale remote head. The local branch was clean and 95 commits ahead of
+  `origin/codex/stabilization-flow-coverage`; `gh auth status` still showed only
+  `gist`, `read:org`, and `repo`, so workflow-file commits still cannot be
+  pushed over the current HTTPS auth. A fresh June 4, 2026 manual CI watch at
+  local head `2d407ff91` again found PR #62 still on the same remote
+  `445967d29e2be2ecfaab7be3895862bcb2448241` head with Analyze, CodeQL,
+  Copilot setup, Git Town, CodeRabbit, and all three E2E jobs green only for
+  that stale remote head. The local branch was clean and 98 commits ahead of
+  `origin/codex/stabilization-flow-coverage`; `gh auth status` still showed only
+  `gist`, `read:org`, and `repo`, so workflow-file commits still cannot be
+  pushed over the current HTTPS auth. A fresh June 4, 2026 manual CI watch at
+  local head `28469d18d` again found PR #62 still on the same remote
+  `445967d29e2be2ecfaab7be3895862bcb2448241` head with Analyze, CodeQL,
+  Copilot setup, Git Town, CodeRabbit, and all three E2E jobs green only for
+  that stale remote head. The local branch was clean and 113 commits ahead of
+  `origin/codex/stabilization-flow-coverage`; `gh auth status` still showed only
+  `gist`, `read:org`, and `repo`, SSH push still failed at agent signing, and
+  workflow-file commits still cannot be pushed over the current HTTPS auth.
+  A fresh June 4, 2026 manual CI watch at local head `859bf7f60` again found
+  PR #62 on remote head `445967d29e2be2ecfaab7be3895862bcb2448241`, with
+  Analyze, CodeQL, Copilot setup, Git Town, CodeRabbit, and all three E2E jobs
+  green only for that stale pushed head. The local branch was clean and 120
+  commits ahead of `origin/codex/stabilization-flow-coverage`; SSH push still
+  failed at ED25519 key-agent signing, and HTTPS push still failed because the
+  current OAuth token lacks `workflow` scope for the workflow-file commits.
+  A fresh June 4, 2026 manual CI watch at local head `a47e3419d` again found
+  PR #62 on the same remote head
+  `445967d29e2be2ecfaab7be3895862bcb2448241`, with Analyze, CodeQL, Copilot
+  setup, Git Town, CodeRabbit, and all three E2E jobs green only for that stale
+  pushed head. The local branch was clean and 128 commits ahead of
+  `origin/codex/stabilization-flow-coverage`; `gh auth status` still showed only
+  `gist`, `read:org`, and `repo`, SSH push failed with ED25519 key-agent
+  communication failure, and HTTPS push was rejected because the OAuth token
+  lacks `workflow` scope for `.github/workflows/copilot-setup-steps.yml`.
+  A fresh June 4, 2026 manual CI watch at local head `e9cd6f34d` again found
+  PR #62 on remote head `445967d29e2be2ecfaab7be3895862bcb2448241`; Analyze,
+  CodeQL, Copilot setup, Git Town, CodeRabbit, and all three E2E jobs are still
+  green only for that stale pushed head. The local branch was clean and 134
+  commits ahead of `origin/codex/stabilization-flow-coverage`; SSH push again
+  failed with ED25519 key-agent communication failure, and HTTPS push was again
+  rejected because the OAuth token lacks `workflow` scope for
+  `.github/workflows/copilot-setup-steps.yml`.
+  A fresh June 4, 2026 manual CI watch at local head `69f1b5aee` again found
+  PR #62 on remote head `445967d29e2be2ecfaab7be3895862bcb2448241`; Analyze,
+  CodeQL, Copilot setup, Git Town, CodeRabbit, Playwright E2E docs,
+  Playwright E2E functional-1, and Playwright E2E functional-2 are still green
+  only for that stale pushed head. The local branch was clean and 143 commits
+  ahead of `origin/codex/stabilization-flow-coverage`. SSH push still failed
+  with `sign_and_send_pubkey: signing failed for ED25519 "Github"` and
+  `agent refused operation`, followed by GitHub public-key denial. After the Git
+  credential helper was refreshed with `gh auth setup-git`, HTTPS push reached
+  GitHub but was rejected because the current OAuth token lacks `workflow` scope
+  for
+  `.github/workflows/copilot-setup-steps.yml`, so the latest local Browser
+  evidence and source-guard commits remain unpushed.
+  A fresh June 4, 2026 manual CI watch at local head `f41715149` again found
+  PR #62 on remote head `445967d29e2be2ecfaab7be3895862bcb2448241`; Analyze,
+  CodeQL, Copilot setup, Git Town, CodeRabbit, Playwright E2E docs, Playwright
+  E2E functional-1, and Playwright E2E functional-2 are green only for that
+  stale pushed head. The local branch is clean and 157 commits ahead of
+  `origin/codex/stabilization-flow-coverage`. A fresh HTTPS push reached
+  GitHub but was rejected because the OAuth token cannot update
+  `.github/workflows/copilot-setup-steps.yml` without `workflow` scope, so the
+  latest Font Awesome cleanup-workflow hardening and local Browser evidence
+  remain unpushed.
+  After SSH approval became available again, the local branch was pushed through
+  head `a9d4544e1fcd4ebbbb55a6e633df7c09ad61f84c`. The current PR #62 rollup
+  now shows Analyze, CodeQL, Copilot setup, Git Town, CodeRabbit, E2E
+  warm-cache, Playwright E2E functional-1, Playwright E2E functional-2, and
+  Playwright E2E docs all green on that current head, so the earlier stale-head
+  push-blocker evidence is superseded for this branch state. The pushed
+  restore-key cache fix also proved the intended bandwidth path: Copilot setup
+  and E2E worker jobs restored cached Bun state, avoided private Font Awesome
+  registry auth, and did not open parallel fallback registry installs.
+  After `gh auth refresh -h github.com -s workflow`, the local branch was
+  pushed over HTTPS through current head
+  `17c35e732911feff82d6f34313c0e7d745a31661`. The fresh PR #62 rollup for that
+  head shows Analyze, CodeQL, Copilot setup, Git Town, CodeRabbit, and `Warm CI
+dependency caches` green; the warm-cache job completed the Docker cache build
+  with the 20-minute timeout path. At the check, `Playwright E2E
+(functional-1)` was in progress while `functional-2` and `docs` were queued,
+  so CI proof for the pushed E2E matrix still depends on those jobs finishing on
+  head `17c35e732`.
+- Current Neon active-test branch refresh checkpoint: a fresh June 4, 2026 local
+  `bun run env:runtime` plus repo-local
+  `node_modules/.bin/dotenv -c dev -- bun helpers/testing/delete-neon-local-branches.ts`
+  cleanup run at local head `9295a20b2` found no Neon Local metadata in
+  `/tmp/.neon_local/.branches`, checked for stale branches outside the two-hour
+  active-test TTL, and reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. That proves
+  the current live Neon project has only `main` and no active or stale test
+  branches after the CI cleanup/cache hardening work; if new branches appear,
+  they should be current test branches inside the two-hour TTL or they should be
+  removed by the same helper or the hourly cleanup workflow. The same June 4
+  runtime refresh wrote `.env.dev`; current Docker preflight evidence is tracked
+  separately because `bun run docker:check` now correctly fails on the Docker
+  container start-path probe while still reporting required runtime variables,
+  Compose config, project-container inspection, Playwright CLI, Stripe webhook
+  source, and browser-cache checks as healthy.
+  A later June 4, 2026 repo-local dotenv cleanup run at local head `859bf7f60`
+  again found no Neon Local branch metadata in `/tmp/.neon_local/.branches`,
+  found no stale Neon Local branches outside the two-hour TTL, and reported
+  `total=2, protected=1, active_test=1, stale_deleted=0, ttl=2h`. The remaining
+  active branch was `br-nameless-mountain-a9cbta9g`, created at
+  `2026-06-04T01:55:09Z` and about 66 minutes old at the check, so the live Neon
+  project satisfies the active-test rule: outside `main`, only a current test
+  branch inside the two-hour TTL exists.
+  A fresh June 4, 2026 repo-local dotenv cleanup run at local head `8b6733014`
+  regenerated `.env.dev`, again found no Neon Local branch metadata in
+  `/tmp/.neon_local/.branches`, checked for stale branches outside the two-hour
+  active-test TTL, and reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. The live Neon
+  project is therefore back to the intended non-test state: only protected
+  `main`, with no active-test branches and no stale branches to delete.
+  A fresh June 4, 2026 repo-local dotenv cleanup run at local head `0c9d4ea59`
+  regenerated `.env.dev`, found no Neon Local branch metadata in
+  `/tmp/.neon_local/.branches`, checked for stale branches outside the two-hour
+  active-test TTL, and reported
+  `total=2, protected=1, active_test=1, stale_deleted=0, ttl=2h`. The remaining
+  active branch was `br-silent-rain-a9lwt7ed`, created at
+  `2026-06-04T05:02:40Z` and about 22 minutes old at the check, so the current
+  live Neon project again satisfies the active-test rule: outside protected
+  `main`, only a current test branch inside the two-hour TTL exists, and no
+  stale branches required deletion.
+  A fresh June 4, 2026 repo-local dotenv cleanup run at local head `c04da4e38`
+  again found no Neon Local branch metadata in `/tmp/.neon_local/.branches`,
+  checked for stale Neon Local branches outside the two-hour active-test TTL, and
+  reported `total=2, protected=1, active_test=1, stale_deleted=0, ttl=2h`. The
+  same active branch `br-silent-rain-a9lwt7ed` was still inside the TTL at about
+  39 minutes old with `created_at=2026-06-04T05:02:40Z`, so the live project
+  still satisfies the branch hygiene rule: outside protected `main`, only active
+  test branches younger than two hours remain, and there were no stale branches
+  to delete.
+  A fresh June 4, 2026 repo-local dotenv cleanup run at local head `f000bd8c9`
+  after regenerating `.env.dev` again found no Neon Local branch metadata in
+  `/tmp/.neon_local/.branches`, checked for stale Neon Local branches outside
+  the two-hour active-test TTL, and reported
+  `total=2, protected=1, active_test=1, stale_deleted=0, ttl=2h`. The same
+  active branch `br-silent-rain-a9lwt7ed` was 83 minutes old with
+  `created_at=2026-06-04T05:02:40Z`, so the live project still satisfies the
+  branch hygiene rule: outside protected `main`, only an active test branch
+  younger than two hours remains. A follow-up Docker probe-container check for
+  `evorto-runtime-preflight` and `codex-preflight-manual` listed no leftovers.
+  A fresh June 4, 2026 repo-local dotenv cleanup run at local head `fc7599843`
+  after regenerating `.env.dev` again found no Neon Local branch metadata in
+  `/tmp/.neon_local/.branches`, checked for stale Neon Local branches outside
+  the two-hour active-test TTL, and reported
+  `total=2, protected=1, active_test=1, stale_deleted=0, ttl=2h`. The same
+  active branch `br-silent-rain-a9lwt7ed` was 98 minutes old with
+  `created_at=2026-06-04T05:02:40Z`, so the live project still satisfies the
+  branch hygiene rule: outside protected `main`, only an active test branch
+  younger than two hours remains, and there are no stale branches to delete.
+  A later June 4, 2026 repo-local dotenv cleanup run at local head `1737ed5f7`
+  ran after the same `br-silent-rain-a9lwt7ed` two-hour branch expiration had
+  passed. The running Docker app then returned HTTP 500 for `/events` because
+  its backing Neon Local branch was already gone, while
+  `node_modules/.bin/dotenv -c dev -- bun helpers/testing/delete-neon-local-branches.ts`
+  found no Neon Local metadata in `/tmp/.neon_local/.branches`, checked for
+  stale branches outside the two-hour active-test TTL, and again reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. That keeps the
+  live Neon project clean with only `main`, but the stale local Docker runtime
+  could not provide fresh Browser route evidence. A bounded Compose shutdown
+  removed the stale app, Stripe, MinIO, and setup containers, but Docker could
+  not stop or force-remove `evorto-4dddca18-db-1`, returning "tried to kill
+  container, but did not receive an exit event." The remaining blocker is the
+  host Docker daemon/container lifecycle, not a Font Awesome, Neon branch
+  cleanup, General-page mobile, or Material layout regression.
+  A fresh June 4, 2026 repo-local dotenv cleanup run at local head `b5f8d77b3`
+  regenerated `.env.dev`, found no Neon Local branch metadata in
+  `/tmp/.neon_local/.branches`, checked for stale Neon Local branches outside
+  the two-hour active-test TTL, and reported
+  `total=2, protected=1, active_test=1, stale_deleted=0, ttl=2h`. The only
+  non-protected branch was `br-mute-paper-a9vq9l6k`, created at
+  `2026-06-04T07:49:23Z` and 7 minutes old at the check, so the live project
+  still satisfies the branch hygiene rule: outside protected `main`, only a
+  current active-test branch younger than two hours remains and no stale branch
+  required deletion.
+  A follow-up local preflight hardening pass teaches
+  `helpers/testing/runtime-preflight.ts` to parse both array and single-object
+  `docker compose ps --format json` output and fail Docker preflight when a
+  generated Compose container reports `Health=unhealthy`, including the observed
+  `evorto-4dddca18-db-1` `Up 2 hours (unhealthy)` shape. Root, helper, and test
+  guidance now distinguish conservative stale-container cleanup from unhealthy
+  running containers that need a generated-project shutdown or Docker Desktop
+  restart before fresh Browser verification can resume.
+  A follow-up cleanup-helper pass extends
+  `helpers/testing/remove-stale-compose-containers.ts` so bounded cleanup can
+  target unhealthy generated containers as well as `created`, `dead`, and
+  `removing` containers. The helper now reads Compose JSON `Health`, detects
+  `normalizedHealth === 'unhealthy'`, also catches Docker `ps` fallback status
+  text through `normalizedStatus.includes('unhealthy')`, and reports "Removing
+  stale or unhealthy Docker Compose project containers" before attempting
+  one-at-a-time `docker rm -f -v` removal. Root, helper, test, and stabilization
+  source guidance now align with the cleanup behavior, so the observed
+  `evorto-4dddca18-db-1` shape is no longer only documented as a manual restart
+  case before bounded cleanup tries it. A live `bun run docker:clean-stale`
+  validation on the same current Docker state regenerated `.env.dev`, reported
+  `Removing stale or unhealthy Docker Compose project containers:
+evorto-4dddca18-db-1`, then failed with Docker daemon output
+  `cannot remove container "evorto-4dddca18-db-1": could not kill container:
+tried to kill container, but did not receive an exit event`. A follow-up
+  `docker ps` still listed `evorto-4dddca18-db-1` as `Up 2 hours (unhealthy)`,
+  confirming that the cleanup tool now reaches the right target and the
+  remaining blocker is Docker daemon removal, which still requires generated
+  project shutdown recovery or Docker Desktop restart before fresh Browser
+  verification can resume. A follow-up testability pass made that cleanup target
+  detection import-safe through `import.meta.main` and added
+  `helpers/testing/remove-stale-compose-containers.spec.ts` coverage for Compose
+  JSON `Health=unhealthy`, Docker `ps` fallback `Status` text containing
+  `(unhealthy)`, stale `created`/`dead` states, healthy running-container
+  exclusion, and duplicate target de-duplication.
+- Current PR #62 active-head CI cleanup checkpoint: after pushing local head
+  `94467888c`, the stale previous-head E2E run `26951782038` was cancelled and
+  still ran the important finalizers: Docker logs were collected, `Stop Docker
+stack` succeeded, and `Prune expired Neon branches after E2E` succeeded. The
+  fresh current-head rollup shows CodeQL, Copilot setup, Git Town, CodeRabbit,
+  and `Warm CI dependency caches` green; the warmer restored the public
+  Font Awesome registry path, Bun package cache, dependency-tree cache, Docker
+  build cache, Docker Bun cache mount, and Playwright browser cache before
+  completing Docker cache warming. `Playwright E2E (functional-1)` then passed
+  end to end on the same head, including Docker startup, Neon branch-expiration
+  confirmation, application readiness, the functional suite, Docker log
+  collection, `Stop Docker stack`, and `Prune expired Neon branches after E2E`.
+  A live repo-local cleanup run while `functional-2` was active reported
+  `total=3, protected=1, active_test=2, stale_deleted=0, ttl=2h`, with the only
+  non-protected branches still inside the two-hour active-test TTL
+  (`br-curly-surf-a9q558vg` and `br-curly-poetry-a9g9czjh`). That keeps the
+  current branch-hygiene signal aligned with the intended state: active CI
+  workers may own short-lived branches, but stale branches are pruned and
+  completed or cancelled E2E workers run the cleanup finalizer.
+- Current Docker/Browser runtime recovered checkpoint: the Docker app is again
+  serving the current local branch after the protected SSR route fix at local
+  head `db7845e5e`. `node_modules/.bin/dotenv -c dev -- docker compose ps`
+  shows healthy `db`, running `evorto`, `minio`, and `stripe` services, with
+  the app exposed at the generated `BASE_URL`. A fresh in-app Browser probe
+  opened `/events?runtimeRecovered=...` at 390x844, rendered the app shell with
+  `Events` and `No events found`, and reported `clientWidth=390`,
+  `scrollWidth=390`, and no horizontal overflow before resetting the temporary
+  Browser viewport override. A fresh June 4, 2026 current-state refresh at local
+  head `cb4fc919f` confirmed the same generated `BASE_URL` is still served by
+  healthy/running `db`, `evorto`, `minio`, and `stripe` Compose services, and
+  the latest in-app Browser passes now cover public General pages plus
+  authenticated `/admin/settings` at 320x740, 390x844, and 1440x900 with no
+  Browser error logs, no rendered application-error text, no horizontal
+  overflow, and no horizontally clipped visible controls. The older Docker
+  container start-path blocker entries below are retained as historical
+  diagnostics and are superseded by the current running-Docker Browser evidence.
+  A fresh June 4, 2026 in-app Browser refresh at local head `6b4a9003a`
+  repeated the public General sweep for `/events`, `/legal/imprint`,
+  `/legal/privacy`, `/legal/terms`, `/403`, `/500`, and `/404` at 320x740,
+  390x844, and 1440x900 against the generated `BASE_URL`; all 21
+  route/viewport checks reported no horizontal overflow, no clipped visible
+  controls, and no rendered application-error text. The temporary Browser
+  viewport override was reset after the sweep, and the mobile evidence
+  screenshot was saved at `/tmp/evorto-public-general-current-refresh-mobile.png`.
+  A later June 4, 2026 in-app Browser refresh at local head `dfe075ccd`
+  repeated the anonymous public General sweep for `/`, `/events`,
+  `/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`, `/404`, and
+  `/500` at 320x740, 390x844, and 1440x900 against the generated `BASE_URL`.
+  All 24 route/viewport checks reported no horizontal overflow, no clipped
+  visible controls, and no rendered application-error text. The 390x844
+  `/legal/privacy` screenshot showed the Privacy policy page, tenant-missing
+  legal-text message, and fixed mobile bottom navigation fitting without visual
+  overlap; it was saved at
+  `/tmp/evorto-public-general-20260604-refresh-mobile.jpg`. The temporary
+  Browser viewport override was reset after the sweep.
+  A fresh June 4, 2026 current-head local refresh at `7daed0b2a` ran
+  `bun run docker:check` successfully: required Docker runtime variables, Bun
+  1.3.11, Docker Compose v5.1.4, Compose config, disposable Alpine container
+  start path, Compose project inspection, Playwright CLI, Stripe webhook secret
+  source, and Playwright Chromium cache checks were all green. `bun run
+  docker:start` then rebuilt and started the current Docker app at the generated
+  `BASE_URL`; the Dockerfile reused the cached Font Awesome/Bun install layer,
+  and the production dependency stage completed the offline
+  `bun install --production --offline --cache-dir
+  /home/bun/.bun/install/cache` path. `docker compose ps` showed healthy
+  `db`, healthy `minio`, running `stripe`, and running `evorto` containers for
+  the generated `evorto-4dddca18` project. A current-head public General
+  viewport Playwright browser sweep ran
+  `tests/specs/smoke/public-general-viewports.spec.ts` with `NO_WEBSERVER=true`
+  and `--no-deps` against that app and passed, keeping the anonymous General
+  route matrix covered at 320x740, 390x844, and 1440x900. A representative
+  390x844 browser screenshot/metric pass for `/events`, `/legal/imprint`, and
+  `/404` reported `viewportWidth=390`, `bodyWidth=390`, `docWidth=390`, no
+  horizontal overflow, and zero clipped controls on all three routes; screenshots
+  were saved under `/tmp/evorto-current-head-general-*-390x844.png`. A direct
+  in-app Browser tab API sweep against the generated `BASE_URL` then set the
+  Browser `viewport` capability to 390x844, visited `/events`, `/legal/imprint`,
+  and `/404`, and reported `viewportWidth=390`, `bodyWidth=390`, `docWidth=390`,
+  no horizontal overflow, and zero clipped controls on all three routes before
+  resetting the viewport override. A fresh June 4, 2026 direct in-app Browser
+  tab API sweep at local head `0ed0ef8c5` then used the same generated
+  `BASE_URL`, set the Browser `viewport` capability for 320x740, 390x844, and
+  1440x900, and visited `/`, `/events`, `/legal/imprint`, `/legal/privacy`,
+  `/legal/terms`, `/403`, `/500`, and `/404`. All 24 route/viewport checks
+  reported the expected viewport width, matching `bodyWidth` and `docWidth`, no
+  horizontal overflow, zero clipped controls, no rendered application-error
+  text, and the expected page headings before the viewport override was reset.
+  A fresh follow-up June 4, 2026 direct in-app Browser tab API sweep at local
+  head `93fe69843` confirmed the current generated `BASE_URL` still serves the
+  full anonymous General route set. The Playwright-test Browser surface still
+  failed before page interaction with `Must setup test`, so the planner setup
+  watchpoint remains separate from direct Browser verification. After refreshing
+  the in-app Browser handle, the direct sweep again set the Browser `viewport`
+  capability for 320x740, 390x844, and 1440x900, visited `/`, `/events`,
+  `/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`, `/500`, and
+  `/404`, and reported all 24 route/viewport checks green: expected viewport
+  width, matching `bodyWidth` and `docWidth`, no horizontal overflow, zero
+  clipped controls, no rendered application-error text, expected page headings,
+  and no Browser console errors. The 390x844 `/legal/privacy` screenshot showed
+  the Privacy policy page, tenant-missing legal-text message, and fixed mobile
+  bottom navigation fitting without overlap before the viewport override was
+  reset.
+  A fresh June 4, 2026 direct in-app Browser rerun at local head `1836e54f4`
+  used the generated `BASE_URL` and the Browser `viewport` capability for
+  320x740, 390x844, and 1440x900, then visited `/`, `/events`,
+  `/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`, `/500`, and
+  `/404` with the current durable heading copy (`Terms`, `Access not allowed`,
+  and `Something went wrong` for the routes that no longer use the older
+  wording). All 24 route/viewport checks passed: the expected viewport width
+  matched `window.innerWidth`, `bodyWidth` and `docWidth` matched the viewport
+  width, there was no horizontal overflow, zero clipped visible controls, no
+  rendered application-error text, expected route headings, and no Browser
+  console errors. The 390x844 `/legal/terms` screenshot was saved at
+  `/tmp/evorto-current-head-general-browser-1836e54f-mobile-terms.png`, and the
+  Browser viewport override was reset after the sweep. The durable Playwright
+  public General viewport spec was then rerun against the same Docker app after
+  `bun run db:reset` cleared stale deterministic seed rows:
+  `NO_WEBSERVER=true bun run test:e2e --
+  tests/specs/smoke/public-general-viewports.spec.ts
+  --project=local-chrome-baseline --workers=1 --no-deps` passed with 1 test in
+  17.5s. A direct `docker:start` refresh remains blocked by the known
+  disposable Alpine preflight timeout, but the existing generated
+  `evorto-4dddca18` Docker app and database stayed reachable for Browser and
+  Playwright verification.
+  A fresh June 4, 2026 direct in-app Browser sweep at local head `1ab95b1c5`
+  reused the generated `BASE_URL` from `.env.dev` and the running
+  `evorto-4dddca18` Docker app. Browser control connected to the `iab` browser,
+  used the `viewport` capability for 320x740, 390x844, and 1440x900, then
+  visited `/`, `/events`, `/legal/imprint`, `/legal/privacy`, `/legal/terms`,
+  `/403`, `/500`, and `/404`. All 24 route/viewport checks reported matching
+  `window.innerWidth`, `bodyWidth`, and `docWidth`, no horizontal overflow, no
+  clipped visible controls, no rendered application-error text, expected
+  headings (`Events`, `Terms`, `Page not found` in the sampled mobile output),
+  and zero Browser warning/error logs before the temporary viewport override was
+  reset. The 320x740 `/legal/terms` screenshot showed the Terms page,
+  tenant-missing legal-text message, and fixed mobile bottom navigation fitting
+  without overlap; it was saved at
+  `/tmp/evorto-general-browser-20260604-320-terms.png`.
+  A fresh June 4, 2026 focused in-app Browser mobile refresh at local head
+  `a2c1d2e70` reused the same generated `BASE_URL`, verified the Docker app was
+  serving `/robots.txt`, and checked `/`, `/events`, `/legal/imprint`,
+  `/legal/privacy`, `/legal/terms`, `/403`, `/500`, and `/404` at 320x740 and
+  390x844 through the Browser `viewport` capability. All 16 route/viewport
+  checks reported matching `window.innerWidth`, `bodyWidth`, and `docWidth`, no
+  horizontal overflow, zero clipped visible controls, no rendered
+  application-error text, and no Browser warning/error log failures before the
+  viewport override was reset. The 320x740 `/legal/terms` screenshot was saved
+  at `/tmp/evorto-general-mobile-refresh-a2c1d2e-320-terms.png`.
+  A fresh June 4, 2026 direct in-app Browser sweep at local head `6b975474c`
+  reused the healthy generated Docker app at the `.env.dev` `BASE_URL`,
+  connected to the `iab` browser, and set the Browser `viewport` capability for
+  320x740, 390x844, and 1440x900. It visited `/`, `/events`, `/legal/imprint`,
+  `/legal/privacy`, `/legal/terms`, `/403`, `/500`, and `/404`; all 24
+  route/viewport checks reported matching `window.innerWidth`, body/document
+  widths equal to the viewport width, no horizontal overflow, no top/side
+  clipped visible controls, no rendered application-error text, expected
+  headings, and zero Browser warning/error logs before the viewport override was
+  reset. The event-list checks observed ordinary scroll continuation when an
+  event card begins at the bottom edge of the viewport, not a horizontal or
+  fixed-navigation visual glitch. Screenshots were saved at
+  `/tmp/evorto-current-head-general-6b975474-320-terms.png` and
+  `/tmp/evorto-current-head-general-6b975474-390-events.png`; the 390x844 event
+  screenshot showed readable Material cards and fixed mobile bottom navigation
+  fitting without overlap.
+  A fresh June 4, 2026 direct in-app Browser sweep at local head `fdd040de9`
+  reused the generated `.env.dev` `BASE_URL` and the healthy
+  `evorto-4dddca18` Docker app. Browser control connected to the `iab` browser,
+  used the Browser `viewport` capability for 320x740, 390x844, and 1440x900,
+  and visited `/`, `/events`, `/legal/imprint`, `/legal/privacy`,
+  `/legal/terms`, `/403`, `/500`, and `/404`. All 24 route/viewport checks
+  passed with `window.innerWidth`, body width, and document width equal to the
+  requested viewport width; no horizontal overflow; no top/side clipped visible
+  controls; no rendered application-error text; expected headings including
+  `Access not allowed`, `Something went wrong`, and `Page not found`; and zero
+  Browser warning/error logs before the viewport override was reset. The mobile
+  evidence screenshots were saved at
+  `/tmp/evorto-general-current-fdd040de-320x740--legal-terms.png` and
+  `/tmp/evorto-general-current-fdd040de-390x844--events.png`; the Terms
+  screenshot showed the tenant-missing legal-text message and fixed mobile
+  bottom navigation fitting without overlap, while the Events screenshot showed
+  readable Material content and the fixed mobile bottom navigation fitting
+  without overlap.
+  The Playwright-test MCP Browser planner initially could not initialize this
+  repo config because its process did not inherit the generated dotenv
+  environment and `DATABASE_URL` was undefined during Playwright config
+  validation. A follow-up local head fixed the config-import side by wiring
+  Playwright config through the repo runtime config provider, which preserves
+  real environment precedence while reading `.env.dev.local`, generated
+  `.env.dev`, and `.env` for direct config importers. Running
+  `bun run env:runtime && env -u DATABASE_URL -u BASE_URL -u APP_HOST_PORT -u COMPOSE_PROJECT_NAME -u NEON_LOCAL_HOST_PORT bunx playwright test --list --project=local-chrome-baseline --no-deps tests/specs/smoke/page-layout-helper.test.ts`
+  listed the smoke layout tests from generated `.env.dev` instead of failing on
+  missing `DATABASE_URL`, so the remaining Browser MCP watchpoint is test-session
+  setup, not Playwright config import or direct in-app Browser tab verification.
+  A follow-up MCP setup retry with `planner_setup_page` then progressed past
+  config import and exposed the next repo-side setup gap: importing
+  `tests/support/fixtures/base-test.ts` still used `ConfigProvider.fromEnv()`,
+  and after that was fixed, deterministic paid seed setup needed the validated
+  `STRIPE_TEST_ACCOUNT_ID` bridged for the legacy `seedTenant()` helper. The
+  repo now has a dedicated no-dependency `mcp-browser-planner` project plus
+  `tests/setup/mcp-browser.seed.ts`, which opens `/legal/terms` with the plain
+  Playwright test API. The env-stripped CLI command
+  `bun run env:runtime && env -u DATABASE_URL -u BASE_URL -u APP_HOST_PORT -u COMPOSE_PROJECT_NAME -u NEON_LOCAL_HOST_PORT bunx playwright test --project=mcp-browser-planner --no-deps tests/setup/mcp-browser.seed.ts --reporter=line`
+  passed against the running Docker app; `--list` on the same project discovered
+  only the MCP seed. A fresh June 4, 2026 Playwright-test Browser planner retry
+  at local head `e06ecd53c` then called `planner_setup_page` with project
+  `mcp-browser-planner` and seed file `tests/setup/mcp-browser.seed.ts`; the
+  Browser tool paused at the seeded `/legal/terms` page, whose snapshot showed
+  the `Terms` heading, tenant-missing legal-text message, Back to events link,
+  and bottom navigation. Resizing the Browser tool page to 320x740 succeeded,
+  and `mcp-browser-planner-terms-mobile.png` showed readable mobile legal-page
+  content with the Events/Login bottom navigation fitting without overlap. The
+  Playwright-test MCP Browser watchpoint is therefore recovered for the
+  lightweight public General planner route; richer authenticated Browser
+  planning still belongs to the normal authenticated Browser evidence path.
+  A fresh June 4, 2026 in-app Browser retry at local head `04f9a9375` confirmed
+  the generated Docker app was still running at the `.env.dev` `BASE_URL`
+  loopback port, but the Browser navigation was blocked before page interaction
+  by Browser Use URL policy for that generated localhost target. No route or
+  layout evidence was collected from that retry, and the result should stay
+  classified as a Browser-tool policy block rather than an application, Docker,
+  Material layout, or General mobile regression.
+  A fresh June 4, 2026 current-head relaunch retry at local head `a47e3419d`
+  could not produce new Browser route evidence: a bounded
+  `node_modules/.bin/dotenv -c dev -- docker compose up --no-build -d evorto`
+  attempt created `evorto-4dddca18-evorto-1` but did not transition it from
+  `Created` to running after healthy `db`/`minio` dependencies and exited
+  `db-expiration`, `db-setup`, and `minio-init` setup containers. A concurrent
+  Docker log read for `db-expiration`, `minio-init`, and `evorto` also hung at
+  the Docker client layer after printing only repeated `minio-init` bucket setup
+  lines. The created app container was removed with
+  `docker rm -f -v evorto-4dddca18-evorto-1`, leaving only running `db`, `minio`,
+  and `stripe` plus exited setup containers for the generated project. This
+  keeps fresh Browser verification blocked below the app route layer for the
+  current head while preserving the earlier positive Browser evidence above.
+  A follow-up same-head low-level Docker probe confirmed the blocker is below
+  Compose and the app image: a bounded `docker run --name
+  evorto-start-probe-1780546414750 --rm alpine:latest sh -c 'echo
+  probe-start-ok'` created and attached the container but timed out before
+  Docker emitted a `start` event or the shell printed output. Direct
+  `docker inspect` reported the probe container as `state=created`, with
+  `started=0001-01-01T00:00:00Z` and an empty Docker state error. The probe
+  container was removed with `docker rm -f -v`, and the generated Evorto Compose
+  project still has only running `db`, `minio`, and `stripe` plus exited setup
+  containers. Fresh Browser verification therefore remains blocked by Docker's
+  new-container start path rather than by Evorto app code, Font Awesome
+  installation, Neon Local configuration, or Material/mobile layout.
+  Earlier in this checkpoint, a fresh current-branch Browser verification
+  attempt still could not produce route or layout evidence.
+  After Docker Desktop recovered, `bun run docker:check` passed with all required
+  env variables, Bun, Docker Compose, Compose config, Playwright CLI, Stripe
+  webhook secret source, Playwright Chromium cache checks, and no generated
+  Compose project containers. A new `docker:start` attempt rebuilt the current
+  branch successfully with public Font Awesome Free packages; both Docker
+  `bun install --frozen-lockfile` phases resolved the public Free icon packages,
+  and the Angular app build completed inside the Docker build. The run then hung
+  again at Compose service startup while starting the Neon Local `db` container,
+  before any app route could be served for Browser. Terminating that hung Compose
+  process left the generated project containers in `Created`; `bun run
+docker:check` then failed before a repeat startup and listed the created
+  `db`, `db-expiration`, `db-setup`, `evorto`, `minio`, `minio-init`, and
+  `stripe` containers. `bun run docker:clean-stale` successfully removed those
+  created containers one at a time, and a follow-up `bun run docker:check`
+  returned to green with no generated-project containers. This also caught and
+  fixed the cleanup helper's single-container parser: Docker Compose v5 can emit
+  a single JSON object instead of a JSON array for one project container, and the
+  helper now treats that object as one inspectable container before deciding
+  whether fallback label inspection is needed. Follow-up bounded probes narrowed
+  the current local blocker below the app and Neon-specific layers: direct
+  `docker run` attempts against `neondatabase/neon_local:v1.5` with a `/bin/sh`
+  entrypoint and no app environment still hung before producing output and left
+  only `Created` probe containers; an already healthy Neon Local container from
+  another checkout was using the same image digest, so the image itself was not
+  globally broken. Generic `alpine:latest` and `oven/bun:1.3.11-alpine`
+  containers then showed the same pattern: Docker could pull, build, inspect, and
+  remove images and containers, but new containers did not transition from
+  `Created` to running. That keeps Font Awesome install, app build, Browser
+  transport, stale-container cleanup, and Neon Local branch configuration out of
+  the current blocker; the remaining failure is the host Docker engine's new
+  container start path. A fresh current-branch retry on June 3, 2026 confirmed
+  the blocker is still active: `bun run docker:check` passed with no generated
+  Compose containers, but a generic `docker run --rm alpine:latest sh -c 'echo
+  alpine-start-ok'` probe still hung instead of printing output and left an
+  `alpine:latest` container in `Created`. Force-killing the stuck Docker client
+  and removing that created probe container restored `bun run docker:check` to
+  green. The Docker preflight still inspects the generated Compose project with
+  `docker compose ps --all --format json` and fails before startup when project
+  containers are already in `created`, `dead`, or `removing`, or when Compose
+  project inspection times out. A June 4, 2026 retry at local head `a028ffc8c`
+  again left `bun run docker:check` green with no generated Compose containers,
+  but a bounded generic `docker run --rm alpine:latest sh -c 'echo
+  alpine-start-ok'` probe timed out after 45 seconds without printing output and
+  left a single `alpine:latest` probe container in `Created`. Removing that
+  probe container with `docker rm -f -v` restored `bun run docker:check` to
+  green, so the current blocker still sits below the app, Browser, Font Awesome,
+  and Neon-specific layers. A later June 4, 2026 retry at local head
+  `4e3c4761a` kept the same shape after the CI teardown hardening commits:
+  `bun run docker:check` passed with all required runtime variables, Docker
+  Compose v5.1.4, no generated Compose project containers, and present
+  Playwright Chromium cache locations, but another generic `docker run --rm
+  alpine:latest sh -c 'echo alpine-start-ok'` probe still produced no output,
+  left container `80980464140e` in `Created`, and required force-killing the
+  stuck Docker client plus `docker rm -f -v 80980464140e`. The follow-up
+  `bun run docker:check` returned to green, so fresh Browser route/mobile layout
+  evidence remains blocked by the host Docker container start path rather than
+  by app code or runtime env. A current-head retry at `74bd176a1` kept the same
+  shape: `bun run docker:check` passed and a named generic
+  `docker run --name codex-alpine-start-probe-20260604 --rm alpine:latest sh -c
+  'echo alpine-start-ok'` probe produced no output after 10 seconds, remained in
+  `Created`, and required force-killing the stuck Docker client before
+  `docker rm -f -v codex-alpine-start-probe-20260604` removed it. The follow-up
+  `bun run docker:check` returned to green, so the host container start-path
+  blocker is still current. A fresh current-head retry at `90ed03cdc` still had
+  green runtime variable, Compose config, Playwright CLI, and browser-cache
+  checks, but the macOS shell had no GNU `timeout` command and the shell-bounded
+  named `docker run --name codex-alpine-start-probe-20260604005631 --rm
+  alpine:latest sh -c 'echo alpine-start-ok'` probe timed out after 45 seconds
+  without output. The Docker client had to be force-killed, and `docker ps -a`
+  did not list the named probe afterward. Runtime preflight now includes the same
+  lower-level Docker container start-path check through a disposable Alpine
+  container, so `bun run docker:check` will fail early when Docker can inspect
+  Compose configuration but cannot start containers for Browser or Docker-backed
+  Playwright. A real post-change `bun run docker:check` returned in about 15
+  seconds with all required runtime variables, Bun, Docker Compose, Compose
+  config, generated project container inspection, Playwright CLI, Stripe webhook
+  secret source, and browser-cache checks still green, while the new `Docker
+  container start path` check failed with "Timed out after 15s while starting a
+  disposable Alpine container." It attempted the older asynchronous cleanup for
+  `evorto-runtime-preflight-32411`; Docker left that probe in `Created`, and a
+  bounded follow-up `docker rm -f -v evorto-runtime-preflight-32411` removed it.
+  After the preflight cleanup was hardened, a real retry at local head
+  `1ac10014d` still failed at the same Docker container start path with healthy
+  runtime variables, Bun, Docker Compose, Compose config, generated project
+  inspection, Playwright CLI, Stripe webhook secret source, and browser-cache
+  checks, but the failure now attempted bounded cleanup for
+  `evorto-runtime-preflight-87159` before returning. A follow-up
+  `docker ps --all --filter name=evorto-runtime-preflight` check listed no
+  remaining preflight containers, so repeat Docker checks no longer accumulate
+  disposable Created probes while the host start-path blocker persists. A fresh
+  retry at local head `e7d44ddaf` kept the same current shape:
+  `bun run docker:check` wrote the generated `.env.dev`, passed required and
+  available runtime variables, Bun `1.3.11`, Docker Compose v5.1.4, Compose
+  config, generated Compose project inspection with no project containers,
+  Playwright CLI, Stripe webhook secret source, and Playwright Chromium cache
+  checks, then failed only at `Docker container start path` with "Timed out
+  after 15s while starting a disposable Alpine container." The preflight
+  attempted bounded cleanup for `evorto-runtime-preflight-39526`, and a
+  follow-up `docker ps --all --filter name=evorto-runtime-preflight --format
+  '{{.Names}} {{.Status}}'` listed no remaining preflight containers, so fresh
+  Browser route/mobile layout evidence remains blocked below the app tooling
+  layer while cleanup stays bounded. A fresh retry at local head `cbf4bdba1`
+  kept the same shape after the CI dependency cache-scope guard: `bun run
+  docker:check` wrote `.env.dev`, passed required and available runtime
+  variables, Bun `1.3.11`, Docker Compose v5.1.4, Compose config, generated
+  Compose project inspection with no project containers, Playwright CLI, Stripe
+  webhook secret source, and Playwright Chromium cache checks, then failed only
+  at `Docker container start path` with the disposable Alpine container timeout.
+  The preflight attempted bounded cleanup for `evorto-runtime-preflight-91702`,
+  and a follow-up `docker ps --all --filter name=evorto-runtime-preflight
+  --format '{{.Names}} {{.Status}}'` listed no remaining preflight containers.
+  A fresh retry at local head `bfc9517da` kept the same current shape after the
+  durable viewport inventory guard: `bun run docker:check` wrote `.env.dev`,
+  passed required and available runtime variables, Bun `1.3.11`, Docker Compose
+  v5.1.4, Compose config, generated Compose project inspection with no project
+  containers, Playwright CLI, Stripe webhook secret source, and Playwright
+  Chromium cache checks, then failed only at `Docker container start path` with
+  the disposable Alpine container timeout. The preflight attempted bounded
+  cleanup for `evorto-runtime-preflight-27687`, and a follow-up
+  `docker ps --all --filter name=evorto-runtime-preflight --format '{{.Names}}
+  {{.Status}}'` listed no remaining preflight containers. A fresh retry at local
+  head `ed2675278` kept the same current shape after the CI Font Awesome cache
+  guard: `bun run docker:check` wrote `.env.dev`, passed required and available
+  runtime variables, Bun `1.3.11`, Docker Compose v5.1.4, Compose config,
+  generated Compose project inspection with no project containers, Playwright
+  CLI, Stripe webhook secret source, and Playwright Chromium cache checks, then
+  failed only at `Docker container start path` with the disposable Alpine
+  container timeout. The preflight attempted bounded cleanup for
+  `evorto-runtime-preflight-48324`, and a follow-up `docker ps --all --filter
+  name=evorto-runtime-preflight --format '{{.Names}} {{.Status}}'` listed no
+  remaining preflight containers. A fresh retry at local head `266a224f0` kept
+  the same current shape after the Playwright runtime-modifier inventory guard:
+  `bun run docker:check` wrote `.env.dev`, passed required and available runtime
+  variables, Bun `1.3.11`, Docker Compose v5.1.4, Compose config, generated
+  Compose project inspection with no project containers, Playwright CLI, Stripe
+  webhook secret source, and Playwright Chromium cache checks, then failed only
+  at `Docker container start path` with the disposable Alpine container timeout.
+  The preflight attempted bounded cleanup for `evorto-runtime-preflight-98795`,
+  and a follow-up `docker ps --all --filter name=evorto-runtime-preflight
+  --format '{{.Names}} {{.Status}}'` listed no remaining preflight containers.
+  `bun run docker:clean-stale` remains the bounded
+  cleanup path: it uses the generated runtime env, inspects the current Compose
+  project, accepts both array and single JSON object Compose output, falls back
+  to the Docker `com.docker.compose.project` label when `docker compose ps`
+  itself times out, targets only `created`, `dead`, or `removing` project
+  containers, removes stale containers one at a time, and bounds both Docker
+  inspect and remove subprocesses without relying on GNU
+  `timeout`. The Browser transport previously connected to the `iab` browser and
+  created tab `2`, so no fresh Browser route/layout evidence is recorded until a
+  Docker app runtime starts. A fresh retry at local head `09b39ac86` kept the
+  same current shape after the template evidence watchpoint guard:
+  `bun run docker:check` wrote `.env.dev`, passed required and available runtime
+  variables, Bun `1.3.11`, Docker Compose v5.1.4, Compose config, generated
+  Compose project inspection with no project containers, Playwright CLI, Stripe
+  webhook secret source, and Playwright Chromium cache checks, then failed only
+  at `Docker container start path` with "Timed out after 15s while starting a
+  disposable Alpine container." The preflight attempted bounded cleanup for
+  `evorto-runtime-preflight-46336`, and a follow-up
+  `docker ps --all --filter name=evorto-runtime-preflight --format '{{.Names}}
+  {{.Status}}'` listed no remaining preflight containers. Older Browser/layout
+  checkpoints therefore remain the latest positive Browser route evidence. A
+  fresh retry at local head `a4cae51d8` followed up the main-checkout env-file
+  hint before rerunning Docker: the worktree `.env` and `/Users/hedde/code/evorto/.env`
+  exposed the same variable keys, and the worktree `.env.dev.local` only added
+  `E2E_GLOBAL_ADMIN_AUTH0_IDS` compared with the main checkout. `bun run
+  docker:check` regenerated `.env.dev`, passed all required and available
+  runtime variables, Bun `1.3.11`, Docker Compose v5.1.4, Compose config,
+  generated Compose project inspection with no project containers, Playwright
+  CLI, Stripe webhook secret source, and Playwright Chromium cache checks, then
+  failed only at `Docker container start path` with "Timed out after 15s while
+  starting a disposable Alpine container." The preflight attempted bounded
+  cleanup for `evorto-runtime-preflight-70680`, and a follow-up
+  `docker ps --all --filter name=evorto-runtime-preflight --format '{{.Names}}
+  {{.Status}}'` listed no remaining preflight containers. At that historical
+  retry, the blocker still sat below app code, Browser transport, and local
+  dotenv configuration; the current running-Docker Browser evidence above now
+  supersedes that older blocked runtime state. A fresh June 4, 2026 retry at
+  local head `91c292c2e` kept the current blocked shape after the PR CI watch
+  refresh: the generated Compose project still had healthy `db`, `minio`, and
+  `stripe` containers but no current-head `evorto` app container, and the
+  older port-4200 app container still belonged to another worktree. A real
+  `bun run docker:check` regenerated `.env.dev`, passed required and available
+  runtime variables, Bun `1.3.11`, Docker Compose v5.1.4, Compose config,
+  Playwright CLI, Stripe webhook secret source, and Playwright Chromium cache
+  checks, then failed at both `Docker container start path` and Docker Compose
+  project-container inspection. The preflight attempted bounded cleanup for
+  `evorto-runtime-preflight-95525`, a follow-up
+  `docker ps --all --filter name=evorto-runtime-preflight --format '{{.Names}}
+  {{.Status}}'` listed no remaining preflight containers, and
+  `bun run docker:clean-stale` regenerated `.env.dev` before reporting "No
+  stale Docker Compose project containers found." A second real
+  `bun run docker:check` immediately repeated the same disposable Alpine start
+  timeout plus Compose project-container inspection timeout, attempted bounded
+  cleanup for `evorto-runtime-preflight-97022`, and still left fresh
+  Browser route/mobile layout verification blocked below the app tooling layer.
+  A fresh June 4, 2026 low-level retry at local head `e033b64ec` confirmed the
+  blocker is not image pull latency: `docker image ls` showed `alpine:latest`
+  already present locally, but a shell-bounded
+  `docker run --name codex-preflight-manual-* --rm --pull never alpine:latest true`
+  probe still timed out after 20 seconds before the container could exit. The
+  follow-up probe cleanup removed the named container, and
+  `docker ps -a --filter name='evorto-runtime-preflight' --filter
+  name='codex-preflight-manual'` listed no matching leftovers.
+  A fresh June 4, 2026 current pushed-head refresh at local head `17c35e732`
+  reran `bun run docker:check` successfully, including required runtime
+  variables, Bun `1.3.11`, Docker Compose v5.1.4, Compose config, disposable
+  Alpine container start path, generated Compose project inspection, Playwright
+  CLI, Stripe webhook source, and Playwright Chromium cache. `bun run
+  docker:start` then rebuilt and started the generated `evorto-4dddca18` Docker
+  app at the generated `BASE_URL` on port 4577; the build reused the cached Bun
+  install layer, and the production dependency stage completed the offline
+  public Font Awesome package install path. Direct in-app Browser control
+  connected to the `iab` browser, used the Browser `viewport` capability for
+  320x740, 390x844, and 1440x900, and visited `/`, `/events`,
+  `/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`, `/500`, and
+  `/404`. All 24 route/viewport checks reported the expected heading, matching
+  `window.innerWidth`, no horizontal overflow, no top/side clipped visible
+  controls, no rendered application-error text except the expected `/500` page,
+  and zero Browser warning/error logs. The 320x740 `/events` evidence screenshot
+  showed readable Material event cards and fixed mobile bottom navigation
+  fitting without overlap; it was saved at
+  `/tmp/evorto-current-head-17c35e-general-mobile-events.jpg`.
+- Current relaunch-scope Browser checkpoint: a fresh June 4, 2026 in-app
+  Browser pass on the rebuilt Docker app opened tenant General settings,
+  global-admin tenant create, and global-admin tenant edit at 320x740, 390x844,
+  and 1440x900 with `stabilizationEvidence=relaunch-scope-browser-fixed-*`.
+  The authenticated session rendered General settings, Deferred settings,
+  Tenant identity, Create tenant, Edit tenant, and Relaunch tenant scope copy,
+  including the one-active-primary-domain notice, custom-domain/multi-domain
+  deferral, and absent tenant-admin impersonation statement. The first visual
+  pass caught the Primary domain hint sitting too close to the next Material
+  field on mobile, so tenant create/edit now add explicit bottom margin to the
+  primary-domain `mat-form-field`; the rebuilt-app rerun reported no Auth0
+  redirect, no application error, no page-level horizontal overflow, and no
+  clipped visible controls across all nine route/viewport checks. The 390x844
+  screenshot showed the relaunch-scope notice, Primary domain hint, Theme field,
+  and fixed mobile bottom navigation fitting without overlap; it was saved at
+  `/tmp/evorto-relaunch-scope-20260604-mobile.jpg`, and the temporary Browser
+  viewport override was reset after the pass.
+  A fresh June 4, 2026 authenticated in-app Browser probe at local head
+  `c0c83ce2b` reused the same running Docker app and checked
+  `/admin/settings`, `/global-admin/tenants`, and `/profile` at 320x740,
+  390x844, and 1440x900. The active authenticated session rendered Admin
+  settings, Global admin tenant list, and the seeded global-admin profile
+  without an Auth0 redirect. All nine route/viewport checks reported matching
+  viewport/document widths, no horizontal overflow, no clipped visible controls,
+  no rendered application-error text, and zero Browser warning/error logs. The
+  320x740 `/admin/settings` screenshot showed General settings, Deferred
+  settings, Tenant identity, readable Material copy, and the fixed mobile bottom
+  navigation fitting without overlap; it was saved at
+  `/tmp/evorto-auth-surfaces-20260604-320-admin-settings.png`.
 
 ## Review Next
 

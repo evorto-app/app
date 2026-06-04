@@ -659,6 +659,70 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain('no\n  obvious snackbar bars');
     expect(checkpoint).toContain('blank/loading captures');
     expect(checkpoint).toContain('half-transition images');
+    expect(documentationScreenshotSpec).toContain(
+      'doc-screenshot waits for descriptive loading text before capture',
+    );
+    expect(documentationScreenshotSpec).toContain(
+      'doc-screenshot waits for finite transitions before capture',
+    );
+    expect(documentationScreenshotSpec).toContain(
+      'doc-screenshot waits for transient snackbars before capture',
+    );
+    expect(documentationScreenshotSpec).toContain(
+      'doc-screenshot does not fail on persistent snackbars',
+    );
+    expect(documentationScreenshotSpec).toContain(
+      'doc-screenshot waits for stable target bounds before capture',
+    );
+    expect(source).toContain('docs screenshot-stability checkpoint');
+    expect(source).toContain('target locator bounds to stabilize');
+    expect(source).toContain('RAF-polled synchronous geometry snapshots');
+    expect(source).toContain('without introducing fixed timeout sleeps');
+    expect(source).toContain('generated-doc evidence-quality rules');
+    expect(source).toContain(
+      'generated-docs evidence-quality guard checkpoint',
+    );
+    expect(source).toContain('explanatory markdown');
+    expect(source).toContain('shared\n  highlighted screenshot helper');
+    expect(source).toContain('literal screenshot caption');
+    expect(source).toContain('what the captured image proves');
+    expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
+    expect(source).toContain('PERMISSION_GROUPS');
+    expect(inventory).toContain('current 15 documentation source files');
+    expect(inventory).toContain(
+      'at least 120 characters of explanatory markdown',
+    );
+    expect(inventory).toContain('shared `takeScreenshot` helper');
+    expect(inventory).toContain('meaningful literal caption');
+    expect(inventory).toContain('rejects raw\n  `page.screenshot` calls');
+    expect(inventory).toContain(
+      'only text-only\n  permission-reference exception',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'keeps generated documentation pages explanatory and image-backed',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'expect(documentFiles.length).toBe(15)',
+    );
+    expect(generatedDocumentationSource).toContain('markdownTextLength');
+    expect(generatedDocumentationSource).toContain(
+      'toBeGreaterThanOrEqual(120)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'textOnlyReferenceDocuments',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'tests/docs/roles/about-permissions.doc.ts',
+    );
+    expect(generatedDocumentationSource).toContain('takeScreenshot(');
+    expect(generatedDocumentationSource).toContain('page.screenshot(');
+    expect(generatedDocumentationSource).toContain(
+      'findWeakScreenshotCaptions',
+    );
+    expect(generatedDocumentationSource).toContain('captionText.length < 24');
+    expect(generatedDocumentationSource).toContain(
+      "testInfo.attach('image-caption'",
+    );
   });
 
   it('keeps the PR readiness checkpoint current without pinning stale heads', () => {

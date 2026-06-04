@@ -291,7 +291,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   routing/check-in copy, profile event-page link targets, submitted receipt
   visibility, account-creation retry errors, existing-global-user tenant joins,
   and template role-picker hard-failure guards before duplicate-hiding docs are
-  emitted.
+  emitted. It also requires the current 15 documentation source files to attach
+  at least 120 characters of explanatory markdown, requires UI docs to use the
+  shared `takeScreenshot` helper with a meaningful literal caption, rejects raw
+  `page.screenshot` calls, and keeps
+  `tests/docs/roles/about-permissions.doc.ts` as the only text-only
+  permission-reference exception.
 - `helpers/testing/authorization-source.spec.ts` keeps server permission checks
   routed through the shared evaluator path and keeps role lookup contracts free
   of permission-bearing admin role fields.
