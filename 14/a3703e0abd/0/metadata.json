@@ -3,7 +3,7 @@
   "checkpoint_id": "14a3703e0abd",
   "session_id": "019e8c4a-fce8-7c63-a3e9-08fd96884c12",
   "strategy": "manual-commit",
-  "created_at": "2026-06-04T15:48:46.519709Z",
+  "created_at": "2026-06-04T15:50:50.104529Z",
   "branch": "codex/stabilization-flow-coverage",
   "checkpoints_count": 1,
   "files_touched": [],
@@ -11,11 +11,11 @@
   "model": "gpt-5.5",
   "turn_id": "66ae76cba4b8",
   "token_usage": {
-    "input_tokens": 46574430,
+    "input_tokens": 46588420,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 1327360384,
-    "output_tokens": 2536937,
-    "api_call_count": 9592
+    "cache_read_tokens": 1328617344,
+    "output_tokens": 2538893,
+    "api_call_count": 9600
   },
   "session_metrics": {
     "turn_count": 239
