@@ -36,6 +36,7 @@ bun run test:e2e:ui
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:integration
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:create-account
 bun run test:e2e:esncard-provider
+bun run test:e2e:authenticated-viewports
 bun run test:e2e:layout-helper
 bun run test:e2e:public-general-viewports
 bun run test:e2e:docs
@@ -126,6 +127,16 @@ bun run lint
   mode with `TESTESN*` identifiers and narrows execution to
   `tests/specs/profile/user-profile-esncard-provider.spec.ts` and
   `@esncard-provider`.
+- `bun run test:e2e:authenticated-viewports` runs the authenticated durable
+  viewport pack for tenant admin, global admin, roles, profile, templates,
+  events, finance, scanner, and members hub at one worker. Use it when a
+  layout or Material surface change could affect logged-in app chrome or
+  authenticated responsive pages.
+- `bun run test:e2e:layout-helper` runs the shared viewport layout-helper
+  contract with `NO_WEBSERVER=true` and `--no-deps`, so it does not start
+  Docker or require seeded app data. Use it after changing
+  `tests/support/utils/page-layout.ts` or the durable viewport no-glitch
+  assertions.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
 - Playwright list/discovery commands do not clean or write generated docs

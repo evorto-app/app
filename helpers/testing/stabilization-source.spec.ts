@@ -3670,6 +3670,13 @@ describe('stabilization source', () => {
       'tests/specs/smoke/public-general-viewports.spec.ts',
       'tests/specs/templates/template-viewports.spec.ts',
     ] as const;
+    const authenticatedViewportSpecPaths = durableViewportSpecPaths.filter(
+      (sourcePath) =>
+        sourcePath !== 'tests/specs/smoke/public-general-viewports.spec.ts',
+    );
+    const authenticatedViewportScript =
+      'bun run env:runtime && dotenv -c dev -- playwright test ' +
+      `${authenticatedViewportSpecPaths.join(' ')} --project=local-chrome-baseline --workers=1`;
     const discoveredViewportSpecPaths = listFiles('tests/specs', '.ts')
       .filter((sourcePath) =>
         readSource(sourcePath).includes('expectedStablePageLayout'),
@@ -3857,12 +3864,18 @@ describe('stabilization source', () => {
       'verticallyClippedFixedControlLabels',
     );
     expect(pageLayoutHelperSpec).toContain('verticallyClippedFixedTextLabels');
+    expect(packageJson.scripts['test:e2e:authenticated-viewports']).toBe(
+      authenticatedViewportScript,
+    );
     expect(packageJson.scripts['test:e2e:layout-helper']).toBe(
       'bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/page-layout-helper.test.ts --project=local-chrome-baseline --no-deps',
     );
     expect(packageJson.scripts['test:e2e:public-general-viewports']).toBe(
       'bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/public-general-viewports.spec.ts --project=local-chrome-baseline --workers=1 --no-deps',
     );
+    expect(testsReadme).toContain('bun run test:e2e:authenticated-viewports');
+    expect(testsReadme).toContain('authenticated durable\n  viewport pack');
+    expect(testsReadme).toContain('logged-in app chrome');
     expect(testsReadme).toContain('bun run test:e2e:layout-helper');
     expect(testsReadme).toContain('bun run test:e2e:public-general-viewports');
     expect(testsReadme).toContain('NO_WEBSERVER=true');
@@ -3942,6 +3955,9 @@ describe('stabilization source', () => {
       '/tmp/evorto-current-head-17c35e-general-mobile-events.jpg',
     );
     expect(inventory).toContain('specs/smoke/public-general-viewports.spec.ts');
+    expect(inventory).toContain('test:e2e:authenticated-viewports');
+    expect(inventory).toContain('durable logged-in viewport pack');
+    expect(inventory).toContain('scanner, and members-hub viewport specs');
     expect(inventory).toContain('test:e2e:public-general-viewports');
     expect(inventory).toContain('keeps the route matrix on one\n    worker');
     expect(inventory).toContain('narrow mobile');

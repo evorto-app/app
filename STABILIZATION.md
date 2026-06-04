@@ -3628,7 +3628,11 @@ fallback rather than a profile discount-card defect.
   and members hub. Each active viewport spec must keep the shared 320x740,
   390x844, and 1440x900 matrix and labelled viewport loop, so adding or
   removing stable-layout coverage cannot silently drift away from this
-  stabilization record.
+  stabilization record. `bun run test:e2e:authenticated-viewports` is now the
+  focused authenticated rerun for the logged-in viewport pack; it refreshes the
+  runtime env, runs the tenant-admin, global-admin, role/user-management,
+  profile, template, event, finance, scanner, and members-hub viewport specs,
+  and keeps the suite on one worker for easier local reproduction.
 - Current authenticated profile viewport coverage checkpoint:
   `tests/specs/profile/user-profile-viewports.spec.ts` now covers `/profile` at
   320x740, 390x844, and 1440x900 with the regular-user storage state. The

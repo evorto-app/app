@@ -204,6 +204,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     durable viewport spec to the shared 320x740 narrow mobile, 390x844 mobile,
     and 1440x900 desktop matrix, then also requires each spec to loop that
     matrix through labelled viewport steps.
+    `bun run test:e2e:authenticated-viewports` is the focused authenticated
+    rerun for the durable logged-in viewport pack; it keeps the tenant admin,
+    global-admin, role/user-management, profile, template, event, finance,
+    scanner, and members-hub viewport specs on one worker.
   - `specs/admin/admin-viewports.spec.ts` checks the authenticated tenant admin
     overview, tax-rate table, and event-review queue routes at narrow mobile,
     mobile, and desktop viewports for expected headings/content through the
