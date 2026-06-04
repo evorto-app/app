@@ -315,6 +315,9 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'docker-compose.yml'),
       'utf8',
     );
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { scripts?: Record<string, string> };
     const databaseService = serviceBlock(composeFile, 'db');
     const expirationService = serviceBlock(composeFile, 'db-expiration');
     const databaseSetupService = serviceBlock(composeFile, 'db-setup');
@@ -566,8 +569,12 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain('NEON_PROJECT_ID');
     expect(helpersReadme).toContain('DELETE_BRANCH=true');
     expect(helpersReadme).toContain('two-hour active-test TTL');
+    expect(helpersReadme).toContain('bun run db:cleanup:neon-local');
     expect(helpersReadme).toContain('non-canceling `neon-branch-cleanup`');
     expect(helpersReadme).toMatch(/10-minute job\s+timeout/u);
+    expect(packageJson.scripts?.['db:cleanup:neon-local']).toBe(
+      'bun run env:runtime && dotenv -c dev -- bun helpers/testing/delete-neon-local-branches.ts',
+    );
 
     expect(workflow).toContain(
       'if ! bun install --frozen-lockfile --cache-dir ~/.bun/install/cache; then',

@@ -114,7 +114,9 @@ cleanup blind spot. That covers stale CI branches after their short TTL even
 when local metadata, the expiration sidecar, or graceful GitHub Actions shutdown
 is interrupted. When Neon API access is available, the helper logs a sanitized
 branch cleanup summary with total, protected, active-test, and stale-deleted
-counts plus any active branches still inside the TTL. A lightweight
+counts plus any active branches still inside the TTL. Use
+`bun run db:cleanup:neon-local` for the same local cleanup path without
+remembering the helper script and dotenv cascade. A lightweight
 `Neon Branch Cleanup` workflow also runs the same helper hourly, on manual
 dispatch, and after the E2E workflow completes, so stale branches do not wait
 for the next Playwright attempt before being pruned.
