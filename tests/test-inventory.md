@@ -778,6 +778,15 @@ provider outcomes without live identifiers.
 
 - `tests/support/fixtures/parallel-test.ts` seeds isolated `test` profile tenants per test.
 - `tests/setup/database.setup.ts` seeds a shared `docs` profile tenant and persists `.e2e-runtime.json`.
+- `tests/setup/mcp-browser.seed.ts` is a no-dependency Playwright-test MCP planner seed for the dedicated `mcp-browser-planner` project. It uses the plain Playwright test API to open `/legal/terms`, so MCP Browser planning can initialize against a public General page without running the database/auth setup projects. The current Browser planner setup path has verified that project/seed pair, resized the seeded Terms page to 320x740, and captured a mobile screenshot with readable legal-page content plus fitting Events/Login bottom navigation.
+- `tests/setup/mcp-browser-authenticated.seed.ts` is the authenticated MCP
+  Browser planner seed for the dedicated `mcp-browser-authenticated-planner`
+  project. It depends on the normal `setup` project, then opens
+  `/admin/settings`, `/global-admin/tenants`, and `/profile` with the admin,
+  global-admin, and regular-user storage states. Use
+  `bun run test:e2e:mcp-browser-authenticated-planner` when Browser planning
+  needs logged-in starting points without running the full authenticated
+  viewport pack.
 - Docker-backed authenticated checks currently need an Auth0-registered app
   origin. Use `APP_HOST_PORT=4200 bun run docker:start` on this machine unless
   the generated worktree port has been added to the Auth0 callback URLs.

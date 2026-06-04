@@ -699,12 +699,22 @@ describe('stabilization source', () => {
     expect(normalizedReviewNext).toContain(
       'mcp-browser-planner-terms-mobile.png',
     );
+    expect(normalizedReviewNext).toContain('mcp-browser-authenticated-planner');
+    expect(normalizedReviewNext).toContain(
+      'tests/setup/mcp-browser-authenticated.seed.ts',
+    );
+    expect(normalizedReviewNext).toContain(
+      'normal database/auth setup and open `/admin/settings`, `/global-admin/tenants`, and `/profile`',
+    );
+    expect(normalizedReviewNext).toContain(
+      'bun run test:e2e:mcp-browser-authenticated-planner',
+    );
+    expect(normalizedReviewNext).toContain(
+      'logged-in starting points without running the full authenticated viewport pack',
+    );
     expect(normalizedReviewNext).not.toContain('Browser setup recovery');
     expect(normalizedReviewNext).toContain(
       'evidence drift, relaunch-scope watchpoints, and richer authenticated Browser evidence',
-    );
-    expect(normalizedReviewNext).toContain(
-      'richer authenticated Browser planning should stay tied',
     );
     expect(normalizedReviewNext).not.toContain(
       'MCP server process reload/initialization',
@@ -750,7 +760,9 @@ describe('stabilization source', () => {
     expect(reviewNext).toContain('registration limits');
     expect(reviewNext).toContain('Stripe account management');
     expect(reviewNext).toMatch(/evidence\s+drift, relaunch-scope/u);
-    expect(reviewNext).toMatch(/richer authenticated Browser evidence/u);
+    expect(normalizedReviewNext).toMatch(
+      /richer authenticated Browser evidence/u,
+    );
     expect(source).toContain('Current relaunch-scope Browser checkpoint');
     expect(source).toContain(
       'stabilizationEvidence=relaunch-scope-browser-fixed-*',
@@ -2738,8 +2750,15 @@ describe('stabilization source', () => {
     const source = readSource('STABILIZATION.md');
     const baseTestFixture = readSource('tests/support/fixtures/base-test.ts');
     const mcpSeed = readSource('tests/setup/mcp-browser.seed.ts');
+    const mcpAuthenticatedSeed = readSource(
+      'tests/setup/mcp-browser-authenticated.seed.ts',
+    );
+    const packageJson = JSON.parse(readSource('package.json')) as {
+      scripts: Record<string, string>;
+    };
     const playwrightConfig = readSource('playwright.config.ts');
     const testInventory = readSource('tests/test-inventory.md');
+    const testsReadme = readSource('tests/README.md');
     const statusTable = readSection(
       source,
       'Review Status',
@@ -2814,7 +2833,13 @@ describe('stabilization source', () => {
       'captures the 320x740 mobile screenshot path after config import',
     );
     expect(statusTable).toContain(
-      'Richer authenticated Browser planning remains part of the authenticated Browser evidence path',
+      'dedicated authenticated MCP Browser planner project',
+    );
+    expect(statusTable).toContain(
+      'opens `/admin/settings`, `/global-admin/tenants`, and `/profile`',
+    );
+    expect(statusTable).toContain(
+      'stable logged-in starting points without running the full viewport pack',
     );
     expect(statusTable).toContain(
       'Current PR status refreshes show visible checks green',
@@ -2834,6 +2859,13 @@ describe('stabilization source', () => {
     expect(playwrightConfig).toContain(
       String.raw`testMatch: /mcp-browser\.seed\.ts$/`,
     );
+    expect(playwrightConfig).toContain(
+      "name: 'mcp-browser-authenticated-planner'",
+    );
+    expect(playwrightConfig).toContain("dependencies: ['setup']");
+    expect(playwrightConfig).toContain(
+      String.raw`testMatch: /mcp-browser-authenticated\.seed\.ts$/`,
+    );
     expect(baseTestFixture).toContain(
       "import { makeRuntimeConfigProvider } from '../../../src/server/config/provider';",
     );
@@ -2850,8 +2882,43 @@ describe('stabilization source', () => {
     expect(mcpSeed).toContain(
       "await expect(page.getByRole('heading', { name: 'Terms' })).toBeVisible();",
     );
+    expect(mcpAuthenticatedSeed).toContain(
+      'test.use({ storageState: adminStateFile });',
+    );
+    expect(mcpAuthenticatedSeed).toContain(
+      'test.use({ storageState: gaStateFile });',
+    );
+    expect(mcpAuthenticatedSeed).toContain(
+      'test.use({ storageState: userStateFile });',
+    );
+    expect(mcpAuthenticatedSeed).toContain(
+      "await page.goto('/admin/settings');",
+    );
+    expect(mcpAuthenticatedSeed).toContain(
+      "await page.goto('/global-admin/tenants');",
+    );
+    expect(mcpAuthenticatedSeed).toContain("await page.goto('/profile');");
+    expect(mcpAuthenticatedSeed).toContain(
+      "page.getByRole('button', { name: 'Edit profile' })",
+    );
+    expect(packageJson.scripts).toHaveProperty(
+      'test:e2e:mcp-browser-authenticated-planner',
+    );
+    expect(
+      packageJson.scripts['test:e2e:mcp-browser-authenticated-planner'],
+    ).toContain('--project=mcp-browser-authenticated-planner');
     expect(testInventory).toContain('tests/setup/mcp-browser.seed.ts');
     expect(testInventory).toContain('mcp-browser-planner');
+    expect(testInventory).toContain(
+      'tests/setup/mcp-browser-authenticated.seed.ts',
+    );
+    expect(testInventory).toContain('mcp-browser-authenticated-planner');
+    expect(testsReadme).toContain(
+      'bun run test:e2e:mcp-browser-authenticated-planner',
+    );
+    expect(testsReadme).toContain(
+      'opens tenant-admin General settings, global-admin Tenants, and Profile',
+    );
     expect(playwrightConfig).not.toContain(
       'Effect.provideService(\n      ConfigProvider.ConfigProvider,\n      ConfigProvider.fromEnv(),\n    )',
     );

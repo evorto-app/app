@@ -96,6 +96,20 @@ export default defineConfig({
       use: desktopChrome,
     },
     {
+      name: 'mcp-browser-planner',
+      testDir: './tests/setup',
+      testMatch: /mcp-browser\.seed\.ts$/,
+      use: desktopChrome,
+    },
+    {
+      dependencies: ['setup'],
+      name: 'mcp-browser-authenticated-planner',
+      testDir: './tests/setup',
+      testMatch: /mcp-browser-authenticated\.seed\.ts$/,
+      timeout: 60_000,
+      use: desktopChrome,
+    },
+    {
       dependencies: ['database-setup'],
       name: 'setup',
       retries: environment.CI ? 1 : 0,
