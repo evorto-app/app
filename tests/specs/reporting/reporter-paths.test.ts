@@ -64,6 +64,33 @@ test('documentation reporter respects DOCS_* env and writes files', async ({}, t
   expect(imgs.some((f) => f.endsWith('.png'))).toBeTruthy();
 });
 
+test('documentation reporter rejects uncaptioned image attachments', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-uncaptioned');
+  const imgsRoot = testInfo.outputPath('docs-img-uncaptioned');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: Buffer.from([137, 80, 78, 71]),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Uncaptioned image' } as any, result),
+  ).toThrow(
+    'Documentation image attachment in Uncaptioned image is missing a paired image-caption attachment.',
+  );
+});
+
 test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time', async ({}, testInfo) => {
   const previous = process.env.DOCS_IMG_OUT_DIR;
   const imgsRoot = testInfo.outputPath('docs-img-call-time');

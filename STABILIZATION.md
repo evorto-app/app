@@ -3404,8 +3404,10 @@ fallback rather than a profile discount-card defect.
   modal/backdrop screenshots were limited to documented dialog states.
 - Current generated-docs guard checkpoint: grouped documentation reporter output
   now has regression cases for colon-bearing page titles and captioned figure
-  output with escaped caption attributes, and generated-docs source coverage
-  pins the user-facing unlisted-event guide while continuing to reject
+  output with escaped caption attributes. The reporter also rejects image
+  attachments that were not paired with an `image-caption` attachment, so
+  generated docs cannot silently publish an uncaptioned raw markdown image.
+  Generated-docs source coverage pins the user-facing unlisted-event guide while continuing to reject
   global-admin and admin-only unlisted-event product docs.
 - Current generated-docs evidence-quality guard checkpoint:
   `helpers/testing/generated-documentation-source.spec.ts` now fails if generated

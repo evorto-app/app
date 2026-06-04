@@ -128,5 +128,12 @@ export const buildSectionContent = (
     }
   }
 
+  const uncaptionedImage = sectionContent.find((line) => line.startsWith('!['));
+  if (uncaptionedImage) {
+    throw new Error(
+      `Documentation image attachment in ${test.title} is missing a paired image-caption attachment.`,
+    );
+  }
+
   return sectionContent;
 };

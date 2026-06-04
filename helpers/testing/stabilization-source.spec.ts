@@ -846,6 +846,7 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain('blank/loading captures');
     expect(checkpoint).toContain('half-transition images');
     expect(source).toContain('captioned figure\n  output');
+    expect(source).toContain('uncaptioned raw markdown image');
     expect(source).toContain('escaped caption attributes');
     expect(documentationScreenshotSpec).toContain(
       'doc-screenshot waits for descriptive loading text before capture',
@@ -892,6 +893,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('generic page-root\n  screenshot targets');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('missing-highlight');
+    expect(inventory).toContain('uncaptioned image attachments');
     expect(inventory).toContain('runtime');
     expect(inventory).toContain('failure');
     expect(inventory).toContain('rejects');
@@ -948,8 +950,18 @@ describe('stabilization source', () => {
     expect(reporterAttachmentsSource).toContain(
       'caption="${escapeAttribute(body.toString())}"',
     );
+    expect(reporterAttachmentsSource).toContain('uncaptionedImage');
+    expect(reporterAttachmentsSource).toContain(
+      'Documentation image attachment in ${test.title} is missing a paired image-caption attachment.',
+    );
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');
+    expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects uncaptioned image attachments',
+    );
+    expect(reporterPathsSpec).toContain(
+      'Documentation image attachment in Uncaptioned image is missing a paired image-caption attachment.',
+    );
     expect(reporterPathsSpec).toContain(
       'documentation screenshot helper rejects weak runtime captions',
     );
