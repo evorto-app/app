@@ -412,12 +412,14 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   visibility, account-creation retry errors, existing-global-user tenant joins,
   and template role-picker hard-failure guards before duplicate-hiding docs are
   emitted. It also requires the current 15 documentation source files to attach
-  at least 120 characters of explanatory markdown, requires UI docs to use the
-  shared `takeScreenshot` helper imported from the documentation reporter barrel
-  with a meaningful literal caption, keeps the helper's runtime caption parameter
-  required with the same minimum caption length, verifies generated screenshots
-  include the highlighted focus target before attachment, rejects generic page-root
-  screenshot targets such as `body`, `html`, or `app-root`, covers the
+  at least 120 characters of explanatory markdown, pins the current per-flow
+  screenshot counts so docs cannot quietly drop image-backed states, requires UI
+  docs to use the shared `takeScreenshot` helper imported from the documentation
+  reporter barrel with a meaningful literal caption, keeps the helper's runtime
+  caption parameter required with the same minimum caption length, verifies
+  generated screenshots include the highlighted focus target before attachment,
+  rejects generic page-root screenshot targets such as `body`, `html`, or
+  `app-root`, covers the
   weak-caption and missing-highlight runtime failures in reporter-path tests,
   rejects uncaptioned image attachments and orphan image-caption attachments
   before generated markdown is written, rejects raw `page.screenshot` calls,

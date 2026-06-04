@@ -142,6 +142,33 @@ const findGenericScreenshotTargets = (
   return genericTargets;
 };
 
+const countTakeScreenshotCalls = (path: string, source: string): number => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  let screenshotCount = 0;
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'takeScreenshot'
+    ) {
+      screenshotCount += 1;
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return screenshotCount;
+};
+
 const importsSharedScreenshotHelper = (
   path: string,
   source: string,
@@ -291,6 +318,22 @@ describe('generated docs source current behavior', () => {
     const textOnlyReferenceDocuments = new Set([
       'tests/docs/roles/about-permissions.doc.ts',
     ]);
+    const expectedScreenshotCounts = new Map([
+      ['tests/docs/admin/general-settings.doc.ts', 5],
+      ['tests/docs/events/event-approval.doc.ts', 4],
+      ['tests/docs/events/event-management.doc.ts', 7],
+      ['tests/docs/events/register.doc.ts', 13],
+      ['tests/docs/events/unlisted-user.doc.ts', 2],
+      ['tests/docs/finance/finance-overview.doc.ts', 4],
+      ['tests/docs/finance/inclusive-tax-rates.doc.ts', 5],
+      ['tests/docs/finance/receipt-review-reimbursement.doc.ts', 4],
+      ['tests/docs/profile/discounts.doc.ts', 3],
+      ['tests/docs/profile/user-profile.doc.ts', 8],
+      ['tests/docs/roles/roles.doc.ts', 4],
+      ['tests/docs/template-categories/categories.doc.ts', 5],
+      ['tests/docs/templates/templates.doc.ts', 8],
+      ['tests/docs/users/create-account.doc.ts', 4],
+    ]);
     const screenshotHelper = readSource(
       'tests/support/reporters/documentation-reporter/take-screenshot.ts',
     );
@@ -340,10 +383,14 @@ describe('generated docs source current behavior', () => {
         expect(source, path).toContain('PERMISSION_GROUPS');
         expect(source, path).toContain('permissionLines');
         expect(source, path).not.toContain('takeScreenshot(');
+        expect(expectedScreenshotCounts.has(path), path).toBe(false);
         continue;
       }
 
       expect(source, path).toContain('takeScreenshot(');
+      expect(countTakeScreenshotCalls(path, source), path).toBe(
+        expectedScreenshotCounts.get(path),
+      );
       expect(importsSharedScreenshotHelper(path, source), path).toBe(true);
       expect(source, path).not.toContain('page.screenshot(');
       expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);

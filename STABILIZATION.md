@@ -3436,7 +3436,11 @@ fallback rather than a profile discount-card defect.
   and it parses `takeScreenshot(...)` calls so UI docs must provide a literal
   screenshot caption with enough context to explain what the captured image
   proves while avoiding generic page-root screenshot targets such as `body`,
-  `html`, or `app-root`. It also rejects aliased `takeScreenshot` imports,
+  `html`, or `app-root`. It now also pins the current per-flow screenshot counts,
+  including the 13 image-backed states in `tests/docs/events/register.doc.ts`
+  and the eight image-backed states in `tests/docs/templates/templates.doc.ts`,
+  so a future docs edit cannot quietly drop meaningful images while leaving one
+  remaining screenshot behind. It also rejects aliased `takeScreenshot` imports,
   direct imports from the helper implementation path, and local screenshot
   wrapper declarations, so docs cannot route around the meaningful-image checks
   while still appearing to use the shared helper. Synthetic failing examples now
@@ -4676,6 +4680,20 @@ E2E` long enough to be treated as stale; it was cancelled, and GitHub still
   with the implemented general-settings copy; a full local Docker docs rerun
   remains blocked by the local Docker start path, but the focused docs
   `--list` check and source-guard tests pass.
+- Current generated-doc screenshot-count checkpoint: generated-doc source
+  coverage now pins the current screenshot count for every image-backed docs
+  flow, including 13 screenshots for `tests/docs/events/register.doc.ts` and
+  eight screenshots for `tests/docs/templates/templates.doc.ts`, while keeping
+  `tests/docs/roles/about-permissions.doc.ts` as the only text-only reference
+  exception. This closes an evidence-drift gap where docs could have kept one
+  valid highlighted screenshot and explanatory markdown while quietly dropping
+  other image-backed states that are needed to judge flow progress from the
+  generated documentation. A current local Browser retry at PR head `f2180a209`
+  could not start the Docker app because `bun run docker:start` failed in
+  `bun run docker:check`: the preflight could inspect Docker Compose config but
+  timed out after 15 seconds starting the disposable Alpine container. Browser
+  verification therefore remains blocked below the app tooling on this machine,
+  while source and CI-backed verification continue.
 - Current Docker/Browser runtime recovered checkpoint: the Docker app is again
   serving the current local branch after the protected SSR route fix at local
   head `db7845e5e`. `node_modules/.bin/dotenv -c dev -- docker compose ps`

@@ -912,12 +912,14 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'at least 120 characters of explanatory markdown',
     );
+    expect(inventory).toMatch(/pins the current per-flow\s+screenshot counts/u);
+    expect(inventory).toContain('quietly drop image-backed states');
     expect(inventory).toContain('shared `takeScreenshot` helper');
-    expect(inventory).toContain('documentation reporter barrel');
+    expect(inventory).toMatch(/documentation\s+reporter barrel/u);
     expect(inventory).toContain('meaningful literal caption');
-    expect(inventory).toContain('generic page-root\n  screenshot targets');
+    expect(inventory).toMatch(/generic page-root\s+screenshot targets/u);
     expect(inventory).toContain('helper-internal screenshot imports');
-    expect(inventory).toContain('local screenshot\n  wrappers');
+    expect(inventory).toMatch(/local screenshot\s+wrappers/u);
     expect(inventory).toContain('self-tests those bypass examples');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('missing-highlight');
@@ -942,6 +944,14 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('markdownTextLength');
     expect(generatedDocumentationSource).toContain(
       'toBeGreaterThanOrEqual(120)',
+    );
+    expect(generatedDocumentationSource).toContain('countTakeScreenshotCalls');
+    expect(generatedDocumentationSource).toContain('expectedScreenshotCounts');
+    expect(generatedDocumentationSource).toContain(
+      "['tests/docs/events/register.doc.ts', 13]",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "['tests/docs/templates/templates.doc.ts', 8]",
     );
     expect(generatedDocumentationSource).toContain(
       'textOnlyReferenceDocuments',
