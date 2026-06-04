@@ -58,6 +58,7 @@ Provider outages are not treated as invalid cards. When esncard.org or the provi
 });
 
 const seededEsnCardIdentifier = 'TEST-ESN-0001';
+const unavailableEsnCardIdentifier = 'TESTESNDOWN';
 
 test('Manage ESN discount card @finance', async ({
   database,
@@ -119,6 +120,36 @@ Open your profile's **Discounts** section directly when you want to review or up
 If you already added your ESN card, you will see a readable verification status and validity here. You can refresh its status or remove it. Use the form to add or update your ESN card number. The profile page shows clear pending states while the card is checked and maps validation/provider errors into readable messages.
 `,
   });
+
+  await page
+    .getByRole('textbox', { name: 'ESN card number' })
+    .fill(unavailableEsnCardIdentifier);
+  await page.getByRole('button', { name: 'Save ESN card' }).click();
+  await expect(
+    page.getByText('Could not validate ESN card right now. Try again later.'),
+  ).toBeVisible({ timeout: 20_000 });
+  await takeScreenshot(
+    testInfo,
+    page.getByText('Could not validate ESN card right now. Try again later.'),
+    page,
+    'Discount card provider outage keeps the stored card unchanged',
+  );
+  const providerOutageSeededEsnCard =
+    await database.query.userDiscountCards.findFirst({
+      where: {
+        identifier: seededEsnCardIdentifier,
+        type: 'esnCard',
+        userId: regularUser.id,
+      },
+    });
+  expect(providerOutageSeededEsnCard).toEqual(
+    expect.objectContaining({
+      identifier: seededEsnCardIdentifier,
+      status: 'verified',
+      type: 'esnCard',
+      userId: regularUser.id,
+    }),
+  );
 
   await page.getByRole('textbox', { name: 'ESN card number' }).fill('short');
   await page.getByRole('textbox', { name: 'ESN card number' }).press('Tab');

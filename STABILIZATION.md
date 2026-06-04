@@ -1449,9 +1449,10 @@ the current working direction until a product decision overrides them.
   in-flight write guards, identifier trimming, and provider-unavailable error
   copy without calling the external provider. Its page-backed journey asserts
   direct `#discounts` routing, the seeded verified ESNcard identifier/status,
-  visible refresh/remove actions, the invalid-card-number save guard with a
-  focused validation screenshot, and that invalid input leaves the seeded card
-  row unchanged.
+  visible refresh/remove actions, the deterministic provider-unavailable retry
+  error with a focused screenshot and unchanged seeded row assertion, the
+  invalid-card-number save guard with a focused validation screenshot, and that
+  invalid input leaves the seeded card row unchanged.
 - `tests/specs/profile/user-profile-esncard-provider.spec.ts` functionally
   covers deterministic ESNcard provider add, refresh, remove, and
   provider-unavailable outcomes with tenant-scoped provider test mode. The

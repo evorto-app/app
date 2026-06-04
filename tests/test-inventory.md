@@ -480,9 +480,10 @@ provider outcomes without live identifiers.
     in-flight write guards, trimmed save payloads, and provider-unavailable
     retry copy. The page-backed discounts doc asserts direct `#discounts`
     routing, the seeded verified ESNcard identifier/status, database readback,
-    refresh/remove action visibility, the invalid-card-number save guard with a
-    focused validation screenshot, and that invalid input leaves the seeded row
-    unchanged. The profile discounts
+    refresh/remove action visibility, the deterministic provider-unavailable
+    retry error with a focused screenshot and unchanged seeded row assertion,
+    the invalid-card-number save guard with a focused validation screenshot, and
+    that invalid input leaves the seeded row unchanged. The profile discounts
     spec functionally covers the same seeded direct-link discount-card journey
     with database readback. App and server
     coverage already prove upsert payload normalization, readable mutation
