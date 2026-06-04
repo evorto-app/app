@@ -70,6 +70,42 @@ const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
   return weakCaptions;
 };
 
+const importsSharedScreenshotHelper = (
+  path: string,
+  source: string,
+): boolean => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  let importsHelper = false;
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      node.moduleSpecifier.text ===
+        '../../support/reporters/documentation-reporter'
+    ) {
+      const namedBindings = node.importClause?.namedBindings;
+      if (namedBindings && ts.isNamedImports(namedBindings)) {
+        importsHelper = namedBindings.elements.some(
+          (element) => element.name.text === 'takeScreenshot',
+        );
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return importsHelper;
+};
+
 describe('generated docs source current behavior', () => {
   it('keeps generated documentation pages explanatory and image-backed', () => {
     const documentFiles = findFiles('tests/docs')
@@ -116,6 +152,7 @@ describe('generated docs source current behavior', () => {
       }
 
       expect(source, path).toContain('takeScreenshot(');
+      expect(importsSharedScreenshotHelper(path, source), path).toBe(true);
       expect(source, path).not.toContain('page.screenshot(');
       expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);
     }

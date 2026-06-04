@@ -293,10 +293,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   and template role-picker hard-failure guards before duplicate-hiding docs are
   emitted. It also requires the current 15 documentation source files to attach
   at least 120 characters of explanatory markdown, requires UI docs to use the
-  shared `takeScreenshot` helper with a meaningful literal caption, keeps the
-  helper's runtime caption parameter required with the same minimum caption
-  length, covers the weak-caption runtime failure in reporter-path tests, rejects
-  raw `page.screenshot` calls, and keeps
+  shared `takeScreenshot` helper imported from the documentation reporter barrel
+  with a meaningful literal caption, keeps the helper's runtime caption parameter
+  required with the same minimum caption length, covers the weak-caption runtime
+  failure in reporter-path tests, rejects raw `page.screenshot` calls, and keeps
   `tests/docs/roles/about-permissions.doc.ts` as the only text-only
   permission-reference exception. Reporter-path coverage verifies those captions
   become generated `{% figure %}` blocks and escapes caption attributes so

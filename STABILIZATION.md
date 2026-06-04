@@ -3410,9 +3410,10 @@ fallback rather than a profile discount-card defect.
 - Current generated-docs evidence-quality guard checkpoint:
   `helpers/testing/generated-documentation-source.spec.ts` now fails if generated
   docs stop attaching explanatory markdown or if UI docs stop using the shared
-  highlighted screenshot helper, and it parses `takeScreenshot(...)` calls so
-  UI docs must provide a literal screenshot caption with enough context to
-  explain what the captured image proves. The only text-only exception is
+  highlighted screenshot helper imported from the documentation reporter barrel,
+  and it parses `takeScreenshot(...)` calls so UI docs must provide a literal
+  screenshot caption with enough context to explain what the captured image
+  proves. The only text-only exception is
   `tests/docs/roles/about-permissions.doc.ts`, because it is a permission
   reference generated from `PERMISSION_GROUPS` rather than an app screen.
 - Current generated-docs runtime caption checkpoint:

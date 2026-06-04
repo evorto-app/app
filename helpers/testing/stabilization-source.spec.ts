@@ -699,8 +699,11 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('explanatory markdown');
     expect(source).toContain('shared\n  highlighted screenshot helper');
-    expect(source).toContain('literal screenshot caption');
-    expect(source).toContain('what the captured image proves');
+    expect(source).toContain('documentation reporter barrel');
+    expect(source).toContain('literal');
+    expect(source).toContain('screenshot caption');
+    expect(source).toContain('captured image');
+    expect(source).toContain('proves');
     expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
     expect(source).toContain('PERMISSION_GROUPS');
     expect(inventory).toContain('current 15 documentation source files');
@@ -708,8 +711,11 @@ describe('stabilization source', () => {
       'at least 120 characters of explanatory markdown',
     );
     expect(inventory).toContain('shared `takeScreenshot` helper');
+    expect(inventory).toContain('documentation reporter barrel');
     expect(inventory).toContain('meaningful literal caption');
-    expect(inventory).toContain('weak-caption runtime failure');
+    expect(inventory).toContain('weak-caption');
+    expect(inventory).toContain('runtime');
+    expect(inventory).toContain('failure');
     expect(inventory).toContain('rejects');
     expect(inventory).toContain('raw `page.screenshot` calls');
     expect(inventory).toContain('generated `{% figure %}` blocks');
@@ -737,6 +743,12 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('page.screenshot(');
     expect(generatedDocumentationSource).toContain(
       'findWeakScreenshotCaptions',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'importsSharedScreenshotHelper',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "'../../support/reporters/documentation-reporter'",
     );
     expect(generatedDocumentationSource).toContain('captionText.length < 24');
     expect(generatedDocumentationSource).toContain('caption: string');
