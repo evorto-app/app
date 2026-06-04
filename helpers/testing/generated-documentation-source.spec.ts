@@ -296,9 +296,12 @@ describe('generated docs source current behavior', () => {
     );
 
     expect(documentFiles.length).toBe(15);
-    expect(screenshotHelper).toContain("htmlElement.style.outline = 'thick");
+    expect(screenshotHelper).toContain(
+      'htmlElement.style.outline = `thick solid ${highlightColor}`',
+    );
     expect(screenshotHelper).toContain('htmlElement.setAttribute');
     expect(screenshotHelper).toContain("'data-docs-highlight-target'");
+    expect(screenshotHelper).toContain("'data-docs-highlight-overlay'");
     expect(screenshotHelper).toContain('element.querySelectorAll');
     expect(screenshotHelper).toContain('countDocumentationHighlightPixels');
     expect(screenshotHelper).toContain(

@@ -244,6 +244,7 @@ export async function takeScreenshot(
       const target = locator.first();
       await target.waitFor({ state: 'attached' });
       await target.evaluate((element, currentHighlightId) => {
+        const highlightColor = 'rgb(236, 72, 153)';
         const isRenderable = (candidate: Element): boolean => {
           const bounds = candidate.getBoundingClientRect();
           const style = getComputedStyle(candidate);
@@ -264,6 +265,29 @@ export async function takeScreenshot(
               )
         ) as HTMLElement | undefined;
         const htmlElement = highlightElement ?? (element as HTMLElement);
+        const createHighlightOverlay = () => {
+          const bounds = htmlElement.getBoundingClientRect();
+          const left = Math.max(0, bounds.left);
+          const top = Math.max(0, bounds.top);
+          const right = Math.min(window.innerWidth, bounds.right);
+          const bottom = Math.min(window.innerHeight, bounds.bottom);
+          const overlay = document.createElement('div');
+
+          overlay.setAttribute(
+            'data-docs-highlight-overlay',
+            currentHighlightId,
+          );
+          overlay.style.position = 'fixed';
+          overlay.style.left = `${left}px`;
+          overlay.style.top = `${top}px`;
+          overlay.style.width = `${Math.max(8, right - left)}px`;
+          overlay.style.height = `${Math.max(8, bottom - top)}px`;
+          overlay.style.border = `4px solid ${highlightColor}`;
+          overlay.style.boxSizing = 'border-box';
+          overlay.style.pointerEvents = 'none';
+          overlay.style.zIndex = '2147483647';
+          document.body.append(overlay);
+        };
 
         htmlElement.setAttribute(
           'data-docs-highlight-target',
@@ -273,8 +297,9 @@ export async function takeScreenshot(
         htmlElement.dataset['docsPrevOutline'] =
           htmlElement.style.outline ?? '';
         htmlElement.dataset['docsPrevZIndex'] = htmlElement.style.zIndex ?? '';
-        htmlElement.style.outline = 'thick solid rgb(236, 72, 153)';
+        htmlElement.style.outline = `thick solid ${highlightColor}`;
         htmlElement.style.zIndex = '10000';
+        createHighlightOverlay();
         return htmlElement;
       }, highlightId);
       await waitForStableLocator(page, target);
@@ -282,6 +307,53 @@ export async function takeScreenshot(
   }
 
   await settleFiniteAnimations(page);
+  for (const [index, locator] of focusPoints.entries()) {
+    const highlightId = `docs-highlight-${index}`;
+    await runWithRetry(async () => {
+      const target = locator.first();
+      await target.waitFor({ state: 'attached' });
+      await target.evaluate((element, currentHighlightId) => {
+        const highlightedElement = [
+          element,
+          ...Array.from(element.querySelectorAll('*')),
+        ].find(
+          (candidate): candidate is HTMLElement =>
+            candidate instanceof HTMLElement &&
+            candidate.getAttribute('data-docs-highlight-target') ===
+              currentHighlightId,
+        );
+
+        if (!highlightedElement) {
+          return;
+        }
+
+        document
+          .querySelectorAll(
+            `[data-docs-highlight-overlay="${currentHighlightId}"]`,
+          )
+          .forEach((overlay) => overlay.remove());
+
+        const bounds = highlightedElement.getBoundingClientRect();
+        const left = Math.max(0, bounds.left);
+        const top = Math.max(0, bounds.top);
+        const right = Math.min(window.innerWidth, bounds.right);
+        const bottom = Math.min(window.innerHeight, bounds.bottom);
+        const overlay = document.createElement('div');
+
+        overlay.setAttribute('data-docs-highlight-overlay', currentHighlightId);
+        overlay.style.position = 'fixed';
+        overlay.style.left = `${left}px`;
+        overlay.style.top = `${top}px`;
+        overlay.style.width = `${Math.max(8, right - left)}px`;
+        overlay.style.height = `${Math.max(8, bottom - top)}px`;
+        overlay.style.border = '4px solid rgb(236, 72, 153)';
+        overlay.style.boxSizing = 'border-box';
+        overlay.style.pointerEvents = 'none';
+        overlay.style.zIndex = '2147483647';
+        document.body.append(overlay);
+      }, highlightId);
+    });
+  }
   const image = await page.screenshot({
     animations: 'disabled',
     style:
@@ -303,6 +375,12 @@ export async function takeScreenshot(
         const target = locator.first();
         await target.waitFor({ state: 'attached' });
         await target.evaluate((element, currentHighlightId) => {
+          document
+            .querySelectorAll(
+              `[data-docs-highlight-overlay="${currentHighlightId}"]`,
+            )
+            .forEach((overlay) => overlay.remove());
+
           const highlightedElements = [
             element,
             ...Array.from(element.querySelectorAll('*')),

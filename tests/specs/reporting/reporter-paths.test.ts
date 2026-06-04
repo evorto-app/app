@@ -215,6 +215,7 @@ test('documentation screenshot helper highlights a visible child for zero-box ho
     'data-docs-highlight-target',
     /.+/u,
   );
+  await expect(page.locator('[data-docs-highlight-overlay]')).toHaveCount(0);
 });
 
 test('documentation screenshot helper rejects captures without the highlighted target', async ({
