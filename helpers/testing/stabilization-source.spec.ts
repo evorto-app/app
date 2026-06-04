@@ -592,8 +592,126 @@ describe('stabilization source', () => {
     expect(reviewNext).toContain(
       'first manual in-app Browser queue pass has been completed',
     );
-    expect(reviewNext).toContain('deterministic ESNcard provider test');
-    expect(reviewNext).toContain('provider add/refresh/remove outcomes');
+    expect(normalizedReviewNext).toContain('Historical Docker recovery');
+    expect(normalizedReviewNext).toContain(
+      'Docker start-path blockers, and unhealthy-container cleanup evidence remain recorded as diagnostics',
+    );
+    expect(normalizedReviewNext).toContain(
+      'later current-state Browser evidence supersedes the stale blocked summary',
+    );
+    expect(normalizedReviewNext).not.toContain(
+      'fresh current-head Browser route/mobile layout evidence is currently blocked',
+    );
+    expect(normalizedReviewNext).not.toContain(
+      'unhealthy generated `evorto-4dddca18-db-1`',
+    );
+    expect(normalizedReviewNext).not.toMatch(
+      /generated project can be shut down cleanly/u,
+    );
+    expect(normalizedReviewNext).not.toContain('Docker Desktop is restarted');
+    expect(normalizedReviewNext).toContain(
+      'The latest local public General viewport Playwright browser sweep passed',
+    );
+    expect(normalizedReviewNext).toContain(
+      'direct in-app Browser tab API also rechecked the full anonymous General route set',
+    );
+    expect(normalizedReviewNext).toContain(
+      '320x740, 390x844, and 1440x900 on local head `1ab95b1c5`',
+    );
+    expect(normalizedReviewNext).toContain(
+      'no horizontal overflow, clipped controls, rendered application-error text, or Browser console errors',
+    );
+    expect(normalizedReviewNext).toContain(
+      'durable public General viewport spec reran against the same Docker app',
+    );
+    expect(normalizedReviewNext).toContain(
+      'fresh focused in-app Browser mobile refresh at local head `a2c1d2e70`',
+    );
+    expect(normalizedReviewNext).toContain(
+      'rechecked all anonymous General routes at 320x740 and 390x844',
+    );
+    expect(normalizedReviewNext).toContain(
+      'no horizontal overflow, clipped visible controls, rendered application-error text, or Browser warning/error log failures',
+    );
+    expect(normalizedReviewNext).toContain(
+      'fresh current-head direct in-app Browser sweep at local head `6b975474c`',
+    );
+    expect(normalizedReviewNext).toContain(
+      'rechecked all anonymous General routes at 320x740, 390x844, and 1440x900',
+    );
+    expect(normalizedReviewNext).toContain(
+      'no horizontal overflow, top/side clipped visible controls, rendered application-error text, or Browser warning/error logs',
+    );
+    expect(normalizedReviewNext).toContain(
+      '390x844 event-list screenshot showed readable Material cards and fixed mobile bottom navigation fitting without overlap',
+    );
+    expect(normalizedReviewNext).toContain(
+      'bottom-edge event-card continuation classified as normal scroll content',
+    );
+    expect(normalizedReviewNext).toContain(
+      'current authenticated in-app Browser probe',
+    );
+    expect(normalizedReviewNext).toContain('local head `c0c83ce2b`');
+    expect(normalizedReviewNext).toContain(
+      'checked `/admin/settings`, `/global-admin/tenants`, and `/profile`',
+    );
+    expect(normalizedReviewNext).toContain('320x740, 390x844, and 1440x900');
+    expect(normalizedReviewNext).toContain(
+      'no Auth0 redirect, horizontal overflow, clipped visible controls, rendered application-error text, or Browser warning/error logs',
+    );
+    expect(normalizedReviewNext).toContain(
+      'Playwright config now uses the repo runtime config provider',
+    );
+    expect(normalizedReviewNext).toContain(
+      'real environment variables still taking precedence',
+    );
+    expect(normalizedReviewNext).toContain(
+      'env -u DATABASE_URL -u BASE_URL -u APP_HOST_PORT -u COMPOSE_PROJECT_NAME -u NEON_LOCAL_HOST_PORT bunx playwright test --list',
+    );
+    expect(normalizedReviewNext).toContain(
+      'prior `DATABASE_URL`-undefined config-import blocker is fixed',
+    );
+    expect(normalizedReviewNext).toContain(
+      'base Playwright fixture now uses the same runtime config provider',
+    );
+    expect(normalizedReviewNext).toContain(
+      'bridges the validated `STRIPE_TEST_ACCOUNT_ID` into `process.env`',
+    );
+    expect(normalizedReviewNext).toContain('mcp-browser-planner');
+    expect(normalizedReviewNext).toContain('tests/setup/mcp-browser.seed.ts');
+    expect(normalizedReviewNext).toContain(
+      'bunx playwright test --project=mcp-browser-planner --no-deps tests/setup/mcp-browser.seed.ts --reporter=line',
+    );
+    expect(normalizedReviewNext).toContain(
+      'Playwright-test Browser planner setup now recognizes that project/seed pair',
+    );
+    expect(normalizedReviewNext).toContain('opens the seeded `/legal/terms`');
+    expect(normalizedReviewNext).toContain('resizes it to 320x740');
+    expect(normalizedReviewNext).toContain(
+      'mcp-browser-planner-terms-mobile.png',
+    );
+    expect(normalizedReviewNext).not.toContain('Browser setup recovery');
+    expect(normalizedReviewNext).toContain(
+      'evidence drift, relaunch-scope watchpoints, and richer authenticated Browser evidence',
+    );
+    expect(normalizedReviewNext).toContain(
+      'richer authenticated Browser planning should stay tied',
+    );
+    expect(normalizedReviewNext).not.toContain(
+      'MCP server process reload/initialization',
+    );
+    expect(normalizedReviewNext).not.toContain(
+      'generated Compose project has no running app container',
+    );
+    expect(reviewNext).not.toContain(
+      'older port-4200 app container belongs to another worktree',
+    );
+    expect(quality).toContain('record the Browser\nblocker explicitly');
+    expect(quality).toContain(
+      'Do not treat Playwright, screenshots, or system Chrome as a\nsubstitute for a requested in-app Browser walkthrough.',
+    );
+    expect(reviewNext).toMatch(/deterministic ESNcard\s+provider test/u);
+    expect(reviewNext).toMatch(/Provider\s+add\/refresh\/remove\s+outcomes/u);
     expect(reviewNext).toContain('custom-domain');
     expect(reviewNext).toContain('multi-domain onboarding');
     expect(reviewNext).toContain('tenant impersonation');
@@ -605,6 +723,61 @@ describe('stabilization source', () => {
     expect(reviewNext).toContain(
       'evidence drift and relaunch-scope watchpoints',
     );
+    expect(
+      readSource('helpers/testing/generated-documentation-source.spec.ts'),
+    ).toContain('DOCS_OUT_DIR=test-results/docs');
+    expect(
+      readSource('helpers/testing/generated-documentation-source.spec.ts'),
+    ).toContain(
+      '/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs',
+    );
+    expect(reviewNext).toContain('durable email outbox rows');
+    expect(reviewNext).toContain('receiptReviewed');
+    expect(reviewNext).toContain('Resend-backed dispatcher');
+    expect(reviewNext).toContain('homeTenantId');
+    expect(reviewNext).toContain('communicationEmail');
+    expect(reviewNext).toContain('notification-email rendering');
+    expect(reviewNext).toContain('operations-policy settings');
+    expect(reviewNext).toContain('registration limits');
+    expect(reviewNext).toContain('Stripe account management');
+    expect(reviewNext).toMatch(/evidence\s+drift, relaunch-scope/u);
+    expect(reviewNext).toMatch(/richer authenticated Browser evidence/u);
+    expect(source).toContain('Current relaunch-scope Browser checkpoint');
+    expect(source).toContain(
+      'stabilizationEvidence=relaunch-scope-browser-fixed-*',
+    );
+    expect(source).toContain('Primary domain hint');
+    expect(source).toContain('/tmp/evorto-relaunch-scope-20260604-mobile.jpg');
+    expect(source).toContain('local head\n  `c0c83ce2b`');
+    expect(source).toContain('`/admin/settings`, `/global-admin/tenants`');
+    expect(source).toContain('seeded global-admin profile');
+    expect(source).toMatch(/All nine route\/viewport checks reported/u);
+    expect(source).toMatch(/zero Browser warning\/error logs/u);
+    expect(source).toContain('320x740 `/admin/settings` screenshot');
+    expect(source).toContain(
+      '/tmp/evorto-auth-surfaces-20260604-320-admin-settings.png',
+    );
+    expect(
+      readSource('helpers/testing/relaunch-scope-source.spec.ts'),
+    ).toContain(
+      'keeps the tenant-domain relaunch boundary aligned across docs and UI',
+    );
+    expect(
+      readSource('helpers/testing/relaunch-scope-source.spec.ts'),
+    ).toContain(
+      'Custom-domain verification and multi-domain automation are deferred.',
+    );
+    expect(
+      readSource('helpers/testing/relaunch-scope-source.spec.ts'),
+    ).toContain(
+      'Tenant-admin impersonation is not available in the current relaunch surface.',
+    );
+    expect(reviewNext).not.toContain('become events. Normal generated docs');
+    expect(reviewNext).not.toContain(
+      'normal generated docs output is published by default',
+    );
+    expect(reviewNext).not.toContain('custom-domain automation is implemented');
+    expect(reviewNext).not.toContain('tenant impersonation is implemented');
     expect(reviewNext).not.toContain(
       'remaining product and relaunch-scope blockers',
     );
@@ -1617,6 +1790,12 @@ describe('stabilization source', () => {
       'no horizontal overflow, clipped visible controls, rendered application-error text, Browser warning/error logs, or Auth0 redirect',
     );
     expect(statusTable).toContain(
+      'pushed-head Docker/Browser refreshes through PR head `7eca0e970`',
+    );
+    expect(statusTable).toContain(
+      'rechecked all anonymous General routes at 320x740, 390x844, and 1440x900',
+    );
+    expect(statusTable).toContain(
       'Playwright config now uses the repo runtime config provider',
     );
     expect(statusTable).toContain(
@@ -1634,6 +1813,10 @@ describe('stabilization source', () => {
     expect(statusTable).toContain(
       'Richer authenticated Browser planning remains part of the authenticated Browser evidence path',
     );
+    expect(statusTable).toContain(
+      'current PR head `08d9b07a8` has all visible checks green',
+    );
+    expect(statusTable).toContain('merge-blocked only by draft status');
     expect(playwrightConfig).toContain(
       "import { makeRuntimeConfigProvider } from './src/server/config/provider';",
     );
