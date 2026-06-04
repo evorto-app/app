@@ -46,3 +46,7 @@ If branches only live for a couple of hours, that is already much better too
 ---
 
 I'm getting a warning from fontawesome that I am using too much bandwith from my account, check if we can update the ci to maybe avoid this, can we cache some things maybe?
+
+---
+
+I'm back to approve any ssh requests
