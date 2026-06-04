@@ -4992,6 +4992,20 @@ docker:check` then failed before a repeat startup and listed the created
   showed readable Material event cards and fixed mobile bottom navigation
   fitting without overlap; it was saved at
   `/tmp/evorto-current-head-17c35e-general-mobile-events.jpg`.
+  A fresh June 4, 2026 direct in-app Browser refresh at PR head `7eca0e970`
+  reused the running generated `evorto-4dddca18` Docker app on
+  the generated `BASE_URL` on port 4577, used the Browser `viewport` capability
+  for 320x740, 390x844, and 1440x900, and visited `/`, `/events`,
+  `/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`, `/500`, `/404`, and
+  `/not-a-real-general-route-browser-refresh`. All 27 route/viewport checks
+  matched the requested viewport width and expected route heading/content,
+  reported document/body widths equal to the viewport, no horizontal overflow,
+  no top/side clipped visible controls, no rendered application-error text, and
+  zero Browser warning/error logs. The 390x844 `/events` screenshot showed
+  readable Material event cards and fixed mobile bottom navigation fitting
+  without overlap; it was saved at
+  `/tmp/evorto-general-browser-7eca0e970-rerun-390-events.png`, and the
+  temporary Browser viewport override was reset after the sweep.
 - Current relaunch-scope Browser checkpoint: a fresh June 4, 2026 in-app
   Browser pass on the rebuilt Docker app opened tenant General settings,
   global-admin tenant create, and global-admin tenant edit at 320x740, 390x844,
@@ -5026,10 +5040,76 @@ docker:check` then failed before a repeat startup and listed the created
 
 All ten first-pass review areas are now represented in this document, and the
 first manual in-app Browser queue pass has been completed against the local
-Docker app. The next stabilization work should continue with small cleanup
-commits around evidence drift and relaunch-scope watchpoints. ESNcard
-provider add/refresh/remove outcomes now use deterministic ESNcard provider test
-mode. Event archival data-model support now exists as a tenant-scoped
+Docker app. Historical Docker recovery, Docker start-path blockers, and
+unhealthy-container cleanup evidence remain recorded as diagnostics, but later
+current-state Browser evidence supersedes the stale blocked summary. The latest
+local public General viewport Playwright browser sweep passed against the
+generated `BASE_URL`; the direct in-app Browser tab API also rechecked the full
+anonymous General route set at 320x740, 390x844, and 1440x900 on local head
+`1ab95b1c5` with no horizontal overflow, clipped controls, rendered
+application-error text, or Browser console errors, then the durable public
+General viewport spec reran against the same Docker app. A fresh focused in-app
+Browser mobile refresh at local head `a2c1d2e70` also rechecked all anonymous
+General routes at 320x740 and 390x844 with no horizontal overflow, clipped
+visible controls, rendered application-error text, or Browser warning/error log
+failures. A fresh current-head direct in-app Browser sweep at local head
+`6b975474c` rechecked all anonymous General routes at 320x740, 390x844, and
+1440x900 with no horizontal overflow, top/side clipped visible controls,
+rendered application-error text, or Browser warning/error logs; the 390x844
+event-list screenshot showed readable Material cards and fixed mobile bottom
+navigation fitting without overlap, with bottom-edge event-card continuation
+classified as normal scroll content. A fresh current-head direct in-app Browser
+sweep at local head `fdd040de9` rechecked the same anonymous General route set
+at 320x740, 390x844, and 1440x900 through the generated `.env.dev` `BASE_URL`;
+all 24 route/viewport checks passed with requested viewport widths, body and
+document widths equal to the viewport, no horizontal overflow, no top/side
+clipped visible controls, no rendered application-error text, expected durable
+headings, and zero Browser warning/error logs. The current authenticated in-app
+Browser probe at local head
+`c0c83ce2b` checked `/admin/settings`, `/global-admin/tenants`, and `/profile`
+at 320x740, 390x844, and 1440x900 with no Auth0 redirect, horizontal overflow,
+clipped visible controls, rendered application-error text, or Browser
+warning/error logs. The latest current pushed-head refresh at `17c35e732`
+recovered Docker's disposable container start path, started the generated Docker
+app at the generated `BASE_URL` on port 4577, and rechecked `/`, `/events`, `/legal/imprint`,
+`/legal/privacy`, `/legal/terms`, `/403`, `/500`, and `/404` at 320x740,
+390x844, and 1440x900 through direct in-app Browser control with no horizontal
+overflow, clipped visible controls, unexpected rendered application-error text,
+or Browser warning/error logs. A fresh direct in-app Browser refresh at PR head
+`7eca0e970` then rechecked `/`, `/events`, `/legal/imprint`, `/legal/privacy`,
+`/legal/terms`, `/403`, `/500`, `/404`, and a wildcard not-found route at
+320x740, 390x844, and 1440x900 with matching viewport widths, expected route
+content, no horizontal overflow, no top/side clipped visible controls, no
+rendered application-error text, and zero Browser warning/error logs; the
+390x844 `/events` screenshot showed readable Material event cards and fixed
+mobile bottom navigation fitting without overlap. Playwright config now uses the repo runtime config provider
+instead of `ConfigProvider.fromEnv()` directly, so external config importers can
+read `.env.dev.local`, generated `.env.dev`, and `.env` with real environment
+variables still taking precedence. The verification command
+`bun run env:runtime && env -u DATABASE_URL -u BASE_URL -u APP_HOST_PORT -u COMPOSE_PROJECT_NAME -u NEON_LOCAL_HOST_PORT bunx playwright test --list --project=local-chrome-baseline --no-deps tests/specs/smoke/page-layout-helper.test.ts`
+listed the smoke layout tests after loading generated `.env.dev`, proving the
+prior `DATABASE_URL`-undefined config-import blocker is fixed. The base
+Playwright fixture now uses the same runtime config provider and bridges the
+validated `STRIPE_TEST_ACCOUNT_ID` into `process.env` for the legacy
+`seedTenant()` helper, so MCP setup no longer fails while importing
+`tests/support/fixtures/base-test.ts` or while seeding deterministic paid
+scenarios. A dedicated no-dependency `mcp-browser-planner` project and
+`tests/setup/mcp-browser.seed.ts` now provide a lightweight public General page
+seed for Playwright-test MCP planning. The verification command
+`bun run env:runtime && env -u DATABASE_URL -u BASE_URL -u APP_HOST_PORT -u COMPOSE_PROJECT_NAME -u NEON_LOCAL_HOST_PORT bunx playwright test --project=mcp-browser-planner --no-deps tests/setup/mcp-browser.seed.ts --reporter=line`
+passed against the running Docker app and rendered `/legal/terms`; the same
+command with `--list` discovered only that seed test. The current
+Playwright-test Browser planner setup now recognizes that project/seed pair,
+opens the seeded `/legal/terms` public General page, and resizes it to 320x740
+with readable legal-page content plus fitting Events/Login bottom navigation in
+the captured `mcp-browser-planner-terms-mobile.png` screenshot. Source and
+Playwright-backed validation should keep moving as durable regression coverage,
+and richer authenticated Browser planning should stay tied to the normal
+authenticated Browser evidence path. The next stabilization work should continue
+with small cleanup commits around evidence drift, Browser setup recovery, and
+relaunch-scope watchpoints. ESNcard provider add/refresh/remove outcomes now use
+deterministic ESNcard provider test mode. Event archival data-model support now
+exists as a tenant-scoped
 non-personal snapshot model; automatic archival remains out of scope without an
 explicit product decision. Automated custom-domain
 verification, multi-domain onboarding, and tenant impersonation are intentionally
