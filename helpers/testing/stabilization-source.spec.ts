@@ -1055,6 +1055,3139 @@ describe('stabilization source', () => {
     expect(source).toMatch(
       /scanner\s+error state now uses the error-container surface/u,
     );
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).toContain('authenticated regular-user in-app Browser');
+    expect(checkpoint).toContain('/scan');
+    expect(checkpoint).toContain('retryable camera\n  fallback');
+    expect(checkpoint).toContain('Try camera again');
+    expect(checkpoint).toContain('phone camera');
+    expect(checkpoint).toContain('Browser warning/error logs were empty');
+  });
+
+  it('keeps the current Browser profile discounts checkpoint tied to visible ESNcard state', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current Browser profile-discounts checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).toContain('active `localhost` tenant');
+    expect(checkpoint).toContain('ESNcard test-provider review');
+    expect(checkpoint).toContain('regular user');
+    expect(checkpoint).toContain('TEST-ESN-0001');
+    expect(checkpoint).toContain('cache-busted in-app Browser reload');
+    expect(checkpoint).toContain('/profile#discounts');
+    expect(checkpoint).toContain('Discount Cards');
+    expect(checkpoint).toContain('verified\n  seeded card');
+    expect(checkpoint).toContain('refresh/remove actions');
+    expect(checkpoint).toContain('Save ESN card');
+    expect(checkpoint).toContain('Browser\n  warning/error logs were empty');
+    expect(checkpoint).not.toContain('system Chrome');
+    expect(checkpoint).not.toContain('direct `#discounts` link');
+  });
+
+  it('keeps the current Browser profile events and receipts checkpoint tied to visible cards', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current Browser profile events\/receipts checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).toContain('cache-busted in-app Browser reloads');
+    expect(checkpoint).toContain('/profile#events');
+    expect(checkpoint).toContain('/profile#receipts');
+    expect(checkpoint).toContain('authenticated regular-user\n  session');
+    expect(checkpoint).toContain('confirmed checked-in `Murnau City Tour 2`');
+    expect(checkpoint).toContain('no-payment');
+    expect(checkpoint).toContain('cancellation/transfer-unavailable');
+    expect(checkpoint).toContain('event-page action');
+    expect(checkpoint).toContain('profile-receipt.pdf');
+    expect(checkpoint).toContain('Munich City Tour 2');
+    expect(checkpoint).toContain('submitted\n  status');
+    expect(checkpoint).toContain('12.50 €');
+    expect(checkpoint).toContain('Browser warning/error logs were empty');
+    expect(checkpoint).not.toContain('system Chrome');
+    expect(checkpoint).not.toContain('standalone Playwright');
+  });
+
+  it('keeps the current inventory evidence refresh honest about Browser scope', () => {
+    const source = readSource('STABILIZATION.md');
+    const inventory = readSource('tests/test-inventory.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current inventory evidence refresh checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('tests/test-inventory.md');
+    expect(checkpoint).toContain('submitted-receipt Browser review');
+    expect(checkpoint).toContain(
+      'generated-doc/functional\n  profile receipt coverage',
+    );
+    expect(checkpoint).toContain(
+      'authenticated Browser `/profile#receipts`\n  checkpoint',
+    );
+    expect(checkpoint).toContain('current in-app\n  Browser sanity pass');
+    expect(checkpoint).toContain('generated `BASE_URL` `/events` route');
+    expect(checkpoint).toContain('Soccer Match 1');
+    expect(checkpoint).toContain('auth-gated HTTP response failure');
+    expect(checkpoint).toContain(
+      'public route sanity rather than new authenticated profile\n  evidence',
+    );
+    expect(checkpoint).toContain('June 3 stabilization date');
+    expect(checkpoint).toContain(
+      'source coverage pins that timestamp to this active evidence refresh',
+    );
+    expect(checkpoint).toContain(
+      'exactly three credential-gated\n  `test.skip` calls',
+    );
+    expect(checkpoint).toContain('zero `test.fixme` calls');
+    expect(checkpoint).toContain('no unclassified Playwright\n  skips');
+    expect(checkpoint).toContain(
+      'requires each allowlisted credential\n  skip to name the exact required environment variables',
+    );
+    expect(checkpoint).toContain(
+      'inventory must document the skipped file plus the same credential\n  variable names',
+    );
+    expect(checkpoint).toContain('Auth0 Management and Stripe webhook gates');
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=inventory-date-refresh-clean',
+    );
+    expect(checkpoint).toContain('Events | Development');
+    expect(checkpoint).toContain('showed the seeded `Soccer Match 1`');
+    expect(checkpoint).toContain('no rendered application error text');
+    expect(checkpoint).toContain(
+      'earlier scanner warnings from the reused browser session by timestamp',
+    );
+    expect(checkpoint).toContain(
+      'route/content evidence rather than clean-console evidence',
+    );
+    expect(checkpoint).toContain('local head `75a9a462f`');
+    expect(checkpoint).toContain(
+      'helpers/testing/playwright-skip-inventory.spec.ts',
+    );
+    expect(checkpoint).toMatch(/with 15 tests/u);
+    expect(checkpoint).toMatch(/only\s+the three credential-gated skips/u);
+    expect(checkpoint).toMatch(/zero fixmes/u);
+    expect(checkpoint).toMatch(/no\s+focused-only Playwright\s+declarations/u);
+    expect(checkpoint).toContain('page.pause()');
+    expect(checkpoint).toContain('`debugger` hooks');
+    expect(checkpoint).toContain('waitForTimeout');
+    expect(checkpoint).toContain('setTimeout');
+    expect(checkpoint).not.toContain('fresh no-console-warning claim');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('collectFocusedOnlyEntries');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('forbidOnly: environment.CI');
+    expect(readSource('playwright.config.ts')).toContain(
+      'forbidOnly: environment.CI',
+    );
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('collectPlaywrightRuntimeModifierEntries');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain(String.raw`test(?:\.describe)?`);
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('runtimeModifierPattern');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('test.describe.skip');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('test.describe.only');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('test.describe.configure');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('test.slow');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('collectInteractiveDebugEntries');
+    expect(inventory).toContain('`test.describe.skip`');
+    expect(inventory).toContain(
+      'rejects focused-only `.only` and\n  `test.describe.only`',
+    );
+    expect(inventory).toContain('Playwright `forbidOnly` remains enabled');
+    expect(inventory).toContain(
+      'Runtime-affecting modifiers such as\n  `test.describe.configure(...)` and `test.slow()`',
+    );
+    expect(inventory).toContain(
+      'The current runtime-modifier allowlist is\n  limited to `docs/events/register.doc.ts`',
+    );
+    expect(inventory).toContain('mutates shared registration state');
+    expect(inventory).toContain('Stripe/webhook work');
+    expect(inventory).toMatch(
+      /interactive\s+`page\.pause\(\)`\/`debugger`\s+hooks/u,
+    );
+    expect(inventory).toContain('Updated: 2026-06-04');
+    expect(inventory).toContain(
+      'in-app Browser\n    profile refresh also verified the seeded submitted receipt card',
+    );
+    expect(inventory).not.toContain(
+      'Manual Browser\n    review remains useful once the in-app Browser connection is reliable',
+    );
+  });
+
+  it('keeps the Neon branch-expiration checkpoint tied to runtime guard evidence', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current Neon branch-expiration guard checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('runtime source coverage');
+    expect(checkpoint).toContain('too-many-branches cleanup');
+    expect(checkpoint).toContain('Docker Compose keeps `db-expiration`');
+    expect(checkpoint).toContain('same\n  metadata mount as `db`');
+    expect(checkpoint).toContain('gates `db-setup` and `evorto`');
+    expect(checkpoint).toContain('writable metadata directory');
+    expect(checkpoint).toContain('two-hour branch TTL');
+    expect(checkpoint).toContain('waits 180 seconds for metadata');
+    expect(checkpoint).toContain('prunes stale\n  branches before E2E startup');
+    expect(checkpoint).toContain(
+      'missing expiration metadata has\n  aged beyond the two-hour active-test TTL',
+    );
+    expect(checkpoint).toContain(
+      'giving the Neon Local `db` container a 60-second stop\n  window inside a bounded command',
+    );
+    expect(checkpoint).toContain('running bounded Compose down');
+    expect(checkpoint).toContain('force-removing leftover Compose containers');
+    expect(checkpoint).toContain('metadata-backed branch\n  cleanup helper');
+    expect(checkpoint).toContain('detached Compose startup');
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=neon-branch-expiration-guard',
+    );
+    expect(checkpoint).toContain('Events | Development');
+    expect(checkpoint).toContain('Soccer Match 1');
+    expect(checkpoint).toContain('no rendered\n  application error text');
+    expect(checkpoint).toContain(
+      'earlier scanner\n  warnings from the reused browser session by timestamp',
+    );
+    expect(checkpoint).toContain(
+      'route/content evidence rather than clean-console evidence',
+    );
+    expect(checkpoint).not.toContain('fresh no-console-warning claim');
+  });
+
+  it('keeps the applied-fixes evidence-drift checkpoint tied to current Browser evidence', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current applied-fixes evidence-drift checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint?.replaceAll(/\n\s*/gu, ' ')).toContain(
+      'Fixes Applied In This Pass',
+    );
+    expect(checkpoint).toContain('stale audit-only "None" note');
+    expect(checkpoint).toContain(
+      'focused server, app, Playwright, docs, Browser, runtime, and\n  CI cleanup slices',
+    );
+    expect(checkpoint).toContain('Source coverage pins the section');
+    expect(checkpoint).toContain('rejects the old no-op wording');
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=applied-fixes-drift-cleanup',
+    );
+    expect(checkpoint).toContain('Events | Development');
+    expect(checkpoint).toContain('Soccer Match 1');
+    expect(checkpoint).toContain('no rendered\n  application error text');
+    expect(checkpoint).toContain(
+      'earlier scanner\n  warnings from the reused browser session by timestamp',
+    );
+    expect(checkpoint).toContain(
+      'route/content evidence rather than clean-console evidence',
+    );
+    expect(checkpoint).not.toContain('fresh no-console-warning claim');
+  });
+
+  it('keeps the credential-state Browser refresh scoped to route evidence after push realignment', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current credential-state Browser refresh checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('pushed and realigned');
+    expect(checkpoint).toContain('GitHub CLI HTTPS credential-helper path');
+    expect(checkpoint).not.toContain('two commits ahead');
+    expect(checkpoint).not.toContain('remote PR head');
+    expect(checkpoint).not.toContain('HTTPS\n  `workflow` scope');
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=credential-state-refresh-browser',
+    );
+    expect(checkpoint).toContain('current public event feed');
+    expect(checkpoint).toContain('Upcoming Events');
+    expect(checkpoint).toContain('no rendered\n  application error text');
+    expect(checkpoint).toContain('older warnings');
+    expect(checkpoint).toContain('Apollo timeout entries');
+    expect(checkpoint).toContain(
+      'stale\n  `section-app/legacy-app` cache paths',
+    );
+    expect(checkpoint).toContain(
+      'route/content\n  evidence rather than clean-console evidence',
+    );
+    expect(checkpoint).toContain('review-thread-clean-refresh');
+    expect(checkpoint).toContain('route/content\n  evidence only');
+    expect(checkpoint).not.toContain('fresh no-console-warning claim');
+    expect(checkpoint).not.toContain('Browser warning/error logs were empty');
+    expect(checkpoint).not.toContain('current PR head is aligned');
+  });
+
+  it('keeps the latest pushed evidence refresh tied to the latest fully green coverage head', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current pushed evidence refresh checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain(
+      'latest fully green coverage\n  evidence head',
+    );
+    expect(checkpoint).toContain('PR #62 remained');
+    expect(checkpoint).toContain('mergeable');
+    expect(checkpoint).toContain('merge-blocked only by draft/status state');
+    expect(checkpoint).toMatch(/documentation-only\s+evidence refresh commit/u);
+    expect(checkpoint).toContain('a0113b27bf49d47bc1477e156738484d51a21c41');
+    expect(checkpoint).toContain('zero review threads');
+    expect(checkpoint).toContain('CodeRabbit');
+    expect(checkpoint).toContain('status context');
+    expect(checkpoint).toContain('skipped for draft PRs');
+    expect(checkpoint).toContain('formal bot review');
+    expect(checkpoint).toContain('marked ready');
+    expect(checkpoint).toContain('origin/main');
+    expect(checkpoint).toContain('35ebb9a2b37606a4bdc5ac2ea53378eed2600d6d');
+    expect(checkpoint).toMatch(/ancestor of the local\s+branch/u);
+    expect(checkpoint).toContain('no current main merge conflict');
+    expect(checkpoint).toMatch(/local\s+branch was clean and aligned/u);
+    expect(checkpoint).toContain('origin/codex/stabilization-flow-coverage');
+    expect(checkpoint).toMatch(/Fresh\s+GitHub checks/u);
+    expect(checkpoint).toContain('Analyze');
+    expect(checkpoint).toContain('CodeQL');
+    expect(checkpoint).toContain('Git Town');
+    expect(checkpoint).toContain('Copilot setup');
+    expect(checkpoint).toContain('Playwright E2E docs');
+    expect(checkpoint).toMatch(/Playwright E2E\s+functional-1/u);
+    expect(checkpoint).toMatch(/Playwright E2E\s+functional-2/u);
+    expect(checkpoint).toContain('all passed after the public');
+    expect(checkpoint).toMatch(
+      /event-detail viewport\s+coverage refresh commit/u,
+    );
+    expect(checkpoint).toContain('Docker startup');
+    expect(checkpoint).toMatch(/Neon branch-expiration\s+confirmation/u);
+    expect(checkpoint).toContain('generated-docs shard');
+    expect(checkpoint).toMatch(/both\s+functional shards/u);
+    expect(checkpoint).toMatch(/artifact\s+uploads/u);
+    expect(checkpoint).toMatch(/format,\s+lint/u);
+    expect(checkpoint).toMatch(
+      /focused\s+stabilization\/skip-inventory source guards/u,
+    );
+    expect(checkpoint).toMatch(/WebStorm\s+errors-only diagnostics/u);
+    expect(checkpoint).toMatch(
+      /public General\s+viewport coverage checkpoint/u,
+    );
+    expect(checkpoint).toMatch(/this\s+non-moving evidence refresh/u);
+    expect(checkpoint).toContain('public-general-viewports.spec.ts');
+    expect(checkpoint).toContain('320x740');
+    expect(checkpoint).toContain('390x844');
+    expect(checkpoint).toContain('1440x900');
+    expect(checkpoint).toContain('/events');
+    expect(checkpoint).toContain('/events/:id');
+    expect(checkpoint).toContain('/legal/imprint');
+    expect(checkpoint).toContain('/legal/privacy');
+    expect(checkpoint).toContain('/legal/terms');
+    expect(checkpoint).toContain('expected route content');
+    expect(checkpoint).toContain('no horizontal overflow');
+    expect(checkpoint).toContain('no horizontally clipped visible controls');
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=fb4a3671-mobile-events',
+    );
+    expect(checkpoint).toMatch(/Events route\s+heading/u);
+    expect(checkpoint).toMatch(/current tenant feed/u);
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=public-general-viewport-spec-8cfe2965',
+    );
+    expect(checkpoint).toContain('tenant-missing legal-text message');
+    expect(checkpoint).toMatch(
+      /reset\s+(?:the\s+)?temporary\s+Browser viewport override/u,
+    );
+    expect(checkpoint).toContain('Soccer Match 1');
+    expect(checkpoint).toMatch(
+      /route\/layout\s+evidence rather than seeded-event\s+content evidence/u,
+    );
+    expect(checkpoint).toMatch(/wider\s+public General\/legal viewport sweep/u);
+    expect(checkpoint).toContain('current local in-app Browser refresh');
+    expect(checkpoint).toContain('unpushed head\n  `92ed02dac`');
+    expect(checkpoint).toContain('/403');
+    expect(checkpoint).toContain('/500');
+    expect(checkpoint).toContain('/404');
+    expect(checkpoint).toMatch(
+      /explicit\s+390x844,\s+320x740,\s+and 1440x900/u,
+    );
+    expect(checkpoint).toMatch(/no\s+Browser error logs/u);
+    expect(checkpoint).toContain('no horizontal overflow');
+    expect(checkpoint).toContain('no\n  horizontally clipped visible controls');
+    expect(checkpoint).toContain('390x844 `/404` screenshot');
+    expect(checkpoint).toMatch(/Material-style bottom navigation/u);
+    expect(checkpoint).toMatch(/viewport override was reset/u);
+    expect(checkpoint).toMatch(/[Aa]uthenticated\s+tenant General\s+settings/u);
+    expect(checkpoint).toMatch(
+      /page-backed\s+Playwright\s+spec\/docs\s+coverage/u,
+    );
+    expect(checkpoint).toMatch(/prior authenticated Browser\s+review/u);
+    expect(checkpoint).not.toContain('older remote head');
+    expect(checkpoint).not.toContain('pre-sweep pushed head');
+    expect(checkpoint).not.toContain('pending GitHub E2E check run');
+    expect(checkpoint).not.toContain('remained pending');
+    expect(checkpoint).not.toContain('has finished');
+    expect(checkpoint).not.toContain(
+      '2ec03eda4f9bec47590c472906cfefab90450c13',
+    );
+    expect(checkpoint).not.toContain(
+      '8b39511056dbe3341a7d1b46962734677aee8079',
+    );
+    expect(checkpoint).not.toContain(
+      'd5286954529ae1e62b8f316a964560ad7692a46e',
+    );
+    expect(checkpoint).not.toContain(
+      'd887cf8fad8d9d80c4da422987becb6071cd3196',
+    );
+    expect(checkpoint).not.toContain(
+      'fefe6c984e79cd310a6c07097aa37e044b2427b5',
+    );
+    expect(checkpoint).not.toContain(
+      'fb4a3671f6effc3e52a743571d011f90230a8921',
+    );
+    expect(checkpoint).not.toContain('two commits ahead');
+    expect(checkpoint).not.toContain('1Password agent signing');
+    expect(checkpoint).not.toContain('lacks `workflow` scope');
+    expect(checkpoint).not.toContain('Browser warning/error logs were empty');
+    expect(checkpoint).not.toContain('CI status is green');
+  });
+
+  it('keeps the earlier Font Awesome cleanup CI and Neon checkpoint honest', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Earlier Font Awesome cleanup CI and Neon checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n- Earlier |\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('PR #62 head');
+    expect(checkpoint).toContain('74714fc1038a018fa0987a104c3c8ad0b4b31bd1');
+    expect(checkpoint).toContain('origin/codex/stabilization-flow-coverage');
+    expect(checkpoint).toContain('private Font Awesome registry-auth boundary');
+    expect(checkpoint).toContain('private Duotone package');
+    expect(checkpoint).toContain('project `.npmrc`');
+    expect(checkpoint).toContain('@shared/icons/fontawesome');
+    expect(checkpoint).toContain('public npm packages only');
+    expect(checkpoint).toContain('bun install --frozen-lockfile');
+    expect(checkpoint).toContain(
+      'passed\n  locally without Font Awesome registry auth',
+    );
+    expect(checkpoint).toMatch(
+      /later pushed heads moved past\s+the old token failure/u,
+    );
+    expect(checkpoint).toContain(
+      'current local-ahead cache and source-guard follow-ups',
+    );
+    expect(checkpoint).not.toMatch(/next pushed head\s+should move past/u);
+    expect(checkpoint).not.toContain('CodeQL was still running');
+    expect(checkpoint).toContain('PARENT_BRANCH_ID');
+    expect(checkpoint).toContain('br-soft-forest-a9khi8e8');
+    expect(checkpoint).toContain('current head');
+    expect(checkpoint).toContain('bounded Neon Local container stop');
+    expect(checkpoint).toContain('bounded Compose down with orphan removal');
+    expect(checkpoint).toContain('leftover container force-removal');
+    expect(checkpoint).toContain(
+      'bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    expect(checkpoint).toContain('no Neon Local metadata');
+    expect(checkpoint).toMatch(/two-hour\s+active-test TTL/u);
+    expect(checkpoint).toContain(
+      'total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h',
+    );
+    expect(checkpoint).toMatch(/exactly\s+one branch,\s+`main`/u);
+    expect(checkpoint).toContain('local live Neon API check');
+    expect(checkpoint).toContain('focused runtime-preflight');
+    expect(checkpoint).toContain('stabilization source guards');
+    expect(checkpoint).toContain('WebStorm errors-only diagnostics');
+    expect(checkpoint).toContain('stale Playwright webServer container');
+    expect(checkpoint).toContain('removed stopped/created service containers');
+    expect(checkpoint).toContain(
+      'no longer timed out waiting for the webServer',
+    );
+    expect(checkpoint).toContain('public icon dependency fix');
+    expect(checkpoint).toContain('no successful Docker');
+    expect(checkpoint).toContain('HTTP 500 for `/events`');
+    expect(checkpoint).toMatch(/not reliable\s+evidence/u);
+    expect(checkpoint).toContain('viewport-diagnostic slice');
+    expect(checkpoint).toContain('covered-control');
+    expect(checkpoint).toContain('center-point coordinates');
+    expect(checkpoint).toContain(
+      'Playwright public General viewport spec discovery',
+    );
+    expect(checkpoint).toMatch(/exactly\s+one branch total:\s+`main`/u);
+    expect(checkpoint).toContain('vertical clipping');
+    expect(checkpoint).toContain('fixed/sticky controls');
+    expect(checkpoint).toContain('320x740, 390x844, and 1440x900');
+    expect(checkpoint).toContain('labelled viewport steps');
+    expect(checkpoint).toContain(
+      'mobile/general-page matrix cannot be declared without being run',
+    );
+    expect(checkpoint).not.toContain('Docker startup completed');
+    expect(checkpoint).not.toContain('Playwright assertions ran');
+    expect(checkpoint).not.toContain(
+      'Analyze, CodeQL,\n  CodeRabbit, and Display the branch stack passed on the same pushed head',
+    );
+  });
+
+  it('keeps the runtime status summary honest after the Font Awesome blocker moved', () => {
+    const source = readSource('STABILIZATION.md');
+    const baseTestFixture = readSource('tests/support/fixtures/base-test.ts');
+    const mcpSeed = readSource('tests/setup/mcp-browser.seed.ts');
+    const playwrightConfig = readSource('playwright.config.ts');
+    const testInventory = readSource('tests/test-inventory.md');
+    const statusTable = readSection(
+      source,
+      'Review Status',
+      'Product Decision Draft',
+    );
+
+    expect(statusTable).toContain('| Local runtime/developer workflow');
+    expect(statusTable).toContain('| Watchpoint | medium');
+    expect(statusTable).toContain('Env preflight');
+    expect(statusTable).toContain('Neon Local cleanup');
+    expect(source).toContain('public Font Awesome install paths');
+    expect(statusTable).toContain('CI teardown cleanup');
+    expect(statusTable).toContain('first in-app Browser queue pass');
+    expect(statusTable).toContain(
+      'Historical Docker start-path and unhealthy-container blockers remain recorded as diagnostics',
+    );
+    expect(statusTable).toContain(
+      'later current-state Browser evidence supersedes them',
+    );
+    expect(statusTable).not.toContain(
+      'Fresh current-head Browser verification is currently blocked below the app tooling layer',
+    );
+    expect(statusTable).not.toContain(
+      'unhealthy generated `evorto-4dddca18-db-1`',
+    );
+    expect(statusTable).not.toMatch(/Docker Desktop is restarted/u);
+    expect(statusTable).toContain(
+      'public General viewport Playwright browser sweep passed locally',
+    );
+    expect(statusTable).toContain(
+      'direct in-app Browser tab API sweeps rechecked the full anonymous General route set',
+    );
+    expect(statusTable).toContain('320x740, 390x844, and 1440x900');
+    expect(statusTable).toContain('local head `1ab95b1c5`');
+    expect(statusTable).toContain(
+      'focused in-app Browser mobile refresh rechecked all anonymous General routes',
+    );
+    expect(statusTable).toContain('320x740 and 390x844');
+    expect(statusTable).toContain('local head `a2c1d2e70`');
+    expect(statusTable).toContain(
+      'current-head direct in-app Browser sweep at local head `6b975474c`',
+    );
+    expect(statusTable).toContain('top/side clipped visible controls');
+    expect(statusTable).toContain(
+      'current authenticated in-app Browser probe at local head `c0c83ce2b`',
+    );
+    expect(statusTable).toContain(
+      'checked `/admin/settings`, `/global-admin/tenants`, and `/profile`',
+    );
+    expect(statusTable).toContain(
+      'no horizontal overflow, clipped visible controls, rendered application-error text, Browser warning/error logs, or Auth0 redirect',
+    );
+    expect(statusTable).toContain(
+      'Playwright config now uses the repo runtime config provider',
+    );
+    expect(statusTable).toContain(
+      'direct config importers can initialize from generated `.env.dev`',
+    );
+    expect(statusTable).toContain(
+      'Playwright-test MCP Browser planner now recognizes the dedicated `mcp-browser-planner` project',
+    );
+    expect(statusTable).toContain(
+      'opens the seeded `/legal/terms` public General page',
+    );
+    expect(statusTable).toContain(
+      'captures the 320x740 mobile screenshot path after config import',
+    );
+    expect(statusTable).toContain(
+      'Richer authenticated Browser planning remains part of the authenticated Browser evidence path',
+    );
+    expect(playwrightConfig).toContain(
+      "import { makeRuntimeConfigProvider } from './src/server/config/provider';",
+    );
+    expect(playwrightConfig).toContain(
+      'const runtimeConfigProvider = Effect.runSync(makeRuntimeConfigProvider());',
+    );
+    expect(playwrightConfig).toContain(
+      'Effect.provideService(ConfigProvider.ConfigProvider, runtimeConfigProvider)',
+    );
+    expect(playwrightConfig).toContain("name: 'mcp-browser-planner'");
+    expect(playwrightConfig).toContain(
+      String.raw`testMatch: /mcp-browser\.seed\.ts$/`,
+    );
+    expect(baseTestFixture).toContain(
+      "import { makeRuntimeConfigProvider } from '../../../src/server/config/provider';",
+    );
+    expect(baseTestFixture).toContain(
+      'const runtimeConfigProvider = Effect.runSync(makeRuntimeConfigProvider());',
+    );
+    expect(baseTestFixture).toContain(
+      "process.env['STRIPE_TEST_ACCOUNT_ID'] ??= environment.STRIPE_TEST_ACCOUNT_ID;",
+    );
+    expect(mcpSeed).toContain(
+      "test('open public General page for MCP Browser planning'",
+    );
+    expect(mcpSeed).toContain("await page.goto('/legal/terms');");
+    expect(mcpSeed).toContain(
+      "await expect(page.getByRole('heading', { name: 'Terms' })).toBeVisible();",
+    );
+    expect(testInventory).toContain('tests/setup/mcp-browser.seed.ts');
+    expect(testInventory).toContain('mcp-browser-planner');
+    expect(playwrightConfig).not.toContain(
+      'Effect.provideService(\n      ConfigProvider.ConfigProvider,\n      ConfigProvider.fromEnv(),\n    )',
+    );
+    expect(statusTable).not.toContain(
+      '| Local runtime/developer workflow                | Stabilized',
+    );
+    expect(source).toContain(
+      'timeout-bounds project-label discovery and force-removal for leftover Compose containers during shutdown',
+    );
+    expect(source).not.toContain(
+      'current CI and local Docker build/start validation remain blocked before app startup by an invalid Font Awesome registry token',
+    );
+    expect(source).not.toContain(
+      'the current Browser runtime reconnect are healthy',
+    );
+  });
+
+  it('keeps page-backed Playwright tenant seeding unique across repeat no-deps runs', () => {
+    const source = readSource('STABILIZATION.md');
+    const inventory = readSource('tests/test-inventory.md');
+    const testsReadme = readSource('tests/README.md');
+    const parallelFixture = readSource(
+      'tests/support/fixtures/parallel-test.ts',
+    );
+
+    expect(parallelFixture).toContain(
+      "import { seed as seedFalso } from '@ngneat/falso';",
+    );
+    expect(parallelFixture).toContain('executionSeedNonce');
+    expect(parallelFixture).toContain('crypto.randomBytes(4).toString');
+    expect(parallelFixture).toContain(
+      'execution-${executionSeedNonce}:retry-${testInfo.retry}',
+    );
+    expect(parallelFixture).toContain('seedFalso(seed)');
+    expect(parallelFixture).toContain('const runId = buildRunId(seed)');
+    expect(testsReadme).toContain('per-process execution nonce');
+    expect(testsReadme).toContain('repeated\n  `--no-deps` runs');
+    expect(testsReadme).toContain('same tenant\n  primary keys');
+    expect(inventory).toContain('per-process execution nonce');
+    expect(inventory).toContain('repeated `--no-deps` runs');
+    expect(inventory).toContain('same tenant primary keys');
+    expect(source).toContain('per-process execution nonce');
+    expect(source).toContain('same tenant primary keys');
+  });
+
+  it('keeps the dev-runtime Browser retry checkpoint honest', () => {
+    const source = readSource('STABILIZATION.md');
+    const packageJson = JSON.parse(readSource('package.json')) as {
+      scripts: Record<string, string>;
+    };
+    const helpersReadme = readSource('helpers/README.md');
+    const testsReadme = readSource('tests/README.md');
+
+    expect(source).toContain('Earlier Browser/dev-runtime retry checkpoint');
+    expect(source).toContain('`bun run dev:start` built the');
+    expect(source).toContain('loopback port 4224');
+    expect(source).toContain('/events` returned HTTP 500');
+    expect(source).toContain('server-side Effect stack');
+    expect(source).toContain('IPv6 loopback only');
+    expect(source).toContain('generated dev `DATABASE_URL` pointing at');
+    expect(source).toContain('localhost:55443');
+    expect(source).toContain('older\n  Docker app on port 4200');
+    expect(source).toContain('not current-branch Browser evidence');
+    expect(source).toContain('runs `dev:check` before Angular starts');
+    expect(source).toContain('binds the dev server to `0.0.0.0`');
+    expect(source).toContain('covered-control detection');
+    expect(source).toMatch(/Fresh Browser layout evidence\s+still requires/u);
+    expect(source).toContain('then-current Font Awesome install blocker');
+    expect(source).not.toMatch(
+      /from the\s+current Font Awesome install blocker/u,
+    );
+    expect(source).not.toContain('current local source slice');
+    expect(source).not.toContain('dev-runtime Browser evidence passed');
+    expect(packageJson.scripts['dev:check']).toBe(
+      'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
+    );
+    expect(packageJson.scripts['dev:start']).toContain('bun run dev:check');
+    expect(packageJson.scripts['dev:start']).toContain('--host 0.0.0.0');
+    expect(helpersReadme).toContain(
+      'a generated `.env.dev` that points at a closed\nNeon Local port fails before the dev server starts returning SSR HTTP 500 pages',
+    );
+    expect(testsReadme).toContain(
+      'If the\n  generated local `DATABASE_URL` points at a closed Neon Local port',
+    );
+  });
+
+  it('keeps the active-test Neon branch cleanup checkpoint honest', () => {
+    const source = readSource('STABILIZATION.md');
+    const workflow = readSource('.github/workflows/e2e-baseline.yml');
+    const cleanupWorkflow = readSource(
+      '.github/workflows/neon-branch-cleanup.yml',
+    );
+    const checkpoint = source.match(
+      /Current Neon active-test branch cleanup checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('PARENT_BRANCH_ID');
+    expect(checkpoint).toContain('ephemeral branch');
+    expect(checkpoint).toContain('DELETE_BRANCH=true');
+    expect(checkpoint).toContain('exactly one branch, `main`');
+    expect(checkpoint).toContain('br-soft-forest-a9khi8e8');
+    expect(checkpoint).toMatch(/two-hour\s+active-test TTL/u);
+    expect(checkpoint).toContain('sanitized cleanup summary');
+    expect(checkpoint).toContain('total, protected, active-test');
+    expect(checkpoint).toContain('stale-deleted branch counts');
+    expect(checkpoint).toMatch(/active\s+branches still inside the TTL/u);
+    expect(checkpoint).toMatch(/GitHub\s+E2E mechanism/u);
+    expect(checkpoint).toContain('delete_timeline');
+    expect(checkpoint).toContain('status/log/debug/stop/down/kill/remove');
+    expect(checkpoint).toMatch(
+      /timeout-bound Docker\s+log\/status collection and server-log copy/u,
+    );
+    expect(checkpoint).toContain('uses the generated dotenv');
+    expect(checkpoint).toMatch(/exported dependency-free CI\s+environment/u);
+    expect(checkpoint).toContain('matches startup');
+    expect(checkpoint).toMatch(/exported\s+CI Compose project/u);
+    expect(checkpoint).toContain('timed stop/down path wraps');
+    expect(checkpoint).toContain('real Compose executable');
+    expect(checkpoint).toMatch(
+      /force-removes\s+leftover\s+Compose containers/u,
+    );
+    expect(checkpoint).toMatch(/timeout-bound project-label discovery/u);
+    expect(checkpoint).toMatch(/force-remove,\s+and Neon API cleanup/u);
+    expect(checkpoint).toMatch(/whole-stack\s+`compose kill` fallback/u);
+    expect(checkpoint).toMatch(
+      /bounds\s+the\s+whole-stack\s+`compose kill` and `compose rm`/u,
+    );
+    expect(checkpoint).toMatch(/10-minute cleanup\s+step timeout/u);
+    expect(checkpoint).toMatch(/5-minute final prune timeout/u);
+    expect(checkpoint).toContain('only `main` should remain');
+    expect(checkpoint).toContain('Neon Branch Cleanup');
+    expect(checkpoint).toContain('hourly');
+    expect(checkpoint).toContain('manual dispatch');
+    expect(checkpoint).toContain('after the E2E workflow completes');
+    expect(checkpoint).toContain('contents: read');
+    expect(checkpoint).toContain('non-canceling `neon-branch-cleanup`');
+    expect(checkpoint).toMatch(/required\s+`NEON_API_KEY`\/`NEON_PROJECT_ID`/u);
+    expect(checkpoint).toMatch(/10-minute job timeout/u);
+    expect(checkpoint).toMatch(/canceled\s+or crashed GitHub runner/u);
+    expect(checkpoint).toMatch(/Font Awesome registry auth can\s+fail/u);
+    expect(checkpoint).toMatch(/currently active\s+tests/u);
+    expect(checkpoint).toContain('bde138ec9411543b2d303b94ea021854755e4c18');
+    expect(checkpoint).toContain('all three matrix jobs');
+    expect(checkpoint).toContain('CodeQL and Git Town passed');
+    expect(checkpoint).toMatch(/final dependency-free\s+prune/u);
+    expect(checkpoint).toContain(
+      'total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h',
+    );
+    expect(checkpoint).toContain('Font Awesome\n  bandwidth-cache slice');
+    expect(checkpoint).toContain('no Neon Local metadata');
+    expect(checkpoint).toMatch(/workflow-scoped\s+push\s+auth/u);
+    expect(checkpoint).toContain('fresh current-branch live cleanup');
+    expect(checkpoint).toContain('generated `.env.dev` dotenv cascade');
+    expect(checkpoint).toContain('/tmp/.neon_local/.branches');
+    expect(checkpoint).toMatch(/no stale Neon\s+Local branches outside/u);
+    expect(checkpoint).toMatch(/active-test rule/u);
+    expect(checkpoint).toMatch(/only the protected branch remains/u);
+    expect(checkpoint).toMatch(/before Docker\s+startup/u);
+    expect(checkpoint).toContain('separate dependency-free `if: always()`');
+    expect(checkpoint).toContain('not the only in-job cleanup path');
+    expect(checkpoint).toContain('project (`polished-frost-79768881`)');
+    expect(checkpoint).toMatch(/zero active-test branches\s+inside/u);
+    expect(checkpoint).toContain('1083690b2b4518ca4ef4701dc1b92cb35286c489');
+    expect(checkpoint).toContain('.github/workflows/neon-branch-cleanup.yml');
+    expect(checkpoint).toMatch(/not present on the default branch/u);
+    expect(checkpoint).toContain(
+      'scheduled and\n  `workflow_run` cleanup hooks',
+    );
+    expect(checkpoint).toContain('cancel-in-progress: false');
+    expect(checkpoint).toMatch(/already-running\s+Docker\/Neon job/u);
+    expect(checkpoint).toContain('timeout-bound `if: always()` teardown');
+    expect(checkpoint).toContain('final\n  dependency-free Neon prune');
+    expect(checkpoint).toMatch(/coalesce pending runs/u);
+    expect(checkpoint).toMatch(/repeated Font Awesome cache warmups/u);
+    expect(checkpoint).not.toContain('four-hour');
+    expect(checkpoint).not.toContain('fourteen branches remain');
+
+    expect(workflow).toContain('group: e2e-${{ github.ref }}');
+    expect(workflow).toContain('cancel-in-progress: false');
+
+    const pruneBeforeE2EIndex = workflow.indexOf(
+      'Prune expired Neon branches before E2E',
+    );
+    expect(pruneBeforeE2EIndex).toBeLessThan(
+      workflow.indexOf('- name: Install dependencies', pruneBeforeE2EIndex),
+    );
+    expect(pruneBeforeE2EIndex).toBeLessThan(
+      workflow.indexOf(
+        'Refusing a parallel registry install to avoid repeated Font Awesome package downloads.',
+        pruneBeforeE2EIndex,
+      ),
+    );
+    expect(workflow).toContain(
+      'node_modules/.bin/dotenv -c dev -- docker compose logs -f --no-color',
+    );
+    expect(workflow).toContain('compose() {');
+    expect(workflow).toContain('if [ -x node_modules/.bin/dotenv ]; then');
+    expect(workflow).toContain(
+      'node_modules/.bin/dotenv -c dev -- docker compose "$@"',
+    );
+    expect(workflow).toContain('docker compose "$@"');
+    expect(workflow).toContain('compose_timeout() {');
+    expect(workflow).toContain(
+      'timeout 90s node_modules/.bin/dotenv -c dev -- docker compose "$@"',
+    );
+    expect(workflow).toContain('timeout 90s docker compose "$@"');
+    expect(workflow).toContain(
+      'compose_timeout logs --no-color > test-results/docker-logs/docker-compose.log || true',
+    );
+    expect(workflow).toContain(
+      'evorto_container_id="$(compose_timeout ps -q evorto || true)"',
+    );
+    expect(workflow).toContain(
+      'timeout 30s docker cp "${evorto_container_id}:/app/logs/server.log" test-results/docker-logs/server.log || true',
+    );
+    expect(workflow).toContain('cleanup_neon_branches() {');
+    expect(workflow).toContain('compose_timeout stop --timeout 60 db || true');
+    expect(workflow).toContain(
+      'compose_timeout down --timeout 60 --remove-orphans || true',
+    );
+    expect(workflow).not.toContain('timeout 90s compose ');
+    expect(workflow).toContain('timeout-minutes: 10');
+    expect(workflow).toContain('compose_timeout rm --force --stop -v || true');
+    expect(workflow).toContain('compose_timeout kill || true');
+    expect(workflow).toContain(
+      'timeout 30s docker ps -aq --filter "label=com.docker.compose.project=${compose_project_name}"',
+    );
+    expect(workflow).toContain(
+      'for compose_container_id in ${compose_container_ids}; do',
+    );
+    expect(workflow).toContain(
+      'timeout 45s docker rm -f -v "${compose_container_id}" || true',
+    );
+    expect(workflow).not.toContain(
+      'timeout 90s docker rm -f -v ${compose_container_ids}',
+    );
+    expect(workflow).toContain(
+      'NEON_LOCAL_METADATA_DIR="${NEON_LOCAL_METADATA_DIR:-/tmp/neon-local-metadata}"',
+    );
+    expect(workflow).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID}"');
+    expect(workflow).toContain(
+      'bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    expect(workflow).toContain('cleanup_neon_branches');
+    expect(workflow).toContain('Prune expired Neon branches after E2E');
+    expect(workflow).toContain('timeout-minutes: 5');
+    expect(workflow.indexOf('Stop Docker stack')).toBeLessThan(
+      workflow.indexOf('Prune expired Neon branches after E2E'),
+    );
+    expect(
+      workflow.indexOf('Prune expired Neon branches after E2E'),
+    ).toBeLessThan(workflow.indexOf('Upload Playwright test results'));
+
+    expect(cleanupWorkflow).toContain('name: Neon Branch Cleanup');
+    expect(cleanupWorkflow).toContain('workflow_dispatch:');
+    expect(cleanupWorkflow).toContain('workflow_run:');
+    expect(cleanupWorkflow).toContain('workflows: ["E2E Baseline"]');
+    expect(cleanupWorkflow).toContain('schedule:');
+    expect(cleanupWorkflow).toContain('permissions:');
+    expect(cleanupWorkflow).toContain('contents: read');
+    expect(cleanupWorkflow).toContain('concurrency:');
+    expect(cleanupWorkflow).toContain('group: neon-branch-cleanup');
+    expect(cleanupWorkflow).toContain('cancel-in-progress: false');
+    expect(cleanupWorkflow).toContain('DELETE_BRANCH: true');
+    expect(cleanupWorkflow).toContain(
+      'NEON_API_KEY: ${{ secrets.NEON_API_KEY }}',
+    );
+    expect(cleanupWorkflow).toContain('NEON_LOCAL_BRANCH_TTL_HOURS: 2');
+    expect(cleanupWorkflow).toContain(
+      'NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}',
+    );
+    expect(cleanupWorkflow).toContain('timeout-minutes: 10');
+    expect(cleanupWorkflow).toContain('Validate required configuration');
+    expect(cleanupWorkflow).toContain('Missing required secret: NEON_API_KEY');
+    expect(cleanupWorkflow).toContain(
+      'Missing required repository variable: NEON_PROJECT_ID',
+    );
+    expect(cleanupWorkflow).toContain(
+      'Prune branches outside the active-test TTL',
+    );
+    expect(cleanupWorkflow).toContain(
+      'run: bun helpers/testing/delete-neon-local-branches.ts',
+    );
+  });
+
+  it('keeps the latest template-extra post-push CI checkpoint honest', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current template-extra post-push CI checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('445967d29e2be2ecfaab7be3895862bcb2448241');
+    expect(checkpoint).toContain('Analyze');
+    expect(checkpoint).toContain('CodeQL');
+    expect(checkpoint).toContain('CodeRabbit');
+    expect(checkpoint).toContain('Display the branch stack');
+    expect(checkpoint).toContain('Copilot setup');
+    expect(checkpoint).toContain('Playwright E2E docs');
+    expect(checkpoint).toContain('Playwright E2E functional-1');
+    expect(checkpoint).toContain('Playwright E2E functional-2');
+    expect(checkpoint).toContain('create-from-template spec');
+    expect(checkpoint).toMatch(/copied\s+reusable template add-ons/u);
+    expect(checkpoint).toContain('add-on registration-option attachments');
+    expect(checkpoint).toContain('registration questions');
+    expect(checkpoint).toContain('three active Neon Local');
+    expect(checkpoint).toContain('exactly one branch: `main`');
+    expect(checkpoint).toContain(
+      'bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    expect(checkpoint).toContain(
+      'total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h',
+    );
+    expect(checkpoint).toMatch(/active-test branch invariant is\s+restored/u);
+  });
+
+  it('keeps the Font Awesome bandwidth mitigation checkpoint honest', () => {
+    const source = readSource('STABILIZATION.md');
+    const workflow = readSource('.github/workflows/e2e-baseline.yml');
+    const copilotWorkflow = readSource(
+      '.github/workflows/copilot-setup-steps.yml',
+    );
+    const cleanupWorkflow = readSource(
+      '.github/workflows/neon-branch-cleanup.yml',
+    );
+    const bunfig = readSource('bunfig.toml');
+    const fontAwesomeIconUsageSpec = readSource(
+      'src/app/shared/components/icon/font-awesome-icon-usage.spec.ts',
+    );
+    const ciBuildCacheCompose = readSource(
+      '.github/docker-compose.build-cache.yml',
+    );
+    const codexEnvironment = readSource('.codex/environments/environment.toml');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current Font Awesome bandwidth mitigation checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('~/.bun/install/cache');
+    expect(checkpoint).toMatch(
+      /OS\/Bun-version\/package\/config\/patch-hash\s+keyed/u,
+    );
+    expect(checkpoint).toContain('node_modules');
+    expect(checkpoint).toContain('skip the registry');
+    expect(checkpoint).toContain('cache misses still run');
+    expect(checkpoint).toContain('serial cache warmer');
+    expect(checkpoint).toContain(
+      'pushed head\n  `1083690b2b4518ca4ef4701dc1b92cb35286c489`',
+    );
+    expect(checkpoint).toMatch(/restored the Bun package cache/u);
+    expect(checkpoint).toMatch(/restored the dependency-tree cache/u);
+    expect(checkpoint).toMatch(/skipped `bun install`/u);
+    expect(checkpoint).toMatch(/restored the Docker\s+Bun cache mount/u);
+    expect(checkpoint).toMatch(/completed the Angular bundle/u);
+    expect(checkpoint).toMatch(/12-minute timeout/u);
+    expect(checkpoint).toMatch(/20 minutes/u);
+    expect(checkpoint).toMatch(
+      /bun install --frozen-lockfile --cache-dir\s+~\/\.bun\/install\/cache/u,
+    );
+    expect(checkpoint).toMatch(
+      /bun install --frozen-lockfile --offline --cache-dir\s+~\/\.bun\/install\/cache/u,
+    );
+    expect(checkpoint).toContain('actions/cache/save@v4');
+    expect(checkpoint).toContain('successful warm or offline install');
+    expect(checkpoint).toContain('before Playwright browser');
+    expect(checkpoint).toMatch(/refreshes\s+the shared caches/u);
+    expect(checkpoint).toMatch(
+      /Lock,\s+package,\s+Bun config,\s+or patch changes intentionally\s+invalidate/u,
+    );
+    expect(checkpoint).toContain('node_modules/.bin/playwright');
+    expect(checkpoint).toMatch(/no longer\s+call\s+`bunx\s+playwright`/u);
+    expect(checkpoint).toContain('bun install --frozen-lockfile');
+    expect(checkpoint).toContain('pushed head `49782fc8c`');
+    expect(checkpoint).toContain('actions/cache/restore@v4');
+    expect(checkpoint).toContain('Linux-bun-1.3.11-');
+    expect(checkpoint).toContain('steps.bun-package-cache.outputs.cache-hit');
+    expect(checkpoint).toContain('`false`');
+    expect(checkpoint).toContain('Bun package cache restored:');
+    expect(checkpoint).toContain('restore-key package cache');
+    expect(checkpoint).toContain('npm.fontawesome.com');
+    expect(checkpoint).toContain('FONT_AWESOME_TOKEN');
+    expect(checkpoint).toContain('private Duotone');
+    expect(checkpoint).toContain('current local branch');
+    expect(checkpoint).toMatch(/E2E\s+cache warmer/u);
+    expect(checkpoint).toMatch(/app diagnostics logging\s+guard/u);
+    expect(checkpoint).toMatch(/related\s+docs\/source guards/u);
+    expect(checkpoint).not.toContain('ba5518d9d');
+    expect(checkpoint).toContain('workflow-file updates');
+    expect(checkpoint).toMatch(/workflow-scoped\s+push\s+auth/u);
+    expect(checkpoint).toMatch(/Earlier push attempts/u);
+    expect(checkpoint).toMatch(/hung in the SSH transport/u);
+    expect(checkpoint).toMatch(/timed out before updating/u);
+    expect(checkpoint).toMatch(/branch was clean/u);
+    expect(checkpoint).toContain('544b64a7a');
+    expect(checkpoint).toMatch(/ahead of origin by 107\s+commits/u);
+    expect(checkpoint).toContain(
+      'sign_and_send_pubkey: signing failed for ED25519 "Github"',
+    );
+    expect(checkpoint).toMatch(/agent refused operation/u);
+    expect(checkpoint).toMatch(/GitHub public-key denial/u);
+    expect(checkpoint).toContain('gh auth status');
+    expect(checkpoint).toMatch(/`gist`,\s+`read:org`, and `repo` scopes/u);
+    expect(checkpoint).toMatch(/cannot\s+be pushed through\s+HTTPS/u);
+    expect(checkpoint).toContain('local head\n  `a47e3419d`');
+    expect(checkpoint).toMatch(
+      /clean and 128 commits ahead of\s+`origin\/codex\/stabilization-flow-coverage`/u,
+    );
+    expect(checkpoint).toContain(
+      'sign_and_send_pubkey: signing failed for ED25519 "Github"',
+    );
+    expect(checkpoint).toMatch(/communication with agent failed/u);
+    expect(checkpoint).toMatch(/GitHub public-key denial/u);
+    expect(checkpoint).toContain('.github/workflows/copilot-setup-steps.yml');
+    expect(checkpoint).toContain('codex/stabilization-flow-coverage');
+    expect(checkpoint).toMatch(/SSH push path remains blocked/u);
+    expect(checkpoint).toContain('445967d29e2be2ecfaab7be3895862bcb2448241');
+    expect(checkpoint).toMatch(/Docker\s+Compose build/u);
+    expect(checkpoint).toContain('/tmp/evorto-docker-build-cache');
+    expect(checkpoint).toContain('.github/docker-compose.build-cache.yml');
+    expect(checkpoint).toContain('BuildKit');
+    expect(checkpoint).toContain('type=gha');
+    expect(checkpoint).toMatch(/Docker Buildx/u);
+    expect(checkpoint).toMatch(/non-default builder/u);
+    expect(checkpoint).toMatch(/current GitHub\s+Cache API support/u);
+    expect(checkpoint).toMatch(/separate cache scopes/u);
+    expect(checkpoint).toMatch(/cannot overwrite/u);
+    expect(checkpoint).toContain('bunfig.toml');
+    expect(checkpoint).toContain('@fortawesome');
+    expect(checkpoint).toContain('https://registry.npmjs.org/');
+    expect(checkpoint).toContain('Dockerfile');
+    expect(checkpoint).toContain('/tmp/npmrc-public-fontawesome');
+    expect(checkpoint).toContain('sharing=locked');
+    expect(checkpoint).toMatch(/offline\s+production-dependency install/u);
+    expect(checkpoint).toContain('local head `f41715149`');
+    expect(checkpoint).toContain('scheduled `Neon Branch Cleanup` workflow');
+    expect(checkpoint).toMatch(/does not run\s+dependency installation/u);
+    expect(checkpoint).toMatch(/runner-temp `NPM_CONFIG_USERCONFIG`/u);
+    expect(checkpoint).toContain('`npm_config_userconfig`');
+    expect(checkpoint).toMatch(
+      /inheriting an account-level Font Awesome\s+registry configuration/u,
+    );
+    expect(checkpoint).toContain('newer local cache/source-guard slices');
+    expect(source).not.toMatch(/premium\/brand Font Awesome/u);
+    expect(source).not.toMatch(/Font Awesome premium and brand/u);
+    expect(source).not.toMatch(/registry token path intact/u);
+    expect(source).not.toMatch(/Font Awesome token path exercised/u);
+    expect(source).not.toMatch(/kept the Font Awesome premium/u);
+    expect(workflow).toContain('Restore Docker build cache');
+    expect(workflow).toContain('COMPOSE_DOCKER_CLI_BUILD: 1');
+    expect(workflow).toContain('DOCKER_BUILDKIT: 1');
+    expect(workflow).toContain('Restore Bun dependency tree');
+    expect(workflow).toContain('id: bun-dependency-tree-cache');
+    expect(workflow).toContain('id: bun-package-cache');
+    expect(workflow).toContain(
+      'if ! bun install --frozen-lockfile --cache-dir ~/.bun/install/cache; then',
+    );
+    expect(workflow).toContain(
+      'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
+    );
+    expect(workflow).toContain(
+      "key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(workflow).toContain('path: node_modules');
+    expect(workflow).toContain('Force public Font Awesome registry');
+    expect(workflow).toContain('Validate public Font Awesome dependencies');
+    expect(workflow).toContain(
+      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+    );
+    expect(workflow).toContain(
+      'Font Awesome must stay on free public npm packages in CI.',
+    );
+    expect(workflow).toContain(
+      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
+    );
+    expect(workflow).toContain(
+      "key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(workflow).toContain(
+      'Bun package cache hit: ${{ steps.bun-package-cache.outputs.cache-hit }}',
+    );
+    expect(workflow).toContain(
+      'Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
+    );
+    expect(workflow).toContain(
+      'Bun dependency tree cache restored; skipping registry install.',
+    );
+    expect(workflow).toContain('Save warmed Bun package cache');
+    expect(workflow).toContain('Save warmed Bun dependency tree');
+    expect(workflow).toContain('uses: actions/cache/save@v4');
+    expect(workflow).toContain(
+      "if: steps.bun-package-cache.outputs.cache-hit != 'true'",
+    );
+    expect(workflow).toContain(
+      'key: ${{ steps.bun-package-cache.outputs.cache-primary-key }}',
+    );
+    expect(workflow).toContain(
+      "if: steps.bun-dependency-tree-cache.outputs.cache-hit != 'true'",
+    );
+    expect(workflow).toContain(
+      'key: ${{ steps.bun-dependency-tree-cache.outputs.cache-primary-key }}',
+    );
+    expect(workflow).toContain(
+      'Refusing a parallel registry install to avoid repeated Font Awesome package downloads.',
+    );
+    expect(workflow).toContain(
+      'node_modules/.bin/playwright install --with-deps chromium',
+    );
+    expect(workflow).not.toContain('bunx playwright');
+    expect(workflow).toContain(
+      'DOCKER_BUILD_CACHE_DIR: /tmp/evorto-docker-build-cache',
+    );
+    expect(workflow).toContain('Set up Docker Buildx');
+    expect(workflow).toContain('id: setup-buildx');
+    expect(workflow).toContain('uses: docker/setup-buildx-action@v4');
+    expect(workflow).toContain('version: latest');
+    expect(workflow).toContain('warm-ci-caches:');
+    expect(workflow).toContain('name: Warm CI dependency caches');
+    expect(workflow).toContain('needs: warm-ci-caches');
+    expect(workflow).toContain('max-parallel: 1');
+    expect(workflow).toContain(
+      'docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build',
+    );
+    expect(workflow).toContain('BUILDKIT_BUN_CACHE_DIR: buildkit-bun-cache');
+    expect(workflow).toContain('Restore Docker Bun cache mount');
+    expect(workflow).toContain('id: docker-bun-cache-mount');
+    expect(workflow).toContain('path: ${{ env.BUILDKIT_BUN_CACHE_DIR }}');
+    expect(workflow).toContain(
+      "key: ${{ runner.os }}-docker-bun-cache-mount-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(workflow).toContain('Inject Docker Bun cache mount');
+    expect(workflow).toContain(
+      'uses: reproducible-containers/buildkit-cache-dance@v3.4.0',
+    );
+    expect(workflow).toContain('"target": "/home/bun/.bun/install/cache"');
+    expect(workflow).toContain('"id": "bun-install-cache"');
+    expect(workflow).toContain(
+      'skip-extraction: ${{ steps.docker-bun-cache-mount.outputs.cache-hit }}',
+    );
+    expect(workflow).toContain('skip-extraction: true');
+    expect(workflow).toContain('Warm Docker build cache');
+    expect(workflow).toContain(
+      'timeout 20m docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
+    );
+    expect(ciBuildCacheCompose).toContain('cache_from:');
+    expect(ciBuildCacheCompose).toContain('cache_to:');
+    expect(ciBuildCacheCompose).toContain('type=gha');
+    expect(ciBuildCacheCompose).toContain('type=gha,scope=evorto-db-setup');
+    expect(ciBuildCacheCompose).toContain('type=gha,scope=evorto-app');
+    expect(ciBuildCacheCompose).toContain(
+      'type=gha,scope=evorto-db-setup,mode=max',
+    );
+    expect(ciBuildCacheCompose).toContain('type=gha,scope=evorto-app,mode=max');
+    expect(copilotWorkflow).toContain('Restore Bun dependency tree');
+    expect(copilotWorkflow).toContain('id: bun-dependency-tree-cache');
+    expect(copilotWorkflow).toContain('id: bun-package-cache');
+    expect(copilotWorkflow).toContain(
+      "key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(copilotWorkflow).toContain('uses: actions/cache/restore@v4');
+    expect(copilotWorkflow).toContain('path: node_modules');
+    expect(copilotWorkflow).toContain('Force public Font Awesome registry');
+    expect(copilotWorkflow).toContain(
+      'Validate public Font Awesome dependencies',
+    );
+    expect(copilotWorkflow).toContain(
+      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+    );
+    expect(copilotWorkflow).toContain(
+      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
+    );
+    expect(copilotWorkflow).toContain(
+      "key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(copilotWorkflow).toContain(
+      'Bun package cache hit: ${{ steps.bun-package-cache.outputs.cache-hit }}',
+    );
+    expect(copilotWorkflow).toContain('Bun package cache restored:');
+    expect(copilotWorkflow).toContain(
+      'find "${HOME}/.bun/install/cache" -mindepth 1 -maxdepth 1 -print -quit',
+    );
+    expect(copilotWorkflow).toContain(
+      'Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
+    );
+    expect(copilotWorkflow).toContain(
+      'Bun dependency tree cache restored; skipping registry install.',
+    );
+    expect(copilotWorkflow).toContain(
+      'Retrying once through the Copilot setup registry install.',
+    );
+    expect(copilotWorkflow).toContain(
+      'installing offline from the warmed package cache.',
+    );
+    expect(copilotWorkflow).toContain(
+      'bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache',
+    );
+    expect(copilotWorkflow).toContain(
+      'Save Bun dependency tree from package cache',
+    );
+    expect(copilotWorkflow).toContain(
+      'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
+    );
+    expect(copilotWorkflow).toContain('node_modules/.bin/playwright');
+    expect(copilotWorkflow).toContain(
+      'PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright',
+    );
+    expect(copilotWorkflow).toContain('Restore Playwright browser cache');
+    expect(copilotWorkflow).not.toContain('bunx playwright');
+    expect(cleanupWorkflow).toContain('name: Neon Branch Cleanup');
+    expect(cleanupWorkflow).toContain('Force public Font Awesome registry');
+    expect(cleanupWorkflow).toContain(
+      'Validate public Font Awesome dependencies',
+    );
+    expect(cleanupWorkflow).toContain(
+      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
+    );
+    expect(cleanupWorkflow).toContain(
+      "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
+    );
+    expect(cleanupWorkflow).toContain(
+      'echo "NPM_CONFIG_USERCONFIG=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
+    );
+    expect(cleanupWorkflow).toContain(
+      'echo "npm_config_userconfig=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
+    );
+    expect(cleanupWorkflow).toContain(
+      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+    );
+    expect(cleanupWorkflow).toContain(
+      'Font Awesome must stay on free public npm packages in CI.',
+    );
+    expect(cleanupWorkflow).not.toContain('bun install');
+    expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');
+    expect(fontAwesomeIconUsageSpec).toContain(
+      'keeps icon-only Material buttons accessible by label',
+    );
+    expect(fontAwesomeIconUsageSpec).toContain('iconButtonPattern');
+    expect(fontAwesomeIconUsageSpec).toContain('mat-icon-button');
+    expect(fontAwesomeIconUsageSpec).toContain('accessibleLabelPattern');
+    expect(fontAwesomeIconUsageSpec).toContain('aria-label');
+    expect(fontAwesomeIconUsageSpec).toContain('aria-labelledby');
+    expect(fontAwesomeIconUsageSpec).toContain('title');
+    expect(fontAwesomeIconUsageSpec).toContain(String.raw`/<!--[\s\S]*?-->/gu`);
+    const dockerfile = readSource('Dockerfile');
+    expect(dockerfile).toContain(
+      'NPM_CONFIG_USERCONFIG=/tmp/npmrc-public-fontawesome',
+    );
+    expect(dockerfile).toContain(
+      'npm_config_userconfig=/tmp/npmrc-public-fontawesome',
+    );
+    expect(dockerfile).toContain(
+      "'@fortawesome:registry=https://registry.npmjs.org/'",
+    );
+    expect(dockerfile).toContain('sharing=locked');
+    expect(dockerfile).toContain('FROM build AS production-dependencies');
+    expect(dockerfile).toContain('RUN rm -rf node_modules');
+    expect(dockerfile).toContain(
+      'bun install --frozen-lockfile --cache-dir /home/bun/.bun/install/cache',
+    );
+    expect(dockerfile).toContain(
+      'bun install --frozen-lockfile --production --offline --cache-dir /home/bun/.bun/install/cache',
+    );
+    expect(dockerfile).not.toContain(
+      'bun install --frozen-lockfile --production --cache-dir /home/bun/.bun/install/cache',
+    );
+    expect(dockerfile).not.toContain('FONT_AWESOME_TOKEN');
+    expect(dockerfile).not.toContain('npm.fontawesome.com');
+    expect(codexEnvironment).not.toContain('FONT_AWESOME_TOKEN');
+    expect(codexEnvironment).not.toContain(
+      'for file in .env .env.dev.local .npmrc',
+    );
+    expect(codexEnvironment).toContain(
+      'Repository .npmrc is not supported; @fortawesome must install from public npm packages.',
+    );
+    expect(codexEnvironment).toContain(
+      "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
+    );
+    expect(codexEnvironment).toContain(
+      'export NPM_CONFIG_USERCONFIG="${npm_config_userconfig}"',
+    );
+    expect(codexEnvironment).toContain(
+      'export npm_config_userconfig="${npm_config_userconfig}"',
+    );
+    expect(codexEnvironment).toContain(
+      'bun_cache_dir="${HOME}/.bun/install/cache"',
+    );
+    expect(codexEnvironment).toContain('--cache-dir "${bun_cache_dir}"');
+  });
+
+  it('keeps the live Neon active-test branch refresh checkpoint honest', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current Neon active-test branch refresh checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('fresh June 4, 2026 local');
+    expect(checkpoint).toContain('bun run env:runtime');
+    expect(checkpoint).toContain('node_modules/.bin/dotenv -c dev');
+    expect(checkpoint).toContain(
+      'bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    expect(checkpoint).toMatch(/local\s+head `9295a20b2`/u);
+    expect(checkpoint).toContain('/tmp/.neon_local/.branches');
+    expect(checkpoint).toMatch(/two-hour\s+active-test TTL/u);
+    expect(checkpoint).toContain(
+      'total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h',
+    );
+    expect(checkpoint).toContain('only `main`');
+    expect(checkpoint).toMatch(/no active or stale test\s+branches/u);
+    expect(checkpoint).toMatch(
+      /current test branches inside the\s+two-hour TTL/u,
+    );
+    expect(checkpoint).toContain('hourly cleanup workflow');
+    expect(checkpoint).toContain('runtime refresh wrote `.env.dev`');
+    expect(checkpoint).toMatch(
+      /current Docker preflight evidence is tracked\s+separately/u,
+    );
+    expect(checkpoint).toMatch(/Docker\s+container start-path probe/u);
+    expect(checkpoint).toMatch(/required runtime variables/u);
+    expect(checkpoint).toMatch(/Compose config/u);
+    expect(checkpoint).toMatch(/project-container inspection/u);
+    expect(checkpoint).toMatch(/Playwright CLI/u);
+    expect(checkpoint).toMatch(/Stripe webhook\s+source/u);
+    expect(checkpoint).toMatch(/browser-cache checks as healthy/u);
+    expect(checkpoint).toMatch(/repo-local dotenv cleanup run/u);
+    expect(checkpoint).toMatch(/local head `859bf7f60`/u);
+    expect(checkpoint).toContain(
+      'total=2, protected=1, active_test=1, stale_deleted=0, ttl=2h',
+    );
+    expect(checkpoint).toContain('br-nameless-mountain-a9cbta9g');
+    expect(checkpoint).toContain('2026-06-04T01:55:09Z');
+    expect(checkpoint).toMatch(/about 66 minutes old/u);
+    expect(checkpoint).toMatch(
+      /only a current test\s+branch inside the two-hour TTL exists/u,
+    );
+    expect(checkpoint).toMatch(/local head `8b6733014`/u);
+    expect(checkpoint).toMatch(/regenerated `.env.dev`/u);
+    expect(checkpoint).toMatch(
+      /checked for stale branches outside the two-hour\s+active-test TTL/u,
+    );
+    expect(checkpoint).toMatch(
+      /live Neon\s+project is therefore back to the intended non-test state/u,
+    );
+    expect(checkpoint).toMatch(/only protected\s+`main`/u);
+    expect(checkpoint).toMatch(
+      /no active-test branches\s+and no stale branches/u,
+    );
+    expect(checkpoint).toMatch(/local head `0c9d4ea59`/u);
+    expect(checkpoint).toContain('br-silent-rain-a9lwt7ed');
+    expect(checkpoint).toContain('2026-06-04T05:02:40Z');
+    expect(checkpoint).toMatch(/about 22 minutes old/u);
+    expect(checkpoint).toMatch(
+      /outside protected\s+`main`, only a current test branch/u,
+    );
+    expect(checkpoint).toMatch(/no\s+stale branches required deletion/u);
+    expect(checkpoint).toMatch(/local head `c04da4e38`/u);
+    expect(checkpoint).toMatch(/about\s+39 minutes old/u);
+    expect(checkpoint).toContain('created_at=2026-06-04T05:02:40Z');
+    expect(checkpoint).toMatch(
+      /outside protected\s+`main`, only active\s+test branches younger than two hours remain/u,
+    );
+    expect(checkpoint).toMatch(/no stale branches\s+to delete/u);
+    expect(checkpoint).toContain('local head `f000bd8c9`');
+    expect(checkpoint).toMatch(/after regenerating `.env\.dev`/u);
+    expect(checkpoint).toMatch(
+      /checked for stale Neon Local branches outside\s+the two-hour active-test TTL/u,
+    );
+    expect(checkpoint).toMatch(/83 minutes old/u);
+    expect(checkpoint).toContain('created_at=2026-06-04T05:02:40Z');
+    expect(checkpoint).toMatch(
+      /outside protected `main`, only an active test branch\s+younger than two hours remains/u,
+    );
+    expect(checkpoint).toContain('evorto-runtime-preflight');
+    expect(checkpoint).toContain('codex-preflight-manual');
+    expect(checkpoint).toMatch(/listed no leftovers/u);
+    expect(checkpoint).toContain('local head `fc7599843`');
+    expect(checkpoint).toMatch(/98 minutes old/u);
+    expect(checkpoint).toMatch(/there are no stale branches to delete/u);
+    expect(checkpoint).toContain('local head `1737ed5f7`');
+    expect(checkpoint).toMatch(/two-hour branch expiration had\s+passed/u);
+    expect(checkpoint).toMatch(/HTTP 500 for `\/events`/u);
+    expect(checkpoint).toMatch(/backing Neon Local branch was already gone/u);
+    expect(checkpoint).toContain(
+      'total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h',
+    );
+    expect(checkpoint).toMatch(/live Neon project clean with only `main`/u);
+    expect(checkpoint).toMatch(
+      /could not provide fresh Browser route evidence/u,
+    );
+    expect(checkpoint).toMatch(/bounded Compose shutdown/u);
+    expect(checkpoint).toContain('evorto-4dddca18-db-1');
+    expect(checkpoint).toContain(
+      'tried to kill\n  container, but did not receive an exit event',
+    );
+    expect(checkpoint).toMatch(/host Docker daemon\/container lifecycle/u);
+    expect(checkpoint).toMatch(
+      /not a Font Awesome, Neon branch\s+cleanup, General-page mobile, or Material layout regression/u,
+    );
+    expect(checkpoint).toContain('local head `b5f8d77b3`');
+    expect(checkpoint).toContain('br-mute-paper-a9vq9l6k');
+    expect(checkpoint).toContain('2026-06-04T07:49:23Z');
+    expect(checkpoint).toMatch(/7 minutes old/u);
+    expect(checkpoint).toMatch(
+      /outside protected `main`, only a\s+current active-test branch younger than two hours remains/u,
+    );
+    expect(checkpoint).toMatch(/no stale branch\s+required deletion/u);
+    expect(checkpoint).toMatch(/local preflight hardening pass/u);
+    expect(checkpoint).toContain('helpers/testing/runtime-preflight.ts');
+    expect(checkpoint).toMatch(
+      /single-object\s+`docker compose ps --format json` output/u,
+    );
+    expect(checkpoint).toMatch(/Health=unhealthy/u);
+    expect(checkpoint).toContain('Up 2 hours (unhealthy)');
+    expect(checkpoint).toMatch(/conservative stale-container cleanup/u);
+    expect(checkpoint).toMatch(/Docker Desktop\s+restart/u);
+    expect(checkpoint).toMatch(
+      /bounded cleanup can\s+target unhealthy generated containers/u,
+    );
+    expect(checkpoint).toContain(
+      'helpers/testing/remove-stale-compose-containers.ts',
+    );
+    expect(checkpoint).toContain(
+      'helpers/testing/remove-stale-compose-containers.spec.ts',
+    );
+    expect(checkpoint).toContain('import.meta.main');
+    expect(checkpoint).toContain("normalizedHealth === 'unhealthy'");
+    expect(checkpoint).toContain("normalizedStatus.includes('unhealthy')");
+    expect(checkpoint).toMatch(/duplicate target de-duplication/u);
+    expect(checkpoint).toContain(
+      'Removing stale or unhealthy Docker Compose project containers',
+    );
+    expect(checkpoint).toContain('live `bun run docker:clean-stale`');
+    expect(checkpoint).toMatch(
+      /Removing stale or unhealthy Docker Compose project containers:\s+evorto-4dddca18-db-1/u,
+    );
+    expect(checkpoint).toContain(
+      'cannot remove container "evorto-4dddca18-db-1"',
+    );
+    expect(checkpoint).toContain(
+      'tried to kill container, but did not receive an exit event',
+    );
+    expect(checkpoint).toMatch(/cleanup tool now reaches\s+the right target/u);
+    expect(checkpoint).toMatch(/remaining blocker is Docker daemon removal/u);
+    expect(checkpoint).not.toContain('`bun run docker:check` green');
+    expect(checkpoint).not.toMatch(
+      /local preflight and branch-count invariants/u,
+    );
+    expect(checkpoint).not.toContain('fourteen branches remain');
+
+    const inventory = readSource('tests/test-inventory.md');
+    expect(inventory).toContain(
+      'helpers/testing/remove-stale-compose-containers.spec.ts',
+    );
+    expect(inventory).toMatch(/unhealthy Compose JSON health/u);
+    expect(inventory).toMatch(/Docker `ps` status text fallback/u);
+    expect(inventory).toMatch(/duplicate target de-duplication/u);
+  });
+
+  it('keeps the PR CI watch checkpoint honest', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current PR CI watch checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('Codex heartbeat automation');
+    expect(checkpoint).toContain('PR 62 CI watch');
+    expect(checkpoint).toContain('pr-62-ci-watch');
+    expect(checkpoint).toContain('five-hour');
+    expect(checkpoint).toContain('FREQ=HOURLY;INTERVAL=5');
+    expect(checkpoint).toContain(
+      '/Users/hedde/.codex/automations/pr-62-ci-watch/automation.toml',
+    );
+    expect(checkpoint).toContain('kind = "heartbeat"');
+    expect(checkpoint).toContain('status = "ACTIVE"');
+    expect(checkpoint).toMatch(
+      /prompt text requiring\s+the remote-vs-local comparison/u,
+    );
+    expect(checkpoint).toContain('PR #62');
+    expect(checkpoint).toMatch(/remote PR head and status checks/u);
+    expect(checkpoint).toMatch(/local branch state/u);
+    expect(checkpoint).toMatch(/failing GitHub checks/u);
+    expect(checkpoint).toMatch(/local commits that remain unpushed/u);
+    expect(checkpoint).toMatch(/auth or\s+workflow-scope constraints/u);
+    expect(checkpoint).toMatch(/old green checks as proof/u);
+    expect(checkpoint).toMatch(/fresh June 4,\s+2026 manual CI watch\s+check/u);
+    expect(checkpoint).toMatch(/local head\s+`fd0a6e057`/u);
+    expect(checkpoint).toContain('445967d29e2be2ecfaab7be3895862bcb2448241');
+    expect(checkpoint).toContain('Analyze, CodeQL, Copilot setup');
+    expect(checkpoint).toContain('Git Town branch stack');
+    expect(checkpoint).toContain('CodeRabbit');
+    expect(checkpoint).toContain('all three E2E jobs');
+    expect(checkpoint).toMatch(/green only for\s+that old remote head/u);
+    expect(checkpoint).toMatch(
+      /At that check the local branch was clean and 65 commits\s+ahead/u,
+    );
+    expect(checkpoint).toMatch(
+      /later local evidence-refresh commits can increase the ahead count/u,
+    );
+    expect(checkpoint).toContain('local head `cbf4bdba1`');
+    expect(checkpoint).toMatch(
+      /same remote\s+`445967d29e2be2ecfaab7be3895862bcb2448241`/u,
+    );
+    expect(checkpoint).toMatch(
+      /three E2E jobs green only for that stale\s+remote head/u,
+    );
+    expect(checkpoint).toMatch(
+      /clean and 89 commits ahead of\s+`origin\/codex\/stabilization-flow-coverage`/u,
+    );
+    expect(checkpoint).toContain('local head `bfc9517da`');
+    expect(checkpoint).toMatch(
+      /clean and 93 commits ahead of\s+`origin\/codex\/stabilization-flow-coverage`/u,
+    );
+    expect(checkpoint).toMatch(/local\s+head `ed2675278`/u);
+    expect(checkpoint).toMatch(
+      /clean and 95 commits ahead of\s+`origin\/codex\/stabilization-flow-coverage`/u,
+    );
+    expect(checkpoint).toMatch(/local\s+head `2d407ff91`/u);
+    expect(checkpoint).toMatch(
+      /clean and 98 commits ahead of\s+`origin\/codex\/stabilization-flow-coverage`/u,
+    );
+    expect(checkpoint).toMatch(/local\s+head `28469d18d`/u);
+    expect(checkpoint).toMatch(
+      /clean and 113 commits ahead of\s+`origin\/codex\/stabilization-flow-coverage`/u,
+    );
+    expect(checkpoint).toMatch(/local\s+head `859bf7f60`/u);
+    expect(checkpoint).toMatch(/green only for that stale pushed\s+head/u);
+    expect(checkpoint).toMatch(
+      /clean and 120\s+commits ahead of `origin\/codex\/stabilization-flow-coverage`/u,
+    );
+    expect(checkpoint).toMatch(/ED25519 key-agent signing/u);
+    expect(checkpoint).toMatch(/lacks `workflow` scope/u);
+    expect(checkpoint).toMatch(/SSH push still failed at agent signing/u);
+    expect(checkpoint).toMatch(/same push-auth blocker remains/u);
+    expect(checkpoint).toMatch(/local\s+head `a47e3419d`/u);
+    expect(checkpoint).toMatch(
+      /clean and 128 commits ahead of\s+`origin\/codex\/stabilization-flow-coverage`/u,
+    );
+    expect(checkpoint).toMatch(/ED25519 key-agent\s+communication failure/u);
+    expect(checkpoint).toContain('.github/workflows/copilot-setup-steps.yml');
+    expect(checkpoint).toMatch(/local\s+head `e9cd6f34d`/u);
+    expect(checkpoint).toMatch(
+      /PR #62 on remote head `445967d29e2be2ecfaab7be3895862bcb2448241`/u,
+    );
+    expect(checkpoint).toMatch(/all three E2E jobs are still\s+green/u);
+    expect(checkpoint).toMatch(
+      /clean and 134\s+commits ahead of `origin\/codex\/stabilization-flow-coverage`/u,
+    );
+    expect(checkpoint).toMatch(
+      /HTTPS push was again\s+rejected because the OAuth token lacks `workflow` scope/u,
+    );
+    expect(checkpoint).toContain('local head `69f1b5aee`');
+    expect(checkpoint).toMatch(
+      /Playwright E2E docs,\s+Playwright E2E functional-1,\s+and Playwright E2E functional-2/u,
+    );
+    expect(checkpoint).toMatch(
+      /clean and 143 commits\s+ahead of `origin\/codex\/stabilization-flow-coverage`/u,
+    );
+    expect(checkpoint).toMatch(/agent refused operation/u);
+    expect(checkpoint).toMatch(/gh auth\s+setup-git/u);
+    expect(checkpoint).toMatch(/HTTPS push reached\s+GitHub/u);
+    expect(checkpoint).toContain('latest local Browser\n  evidence');
+    expect(checkpoint).toContain('local head `f41715149`');
+    expect(checkpoint).toMatch(
+      /Playwright E2E docs,\s+Playwright E2E functional-1,\s+and Playwright E2E functional-2/u,
+    );
+    expect(checkpoint).toMatch(/green only for that\s+stale pushed head/u);
+    expect(checkpoint).toMatch(
+      /clean and 157 commits ahead\s+of `origin\/codex\/stabilization-flow-coverage`|branch is clean and 157 commits ahead\s+of\s+`origin\/codex\/stabilization-flow-coverage`/u,
+    );
+    expect(checkpoint).toMatch(
+      /latest Font Awesome cleanup-workflow\s+hardening/u,
+    );
+    expect(checkpoint).not.toMatch(/The local branch is clean and 65/u);
+    expect(checkpoint).toContain('`gh auth status`');
+    expect(checkpoint).toContain('`gist`, `read:org`, and `repo` scopes');
+    expect(checkpoint).toMatch(
+      /cannot\s+be pushed over\s+the current HTTPS auth/u,
+    );
+    expect(checkpoint).toContain('gh auth refresh -h github.com -s workflow');
+    expect(checkpoint).toContain('17c35e732911feff82d6f34313c0e7d745a31661');
+    expect(checkpoint).toMatch(/Warm CI\s+dependency caches/u);
+    expect(checkpoint).toMatch(/20-minute timeout path/u);
+    expect(checkpoint).toMatch(/Playwright E2E\s+\(functional-1\)/u);
+    expect(checkpoint).toMatch(/`functional-2` and `docs` were queued/u);
+    expect(checkpoint).toMatch(
+      /CI proof for the pushed E2E matrix still depends/u,
+    );
+  });
+
+  it('keeps the current Docker Browser runtime checkpoint tied to recovered Browser evidence', () => {
+    const source = readSource('STABILIZATION.md');
+    const helpersReadme = readSource('helpers/README.md');
+    const runtimePreflight = readSource('helpers/testing/runtime-preflight.ts');
+    const testInventory = readSource('tests/test-inventory.md');
+    const testsReadme = readSource('tests/README.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current Docker\/Browser runtime recovered checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('serving the current local branch');
+    expect(checkpoint).toContain('local\n  head `db7845e5e`');
+    expect(checkpoint).toContain(
+      'node_modules/.bin/dotenv -c dev -- docker compose ps',
+    );
+    expect(checkpoint).toContain('healthy `db`');
+    expect(checkpoint).toContain('running `evorto`, `minio`, and `stripe`');
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).toContain('/events?runtimeRecovered=...');
+    expect(checkpoint).toContain('390x844');
+    expect(checkpoint).toContain('`Events` and `No events found`');
+    expect(checkpoint).toContain('`clientWidth=390`');
+    expect(checkpoint).toContain('`scrollWidth=390`');
+    expect(checkpoint).toContain('no horizontal overflow');
+    expect(checkpoint).toContain(
+      'resetting the temporary\n  Browser viewport override',
+    );
+    expect(checkpoint).toContain('current-state refresh');
+    expect(checkpoint).toContain('local\n  head `cb4fc919f`');
+    expect(checkpoint).toMatch(/same generated `BASE_URL` is still\s+served/u);
+    expect(checkpoint).toMatch(
+      /healthy\/running `db`, `evorto`, `minio`, and `stripe`/u,
+    );
+    expect(checkpoint).toContain('public General pages');
+    expect(checkpoint).toContain('authenticated `/admin/settings`');
+    expect(checkpoint).toMatch(/320x740,\s+390x844,\s+and 1440x900/u);
+    expect(checkpoint).toMatch(/no\s+Browser error logs/u);
+    expect(checkpoint).toContain('local head `6b4a9003a`');
+    expect(checkpoint).toContain('/legal/imprint');
+    expect(checkpoint).toContain('/legal/privacy');
+    expect(checkpoint).toContain('/legal/terms');
+    expect(checkpoint).toContain('/403');
+    expect(checkpoint).toContain('/500');
+    expect(checkpoint).toContain('/404');
+    expect(checkpoint).toMatch(/all 21\s+route\/viewport/u);
+    expect(checkpoint).toContain(
+      '/tmp/evorto-public-general-current-refresh-mobile.png',
+    );
+    expect(checkpoint).toMatch(
+      /temporary Browser\s+viewport override was reset after the sweep/u,
+    );
+    expect(checkpoint).toContain('local head `dfe075ccd`');
+    expect(checkpoint).toMatch(/anonymous public General sweep/u);
+    expect(checkpoint).toContain('`/`, `/events`');
+    expect(checkpoint).toContain('/legal/imprint');
+    expect(checkpoint).toContain('/legal/privacy');
+    expect(checkpoint).toContain('/legal/terms');
+    expect(checkpoint).toContain('/403');
+    expect(checkpoint).toContain('/404');
+    expect(checkpoint).toContain('/500');
+    expect(checkpoint).toMatch(/All 24 route\/viewport checks/u);
+    expect(checkpoint).toMatch(/Privacy policy page/u);
+    expect(checkpoint).toMatch(/tenant-missing\s+legal-text message/u);
+    expect(checkpoint).toMatch(/fixed mobile bottom navigation fitting/u);
+    expect(checkpoint).toContain(
+      '/tmp/evorto-public-general-20260604-refresh-mobile.jpg',
+    );
+    expect(checkpoint).toContain('local refresh at `7daed0b2a`');
+    expect(checkpoint).toContain('bun run docker:check');
+    expect(checkpoint).toContain('bun run\n  docker:start');
+    expect(checkpoint).toMatch(/cached Font Awesome\/Bun install layer/u);
+    expect(checkpoint).toContain(
+      'offline\n  `bun install --production --offline --cache-dir',
+    );
+    expect(checkpoint).toContain('evorto-4dddca18');
+    expect(checkpoint).toContain(
+      'tests/specs/smoke/public-general-viewports.spec.ts',
+    );
+    expect(checkpoint).toContain('NO_WEBSERVER=true');
+    expect(checkpoint).toContain('`--no-deps`');
+    expect(checkpoint).toContain(
+      '/tmp/evorto-current-head-general-*-390x844.png',
+    );
+    expect(checkpoint).toContain('direct\n  in-app Browser tab API sweep');
+    expect(checkpoint).toContain('against the generated `BASE_URL`');
+    expect(checkpoint).toContain('Browser `viewport` capability');
+    expect(checkpoint).toContain(
+      'visited `/events`, `/legal/imprint`,\n  and `/404`',
+    );
+    expect(checkpoint).toContain('zero clipped controls on all three routes');
+    expect(checkpoint).toContain('resetting the viewport override');
+    expect(checkpoint).toContain('local head `0ed0ef8c5`');
+    expect(checkpoint).toContain(
+      'set the Browser `viewport` capability for 320x740, 390x844, and\n  1440x900',
+    );
+    expect(checkpoint).toContain('visited `/`, `/events`, `/legal/imprint`');
+    expect(checkpoint).toContain('/legal/privacy');
+    expect(checkpoint).toContain('/legal/terms');
+    expect(checkpoint).toContain('/403');
+    expect(checkpoint).toContain('/500');
+    expect(checkpoint).toContain('/404');
+    expect(checkpoint).toMatch(/All 24 route\/viewport checks/u);
+    expect(checkpoint).toMatch(/matching `bodyWidth` and `docWidth`/u);
+    expect(checkpoint).toContain('zero clipped controls');
+    expect(checkpoint).toMatch(/no rendered application-error\s+text/u);
+    expect(checkpoint).toMatch(/expected page headings/u);
+    expect(checkpoint).toContain('local\n  head `93fe69843`');
+    expect(checkpoint).toContain('`Must setup test`');
+    expect(checkpoint).toContain(
+      'After refreshing\n  the in-app Browser handle',
+    );
+    expect(checkpoint).toContain(
+      'direct sweep again set the Browser `viewport`\n  capability for 320x740, 390x844, and 1440x900',
+    );
+    expect(checkpoint).toContain('all 24 route/viewport checks green');
+    expect(checkpoint).toContain('no Browser console errors');
+    expect(checkpoint).toContain('390x844 `/legal/privacy` screenshot');
+    expect(checkpoint).toMatch(/fixed mobile\s+bottom navigation fitting/u);
+    expect(checkpoint).toContain('local head `1836e54f4`');
+    expect(checkpoint).toMatch(/direct in-app Browser rerun/u);
+    expect(checkpoint).toContain('`Terms`, `Access not allowed`');
+    expect(checkpoint).toContain('`Something went wrong`');
+    expect(checkpoint).toContain(
+      '/tmp/evorto-current-head-general-browser-1836e54f-mobile-terms.png',
+    );
+    expect(checkpoint).toContain('`bun run db:reset`');
+    expect(checkpoint).toContain('NO_WEBSERVER=true bun run test:e2e --');
+    expect(checkpoint).toContain(
+      'tests/specs/smoke/public-general-viewports.spec.ts',
+    );
+    expect(checkpoint).toContain('--workers=1 --no-deps');
+    expect(checkpoint).toMatch(/passed with 1 test in\s+17\.5s/u);
+    expect(checkpoint).toMatch(/disposable Alpine preflight timeout/u);
+    expect(checkpoint).toContain('evorto-4dddca18');
+    expect(checkpoint).toContain('local head `1ab95b1c5`');
+    expect(checkpoint).toContain('generated `BASE_URL` from `.env.dev`');
+    expect(checkpoint).toContain('connected to the `iab` browser');
+    expect(checkpoint).toContain(
+      'used the `viewport` capability for 320x740, 390x844, and 1440x900',
+    );
+    expect(checkpoint).toContain('visited `/`, `/events`, `/legal/imprint`');
+    expect(checkpoint).toContain('/legal/privacy');
+    expect(checkpoint).toContain('/legal/terms');
+    expect(checkpoint).toContain('/403');
+    expect(checkpoint).toContain('/500');
+    expect(checkpoint).toContain('/404');
+    expect(checkpoint).toMatch(/All 24 route\/viewport checks reported/u);
+    expect(checkpoint).toMatch(
+      /matching\s+`window\.innerWidth`,\s+`bodyWidth`,\s+and `docWidth`/u,
+    );
+    expect(checkpoint).toMatch(/zero Browser warning\/error logs/u);
+    expect(checkpoint).toContain('`Events`, `Terms`, `Page not found`');
+    expect(checkpoint).toContain('320x740 `/legal/terms` screenshot');
+    expect(checkpoint).toContain(
+      '/tmp/evorto-general-browser-20260604-320-terms.png',
+    );
+    expect(checkpoint).toContain('local head\n  `a2c1d2e70`');
+    expect(checkpoint).toContain('focused in-app Browser mobile refresh');
+    expect(checkpoint).toContain('serving `/robots.txt`');
+    expect(checkpoint).toContain('320x740 and\n  390x844');
+    expect(checkpoint).toMatch(/All 16 route\/viewport\s+checks/u);
+    expect(checkpoint).toMatch(
+      /matching `window\.innerWidth`, `bodyWidth`, and `docWidth`/u,
+    );
+    expect(checkpoint).toMatch(/no\s+horizontal overflow/u);
+    expect(checkpoint).toMatch(/zero clipped visible controls/u);
+    expect(checkpoint).toMatch(/no rendered\s+application-error text/u);
+    expect(checkpoint).toMatch(/no Browser warning\/error log failures/u);
+    expect(checkpoint).toMatch(/viewport override was reset/u);
+    expect(checkpoint).toContain(
+      '/tmp/evorto-general-mobile-refresh-a2c1d2e-320-terms.png',
+    );
+    expect(checkpoint).toContain('local head `6b975474c`');
+    expect(checkpoint).toContain('the `.env.dev` `BASE_URL`');
+    expect(checkpoint).toContain('connected to the `iab` browser');
+    expect(checkpoint).toContain(
+      'set the Browser `viewport` capability for\n  320x740, 390x844, and 1440x900',
+    );
+    expect(checkpoint).toMatch(/all 24\s+route\/viewport checks/u);
+    expect(checkpoint).toMatch(
+      /body\/document\s+widths equal to the viewport width/u,
+    );
+    expect(checkpoint).toMatch(/no top\/side\s+clipped visible controls/u);
+    expect(checkpoint).toMatch(/zero Browser warning\/error logs/u);
+    expect(checkpoint).toMatch(/ordinary scroll continuation/u);
+    expect(checkpoint).toContain(
+      '/tmp/evorto-current-head-general-6b975474-320-terms.png',
+    );
+    expect(checkpoint).toContain(
+      '/tmp/evorto-current-head-general-6b975474-390-events.png',
+    );
+    expect(checkpoint).toMatch(/readable Material cards/u);
+    expect(checkpoint).toMatch(
+      /fixed mobile bottom navigation\s+fitting without overlap/u,
+    );
+    expect(checkpoint).toContain('local head `fdd040de9`');
+    expect(checkpoint).toContain('generated `.env.dev` `BASE_URL`');
+    expect(checkpoint).toContain('healthy\n  `evorto-4dddca18` Docker app');
+    expect(checkpoint).toContain('connected to the `iab` browser');
+    expect(checkpoint).toContain(
+      'used the Browser `viewport` capability for 320x740, 390x844, and 1440x900',
+    );
+    expect(checkpoint).toContain('visited `/`, `/events`, `/legal/imprint`');
+    expect(checkpoint).toContain('/legal/privacy');
+    expect(checkpoint).toContain('/legal/terms');
+    expect(checkpoint).toContain('/403');
+    expect(checkpoint).toContain('/500');
+    expect(checkpoint).toContain('/404');
+    expect(checkpoint).toMatch(/All 24 route\/viewport checks\s+passed/u);
+    expect(checkpoint).toMatch(
+      /`window\.innerWidth`, body width, and document width\s+equal to the\s+requested viewport width/u,
+    );
+    expect(checkpoint).toMatch(/no horizontal overflow/u);
+    expect(checkpoint).toMatch(/no top\/side clipped visible\s+controls/u);
+    expect(checkpoint).toMatch(/no rendered application-error text/u);
+    expect(checkpoint).toContain('`Access not allowed`');
+    expect(checkpoint).toContain('`Something went wrong`');
+    expect(checkpoint).toContain('`Page not found`');
+    expect(checkpoint).toMatch(/zero Browser warning\/error logs/u);
+    expect(checkpoint).toContain(
+      '/tmp/evorto-general-current-fdd040de-320x740--legal-terms.png',
+    );
+    expect(checkpoint).toContain(
+      '/tmp/evorto-general-current-fdd040de-390x844--events.png',
+    );
+    expect(checkpoint).toMatch(/tenant-missing legal-text message/u);
+    expect(checkpoint).toContain('Playwright-test MCP Browser planner');
+    expect(checkpoint).toMatch(/`DATABASE_URL` was\s+undefined/u);
+    expect(checkpoint).toContain(
+      'fixed the config-import side by wiring\n  Playwright config through the repo runtime config provider',
+    );
+    expect(checkpoint).toContain(
+      'env -u DATABASE_URL -u BASE_URL -u APP_HOST_PORT -u COMPOSE_PROJECT_NAME -u NEON_LOCAL_HOST_PORT bunx playwright test --list',
+    );
+    expect(checkpoint).toContain(
+      'listed the smoke layout tests from generated `.env.dev`',
+    );
+    expect(checkpoint).toMatch(
+      /test-session\s+setup,\s+not Playwright config import or direct in-app Browser tab verification/u,
+    );
+    expect(checkpoint).toContain('tests/support/fixtures/base-test.ts');
+    expect(checkpoint).toContain('STRIPE_TEST_ACCOUNT_ID');
+    expect(checkpoint).toContain('mcp-browser-planner');
+    expect(checkpoint).toContain('tests/setup/mcp-browser.seed.ts');
+    expect(checkpoint).toContain(
+      'bunx playwright test --project=mcp-browser-planner --no-deps tests/setup/mcp-browser.seed.ts --reporter=line',
+    );
+    expect(checkpoint).not.toContain(
+      'Project\n  mcp-browser-planner not found',
+    );
+    expect(checkpoint).not.toContain(
+      '`Must setup test before interacting with the page`',
+    );
+    expect(checkpoint).toContain('local head `e06ecd53c`');
+    expect(checkpoint).toContain('Playwright-test Browser planner retry');
+    expect(checkpoint).toContain('planner_setup_page');
+    expect(checkpoint).toContain('project\n  `mcp-browser-planner`');
+    expect(checkpoint).toContain('seed file `tests/setup/mcp-browser.seed.ts`');
+    expect(checkpoint).toContain(
+      'Browser tool paused at the seeded `/legal/terms` page',
+    );
+    expect(checkpoint).toContain('`Terms` heading');
+    expect(checkpoint).toMatch(/tenant-missing legal-text\s+message/u);
+    expect(checkpoint).toContain('Back to events link');
+    expect(checkpoint).toContain('bottom navigation');
+    expect(checkpoint).toContain('320x740');
+    expect(checkpoint).toContain('mcp-browser-planner-terms-mobile.png');
+    expect(checkpoint).toMatch(/readable mobile legal-page\s+content/u);
+    expect(checkpoint).toContain('Events/Login bottom navigation');
+    expect(checkpoint).toMatch(/fitting without overlap/u);
+    expect(checkpoint).toMatch(
+      /Playwright-test MCP Browser watchpoint is therefore recovered/u,
+    );
+    expect(checkpoint).toMatch(/lightweight public General planner route/u);
+    expect(checkpoint).toMatch(
+      /richer authenticated Browser\s+planning still belongs/u,
+    );
+    expect(testInventory).toContain('mcp-browser-planner');
+    expect(testInventory).toContain('tests/setup/mcp-browser.seed.ts');
+    expect(testInventory).toContain('resized the seeded Terms page to 320x740');
+    expect(testInventory).toContain(
+      'captured a mobile screenshot with readable legal-page content',
+    );
+    expect(testInventory).toContain('fitting Events/Login bottom navigation');
+    expect(checkpoint).toContain('local head `04f9a9375`');
+    expect(checkpoint).toMatch(/`.env.dev` `BASE_URL`\s+loopback port/u);
+    expect(checkpoint).toMatch(/Browser Use URL\s+policy/u);
+    expect(checkpoint).toMatch(/No route or\s+layout evidence was collected/u);
+    expect(checkpoint).toMatch(/Browser-tool policy\s+block/u);
+    expect(checkpoint).toMatch(
+      /rather than an application, Docker,\s+Material layout, or General mobile\s+regression/u,
+    );
+    expect(checkpoint).toContain('local head `a47e3419d`');
+    expect(checkpoint).toMatch(/current-head relaunch retry/u);
+    expect(checkpoint).toContain(
+      'node_modules/.bin/dotenv -c dev -- docker compose up --no-build -d evorto',
+    );
+    expect(checkpoint).toContain('evorto-4dddca18-evorto-1');
+    expect(checkpoint).toMatch(
+      /did not transition it from\s+`Created` to running/u,
+    );
+    expect(checkpoint).toContain(
+      '`db-expiration`, `db-setup`, and `minio-init`',
+    );
+    expect(checkpoint).toMatch(/Docker log read/u);
+    expect(checkpoint).toMatch(/hung at\s+the Docker client layer/u);
+    expect(checkpoint).toContain('docker rm -f -v evorto-4dddca18-evorto-1');
+    expect(checkpoint).toMatch(/running `db`, `minio`,\s+and `stripe`/u);
+    expect(checkpoint).toMatch(
+      /fresh Browser verification blocked below the app route layer/u,
+    );
+    expect(checkpoint).toMatch(/low-level Docker probe/u);
+    expect(checkpoint).toContain('evorto-start-probe-1780546414750');
+    expect(checkpoint).toContain('alpine:latest');
+    expect(checkpoint).toContain('probe-start-ok');
+    expect(checkpoint).toMatch(/created and attached the container/u);
+    expect(checkpoint).toMatch(
+      /timed out before\s+Docker emitted a `start` event/u,
+    );
+    expect(checkpoint).toContain('state=created');
+    expect(checkpoint).toContain('started=0001-01-01T00:00:00Z');
+    expect(checkpoint).toMatch(/empty Docker state error/u);
+    expect(checkpoint).toContain('docker rm -f -v');
+    expect(checkpoint).toMatch(/Docker's\s+new-container start path/u);
+    expect(checkpoint).toMatch(/rather than by Evorto app code/u);
+    expect(checkpoint).toMatch(/Font Awesome\s+installation/u);
+    expect(checkpoint).toMatch(/Neon Local configuration/u);
+    expect(checkpoint).toMatch(/Material\/mobile layout/u);
+    expect(checkpoint).toMatch(
+      /old(?:er)? Docker\s+container start-path blocker entries below are retained as historical\s+diagnostics/u,
+    );
+    expect(checkpoint).toMatch(
+      /superseded by the current running-Docker Browser evidence/u,
+    );
+    expect(checkpoint).toContain('Earlier in this checkpoint');
+    expect(checkpoint).toMatch(/fresh current-branch\s+Browser verification/u);
+    expect(checkpoint).toContain('could not produce route or layout evidence');
+    expect(checkpoint).toContain('`bun run docker:check` passed');
+    expect(checkpoint).toContain('all required\n  env variables');
+    expect(checkpoint).toContain('Playwright Chromium cache checks');
+    expect(checkpoint).toContain('no generated\n  Compose project containers');
+    expect(checkpoint).toMatch(/public\s+Font Awesome Free packages/u);
+    expect(checkpoint).toContain('bun install --frozen-lockfile');
+    expect(checkpoint).toMatch(/public Free icon packages/u);
+    expect(checkpoint).toMatch(/Angular app build completed/u);
+    expect(checkpoint).toMatch(/Neon Local\s+`db` container/u);
+    expect(checkpoint).toContain('before any app route could be served');
+    expect(checkpoint).toContain(
+      'left the generated project containers in `Created`',
+    );
+    expect(checkpoint).toContain('`db`, `db-expiration`, `db-setup`');
+    expect(checkpoint).toContain('`evorto`, `minio`, `minio-init`');
+    expect(checkpoint).toContain('`stripe` containers');
+    expect(checkpoint).toContain('`bun run docker:clean-stale`');
+    expect(checkpoint).toContain(
+      'successfully removed those\n  created containers',
+    );
+    expect(checkpoint).toContain(
+      'returned to green with no generated-project containers',
+    );
+    expect(checkpoint).toMatch(/single JSON object/u);
+    expect(checkpoint).toMatch(
+      /current local blocker below the app and Neon-specific layers/u,
+    );
+    expect(checkpoint).toContain('neondatabase/neon_local:v1.5');
+    expect(checkpoint).toContain('/bin/sh');
+    expect(checkpoint).toMatch(/no app environment/u);
+    expect(checkpoint).toMatch(/left\s+only\s+`Created` probe containers/u);
+    expect(checkpoint).toMatch(/already healthy Neon Local container/u);
+    expect(checkpoint).toMatch(/same image digest/u);
+    expect(checkpoint).toContain('alpine:latest');
+    expect(checkpoint).toContain('oven/bun:1.3.11-alpine');
+    expect(checkpoint).toMatch(
+      /Docker could pull, build, inspect, and\s+remove/u,
+    );
+    expect(checkpoint).toMatch(
+      /new containers did not transition from\s+`Created` to running/u,
+    );
+    expect(checkpoint).toMatch(
+      /Font Awesome install, app build, Browser\s+transport, stale-container cleanup, and Neon Local branch configuration out/u,
+    );
+    expect(checkpoint).toMatch(/local\s+head `ed2675278`/u);
+    expect(checkpoint).toContain('evorto-runtime-preflight-48324');
+    expect(checkpoint).toMatch(
+      /host Docker engine's new\s+container start path/u,
+    );
+    expect(checkpoint).toContain('fresh current-branch retry');
+    expect(checkpoint).toMatch(/June 3,\s+2026/u);
+    expect(checkpoint).toContain('`bun run docker:check` passed');
+    expect(checkpoint).toContain('docker run --rm alpine:latest');
+    expect(checkpoint).toContain('alpine-start-ok');
+    expect(checkpoint).toMatch(/still hung instead of printing output/u);
+    expect(checkpoint).toMatch(/`alpine:latest` container in `Created`/u);
+    expect(checkpoint).toMatch(/Force-killing the stuck Docker client/u);
+    expect(checkpoint).toMatch(/restored `bun run docker:check` to\s+green/u);
+    expect(checkpoint).toContain('docker compose ps --all --format json');
+    expect(checkpoint).toMatch(/`created`, `dead`, or `removing`/u);
+    expect(checkpoint).toContain('Compose\n  project inspection times out');
+    expect(checkpoint).toMatch(/June 4,\s+2026 retry/u);
+    expect(checkpoint).toContain('a028ffc8c');
+    expect(checkpoint).toMatch(/`bun run docker:check` green/u);
+    expect(checkpoint).toMatch(/no generated Compose containers/u);
+    expect(checkpoint).toMatch(/timed out after 45 seconds/u);
+    expect(checkpoint).toMatch(/without printing output/u);
+    expect(checkpoint).toMatch(/single `alpine:latest` probe container/u);
+    expect(checkpoint).toContain('docker rm -f -v');
+    expect(checkpoint).toMatch(/restored `bun run docker:check` to\s+green/u);
+    expect(checkpoint).toMatch(
+      /below the app, Browser, Font Awesome,\s+and Neon-specific layers/u,
+    );
+    expect(checkpoint).toContain('local head\n  `4e3c4761a`');
+    expect(checkpoint).toContain('CI teardown hardening commits');
+    expect(checkpoint).toMatch(/Docker\s+Compose v5\.1\.4/u);
+    expect(checkpoint).toContain('Playwright Chromium cache locations');
+    expect(checkpoint).toContain('80980464140e');
+    expect(checkpoint).toMatch(/stuck Docker client plus `docker rm -f -v/u);
+    expect(checkpoint).toContain('current-head retry at `74bd176a1`');
+    expect(checkpoint).toContain('codex-alpine-start-probe-20260604');
+    expect(checkpoint).toMatch(/produced no output after 10 seconds/u);
+    expect(checkpoint).toMatch(/remained in\s+`Created`/u);
+    expect(checkpoint).toContain(
+      'docker rm -f -v codex-alpine-start-probe-20260604',
+    );
+    expect(checkpoint).toMatch(
+      /host container start-path\s+blocker is still current/u,
+    );
+    expect(checkpoint).toContain('current-head retry at `90ed03cdc`');
+    expect(checkpoint).toMatch(/macOS shell had no GNU\s+`timeout` command/u);
+    expect(checkpoint).toContain('codex-alpine-start-probe-20260604005631');
+    expect(checkpoint).toMatch(/timed out after 45 seconds/u);
+    expect(checkpoint).toMatch(/without output/u);
+    expect(checkpoint).toMatch(/Docker client had to be force-killed/u);
+    expect(checkpoint).toMatch(/did not list the named probe afterward/u);
+    expect(checkpoint).toMatch(
+      /lower-level Docker container start-path check/u,
+    );
+    expect(checkpoint).toMatch(/disposable Alpine\s+container/u);
+    expect(checkpoint).toMatch(/will fail early/u);
+    expect(checkpoint).toMatch(/cannot start containers for Browser/u);
+    expect(checkpoint).toMatch(/real post-change `bun run docker:check`/u);
+    expect(checkpoint).toMatch(/returned in about 15\s+seconds/u);
+    expect(checkpoint).toContain('Docker\n  container start path');
+    expect(checkpoint).toContain(
+      'Timed out after 15s while starting a\n  disposable Alpine container.',
+    );
+    expect(checkpoint).toContain('evorto-runtime-preflight-32411');
+    expect(checkpoint).toContain(
+      'docker rm -f -v evorto-runtime-preflight-32411',
+    );
+    expect(checkpoint).toMatch(/removed it/u);
+    expect(checkpoint).toContain('cleanup was hardened');
+    expect(checkpoint).toContain('local head\n  `1ac10014d`');
+    expect(checkpoint).toContain('evorto-runtime-preflight-87159');
+    expect(checkpoint).toContain(
+      'docker ps --all --filter name=evorto-runtime-preflight',
+    );
+    expect(checkpoint).toMatch(/listed no\s+remaining preflight containers/u);
+    expect(checkpoint).toMatch(
+      /no longer accumulate\s+disposable Created probes/u,
+    );
+    expect(checkpoint).toMatch(
+      /fresh Browser route\/mobile layout\s+evidence remains blocked/u,
+    );
+    expect(checkpoint).toMatch(/rather than\s+by app code or runtime env/u);
+    expect(checkpoint).toContain('local head `e7d44ddaf`');
+    expect(checkpoint).toContain('wrote the generated `.env.dev`');
+    expect(checkpoint).toContain('Bun `1.3.11`');
+    expect(checkpoint).toMatch(/Docker Compose v5\.1\.4/u);
+    expect(checkpoint).toContain('no project containers');
+    expect(checkpoint).toContain('Stripe webhook secret source');
+    expect(checkpoint).toContain('Playwright Chromium cache\n  checks');
+    expect(checkpoint).toContain('evorto-runtime-preflight-39526');
+    expect(checkpoint).toContain(
+      "docker ps --all --filter name=evorto-runtime-preflight --format\n  '{{.Names}} {{.Status}}'",
+    );
+    expect(checkpoint).toMatch(/cleanup stays bounded/u);
+    expect(checkpoint).toContain('local head `cbf4bdba1`');
+    expect(checkpoint).toContain('CI dependency cache-scope guard');
+    expect(checkpoint).toMatch(/wrote `.env.dev`/u);
+    expect(checkpoint).toMatch(/required and available runtime\s+variables/u);
+    expect(checkpoint).toContain('evorto-runtime-preflight-91702');
+    expect(checkpoint).toMatch(/listed no remaining preflight containers/u);
+    expect(checkpoint).toContain('local head `bfc9517da`');
+    expect(checkpoint).toContain('durable viewport inventory guard');
+    expect(checkpoint).toContain('evorto-runtime-preflight-27687');
+    expect(checkpoint).toMatch(/listed no remaining preflight containers/u);
+    expect(checkpoint).toContain('local head `266a224f0`');
+    expect(checkpoint).toContain('Playwright runtime-modifier inventory guard');
+    expect(checkpoint).toContain('evorto-runtime-preflight-98795');
+    expect(checkpoint).toMatch(/listed no remaining preflight containers/u);
+    expect(checkpoint).toContain('`bun run docker:clean-stale`');
+    expect(checkpoint).toContain('com.docker.compose.project` label');
+    expect(checkpoint).toMatch(/single JSON object/u);
+    expect(checkpoint).toContain('`created`, `dead`, or `removing`');
+    expect(checkpoint).toMatch(/removes stale containers one at a time/u);
+    expect(checkpoint).toMatch(/without relying on GNU\s+`timeout`/u);
+    expect(checkpoint).toContain('connected to the `iab` browser');
+    expect(checkpoint).toContain('created tab `2`');
+    expect(checkpoint).toContain('local head `09b39ac86`');
+    expect(checkpoint).toContain('template evidence watchpoint guard');
+    expect(checkpoint).toContain('evorto-runtime-preflight-46336');
+    expect(checkpoint).toMatch(/listed no remaining preflight containers/u);
+    expect(checkpoint).toContain('local head `a4cae51d8`');
+    expect(checkpoint).toMatch(/main-checkout env-file\s+hint/u);
+    expect(checkpoint).toContain('/Users/hedde/code/evorto/.env');
+    expect(checkpoint).toMatch(/exposed the same variable keys/u);
+    expect(checkpoint).toContain('E2E_GLOBAL_ADMIN_AUTH0_IDS');
+    expect(checkpoint).toContain('evorto-runtime-preflight-70680');
+    expect(checkpoint).toMatch(/At that historical\s+retry/u);
+    expect(checkpoint).toMatch(
+      /below app code,\s+Browser transport,\s+and local\s+dotenv configuration/u,
+    );
+    expect(checkpoint).toMatch(
+      /current running-Docker Browser evidence above now\s+supersedes/u,
+    );
+    expect(checkpoint).toContain('local head `91c292c2e`');
+    expect(checkpoint).toMatch(/healthy `db`, `minio`, and\s+`stripe`/u);
+    expect(checkpoint).toMatch(/no current-head `evorto`\s+app container/u);
+    expect(checkpoint).toMatch(/older port-4200 app container/u);
+    expect(checkpoint).toMatch(/belonged to another\s+worktree/u);
+    expect(checkpoint).toContain('evorto-runtime-preflight-95525');
+    expect(checkpoint).toMatch(
+      /Docker Compose\s+project-container inspection/u,
+    );
+    expect(checkpoint).toContain('`bun run docker:clean-stale`');
+    expect(checkpoint).toMatch(
+      /No\s+stale Docker Compose project containers found/u,
+    );
+    expect(checkpoint).toContain('evorto-runtime-preflight-97022');
+    expect(checkpoint).toMatch(
+      /fresh\s+Browser route\/mobile layout verification blocked below the app tooling layer/u,
+    );
+    expect(checkpoint).toContain('local head `e033b64ec`');
+    expect(checkpoint).toMatch(/not image pull latency/u);
+    expect(checkpoint).toContain('`alpine:latest`');
+    expect(checkpoint).toMatch(/already present locally/u);
+    expect(checkpoint).toContain('--pull never alpine:latest true');
+    expect(checkpoint).toMatch(/timed out after 20 seconds/u);
+    expect(checkpoint).toContain('codex-preflight-manual');
+    expect(checkpoint).toMatch(/listed no matching leftovers/u);
+    expect(checkpoint).toMatch(/Older\s+Browser\/layout\s+checkpoints/u);
+    expect(checkpoint).not.toContain('stale-container removal timeouts');
+    expect(checkpoint).not.toContain('until Docker\n  can remove');
+    expect(helpersReadme).toContain('`bun run docker:clean-stale`');
+    expect(helpersReadme).toContain('generated `COMPOSE_PROJECT_NAME`');
+    expect(helpersReadme).toContain(
+      'Docker `com.docker.compose.project` label',
+    );
+    expect(helpersReadme).toContain(
+      'removes stale or unhealthy containers one at a time',
+    );
+    expect(helpersReadme).toContain('Docker container start path');
+    expect(helpersReadme).toContain('disposable Alpine');
+    expect(helpersReadme).toMatch(/restart\s+Docker Desktop/u);
+    expect(helpersReadme).toContain('below the app tooling layer');
+    expect(runtimePreflight).toContain('Docker container start path');
+    expect(runtimePreflight).toContain(
+      'evorto-runtime-preflight-${process.pid}',
+    );
+    expect(runtimePreflight).toContain(
+      'docker run --name "$container_name" --rm --pull missing alpine:latest true',
+    );
+    expect(runtimePreflight).toContain('docker-container-start-check');
+    expect(runtimePreflight).toContain('Attempted bounded cleanup');
+    expect(runtimePreflight).toContain('cleanupTimeoutSeconds');
+    expect(runtimePreflight).toContain('commandTimeoutMs * 2');
+    expect(runtimePreflight).toContain(
+      'Docker can inspect local configuration but cannot start containers',
+    );
+    expect(helpersReadme).toContain('bounded\ncleanup window');
+    expect(helpersReadme).toContain('evorto-runtime-preflight-*');
+    expect(testsReadme).toContain('bounded cleanup window');
+    expect(testsReadme).toContain('evorto-runtime-preflight-*');
+    expect(testsReadme).toContain('`bun run docker:clean-stale`');
+    expect(testsReadme).toContain('generated `COMPOSE_PROJECT_NAME`');
+    expect(testsReadme).toContain('removes them one at a time');
+    expect(testsReadme).toContain('disposable Alpine container start path');
+    expect(testsReadme).toMatch(/restart\s+Docker Desktop/u);
+    expect(testsReadme).toMatch(/below\s+the app tooling layer/u);
+    expect(checkpoint).not.toContain('currently blocked by');
+    expect(checkpoint).not.toContain(
+      'Fresh Browser route/mobile layout evidence is currently blocked',
+    );
+    expect(checkpoint).not.toContain(
+      '`Must setup test before interacting with the page`',
+    );
+    expect(checkpoint).toMatch(
+      /Playwright-test MCP Browser watchpoint is therefore recovered/u,
+    );
+    expect(checkpoint).toMatch(/lightweight public General planner route/u);
+    expect(checkpoint).toContain('local head `17c35e732`');
+    expect(checkpoint).toMatch(/reran `bun run docker:check` successfully/u);
+    expect(checkpoint).toMatch(/disposable\s+Alpine container start path/u);
+    expect(checkpoint).toContain('`bun run\n  docker:start`');
+    expect(checkpoint).toContain('`evorto-4dddca18` Docker\n  app');
+    expect(checkpoint).toMatch(/generated `BASE_URL` on port 4577/u);
+    expect(checkpoint).toMatch(/cached Bun\s+install layer/u);
+    expect(checkpoint).toMatch(
+      /offline\s+public Font Awesome\s+package install path/u,
+    );
+    expect(checkpoint).toContain('Direct in-app Browser control');
+    expect(checkpoint).toMatch(/connected to the `iab`\s+browser/u);
+    expect(checkpoint).toMatch(
+      /Browser `viewport` capability for 320x740,\s+390x844,\s+and\s+1440x900/u,
+    );
+    expect(checkpoint).toContain('visited `/`, `/events`, `/legal/imprint`');
+    expect(checkpoint).toContain('/legal/privacy');
+    expect(checkpoint).toContain('/legal/terms');
+    expect(checkpoint).toContain('/403');
+    expect(checkpoint).toContain('/500');
+    expect(checkpoint).toContain('/404');
+    expect(checkpoint).toMatch(/All 24 route\/viewport checks/u);
+    expect(checkpoint).toMatch(/matching `window\.innerWidth`/u);
+    expect(checkpoint).toMatch(/no top\/side\s+clipped visible controls/u);
+    expect(checkpoint).toMatch(/except the expected `\/500` page/u);
+    expect(checkpoint).toMatch(/zero Browser warning\/error logs/u);
+    expect(checkpoint).toContain(
+      '/tmp/evorto-current-head-17c35e-general-mobile-events.jpg',
+    );
+  });
+
+  it('keeps the current PR CI cleanup checkpoint tied to active-head evidence', () => {
+    const source = readSource('STABILIZATION.md');
+    const workflow = readSource('.github/workflows/e2e-baseline.yml');
+    const checkpoint = source.match(
+      /Current PR #62 active-head CI cleanup checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('local head\n  `e6d5be4da`');
+    expect(checkpoint).toContain('CodeQL, CodeQL\n  `Analyze (actions)`');
+    expect(checkpoint).toContain('Copilot setup, Git Town, and CodeRabbit');
+    expect(checkpoint).toContain('mergeable=MERGEABLE');
+    expect(checkpoint).toContain('`BLOCKED` by draft status');
+    expect(checkpoint).toContain('public Font Awesome registry guard');
+    expect(checkpoint).toContain('Bun package\n  cache');
+    expect(checkpoint).toContain('dependency-tree cache');
+    expect(checkpoint).toContain('private\n  Font Awesome registry access');
+    expect(checkpoint).toContain('serial `Warm CI dependency caches` job');
+    expect(checkpoint).toContain('warmed Docker\n  Bun cache mount');
+    expect(checkpoint).toContain('`if: always()` cleanup\n  finalizers');
+    expect(checkpoint).toContain('`Stop Docker stack`');
+    expect(checkpoint).toContain('`Prune expired Neon branches after E2E`');
+    expect(checkpoint).toContain('hourly and `workflow_run` Neon');
+    expect(checkpoint).toContain(
+      '`total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`',
+    );
+    expect(checkpoint).toContain(
+      'active CI workers may own short-lived branches',
+    );
+    expect(checkpoint).toContain('two-hour TTL');
+    expect(checkpoint).toContain('cleanup finalizer');
+    expect(workflow).toContain('name: Warm CI dependency caches');
+    expect(workflow).toContain('Force public Font Awesome registry');
+    expect(workflow).toContain('Validate public Font Awesome dependencies');
+    expect(workflow).toContain('Require warmed Docker Bun cache mount');
+    expect(workflow).toContain('if: always()');
+    expect(workflow).toContain('Stop Docker stack');
+    expect(workflow).toContain('Prune expired Neon branches after E2E');
+
+    const cleanupWorkflow = readSource(
+      '.github/workflows/neon-branch-cleanup.yml',
+    );
+    expect(cleanupWorkflow).toContain('workflow_run:');
+    expect(cleanupWorkflow).toContain('schedule:');
+    expect(cleanupWorkflow).toContain('NEON_LOCAL_BRANCH_TTL_HOURS: 2');
+  });
+
+  it('keeps public General viewport coverage durable and compact', () => {
+    const source = readSource('STABILIZATION.md');
+    const inventory = readSource('tests/test-inventory.md');
+    const packageJson = JSON.parse(readSource('package.json')) as {
+      scripts: Record<string, string>;
+    };
+    const testsReadme = readSource('tests/README.md');
+    const viewportSpec = readSource(
+      'tests/specs/smoke/public-general-viewports.spec.ts',
+    );
+    const appRoutes = readSource('src/app/app.routes.ts');
+    const appRoutesSpec = readSource('src/app/app.routes.spec.ts');
+    const appServerRoutes = readSource('src/app/app.routes.server.ts');
+    const appServerRoutesSpec = readSource('src/app/app.routes.server.spec.ts');
+    const createAccountTemplate = readSource(
+      'src/app/core/create-account/create-account.component.html',
+    );
+    const pageLayoutHelper = readSource('tests/support/utils/page-layout.ts');
+    const pageLayoutHelperSpec = readSource(
+      'tests/specs/smoke/page-layout-helper.test.ts',
+    );
+    const eventViewportSpec = readSource(
+      'tests/specs/events/event-viewports.spec.ts',
+    );
+    const financeViewportSpec = readSource(
+      'tests/specs/finance/finance-viewports.spec.ts',
+    );
+    const financeOverviewTemplate = readSource(
+      'src/app/finance/finance-overview/finance-overview.component.html',
+    );
+    const receiptRefundTemplate = readSource(
+      'src/app/finance/receipt-refund-list/receipt-refund-list.component.html',
+    );
+    const adminSettingsSpec = readSource(
+      'tests/specs/admin/general-settings.spec.ts',
+    );
+    const adminViewportSpec = readSource(
+      'tests/specs/admin/admin-viewports.spec.ts',
+    );
+    const adminRolesViewportSpec = readSource(
+      'tests/specs/admin/roles-viewports.spec.ts',
+    );
+    const taxRatesSettingsComponent = readSource(
+      'src/app/admin/tax-rates-settings/tax-rates-settings.component.ts',
+    );
+    const eventReviewsComponent = readSource(
+      'src/app/admin/event-reviews/event-reviews.component.ts',
+    );
+    const adminOverviewTemplate = readSource(
+      'src/app/admin/admin-overview/admin-overview.component.html',
+    );
+    const userListTemplate = readSource(
+      'src/app/admin/user-list/user-list.component.html',
+    );
+    const roleFormTemplate = readSource(
+      'src/app/admin/components/role-form/role-form.component.html',
+    );
+    const globalAdminSpec = readSource(
+      'tests/specs/admin/global-admin-tenants.spec.ts',
+    );
+    const profileViewportSpec = readSource(
+      'tests/specs/profile/user-profile-viewports.spec.ts',
+    );
+    const templateViewportSpec = readSource(
+      'tests/specs/templates/template-viewports.spec.ts',
+    );
+    const templateListTemplate = readSource(
+      'src/app/templates/template-list/template-list.component.html',
+    );
+    const navigationTemplate = readSource(
+      'src/app/core/navigation/navigation.component.html',
+    );
+    const scannerViewportSpec = readSource(
+      'tests/specs/scanning/scanner-viewports.spec.ts',
+    );
+    const scannerTemplate = readSource(
+      'src/app/scanning/scanner/scanner.component.html',
+    );
+    const handleRegistrationTemplate = readSource(
+      'src/app/scanning/handle-registration/handle-registration.component.html',
+    );
+    const membersHubViewportSpec = readSource(
+      'tests/specs/internal/members-hub-viewports.spec.ts',
+    );
+    const membersHubTemplate = readSource(
+      'src/app/internal-pages/members-hub/members-hub.component.html',
+    );
+    const membersHubComponent = readSource(
+      'src/app/internal-pages/members-hub/members-hub.component.ts',
+    );
+    const durableViewportSpecPaths = [
+      'tests/specs/admin/admin-viewports.spec.ts',
+      'tests/specs/admin/general-settings.spec.ts',
+      'tests/specs/admin/global-admin-tenants.spec.ts',
+      'tests/specs/admin/roles-viewports.spec.ts',
+      'tests/specs/events/event-viewports.spec.ts',
+      'tests/specs/finance/finance-viewports.spec.ts',
+      'tests/specs/internal/members-hub-viewports.spec.ts',
+      'tests/specs/profile/user-profile-viewports.spec.ts',
+      'tests/specs/scanning/scanner-viewports.spec.ts',
+      'tests/specs/smoke/public-general-viewports.spec.ts',
+      'tests/specs/templates/template-viewports.spec.ts',
+    ] as const;
+    const discoveredViewportSpecPaths = listFiles('tests/specs', '.ts')
+      .filter((sourcePath) =>
+        readSource(sourcePath).includes('expectedStablePageLayout'),
+      )
+      .filter(
+        (sourcePath) =>
+          sourcePath !== 'tests/specs/smoke/page-layout-helper.test.ts',
+      )
+      .toSorted();
+    const durableViewportSpecs = [
+      adminSettingsSpec,
+      adminViewportSpec,
+      adminRolesViewportSpec,
+      eventViewportSpec,
+      financeViewportSpec,
+      globalAdminSpec,
+      membersHubViewportSpec,
+      profileViewportSpec,
+      scannerViewportSpec,
+      templateViewportSpec,
+      viewportSpec,
+    ];
+
+    expect(discoveredViewportSpecPaths).toEqual(durableViewportSpecPaths);
+
+    for (const durableViewportSpecPath of durableViewportSpecPaths) {
+      expect(inventory).toContain(
+        durableViewportSpecPath.replace('tests/', ''),
+      );
+    }
+
+    for (const durableViewportSpec of durableViewportSpecs) {
+      expect(durableViewportSpec).toContain(
+        "from '../../support/utils/page-layout'",
+      );
+      expect(durableViewportSpec).toContain(
+        "{ height: 740, label: 'narrow mobile', width: 320 }",
+      );
+      expect(durableViewportSpec).toContain(
+        "{ height: 844, label: 'mobile', width: 390 }",
+      );
+      expect(durableViewportSpec).toContain(
+        "{ height: 900, label: 'desktop', width: 1440 }",
+      );
+      expect(durableViewportSpec).toContain(
+        'for (const viewport of viewportSizes)',
+      );
+      expect(durableViewportSpec).toContain('test.step(`${viewport.label}');
+      expect(durableViewportSpec).toContain('page.setViewportSize(viewport)');
+      expect(durableViewportSpec).toContain('expectedStablePageLayout');
+      expect(durableViewportSpec).toContain('readPageLayout(page)');
+      expect(durableViewportSpec).not.toContain('const readPageLayout = async');
+    }
+
+    expect(pageLayoutHelper).toContain('isInsideHorizontalScrollContainer');
+    expect(pageLayoutHelper).toContain('isElementCenterInsideOverflowClip');
+    expect(pageLayoutHelper).toContain("['auto', 'clip', 'hidden', 'scroll']");
+    expect(pageLayoutHelper).toContain('coveredControlCount');
+    expect(pageLayoutHelper).toContain('coveredControlLabels');
+    expect(pageLayoutHelper).toContain('coveredTextCount');
+    expect(pageLayoutHelper).toContain('coveredTextLabels');
+    expect(pageLayoutHelper).toContain('CoveredTextLabel');
+    expect(pageLayoutHelper).toContain('readableTextElements');
+    expect(pageLayoutHelper).toContain('[data-layout-readable-text]');
+    expect(pageLayoutHelper).toContain('!controlElements.has(element)');
+    expect(pageLayoutHelper).toContain('coveredTextElements');
+    expect(pageLayoutHelper).toContain('centerX');
+    expect(pageLayoutHelper).toContain('centerY');
+    expect(pageLayoutHelper).toContain('coveringClassName');
+    expect(pageLayoutHelper).toContain('document.elementFromPoint');
+    expect(pageLayoutHelper).toContain('!elementAtCenter.contains(element)');
+    expect(pageLayoutHelper).toContain('horizontallyClippedControlCount');
+    expect(pageLayoutHelper).toContain('horizontallyClippedControlLabels');
+    expect(pageLayoutHelper).toContain('ClippedControlLabel');
+    expect(pageLayoutHelper).toContain('horizontallyClippedTextCount');
+    expect(pageLayoutHelper).toContain('horizontallyClippedTextLabels');
+    expect(pageLayoutHelper).toContain('ClippedTextLabel');
+    expect(pageLayoutHelper).toContain('fixedOrStickyPosition');
+    expect(pageLayoutHelper).toContain('elementLabel');
+    expect(pageLayoutHelper).toContain('interactiveSelector');
+    expect(pageLayoutHelper).toContain("getAttribute('aria-label')");
+    expect(pageLayoutHelper).toContain("getAttribute('aria-labelledby')");
+    expect(pageLayoutHelper).toContain("getAttribute('title')");
+    expect(pageLayoutHelper).toContain(
+      'label[for="${CSS.escape(element.id)}"]',
+    );
+    expect(pageLayoutHelper).toContain('unlabeledControlCount');
+    expect(pageLayoutHelper).toContain('unlabeledControlLabels');
+    expect(pageLayoutHelper).toContain('UnlabeledControlLabel');
+    expect(pageLayoutHelper).toContain('verticallyClippedFixedControlCount');
+    expect(pageLayoutHelper).toContain('verticallyClippedFixedControlLabels');
+    expect(pageLayoutHelper).toContain('VerticallyClippedControlLabel');
+    expect(pageLayoutHelper).toContain('verticallyClippedFixedTextCount');
+    expect(pageLayoutHelper).toContain('verticallyClippedFixedTextLabels');
+    expect(pageLayoutHelper).toContain('VerticallyClippedTextLabel');
+    expect(pageLayoutHelper).toContain("position === 'fixed'");
+    expect(pageLayoutHelper).toContain("position === 'sticky'");
+    expect(pageLayoutHelper).toContain('horizontallyOverflowingElementCount');
+    expect(pageLayoutHelper).toContain('horizontallyOverflowingElementLabels');
+    expect(pageLayoutHelper).toContain(
+      'document.documentElement.scrollWidth > window.innerWidth + 1',
+    );
+    expect(pageLayoutHelper).toContain(
+      "!element.classList.contains('mat-mdc-button-touch-target')",
+    );
+    expect(pageLayoutHelper).toContain('isSameMaterialFormFieldDecoration');
+    expect(pageLayoutHelper).toContain('hasVerticalScrollRemaining');
+    expect(pageLayoutHelper).toContain('isRecoverableMobileNavigationOverlap');
+    expect(pageLayoutHelper).toContain("hitTarget.closest('.navigation')");
+    expect(pageLayoutHelper).toContain(
+      "control.closest('.mat-mdc-form-field')",
+    );
+    expect(pageLayoutHelper).toContain("tagName.toLowerCase() === 'mat-label'");
+    expect(pageLayoutHelper).toContain(
+      "classList.contains('mdc-floating-label')",
+    );
+    expect(pageLayoutHelper).toContain(
+      "classList.contains('mat-mdc-form-field-required-marker')",
+    );
+    expect(pageLayoutHelper).toContain('isSameMaterialPaginatorTouchTarget');
+    expect(pageLayoutHelper).toContain("control.closest('.mat-mdc-paginator')");
+    expect(pageLayoutHelper).toContain(
+      "classList.contains('mat-mdc-paginator-touch-target')",
+    );
+    expect(pageLayoutHelper).toContain('[role="tab"]');
+    expect(pageLayoutHelper).toContain('[role="switch"]');
+    expect(pageLayoutHelper).toContain('[role="checkbox"]');
+    expect(pageLayoutHelper).toContain('[role="combobox"]');
+    expect(pageLayoutHelper).toContain('[role="menuitem"]');
+    expect(pageLayoutHelper).toContain('[role="option"]');
+    expect(pageLayoutHelper).toContain('[role="radio"]');
+    expect(pageLayoutHelper).toContain('[role="slider"]');
+    expect(pageLayoutHelper).toContain('[role="spinbutton"]');
+    expect(pageLayoutHelper).toContain('[contenteditable="true"]');
+    expect(pageLayoutHelper).toContain('[tabindex]:not([tabindex="-1"])');
+    expect(pageLayoutHelperSpec).toContain('page.setViewportSize');
+    expect(pageLayoutHelperSpec).toContain('expectedStablePageLayout');
+    expect(pageLayoutHelperSpec).toContain('readPageLayout(page)');
+    expect(pageLayoutHelperSpec).toContain('wide-panel');
+    expect(pageLayoutHelperSpec).toContain('covered-action');
+    expect(pageLayoutHelperSpec).toContain('covering-layer');
+    expect(pageLayoutHelperSpec).toContain('covered-text');
+    expect(pageLayoutHelperSpec).toContain('text-covering-layer');
+    expect(pageLayoutHelperSpec).toContain('Covered readable copy');
+    expect(pageLayoutHelperSpec).toContain('clipped-text');
+    expect(pageLayoutHelperSpec).toContain('Clipped readable copy');
+    expect(pageLayoutHelperSpec).toContain('fixed-clipped-text');
+    expect(pageLayoutHelperSpec).toContain('Fixed clipped readable copy');
+    expect(pageLayoutHelperSpec).toContain('clipped-action');
+    expect(pageLayoutHelperSpec).toContain('clipped-icon-action');
+    expect(pageLayoutHelperSpec).toContain('Icon-only clipped action');
+    expect(pageLayoutHelperSpec).toContain('clipped-switch');
+    expect(pageLayoutHelperSpec).toContain('Notification switch');
+    expect(pageLayoutHelperSpec).toContain('clipped-menuitem');
+    expect(pageLayoutHelperSpec).toContain('Menu action');
+    expect(pageLayoutHelperSpec).toContain('clipped-combobox');
+    expect(pageLayoutHelperSpec).toContain('Payment method');
+    expect(pageLayoutHelperSpec).toContain('clipped-slider');
+    expect(pageLayoutHelperSpec).toContain('Capacity slider');
+    expect(pageLayoutHelperSpec).toContain('clipped-spinbutton');
+    expect(pageLayoutHelperSpec).toContain('Guest count');
+    expect(pageLayoutHelperSpec).toContain('clipped-radio');
+    expect(pageLayoutHelperSpec).toContain('Radio option');
+    expect(pageLayoutHelperSpec).toContain('clipped-focusable');
+    expect(pageLayoutHelperSpec).toContain('Focusable action');
+    expect(pageLayoutHelperSpec).toContain('unlabeled-icon-action');
+    expect(pageLayoutHelperSpec).toContain('unlabeledControlLabels');
+    expect(pageLayoutHelperSpec).toContain('table-scroll');
+    expect(pageLayoutHelperSpec).toContain(
+      'shared page layout helper ignores Material paginator touch target overlap',
+    );
+    expect(pageLayoutHelperSpec).toContain('mat-mdc-paginator-touch-target');
+    expect(pageLayoutHelperSpec).toContain('Items per page:');
+    expect(pageLayoutHelperSpec).toContain('horizontalOverflow');
+    expect(pageLayoutHelperSpec).toContain(
+      'horizontallyOverflowingElementLabels',
+    );
+    expect(pageLayoutHelperSpec).toContain('coveredControlLabels');
+    expect(pageLayoutHelperSpec).toContain('coveredTextLabels');
+    expect(pageLayoutHelperSpec).toContain('horizontallyClippedControlLabels');
+    expect(pageLayoutHelperSpec).toContain('horizontallyClippedTextLabels');
+    expect(pageLayoutHelperSpec).toContain('verticallyClippedFixedTextLabels');
+    expect(packageJson.scripts['test:e2e:layout-helper']).toBe(
+      'bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/page-layout-helper.test.ts --project=local-chrome-baseline --no-deps',
+    );
+    expect(testsReadme).toContain('bun run test:e2e:layout-helper');
+    expect(testsReadme).toContain('NO_WEBSERVER=true');
+    expect(testsReadme).toContain('--no-deps');
+    expect(testsReadme).toContain('does not start\n  Docker');
+    expect(source).toContain('local head `bb9431e66`');
+    expect(source).toContain('passed all three layout-helper tests');
+    expect(source).toContain('pushed-head fix `a9d4544e1`');
+    expect(source).toContain('passed all four layout-helper tests');
+    expect(source).toContain('same-paginator touch-target overlap');
+    expect(source).toContain('`.mat-mdc-paginator-touch-target`');
+    expect(source).toContain('`/finance/transactions` and\n  `/admin/users`');
+    expect(source).toContain('app startup disabled');
+    expect(source).toContain(
+      'shared mobile/no-glitch detector remains locally verifiable',
+    );
+    expect(source).toContain('shared viewport guard checkpoint');
+    expect(source).toContain('`tests/support/utils/page-layout.ts`');
+    expect(inventory).toContain('specs/smoke/page-layout-helper.test.ts');
+    expect(inventory).toContain('support/utils/page-layout.ts');
+    expect(inventory).toContain('shared viewport layout guard');
+    expect(inventory).toContain('common ARIA/Material\n    interactive roles');
+    expect(inventory).toContain('`switch`, `checkbox`, `combobox`, `menuitem`');
+    expect(inventory).toContain(
+      '`option`, `radio`, `slider`, and `spinbutton`',
+    );
+    expect(inventory).toContain('focusable `tabindex`\n    custom controls');
+    expect(inventory).toContain('helper without app startup');
+    expect(inventory).toMatch(
+      /covered controls,\s+covered readable text,\s+clipped controls,\s+clipped readable text,\s+and vertically clipped fixed\s+readable text/u,
+    );
+    expect(inventory).toContain(
+      'controls covered by another separate visible layer',
+    );
+    expect(inventory).toContain(
+      'readable text\n    covered by another visible layer',
+    );
+    expect(source).toContain('covered readable text');
+    expect(source).toContain('vertically clipped fixed/sticky readable text');
+    expect(source).toContain('icon-only control diagnostics use accessible');
+    expect(source).toContain('visible controls without accessible labels');
+    expect(source).toContain('common ARIA/Material\n  interactive roles');
+    expect(source).toContain('`switch`, `checkbox`, `combobox`, `menuitem`');
+    expect(source).toContain('`option`, `radio`, `slider`, and `spinbutton`');
+    expect(source).toContain('editable content');
+    expect(source).toContain('local head `932e23257`');
+    expect(source).toContain(
+      'synthetic clipped `switch` and\n  `menuitem` controls',
+    );
+    expect(source).toContain('`754c1dc51`');
+    expect(source).toContain(
+      'synthetic `combobox`, `radio`, `slider`, and\n  `spinbutton` controls',
+    );
+    expect(source).toContain('focusable `tabindex` elements');
+
+    expect(source).toContain('public General viewport coverage checkpoint');
+    expect(source).toContain('manual Browser\n  General/legal viewport sweep');
+    expect(source).toContain('durable Playwright smoke coverage');
+    expect(source).toContain('320x740');
+    expect(source).toContain('390x844');
+    expect(source).toContain('1440x900');
+    expect(source).toMatch(
+      /coverage\s+cannot silently shrink or gain a new anonymous General route while\s+keeping the mobile General-page requirement/u,
+    );
+    expect(source).toContain('per-route tenant seed to CI');
+    expect(source).toContain(
+      'stabilizationEvidence=public-general-viewport-spec-8cfe2965',
+    );
+    expect(source).toContain('fresh rebuilt-Docker in-app Browser pass');
+    expect(source).toContain('`clientWidth=390`, `scrollWidth=390`');
+    expect(source).toContain('`/404` mobile\n  screenshot');
+    expect(source).toContain('tenant-missing legal-text message');
+    expect(source).toContain('temporary Browser viewport override');
+    expect(source).toContain('current pushed-head refresh at `17c35e732`');
+    expect(source).toMatch(/generated `BASE_URL` on port 4577/u);
+    expect(source).toContain(
+      '/tmp/evorto-current-head-17c35e-general-mobile-events.jpg',
+    );
+    expect(inventory).toContain('specs/smoke/public-general-viewports.spec.ts');
+    expect(inventory).toContain('narrow mobile');
+    expect(inventory).toContain('no horizontal overflow');
+    expect(inventory).toContain(
+      'no horizontally clipped\n    visible controls',
+    );
+    expect(inventory).toContain(
+      'no overflowing visible text or panel elements',
+    );
+    expect(source).toContain('authenticated SSR deep-link checkpoint');
+    expect(source).toContain('`src/app/app.routes.server.ts`');
+    expect(source).toContain('`src/app/app.routes.server.spec.ts`');
+    expect(source).toContain('production SSR deep links');
+    expect(source).toContain(
+      '`/admin/settings`, `/create-account`, and\n  `/global-admin/tenants`',
+    );
+    expect(source).toMatch(/A rebuilt\s+Docker app returned `200` app shells/u);
+    expect(source).toContain('`/create-account`');
+    expect(source).toContain('`/profile`');
+    expect(source).toContain('`/templates`');
+    expect(source).toContain('`/finance`');
+    expect(source).toContain('`/scan`');
+    expect(source).toContain('now reaches Auth0 login instead');
+    expect(source).toContain('Playwright admin storage state');
+    expect(source).toContain('Current create-account SSR refresh checkpoint');
+    expect(source).toContain(
+      'stabilizationEvidence=create-account-ssr-fixed-*',
+    );
+    expect(source).toContain('`/create-account`');
+    expect(source).toContain('Auth0 authorize URL');
+    expect(source).toContain(
+      '/tmp/evorto-create-account-ssr-fixed-20260604-mobile.jpg',
+    );
+    expect(inventory).toContain('src/app/app.routes.server.spec.ts');
+    expect(inventory).toContain('authenticated route groups');
+    expect(inventory).toMatch(/public\s+server 404 shell/u);
+
+    for (const clientRenderedServerRoute of [
+      'admin/**',
+      'create-account',
+      'finance/**',
+      'global-admin/**',
+      'internal/**',
+      'profile/**',
+      'scan/**',
+      'templates/**',
+    ]) {
+      expect(appServerRoutes).toContain(`path: '${clientRenderedServerRoute}'`);
+      expect(appServerRoutesSpec).toContain(`'${clientRenderedServerRoute}'`);
+    }
+
+    expect(appServerRoutes).toContain('renderMode: RenderMode.Client');
+    expect(appServerRoutes).toContain("path: '**'");
+    expect(appServerRoutes).toContain('renderMode: RenderMode.Server');
+    expect(appServerRoutesSpec).toContain(
+      'keeps authenticated route groups client-rendered for production deep links',
+    );
+    expect(appServerRoutesSpec).toContain(
+      'keeps public routes server-rendered by default',
+    );
+    expect(appServerRoutesSpec).toContain('toBe(RenderMode.Client)');
+    expect(appServerRoutesSpec).toContain('toBe(RenderMode.Server)');
+
+    const expectedPublicRouteCoverage = [
+      "name: 'root redirect'",
+      "path: '/'",
+      "expectedText: 'Events'",
+      "extraText: 'Soccer Match'",
+      "name: 'events list'",
+      "path: '/events'",
+      "name: 'event detail'",
+      'path: `/events/${freeOpenEvent.id}`',
+      'expectedText: freeOpenEvent.title',
+      "extraText: 'Log in now'",
+      "name: 'imprint legal page'",
+      "path: '/legal/imprint'",
+      "expectedText: 'Imprint'",
+      "extraText: 'No tenant-provided legal text is configured for this page.'",
+      "name: 'privacy legal page'",
+      "path: '/legal/privacy'",
+      "expectedText: 'Privacy policy'",
+      "name: 'terms legal page'",
+      "path: '/legal/terms'",
+      "expectedText: 'Terms'",
+      "name: 'access not allowed page'",
+      "path: '/403'",
+      "expectedText: 'Access not allowed'",
+      "extraText: 'Your account does not have permission to open this page.'",
+      "name: 'server error page'",
+      "path: '/500'",
+      "expectedText: 'Something went wrong'",
+      "extraText: 'Please try again later.'",
+      "name: 'not found page'",
+      "path: '/404'",
+      "expectedText: 'Page not found'",
+      "name: 'wildcard not found redirect'",
+      "path: '/missing-general-page'",
+      "expectedText: 'Page not found'",
+      'for (const route of publicRoutes)',
+      'await page.goto(route.path)',
+      'name: route.expectedText',
+      'page.getByText(route.extraText',
+    ];
+
+    for (const expectedPublicRouteFragment of expectedPublicRouteCoverage) {
+      expect(viewportSpec).toContain(expectedPublicRouteFragment);
+    }
+
+    const expectedPublicRouteManifest = [
+      {
+        route: "path: '', pathMatch: 'full', redirectTo: 'events'",
+        spec: "path: '/'",
+      },
+      { route: "path: 'events'", spec: "path: '/events'" },
+      { route: "path: 'legal/imprint'", spec: "path: '/legal/imprint'" },
+      { route: "path: 'legal/privacy'", spec: "path: '/legal/privacy'" },
+      { route: "path: 'legal/terms'", spec: "path: '/legal/terms'" },
+      { route: "path: '403'", spec: "path: '/403'" },
+      { route: "path: '500'", spec: "path: '/500'" },
+      { route: "path: '404'", spec: "path: '/404'" },
+      {
+        route: "path: '**', redirectTo: '404'",
+        spec: "path: '/missing-general-page'",
+      },
+    ];
+
+    for (const { route, spec } of expectedPublicRouteManifest) {
+      expect(appRoutes).toContain(route);
+      expect(viewportSpec).toContain(spec);
+    }
+
+    expect(appRoutes).toContain("path: 'create-account'");
+    expect(appRoutes).toContain('canActivate: [authGuard]');
+    expect(viewportSpec).not.toContain("path: '/create-account'");
+    expect(createAccountTemplate).toContain('flex flex-wrap');
+    expect(createAccountTemplate).toContain('justify-between gap-3');
+    expect(createAccountTemplate).toContain('title-large min-w-0');
+    expect(createAccountTemplate).toContain('class="shrink-0"');
+    expect(appRoutesSpec).toContain(
+      'keeps the anonymous public General route manifest aligned with viewport coverage',
+    );
+    expect(appRoutesSpec).toContain('publicGeneralPaths');
+    expect(appRoutesSpec).toContain('viewportCoveredRootPaths');
+    expect(appRoutesSpec).toContain('route.canActivate === undefined');
+    expect(appRoutesSpec).toContain('toEqual([...publicGeneralPaths])');
+    expect(appRoutesSpec).toContain("routeFor('events')?.canActivate");
+    expect(appRoutesSpec).toContain('userAccountGuard');
+    expect(appRoutesSpec).toContain("'legal/imprint'");
+    expect(appRoutesSpec).toContain("'legal/privacy'");
+    expect(appRoutesSpec).toContain("'legal/terms'");
+    expect(appRoutesSpec).toContain("routeFor('403')?.canActivate");
+    expect(appRoutesSpec).toContain("routeFor('500')?.canActivate");
+    expect(appRoutesSpec).toContain("routeFor('404')?.canActivate");
+    expect(appRoutesSpec).toContain("routeFor('')?.redirectTo");
+    expect(appRoutesSpec).toContain("routeFor('**')?.redirectTo");
+    expect(appRoutesSpec).toContain(
+      'keeps public event browsing available while still checking assigned accounts for authenticated users',
+    );
+    expect(appRoutesSpec).toContain("toBe(':eventId')");
+    expect(appRoutesSpec).toContain("':eventId/organize'");
+    expect(appRoutesSpec).toContain("':eventId/edit'");
+    expect(appRoutesSpec).toContain('toBeUndefined()');
+    expect(appRoutesSpec).toContain('toBeDefined()');
+    expect(source).toContain(
+      '`/create-account` remains excluded from this public General sweep',
+    );
+    expect(source).toMatch(
+      /create-account shell keeps its heading\/action row wrapping on\s+mobile/u,
+    );
+    expect(inventory).toMatch(
+      /create-account shell keeps the heading and logout action wrapping\s+on mobile/u,
+    );
+
+    expect(source).toContain(
+      'The source guard pins the exact\n  public route list',
+    );
+    expect(inventory).toContain('source guard pins the exact\n    public');
+    expect(inventory).toContain('General route list');
+    expect(source).toContain(
+      'tenant-admin General settings viewport coverage checkpoint',
+    );
+    expect(source).toContain('horizontally clipped visible controls with');
+    expect(source).toContain('actionable labels');
+    expect(source).toContain('controls covered by another visible layer');
+    expect(source).toContain('overflowing visible text or\n  panel elements');
+    expect(source).toContain('authenticated in-app Browser pass');
+    expect(source).toContain('current local head `5062964dc`');
+    expect(source).toContain('opened `/admin/settings`');
+    expect(source).toMatch(/explicit\s+320x740,\s+390x844,\s+and 1440x900/u);
+    expect(source).toContain('20 Material form fields');
+    expect(source).toContain('4\n  Material buttons');
+    expect(source).toContain('1 Material slide toggle');
+    expect(source).toContain('no Browser error logs');
+    expect(source).toContain('390x844 screenshot');
+    expect(source).toMatch(/Material controls fitting the viewport/u);
+    expect(source).toMatch(/viewport override was reset/u);
+    expect(source).toContain('current local head\n  `f7141ca02`');
+    expect(source).toMatch(/still-running Docker app/u);
+    expect(source).toMatch(
+      /General settings, Deferred settings, and Tenant identity/u,
+    );
+    expect(source).toMatch(/existing authenticated session/u);
+    expect(source).toMatch(/all three viewport checks\s+reported/u);
+    expect(source).toMatch(/Material deferred-settings surface/u);
+    expect(source).toMatch(/fixed mobile\s+bottom navigation fitting/u);
+    expect(source).toContain(
+      '/tmp/evorto-admin-settings-20260604-refresh-mobile.jpg',
+    );
+    expect(inventory).toContain('authenticated tenant\n    General settings');
+    expect(inventory).toContain('no horizontally clipped visible controls');
+    expect(inventory).toContain(
+      'no overflowing\n    visible text or panel elements',
+    );
+    expect(source).toContain(
+      'tenant-admin overview/tax/review viewport coverage checkpoint',
+    );
+    expect(source).toContain('`tests/specs/admin/admin-viewports.spec.ts`');
+    expect(source).toContain('deterministic seeded tax-rate\n  row');
+    expect(source).toContain("tax-rate table's horizontal scroll container");
+    expect(source).toContain('4px mobile overflow');
+    expect(source).toContain('Material icon-button touch-target spans');
+    expect(source).toContain('no-pending-review content');
+    expect(source).toContain(
+      '/tmp/evorto-admin-overview-tax-review-20260604-refresh-mobile.jpg',
+    );
+    expect(inventory).toContain('specs/admin/admin-viewports.spec.ts');
+    expect(inventory).toContain('authenticated tenant admin\n    overview');
+    expect(adminViewportSpec).toContain(
+      "test('tenant admin overview, tax, and review pages have stable layouts across viewports @admin @taxRates'",
+    );
+    expect(adminViewportSpec).toContain("path: '/admin'");
+    expect(adminViewportSpec).toContain("path: '/admin/tax-rates'");
+    expect(adminViewportSpec).toContain("path: '/admin/event-reviews'");
+    expect(adminViewportSpec).toContain('tenantStripeTaxRates');
+    expect(taxRatesSettingsComponent).toContain(
+      'class="bg-surface max-w-full overflow-x-auto rounded-2xl"',
+    );
+    expect(eventReviewsComponent).toContain(
+      'class="bg-surface text-on-surface flex min-w-0 flex-col gap-2 rounded-2xl p-4"',
+    );
+    expect(eventReviewsComponent).toContain(
+      'class="lg:hidden! mx-1 block shrink-0"',
+    );
+    expect(eventReviewsComponent).toContain('class="mx-1 shrink-0"');
+    expect(source).toContain('global-admin viewport coverage checkpoint');
+    expect(source).toContain(
+      'stabilizationEvidence=global-admin-viewport-coverage',
+    );
+    expect(source).toContain('Search tenants control');
+    expect(source).toMatch(/reset temporary Browser\s+viewport override/u);
+    expect(source).toContain('current local head\n  `35208bb6a`');
+    expect(source).toMatch(/reopened `\/global-admin\/tenants`/u);
+    expect(source).toMatch(/existing authenticated global-admin session/u);
+    expect(source).toMatch(/Review tenant action/u);
+    expect(source).toMatch(/tenant operational\s+details/u);
+    expect(source).toMatch(/Create tenant floating action/u);
+    expect(source).toMatch(/Material search field, tenant card/u);
+    expect(source).toMatch(
+      /floating create action, and\s+fixed mobile bottom navigation/u,
+    );
+    expect(source).toContain(
+      '/tmp/evorto-global-admin-tenants-20260604-refresh-mobile.jpg',
+    );
+    expect(inventory).toContain('authenticated\n    global-admin tenant list');
+    expect(inventory).toContain('global-admin tenant list, create, detail');
+    expect(source).toContain('global-admin tenant list, create');
+    expect(source).toContain('overflowing\n  visible text or panel elements');
+    expect(inventory).toContain(
+      'no overflowing visible text or panel elements',
+    );
+    expect(source).toContain(
+      'authenticated profile viewport coverage checkpoint',
+    );
+    expect(source).toContain('overview, Events, Receipts, and Discounts');
+    expect(inventory).toContain('specs/profile/user-profile-viewports.spec.ts');
+    expect(inventory).toContain('authenticated profile\n    overview');
+    expect(source).toContain(
+      'authenticated template viewport coverage checkpoint',
+    );
+    expect(source).toContain(
+      '`tests/specs/templates/template-viewports.spec.ts`',
+    );
+    expect(source).toContain('template-to-event create form content');
+    expect(source).toMatch(
+      /fixed\s+navigation now spans with `left-0 right-0`/u,
+    );
+    expect(source).toContain(
+      'authenticated event viewport coverage checkpoint',
+    );
+    expect(source).toContain('`tests/specs/events/event-viewports.spec.ts`');
+    expect(source).toContain(
+      'authenticated finance viewport coverage checkpoint',
+    );
+    expect(source).toContain('`tests/specs/finance/finance-viewports.spec.ts`');
+    expect(inventory).toContain('specs/templates/template-viewports.spec.ts');
+    expect(inventory).toContain('authenticated template\n    list');
+    expect(inventory).toContain('specs/events/event-viewports.spec.ts');
+    expect(inventory).toContain('authenticated event list');
+    expect(inventory).toContain('specs/finance/finance-viewports.spec.ts');
+    expect(inventory).toContain('authenticated finance\n    overview');
+    expect(adminSettingsSpec).toContain(
+      "test('tenant admin general settings has stable layouts across viewports @admin'",
+    );
+    expect(adminSettingsSpec).toContain("await page.goto('/admin/settings')");
+    expect(globalAdminSpec).toContain(
+      "test('global tenant admin pages have stable layouts across viewports @admin @globalAdmin'",
+    );
+    expect(globalAdminSpec).toContain("path: '/global-admin/tenants'");
+    expect(globalAdminSpec).toContain("path: '/global-admin/tenants/create'");
+    expect(globalAdminSpec).toContain(
+      'path: `/global-admin/tenants/${tenant.id}`',
+    );
+    expect(globalAdminSpec).toContain(
+      'path: `/global-admin/tenants/${tenant.id}/edit`',
+    );
+    expect(viewportSpec).toContain(
+      "test('public General pages have stable layouts across viewports'",
+    );
+    expect(viewportSpec).toContain("path: '/'");
+    expect(viewportSpec).toContain("path: '/events'");
+    expect(viewportSpec).toContain("name: 'event detail'");
+    expect(viewportSpec).toContain('path: `/events/${freeOpenEvent.id}`');
+    expect(viewportSpec).toContain("extraText: 'Log in now'");
+    expect(viewportSpec).toContain("path: '/legal/imprint'");
+    expect(viewportSpec).toContain("path: '/legal/privacy'");
+    expect(viewportSpec).toContain("path: '/legal/terms'");
+    expect(viewportSpec).toContain("path: '/403'");
+    expect(viewportSpec).toContain("path: '/500'");
+    expect(viewportSpec).toContain("path: '/404'");
+    expect(viewportSpec).toContain("path: '/missing-general-page'");
+    expect(inventory).toContain('general 403/404/500 pages');
+    expect(source).toMatch(/explicit `\/404` route/u);
+    expect(viewportSpec).toContain('test.setTimeout(120_000)');
+    expect(viewportSpec).toContain('toBeVisible({ timeout: 15_000 })');
+    expect(viewportSpec).not.toContain('test.describe');
+    expect(viewportSpec).not.toMatch(
+      /test\(`\$\{route\.name\} has stable \$\{viewport\.label\} layout`/u,
+    );
+    expect(profileViewportSpec).toContain(
+      "test('profile sections have stable layouts across viewports @profile'",
+    );
+    expect(profileViewportSpec).toContain("await page.goto('/profile')");
+    expect(profileViewportSpec).toContain('Edit profile');
+    expect(profileViewportSpec).toContain('Your Event Registrations');
+    expect(profileViewportSpec).toContain('Submitted receipts');
+    expect(profileViewportSpec).toContain('Discount Cards');
+    expect(templateViewportSpec).toContain(
+      "test('template pages have stable layouts across viewports @templates'",
+    );
+    expect(templateViewportSpec).toContain("path: '/templates'");
+    expect(templateViewportSpec).toContain("path: '/templates/create'");
+    expect(templateViewportSpec).toContain("path: '/templates/categories'");
+    expect(templateViewportSpec).toContain(
+      'path: `/templates/create/${category.id}`',
+    );
+    expect(templateViewportSpec).toContain('path: `/templates/${template.id}`');
+    expect(templateViewportSpec).toContain(
+      'path: `/templates/${template.id}/edit`',
+    );
+    expect(templateViewportSpec).toContain(
+      'path: `/templates/${template.id}/create-event`',
+    );
+    expect(templateViewportSpec).toContain('Simple Registration Setup');
+    expect(templateViewportSpec).toContain('Template Categories');
+    expect(templateViewportSpec).toContain("extraText: 'Create category'");
+    expect(templateViewportSpec).toContain("extraText: 'Template Category'");
+    expect(templateViewportSpec).toContain('Registration Options');
+    expect(templateViewportSpec).toContain('Event Details');
+    expect(source).toContain(
+      'category manager, category-prefilled create form',
+    );
+    expect(source).toContain('stacked Material surface cards on mobile');
+    expect(eventViewportSpec).toContain(
+      "test('event pages have stable layouts across viewports @events'",
+    );
+    expect(eventViewportSpec).toContain("path: '/events'");
+    expect(eventViewportSpec).toContain('path: `/events/${freeOpenEvent.id}`');
+    expect(eventViewportSpec).toContain(
+      'path: `/events/${draftEvent.id}/edit`',
+    );
+    expect(eventViewportSpec).toContain(
+      'path: `/events/${freeOpenEvent.id}/organize`',
+    );
+    expect(eventViewportSpec).toContain('Registration');
+    expect(eventViewportSpec).toContain('Event Details');
+    expect(eventViewportSpec).toContain('Participants');
+    expect(financeViewportSpec).toContain(
+      "test('finance pages have stable layouts across viewports @finance'",
+    );
+    expect(financeViewportSpec).toContain("path: '/finance'");
+    expect(financeViewportSpec).toContain("path: '/finance/transactions'");
+    expect(financeViewportSpec).toContain("path: '/finance/receipts-approval'");
+    expect(financeViewportSpec).toContain(
+      'path: `/finance/receipts-approval/${pendingReceiptId}`',
+    );
+    expect(financeViewportSpec).toContain("path: '/finance/receipts-refunds'");
+    expect(financeViewportSpec).toContain('Receipt reimbursements');
+    expect(financeOverviewTemplate).toContain('class="min-w-0"');
+    expect(receiptRefundTemplate).toContain(
+      'class="bg-surface text-on-surface min-w-0 rounded-2xl p-4"',
+    );
+    expect(receiptRefundTemplate).toContain(
+      'class="mt-3 max-w-full overflow-x-auto rounded-xl border border-outline-variant"',
+    );
+    expect(source).toContain(
+      'authenticated role/user-management viewport coverage checkpoint',
+    );
+    expect(source).toContain('`tests/specs/admin/roles-viewports.spec.ts`');
+    expect(source).toContain('read-only user-list, role-list');
+    expect(inventory).toContain('specs/admin/roles-viewports.spec.ts');
+    expect(inventory).toContain('role/user management viewport coverage');
+    expect(adminRolesViewportSpec).toContain(
+      "test('tenant admin role pages have stable layouts across viewports @admin @permissions'",
+    );
+    expect(adminRolesViewportSpec).toContain("path: '/admin/users'");
+    expect(adminRolesViewportSpec).toContain("path: '/admin/roles'");
+    expect(adminRolesViewportSpec).toContain("path: '/admin/roles/create'");
+    expect(adminRolesViewportSpec).toContain('path: `/admin/roles/${role.id}`');
+    expect(adminRolesViewportSpec).toContain(
+      'path: `/admin/roles/${role.id}/edit`',
+    );
+    expect(adminOverviewTemplate).toContain(
+      'grid min-w-0 grid-cols-1 lg:grid-cols-[300px_1fr]',
+    );
+    expect(userListTemplate).toContain(
+      'max-w-full min-w-0 overflow-x-auto overflow-y-hidden',
+    );
+    expect(roleFormTemplate).toContain(
+      'grid min-w-0 grid-cols-1 gap-2 sm:gap-4 lg:col-span-2 lg:grid-cols-4',
+    );
+    expect(templateListTemplate).toContain(
+      'class="title-large min-w-0 break-words"',
+    );
+    expect(templateListTemplate).toContain('class="min-w-0 break-words"');
+    expect(templateListTemplate).toContain(
+      'max-h-[calc(100dvh-13rem)] overflow-y-auto pr-1 lg:h-full lg:max-h-none lg:overflow-y-auto lg:py-4 lg:pr-4',
+    );
+    expect(navigationTemplate).toContain('fixed bottom-0 left-0 right-0');
+    expect(navigationTemplate).not.toContain('w-screen');
+    expect(source).toContain(
+      'authenticated scanner viewport coverage checkpoint',
+    );
+    expect(source).toContain(
+      '`tests/specs/scanning/scanner-viewports.spec.ts`',
+    );
+    expect(source).toContain('seeded `/scan/registration/:registrationId`');
+    expect(inventory).toContain('specs/scanning/scanner-viewports.spec.ts');
+    expect(inventory).toContain(
+      'authenticated scanner\n    camera/fallback page',
+    );
+    expect(scannerViewportSpec).toContain(
+      "test('scanner pages have stable layouts across viewports @scanning'",
+    );
+    expect(scannerViewportSpec).toContain("path: '/scan'");
+    expect(scannerViewportSpec).toContain(
+      'path: `/scan/registration/${registrationId}`',
+    );
+    expect(scannerViewportSpec).toContain('eventRegistrations');
+    expect(scannerTemplate).toContain(
+      'class="aspect-video max-h-[70vh] w-full rounded bg-surface-container object-cover"',
+    );
+    expect(handleRegistrationTemplate).toContain(
+      'class="bg-surface text-on-surface flex min-w-0 flex-col gap-2 rounded-2xl"',
+    );
+    expect(handleRegistrationTemplate).toContain(
+      'bg-error-container text-on-error-container',
+    );
+    expect(source).toContain(
+      'authenticated members-hub viewport coverage checkpoint',
+    );
+    expect(source).toContain(
+      '`tests/specs/internal/members-hub-viewports.spec.ts`',
+    );
+    expect(source).toContain('deterministic visible hub role');
+    expect(inventory).toContain('specs/internal/members-hub-viewports.spec.ts');
+    expect(inventory).toContain(
+      '- specs/internal/members-hub-viewports.spec.ts',
+    );
+    expect(inventory).toContain(
+      'authenticated\n    members hub role directory',
+    );
+    expect(membersHubViewportSpec).toContain(
+      "test('members hub has stable layouts across viewports @internal'",
+    );
+    expect(membersHubViewportSpec).toContain(
+      "await page.goto('/internal/members-hub')",
+    );
+    expect(membersHubViewportSpec).toContain('rolesToTenantUsers');
+    expect(membersHubTemplate).toContain(
+      'class="bg-surface text-on-surface @container min-w-0 rounded-lg p-2"',
+    );
+    expect(membersHubTemplate).toContain('class="min-w-0 break-words"');
+    expect(membersHubComponent).toContain("class: 'flex min-w-0 flex-col p-4'");
   });
 
   it('keeps app code on TanStack Query boolean status narrowing', () => {
