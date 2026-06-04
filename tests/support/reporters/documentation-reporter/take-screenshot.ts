@@ -1,8 +1,54 @@
 import { Locator, Page, TestInfo } from '@playwright/test';
+import { PNG } from 'pngjs';
 
 const animationSettleTimeoutMs = 2_000;
 const locatorSettleTimeoutMs = 1_500;
 const snackbarSettleTimeoutMs = 750;
+const highlightedTargetColor = { b: 153, g: 72, r: 236 };
+const minimumHighlightedPixelCount = 16;
+
+export const countDocumentationHighlightPixels = (image: Buffer): number => {
+  const png = (() => {
+    try {
+      return PNG.sync.read(image);
+    } catch {
+      return null;
+    }
+  })();
+  let highlightedPixels = 0;
+
+  if (!png) {
+    return highlightedPixels;
+  }
+
+  for (let offset = 0; offset < png.data.length; offset += 4) {
+    const r = png.data[offset];
+    const g = png.data[offset + 1];
+    const b = png.data[offset + 2];
+    const a = png.data[offset + 3];
+
+    if (
+      a > 0 &&
+      r === highlightedTargetColor.r &&
+      g === highlightedTargetColor.g &&
+      b === highlightedTargetColor.b
+    ) {
+      highlightedPixels += 1;
+    }
+  }
+
+  return highlightedPixels;
+};
+
+const assertHighlightedTargetCaptured = (image: Buffer): void => {
+  const highlightedPixels = countDocumentationHighlightPixels(image);
+
+  if (highlightedPixels < minimumHighlightedPixelCount) {
+    throw new Error(
+      'Documentation screenshots must include the highlighted focus target.',
+    );
+  }
+};
 
 const isTimeoutError = (error: unknown): boolean =>
   error instanceof Error &&
@@ -211,12 +257,14 @@ export async function takeScreenshot(
   }
 
   await settleFiniteAnimations(page);
+  const image = await page.screenshot({
+    animations: 'disabled',
+    style:
+      '.tsqd-parent-container, mat-snack-bar-container, .mat-mdc-snack-bar-container { display: none; }',
+  });
+  assertHighlightedTargetCaptured(image);
   await testInfo.attach('image', {
-    body: await page.screenshot({
-      animations: 'disabled',
-      style:
-        '.tsqd-parent-container, mat-snack-bar-container, .mat-mdc-snack-bar-container { display: none; }',
-    }),
+    body: image,
     contentType: 'image/png',
   });
   await testInfo.attach('image-caption', {

@@ -3,7 +3,10 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
 import DocumentationReporter from '../../support/reporters/documentation-reporter';
-import { takeScreenshot } from '../../support/reporters/documentation-reporter/take-screenshot';
+import {
+  countDocumentationHighlightPixels,
+  takeScreenshot,
+} from '../../support/reporters/documentation-reporter/take-screenshot';
 import { resolveDocsImageOutputDirectory } from '../../support/utils/doc-screenshot';
 
 test('documentation reporter respects DOCS_* env and writes files', async ({}, testInfo) => {
@@ -96,6 +99,68 @@ test('documentation screenshot helper rejects weak runtime captions', async ({
   ).rejects.toThrow(
     'Documentation screenshots require a descriptive caption of at least 24 characters.',
   );
+});
+
+test('documentation screenshot helper captures the highlighted target', async ({
+  page,
+}, testInfo) => {
+  await page.setContent(`
+    <main>
+      <section id="target" style="margin: 48px; padding: 24px;">
+        Documented UI state with enough visible content
+      </section>
+    </main>
+  `);
+
+  await takeScreenshot(
+    testInfo,
+    page.locator('#target'),
+    page,
+    'Highlighted documentation target inside the generated screenshot',
+  );
+
+  const imageAttachment = testInfo.attachments.find(
+    (attachment) => attachment.name === 'image',
+  );
+
+  expect(imageAttachment?.body).toBeInstanceOf(Buffer);
+  expect(
+    countDocumentationHighlightPixels(imageAttachment?.body ?? Buffer.alloc(0)),
+  ).toBeGreaterThanOrEqual(16);
+});
+
+test('documentation screenshot helper rejects captures without the highlighted target', async ({
+  page,
+}, testInfo) => {
+  await page.setContent(`
+    <main>
+      <section id="target">Documented UI state</section>
+    </main>
+  `);
+  const originalScreenshot = page.screenshot.bind(page);
+  const pageWithScreenshotOverride = page as typeof page & {
+    screenshot: () => Promise<Buffer>;
+  };
+  pageWithScreenshotOverride.screenshot = async () =>
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lD0SQwAAAABJRU5ErkJggg==',
+      'base64',
+    );
+
+  try {
+    await expect(
+      takeScreenshot(
+        testInfo,
+        page.locator('#target'),
+        page,
+        'Missing highlighted documentation target should fail capture',
+      ),
+    ).rejects.toThrow(
+      'Documentation screenshots must include the highlighted focus target.',
+    );
+  } finally {
+    pageWithScreenshotOverride.screenshot = originalScreenshot;
+  }
 });
 
 test('documentation reporter clears docs/image roots on begin', async ({}, testInfo) => {

@@ -192,6 +192,10 @@ describe('generated docs source current behavior', () => {
 
     expect(documentFiles.length).toBe(15);
     expect(screenshotHelper).toContain("htmlElement.style.outline = 'thick");
+    expect(screenshotHelper).toContain('countDocumentationHighlightPixels');
+    expect(screenshotHelper).toContain(
+      'Documentation screenshots must include the highlighted focus target.',
+    );
     expect(screenshotHelper).toContain('caption: string');
     expect(screenshotHelper).toContain('caption.trim().length < 24');
     expect(screenshotHelper).toContain(

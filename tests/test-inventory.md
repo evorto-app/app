@@ -295,9 +295,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   at least 120 characters of explanatory markdown, requires UI docs to use the
   shared `takeScreenshot` helper imported from the documentation reporter barrel
   with a meaningful literal caption, keeps the helper's runtime caption parameter
-  required with the same minimum caption length, rejects generic page-root
+  required with the same minimum caption length, verifies generated screenshots
+  include the highlighted focus target before attachment, rejects generic page-root
   screenshot targets such as `body`, `html`, or `app-root`, covers the
-  weak-caption runtime failure in reporter-path tests, rejects raw
+  weak-caption and missing-highlight runtime failures in reporter-path tests,
+  rejects raw
   `page.screenshot` calls, and keeps
   `tests/docs/roles/about-permissions.doc.ts` as the only text-only
   permission-reference exception. Reporter-path coverage verifies those captions

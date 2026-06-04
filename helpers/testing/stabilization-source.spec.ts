@@ -876,6 +876,7 @@ describe('stabilization source', () => {
     expect(source).toContain('literal');
     expect(source).toContain('screenshot caption');
     expect(source).toContain('captured image');
+    expect(source).toContain('highlighted focus-target\n  pixels');
     expect(source).toContain('proves');
     expect(source).toContain('generic page-root screenshot targets');
     expect(source).toContain('app-root');
@@ -890,6 +891,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('meaningful literal caption');
     expect(inventory).toContain('generic page-root\n  screenshot targets');
     expect(inventory).toContain('weak-caption');
+    expect(inventory).toContain('missing-highlight');
     expect(inventory).toContain('runtime');
     expect(inventory).toContain('failure');
     expect(inventory).toContain('rejects');
@@ -953,6 +955,15 @@ describe('stabilization source', () => {
     );
     expect(reporterPathsSpec).toContain(
       'Documentation screenshots require a descriptive caption',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation screenshot helper captures the highlighted target',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation screenshot helper rejects captures without the highlighted target',
+    );
+    expect(reporterPathsSpec).toContain(
+      'Documentation screenshots must include the highlighted focus target',
     );
   });
 
