@@ -190,9 +190,10 @@ force another Font Awesome package download.
 Actions public registry override and private Font Awesome dependency guard.
 Docker builds also write a temporary public Font Awesome npm user config before
 container installs and lock the shared BuildKit Bun cache mount so parallel
-install stages do not race the cache. CI persists that `bun-install-cache` mount as a separate
-`buildkit-bun-cache` Actions cache and injects it back into the BuildKit builder
-before Docker Compose builds, because BuildKit layer caches alone do not carry
+install stages do not race the cache. CI persists that `bun-install-cache` mount
+as a separate `buildkit-bun-cache` Actions cache and injects it back into the
+BuildKit builder before a dependency-only warm build and the later Docker
+Compose builds, because BuildKit layer caches alone do not carry
 `RUN --mount=type=cache` contents between GitHub-hosted runners. Codex setup
 also ignores copied `.npmrc` files, writes the same
 temporary public Font Awesome npm user config, and installs through the Bun

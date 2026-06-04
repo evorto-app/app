@@ -106,7 +106,19 @@ describe('evaluateRuntimePreflight', () => {
     expect(dockerfile).toContain(
       "'@fortawesome:registry=https://registry.npmjs.org/'",
     );
-
+    expect(dockerfile).toContain('sharing=locked');
+    expect(dockerfile).toContain('FROM base AS dependencies');
+    expect(dockerfile).toContain('FROM dependencies AS build');
+    expect(dockerfile).toContain(
+      'FROM dependencies AS production-dependencies',
+    );
+    expect(dockerfile).toContain('RUN rm -rf node_modules');
+    expect(dockerfile).toContain(
+      'bun install --frozen-lockfile --production --offline --cache-dir /home/bun/.bun/install/cache',
+    );
+    expect(dockerfile).not.toContain(
+      'bun install --frozen-lockfile --production --cache-dir /home/bun/.bun/install/cache',
+    );
     expect(bunfig).toContain('[install.scopes]');
     expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');
   });
@@ -685,7 +697,15 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).toContain('Prepare Docker build cache directory');
     expect(workflow).toContain('mkdir -p "${DOCKER_BUILD_CACHE_DIR}"');
     expect(workflow).toContain('Warm Docker build cache');
+    expect(workflow).toContain('timeout 8m docker build');
+    expect(workflow).toContain('--target dependencies');
     expect(workflow).toContain(
+      '--cache-from type=gha,scope=evorto-dependencies',
+    );
+    expect(workflow).toContain(
+      '--cache-to type=gha,scope=evorto-dependencies,mode=max',
+    );
+    expect(workflow).not.toContain(
       'timeout 20m docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
     );
     expect(workflow).toContain(

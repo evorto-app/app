@@ -1558,7 +1558,15 @@ describe('stabilization source', () => {
     expect(workflow).toContain('Prepare Docker build cache directory');
     expect(workflow).toContain('mkdir -p "${DOCKER_BUILD_CACHE_DIR}"');
     expect(workflow).toContain('Warm Docker build cache');
+    expect(workflow).toContain('timeout 8m docker build');
+    expect(workflow).toContain('--target dependencies');
     expect(workflow).toContain(
+      '--cache-from type=gha,scope=evorto-dependencies',
+    );
+    expect(workflow).toContain(
+      '--cache-to type=gha,scope=evorto-dependencies,mode=max',
+    );
+    expect(workflow).not.toContain(
       'timeout 20m docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
     );
     expect(workflow).toContain(
@@ -1692,7 +1700,11 @@ describe('stabilization source', () => {
     expect(dockerfile).toContain(
       'id=bun-install-cache,target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked',
     );
-    expect(dockerfile).toContain('FROM build AS production-dependencies');
+    expect(dockerfile).toContain('FROM base AS dependencies');
+    expect(dockerfile).toContain('FROM dependencies AS build');
+    expect(dockerfile).toContain(
+      'FROM dependencies AS production-dependencies',
+    );
     expect(dockerfile).toContain('RUN rm -rf node_modules');
     expect(dockerfile).toContain(
       'bun install --frozen-lockfile --production --offline --cache-dir /home/bun/.bun/install/cache',
@@ -3261,8 +3273,10 @@ describe('stabilization source', () => {
     expect(checkpoint).toMatch(/skipped `bun install`/u);
     expect(checkpoint).toMatch(/restored the Docker\s+Bun cache mount/u);
     expect(checkpoint).toMatch(/completed the Angular bundle/u);
-    expect(checkpoint).toMatch(/12-minute timeout/u);
-    expect(checkpoint).toMatch(/20 minutes/u);
+    expect(checkpoint).toMatch(/full Compose app build/u);
+    expect(checkpoint).toMatch(/dependencies` target/u);
+    expect(checkpoint).toMatch(/8-minute timeout/u);
+    expect(checkpoint).toMatch(/evorto-dependencies/u);
     expect(checkpoint).toMatch(
       /bun install --frozen-lockfile --cache-dir\s+~\/\.bun\/install\/cache/u,
     );
@@ -3449,7 +3463,15 @@ describe('stabilization source', () => {
     );
     expect(workflow).toContain('skip-extraction: true');
     expect(workflow).toContain('Warm Docker build cache');
+    expect(workflow).toContain('timeout 8m docker build');
+    expect(workflow).toContain('--target dependencies');
     expect(workflow).toContain(
+      '--cache-from type=gha,scope=evorto-dependencies',
+    );
+    expect(workflow).toContain(
+      '--cache-to type=gha,scope=evorto-dependencies,mode=max',
+    );
+    expect(workflow).not.toContain(
       'timeout 20m docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
     );
     expect(ciBuildCacheCompose).toContain('cache_from:');
@@ -3538,7 +3560,11 @@ describe('stabilization source', () => {
       "'@fortawesome:registry=https://registry.npmjs.org/'",
     );
     expect(dockerfile).toContain('sharing=locked');
-    expect(dockerfile).toContain('FROM build AS production-dependencies');
+    expect(dockerfile).toContain('FROM base AS dependencies');
+    expect(dockerfile).toContain('FROM dependencies AS build');
+    expect(dockerfile).toContain(
+      'FROM dependencies AS production-dependencies',
+    );
     expect(dockerfile).toContain('RUN rm -rf node_modules');
     expect(dockerfile).toContain(
       'bun install --frozen-lockfile --cache-dir /home/bun/.bun/install/cache',

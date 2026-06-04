@@ -4233,35 +4233,40 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   existing `bunfig.toml` public-registry pin and cache-hit
   install skip.
   The E2E workflow now starts with a `warm-ci-caches` job that restores or warms
-  the Bun package cache, the `node_modules` dependency-tree cache, and the
-  Docker BuildKit cache before the `functional-1`, `functional-2`, and `docs`
-  matrix jobs are allowed to run. That serial cache warmer reduces first-run
-  cache-miss fan-out, so a lockfile or Docker-cache invalidation no longer asks
-  all three Playwright jobs to independently download the same public Font
-  Awesome packages. The E2E matrix now also uses `max-parallel: 1`, trading some
-  runtime for lower bandwidth risk when Docker or dependency caches miss.
+  the Bun package cache, the `node_modules` dependency-tree cache, the
+  Docker-specific Bun cache mount, and Playwright browsers before the
+  `functional-1`, `functional-2`, and `docs` matrix jobs are allowed to run.
+  That serial cache warmer reduces first-run cache-miss fan-out, so a lockfile
+  or Docker-cache invalidation no longer asks all three Playwright jobs to
+  independently download the same public Font Awesome packages. The E2E matrix
+  now also uses `max-parallel: 1`, trading some runtime for lower bandwidth risk
+  when Docker or dependency caches miss.
   A fresh CI run on pushed head
   `1083690b2b4518ca4ef4701dc1b92cb35286c489` proved the normal dependency
   bandwidth path again: the serial warmer restored the Bun package cache,
   restored the dependency-tree cache, skipped `bun install`, restored the Docker
   Bun cache mount, and completed the Angular bundle without a Font Awesome
-  registry-auth failure. That run failed later because the serial Docker
-  cache-warm command hit its 12-minute timeout while Docker was still finishing
-  build/export/cache work, so the warmer command now gets 20 minutes. The E2E
-  worker jobs still remain behind `needs: warm-ci-caches` and still refuse
-  independent registry installs when the warmed caches are absent.
+  registry-auth failure. Later CI retries showed that a full Compose app build
+  can make the serial warmer the long pole before E2E starts, so the warmer now
+  builds only the Dockerfile `dependencies` target with an 8-minute timeout and
+  a dedicated `evorto-dependencies` BuildKit cache scope. The E2E worker jobs
+  still remain behind `needs: warm-ci-caches` and still refuse independent
+  registry installs when the warmed caches are absent.
   Docker image installs now also pass
   `--cache-dir /home/bun/.bun/install/cache` in both build and production
   dependency stages, matching the existing BuildKit
   `id=bun-install-cache,target=/home/bun/.bun/install/cache` mount so container
   rebuilds use the persisted Bun package cache explicitly instead of relying on
-  Bun's default cache-path resolution.
+  Bun's default cache-path resolution. The production dependency stage now starts
+  from that dependency-only stage, so CI can warm package downloads without
+  compiling the Angular/server bundle in the cache-warmer job.
   The E2E cache warmer now also persists that Docker-specific Bun cache mount
   as a separate `buildkit-bun-cache` Actions cache keyed by Bun version,
   `package.json`, `bun.lock`, `bunfig.toml`, and patches. The workflow injects
   the cache back into the BuildKit builder with
   `reproducible-containers/buildkit-cache-dance@v3.4.0` and the same
-  `bun-install-cache` mount id before Docker Compose builds run. The E2E matrix
+  `bun-install-cache` mount id before the dependency-target warm build and later
+  Docker Compose builds run. The E2E matrix
   restores and injects that cache read-only with `skip-extraction: true`, so
   the serial cache warmer remains the write path while worker jobs avoid opening
   a fresh Docker `bun install` registry path on ordinary cache hits.

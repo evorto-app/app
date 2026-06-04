@@ -118,10 +118,11 @@ bun run lint
   temporary public Font Awesome npm user config before `bun install` and reuses
   the Bun package cache. CI workflows call
   `helpers/testing/prepare-public-fontawesome-ci.sh` for the same public
-  registry override and private-package guard. CI also persists the Docker BuildKit
-  `bun-install-cache` mount as a separate `buildkit-bun-cache` Actions cache so
-  Docker rebuilds do not repeatedly fetch public Font Awesome packages when
-  normal layer caches miss. ESNcard provider coverage uses tenant-scoped
+  registry override and private-package guard. CI also persists the Docker
+  BuildKit `bun-install-cache` mount as a separate `buildkit-bun-cache` Actions
+  cache through a dependency-only warm build, so Docker rebuilds do not
+  repeatedly fetch public Font Awesome packages when normal layer caches miss.
+  ESNcard provider coverage uses tenant-scoped
   deterministic test mode, so Docker startup no longer depends on live ESNcard
   identifiers. Missing Playwright browsers are warnings
   because they affect Playwright runs, not Docker startup.

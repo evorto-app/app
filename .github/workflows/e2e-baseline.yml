@@ -130,7 +130,12 @@ jobs:
 
       - name: Warm Docker build cache
         run: |
-          timeout 20m docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto
+          timeout 8m docker build \
+            --target dependencies \
+            --cache-from type=gha,scope=evorto-dependencies \
+            --cache-to type=gha,scope=evorto-dependencies,mode=max \
+            --progress=plain \
+            .
 
   e2e:
     name: Playwright E2E (${{ matrix.suite }})

@@ -685,14 +685,15 @@ provider outcomes without live identifiers.
     unlabeled `mat-icon-button` controls, so icon-only Material actions must
     expose an accessible `aria-label`, `aria-labelledby`, or `title`.
     CI cache coverage also keeps the E2E matrix behind a `warm-ci-caches` job
-    so Bun package, dependency-tree, and Docker BuildKit cache misses are warmed
-    once before Playwright shards run. The same guard pins Docker Buildx setup
-    and separate BuildKit cache scopes for the `db-setup` and `evorto` images;
-    CI also explicitly enables Docker BuildKit before Compose builds. The
-    Dockerfile writes the public Font Awesome npm user config before container
-    installs, locks the shared BuildKit Bun cache mount, and derives the
-    production dependency stage from the cache-warmed build stage with an
-    offline production install.
+    so Bun package, dependency-tree, Docker Bun cache-mount, and Playwright
+    browser cache misses are warmed once before Playwright shards run. The same
+    guard pins Docker Buildx setup, the dependency-only warm build target, and
+    separate BuildKit cache scopes for the dependency, `db-setup`, and `evorto`
+    images; CI also explicitly enables Docker BuildKit before Compose builds.
+    The Dockerfile writes the public Font Awesome npm user config before
+    container installs, locks the shared BuildKit Bun cache mount, and derives
+    build plus production dependency stages from the cache-warmed dependency
+    stage with an offline production install.
     `helpers/testing/prepare-public-fontawesome-ci.sh` centralizes the GitHub
     Actions public registry override and private Font Awesome dependency guard.
     Source coverage now fails if a new GitHub workflow adds `bun install`
