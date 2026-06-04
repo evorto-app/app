@@ -137,6 +137,16 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/finance/**`
   - `specs/finance/finance-overview-permissions.spec.ts`
   - `specs/finance/**`
+  - `docs/finance/finance-overview.doc.ts` seeds its own visible transaction,
+    omitted cancelled transaction, submitted receipt, and approved receipt rows
+    before screenshotting the overview, transaction list, receipt approval
+    queue, and reimbursement queue.
+  - finance viewport coverage checks the authenticated finance overview,
+    transactions, receipt approval list/detail, and reimbursement pages at
+    narrow mobile, mobile, and desktop viewports for expected seeded content,
+    no application-error text, no page-level horizontal overflow, and no
+    horizontally clipped visible controls outside intentional table scroll
+    containers
   - `specs/permissions/tenant-isolation-tax-rates.spec.ts`
 - Profile and account:
   - `docs/profile/**`
@@ -546,7 +556,9 @@ provider outcomes without live identifiers.
     route.
     Generated-doc source coverage keeps the finance overview guide aligned with
     permission-scoped child navigation, so receipt approval access does not imply
-    transaction-list access.
+    transaction-list access. The same guide now seeds deterministic receipt
+    approval/reimbursement rows and asserts their filenames before taking queue
+    screenshots, so those images do not rely on ambient fixture receipts.
     Transaction-list component coverage now pins that manual transaction
     creation is not advertised without an implemented guarded route/workflow.
     `specs/finance/finance-overview-permissions.spec.ts` now functionally pins
@@ -886,8 +898,10 @@ provider outcomes without live identifiers.
   and verify the exact seeded approval/reimbursement receipt instead of the
   first visible finance queue row.
 - Finance overview docs seed visible and cancelled transaction rows before
-  documenting the transaction list, so the generated guide proves cancelled
-  transactions stay omitted from that surface.
+  documenting the transaction list, and seed submitted/approved receipt rows
+  before documenting receipt approval and reimbursement queues, so the generated
+  guide proves cancelled transactions stay omitted and finance queue screenshots
+  show deterministic rows.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
 - Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
   Free registration and registration add-on specs now assert the seeded

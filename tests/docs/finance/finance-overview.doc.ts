@@ -1,7 +1,10 @@
 import { inArray } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
-import { organizerStateFile } from '../../../helpers/user-data';
+import {
+  organizerStateFile,
+  usersToAuthenticate,
+} from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
@@ -13,12 +16,29 @@ test('Manage finances @finance', async ({
   permissionOverride,
   page,
   seedDate,
+  seeded,
   tenant,
 }, testInfo) => {
   const visibleTransactionId = getId();
   const cancelledTransactionId = getId();
+  const submittedReceiptId = getId();
+  const approvedReceiptId = getId();
   const visibleTransactionComment = `finance-doc-visible-${seedDate.getTime()}`;
   const cancelledTransactionComment = `finance-doc-cancelled-${seedDate.getTime()}`;
+  const submittedReceiptFileName = `overview-submitted-${seedDate.getTime()}.pdf`;
+  const approvedReceiptFileName = `overview-approved-${seedDate.getTime()}.pdf`;
+  const organizerUserId = usersToAuthenticate.find(
+    (user) => user.roles === 'organizer',
+  )?.id;
+  const adminUserId = usersToAuthenticate.find(
+    (user) => user.roles === 'admin',
+  )?.id;
+  if (!organizerUserId) {
+    throw new Error('Organizer test user configuration missing');
+  }
+  if (!adminUserId) {
+    throw new Error('Admin test user configuration missing');
+  }
 
   await permissionOverride({
     add: [
@@ -51,6 +71,48 @@ test('Manage finances @finance', async ({
       status: 'cancelled',
       tenantId: tenant.id,
       type: 'other',
+    },
+  ]);
+  await database.insert(schema.financeReceipts).values([
+    {
+      alcoholAmount: 0,
+      attachmentFileName: submittedReceiptFileName,
+      attachmentMimeType: 'application/pdf',
+      attachmentSizeBytes: 12_400,
+      attachmentStorageKey: `local-unavailable/${submittedReceiptId}.pdf`,
+      depositAmount: 0,
+      eventId: seeded.scenario.events.past.eventId,
+      hasAlcohol: false,
+      hasDeposit: false,
+      id: submittedReceiptId,
+      purchaseCountry: 'DE',
+      receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24),
+      status: 'submitted',
+      submittedByUserId: organizerUserId,
+      taxAmount: 190,
+      tenantId: tenant.id,
+      totalAmount: 1190,
+    },
+    {
+      alcoholAmount: 150,
+      attachmentFileName: approvedReceiptFileName,
+      attachmentMimeType: 'application/pdf',
+      attachmentSizeBytes: 18_200,
+      attachmentStorageKey: `local-unavailable/${approvedReceiptId}.pdf`,
+      depositAmount: 500,
+      eventId: seeded.scenario.events.past.eventId,
+      hasAlcohol: true,
+      hasDeposit: true,
+      id: approvedReceiptId,
+      purchaseCountry: 'DE',
+      receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 48),
+      reviewedAt: seedDate,
+      reviewedByUserId: adminUserId,
+      status: 'approved',
+      submittedByUserId: organizerUserId,
+      taxAmount: 320,
+      tenantId: tenant.id,
+      totalAmount: 2820,
     },
   ]);
 
@@ -132,6 +194,7 @@ Approving or rejecting records the review status in Evorto and queues the submit
 `,
     });
     await page.goto('/finance/receipts-approval');
+    await expect(page.getByText(submittedReceiptFileName)).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator('app-receipt-approval-list'),
@@ -147,6 +210,7 @@ The **Receipt reimbursements** tab groups approved receipts by recipient and ren
 `,
     });
     await page.goto('/finance/receipts-refunds');
+    await expect(page.getByText(approvedReceiptFileName)).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator('app-receipt-refund-list'),
@@ -154,6 +218,14 @@ The **Receipt reimbursements** tab groups approved receipts by recipient and ren
       'Receipt reimbursements list',
     );
   } finally {
+    await database
+      .delete(schema.financeReceipts)
+      .where(
+        inArray(schema.financeReceipts.id, [
+          submittedReceiptId,
+          approvedReceiptId,
+        ]),
+      );
     await database
       .delete(schema.transactions)
       .where(

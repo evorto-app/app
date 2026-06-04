@@ -665,11 +665,19 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('visibleTransactionComment');
     expect(source).toContain('cancelledTransactionComment');
+    expect(source).toContain('submittedReceiptFileName');
+    expect(source).toContain('approvedReceiptFileName');
     expect(source).toContain(
       'Cancelled transactions are omitted from this list.',
     );
     expect(source).toContain(
       'page.getByText(cancelledTransactionComment)).toHaveCount(0)',
+    );
+    expect(source).toContain(
+      'page.getByText(submittedReceiptFileName)).toBeVisible()',
+    );
+    expect(source).toContain(
+      'page.getByText(approvedReceiptFileName)).toBeVisible()',
     );
     expect(source).not.toContain('all finance users see all finance pages');
     expect(source).not.toContain(
