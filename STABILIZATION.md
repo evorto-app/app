@@ -3418,7 +3418,10 @@ fallback rather than a profile discount-card defect.
   and it parses `takeScreenshot(...)` calls so UI docs must provide a literal
   screenshot caption with enough context to explain what the captured image
   proves while avoiding generic page-root screenshot targets such as `body`,
-  `html`, or `app-root`. The only text-only exception is
+  `html`, or `app-root`. It also rejects aliased `takeScreenshot` imports,
+  direct imports from the helper implementation path, and local screenshot
+  wrapper declarations, so docs cannot route around the meaningful-image checks
+  while still appearing to use the shared helper. The only text-only exception is
   `tests/docs/roles/about-permissions.doc.ts`, because it is a permission
   reference generated from `PERMISSION_GROUPS` rather than an app screen.
 - Current generated-docs runtime caption checkpoint:

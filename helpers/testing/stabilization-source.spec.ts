@@ -881,6 +881,8 @@ describe('stabilization source', () => {
     expect(source).toContain('highlighted focus-target\n  pixels');
     expect(source).toContain('proves');
     expect(source).toContain('generic page-root screenshot targets');
+    expect(source).toContain('aliased `takeScreenshot` imports');
+    expect(source).toContain('local screenshot\n  wrapper declarations');
     expect(source).toContain('app-root');
     expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
     expect(source).toContain('PERMISSION_GROUPS');
@@ -892,6 +894,8 @@ describe('stabilization source', () => {
     expect(inventory).toContain('documentation reporter barrel');
     expect(inventory).toContain('meaningful literal caption');
     expect(inventory).toContain('generic page-root\n  screenshot targets');
+    expect(inventory).toContain('helper-internal screenshot imports');
+    expect(inventory).toContain('local screenshot\n  wrappers');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('missing-highlight');
     expect(inventory).toContain('uncaptioned image attachments');
@@ -932,6 +936,12 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'findGenericScreenshotTargets',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'findScreenshotHelperBypasses',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'documentation-reporter/take-screenshot',
     );
     expect(generatedDocumentationSource).toContain('genericSelectors');
     expect(generatedDocumentationSource).toContain(

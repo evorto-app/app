@@ -178,6 +178,86 @@ const importsSharedScreenshotHelper = (
   return importsHelper;
 };
 
+const findScreenshotHelperBypasses = (
+  path: string,
+  source: string,
+): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const bypasses: string[] = [];
+
+  const describeNode = (node: ts.Node): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const isScreenshotLikeIdentifier = (name: ts.BindingName): boolean =>
+    ts.isIdentifier(name) && /screenshot/iu.test(name.text);
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      const moduleSpecifier = node.moduleSpecifier.text;
+      const namedBindings = node.importClause?.namedBindings;
+
+      if (namedBindings && ts.isNamedImports(namedBindings)) {
+        for (const element of namedBindings.elements) {
+          const importedName = element.propertyName?.text ?? element.name.text;
+          const localName = element.name.text;
+
+          if (
+            moduleSpecifier.includes(
+              'documentation-reporter/take-screenshot',
+            ) &&
+            importedName === 'takeScreenshot'
+          ) {
+            bypasses.push(describeNode(element));
+          }
+
+          if (
+            moduleSpecifier ===
+              '../../support/reporters/documentation-reporter' &&
+            importedName === 'takeScreenshot' &&
+            localName !== 'takeScreenshot'
+          ) {
+            bypasses.push(describeNode(element));
+          }
+        }
+      }
+    }
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      /screenshot/iu.test(node.name.text)
+    ) {
+      bypasses.push(describeNode(node.name));
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      isScreenshotLikeIdentifier(node.name)
+    ) {
+      bypasses.push(describeNode(node.name));
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return bypasses;
+};
+
 describe('generated docs source current behavior', () => {
   it('keeps generated documentation pages explanatory and image-backed', () => {
     const documentFiles = findFiles('tests/docs')
@@ -232,6 +312,7 @@ describe('generated docs source current behavior', () => {
       expect(source, path).not.toContain('page.screenshot(');
       expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);
       expect(findGenericScreenshotTargets(path, source), path).toEqual([]);
+      expect(findScreenshotHelperBypasses(path, source), path).toEqual([]);
     }
   });
 
