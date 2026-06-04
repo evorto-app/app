@@ -3776,6 +3776,8 @@ describe('stabilization source', () => {
     expect(pageLayoutHelperSpec).toContain('Clipped readable copy');
     expect(pageLayoutHelperSpec).toContain('fixed-clipped-text');
     expect(pageLayoutHelperSpec).toContain('Fixed clipped readable copy');
+    expect(pageLayoutHelperSpec).toContain('fixed-clipped-action');
+    expect(pageLayoutHelperSpec).toContain('Fixed clipped action');
     expect(pageLayoutHelperSpec).toContain('clipped-action');
     expect(pageLayoutHelperSpec).toContain('clipped-icon-action');
     expect(pageLayoutHelperSpec).toContain('Icon-only clipped action');
@@ -3809,6 +3811,9 @@ describe('stabilization source', () => {
     expect(pageLayoutHelperSpec).toContain('coveredTextLabels');
     expect(pageLayoutHelperSpec).toContain('horizontallyClippedControlLabels');
     expect(pageLayoutHelperSpec).toContain('horizontallyClippedTextLabels');
+    expect(pageLayoutHelperSpec).toContain(
+      'verticallyClippedFixedControlLabels',
+    );
     expect(pageLayoutHelperSpec).toContain('verticallyClippedFixedTextLabels');
     expect(packageJson.scripts['test:e2e:layout-helper']).toBe(
       'bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/page-layout-helper.test.ts --project=local-chrome-baseline --no-deps',
@@ -3841,7 +3846,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('focusable `tabindex`\n    custom controls');
     expect(inventory).toContain('helper without app startup');
     expect(inventory).toMatch(
-      /covered controls,\s+covered readable text,\s+clipped controls,\s+clipped readable text,\s+and vertically clipped fixed\s+readable text/u,
+      /covered controls,\s+covered readable text,\s+clipped controls,\s+clipped readable text,\s+vertically clipped fixed controls,\s+and vertically clipped fixed readable text/u,
     );
     expect(inventory).toContain(
       'controls covered by another separate visible layer',

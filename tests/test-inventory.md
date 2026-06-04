@@ -151,6 +151,96 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     wiring, reusable template add-ons, scenario handles, confirmed
     registrations, and checked-in scanner aggregates.
   - `specs/smoke/load-application.test.ts`
+  - `specs/smoke/page-layout-helper.test.ts` exercises the shared viewport
+    helper without app startup by setting synthetic mobile pages directly in
+    Playwright. It proves the helper returns the stable-layout shape for clean
+    pages, labels page-level overflow, covered controls, covered readable text,
+    clipped controls, clipped readable text, vertically clipped fixed controls,
+    and vertically clipped fixed readable text with actionable metadata, and
+    ignores intentional
+    horizontal-scroll containers such as tables.
+  - `specs/smoke/public-general-viewports.spec.ts` reuses one seeded tenant to
+    check the public root redirect, events list, public event detail, hosted
+    legal pages, general 403/404/500 pages, and wildcard not-found redirect at
+    narrow mobile, mobile, and desktop viewports for rendered content, no
+    application-error text, no horizontal overflow, no horizontally clipped
+    visible controls, and no overflowing visible text or panel elements outside
+    intentional horizontal scroll containers. The source guard pins the exact
+    public General route list and route content assertions against
+    `src/app/app.routes.ts`; `src/app/app.routes.spec.ts` also enumerates the
+    anonymous public General route manifest before page-backed viewport coverage
+    runs, including a failure if a new anonymous General route is added without
+    coverage. `/create-account` is intentionally excluded from this anonymous
+    General sweep because it is auth-guarded account coverage.
+  - `specs/admin/general-settings.spec.ts` also checks authenticated tenant
+    General settings at narrow mobile, mobile, and desktop viewports for
+    expected settings content, no application-error text, no horizontal
+    overflow, no horizontally clipped visible controls, and no overflowing
+    visible text or panel elements outside intentional horizontal scroll
+    containers.
+  - `support/utils/page-layout.ts` provides the shared viewport layout guard for
+    these specs. It rejects application-error text, page-level horizontal
+    overflow with real visible overflow, horizontally clipped visible controls
+    with actionable labels, controls covered by another separate visible layer
+    with covering element labels and center-point coordinates, readable text
+    covered by another visible layer with covering element labels and
+    center-point coordinates, vertically clipped fixed/sticky visible controls
+    with edge and position labels, vertically clipped fixed/sticky readable text
+    with edge and position labels, and overflowing visible text or panel
+    elements outside intentional horizontal scroll containers while ignoring
+    Angular Material's empty touch-target shim, document-root or ancestor
+    hit-test targets, controls inside readable text, same-form-field Material
+    floating labels or required markers, and allowing normal below-fold vertical
+    scrolling content. Control diagnostics include common ARIA/Material
+    interactive roles such as `switch`, `checkbox`, `combobox`, `menuitem`,
+    `option`, `radio`, `slider`, and `spinbutton`, use accessible labels such as
+    `aria-label` or `title` for icon-only buttons, include focusable `tabindex`
+    custom controls, and report visible controls that still have no accessible
+    label. Stabilization source
+    coverage pins the exact active durable viewport spec inventory, every
+    durable viewport spec to the shared 320x740 narrow mobile, 390x844 mobile,
+    and 1440x900 desktop matrix, then also requires each spec to loop that
+    matrix through labelled viewport steps.
+  - `specs/admin/admin-viewports.spec.ts` checks the authenticated tenant admin
+    overview, tax-rate table, and event-review queue routes at narrow mobile,
+    mobile, and desktop viewports for expected headings/content through the
+    shared viewport layout guard.
+  - `specs/admin/global-admin-tenants.spec.ts` also checks authenticated
+    global-admin tenant list, create, detail, and edit pages at narrow mobile,
+    mobile, and desktop viewports for expected headings, no application-error
+    text, no horizontal overflow, no horizontally clipped visible controls, and
+    no overflowing visible text or panel elements outside intentional horizontal
+    scroll containers.
+  - `src/app/app.routes.server.spec.ts` guards that authenticated route groups
+    stay client-rendered in production SSR, so direct deep links such as
+    `/admin/settings`, `/create-account`, `/global-admin/tenants`, `/profile`,
+    `/templates`, `/finance`, and `/scan` return the hydrated app shell instead
+    of the public server 404 shell.
+  - `specs/profile/user-profile-viewports.spec.ts` checks authenticated profile
+    overview, Events, Receipts, and Discounts sections at narrow mobile, mobile,
+    and desktop viewports for seeded content through the shared viewport layout
+    guard.
+  - `specs/templates/template-viewports.spec.ts` checks authenticated template
+    list, create, category management, category-prefilled create, detail, edit,
+    and create-event pages at narrow mobile, mobile, and desktop viewports for
+    seeded template content through the shared viewport layout guard.
+  - `specs/events/event-viewports.spec.ts` checks authenticated event list,
+    detail, edit, and organizer overview pages at narrow mobile, mobile, and
+    desktop viewports for seeded event content through the shared viewport
+    layout guard.
+  - `specs/finance/finance-viewports.spec.ts` checks authenticated finance
+    overview, transaction list, receipt approval list/detail, and reimbursement
+    pages at narrow mobile, mobile, and desktop viewports for seeded finance
+    content through the shared viewport layout guard while allowing intentional
+    table scroll containers.
+  - `specs/scanning/scanner-viewports.spec.ts` checks the authenticated scanner
+    camera/fallback page and a seeded direct registration scan result at narrow
+    mobile, mobile, and desktop viewports for expected content through the
+    shared viewport layout guard.
+  - `specs/internal/members-hub-viewports.spec.ts` checks the authenticated
+    members hub role directory at narrow mobile, mobile, and desktop viewports
+    with a seeded visible hub role and member assignment through the shared
+    viewport layout guard.
 
 ## Intentional Gaps and Gates
 
