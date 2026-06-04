@@ -642,6 +642,19 @@ describe('stabilization source', () => {
 
   it('keeps the generated-docs refresh checkpoint tied to current evidence', () => {
     const source = readSource('STABILIZATION.md');
+    const inventory = readSource('tests/test-inventory.md');
+    const generatedDocumentationSource = readSource(
+      'helpers/testing/generated-documentation-source.spec.ts',
+    );
+    const reporterAttachmentsSource = readSource(
+      'tests/support/reporters/documentation-reporter/attachments.ts',
+    );
+    const reporterPathsSpec = readSource(
+      'tests/specs/reporting/reporter-paths.test.ts',
+    );
+    const documentationScreenshotSpec = readSource(
+      'tests/specs/screenshot/doc-screenshot.test.ts',
+    );
     const queue = readSection(source, 'Browser Review Queue', 'Review Next');
     const checkpoint = queue.match(
       /Current generated-docs refresh checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
@@ -659,6 +672,8 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain('no\n  obvious snackbar bars');
     expect(checkpoint).toContain('blank/loading captures');
     expect(checkpoint).toContain('half-transition images');
+    expect(source).toContain('captioned figure\n  output');
+    expect(source).toContain('escaped caption attributes');
     expect(documentationScreenshotSpec).toContain(
       'doc-screenshot waits for descriptive loading text before capture',
     );
@@ -695,6 +710,8 @@ describe('stabilization source', () => {
     expect(inventory).toContain('shared `takeScreenshot` helper');
     expect(inventory).toContain('meaningful literal caption');
     expect(inventory).toContain('rejects raw\n  `page.screenshot` calls');
+    expect(inventory).toContain('generated `{% figure %}` blocks');
+    expect(inventory).toContain('escapes caption attributes');
     expect(inventory).toContain(
       'only text-only\n  permission-reference exception',
     );
@@ -723,6 +740,12 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       "testInfo.attach('image-caption'",
     );
+    expect(reporterAttachmentsSource).toContain('escapeAttribute');
+    expect(reporterAttachmentsSource).toContain(
+      'caption="${escapeAttribute(body.toString())}"',
+    );
+    expect(reporterPathsSpec).toContain('{% figure src="');
+    expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');
   });
 
   it('keeps the PR readiness checkpoint current without pinning stale heads', () => {

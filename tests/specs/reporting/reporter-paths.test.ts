@@ -32,7 +32,9 @@ test('documentation reporter respects DOCS_* env and writes files', async ({}, t
       {
         name: 'image-caption',
         contentType: 'text/plain',
-        body: Buffer.from('An image'),
+        body: Buffer.from(
+          'Discount cards section showing "active" & pending states',
+        ),
       },
     ],
   } as any;
@@ -46,6 +48,10 @@ test('documentation reporter respects DOCS_* env and writes files', async ({}, t
   expect(fs.existsSync(mdPath)).toBeTruthy();
   const md = fs.readFileSync(mdPath, 'utf-8');
   expect(md).toContain('title: "Sample Journey: Discounts"');
+  expect(md).toContain('{% figure src="sample-journey-discounts/image-');
+  expect(md).toContain(
+    'caption="Discount cards section showing &quot;active&quot; &amp; pending states" /%}',
+  );
   expect(md).not.toContain('@track(');
   expect(md).not.toContain('@req(');
   // image written into images root under slug folder

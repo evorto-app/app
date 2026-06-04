@@ -65,6 +65,13 @@ const appendPermissionsCallout = (
   );
 };
 
+const escapeAttribute = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+
 export const buildSectionContent = (
   test: TestCase,
   attachments: ResultAttachment[],
@@ -102,7 +109,7 @@ export const buildSectionContent = (
         if (!last.startsWith('![')) break;
         const imageUrl = last.split('(')[1]?.split(')')[0] ?? '';
         sectionContent[sectionContent.length - 1] =
-          `{% figure src="${imageUrl}" caption="${body.toString()}" /%}`;
+          `{% figure src="${escapeAttribute(imageUrl)}" caption="${escapeAttribute(body.toString())}" /%}`;
         break;
       }
       case 'markdown': {

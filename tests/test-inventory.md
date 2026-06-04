@@ -296,7 +296,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   shared `takeScreenshot` helper with a meaningful literal caption, rejects raw
   `page.screenshot` calls, and keeps
   `tests/docs/roles/about-permissions.doc.ts` as the only text-only
-  permission-reference exception.
+  permission-reference exception. Reporter-path coverage verifies those captions
+  become generated `{% figure %}` blocks and escapes caption attributes so
+  quotes or ampersands in descriptive captions cannot break the generated docs.
 - `helpers/testing/authorization-source.spec.ts` keeps server permission checks
   routed through the shared evaluator path and keeps role lookup contracts free
   of permission-bearing admin role fields.
