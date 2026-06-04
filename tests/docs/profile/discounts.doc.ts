@@ -126,6 +126,12 @@ If you already added your ESN card, you will see a readable verification status 
   await expect(
     page.getByRole('button', { name: 'Save ESN card' }),
   ).toBeDisabled();
+  await takeScreenshot(
+    testInfo,
+    page.getByText(/Enter a valid ESN card number/),
+    page,
+    'Discount card form showing invalid ESN card validation',
+  );
   const unchangedSeededEsnCard =
     await database.query.userDiscountCards.findFirst({
       where: {

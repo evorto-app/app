@@ -971,6 +971,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       "page.getByRole('button', { name: 'Save ESN card' })",
     );
+    expect(source).toContain(
+      'Discount card form showing invalid ESN card validation',
+    );
     expect(source).toContain('ESNcard validation provider is unavailable');
     expect(source).not.toContain('provider outages mark the card invalid');
     expect(source).not.toContain('overlap ESNcard writes');
