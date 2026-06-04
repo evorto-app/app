@@ -4598,23 +4598,31 @@ describe('stabilization source', () => {
 
     expect(checkpoint).toBeDefined();
     const checkpointText = normalizeWhitespace(checkpoint ?? '');
-    expect(checkpointText).toContain('local head `2ca4e40f2`');
+    expect(checkpointText).toContain('local head `b0ddd9e94`');
     expect(checkpointText).toContain('CodeQL, CodeQL `Analyze (actions)`');
     expect(checkpointText).toContain(
       'Copilot setup, Git Town, CodeRabbit, and the E2E',
     );
     expect(checkpointText).toContain(
-      'E2E `Warm CI dependency caches` job green',
+      'E2E run `26985956884` was warming Docker cache',
     );
     expect(checkpointText).toContain(
-      'Playwright E2E `functional-1`, `functional-2`, and `docs` pending',
+      '`functional-1`, `functional-2`, and `docs` worker checks',
     );
     expect(checkpointText).toContain('mergeable=MERGEABLE');
     expect(checkpointText).toContain('`BLOCKED` by draft status');
     expect(checkpointText).toContain('public Font Awesome registry guard');
     expect(checkpointText).toContain('Bun package cache');
     expect(checkpointText).toContain('dependency-tree cache');
+    expect(checkpointText).toContain('skipped the registry install path');
     expect(checkpointText).toContain('private Font Awesome registry access');
+    expect(checkpointText).toContain('E2E run `26985315757`');
+    expect(checkpointText).toContain('`functional-1` successfully');
+    expect(checkpointText).toContain(
+      'cancelled only the queued `functional-2` and `docs` shards',
+    );
+    expect(checkpointText).toContain('Docker log collection');
+    expect(checkpointText).toContain('both cleanup finalizer steps succeeded');
     expect(checkpointText).toContain('serial `Warm CI dependency caches` job');
     expect(checkpointText).toContain('warmed Docker Bun cache mount');
     expect(checkpointText).toContain('`if: always()` cleanup finalizers');
@@ -4627,6 +4635,7 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain(
       '`total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`',
     );
+    expect(checkpointText).toContain('only protected `main` remained');
     expect(checkpointText).toContain(
       'active CI workers may own short-lived branches',
     );
