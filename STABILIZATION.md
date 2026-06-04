@@ -3467,11 +3467,27 @@ fallback rather than a profile discount-card defect.
   privacy heading and tenant-missing legal-text message, reported no application
   error text, no horizontal overflow, and no horizontally clipped visible
   controls, then reset the temporary Browser viewport override.
+  `bun run test:e2e:public-general-viewports` is now the focused local rerun
+  for this matrix when a Docker app is already running; it refreshes `.env.dev`,
+  sets `NO_WEBSERVER=true`, uses `--no-deps`, and keeps the route matrix on one
+  worker so agents do not have to reconstruct the safe command by hand.
   A fresh rebuilt-Docker in-app Browser pass at 390x844 also opened `/events`,
   `/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`, `/500`, and
   `/404`; every route reported `clientWidth=390`, `scrollWidth=390`, no
   horizontal overflow, and no clipped visible controls, with the `/404` mobile
   screenshot showing the bottom navigation without overlap.
+  A fresh June 4, 2026 current-head Browser refresh after starting the generated
+  Docker app at the generated `BASE_URL` on port 4577 reopened `/events` at
+  320x740 and 390x844 plus a direct `/events/2284d58657c793a57e8e` detail route
+  at 390x844.
+  The active Browser tab rendered the empty current-events state for the reused
+  localhost tenant, then rendered the direct `Murnau City Tour 2` detail page
+  with registration content. Both Browser probes reported document/body widths
+  below the viewport, no horizontal overflow, no clipped visible controls, no
+  overflowing visible elements, and no application/hydration error text; Browser
+  console output contained only app info logs. The focused local rerun
+  `bun run test:e2e:public-general-viewports` then passed with `--no-deps`
+  against the same running Docker app.
 - Current public event-detail Browser checkpoint: after expanding the public
   General viewport spec to include a seeded event detail, the in-app Browser
   opened `/events/a337282edc8eec44fc28` with

@@ -3860,7 +3860,11 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['test:e2e:layout-helper']).toBe(
       'bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/page-layout-helper.test.ts --project=local-chrome-baseline --no-deps',
     );
+    expect(packageJson.scripts['test:e2e:public-general-viewports']).toBe(
+      'bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/public-general-viewports.spec.ts --project=local-chrome-baseline --workers=1 --no-deps',
+    );
     expect(testsReadme).toContain('bun run test:e2e:layout-helper');
+    expect(testsReadme).toContain('bun run test:e2e:public-general-viewports');
     expect(testsReadme).toContain('NO_WEBSERVER=true');
     expect(testsReadme).toContain('--no-deps');
     expect(testsReadme).toContain('does not start\n  Docker');
@@ -3938,6 +3942,8 @@ describe('stabilization source', () => {
       '/tmp/evorto-current-head-17c35e-general-mobile-events.jpg',
     );
     expect(inventory).toContain('specs/smoke/public-general-viewports.spec.ts');
+    expect(inventory).toContain('test:e2e:public-general-viewports');
+    expect(inventory).toContain('keeps the route matrix on one\n    worker');
     expect(inventory).toContain('narrow mobile');
     expect(inventory).toContain('no horizontal overflow');
     expect(inventory).toContain(

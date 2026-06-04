@@ -36,6 +36,8 @@ bun run test:e2e:ui
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:integration
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:create-account
 bun run test:e2e:esncard-provider
+bun run test:e2e:layout-helper
+bun run test:e2e:public-general-viewports
 bun run test:e2e:docs
 bun run test:e2e:docs:publish
 bun run test:e2e:install

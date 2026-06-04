@@ -170,7 +170,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     `src/app/app.routes.ts`; `src/app/app.routes.spec.ts` also enumerates the
     anonymous public General route manifest before page-backed viewport coverage
     runs, including a failure if a new anonymous General route is added without
-    coverage. `/create-account` is intentionally excluded from this anonymous
+    coverage. `bun run test:e2e:public-general-viewports` is the focused local
+    rerun for an already-running Docker app; it refreshes `.env.dev`, sets
+    `NO_WEBSERVER=true`, uses `--no-deps`, and keeps the route matrix on one
+    worker. `/create-account` is intentionally excluded from this anonymous
     General sweep because it is auth-guarded account coverage.
   - `specs/admin/general-settings.spec.ts` also checks authenticated tenant
     General settings at narrow mobile, mobile, and desktop viewports for
