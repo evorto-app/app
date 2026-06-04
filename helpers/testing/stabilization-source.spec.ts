@@ -704,6 +704,8 @@ describe('stabilization source', () => {
     expect(source).toContain('screenshot caption');
     expect(source).toContain('captured image');
     expect(source).toContain('proves');
+    expect(source).toContain('generic page-root screenshot targets');
+    expect(source).toContain('app-root');
     expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
     expect(source).toContain('PERMISSION_GROUPS');
     expect(inventory).toContain('current 15 documentation source files');
@@ -713,11 +715,13 @@ describe('stabilization source', () => {
     expect(inventory).toContain('shared `takeScreenshot` helper');
     expect(inventory).toContain('documentation reporter barrel');
     expect(inventory).toContain('meaningful literal caption');
+    expect(inventory).toContain('generic page-root\n  screenshot targets');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('runtime');
     expect(inventory).toContain('failure');
     expect(inventory).toContain('rejects');
-    expect(inventory).toContain('raw `page.screenshot` calls');
+    expect(inventory).toContain('raw');
+    expect(inventory).toContain('`page.screenshot` calls');
     expect(inventory).toContain('generated `{% figure %}` blocks');
     expect(inventory).toContain('escapes caption attributes');
     expect(inventory).toContain(
@@ -747,6 +751,10 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'importsSharedScreenshotHelper',
     );
+    expect(generatedDocumentationSource).toContain(
+      'findGenericScreenshotTargets',
+    );
+    expect(generatedDocumentationSource).toContain('genericSelectors');
     expect(generatedDocumentationSource).toContain(
       "'../../support/reporters/documentation-reporter'",
     );

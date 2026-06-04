@@ -70,6 +70,78 @@ const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
   return weakCaptions;
 };
 
+const findGenericScreenshotTargets = (
+  path: string,
+  source: string,
+): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const genericTargets: string[] = [];
+  const genericSelectors = new Set([
+    '*',
+    ':root',
+    'app-root',
+    'body',
+    'body, html',
+    'html',
+    'html, body',
+  ]);
+
+  const describeCall = (node: ts.CallExpression): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.expression.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const isGenericLocatorTarget = (node: ts.Expression): boolean => {
+    if (ts.isArrayLiteralExpression(node)) {
+      return (
+        node.elements.length === 0 ||
+        node.elements.some((element) => isGenericLocatorTarget(element))
+      );
+    }
+
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'locator'
+    ) {
+      const selector = node.arguments[0];
+      if (ts.isStringLiteral(selector)) {
+        return genericSelectors.has(selector.text.trim().toLowerCase());
+      }
+    }
+
+    return false;
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'takeScreenshot'
+    ) {
+      const target = node.arguments[1];
+
+      if (!target || isGenericLocatorTarget(target)) {
+        genericTargets.push(describeCall(node));
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return genericTargets;
+};
+
 const importsSharedScreenshotHelper = (
   path: string,
   source: string,
@@ -155,6 +227,7 @@ describe('generated docs source current behavior', () => {
       expect(importsSharedScreenshotHelper(path, source), path).toBe(true);
       expect(source, path).not.toContain('page.screenshot(');
       expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);
+      expect(findGenericScreenshotTargets(path, source), path).toEqual([]);
     }
   });
 

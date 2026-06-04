@@ -3413,7 +3413,8 @@ fallback rather than a profile discount-card defect.
   highlighted screenshot helper imported from the documentation reporter barrel,
   and it parses `takeScreenshot(...)` calls so UI docs must provide a literal
   screenshot caption with enough context to explain what the captured image
-  proves. The only text-only exception is
+  proves while avoiding generic page-root screenshot targets such as `body`,
+  `html`, or `app-root`. The only text-only exception is
   `tests/docs/roles/about-permissions.doc.ts`, because it is a permission
   reference generated from `PERMISSION_GROUPS` rather than an app screen.
 - Current generated-docs runtime caption checkpoint:
