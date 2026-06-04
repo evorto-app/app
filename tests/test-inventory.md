@@ -129,7 +129,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/admin/general-settings.doc.ts` covers the tenant general-settings
     docs flow with focused screenshots for tenant identity,
     communication/branding fields, legal-page fields, and receipt/ESN-card
-    discount settings.
+    discount settings. The doc asserts the deferred custom-domain rows, identity
+    rows, locale/money controls, operations policy controls, branding/SEO
+    fields, legal URL/text fields, finance receipt settings, ESNcard discount
+    toggle, and Save action before taking those screenshots.
   - `specs/admin/admin-viewports.spec.ts`
   - `specs/admin/general-settings.spec.ts`
   - `specs/admin/global-admin-tenants.spec.ts`

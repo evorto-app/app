@@ -22,7 +22,22 @@ Tenant admins can manage the settings that are currently implemented for the act
   await page.getByRole('link', { name: 'Admin Tools' }).click();
   await page.goto('/admin/settings');
   const generalSettings = page.locator('app-general-settings');
-  await expect(generalSettings).toBeVisible();
+  await expect(
+    generalSettings.getByRole('heading', {
+      exact: true,
+      level: 1,
+      name: 'General settings',
+    }),
+  ).toBeVisible();
+  await expect(
+    generalSettings.getByRole('heading', {
+      exact: true,
+      level: 2,
+      name: 'Deferred settings',
+    }),
+  ).toBeVisible();
+  await expect(generalSettings.getByText('Custom domains')).toBeVisible();
+  await expect(generalSettings.getByText('Multi-domain routing')).toBeVisible();
   await takeScreenshot(
     testInfo,
     generalSettings.getByRole('heading', {
@@ -33,6 +48,15 @@ Tenant admins can manage the settings that are currently implemented for the act
     page,
     'Tenant general settings page with editable relaunch configuration fields',
   );
+  await expect(
+    generalSettings.getByRole('heading', {
+      exact: true,
+      level: 2,
+      name: 'Tenant identity',
+    }),
+  ).toBeVisible();
+  await expect(generalSettings.getByText('Primary domain')).toBeVisible();
+  await expect(generalSettings.getByText('Stripe connection')).toBeVisible();
   await takeScreenshot(
     testInfo,
     generalSettings.getByRole('heading', {
@@ -67,12 +91,36 @@ The current general settings page supports:
 Tax rates are managed on the separate **Tax Rates** page.
 `,
   });
+  await expect(generalSettings.getByLabel('Currency')).toBeVisible();
+  await expect(generalSettings.getByLabel('Locale')).toBeVisible();
+  await expect(generalSettings.getByLabel('Timezone')).toBeVisible();
+  await expect(generalSettings.getByLabel('Event review policy')).toBeVisible();
+  await expect(
+    generalSettings.getByLabel('Stripe account management'),
+  ).toBeVisible();
+  await expect(generalSettings.getByLabel('Email sender name')).toBeVisible();
+  await expect(generalSettings.getByLabel('Logo URL')).toBeVisible();
+  await expect(generalSettings.getByLabel('Favicon URL')).toBeVisible();
+  await expect(generalSettings.getByLabel('SEO title')).toBeVisible();
+  await expect(generalSettings.getByLabel('SEO description')).toBeVisible();
   await takeScreenshot(
     testInfo,
     generalSettings.getByLabel('Email sender name'),
     page,
     'Communication and branding fields for tenant email and assets',
   );
+  await expect(
+    generalSettings.getByLabel('Imprint / legal notice URL'),
+  ).toBeVisible();
+  await expect(
+    generalSettings.getByLabel('Hosted imprint / legal notice text'),
+  ).toBeVisible();
+  await expect(generalSettings.getByLabel('Privacy policy URL')).toBeVisible();
+  await expect(
+    generalSettings.getByLabel('Hosted privacy policy text'),
+  ).toBeVisible();
+  await expect(generalSettings.getByLabel('Terms URL')).toBeVisible();
+  await expect(generalSettings.getByLabel('Hosted terms text')).toBeVisible();
   await takeScreenshot(
     testInfo,
     generalSettings.getByRole('heading', {
@@ -83,6 +131,14 @@ Tax rates are managed on the separate **Tax Rates** page.
     page,
     'Legal page fields for hosted imprint privacy and terms content',
   );
+  await expect(
+    generalSettings.getByLabel('Allowed receipt countries'),
+  ).toBeVisible();
+  await expect(generalSettings.getByLabel('Allow other')).toBeVisible();
+  await expect(generalSettings.getByText('ESN Card discounts')).toBeVisible();
+  await expect(
+    generalSettings.getByRole('button', { name: 'Save' }),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     generalSettings.getByRole('heading', {

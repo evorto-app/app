@@ -401,12 +401,53 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 2,\n      name: 'Tenant identity',\n    })",
     );
+    expect(source).toContain("generalSettings.getByText('Custom domains')");
+    expect(source).toContain(
+      "generalSettings.getByText('Multi-domain routing')",
+    );
+    expect(source).toContain("generalSettings.getByText('Primary domain')");
+    expect(source).toContain("generalSettings.getByText('Stripe connection')");
+    expect(source).toContain("generalSettings.getByLabel('Currency')");
+    expect(source).toContain("generalSettings.getByLabel('Locale')");
+    expect(source).toContain("generalSettings.getByLabel('Timezone')");
+    expect(source).toContain(
+      "generalSettings.getByLabel('Event review policy')",
+    );
+    expect(source).toContain(
+      "generalSettings.getByLabel('Stripe account management')",
+    );
     expect(source).toContain("generalSettings.getByLabel('Email sender name')");
+    expect(source).toContain("generalSettings.getByLabel('Logo URL')");
+    expect(source).toContain("generalSettings.getByLabel('Favicon URL')");
+    expect(source).toContain("generalSettings.getByLabel('SEO title')");
+    expect(source).toContain("generalSettings.getByLabel('SEO description')");
     expect(source).toContain(
       "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 3,\n      name: 'Legal pages',\n    })",
     );
     expect(source).toContain(
+      "generalSettings.getByLabel('Imprint / legal notice URL')",
+    );
+    expect(source).toContain(
+      "generalSettings.getByLabel('Hosted imprint / legal notice text')",
+    );
+    expect(source).toContain(
+      "generalSettings.getByLabel('Privacy policy URL')",
+    );
+    expect(source).toContain(
+      "generalSettings.getByLabel('Hosted privacy policy text')",
+    );
+    expect(source).toContain("generalSettings.getByLabel('Terms URL')");
+    expect(source).toContain("generalSettings.getByLabel('Hosted terms text')");
+    expect(source).toContain(
       "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 3,\n      name: 'ESN Card discounts',\n    })",
+    );
+    expect(source).toContain(
+      "generalSettings.getByLabel('Allowed receipt countries')",
+    );
+    expect(source).toContain("generalSettings.getByLabel('Allow other')");
+    expect(source).toContain("generalSettings.getByText('ESN Card discounts')");
+    expect(source).toContain(
+      "generalSettings.getByRole('button', { name: 'Save' })",
     );
     expect(source).toContain(
       'Tenant identity summary showing primary domain and Stripe status',
