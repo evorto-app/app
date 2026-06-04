@@ -176,6 +176,12 @@ Approved receipts are grouped by recipient. The contact email shown for each rec
     await expect(
       page.getByText('Selected total: 0.00 €').first(),
     ).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      page.locator('app-receipt-refund-list'),
+      page,
+      'Receipt reimbursement page after recording the manual transaction',
+    );
     const refundedReceipt = await database.query.financeReceipts.findFirst({
       where: {
         id: receipt.id,

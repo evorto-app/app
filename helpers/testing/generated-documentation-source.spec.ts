@@ -629,6 +629,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(receiptSource).toContain('return approvedReceipt?.status');
     expect(receiptSource).toContain('filter({ hasText: receiptFileName })');
+    expect(receiptSource).toContain(
+      'Receipt reimbursement page after recording the manual transaction',
+    );
     expect(receiptSource).toContain('refundTransactionId: expect.any(String)');
     expect(receiptSource).toContain("status: 'refunded'");
     expect(receiptSource).toContain('.delete(schema.transactions)');
