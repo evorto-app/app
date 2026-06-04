@@ -25,7 +25,11 @@ Tenant admins can manage the settings that are currently implemented for the act
   await expect(generalSettings).toBeVisible();
   await takeScreenshot(
     testInfo,
-    generalSettings,
+    generalSettings.getByRole('heading', {
+      exact: true,
+      level: 1,
+      name: 'General settings',
+    }),
     page,
     'Tenant general settings page with editable relaunch configuration fields',
   );

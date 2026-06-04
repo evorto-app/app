@@ -385,6 +385,15 @@ describe('generated docs source current behavior', () => {
       'A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state.',
     );
     expect(source).toContain(
+      "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 1,\n      name: 'General settings',\n    })",
+    );
+    expect(source).toContain(
+      'One-domain-per-tenant remains the current relaunch scope in the application schema.',
+    );
+    expect(source).toContain(
+      'keeps an in-app deferred-settings summary for custom-domain verification and multi-domain automation',
+    );
+    expect(source).toContain(
       '**Currency**, **Locale**, and **Timezone** selection within the supported relaunch policy.',
     );
     expect(source).toContain(
