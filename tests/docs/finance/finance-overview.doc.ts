@@ -79,7 +79,7 @@ To access the finance overview, navigate to the **Finances** section from the ma
       testInfo,
       page.locator('app-finance-overview'),
       page,
-      'Finance overview page',
+      'Finance overview page with tenant payment and receipt summaries',
     );
 
     await testInfo.attach('markdown', {
@@ -105,7 +105,7 @@ You can view a detailed list of all transactions by clicking on the **Transactio
       testInfo,
       page.locator('app-transaction-list'),
       page,
-      'Transaction list page',
+      'Transaction list page with filterable finance records',
     );
 
     await testInfo.attach('markdown', {
@@ -136,7 +136,7 @@ Approving or rejecting records the review status in Evorto and queues the submit
       testInfo,
       page.locator('app-receipt-approval-list'),
       page,
-      'Receipt approval list',
+      'Receipt approval list with submitted reimbursement receipts',
     );
 
     await testInfo.attach('markdown', {

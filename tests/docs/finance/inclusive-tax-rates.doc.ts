@@ -44,7 +44,7 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
       testInfo,
       page.locator('app-tax-rates-settings'),
       page,
-      'Tax rates overview',
+      'Tax rates overview showing inclusive rate management',
     );
 
     await testInfo.attach('markdown', {

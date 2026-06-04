@@ -140,7 +140,12 @@ After starting the login flow, sign in with the account you want to use for this
 If your Auth0 email address is not verified yet, Evorto asks you to verify it before the tenant account form is shown.`,
     });
     await page.getByLabel('Email address').waitFor({ state: 'visible' });
-    await takeScreenshot(testInfo, page.getByLabel('Email address'), page);
+    await takeScreenshot(
+      testInfo,
+      page.getByLabel('Email address'),
+      page,
+      'Auth0 login form requesting the tenant account email address',
+    );
     await page.getByLabel('Email address').fill(newUser.email);
     await page
       .getByRole('textbox', { name: 'Password' })
@@ -176,7 +181,12 @@ If the same global login already exists for another tenant, this step joins the 
     await expect(
       createAccountForm.getByRole('textbox', { name: 'Notification email' }),
     ).toBeVisible();
-    await takeScreenshot(testInfo, createAccountForm, page);
+    await takeScreenshot(
+      testInfo,
+      createAccountForm,
+      page,
+      'Tenant account creation form with editable notification email',
+    );
     await createAccountButton.click();
     await expect(
       page.getByRole('heading', {

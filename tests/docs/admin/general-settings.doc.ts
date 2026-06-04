@@ -27,7 +27,7 @@ Tenant admins can manage the settings that are currently implemented for the act
     testInfo,
     generalSettings,
     page,
-    'Tenant general settings',
+    'Tenant general settings page with editable relaunch configuration fields',
   );
 
   await testInfo.attach('markdown', {

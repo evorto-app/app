@@ -38,6 +38,7 @@ Click on _Create category_ to create a new category.`,
       testInfo,
       page.getByRole('button', { name: 'Create category' }),
       page,
+      'Template category manager with the create-category action highlighted',
     );
     await page.getByRole('button', { name: 'Create category' }).click();
     await expect(

@@ -26,7 +26,7 @@ What this means for you:
     testInfo,
     page.locator('h1:has-text("Events")').first(),
     page,
-    'Events list (user view)',
+    'User-facing events list with unlisted events hidden',
   );
 
   await testInfo.attach('markdown', {

@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import nodePath from 'node:path';
+import * as ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 // Source guard: generated documentation is product-facing, so these checks keep
@@ -22,7 +23,133 @@ const findFiles = (path: string): string[] => {
   });
 };
 
+const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const weakCaptions: string[] = [];
+
+  const describeCall = (node: ts.CallExpression): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.expression.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const getCaptionText = (node: ts.Expression): null | string => {
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      return node.text.trim();
+    }
+
+    return null;
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'takeScreenshot'
+    ) {
+      const caption = node.arguments[3];
+      const captionText = caption ? getCaptionText(caption) : null;
+
+      if (!captionText || captionText.length < 24) {
+        weakCaptions.push(describeCall(node));
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return weakCaptions;
+};
+
 describe('generated docs source current behavior', () => {
+  it('keeps generated documentation pages explanatory and image-backed', () => {
+    const documentFiles = findFiles('tests/docs')
+      .filter((path) => path.endsWith('.doc.ts'))
+      .toSorted();
+    const textOnlyReferenceDocuments = new Set([
+      'tests/docs/roles/about-permissions.doc.ts',
+    ]);
+    const screenshotHelper = readSource(
+      'tests/support/reporters/documentation-reporter/take-screenshot.ts',
+    );
+
+    expect(documentFiles.length).toBe(15);
+    expect(screenshotHelper).toContain("htmlElement.style.outline = 'thick");
+    expect(screenshotHelper).toContain("testInfo.attach('image'");
+    expect(screenshotHelper).toContain("testInfo.attach('image-caption'");
+
+    for (const path of documentFiles) {
+      const source = readSource(path);
+      const markdownBodies = source.match(/body:\s*`[\s\S]*?`/gu) ?? [];
+      const markdownTextLength = markdownBodies
+        .map((body) =>
+          body
+            .replaceAll('`', '')
+            .replaceAll(/\$\{[\s\S]*?\}/gu, '')
+            .replaceAll(/\s+/gu, ' ')
+            .trim(),
+        )
+        .join(' ').length;
+
+      expect(source, path).toContain("testInfo.attach('markdown'");
+      expect(markdownTextLength, path).toBeGreaterThanOrEqual(120);
+
+      if (textOnlyReferenceDocuments.has(path)) {
+        expect(source, path).toContain('PERMISSION_GROUPS');
+        expect(source, path).toContain('permissionLines');
+        expect(source, path).not.toContain('takeScreenshot(');
+        continue;
+      }
+
+      expect(source, path).toContain('takeScreenshot(');
+      expect(source, path).not.toContain('page.screenshot(');
+      expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);
+    }
+  });
+
+  it('keeps generated documentation publishing explicit in package scripts', () => {
+    const packageJson = JSON.parse(readSource('package.json')) as {
+      scripts?: Record<string, string>;
+    };
+    const scripts = packageJson.scripts ?? {};
+    const localDocumentationScripts = [
+      'test:e2e:docs',
+      'test:e2e:integration',
+      'test:e2e:create-account',
+    ];
+
+    for (const scriptName of localDocumentationScripts) {
+      const script = scripts[scriptName];
+
+      expect(script, scriptName).toContain('DOCS_OUT_DIR=test-results/docs');
+      expect(script, scriptName).toContain(
+        'DOCS_IMG_OUT_DIR=test-results/docs/images',
+      );
+      expect(script, scriptName).not.toContain(
+        '/Users/hedde/code/evorto-pages',
+      );
+    }
+
+    expect(scripts['test:e2e:docs:publish']).toContain(
+      'DOCS_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs',
+    );
+    expect(scripts['test:e2e:docs:publish']).toContain(
+      'DOCS_IMG_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/public/docs',
+    );
+    expect(scripts['test:e2e:docs:publish']).toContain(
+      'playwright test --project=docs-baseline',
+    );
+  });
+
   it('keeps tenant general-settings docs aligned with implemented branding and legal routes', () => {
     const source = readSource('tests/docs/admin/general-settings.doc.ts');
 

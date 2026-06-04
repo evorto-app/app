@@ -47,6 +47,7 @@ Click on _Create template_ to create a new template.`,
     testInfo,
     page.getByRole('link', { name: 'Create template' }),
     page,
+    'Templates overview with the create-template action highlighted',
   );
   await page.getByRole('link', { name: 'Create template' }).click();
   await testInfo.attach('markdown', {
@@ -66,6 +67,7 @@ There are a few general settings that are required for templates:
     testInfo,
     page.locator('app-template-create form div').first(),
     page,
+    'Template create form showing reusable general settings',
   );
   await testInfo.attach('markdown', {
     body: `
@@ -96,6 +98,7 @@ The registration consists of the following settings:
       .locator('app-template-create form')
       .locator('div', { hasText: 'Simple Registration Setup' }),
     page,
+    'Simple registration setup for participant and organizer template defaults',
   );
 
   await testInfo.attach('markdown', {
@@ -167,7 +170,12 @@ When a template creates an event, those reusable add-ons are copied into the eve
   await expect(addOnForm.getByLabel('Add-on name')).toBeVisible();
   await expect(addOnForm.getByLabel('Attach to')).toBeVisible();
   await expect(page.getByText('Purchase timing')).toBeVisible();
-  await takeScreenshot(testInfo, addOnForm, page, 'Reusable add-on form');
+  await takeScreenshot(
+    testInfo,
+    addOnForm,
+    page,
+    'Reusable add-on form for template registration options',
+  );
 
   await testInfo.attach('markdown', {
     body: `

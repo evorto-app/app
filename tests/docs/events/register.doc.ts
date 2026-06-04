@@ -251,7 +251,12 @@ test.describe('Register for events', () => {
   To register for an event, open the app and browse the events available to you.
   Click one that interests you to learn more and see the registration options.`,
     });
-    await takeScreenshot(testInfo, freeEventLink, page);
+    await takeScreenshot(
+      testInfo,
+      freeEventLink,
+      page,
+      'Events list with the selected free registration event highlighted',
+    );
     await freeEventLink.click();
     await expect(page).toHaveURL(/\/events\/[a-z0-9]+$/i);
     await expect(
@@ -273,6 +278,7 @@ test.describe('Register for events', () => {
       testInfo,
       page.getByRole('heading', { level: 2, name: 'Registration' }),
       page,
+      'Free event registration options with participant and organizer choices',
     );
     await testInfo.attach('markdown', {
       body: `
@@ -816,7 +822,7 @@ test.describe('Register for events', () => {
         testInfo,
         page.locator('section').filter({ hasText: 'Registration' }),
         page,
-        'Paid transfer code',
+        'Paid transfer code shown for manual bank-transfer registration',
       );
 
       await page.getByRole('button', { name: 'Cancel registration' }).click();
@@ -1064,6 +1070,7 @@ test.describe('Register for events', () => {
       testInfo,
       page.getByRole('heading', { level: 2, name: 'Registration' }),
       page,
+      'Paid event registration options before starting Stripe Checkout',
     );
     const payButton = page.getByRole('button', { name: /Pay/i }).first();
     await testInfo.attach('markdown', {
@@ -1076,6 +1083,7 @@ test.describe('Register for events', () => {
       testInfo,
       page.locator('section').filter({ hasText: 'Registration' }),
       page,
+      'Pending paid registration controls with the payment recovery action',
     );
     const findCheckoutTransaction = async () => {
       if (checkoutTransactionId) {
@@ -1145,7 +1153,12 @@ test.describe('Register for events', () => {
         timeout: 30_000,
       })
       .toMatch(/checkout\.stripe\.com/);
-    await takeScreenshot(testInfo, checkoutPage.locator('main'), checkoutPage);
+    await takeScreenshot(
+      testInfo,
+      checkoutPage.locator('main'),
+      checkoutPage,
+      'Stripe Checkout page for completing the paid registration',
+    );
     await fillTestCard(checkoutPage);
 
     const getStripeRegistrationState = async () => {

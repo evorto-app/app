@@ -111,7 +111,7 @@ Open your profile's **Discounts** section directly when you want to review or up
     testInfo,
     page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
     page,
-    'Discount cards section',
+    'Discount cards section showing available tenant discounts',
   );
 
   await testInfo.attach('markdown', {

@@ -87,6 +87,7 @@ Navigate to the **User roles** page to create or edit tenant roles.
       testInfo,
       page.getByRole('link', { name: 'Create role' }),
       page,
+      'User roles page with the create-role action highlighted',
     );
     await page.getByRole('link', { name: 'Create role' }).click();
     await testInfo.attach('markdown', {

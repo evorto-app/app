@@ -91,7 +91,7 @@ To access your profile, click on the **Profile** link in the navigation bar at t
       testInfo,
       page.locator('app-user-profile'),
       page,
-      'User profile page',
+      'User profile page showing personal details and profile tabs',
     );
 
     await testInfo.attach('markdown', {
@@ -132,7 +132,12 @@ The form uses inline validation, and the save button is only enabled when both n
     await page.getByRole('button', { name: 'Edit profile' }).click();
     const editDialog = page.locator('mat-dialog-container');
     await expect(editDialog).toBeVisible();
-    await takeScreenshot(testInfo, editDialog, page, 'Edit profile dialog');
+    await takeScreenshot(
+      testInfo,
+      editDialog,
+      page,
+      'Edit profile dialog with personal information fields',
+    );
 
     await page.getByRole('textbox', { name: 'First name' }).fill('');
     await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
@@ -416,7 +421,7 @@ The user profile now uses a two-column layout:
       testInfo,
       page.locator('app-user-profile'),
       page,
-      'Profile events tab',
+      'Profile events tab showing the user registration history',
     );
 
     await page.getByRole('button', { name: 'Receipts' }).click();
@@ -453,7 +458,7 @@ The user profile now uses a two-column layout:
       testInfo,
       page.locator('app-user-profile'),
       page,
-      'Profile receipts tab',
+      'Profile receipts tab showing submitted reimbursement receipts',
     );
   } finally {
     await database

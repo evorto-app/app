@@ -60,7 +60,7 @@ Start by navigating to the **Events** section from the main menu to see a list o
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Events' }).first(),
     page,
-    'Event list page',
+    'Event list page showing organizer access to event management',
   );
 
   await testInfo.attach('markdown', {
@@ -91,7 +91,7 @@ To create a new event, click the **Create Event** link on the event list page. T
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
     page,
-    'Templates page',
+    'Templates page with reusable event template choices',
   );
 
   await testInfo.attach('markdown', {
@@ -136,7 +136,7 @@ After creating an event, you'll be taken to the event details page. This page sh
     testInfo,
     page.locator(`h1:has-text("${target.title}")`).first(),
     page,
-    'Event details page',
+    'Event details page showing the editable event management surface',
   );
 
   await testInfo.attach('markdown', {
@@ -276,7 +276,12 @@ For a full walkthrough of the review and approval lifecycle, see the dedicated E
     .first();
   try {
     await statusChip.waitFor({ state: 'visible', timeout: 2000 });
-    await takeScreenshot(testInfo, statusChip, page, 'Event status section');
+    await takeScreenshot(
+      testInfo,
+      statusChip,
+      page,
+      'Event status section showing the published state',
+    );
   } catch {
     await testInfo.attach('markdown', {
       body: `

@@ -80,7 +80,7 @@ The approval queue groups submitted receipts by event. Each receipt links to a r
       testInfo,
       page.locator('app-receipt-approval-list'),
       page,
-      'Receipt approval queue',
+      'Receipt approval queue with reimbursable receipt submissions',
     );
 
     await page.getByRole('link', { name: receiptFileName }).click();
@@ -104,7 +104,7 @@ The review page shows the receipt file, normalized receipt data, tax/deposit/alc
       testInfo,
       page.locator('app-receipt-approval-detail'),
       page,
-      'Receipt review detail',
+      'Receipt review detail with reimbursement decision controls',
     );
 
     await page.getByRole('button', { name: 'Approve' }).click();
