@@ -709,7 +709,9 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain('shared `takeScreenshot` helper');
     expect(inventory).toContain('meaningful literal caption');
-    expect(inventory).toContain('rejects raw `page.screenshot` calls');
+    expect(inventory).toContain('weak-caption runtime failure');
+    expect(inventory).toContain('rejects');
+    expect(inventory).toContain('raw `page.screenshot` calls');
     expect(inventory).toContain('generated `{% figure %}` blocks');
     expect(inventory).toContain('escapes caption attributes');
     expect(inventory).toContain(
@@ -753,6 +755,12 @@ describe('stabilization source', () => {
     );
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');
+    expect(reporterPathsSpec).toContain(
+      'documentation screenshot helper rejects weak runtime captions',
+    );
+    expect(reporterPathsSpec).toContain(
+      'Documentation screenshots require a descriptive caption',
+    );
   });
 
   it('keeps the PR readiness checkpoint current without pinning stale heads', () => {

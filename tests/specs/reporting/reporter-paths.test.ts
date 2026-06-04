@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
 import DocumentationReporter from '../../support/reporters/documentation-reporter';
+import { takeScreenshot } from '../../support/reporters/documentation-reporter/take-screenshot';
 import { resolveDocsImageOutputDirectory } from '../../support/utils/doc-screenshot';
 
 test('documentation reporter respects DOCS_* env and writes files', async ({}, testInfo) => {
@@ -79,6 +80,22 @@ test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time', async ({}, 
       process.env.DOCS_IMG_OUT_DIR = previous;
     }
   }
+});
+
+test('documentation screenshot helper rejects weak runtime captions', async ({
+  page,
+}, testInfo) => {
+  await page.setContent(`
+    <main>
+      <section id="target">Documented UI state</section>
+    </main>
+  `);
+
+  await expect(
+    takeScreenshot(testInfo, page.locator('#target'), page, 'Too short'),
+  ).rejects.toThrow(
+    'Documentation screenshots require a descriptive caption of at least 24 characters.',
+  );
 });
 
 test('documentation reporter clears docs/image roots on begin', async ({}, testInfo) => {

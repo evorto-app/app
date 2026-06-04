@@ -3420,7 +3420,8 @@ fallback rather than a profile discount-card defect.
   the caption parameter required and fails fast when the caption is shorter than
   the source-guarded 24-character floor, so a generated-doc screenshot cannot
   silently render as an uncaptioned or weakly captioned image even if a future
-  docs flow bypasses the source parser.
+  docs flow bypasses the source parser. `tests/specs/reporting/reporter-paths.test.ts`
+  covers that weak-caption runtime failure without app startup.
 - Current docs screenshot-stability checkpoint: the focused generated-docs
   screenshot helper now waits for target locator bounds to stabilize before
   capture, matching the full documentation reporter path. The shared stability
