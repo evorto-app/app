@@ -91,6 +91,10 @@ a fallback for interrupted local or CI shutdowns, and CI runs
 `delete-neon-local-branches.ts` immediately after
 required configuration validation, before private registry auth can fail the
 job, and again after Compose shutdown.
+`helpers/testing/ci-start-docker-stack.sh` owns the E2E Docker startup path. It
+bounds the runtime preflight, bounds Compose image pre-pull attempts, builds the
+app images with the CI BuildKit cache overlay, starts the already-built stack,
+and keeps the existing one-prune retry before surfacing startup failure.
 `helpers/testing/ci-stop-docker-stack.sh` owns the E2E shutdown path and calls
 `helpers/testing/ci-prune-neon-local-branches.sh` after Docker cleanup. The
 shutdown path first gives the Neon Local `db` container a 60-second stop window

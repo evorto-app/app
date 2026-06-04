@@ -4637,6 +4637,25 @@ tried to kill container, but did not receive an exit event`. A follow-up
   intended state: active CI workers may own short-lived branches for up to the
   two-hour TTL, but stale branches are pruned and completed or cancelled E2E
   workers run the cleanup finalizer when Actions reaches teardown.
+- Current CI Docker-start hardening checkpoint: after PR head `b5bb9c286`, the
+  visible checks stayed green except the E2E matrix. The serial
+  `Warm CI dependency caches` job completed successfully and showed the desired
+  Font Awesome bandwidth behavior: dependency installs completed from restored
+  caches rather than repeating per-worker registry downloads. The
+  `Playwright E2E (functional-1)` worker then sat in `Start Docker stack for
+E2E` long enough to be treated as stale; it was cancelled, and GitHub still
+  reached `Collect Docker logs`, `Stop Docker stack`, and
+  `Prune expired Neon branches after E2E`. The finalizer path completed
+  successfully, and a live local cleanup immediately afterward again reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. CI startup
+  now delegates the long Docker start body to
+  `helpers/testing/ci-start-docker-stack.sh`, which bounds the Docker runtime
+  preflight, bounds Compose image pre-pull attempts, keeps the explicit
+  BuildKit-cached Compose build, starts the already-built stack, and preserves
+  the one-prune retry before surfacing startup failure. The E2E workflow keeps
+  the same 25-minute step timeout while the versioned helper makes the Docker
+  startup path easier to audit beside the existing teardown and Neon prune
+  helpers.
 - Current Docker/Browser runtime recovered checkpoint: the Docker app is again
   serving the current local branch after the protected SSR route fix at local
   head `db7845e5e`. `node_modules/.bin/dotenv -c dev -- docker compose ps`

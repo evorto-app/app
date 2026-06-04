@@ -372,6 +372,10 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'helpers/testing/ci-stop-docker-stack.sh'),
       'utf8',
     );
+    const ciStartDockerStackHelper = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/ci-start-docker-stack.sh'),
+      'utf8',
+    );
     const runtimeEnvironment = fs.readFileSync(
       path.join(process.cwd(), 'helpers/testing/runtime-environment.ts'),
       'utf8',
@@ -794,6 +798,12 @@ describe('evaluateRuntimePreflight', () => {
     expect(copilotSetupWorkflow).not.toContain('FONT_AWESOME_TOKEN');
     expect(copilotSetupWorkflow).not.toContain('npm.fontawesome.com');
     expect(workflow).toContain(
+      'run: bash helpers/testing/ci-start-docker-stack.sh',
+    );
+    expect(ciStartDockerStackHelper).toContain(
+      'timeout 5m bun run docker:check',
+    );
+    expect(ciStartDockerStackHelper).toContain(
       'timeout 12m node_modules/.bin/dotenv -c dev -- docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
     );
     expect(dockerfile).toContain(
@@ -821,7 +831,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(ciBuildCacheCompose).toContain(
       'type=local,dest=${DOCKER_BUILD_CACHE_DIR:-/tmp/evorto-docker-build-cache},mode=max',
     );
-    expect(workflow).toContain(
+    expect(ciStartDockerStackHelper).toContain(
       'timeout 5m node_modules/.bin/dotenv -c dev -- docker compose up --no-build -d',
     );
     expect(workflow).toContain(
@@ -842,26 +852,28 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).toContain(
       'timeout 30s docker cp "${evorto_container_id}:/app/logs/server.log" test-results/docker-logs/server.log || true',
     );
-    expect(workflow).toContain(
+    expect(ciStartDockerStackHelper).toContain(
       'Docker Compose build/start timed out. Pruning builder state and retrying once.',
     );
-    expect(workflow).toContain('docker builder prune -af || true');
-    expect(workflow).toContain(
-      'docker compose pull --quiet --ignore-buildable --policy missing',
+    expect(ciStartDockerStackHelper).toContain(
+      'docker builder prune -af || true',
     );
-    expect(workflow).toContain(
+    expect(ciStartDockerStackHelper).toContain(
+      'timeout 3m node_modules/.bin/dotenv -c dev -- docker compose pull --quiet --ignore-buildable --policy missing',
+    );
+    expect(ciStartDockerStackHelper).toContain(
       'Docker Compose image pre-pull failed on attempt ${attempt}. Retrying in ${delay_seconds}s before startup.',
     );
-    expect(workflow).toContain(
+    expect(ciStartDockerStackHelper).toContain(
       'Docker Compose image pre-pull failed after ${attempt} attempts. Continuing to Compose startup, which can still pull missing images.',
     );
-    expect(workflow).not.toContain(
+    expect(ciStartDockerStackHelper).not.toContain(
       '::error::Docker Compose image pre-pull failed after ${attempt} attempts.',
     );
-    expect(workflow).toContain(
+    expect(ciStartDockerStackHelper).toContain(
       'Docker Compose build/start timed out before the workflow step timeout',
     );
-    expect(workflow).toContain('bun run docker:ps || true');
+    expect(ciStartDockerStackHelper).toContain('bun run docker:ps || true');
 
     expect(helper).toContain('BRANCH_ID');
     expect(helper).toContain('DELETE_BRANCH=false');

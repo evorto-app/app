@@ -1099,7 +1099,26 @@ describe('stabilization source', () => {
     expect(ciStartDockerStackHelper).toContain(
       'timeout 5m bun run docker:check',
     );
+    expect(ciStartDockerStackHelper).toContain(
+      'timeout 12m node_modules/.bin/dotenv -c dev -- docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
+    );
+    expect(ciStartDockerStackHelper).toContain(
+      'timeout 5m node_modules/.bin/dotenv -c dev -- docker compose up --no-build -d',
+    );
     expect(ciStartDockerStackHelper).toContain('start_status=$?');
+    expect(ciStartDockerStackHelper).toContain(
+      'Docker Compose build/start timed out before the workflow step timeout',
+    );
+    expect(ciStartDockerStackHelper).toContain(
+      'timeout 90s node_modules/.bin/dotenv -c dev -- docker compose down --timeout 60 --remove-orphans',
+    );
+    expect(ciStartDockerStackHelper).toContain(
+      'timeout 5m node_modules/.bin/dotenv -c dev -- bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    expect(ciStartDockerStackHelper).toContain(
+      'docker builder prune -af || true',
+    );
+    expect(ciStartDockerStackHelper).toContain('bun run docker:ps || true');
     expect(ciStartDockerStackHelper).toContain('return "${start_status}"');
     expect(endToEndWorkflow).not.toContain('compose_status=$?');
     expect(packageJson).toContain(
@@ -1811,6 +1830,9 @@ describe('stabilization source', () => {
   it('keeps the CI image-pull retry tied to the observed Docker Hub timeout', () => {
     const source = readSource('STABILIZATION.md');
     const workflow = readSource('.github/workflows/e2e-baseline.yml');
+    const ciStartDockerStackHelper = readSource(
+      'helpers/testing/ci-start-docker-stack.sh',
+    );
     const queue = readSection(source, 'Browser Review Queue', 'Review Next');
     const checkpoint = queue.match(
       /Current CI image-pull reliability checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
@@ -1818,17 +1840,22 @@ describe('stabilization source', () => {
 
     expect(checkpoint).toBeDefined();
     expect(workflow).toContain(
-      'docker compose pull --quiet --ignore-buildable --policy missing',
+      'run: bash helpers/testing/ci-start-docker-stack.sh',
     );
-    expect(workflow).toContain('for attempt in 1 2 3 4; do');
-    expect(workflow).toContain(
+    expect(ciStartDockerStackHelper).toContain(
+      'timeout 3m node_modules/.bin/dotenv -c dev -- docker compose pull --quiet --ignore-buildable --policy missing',
+    );
+    expect(ciStartDockerStackHelper).toContain('for attempt in 1 2 3 4; do');
+    expect(ciStartDockerStackHelper).toContain(
       'Docker Compose image pre-pull failed after ${attempt} attempts.',
     );
-    expect(workflow).toContain(
+    expect(ciStartDockerStackHelper).toContain(
       'Continuing to Compose startup, which can still pull missing images.',
     );
-    expect(workflow).toContain('delay_seconds=$((attempt * 15))');
-    expect(workflow).toContain(
+    expect(ciStartDockerStackHelper).toContain(
+      'delay_seconds=$((attempt * 15))',
+    );
+    expect(ciStartDockerStackHelper).toContain(
       'Docker Compose image pre-pull failed on attempt ${attempt}. Retrying in ${delay_seconds}s before startup.',
     );
     expect(checkpoint).toContain('Playwright E2E (docs)');
@@ -1950,6 +1977,9 @@ describe('stabilization source', () => {
   it('keeps the CI compose diagnostics checkpoint tied to the green follow-up run', () => {
     const source = readSource('STABILIZATION.md');
     const workflow = readSource('.github/workflows/e2e-baseline.yml');
+    const ciStartDockerStackHelper = readSource(
+      'helpers/testing/ci-start-docker-stack.sh',
+    );
     const queue = readSection(source, 'Browser Review Queue', 'Review Next');
     const checkpoint = queue.match(
       /Current CI Compose alignment checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
@@ -1957,16 +1987,21 @@ describe('stabilization source', () => {
 
     expect(checkpoint).toBeDefined();
     expect(workflow).toContain(
+      'run: bash helpers/testing/ci-start-docker-stack.sh',
+    );
+    expect(ciStartDockerStackHelper).toContain(
       'timeout 12m node_modules/.bin/dotenv -c dev -- docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
     );
-    expect(workflow).toContain(
+    expect(ciStartDockerStackHelper).toContain(
       'timeout 5m node_modules/.bin/dotenv -c dev -- docker compose up --no-build -d',
     );
-    expect(workflow).toContain(
+    expect(ciStartDockerStackHelper).toContain(
       'Docker Compose build/start timed out before the workflow step timeout',
     );
-    expect(workflow).toContain('docker builder prune -af || true');
-    expect(workflow).toContain('bun run docker:ps || true');
+    expect(ciStartDockerStackHelper).toContain(
+      'docker builder prune -af || true',
+    );
+    expect(ciStartDockerStackHelper).toContain('bun run docker:ps || true');
     expect(checkpoint).toContain('regular detached Compose start');
     expect(checkpoint).toContain('explicit Compose build');
     expect(checkpoint).toContain(
@@ -3237,6 +3272,9 @@ describe('stabilization source', () => {
   it('keeps the Font Awesome bandwidth mitigation checkpoint honest', () => {
     const source = readSource('STABILIZATION.md');
     const workflow = readSource('.github/workflows/e2e-baseline.yml');
+    const ciStartDockerStackHelper = readSource(
+      'helpers/testing/ci-start-docker-stack.sh',
+    );
     const copilotWorkflow = readSource(
       '.github/workflows/copilot-setup-steps.yml',
     );
@@ -3446,6 +3484,9 @@ describe('stabilization source', () => {
     expect(workflow).toContain('needs: warm-ci-caches');
     expect(workflow).toContain('max-parallel: 1');
     expect(workflow).toContain(
+      'run: bash helpers/testing/ci-start-docker-stack.sh',
+    );
+    expect(ciStartDockerStackHelper).toContain(
       'docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build',
     );
     expect(workflow).toContain('BUILDKIT_BUN_CACHE_DIR: buildkit-bun-cache');
