@@ -90,10 +90,13 @@ container. `db-expiration` immediately sets a two-hour Neon branch expiration as
 a fallback for interrupted local or CI shutdowns, and CI runs
 `delete-neon-local-branches.ts` immediately after
 required configuration validation, before private registry auth can fail the
-job, and again after Compose shutdown. The shutdown path first gives the Neon
-Local `db` container a 60-second stop window inside a bounded 90-second command,
-then runs bounded Compose down, force-removes leftover Compose containers, and
-then deletes any branch ids that remain in Neon Local metadata. CI Compose
+job, and again after Compose shutdown.
+`helpers/testing/ci-stop-docker-stack.sh` owns the E2E shutdown path and calls
+`helpers/testing/ci-prune-neon-local-branches.sh` after Docker cleanup. The
+shutdown path first gives the Neon Local `db` container a 60-second stop window
+inside a bounded 90-second command, then runs bounded Compose down,
+force-removes leftover Compose containers, and then deletes any branch ids that
+remain in Neon Local metadata. CI Compose
 status, logs, debug streaming, shutdown, and container-removal commands use the
 generated `.env.dev` dotenv cascade after dependencies exist, while final branch
 deletion runs directly against the already-exported workflow environment so

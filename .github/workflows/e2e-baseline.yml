@@ -315,7 +315,13 @@ jobs:
 
       - name: Stop Docker stack
         if: always()
-        run: docker compose down --remove-orphans
+        timeout-minutes: 10
+        run: bash helpers/testing/ci-stop-docker-stack.sh
+
+      - name: Prune expired Neon branches after E2E
+        if: always()
+        timeout-minutes: 5
+        run: bash helpers/testing/ci-prune-neon-local-branches.sh
 
       - name: Upload Playwright test results
         if: always()

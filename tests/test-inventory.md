@@ -898,6 +898,12 @@ provider outcomes without live identifiers.
   Compose cleanup target detection for unhealthy Compose JSON health, unhealthy
   Docker `ps` status text fallback, stale created/dead states, healthy running
   exclusions, and duplicate target de-duplication.
+- E2E CI Docker teardown and final Neon pruning live in
+  `helpers/testing/ci-stop-docker-stack.sh` and
+  `helpers/testing/ci-prune-neon-local-branches.sh`; runtime-preflight and
+  stabilization-source guards keep the workflow wired to those helpers while
+  checking the bounded Compose shutdown, per-container force removal, and
+  two-hour active-test TTL pruning behavior.
 - `docs/users/create-account.doc.ts` and
   `specs/profile/create-account.spec.ts` are the current Auth0
   Management-gated integration paths. The doc covers the generated walkthrough;

@@ -2976,6 +2976,12 @@ describe('stabilization source', () => {
     const cleanupWorkflow = readSource(
       '.github/workflows/neon-branch-cleanup.yml',
     );
+    const ciPruneHelper = readSource(
+      'helpers/testing/ci-prune-neon-local-branches.sh',
+    );
+    const ciStopDockerStackHelper = readSource(
+      'helpers/testing/ci-stop-docker-stack.sh',
+    );
     const checkpoint = source.match(
       /Current Neon active-test branch cleanup checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
     )?.[0];
@@ -3100,37 +3106,48 @@ describe('stabilization source', () => {
     expect(workflow).toContain(
       'timeout 30s docker cp "${evorto_container_id}:/app/logs/server.log" test-results/docker-logs/server.log || true',
     );
-    expect(workflow).toContain('cleanup_neon_branches() {');
-    expect(workflow).toContain('compose_timeout stop --timeout 60 db || true');
-    expect(workflow).toContain(
+    expect(ciStopDockerStackHelper).toContain(
+      'compose_timeout stop --timeout 60 db || true',
+    );
+    expect(ciStopDockerStackHelper).toContain(
       'compose_timeout down --timeout 60 --remove-orphans || true',
     );
     expect(workflow).not.toContain('timeout 90s compose ');
     expect(workflow).toContain('timeout-minutes: 10');
-    expect(workflow).toContain('compose_timeout rm --force --stop -v || true');
-    expect(workflow).toContain('compose_timeout kill || true');
     expect(workflow).toContain(
+      'run: bash helpers/testing/ci-stop-docker-stack.sh',
+    );
+    expect(ciStopDockerStackHelper).toContain(
+      'compose_timeout rm --force --stop -v || true',
+    );
+    expect(ciStopDockerStackHelper).toContain('compose_timeout kill || true');
+    expect(ciStopDockerStackHelper).toContain(
       'timeout 30s docker ps -aq --filter "label=com.docker.compose.project=${compose_project_name}"',
     );
-    expect(workflow).toContain(
+    expect(ciStopDockerStackHelper).toContain(
       'for compose_container_id in ${compose_container_ids}; do',
     );
-    expect(workflow).toContain(
+    expect(ciStopDockerStackHelper).toContain(
       'timeout 45s docker rm -f -v "${compose_container_id}" || true',
     );
-    expect(workflow).not.toContain(
+    expect(ciStopDockerStackHelper).not.toContain(
       'timeout 90s docker rm -f -v ${compose_container_ids}',
     );
-    expect(workflow).toContain(
+    expect(ciPruneHelper).toContain(
       'NEON_LOCAL_METADATA_DIR="${NEON_LOCAL_METADATA_DIR:-/tmp/neon-local-metadata}"',
     );
-    expect(workflow).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID}"');
-    expect(workflow).toContain(
+    expect(ciPruneHelper).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID}"');
+    expect(ciPruneHelper).toContain(
       'bun helpers/testing/delete-neon-local-branches.ts',
     );
-    expect(workflow).toContain('cleanup_neon_branches');
+    expect(ciStopDockerStackHelper).toContain(
+      'bash helpers/testing/ci-prune-neon-local-branches.sh',
+    );
     expect(workflow).toContain('Prune expired Neon branches after E2E');
     expect(workflow).toContain('timeout-minutes: 5');
+    expect(workflow).toContain(
+      'run: bash helpers/testing/ci-prune-neon-local-branches.sh',
+    );
     expect(workflow.indexOf('Stop Docker stack')).toBeLessThan(
       workflow.indexOf('Prune expired Neon branches after E2E'),
     );

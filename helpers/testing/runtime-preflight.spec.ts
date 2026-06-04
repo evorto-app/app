@@ -343,6 +343,17 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'helpers/testing/delete-neon-local-branches.ts'),
       'utf8',
     );
+    const ciPruneHelper = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        'helpers/testing/ci-prune-neon-local-branches.sh',
+      ),
+      'utf8',
+    );
+    const ciStopDockerStackHelper = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/ci-stop-docker-stack.sh'),
+      'utf8',
+    );
     const runtimeEnvironment = fs.readFileSync(
       path.join(process.cwd(), 'helpers/testing/runtime-environment.ts'),
       'utf8',
@@ -424,62 +435,78 @@ describe('evaluateRuntimePreflight', () => {
         pruneBeforeE2EIndex,
       ),
     );
-    expect(workflow).toContain('compose() {');
-    expect(workflow).toContain('if [ -x node_modules/.bin/dotenv ]; then');
-    expect(workflow).toContain(
+    expect(ciStopDockerStackHelper).toContain('compose() {');
+    expect(ciStopDockerStackHelper).toContain(
+      'if [ -x node_modules/.bin/dotenv ]; then',
+    );
+    expect(ciStopDockerStackHelper).toContain(
       'node_modules/.bin/dotenv -c dev -- docker compose "$@"',
     );
-    expect(workflow).toContain('docker compose "$@"');
-    expect(workflow).toContain('compose_timeout() {');
-    expect(workflow).toContain(
+    expect(ciStopDockerStackHelper).toContain('docker compose "$@"');
+    expect(ciStopDockerStackHelper).toContain('compose_timeout() {');
+    expect(ciStopDockerStackHelper).toContain(
       'timeout 90s node_modules/.bin/dotenv -c dev -- docker compose "$@"',
     );
-    expect(workflow).toContain('timeout 90s docker compose "$@"');
-    expect(workflow).toContain('cleanup_neon_branches() {');
-    expect(workflow).toContain(
+    expect(ciStopDockerStackHelper).toContain(
+      'timeout 90s docker compose "$@"',
+    );
+    expect(ciPruneHelper).toContain(
       'NEON_LOCAL_METADATA_DIR="${NEON_LOCAL_METADATA_DIR:-/tmp/neon-local-metadata}"',
     );
-    expect(workflow).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID}"');
-    expect(workflow).toContain(
+    expect(ciPruneHelper).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID}"');
+    expect(ciPruneHelper).toContain(
       'bun helpers/testing/delete-neon-local-branches.ts',
     );
-    expect(workflow).toContain('compose_timeout stop --timeout 60 db || true');
-    expect(workflow).toContain(
+    expect(ciStopDockerStackHelper).toContain(
+      'compose_timeout stop --timeout 60 db || true',
+    );
+    expect(ciStopDockerStackHelper).toContain(
       'compose_timeout down --timeout 60 --remove-orphans || true',
     );
     expect(workflow).not.toContain('timeout 90s compose ');
     expect(workflow).toContain('timeout-minutes: 10');
-    expect(workflow).toContain('compose_timeout kill db || true');
-    expect(workflow).toContain('compose_timeout kill || true');
-    expect(workflow).toContain('compose_timeout rm --force --stop -v || true');
-    expect(workflow).toContain('remove_compose_project_containers() {');
     expect(workflow).toContain(
+      'run: bash helpers/testing/ci-stop-docker-stack.sh',
+    );
+    expect(ciStopDockerStackHelper).toContain(
+      'compose_timeout kill db || true',
+    );
+    expect(ciStopDockerStackHelper).toContain('compose_timeout kill || true');
+    expect(ciStopDockerStackHelper).toContain(
+      'compose_timeout rm --force --stop -v || true',
+    );
+    expect(ciStopDockerStackHelper).toContain(
+      'remove_compose_project_containers() {',
+    );
+    expect(ciStopDockerStackHelper).toContain(
       'compose_project_name="${COMPOSE_PROJECT_NAME:-evorto-ci}"',
     );
-    expect(workflow).toContain(
+    expect(ciStopDockerStackHelper).toContain(
       'timeout 30s docker ps -aq --filter "label=com.docker.compose.project=${compose_project_name}"',
     );
-    expect(workflow).toContain(
+    expect(ciStopDockerStackHelper).toContain(
       'for compose_container_id in ${compose_container_ids}; do',
     );
-    expect(workflow).toContain(
+    expect(ciStopDockerStackHelper).toContain(
       'timeout 45s docker rm -f -v "${compose_container_id}" || true',
     );
-    expect(workflow).not.toContain(
+    expect(ciStopDockerStackHelper).not.toContain(
       'timeout 90s docker rm -f -v ${compose_container_ids}',
     );
     expect(
-      workflow.indexOf('compose_timeout rm --force --stop -v || true'),
-    ).toBeLessThan(workflow.lastIndexOf('remove_compose_project_containers'));
-    expect(workflow).toContain('cleanup_neon_branches');
+      ciStopDockerStackHelper.indexOf(
+        'compose_timeout rm --force --stop -v || true',
+      ),
+    ).toBeLessThan(
+      ciStopDockerStackHelper.lastIndexOf('remove_compose_project_containers'),
+    );
+    expect(ciStopDockerStackHelper).toContain(
+      'bash helpers/testing/ci-prune-neon-local-branches.sh',
+    );
     expect(workflow).toContain('Prune expired Neon branches after E2E');
     expect(workflow).toContain('timeout-minutes: 5');
     expect(workflow).toContain(
-      'NEON_LOCAL_METADATA_DIR="${NEON_LOCAL_METADATA_DIR:-/tmp/neon-local-metadata}"',
-    );
-    expect(workflow).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID}"');
-    expect(workflow).toContain(
-      'bun helpers/testing/delete-neon-local-branches.ts',
+      'run: bash helpers/testing/ci-prune-neon-local-branches.sh',
     );
     expect(workflow.indexOf('Stop Docker stack')).toBeLessThan(
       workflow.indexOf('Prune expired Neon branches after E2E'),

@@ -74,7 +74,11 @@ bun run lint
   has passed or whose missing expiration metadata has aged beyond the
   active-test TTL. The stale sweep also runs when metadata is absent or exists
   without branch ids, so cancelled or failed E2E jobs do not leave long-lived
-  database branches behind. Generated local `.env.dev` sets
+  database branches behind. E2E CI calls
+  `helpers/testing/ci-stop-docker-stack.sh` for Docker teardown and
+  `helpers/testing/ci-prune-neon-local-branches.sh` for the dependency-free
+  final prune.
+  Generated local `.env.dev` sets
   `NEON_LOCAL_METADATA_DIR=./.neon_local`, matching the Docker Compose mount so
   local package-script cleanup reads the active Neon Local metadata file.
   CI Compose logging and shutdown commands load generated `.env.dev` through
