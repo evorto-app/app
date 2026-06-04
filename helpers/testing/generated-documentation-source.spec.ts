@@ -482,6 +482,22 @@ describe('generated docs source current behavior', () => {
     ).toBe(false);
     expect(inventorySource).not.toContain('docs/admin/global-admin.doc.ts');
     expect(inventorySource).not.toContain('docs/events/unlisted-admin.doc.ts');
+    expect(unlistedUserSource).toContain(
+      "test('User: understanding unlisted events'",
+    );
+    expect(unlistedUserSource).toContain('# Unlisted Events (User)');
+    expect(unlistedUserSource).toContain(
+      'Expected an approved listed event in the seeded events',
+    );
+    expect(unlistedUserSource).toContain('set({ unlisted: true })');
+    expect(unlistedUserSource).toContain(
+      'User-facing events list with unlisted events hidden',
+    );
+    expect(unlistedUserSource).toContain(
+      'Direct link opens the unlisted event detail page',
+    );
+    expect(unlistedUserSource).toContain('set({ unlisted: event.unlisted })');
+    expect(unlistedUserSource).not.toMatch(/admin|global-admin|global admin/i);
     expect(documentFiles).not.toEqual(
       expect.arrayContaining([
         expect.stringMatching(/global-admin|globalAdmin/i),

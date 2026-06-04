@@ -748,8 +748,11 @@ the current working direction until a product decision overrides them.
   event rows after the documentation journey.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-user.doc.ts` covers the participant-facing
-  direct-link explanation for unlisted event details; product docs intentionally
-  do not generate admin unlisted-event or global-admin functionality pages.
+  direct-link explanation for unlisted event details by hiding a deterministic
+  seeded event from the event list, screenshotting the list state, opening the
+  same event through its direct detail URL, screenshotting that page, and
+  restoring the seeded listing state. Product docs intentionally do not
+  generate admin unlisted-event or global-admin functionality pages.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, participant self-cancellation copy, the unpaid self-service transfer dialog, the paid registration transfer-code boundary, and the pending manual refund fallback created for a manually seeded paid cancellation.
 - `tests/docs/events/register.doc.ts` now documents registration-time add-on
   selection, required registration-question answers, active-registration

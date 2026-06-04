@@ -85,6 +85,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
 - Events and registrations:
   - `docs/events/**`
+  - `docs/events/unlisted-user.doc.ts` screenshots both the seeded unlisted
+    event disappearing from the user event list and the same event opening
+    through its direct detail URL before restoring the seed state
   - `specs/events/**`
   - `specs/discounts/esn-discounts.test.ts`
   - app event edit, lifecycle-action, and organizer-action guard coverage in
