@@ -168,6 +168,9 @@ const main = Effect.gen(function* () {
     try: () => Bun.write(OUTPUT_FILE_PATH, outputLines.join('\n')),
   });
   yield* Effect.logInfo(`Wrote ${OUTPUT_FILE_PATH}`);
+  yield* Effect.logInfo(
+    `Runtime target: BASE_URL=${baseUrl}, COMPOSE_PROJECT_NAME=${composeProjectName}, NEON_LOCAL_HOST_PORT=${neonLocalHostPort}`,
+  );
 });
 
 BunRuntime.runMain(main);

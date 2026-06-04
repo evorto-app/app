@@ -51,7 +51,10 @@ bun run lint
 
 ## Docker Runtime
 
-- Generate or refresh worktree-local runtime overrides: `bun run env:runtime`
+- Generate or refresh worktree-local runtime overrides: `bun run env:runtime`.
+  The command prints the generated `BASE_URL`, `COMPOSE_PROJECT_NAME`, and
+  `NEON_LOCAL_HOST_PORT` so Browser and Docker checks do not need ad hoc
+  dotenv probes just to find the current worktree target.
 - Check whether required local Docker secrets are available:
   `bun run docker:check`
 - Show the generated worktree Compose project status: `bun run docker:ps`
@@ -133,7 +136,19 @@ bun run lint
   deterministic test mode, so Docker startup no longer depends on live ESNcard
   identifiers. Missing Playwright browsers are warnings
   because they affect Playwright runs, not Docker startup.
-- `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
+- If `docker:check` reports stale, unhealthy, or uninspectable generated Compose
+  project containers, run `bun run docker:clean-stale` before retrying Docker
+  startup.
+  The cleanup script uses the generated `COMPOSE_PROJECT_NAME`, targets only
+  stale or unhealthy Compose containers, removes them one at a time, and times
+  out Docker inspect/remove subprocesses so cleanup failures remain bounded and
+  visible.
+  If the container is still running or bounded cleanup also times out, shut down
+  the generated project with Docker Compose or restart Docker Desktop before
+  retrying because container removal is blocked below the app tooling layer.
+- `bun run env:runtime` generates `.env.dev`, the untracked worktree-local
+  override file, and prints the non-secret runtime target values that identify
+  the current app URL and Compose project.
 - `.env.dev.local` is the tracked shared default dev config file.
 - `.env` is the untracked developer-secrets file.
 - `.env.example` is the tracked no-secret checklist for Docker-required

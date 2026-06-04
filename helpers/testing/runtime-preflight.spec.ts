@@ -221,6 +221,8 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(testsReadme).toContain('`bun run docker:clean-stale`');
     expect(testsReadme).toContain('generated `COMPOSE_PROJECT_NAME`');
+    expect(testsReadme).toContain('prints the generated `BASE_URL`');
+    expect(testsReadme).toContain('`NEON_LOCAL_HOST_PORT`');
     expect(testsReadme).toContain('stale, unhealthy, or uninspectable');
     expect(testsReadme).toMatch(/unhealthy running\s+generated container/u);
     expect(testsReadme).toMatch(/times\s+out Docker inspect\/remove/u);
@@ -231,9 +233,24 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'helpers/README.md'),
       'utf8',
     );
+    const runtimeEnvironment = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/runtime-environment.ts'),
+      'utf8',
+    );
+    expect(runtimeEnvironment).toContain('Runtime target: BASE_URL=');
+    expect(runtimeEnvironment).toContain(
+      'COMPOSE_PROJECT_NAME=${composeProjectName}',
+    );
+    expect(runtimeEnvironment).toContain(
+      'NEON_LOCAL_HOST_PORT=${neonLocalHostPort}',
+    );
     expect(helpersReadme).toContain('`bun run docker:clean-stale`');
+    expect(helpersReadme).toContain('`bun run env:runtime` prints');
+    expect(helpersReadme).toContain('`COMPOSE_PROJECT_NAME`');
+    expect(helpersReadme).toContain('`NEON_LOCAL_HOST_PORT`');
     expect(helpersReadme).toContain('com.docker.compose.project');
     expect(helpersReadme).toContain('instead of relying on GNU\n`timeout`');
+    expect(helpersReadme).toContain('node_modules/.bin/dotenv -c dev --');
     expect(helpersReadme).toContain(
       'removes stale or unhealthy containers one at a time',
     );

@@ -814,7 +814,27 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'repeat Browser review should still use the generated `BASE_URL`',
     );
-    expect(source).toContain('first in-app Browser queue pass are healthy');
+    expect(source).toContain('first in-app Browser queue pass');
+    expect(source).toContain('Current Browser runtime evidence');
+    expect(source).toContain(
+      'Browser plugin Node-backed in-app Browser\n  runtime',
+    );
+    expect(source).toContain('generated `.env.dev` `BASE_URL`');
+    expect(source).toContain(
+      'prints the non-secret generated `BASE_URL`, `COMPOSE_PROJECT_NAME`, and `NEON_LOCAL_HOST_PORT`',
+    );
+    expect(source).toContain('without ad hoc shell `dotenv` probes');
+    expect(source).toContain('/events` route');
+    expect(source).toContain('`Upcoming Events`\n  tenant feed');
+    expect(source).toContain('public event-link DOM snapshots');
+    expect(source).toContain('public Font Awesome install paths');
+    expect(source).toContain('sets a two-hour Neon Local branch TTL');
+    expect(source).toContain(
+      'timeout-bounds project-label discovery and force-removal for leftover Compose containers',
+    );
+    expect(source).not.toContain(
+      'current CI and local Docker build/start validation remain blocked before app startup by an invalid Font Awesome registry token',
+    );
     expect(source).not.toContain(
       'in-app Browser control still times out before manual review can run',
     );

@@ -73,6 +73,11 @@ This will:
 
 `bun run db:reset` now uses the same generated `.env.dev` plus `dotenv -c dev` loading model as `db:push`. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract.
 
+`bun run env:runtime` prints the generated `BASE_URL`,
+`COMPOSE_PROJECT_NAME`, and `NEON_LOCAL_HOST_PORT` after writing `.env.dev`.
+Use that output to find the app URL or Compose project instead of running a
+bare shell `dotenv` command.
+
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
 Docker Compose now also runs one-shot `db-expiration` and `db-setup`
@@ -133,7 +138,9 @@ bring stopped containers back without recreating them. Use `bun run docker:ps`
 to inspect the generated worktree Compose project; bare `docker compose ps` can
 point at the wrong project because it does not preload `.env.dev`. The package
 scripts preload the needed environment with `dotenv -c dev` before invoking
-Docker.
+Docker, and direct external-tool commands should use
+`node_modules/.bin/dotenv -c dev -- ...` if a package script does not already
+exist.
 
 Inside Docker, keep `BASE_URL` browser-facing so Auth0 redirects point at the
 host-mapped app URL, and keep `SSR_RPC_ORIGIN` pointed at the app container's
