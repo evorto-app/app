@@ -4584,27 +4584,30 @@ tried to kill container, but did not receive an exit event`. A follow-up
   JSON `Health=unhealthy`, Docker `ps` fallback `Status` text containing
   `(unhealthy)`, stale `created`/`dead` states, healthy running-container
   exclusion, and duplicate target de-duplication.
-- Current PR #62 active-head CI cleanup checkpoint: after pushing local head
-  `e6d5be4da`, the visible current-head rollup shows CodeQL, CodeQL
-  `Analyze (actions)`, Copilot setup, Git Town, and CodeRabbit green. The PR is
-  still draft, so GitHub reports `mergeable=MERGEABLE` while merge state remains
-  `BLOCKED` by draft status rather than by failing checks. Copilot setup on this
-  head ran the public Font Awesome registry guard, restored the Bun package
-  cache and dependency-tree cache, skipped the dependency-tree save because the
-  cache hit, restored Playwright browsers, and finished without private
-  Font Awesome registry access. The E2E workflow still keeps normal workers
-  behind the serial `Warm CI dependency caches` job, requires the warmed Docker
-  Bun cache mount before worker Docker builds, and has `if: always()` cleanup
-  finalizers for Docker log collection, `Stop Docker stack`, and
+- Observed PR #62 active-head CI cleanup checkpoint: after pushing local head
+  `2ca4e40f2`, the visible current-head rollup shows CodeQL, CodeQL
+  `Analyze (actions)`, Copilot setup, Git Town, CodeRabbit, and the E2E
+  `Warm CI dependency caches` job green, with Playwright E2E `functional-1`,
+  `functional-2`, and `docs` pending. The PR is still draft, so GitHub reports
+  `mergeable=MERGEABLE` while merge state remains `BLOCKED` by draft status
+  rather than by failing checks. Copilot setup on this head ran the public
+  Font Awesome registry guard, restored the Bun package cache and
+  dependency-tree cache, skipped the dependency-tree save because the cache hit,
+  restored Playwright browsers, and finished without private Font Awesome
+  registry access. The E2E workflow still keeps normal workers behind the serial
+  `Warm CI dependency caches` job, requires the warmed Docker Bun cache mount
+  before worker Docker builds, and has `if: always()` cleanup finalizers for
+  Docker log collection, `Stop Docker stack`, and
   `Prune expired Neon branches after E2E`; the hourly and `workflow_run` Neon
-  cleanup workflow remains the backstop for hard cancellation or runner loss.
-  A live repo-local cleanup run after the current-head checks finished reported
+  cleanup workflow remains the backstop for hard cancellation or runner loss
+  once that new workflow file exists on the default branch. A live repo-local
+  cleanup run while the current-head E2E cache warmer was still active reported
   `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`, so no
-  non-protected Neon branches were left outside active tests at this checkpoint.
-  That keeps the current branch-hygiene signal aligned with the intended state:
-  active CI workers may own short-lived branches for up to the two-hour TTL, but
-  stale branches are pruned and completed or cancelled E2E workers run the
-  cleanup finalizer when Actions reaches teardown.
+  non-protected Neon branches were present outside active tests at this
+  checkpoint. That keeps the current branch-hygiene signal aligned with the
+  intended state: active CI workers may own short-lived branches for up to the
+  two-hour TTL, but stale branches are pruned and completed or cancelled E2E
+  workers run the cleanup finalizer when Actions reaches teardown.
 - Current Docker/Browser runtime recovered checkpoint: the Docker app is again
   serving the current local branch after the protected SSR route fix at local
   head `db7845e5e`. `node_modules/.bin/dotenv -c dev -- docker compose ps`

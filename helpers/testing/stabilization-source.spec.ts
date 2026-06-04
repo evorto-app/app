@@ -4470,37 +4470,49 @@ describe('stabilization source', () => {
     );
   });
 
-  it('keeps the current PR CI cleanup checkpoint tied to active-head evidence', () => {
+  it('keeps the observed PR CI cleanup checkpoint tied to active-head evidence', () => {
     const source = readSource('STABILIZATION.md');
     const workflow = readSource('.github/workflows/e2e-baseline.yml');
     const checkpoint = source.match(
-      /Current PR #62 active-head CI cleanup checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+      /Observed PR #62 active-head CI cleanup checkpoint:[\s\S]*?(?=\n- Current |\n- Observed |\n\n## Review Next|\n$)/u,
     )?.[0];
 
     expect(checkpoint).toBeDefined();
-    expect(checkpoint).toContain('local head\n  `e6d5be4da`');
-    expect(checkpoint).toContain('CodeQL, CodeQL\n  `Analyze (actions)`');
-    expect(checkpoint).toContain('Copilot setup, Git Town, and CodeRabbit');
-    expect(checkpoint).toContain('mergeable=MERGEABLE');
-    expect(checkpoint).toContain('`BLOCKED` by draft status');
-    expect(checkpoint).toContain('public Font Awesome registry guard');
-    expect(checkpoint).toContain('Bun package\n  cache');
-    expect(checkpoint).toContain('dependency-tree cache');
-    expect(checkpoint).toContain('private\n  Font Awesome registry access');
-    expect(checkpoint).toContain('serial `Warm CI dependency caches` job');
-    expect(checkpoint).toContain('warmed Docker\n  Bun cache mount');
-    expect(checkpoint).toContain('`if: always()` cleanup\n  finalizers');
-    expect(checkpoint).toContain('`Stop Docker stack`');
-    expect(checkpoint).toContain('`Prune expired Neon branches after E2E`');
-    expect(checkpoint).toContain('hourly and `workflow_run` Neon');
-    expect(checkpoint).toContain(
+    const checkpointText = normalizeWhitespace(checkpoint ?? '');
+    expect(checkpointText).toContain('local head `2ca4e40f2`');
+    expect(checkpointText).toContain('CodeQL, CodeQL `Analyze (actions)`');
+    expect(checkpointText).toContain(
+      'Copilot setup, Git Town, CodeRabbit, and the E2E',
+    );
+    expect(checkpointText).toContain(
+      'E2E `Warm CI dependency caches` job green',
+    );
+    expect(checkpointText).toContain(
+      'Playwright E2E `functional-1`, `functional-2`, and `docs` pending',
+    );
+    expect(checkpointText).toContain('mergeable=MERGEABLE');
+    expect(checkpointText).toContain('`BLOCKED` by draft status');
+    expect(checkpointText).toContain('public Font Awesome registry guard');
+    expect(checkpointText).toContain('Bun package cache');
+    expect(checkpointText).toContain('dependency-tree cache');
+    expect(checkpointText).toContain('private Font Awesome registry access');
+    expect(checkpointText).toContain('serial `Warm CI dependency caches` job');
+    expect(checkpointText).toContain('warmed Docker Bun cache mount');
+    expect(checkpointText).toContain('`if: always()` cleanup finalizers');
+    expect(checkpointText).toContain('`Stop Docker stack`');
+    expect(checkpointText).toContain('`Prune expired Neon branches after E2E`');
+    expect(checkpointText).toContain('hourly and `workflow_run` Neon');
+    expect(checkpointText).toContain(
+      'once that new workflow file exists on the default branch',
+    );
+    expect(checkpointText).toContain(
       '`total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`',
     );
-    expect(checkpoint).toContain(
+    expect(checkpointText).toContain(
       'active CI workers may own short-lived branches',
     );
-    expect(checkpoint).toContain('two-hour TTL');
-    expect(checkpoint).toContain('cleanup finalizer');
+    expect(checkpointText).toContain('two-hour TTL');
+    expect(checkpointText).toContain('cleanup finalizer');
     expect(workflow).toContain('name: Warm CI dependency caches');
     expect(workflow).toContain('Force public Font Awesome registry');
     expect(workflow).toContain('Validate public Font Awesome dependencies');
