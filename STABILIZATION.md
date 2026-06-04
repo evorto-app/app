@@ -3797,6 +3797,19 @@ fallback rather than a profile discount-card defect.
   on the generated `BASE_URL`. The in-app Browser opened `/events`, the settled
   body showed the seeded event list including `Soccer Match 1`, and Browser
   warning/error logs were empty.
+- Current public General Browser refresh checkpoint: after pushing PR head
+  `fb77d966c`, `bun run docker:start` rebuilt the Docker app on the generated
+  `BASE_URL` and reused the offline Bun production dependency cache for public
+  Font Awesome packages. A fresh in-app Browser tab opened `/events` at 320x740
+  and rendered seeded event cards for Murnau, Munich, and Soccer Match events;
+  document and body widths stayed at 305px with no horizontal overflow, clipped
+  visible controls, overflowing visible elements, or rendered application-error
+  text. The same Browser tab then opened
+  `/legal/terms`, `/legal/privacy`, and `/404` at 390x844; each page rendered
+  its expected heading and mobile bottom navigation, document and body widths
+  stayed at 375px, and the probes again found no horizontal overflow, clipped
+  visible controls, or rendered application-error text. Browser console output
+  for the sampled Events page contained only app info logs.
 - Current live Browser route refresh checkpoint: the Docker stack stayed healthy
   on the generated `BASE_URL`, the in-app Browser opened `/events`, found the
   seeded `Soccer Match 1` event link, and loaded that event detail page. The
@@ -5133,7 +5146,14 @@ or Browser warning/error logs. A fresh direct in-app Browser refresh at PR head
 content, no horizontal overflow, no top/side clipped visible controls, no
 rendered application-error text, and zero Browser warning/error logs; the
 390x844 `/events` screenshot showed readable Material event cards and fixed
-mobile bottom navigation fitting without overlap. Playwright config now uses the repo runtime config provider
+mobile bottom navigation fitting without overlap. A fresh current-head Browser
+refresh at PR head `fb77d966c` then reopened `/events` at 320x740 and
+`/legal/terms`, `/legal/privacy`, and `/404` at 390x844 on the rebuilt Docker
+app; the sampled pages rendered seeded event cards or expected legal/not-found
+headings, kept document/body widths inside the mobile viewport, and showed no
+horizontal overflow, clipped visible controls, overflowing visible elements, or
+rendered application-error text, while the Events console output contained only
+app info logs. Playwright config now uses the repo runtime config provider
 instead of `ConfigProvider.fromEnv()` directly, so external config importers can
 read `.env.dev.local`, generated `.env.dev`, and `.env` with real environment
 variables still taking precedence. The verification command

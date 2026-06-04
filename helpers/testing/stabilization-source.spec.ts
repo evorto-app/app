@@ -660,6 +660,15 @@ describe('stabilization source', () => {
       'no Auth0 redirect, horizontal overflow, clipped visible controls, rendered application-error text, or Browser warning/error logs',
     );
     expect(normalizedReviewNext).toContain(
+      'fresh current-head Browser refresh at PR head `fb77d966c`',
+    );
+    expect(normalizedReviewNext).toContain(
+      'reopened `/events` at 320x740 and `/legal/terms`, `/legal/privacy`, and `/404` at 390x844',
+    );
+    expect(normalizedReviewNext).toContain(
+      'Events console output contained only app info logs',
+    );
+    expect(normalizedReviewNext).toContain(
       'Playwright config now uses the repo runtime config provider',
     );
     expect(normalizedReviewNext).toContain(
@@ -1138,6 +1147,947 @@ describe('stabilization source', () => {
       'in-app Browser manual pass is still blocked',
     );
     expect(readinessCheckpoint).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
+    expect(readinessCheckpoint).not.toContain(
+      'current GitHub token is missing',
+    );
+    expect(readinessCheckpoint).not.toContain('1Password SSH agent');
+    expect(readinessCheckpoint).not.toContain('remain local-only');
+    expect(readinessCheckpoint).not.toContain('token is refreshed');
+    expect(readinessCheckpoint).not.toContain(
+      'remote PR head still reports the\n  older docs failure',
+    );
+
+    expect(postMainSyncCheckpoint).toBeDefined();
+    expect(postMainSyncCheckpoint).toContain('At that older checkpoint');
+    expect(postMainSyncCheckpoint).toMatch(
+      /remote PR\s+head was aligned with the local branch/u,
+    );
+    expect(postMainSyncCheckpoint).toContain(
+      'later CI reliability commits left\n  the local branch ahead',
+    );
+    expect(postMainSyncCheckpoint).not.toContain(
+      'current PR head is aligned with the local',
+    );
+    expect(postMainSyncCheckpoint).not.toContain(
+      'are now pushed\n  to the PR branch over SSH',
+    );
+  });
+
+  it('keeps the latest Browser-queue PR checkpoint aligned with pushed remote state', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const ciCheckpoint = queue.match(
+      /Current CI Compose alignment checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+    const checkpoint = queue.match(
+      /Earlier readiness refresh checkpoint:[\s\S]*?(?=\n- Current |\n- Earlier |\n\n## Review Next|\n$)/u,
+    )?.[0];
+    const reviewDriftCheckpoint = queue.match(
+      /Current review-drift checkpoint:[\s\S]*?(?=\n- Current |\n- Earlier |\n\n## Review Next|\n$)/u,
+    )?.[0];
+    const postCiBrowserCheckpoint = queue.match(
+      /Current post-CI Browser sanity checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(ciCheckpoint).toBeDefined();
+    expect(ciCheckpoint).toContain('keeps the Docker\n  preflight');
+    expect(ciCheckpoint).toContain('regular detached Compose start');
+    expect(ciCheckpoint).toContain('explicit Compose build');
+    expect(ciCheckpoint).toContain(
+      'node_modules/.bin/dotenv -c dev -- docker compose up --no-build -d',
+    );
+    expect(ciCheckpoint).toContain('docker builder prune -af');
+    expect(ciCheckpoint).toContain(
+      'routing through reset-from-zero `bun run docker:start`',
+    );
+    expect(ciCheckpoint).not.toContain(
+      'calls\n  `bun run docker:start` instead',
+    );
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('Earlier readiness refresh checkpoint');
+    expect(checkpoint).not.toContain('SSH push is working again');
+    expect(checkpoint).not.toMatch(
+      /PR\s+head is current with the local branch/u,
+    );
+    expect(checkpoint).toMatch(
+      /PR\s+remained draft,\s+mergeable,\s+and merge-blocked/u,
+    );
+    expect(checkpoint).toContain('mergeable');
+    expect(checkpoint).toContain('draft/status state');
+    expect(checkpoint).toMatch(/pushed\s+head was not CI-green/u);
+    expect(checkpoint).toMatch(/resolves\s+`PARENT_BRANCH_ID`/u);
+    expect(checkpoint).toContain('Neon project default/primary branch');
+    expect(checkpoint).toContain('GitHub secret is absent');
+    expect(checkpoint).toContain(
+      'exports the resolved parent into `GITHUB_ENV`',
+    );
+    expect(checkpoint).toMatch(/fails before\s+Docker/u);
+    expect(checkpoint).toContain('Neon API cannot prove a parent branch');
+    expect(checkpoint).toContain('ephemeral E2E branch');
+    expect(checkpoint).toContain('active project `main` branch');
+    expect(checkpoint).toContain('parent-branch secret');
+    expect(checkpoint).toContain('GitHub E2E log for that\n  historical head');
+    expect(checkpoint).toContain('br-soft-forest-a9khi8e8');
+    expect(checkpoint).toContain('ran stale Neon branch cleanup');
+    expect(checkpoint).toContain('dependency-install blocker');
+    expect(checkpoint).toContain('Copilot');
+    expect(checkpoint).toContain('dependency-install');
+    expect(checkpoint).toMatch(/private\s+Font Awesome install blocker/u);
+    expect(checkpoint).toMatch(/public\s+Font\s+Awesome Free icon exports/u);
+    expect(checkpoint).toMatch(/deleting\s+the\s+project `.npmrc`/u);
+    expect(checkpoint).toMatch(/removing\s+Font\s+Awesome token setup/u);
+    expect(checkpoint).toMatch(/Docker,\s+Compose,\s+Copilot,\s+and E2E/u);
+    expect(checkpoint).toContain('CodeQL');
+    expect(checkpoint).toContain('CodeRabbit');
+    expect(checkpoint).toMatch(/Display\s+the\s+branch\s+stack/u);
+    expect(checkpoint).toMatch(/Analyze\s+were green/u);
+    expect(checkpoint).toMatch(/without\s+expiration\s+metadata/u);
+    expect(checkpoint).toMatch(/two-hour\s+active-test TTL/u);
+    expect(checkpoint).not.toContain(
+      'Missing required secret: PARENT_BRANCH_ID',
+    );
+    expect(checkpoint).not.toMatch(/next\s+pushed head should now move past/u);
+    expect(checkpoint).toMatch(/exactly one branch,\s+`main`/u);
+    expect(checkpoint).toContain('focused runtime-preflight');
+    expect(checkpoint).toContain('skip-inventory');
+    expect(checkpoint).toContain('stabilization source guards');
+    expect(checkpoint).toContain('WebStorm diagnostics');
+    expect(checkpoint).toMatch(/attempted in-app\s+Browser `\/events`/u);
+    expect(checkpoint).toMatch(/expected database-backed app error/u);
+    expect(checkpoint).toContain('connectivity evidence rather than');
+    expect(checkpoint).toContain('Later post-push CI evidence superseded');
+    expect(checkpoint).toContain('fully green E2E/Copilot/checks head');
+    expect(checkpoint).not.toContain(
+      'all three split E2E jobs\n  completed successfully',
+    );
+    expect(checkpoint).not.toContain('next pushed head must prove');
+    expect(checkpoint).not.toContain('local advisory-pre-pull commit');
+    expect(checkpoint).not.toContain('SSH signing');
+    expect(checkpoint).not.toContain('HTTPS `workflow` scope');
+    expect(checkpoint).not.toContain('Docker image pre-pull timeout');
+    expect(checkpoint).not.toContain('partial GitHub Actions evidence');
+    expect(checkpoint).not.toContain('SSH fetch/push still fails');
+    expect(checkpoint).not.toContain('workflow-scoped HTTPS push');
+    expect(checkpoint).not.toContain('remote PR head remains stale');
+    expect(checkpoint).not.toContain('remote PR head remains stale and draft');
+    expect(checkpoint).not.toContain('older generated-docs failure');
+    expect(checkpoint).not.toContain('communication with agent failed');
+    expect(checkpoint).not.toContain('lanes rerunning');
+
+    expect(reviewDriftCheckpoint).toBeDefined();
+    expect(reviewDriftCheckpoint).toContain(
+      'fresh thread-aware GitHub review-thread',
+    );
+    expect(reviewDriftCheckpoint).toContain(
+      'zero unresolved inline review threads',
+    );
+    expect(reviewDriftCheckpoint).toContain('no global-admin\n  product docs');
+    expect(reviewDriftCheckpoint).toContain(
+      'no unquoted colon-bearing YAML frontmatter titles',
+    );
+    expect(reviewDriftCheckpoint).toContain('PR branch is now aligned');
+    expect(reviewDriftCheckpoint).toContain('gh auth setup-git');
+    expect(reviewDriftCheckpoint).toContain('HTTPS\n  credential-helper push');
+    expect(reviewDriftCheckpoint).toContain('SSH signing failed');
+    expect(reviewDriftCheckpoint).not.toContain(
+      'communication with agent failed',
+    );
+
+    expect(postCiBrowserCheckpoint).toBeDefined();
+    expect(postCiBrowserCheckpoint).toContain('adjusted CI startup path');
+    expect(postCiBrowserCheckpoint).toContain('generated `BASE_URL`');
+    expect(postCiBrowserCheckpoint).toContain('ci-compose-green-refresh');
+    expect(postCiBrowserCheckpoint).toContain('Events | Development');
+    expect(postCiBrowserCheckpoint).toContain('Soccer Match 1');
+    expect(postCiBrowserCheckpoint).toContain(
+      'route/content\n  reachability rather than fresh console evidence',
+    );
+
+    const credentialCheckpoint = queue.match(
+      /Current credential-state Browser refresh checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(credentialCheckpoint).toBeDefined();
+    expect(credentialCheckpoint).toContain('pushed and realigned');
+    expect(credentialCheckpoint).toContain(
+      'GitHub CLI HTTPS credential-helper path',
+    );
+    expect(credentialCheckpoint).toContain('credential-state-refresh-browser');
+    expect(credentialCheckpoint).toContain('review-thread-clean-refresh');
+    expect(credentialCheckpoint).toContain('Upcoming Events');
+    expect(credentialCheckpoint).toContain(
+      'no rendered application error\n  text',
+    );
+    expect(credentialCheckpoint).toContain(
+      'stale `section-app/legacy-app` Apollo\n  warnings',
+    );
+    expect(credentialCheckpoint).toContain('route/content\n  evidence only');
+    expect(credentialCheckpoint).toContain('clean-console evidence');
+    expect(credentialCheckpoint).not.toContain(
+      'fresh no-console-warning claim',
+    );
+    expect(credentialCheckpoint).not.toContain('two commits ahead');
+    expect(credentialCheckpoint).not.toContain('remote PR head');
+    expect(credentialCheckpoint).not.toContain('HTTPS\n  `workflow` scope');
+  });
+
+  it('keeps the earlier post-SSH main-sync checkpoint scoped as historical after later pushed commits', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Earlier post-SSH main-sync checkpoint:[\s\S]*?(?=\n- Current |\n- Earlier |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('SSH-backed origin fetch');
+    expect(checkpoint).toContain('git town sync --stack');
+    expect(checkpoint).toContain('completed without conflicts');
+    expect(checkpoint).toContain('`origin/main` was an ancestor');
+    expect(checkpoint).not.toContain('local branch is clean');
+    expect(checkpoint).not.toContain(
+      'aligned with `origin/codex/stabilization-flow-coverage`',
+    );
+    expect(checkpoint).toMatch(/thread-aware PR review\s+inspection/u);
+    expect(checkpoint).toContain('zero review threads');
+    expect(checkpoint).toMatch(/GitHub reported the PR as\s+mergeable/u);
+    expect(checkpoint).toContain(
+      'Later pushed CI follow-up commits supersede this older sync\n  checkpoint',
+    );
+    expect(checkpoint).toMatch(
+      /blocked only because the PR is\s+intentionally still\s+draft/u,
+    );
+    expect(checkpoint).not.toContain('merge conflict');
+    expect(checkpoint).not.toContain('remote PR head remains stale');
+    expect(checkpoint).not.toContain('local-only');
+    expect(checkpoint).not.toContain('SSH fetch/push still fails');
+    expect(checkpoint).not.toContain('workflow-scoped HTTPS push');
+  });
+
+  it('keeps the CI dependency-install retry tied to the observed Bun cache failure and public icon installs', () => {
+    const source = readSource('STABILIZATION.md');
+    const workflow = readSource('.github/workflows/e2e-baseline.yml');
+    const copilotSetupWorkflow = readSource(
+      '.github/workflows/copilot-setup-steps.yml',
+    );
+    const packageJson = JSON.parse(readSource('package.json')) as {
+      dependencies?: Record<string, string>;
+    };
+    const lockfile = readSource('bun.lock');
+    const bunfig = readSource('bunfig.toml');
+    const dockerfile = readSource('Dockerfile');
+    const composeFile = readSource('docker-compose.yml');
+    const ciBuildCacheCompose = readSource(
+      '.github/docker-compose.build-cache.yml',
+    );
+    const workflowDependencyInstallSources = listFiles(
+      '.github/workflows',
+      '.yml',
+    )
+      .filter((workflowPath) =>
+        readSource(workflowPath).includes('bun install'),
+      )
+      .toSorted();
+    const workflowDockerBuildLines = listFiles('.github/workflows', '.yml')
+      .flatMap((workflowPath) =>
+        readSource(workflowPath)
+          .split('\n')
+          .map((line, index) => ({
+            line,
+            location: `${workflowPath}:${index + 1}`,
+          })),
+      )
+      .filter(
+        ({ line }) =>
+          line.includes('docker compose') && /(^|\s)build(\s|$)/u.test(line),
+      );
+    const uncachedWorkflowDockerBuildLines = workflowDockerBuildLines.filter(
+      ({ line }) => !line.includes('.github/docker-compose.build-cache.yml'),
+    );
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current CI dependency-install reliability checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(workflowDependencyInstallSources).toEqual([
+      '.github/workflows/copilot-setup-steps.yml',
+      '.github/workflows/e2e-baseline.yml',
+    ]);
+    expect(uncachedWorkflowDockerBuildLines).toEqual([]);
+    for (const workflowPath of workflowDependencyInstallSources) {
+      const workflowSource = readSource(workflowPath);
+      expect(workflowSource).toContain('Force public Font Awesome registry');
+      expect(workflowSource).toContain(
+        'Validate public Font Awesome dependencies',
+      );
+      expect(workflowSource).toContain(
+        "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+      );
+      expect(workflowSource).toContain(
+        'Font Awesome must stay on free public npm packages in CI.',
+      );
+      expect(workflowSource).toContain('Restore Bun package cache');
+      expect(workflowSource).toContain('id: bun-package-cache');
+      expect(workflowSource).toContain('path: ~/.bun/install/cache');
+      expect(workflowSource).toContain(
+        "key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+      );
+      expect(workflowSource).toContain('Restore Bun dependency tree');
+      expect(workflowSource).toContain('id: bun-dependency-tree-cache');
+      expect(workflowSource).toContain(
+        'Bun package cache hit: ${{ steps.bun-package-cache.outputs.cache-hit }}',
+      );
+      expect(workflowSource).toContain(
+        'Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
+      );
+      expect(workflowSource).toContain(
+        'Bun dependency tree cache restored; skipping registry install.',
+      );
+      expect(workflowSource).toContain(
+        'installing offline from the warmed package cache.',
+      );
+      expect(workflowSource).toContain(
+        'bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache',
+      );
+      expect(workflowSource).toContain(
+        'Offline Bun install failed even though the package cache was restored.',
+      );
+      expect(workflowSource).toContain(
+        'Save Bun dependency tree from package cache',
+      );
+      expect(workflowSource).toContain(
+        'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
+      );
+      expect(workflowSource).toContain('Repository .npmrc is not supported');
+      expect(workflowSource).not.toContain('FONT_AWESOME_TOKEN');
+      expect(workflowSource).not.toContain('npm.fontawesome.com');
+    }
+    expect(copilotSetupWorkflow).toContain(
+      'bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Force public Font Awesome registry',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Validate public Font Awesome dependencies',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+    );
+    expect(copilotSetupWorkflow).toContain('Restore Bun package cache');
+    expect(copilotSetupWorkflow).toContain('Restore Bun dependency tree');
+    expect(copilotSetupWorkflow).toContain('uses: actions/cache/restore@v4');
+    expect(copilotSetupWorkflow).toContain(
+      'Retrying once through the Copilot setup registry install.',
+    );
+    expect(copilotSetupWorkflow).not.toContain('FONT_AWESOME_TOKEN');
+    expect(copilotSetupWorkflow).not.toContain('npm.fontawesome.com');
+    expect(workflow).toContain(
+      'if ! bun install --frozen-lockfile --cache-dir ~/.bun/install/cache; then',
+    );
+    expect(workflow).toContain(
+      'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
+    );
+    expect(workflow).toContain('Restore Bun package cache');
+    expect(workflow).toContain('id: bun-package-cache');
+    expect(workflow).toContain('path: ~/.bun/install/cache');
+    expect(workflow).toContain(
+      "key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(workflow).toContain('Restore Docker build cache');
+    expect(workflow).toContain('COMPOSE_DOCKER_CLI_BUILD: 1');
+    expect(workflow).toContain('DOCKER_BUILDKIT: 1');
+    expect(workflow).toContain(
+      'DOCKER_BUILD_CACHE_DIR: /tmp/evorto-docker-build-cache',
+    );
+    expect(workflow).toContain('Set up Docker Buildx');
+    expect(workflow).toContain('id: setup-buildx');
+    expect(workflow).toContain('uses: docker/setup-buildx-action@v4');
+    expect(workflow).toContain('version: latest');
+    expect(workflow).toContain('warm-ci-caches:');
+    expect(workflow).toContain('name: Warm CI dependency caches');
+    expect(workflow).toContain('needs: warm-ci-caches');
+    expect(workflow).toContain('max-parallel: 1');
+    expect(workflow).toContain('path: ${{ env.DOCKER_BUILD_CACHE_DIR }}');
+    expect(workflow).toContain(
+      "key: ${{ runner.os }}-docker-build-bun-1.3.11-${{ hashFiles('Dockerfile', 'docker-compose.yml', '.github/docker-compose.build-cache.yml', 'package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(workflow).toContain('BUILDKIT_BUN_CACHE_DIR: buildkit-bun-cache');
+    expect(workflow).toContain('Restore Docker Bun cache mount');
+    expect(workflow).toContain('id: docker-bun-cache-mount');
+    expect(workflow).toContain('path: ${{ env.BUILDKIT_BUN_CACHE_DIR }}');
+    expect(workflow).toContain(
+      "key: ${{ runner.os }}-docker-bun-cache-mount-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(workflow).toContain('Require warmed Docker Bun cache mount');
+    expect(workflow).toContain(
+      'Docker Bun cache mount hit: ${{ steps.docker-bun-cache-mount.outputs.cache-hit }}',
+    );
+    expect(workflow).toContain(
+      'Docker Bun cache mount was not restored after warm-ci-caches. Refusing Docker builds that could repeat Font Awesome package downloads inside each E2E worker.',
+    );
+    expect(workflow).toContain('Inject Docker Bun cache mount');
+    expect(workflow).toContain(
+      'uses: reproducible-containers/buildkit-cache-dance@v3.4.0',
+    );
+    expect(workflow).toContain(
+      'builder: ${{ steps.setup-buildx.outputs.name }}',
+    );
+    expect(workflow).toContain('"target": "/home/bun/.bun/install/cache"');
+    expect(workflow).toContain('"id": "bun-install-cache"');
+    expect(workflow).toContain(
+      'skip-extraction: ${{ steps.docker-bun-cache-mount.outputs.cache-hit }}',
+    );
+    expect(workflow).toContain('skip-extraction: true');
+    expect(workflow).toContain('Prepare Docker build cache directory');
+    expect(workflow).toContain('mkdir -p "${DOCKER_BUILD_CACHE_DIR}"');
+    expect(workflow).toContain('Warm Docker build cache');
+    expect(workflow).toContain(
+      'timeout 20m docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
+    );
+    expect(workflow).toContain(
+      'PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright',
+    );
+    expect(workflow).toContain('Restore Playwright browser cache');
+    expect(workflow).toContain('Warm Playwright browser cache');
+    expect(workflow).toContain(
+      'key: ${{ runner.os }}-playwright-1.59.1-chromium',
+    );
+    expect(workflow).toContain('uses: actions/cache/restore@v4');
+    expect(ciBuildCacheCompose).toContain('type=gha');
+    expect(ciBuildCacheCompose).toContain('type=gha,scope=evorto-db-setup');
+    expect(ciBuildCacheCompose).toContain('type=gha,scope=evorto-app');
+    expect(ciBuildCacheCompose).toContain(
+      'type=gha,scope=evorto-db-setup,mode=max',
+    );
+    expect(ciBuildCacheCompose).toContain('type=gha,scope=evorto-app,mode=max');
+    expect(workflow).toContain(
+      'Bun package cache hit: ${{ steps.bun-package-cache.outputs.cache-hit }}',
+    );
+    expect(workflow).toContain('Bun package cache restored:');
+    expect(workflow).toContain(
+      'find "${HOME}/.bun/install/cache" -mindepth 1 -maxdepth 1 -print -quit',
+    );
+    expect(workflow).toContain(
+      'Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
+    );
+    expect(workflow).toContain('Save warmed Bun package cache');
+    expect(workflow).toContain('Save warmed Bun dependency tree');
+    expect(workflow).toContain('uses: actions/cache/save@v4');
+    expect(workflow).toContain(
+      "if: steps.bun-package-cache.outputs.cache-hit != 'true'",
+    );
+    expect(workflow).toContain(
+      'key: ${{ steps.bun-package-cache.outputs.cache-primary-key }}',
+    );
+    expect(workflow).toContain(
+      "if: steps.bun-dependency-tree-cache.outputs.cache-hit != 'true'",
+    );
+    expect(workflow).toContain(
+      'key: ${{ steps.bun-dependency-tree-cache.outputs.cache-primary-key }}',
+    );
+    expect(workflow).toContain(
+      'Refusing a parallel registry install to avoid repeated Font Awesome package downloads.',
+    );
+    expect(workflow).toContain(
+      'Retrying once without clearing the package cache',
+    );
+    expect(workflow).not.toContain('bun pm cache rm');
+    expect(workflow).toContain('Force public Font Awesome registry');
+    expect(workflow).toContain('Validate public Font Awesome dependencies');
+    expect(workflow).toContain(
+      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+    );
+    expect(workflow).toContain(
+      'Font Awesome must stay on free public npm packages in CI.',
+    );
+    expect(workflow).toContain(
+      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
+    );
+    expect(workflow).toContain(
+      "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
+    );
+    expect(workflow).toContain(
+      'echo "NPM_CONFIG_USERCONFIG=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
+    );
+    expect(workflow).toContain(
+      'echo "npm_config_userconfig=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
+    );
+    expect(workflow).toContain('Repository .npmrc is not supported');
+    expect(workflow).not.toContain('Configure Font Awesome registry auth');
+    expect(workflow).not.toContain('Validate Font Awesome registry auth');
+    expect(workflow).not.toContain('Remove Font Awesome registry auth');
+    expect(workflow).not.toContain('FONT_AWESOME_TOKEN');
+    expect(workflow).not.toContain('npm.fontawesome.com');
+    expect(copilotSetupWorkflow).toContain(
+      'bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
+    );
+    expect(copilotSetupWorkflow).toContain('Restore Bun package cache');
+    expect(copilotSetupWorkflow).toContain('id: bun-package-cache');
+    expect(copilotSetupWorkflow).toContain('path: ~/.bun/install/cache');
+    expect(copilotSetupWorkflow).toContain(
+      "key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright',
+    );
+    expect(copilotSetupWorkflow).toContain('Restore Playwright browser cache');
+    expect(copilotSetupWorkflow).toContain(
+      'key: ${{ runner.os }}-playwright-1.59.1-chromium',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Bun package cache hit: ${{ steps.bun-package-cache.outputs.cache-hit }}',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
+    );
+    expect(copilotSetupWorkflow).not.toContain('bun pm cache rm');
+    expect(copilotSetupWorkflow).toContain(
+      'Force public Font Awesome registry',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Validate public Font Awesome dependencies',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'echo "NPM_CONFIG_USERCONFIG=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'echo "npm_config_userconfig=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Repository .npmrc is not supported',
+    );
+    expect(copilotSetupWorkflow).not.toContain(
+      'Configure Font Awesome registry auth',
+    );
+    expect(copilotSetupWorkflow).not.toContain(
+      'Validate Font Awesome registry auth',
+    );
+    expect(copilotSetupWorkflow).not.toContain(
+      'Remove Font Awesome registry auth',
+    );
+    expect(copilotSetupWorkflow).not.toContain('FONT_AWESOME_TOKEN');
+    expect(copilotSetupWorkflow).not.toContain('npm.fontawesome.com');
+    expect(packageJson.dependencies).toHaveProperty(
+      '@fortawesome/free-solid-svg-icons',
+    );
+    expect(packageJson.dependencies).toHaveProperty(
+      '@fortawesome/free-brands-svg-icons',
+    );
+    expect(packageJson.dependencies).not.toHaveProperty(
+      '@fortawesome/duotone-regular-svg-icons',
+    );
+    expect(lockfile).toContain('@fortawesome/free-solid-svg-icons');
+    expect(lockfile).not.toContain('@fortawesome/duotone-regular-svg-icons');
+    expect(lockfile).not.toContain('npm.fontawesome.com');
+    expect(bunfig).toContain('[install.scopes]');
+    expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');
+    expect(dockerfile).not.toContain('FONT_AWESOME_TOKEN');
+    expect(dockerfile).not.toContain('npm.fontawesome.com');
+    expect(dockerfile).toContain(
+      'NPM_CONFIG_USERCONFIG=/tmp/npmrc-public-fontawesome',
+    );
+    expect(dockerfile).toContain(
+      'npm_config_userconfig=/tmp/npmrc-public-fontawesome',
+    );
+    expect(dockerfile).toContain(
+      "'@fortawesome:registry=https://registry.npmjs.org/'",
+    );
+    expect(dockerfile).toContain(
+      'id=bun-install-cache,target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked',
+    );
+    expect(dockerfile).toContain('FROM build AS production-dependencies');
+    expect(dockerfile).toContain('RUN rm -rf node_modules');
+    expect(dockerfile).toContain(
+      'bun install --frozen-lockfile --production --offline --cache-dir /home/bun/.bun/install/cache',
+    );
+    expect(dockerfile).not.toContain(
+      'bun install --frozen-lockfile --production --cache-dir /home/bun/.bun/install/cache',
+    );
+    expect(ciBuildCacheCompose).toContain('cache_from:');
+    expect(ciBuildCacheCompose).toContain(
+      'type=local,src=${DOCKER_BUILD_CACHE_DIR:-/tmp/evorto-docker-build-cache}',
+    );
+    expect(ciBuildCacheCompose).toContain('cache_to:');
+    expect(ciBuildCacheCompose).toContain(
+      'type=local,dest=${DOCKER_BUILD_CACHE_DIR:-/tmp/evorto-docker-build-cache},mode=max',
+    );
+    expect(composeFile).not.toContain('FONT_AWESOME_TOKEN');
+    expect(checkpoint).toContain('Playwright E2E (functional-2)');
+    expect(checkpoint).toContain('copilot-setup-steps');
+    expect(checkpoint).toContain('Bun cache');
+    expect(checkpoint).toMatch(
+      /bun install --frozen-lockfile --cache-dir\s+~\/\.bun\/install\/cache/u,
+    );
+    expect(checkpoint).toContain('actions/cache/save@v4');
+    expect(checkpoint).toContain('immediately saves');
+    expect(checkpoint).toContain('before Playwright browser');
+    expect(checkpoint).toContain('integrity-check errors');
+    expect(checkpoint).toContain('@effect/language-service');
+    expect(checkpoint).toContain('@angular/material');
+    expect(checkpoint).toContain('drizzle-kit');
+    expect(checkpoint).toContain('Both workflows that install dependencies');
+    expect(checkpoint).toContain('normal frozen-lockfile install');
+    expect(checkpoint).toContain(
+      'retry without deleting `~/.bun/install/cache`',
+    );
+    expect(checkpoint).not.toContain('bun pm cache rm');
+    expect(checkpoint).toContain('private Font Awesome dependency path');
+    expect(checkpoint).toContain('tracked `.npmrc` is gone');
+    expect(checkpoint).toContain('public npm packages only');
+    expect(checkpoint).toContain('@shared/icons/fontawesome');
+    expect(checkpoint).toContain('bun install --frozen-lockfile');
+    expect(checkpoint).toContain('passes locally without registry auth');
+    expect(checkpoint).toContain('latest pushed PR head');
+    expect(checkpoint).toContain('all three E2E matrix jobs');
+    expect(checkpoint).toContain('green pushed-head');
+    expect(checkpoint).not.toContain('current Copilot setup');
+    expect(checkpoint).toContain('primary');
+    expect(checkpoint).toContain('~/.bun/install/cache');
+    expect(checkpoint).toContain('downloaded/extracted only one package');
+    expect(checkpoint).toContain('public Font Awesome');
+    expect(checkpoint).toContain('BuildKit Bun cache mount');
+    expect(checkpoint).toContain('buildkit-bun-cache');
+    expect(checkpoint).toContain(
+      'reproducible-containers/buildkit-cache-dance@v3.4.0',
+    );
+    expect(checkpoint).toContain('skip-extraction: true');
+    expect(checkpoint).toContain('@fortawesome/duotone-regular-svg-icons');
+    expect(checkpoint).toContain('npm.fontawesome.com');
+    expect(checkpoint).toContain('stay out of package');
+    expect(checkpoint).toContain('workflow sources');
+    expect(checkpoint).toContain('exactly one branch, `main`');
+    expect(checkpoint).toContain('zero active-test');
+    expect(checkpoint).toContain(
+      'retry without deleting `~/.bun/install/cache`',
+    );
+    expect(checkpoint).toMatch(/CI\s+reliability/u);
+    expect(checkpoint).toContain('small worst-case retry cost');
+    expect(checkpoint).toMatch(/persistent\s+lockfile,\s+registry/u);
+    expect(checkpoint).not.toContain('fresh no-console-warning claim');
+  });
+
+  it('keeps local Docker preflight readiness wording precise', () => {
+    const source = readSource('STABILIZATION.md');
+    const localRuntime = readSection(
+      source,
+      'Local Runtime/Developer Workflow',
+      'Prioritized Cleanup Backlog',
+    );
+
+    expect(localRuntime).toContain('Docker container start path');
+    expect(localRuntime).toContain('public npm packages only');
+    expect(localRuntime).toContain(
+      "this worktree's required runtime variables are present",
+    );
+    expect(localRuntime).toContain(
+      'Earlier Docker preflight retries failed only at the disposable container start-path probe',
+    );
+    expect(localRuntime).toContain(
+      'host Docker engine could inspect config but could not start containers',
+    );
+    expect(localRuntime).toContain(
+      'current running-Docker Browser evidence in the review queue supersedes that historical local blocker',
+    );
+    expect(localRuntime).not.toContain(
+      'current Docker preflight now fails only',
+    );
+    expect(localRuntime).not.toContain(
+      "this worktree's Docker preflight passes with all required runtime variables present",
+    );
+  });
+
+  it('keeps the CI image-pull retry tied to the observed Docker Hub timeout', () => {
+    const source = readSource('STABILIZATION.md');
+    const workflow = readSource('.github/workflows/e2e-baseline.yml');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current CI image-pull reliability checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(workflow).toContain(
+      'docker compose pull --quiet --ignore-buildable --policy missing',
+    );
+    expect(workflow).toContain('for attempt in 1 2 3 4; do');
+    expect(workflow).toContain(
+      'Docker Compose image pre-pull failed after ${attempt} attempts.',
+    );
+    expect(workflow).toContain(
+      'Continuing to Compose startup, which can still pull missing images.',
+    );
+    expect(workflow).toContain('delay_seconds=$((attempt * 15))');
+    expect(workflow).toContain(
+      'Docker Compose image pre-pull failed on attempt ${attempt}. Retrying in ${delay_seconds}s before startup.',
+    );
+    expect(checkpoint).toContain('Playwright E2E (docs)');
+    expect(checkpoint).toContain('Docker Hub timed out');
+    expect(checkpoint).toContain('oven/bun:1.3.11-alpine');
+    expect(checkpoint).toContain('db-expiration');
+    expect(checkpoint).toContain('Functional shards passed on the same head');
+    expect(checkpoint).toContain('docs rerun then\n  passed Docker startup');
+    expect(checkpoint).toContain('generated-doc upload');
+    expect(checkpoint).toContain('pre-pulls non-buildable Compose images');
+    expect(checkpoint).toContain('regular detached Compose startup');
+    expect(checkpoint).toContain('one retry was still\n  too narrow');
+    expect(checkpoint).toContain('parallel CI load');
+    expect(checkpoint).toContain('Playwright E2E (functional-2)');
+    expect(checkpoint).toContain('minio-init');
+    expect(checkpoint).toContain('stripe');
+    expect(checkpoint).toContain('four bounded attempts');
+    expect(checkpoint).toContain('short backoff');
+    expect(checkpoint).toContain('regular detached Compose startup');
+    expect(checkpoint).toContain('startup diagnostics');
+    expect(checkpoint).toContain('favoring reliability');
+    expect(checkpoint).toContain('small worst-case delay');
+    expect(checkpoint).toContain('bounded-backoff follow-up head');
+    expect(checkpoint).toContain('passed\n  CodeQL');
+    expect(checkpoint).toContain('Analyze');
+    expect(checkpoint).toContain('Copilot setup');
+    expect(checkpoint).toContain('Git Town');
+    expect(checkpoint).toContain('CodeRabbit');
+    expect(checkpoint).toContain('still failed before startup');
+    expect(checkpoint).toContain('Docker Hub header timeouts');
+    expect(checkpoint).toContain('advisory warmup');
+    expect(checkpoint).toContain('logs a warning');
+    expect(checkpoint).toContain(
+      'continues to the normal Compose startup path',
+    );
+    expect(checkpoint).toContain('build/start retry path');
+    expect(checkpoint).toContain('Playwright E2E (docs)');
+    expect(checkpoint).toContain('Playwright E2E (functional-1)');
+    expect(checkpoint).toContain('Playwright E2E (functional-2)');
+  });
+
+  it('keeps historical Browser fallback scope separate from completed manual evidence', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Historical Browser connector fallback checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain(
+      "Browser plugin's\n  Node-backed in-app Browser runtime",
+    );
+    expect(checkpoint).toContain('page was not initialized before interaction');
+    expect(checkpoint).toContain(
+      'does not supersede the completed first manual in-app Browser queue pass',
+    );
+    expect(checkpoint).toContain('prior Browser-backed route/content');
+    expect(checkpoint).toContain('evidence-only CI/doc changes');
+    expect(checkpoint).toContain('fallback route checks');
+    expect(checkpoint).toContain('HTTP route sanity');
+    expect(checkpoint).toContain('/events');
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=ci-image-pull-retry-green-head',
+    );
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=ci-pull-bounded-backoff',
+    );
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=historical-browser-blocker-wording',
+    );
+    expect(checkpoint).toContain(
+      'historical\n  Browser-blocker wording cleanup',
+    );
+    expect(checkpoint).toMatch(/reachability\/security\s+headers/u);
+    expect(checkpoint).toMatch(
+      /rather than a Browser walkthrough or console\s+review/u,
+    );
+    expect(checkpoint).not.toContain('manual Browser review remains blocked');
+    expect(checkpoint).not.toContain('Transport closed');
+    expect(checkpoint).not.toContain('Must setup test before interacting');
+  });
+
+  it('keeps the current Browser runtime reconnect checkpoint tied to in-app evidence', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current Browser runtime reconnect checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain(
+      "Browser plugin's Node-backed\n  in-app Browser runtime reconnected",
+    );
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).toContain('/events');
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=browser-node-runtime-reconnected',
+    );
+    expect(checkpoint).toContain('local\n  app shell');
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=evidence-index-browser-runtime-retry',
+    );
+    expect(checkpoint).toContain('current tenant feed');
+    expect(checkpoint).toContain('Upcoming Events');
+    expect(checkpoint).toContain('public event links');
+    expect(checkpoint).toContain(
+      'instead of\n  the earlier seeded `Soccer Match 1` fixture list',
+    );
+    expect(checkpoint).toContain('Browser DOM snapshot');
+    expect(checkpoint).toMatch(/no rendered\s+application\s+error\s+text/u);
+    expect(checkpoint).toContain(
+      'supersedes the older\n  fallback-only status',
+    );
+    expect(checkpoint).not.toContain('HTTP route sanity');
+    expect(checkpoint).not.toContain('page was not initialized');
+    expect(checkpoint).not.toContain('Must setup test before interacting');
+  });
+
+  it('keeps the CI compose diagnostics checkpoint tied to the green follow-up run', () => {
+    const source = readSource('STABILIZATION.md');
+    const workflow = readSource('.github/workflows/e2e-baseline.yml');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current CI Compose alignment checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(workflow).toContain(
+      'timeout 12m node_modules/.bin/dotenv -c dev -- docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
+    );
+    expect(workflow).toContain(
+      'timeout 5m node_modules/.bin/dotenv -c dev -- docker compose up --no-build -d',
+    );
+    expect(workflow).toContain(
+      'Docker Compose build/start timed out before the workflow step timeout',
+    );
+    expect(workflow).toContain('docker builder prune -af || true');
+    expect(workflow).toContain('bun run docker:ps || true');
+    expect(checkpoint).toContain('regular detached Compose start');
+    expect(checkpoint).toContain('explicit Compose build');
+    expect(checkpoint).toContain(
+      'reports a GitHub error annotation on timeout',
+    );
+    expect(checkpoint).toContain(
+      'stabilizationEvidence=ci-compose-timeout-diagnostics',
+    );
+    expect(checkpoint).toContain('does\n  not claim seeded event-list content');
+    expect(checkpoint).toMatch(/current\s+PR\s+head/u);
+    expect(checkpoint).toContain('Docker build/start timeout');
+    expect(checkpoint).toContain('the docs and first functional shards passed');
+    expect(checkpoint).toContain('first functional shards passed');
+    expect(checkpoint).toContain('Playwright E2E (functional-2)');
+    expect(checkpoint).toContain('docs');
+    expect(checkpoint).toContain('Later pushed CI evidence superseded');
+    expect(checkpoint).toContain('retryable\n  split-build startup path');
+    expect(checkpoint).not.toMatch(/awaits the next pushed CI\s+run/u);
+  });
+
+  it('does not describe superseded push blockers as current Browser queue state', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+
+    expect(queue).toContain('Historical push-blocker PR sync checkpoint');
+    expect(queue).toContain('Historical docs-CI stabilization checkpoint');
+    expect(queue).toContain('later checkpoints supersede the old');
+    expect(queue).toContain('Later\n  readiness checkpoints supersede');
+    expect(queue).not.toContain('Current PR sync checkpoint');
+    expect(queue).not.toContain('Current docs-CI stabilization checkpoint');
+    expect(queue).not.toContain('PR remains local-only at this checkpoint');
+    expect(queue).not.toContain('GitHub still reports the older remote head');
+    expect(queue).not.toContain(
+      "still\n  failing on GitHub's older remote head",
+    );
+    expect(queue).not.toContain('fix remains local-only');
+    expect(queue).not.toContain('SSH signing still fails');
+    expect(queue).not.toContain('HTTPS push remains unusable');
+  });
+
+  it('keeps the live Browser route refresh tied to current Soccer event evidence', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current live Browser route refresh checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('Docker stack stayed healthy');
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).toContain('in-app Browser opened `/events`');
+    expect(checkpoint).toContain('seeded `Soccer Match 1` event link');
+    expect(checkpoint).toContain('Soccer Match 1 | Development');
+    expect(checkpoint).toContain('registration/payment');
+    expect(checkpoint).toContain('inclusive-VAT signals');
+    expect(checkpoint).toContain('Browser\n  warning/error logs were empty');
+    expect(checkpoint).not.toContain('first event link');
+    expect(checkpoint).not.toContain('Browser review was blocked');
+  });
+
+  it('keeps the current public General Browser refresh tied to current-head mobile evidence', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current public General Browser refresh checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('PR head\n  `fb77d966c`');
+    expect(checkpoint).toContain('`bun run docker:start` rebuilt');
+    expect(checkpoint).toContain('offline Bun production dependency cache');
+    expect(checkpoint).toContain('Font Awesome packages');
+    expect(checkpoint).toContain('/events` at 320x740');
+    expect(checkpoint).toContain('Murnau, Munich, and Soccer Match events');
+    expect(checkpoint).toContain('document and body widths stayed at 305px');
+    expect(checkpoint).toContain(
+      '`/legal/terms`, `/legal/privacy`, and `/404` at 390x844',
+    );
+    expect(checkpoint).toContain('document and body widths\n  stayed at 375px');
+    expect(checkpoint).toContain('mobile bottom navigation');
+    expect(checkpoint).toContain('no horizontal overflow');
+    expect(checkpoint).toContain('clipped\n  visible controls');
+    expect(checkpoint).toContain('rendered application-error text');
+    expect(checkpoint).toContain('only app info logs');
+    expect(checkpoint).not.toContain('system Chrome');
+    expect(checkpoint).not.toContain('standalone Playwright');
+  });
+
+  it('keeps the current Browser unlisted-event checkpoint tied to list hiding and direct access', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current Browser unlisted-event checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).toContain('current `localhost` seed');
+    expect(checkpoint).toContain('temporarily marked');
+    expect(checkpoint).toContain('restored it after\n  Browser review');
+    expect(checkpoint).toContain('Bavarian Forest Trip 1');
+    expect(checkpoint).toContain('in-app Browser `/events` reload');
+    expect(checkpoint).toContain('no longer showed that\n  event');
+    expect(checkpoint).toContain('/events/cb6fd355fe42785bb255');
+    expect(checkpoint).toContain(
+      'title, description, participant\n  registration option',
+    );
+    expect(checkpoint).toContain('login-required registration action');
+    expect(checkpoint).toContain(
+      'Fresh Browser\n  warning/error logs were empty',
+    );
+    expect(checkpoint).not.toContain('system Chrome');
+    expect(checkpoint).not.toContain('admin sees unlisted');
   });
 
   it('opts GitHub JavaScript actions into the Node 24 runtime before the hosted runner cutover', () => {
