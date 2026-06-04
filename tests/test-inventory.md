@@ -121,7 +121,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - route-manifest specs in `src/app/finance`, `src/app/global-admin`, and
     `src/app/templates`
 - Tenant/global admin:
-  - `docs/admin/general-settings.doc.ts`
+  - `docs/admin/general-settings.doc.ts` covers the tenant general-settings
+    docs flow with focused screenshots for tenant identity,
+    communication/branding fields, legal-page fields, and receipt/ESN-card
+    discount settings.
+  - `specs/admin/admin-viewports.spec.ts`
   - `specs/admin/general-settings.spec.ts`
   - `specs/admin/global-admin-tenants.spec.ts`
 - Finance, receipts, tax, and Stripe:

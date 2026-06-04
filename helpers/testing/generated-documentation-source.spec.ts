@@ -399,6 +399,28 @@ describe('generated docs source current behavior', () => {
       "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 1,\n      name: 'General settings',\n    })",
     );
     expect(source).toContain(
+      "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 2,\n      name: 'Tenant identity',\n    })",
+    );
+    expect(source).toContain("generalSettings.getByLabel('Email sender name')");
+    expect(source).toContain(
+      "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 3,\n      name: 'Legal pages',\n    })",
+    );
+    expect(source).toContain(
+      "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 3,\n      name: 'ESN Card discounts',\n    })",
+    );
+    expect(source).toContain(
+      'Tenant identity summary showing primary domain and Stripe status',
+    );
+    expect(source).toContain(
+      'Communication and branding fields for tenant email and assets',
+    );
+    expect(source).toContain(
+      'Legal page fields for hosted imprint privacy and terms content',
+    );
+    expect(source).toContain(
+      'Receipt and ESN card discount settings near the save action',
+    );
+    expect(source).toContain(
       'One-domain-per-tenant remains the current relaunch scope in the application schema.',
     );
     expect(source).toContain(

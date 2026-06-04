@@ -33,6 +33,16 @@ Tenant admins can manage the settings that are currently implemented for the act
     page,
     'Tenant general settings page with editable relaunch configuration fields',
   );
+  await takeScreenshot(
+    testInfo,
+    generalSettings.getByRole('heading', {
+      exact: true,
+      level: 2,
+      name: 'Tenant identity',
+    }),
+    page,
+    'Tenant identity summary showing primary domain and Stripe status',
+  );
 
   await testInfo.attach('markdown', {
     body: `
@@ -57,6 +67,32 @@ The current general settings page supports:
 Tax rates are managed on the separate **Tax Rates** page.
 `,
   });
+  await takeScreenshot(
+    testInfo,
+    generalSettings.getByLabel('Email sender name'),
+    page,
+    'Communication and branding fields for tenant email and assets',
+  );
+  await takeScreenshot(
+    testInfo,
+    generalSettings.getByRole('heading', {
+      exact: true,
+      level: 3,
+      name: 'Legal pages',
+    }),
+    page,
+    'Legal page fields for hosted imprint privacy and terms content',
+  );
+  await takeScreenshot(
+    testInfo,
+    generalSettings.getByRole('heading', {
+      exact: true,
+      level: 3,
+      name: 'ESN Card discounts',
+    }),
+    page,
+    'Receipt and ESN card discount settings near the save action',
+  );
 
   await testInfo.attach('markdown', {
     body: `
