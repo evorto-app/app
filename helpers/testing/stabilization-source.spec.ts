@@ -903,7 +903,7 @@ describe('stabilization source', () => {
     expect(source).toContain('proves');
     expect(source).toContain('generic page-root screenshot targets');
     expect(source).toContain('aliased `takeScreenshot` imports');
-    expect(source).toContain('local screenshot\n  wrapper declarations');
+    expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
     expect(source).toContain('Synthetic failing examples');
     expect(source).toContain('app-root');
     expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
@@ -913,9 +913,12 @@ describe('stabilization source', () => {
       'at least 120 characters of explanatory markdown',
     );
     expect(inventory).toMatch(/pins the current per-flow\s+screenshot counts/u);
+    expect(inventory).toContain(
+      'manifest that must include every image-backed docs',
+    );
     expect(inventory).toContain('quietly drop image-backed states');
     expect(inventory).toContain('shared `takeScreenshot` helper');
-    expect(inventory).toMatch(/documentation\s+reporter barrel/u);
+    expect(inventory).toMatch(/documentation\s+reporter\s+barrel/u);
     expect(inventory).toContain('meaningful literal caption');
     expect(inventory).toMatch(/generic page-root\s+screenshot targets/u);
     expect(inventory).toContain('helper-internal screenshot imports');
@@ -947,6 +950,12 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain('countTakeScreenshotCalls');
     expect(generatedDocumentationSource).toContain('expectedScreenshotCounts');
+    expect(generatedDocumentationSource).toContain(
+      'expectedImageBackedDocuments',
+    );
+    expect(generatedDocumentationSource).toContain(
+      '[...expectedScreenshotCounts.keys()].toSorted()',
+    );
     expect(generatedDocumentationSource).toContain(
       "['tests/docs/events/register.doc.ts', 13]",
     );

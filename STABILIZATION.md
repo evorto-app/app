@@ -3436,16 +3436,17 @@ fallback rather than a profile discount-card defect.
   and it parses `takeScreenshot(...)` calls so UI docs must provide a literal
   screenshot caption with enough context to explain what the captured image
   proves while avoiding generic page-root screenshot targets such as `body`,
-  `html`, or `app-root`. It now also pins the current per-flow screenshot counts,
-  including the 13 image-backed states in `tests/docs/events/register.doc.ts`
-  and the eight image-backed states in `tests/docs/templates/templates.doc.ts`,
-  so a future docs edit cannot quietly drop meaningful images while leaving one
-  remaining screenshot behind. It also rejects aliased `takeScreenshot` imports,
-  direct imports from the helper implementation path, and local screenshot
-  wrapper declarations, so docs cannot route around the meaningful-image checks
-  while still appearing to use the shared helper. Synthetic failing examples now
-  exercise those bypass patterns directly so the guard is protected even when
-  the current docs remain clean. The only text-only exception is
+  `html`, or `app-root`. It now also pins the current per-flow screenshot counts
+  with a manifest that must exactly match every image-backed docs file, including
+  the 13 image-backed states in `tests/docs/events/register.doc.ts` and the eight
+  image-backed states in `tests/docs/templates/templates.doc.ts`, so a future
+  docs edit cannot quietly drop meaningful images while leaving one remaining
+  screenshot behind or add a new UI doc without count coverage. It also rejects
+  aliased `takeScreenshot` imports, direct imports from the helper implementation
+  path, and local screenshot wrapper declarations, so docs cannot route around
+  the meaningful-image checks while still appearing to use the shared helper.
+  Synthetic failing examples now exercise those bypass patterns directly so the
+  guard is protected even when the current docs remain clean. The only text-only exception is
   `tests/docs/roles/about-permissions.doc.ts`, because it is a permission
   reference generated from `PERMISSION_GROUPS` rather than an app screen.
 - Current generated-docs runtime caption checkpoint:

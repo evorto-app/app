@@ -337,8 +337,14 @@ describe('generated docs source current behavior', () => {
     const screenshotHelper = readSource(
       'tests/support/reporters/documentation-reporter/take-screenshot.ts',
     );
+    const expectedImageBackedDocuments = documentFiles.filter(
+      (path) => !textOnlyReferenceDocuments.has(path),
+    );
 
     expect(documentFiles.length).toBe(15);
+    expect([...expectedScreenshotCounts.keys()].toSorted()).toEqual(
+      expectedImageBackedDocuments,
+    );
     expect(screenshotHelper).toContain(
       'htmlElement.style.outline = `thick solid ${highlightColor}`',
     );
