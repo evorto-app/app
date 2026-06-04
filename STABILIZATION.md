@@ -3415,6 +3415,12 @@ fallback rather than a profile discount-card defect.
   explain what the captured image proves. The only text-only exception is
   `tests/docs/roles/about-permissions.doc.ts`, because it is a permission
   reference generated from `PERMISSION_GROUPS` rather than an app screen.
+- Current generated-docs runtime caption checkpoint:
+  `tests/support/reporters/documentation-reporter/take-screenshot.ts` now makes
+  the caption parameter required and fails fast when the caption is shorter than
+  the source-guarded 24-character floor, so a generated-doc screenshot cannot
+  silently render as an uncaptioned or weakly captioned image even if a future
+  docs flow bypasses the source parser.
 - Current docs screenshot-stability checkpoint: the focused generated-docs
   screenshot helper now waits for target locator bounds to stabilize before
   capture, matching the full documentation reporter path. The shared stability

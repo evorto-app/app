@@ -84,6 +84,11 @@ describe('generated docs source current behavior', () => {
 
     expect(documentFiles.length).toBe(15);
     expect(screenshotHelper).toContain("htmlElement.style.outline = 'thick");
+    expect(screenshotHelper).toContain('caption: string');
+    expect(screenshotHelper).toContain('caption.trim().length < 24');
+    expect(screenshotHelper).toContain(
+      'Documentation screenshots require a descriptive caption',
+    );
     expect(screenshotHelper).toContain("testInfo.attach('image'");
     expect(screenshotHelper).toContain("testInfo.attach('image-caption'");
 

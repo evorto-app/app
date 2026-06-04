@@ -709,7 +709,7 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain('shared `takeScreenshot` helper');
     expect(inventory).toContain('meaningful literal caption');
-    expect(inventory).toContain('rejects raw\n  `page.screenshot` calls');
+    expect(inventory).toContain('rejects raw `page.screenshot` calls');
     expect(inventory).toContain('generated `{% figure %}` blocks');
     expect(inventory).toContain('escapes caption attributes');
     expect(inventory).toContain(
@@ -737,6 +737,13 @@ describe('stabilization source', () => {
       'findWeakScreenshotCaptions',
     );
     expect(generatedDocumentationSource).toContain('captionText.length < 24');
+    expect(generatedDocumentationSource).toContain('caption: string');
+    expect(generatedDocumentationSource).toContain(
+      'caption.trim().length < 24',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'Documentation screenshots require a descriptive caption',
+    );
     expect(generatedDocumentationSource).toContain(
       "testInfo.attach('image-caption'",
     );

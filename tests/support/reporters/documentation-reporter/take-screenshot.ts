@@ -157,8 +157,14 @@ export async function takeScreenshot(
   testInfo: TestInfo,
   locators: Locator | Locator[],
   page: Page,
-  caption?: string,
+  caption: string,
 ) {
+  if (caption.trim().length < 24) {
+    throw new Error(
+      'Documentation screenshots require a descriptive caption of at least 24 characters.',
+    );
+  }
+
   await settleFiniteAnimations(page);
   const focusPoints = Array.isArray(locators) ? locators : [locators];
 
@@ -213,11 +219,9 @@ export async function takeScreenshot(
     }),
     contentType: 'image/png',
   });
-  if (caption) {
-    await testInfo.attach('image-caption', {
-      body: caption,
-    });
-  }
+  await testInfo.attach('image-caption', {
+    body: caption,
+  });
 
   for (const locator of focusPoints) {
     try {
