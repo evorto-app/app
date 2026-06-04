@@ -4097,13 +4097,29 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   GitHub workflow lookup also showed `.github/workflows/neon-branch-cleanup.yml`
   is still not present on the default branch, so its scheduled and
   `workflow_run` cleanup hooks will only become active after the workflow-file
-  change lands there. Until then, PR E2E runs must not rely on cancellation to
-  stop old work after Neon Local has created a branch: the E2E concurrency group
-  is now non-canceling (`cancel-in-progress: false`) so an already-running
-  Docker/Neon job can reach its timeout-bound `if: always()` teardown and final
-  dependency-free Neon prune. GitHub can still coalesce pending runs for the
-  same PR ref before they start, avoiding extra active-test branches and
-  repeated Font Awesome cache warmups.
+  change lands there. A later same-day GitHub workflow lookup found one older
+  E2E run still active only because its docs shard was already running; the live
+  Neon branch it owned, `br-floral-night-a9amtkos`, had a two-hour expiration,
+  and the current PR head was pending behind that stale-head run. The E2E
+  concurrency group now uses `cancel-in-progress: true`, so stale same-ref
+  Docker/Neon jobs are cancelled when a newer PR head arrives instead of keeping
+  current-head CI queued, also avoiding repeated Font Awesome cache warmups on
+  stale heads. The in-job `if: always()` teardown remains the normal
+  path for jobs that reach shutdown, while the standalone workflow-run cleanup
+  and hourly prune cover cancelled or interrupted runs after the short active
+  TTL. The same retry found generated `.env.dev` did not set
+  `NEON_LOCAL_METADATA_DIR`, so package-script cleanup looked in
+  `/tmp/.neon_local` while local Docker Compose mounted `./.neon_local`. The
+  runtime-env generator now writes `NEON_LOCAL_METADATA_DIR="./.neon_local"`, and
+  fresh repo-local cleanup read that metadata path, deleted stale local metadata
+  branch `br-curly-poetry-a9g9czjh`, and then reported only the active GitHub
+  docs branch inside the two-hour TTL. Stopping this worktree's Compose project
+  removed its local containers without touching the older separate Evorto
+  checkout stack. A final repo-local cleanup after the GitHub docs shard
+  finished reported one protected branch, zero active-test branches, zero stale
+  deletions, and a two-hour TTL, so the live project is back to the intended
+  state: only protected `main` remains, and stale same-ref E2E runs no longer
+  block the current PR head behind old Docker/Neon work.
 - Current template-extra post-push CI checkpoint: PR #62 head
   `445967d29e2be2ecfaab7be3895862bcb2448241` passed Analyze, CodeQL,
   CodeRabbit, Display the branch stack, Copilot setup, Playwright E2E docs,

@@ -2052,17 +2052,17 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain(
       'scheduled and\n  `workflow_run` cleanup hooks',
     );
-    expect(checkpoint).toContain('cancel-in-progress: false');
-    expect(checkpoint).toMatch(/already-running\s+Docker\/Neon job/u);
-    expect(checkpoint).toContain('timeout-bound `if: always()` teardown');
-    expect(checkpoint).toContain('final\n  dependency-free Neon prune');
-    expect(checkpoint).toMatch(/coalesce pending runs/u);
+    expect(checkpoint).toContain('cancel-in-progress: true');
+    expect(checkpoint).toMatch(/stale same-ref\s+Docker\/Neon jobs/u);
+    expect(checkpoint).toContain('standalone workflow-run cleanup');
+    expect(checkpoint).toMatch(/final dependency-free\s+prune/u);
+    expect(checkpoint).toMatch(/no longer\s+block the current PR head/u);
     expect(checkpoint).toMatch(/repeated Font Awesome cache warmups/u);
     expect(checkpoint).not.toContain('four-hour');
     expect(checkpoint).not.toContain('fourteen branches remain');
 
     expect(workflow).toContain('group: e2e-${{ github.ref }}');
-    expect(workflow).toContain('cancel-in-progress: false');
+    expect(workflow).toContain('cancel-in-progress: true');
 
     const pruneBeforeE2EIndex = workflow.indexOf(
       'Prune expired Neon branches before E2E',

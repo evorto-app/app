@@ -83,10 +83,42 @@ against the Docker database during stack startup. That Docker reset path drops
 and recreates the `public` schema before running Drizzle so the one-shot
 container cannot get stuck on non-TTY confirmation prompts from older local
 branch state. Neon Local still receives `DELETE_BRANCH=true` so normal
-`docker compose down` deletes the branch, and `db-expiration` immediately sets
-a short Neon branch expiration as a fallback for interrupted local or CI
-shutdowns. Playwright `webServer` uses `bun run docker:webserver`, which starts
-the foreground Compose stack without forcing `docker compose down` first. Use
+`docker compose down` deletes the branch. Generated local `.env.dev` also sets
+`NEON_LOCAL_METADATA_DIR=./.neon_local`, matching the Docker Compose bind mount
+so package-script cleanup reads the same branch metadata file as the local Neon
+container. `db-expiration` immediately sets a two-hour Neon branch expiration as
+a fallback for interrupted local or CI shutdowns, and CI runs
+`delete-neon-local-branches.ts` immediately after
+required configuration validation, before private registry auth can fail the
+job, and again after Compose shutdown. The shutdown path first gives the Neon
+Local `db` container a 60-second stop window inside a bounded 90-second command,
+then runs bounded Compose down, force-removes leftover Compose containers, and
+then deletes any branch ids that remain in Neon Local metadata. CI Compose
+status, logs, debug streaming, shutdown, and container-removal commands use the
+generated `.env.dev` dotenv cascade after dependencies exist, while final branch
+deletion runs directly against the already-exported workflow environment so
+dependency-install failures cannot prevent Neon cleanup. The same cleanup helper
+also prunes non-main Neon branches whose `expires_at` has already passed, and
+also prunes non-main branches without expiration metadata once their
+`created_at` timestamp is outside the active-test TTL. It runs that stale sweep
+when local metadata is missing or when the metadata file exists but contains no
+branch ids, so an interrupted Neon Local metadata write does not become a
+cleanup blind spot. That covers stale CI branches after their short TTL even
+when local metadata, the expiration sidecar, or graceful GitHub Actions shutdown
+is interrupted. When Neon API access is available, the helper logs a sanitized
+branch cleanup summary with total, protected, active-test, and stale-deleted
+counts plus any active branches still inside the TTL. A lightweight
+`Neon Branch Cleanup` workflow also runs the same helper hourly, on manual
+dispatch, and after the E2E workflow completes, so stale branches do not wait
+for the next Playwright attempt before being pruned.
+That standalone cleanup workflow is intentionally narrow: it has `contents:
+read`, validates `NEON_API_KEY` and `NEON_PROJECT_ID`, uses
+`DELETE_BRANCH=true`, keeps the two-hour active-test TTL, runs in a
+non-canceling `neon-branch-cleanup` concurrency group, and has a 10-minute job
+timeout.
+Playwright `webServer` uses `bun run docker:webserver`, which removes
+stopped/created Compose service containers and then starts the foreground
+Compose stack without forcing `docker compose down` first. Use
 `bun run docker:resume` only for an already initialized stack when you want to
 bring stopped containers back without recreating them. Use `bun run docker:ps`
 to inspect the generated worktree Compose project; bare `docker compose ps` can

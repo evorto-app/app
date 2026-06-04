@@ -184,6 +184,697 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(testsGuidance).toContain('`bun run docker:webserver`');
     expect(testsGuidance).not.toContain('`bun run docker:start:foreground`');
+
+    const rootAgentGuidance = fs.readFileSync(
+      path.join(process.cwd(), 'AGENTS.md'),
+      'utf8',
+    );
+    expect(rootAgentGuidance).toContain('`bun run docker:clean-stale`');
+    expect(rootAgentGuidance).toContain(
+      'project containers stuck in `created`, `dead`, `removing`, or unhealthy state',
+    );
+    expect(rootAgentGuidance).toContain(
+      'if an unhealthy running container still cannot',
+    );
+
+    const testsReadme = fs.readFileSync(
+      path.join(process.cwd(), 'tests/README.md'),
+      'utf8',
+    );
+    expect(testsReadme).toContain('`bun run docker:clean-stale`');
+    expect(testsReadme).toContain('generated `COMPOSE_PROJECT_NAME`');
+    expect(testsReadme).toContain('stale, unhealthy, or uninspectable');
+    expect(testsReadme).toMatch(/unhealthy running\s+generated container/u);
+    expect(testsReadme).toMatch(/times\s+out Docker inspect\/remove/u);
+    expect(testsReadme).toContain('restart Docker Desktop');
+    expect(testsReadme).toMatch(/blocked below\s+the app tooling layer/u);
+
+    const helpersReadme = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/README.md'),
+      'utf8',
+    );
+    expect(helpersReadme).toContain('`bun run docker:clean-stale`');
+    expect(helpersReadme).toContain('com.docker.compose.project');
+    expect(helpersReadme).toContain('instead of relying on GNU\n`timeout`');
+    expect(helpersReadme).toContain(
+      'removes stale or unhealthy containers one at a time',
+    );
+    expect(helpersReadme).toMatch(/unhealthy\s+running generated container/u);
+    expect(helpersReadme).toContain('bounded cleanup cannot stop an unhealthy');
+    expect(helpersReadme).toMatch(/restart\s+Docker Desktop/u);
+    expect(helpersReadme).toMatch(/blocked below the app tooling layer/u);
+    expect(helpersReadme).toContain('Docker container start path');
+    expect(helpersReadme).toContain('disposable Alpine container');
+
+    const staleCleanupHelper = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        'helpers/testing/remove-stale-compose-containers.ts',
+      ),
+      'utf8',
+    );
+    expect(staleCleanupHelper).toContain(
+      "const staleStates = new Set(['created', 'dead', 'removing']);",
+    );
+    expect(staleCleanupHelper).toContain('Health?: unknown');
+    expect(staleCleanupHelper).toContain("normalizedHealth === 'unhealthy'");
+    expect(staleCleanupHelper).toContain(
+      "normalizedStatus.includes('unhealthy')",
+    );
+    expect(staleCleanupHelper).toContain('Array.isArray(parsed)');
+    expect(staleCleanupHelper).toContain('[parsed as ComposeContainer]');
+    expect(staleCleanupHelper).toContain('const uniqueContainerNames');
+    expect(staleCleanupHelper).toContain(
+      'for (const containerName of containerNames)',
+    );
+    expect(staleCleanupHelper).toContain('failedRemovals.push');
+    expect(staleCleanupHelper).toContain("process.env['COMPOSE_PROJECT_NAME']");
+    expect(staleCleanupHelper).toContain(
+      '`label=com.docker.compose.project=${composeProjectName}`',
+    );
+    expect(staleCleanupHelper).toContain(
+      'Unable to inspect Docker Compose project containers through docker ps',
+    );
+    expect(staleCleanupHelper).toContain(
+      'Removing stale or unhealthy Docker Compose project containers',
+    );
+    expect(staleCleanupHelper).toContain("child.kill('SIGTERM')");
+    expect(staleCleanupHelper).toContain("child.kill('SIGKILL')");
+    expect(staleCleanupHelper).toContain("'docker'");
+    expect(staleCleanupHelper).toContain("'rm'");
+    expect(staleCleanupHelper).toContain("'-f'");
+    expect(staleCleanupHelper).toContain("'-v'");
+    expect(staleCleanupHelper).not.toContain('...containerNames');
+
+    const runtimePreflight = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/runtime-preflight.ts'),
+      'utf8',
+    );
+    expect(runtimePreflight).toContain('Health?: unknown');
+    expect(runtimePreflight).toContain('[parsed as ComposeContainer]');
+    expect(runtimePreflight).toContain("health === 'unhealthy'");
+    expect(runtimePreflight).toContain(
+      'created/dead/removing or unhealthy containers',
+    );
+    expect(runtimePreflight).toContain('Docker container start path');
+    expect(runtimePreflight).toContain(
+      'evorto-runtime-preflight-${process.pid}',
+    );
+    expect(runtimePreflight).toContain(
+      'docker run --name "$container_name" --rm --pull missing alpine:latest true',
+    );
+    expect(runtimePreflight).toContain('docker-container-start-check');
+    expect(runtimePreflight).toContain('Attempted bounded cleanup');
+    expect(runtimePreflight).toContain('cleanupTimeoutSeconds');
+    expect(runtimePreflight).toContain('commandTimeoutMs * 2');
+    expect(runtimePreflight).toContain(
+      'Docker can inspect local configuration but cannot start containers',
+    );
+  });
+
+  it('keeps Neon Local branch expiration wired into Docker and CI startup', () => {
+    const composeFile = fs.readFileSync(
+      path.join(process.cwd(), 'docker-compose.yml'),
+      'utf8',
+    );
+    const databaseService = serviceBlock(composeFile, 'db');
+    const expirationService = serviceBlock(composeFile, 'db-expiration');
+    const databaseSetupService = serviceBlock(composeFile, 'db-setup');
+    const evortoService = serviceBlock(composeFile, 'evorto');
+    const workflow = fs.readFileSync(
+      path.join(process.cwd(), '.github/workflows/e2e-baseline.yml'),
+      'utf8',
+    );
+    const cleanupWorkflow = fs.readFileSync(
+      path.join(process.cwd(), '.github/workflows/neon-branch-cleanup.yml'),
+      'utf8',
+    );
+    const copilotSetupWorkflow = fs.readFileSync(
+      path.join(process.cwd(), '.github/workflows/copilot-setup-steps.yml'),
+      'utf8',
+    );
+    const dockerfile = fs.readFileSync(
+      path.join(process.cwd(), 'Dockerfile'),
+      'utf8',
+    );
+    const bunfig = fs.readFileSync(
+      path.join(process.cwd(), 'bunfig.toml'),
+      'utf8',
+    );
+    const ciBuildCacheCompose = fs.readFileSync(
+      path.join(process.cwd(), '.github/docker-compose.build-cache.yml'),
+      'utf8',
+    );
+    const helper = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        'helpers/testing/set-neon-local-branch-expiration.ts',
+      ),
+      'utf8',
+    );
+    const cleanupHelper = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/delete-neon-local-branches.ts'),
+      'utf8',
+    );
+    const runtimeEnvironment = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/runtime-environment.ts'),
+      'utf8',
+    );
+    const helpersReadme = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/README.md'),
+      'utf8',
+    );
+
+    expect(databaseService).toContain(
+      'DELETE_BRANCH: "${DELETE_BRANCH:-true}"',
+    );
+    expect(databaseService).toContain(
+      '${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local',
+    );
+    expect(expirationService).toContain('depends_on:');
+    expect(expirationService).toContain('condition: service_healthy');
+    expect(expirationService).toContain(
+      'DELETE_BRANCH: "${DELETE_BRANCH:-true}"',
+    );
+    expect(expirationService).toContain(
+      'NEON_LOCAL_BRANCH_TTL_HOURS: "${NEON_LOCAL_BRANCH_TTL_HOURS:-2}"',
+    );
+    expect(expirationService).toContain(
+      'NEON_LOCAL_METADATA_WAIT_SECONDS: "${NEON_LOCAL_METADATA_WAIT_SECONDS:-60}"',
+    );
+    expect(expirationService).toContain(
+      '${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local',
+    );
+    expect(expirationService).toContain(
+      'helpers/testing/set-neon-local-branch-expiration.ts',
+    );
+    expect(databaseSetupService).toContain('db-expiration:');
+    expect(databaseSetupService).toContain(
+      'condition: service_completed_successfully',
+    );
+    expect(evortoService).toContain('db-expiration:');
+    expect(evortoService).toContain(
+      'condition: service_completed_successfully',
+    );
+
+    expect(workflow).toContain('DELETE_BRANCH: true');
+    expect(workflow).toContain('NEON_LOCAL_BRANCH_TTL_HOURS: 2');
+    expect(workflow).toContain(
+      'PARENT_BRANCH_ID is not configured; resolving the Neon default branch',
+    );
+    expect(workflow).toContain(
+      'https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches',
+    );
+    expect(workflow).toContain(
+      'Unable to resolve a Neon parent branch for E2E',
+    );
+    expect(workflow).toContain(
+      'echo "PARENT_BRANCH_ID=${PARENT_BRANCH_ID}" >> "${GITHUB_ENV}"',
+    );
+    expect(workflow).toContain(
+      'NEON_LOCAL_METADATA_DIR: /tmp/neon-local-metadata',
+    );
+    expect(workflow).toContain('NEON_LOCAL_METADATA_WAIT_SECONDS: 180');
+    expect(workflow).toContain('Prepare Neon Local metadata directory');
+    expect(workflow).toContain('chmod 0777 "${NEON_LOCAL_METADATA_DIR}"');
+    expect(workflow).toContain('Confirm Neon branch expiration');
+    expect(workflow).toContain(
+      'bun helpers/testing/set-neon-local-branch-expiration.ts',
+    );
+    expect(workflow).toContain('Prune expired Neon branches before E2E');
+    expect(workflow).toContain(
+      'bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    const pruneBeforeE2EIndex = workflow.indexOf(
+      'Prune expired Neon branches before E2E',
+    );
+    expect(pruneBeforeE2EIndex).toBeLessThan(
+      workflow.indexOf('- name: Install dependencies', pruneBeforeE2EIndex),
+    );
+    expect(pruneBeforeE2EIndex).toBeLessThan(
+      workflow.indexOf(
+        'Refusing a parallel registry install to avoid repeated Font Awesome package downloads.',
+        pruneBeforeE2EIndex,
+      ),
+    );
+    expect(workflow).toContain('compose() {');
+    expect(workflow).toContain('if [ -x node_modules/.bin/dotenv ]; then');
+    expect(workflow).toContain(
+      'node_modules/.bin/dotenv -c dev -- docker compose "$@"',
+    );
+    expect(workflow).toContain('docker compose "$@"');
+    expect(workflow).toContain('compose_timeout() {');
+    expect(workflow).toContain(
+      'timeout 90s node_modules/.bin/dotenv -c dev -- docker compose "$@"',
+    );
+    expect(workflow).toContain('timeout 90s docker compose "$@"');
+    expect(workflow).toContain('cleanup_neon_branches() {');
+    expect(workflow).toContain(
+      'NEON_LOCAL_METADATA_DIR="${NEON_LOCAL_METADATA_DIR:-/tmp/neon-local-metadata}"',
+    );
+    expect(workflow).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID}"');
+    expect(workflow).toContain(
+      'bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    expect(workflow).toContain('compose_timeout stop --timeout 60 db || true');
+    expect(workflow).toContain(
+      'compose_timeout down --timeout 60 --remove-orphans || true',
+    );
+    expect(workflow).not.toContain('timeout 90s compose ');
+    expect(workflow).toContain('timeout-minutes: 10');
+    expect(workflow).toContain('compose_timeout kill db || true');
+    expect(workflow).toContain('compose_timeout kill || true');
+    expect(workflow).toContain('compose_timeout rm --force --stop -v || true');
+    expect(workflow).toContain('remove_compose_project_containers() {');
+    expect(workflow).toContain(
+      'compose_project_name="${COMPOSE_PROJECT_NAME:-evorto-ci}"',
+    );
+    expect(workflow).toContain(
+      'timeout 30s docker ps -aq --filter "label=com.docker.compose.project=${compose_project_name}"',
+    );
+    expect(workflow).toContain(
+      'for compose_container_id in ${compose_container_ids}; do',
+    );
+    expect(workflow).toContain(
+      'timeout 45s docker rm -f -v "${compose_container_id}" || true',
+    );
+    expect(workflow).not.toContain(
+      'timeout 90s docker rm -f -v ${compose_container_ids}',
+    );
+    expect(
+      workflow.indexOf('compose_timeout rm --force --stop -v || true'),
+    ).toBeLessThan(workflow.lastIndexOf('remove_compose_project_containers'));
+    expect(workflow).toContain('cleanup_neon_branches');
+    expect(workflow).toContain('Prune expired Neon branches after E2E');
+    expect(workflow).toContain('timeout-minutes: 5');
+    expect(workflow).toContain(
+      'NEON_LOCAL_METADATA_DIR="${NEON_LOCAL_METADATA_DIR:-/tmp/neon-local-metadata}"',
+    );
+    expect(workflow).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID}"');
+    expect(workflow).toContain(
+      'bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    expect(workflow.indexOf('Stop Docker stack')).toBeLessThan(
+      workflow.indexOf('Prune expired Neon branches after E2E'),
+    );
+    expect(
+      workflow.indexOf('Prune expired Neon branches after E2E'),
+    ).toBeLessThan(workflow.indexOf('Upload Playwright test results'));
+
+    expect(cleanupWorkflow).toContain('name: Neon Branch Cleanup');
+    expect(cleanupWorkflow).toContain('workflow_dispatch:');
+    expect(cleanupWorkflow).toContain('schedule:');
+    expect(cleanupWorkflow).toContain('workflow_run:');
+    expect(cleanupWorkflow).toContain('workflows: ["E2E Baseline"]');
+    expect(cleanupWorkflow).toContain('permissions:');
+    expect(cleanupWorkflow).toContain('contents: read');
+    expect(cleanupWorkflow).toContain('concurrency:');
+    expect(cleanupWorkflow).toContain('group: neon-branch-cleanup');
+    expect(cleanupWorkflow).toContain('cancel-in-progress: false');
+    expect(cleanupWorkflow).toContain('DELETE_BRANCH: true');
+    expect(cleanupWorkflow).toContain(
+      'NEON_API_KEY: ${{ secrets.NEON_API_KEY }}',
+    );
+    expect(cleanupWorkflow).toContain('NEON_LOCAL_BRANCH_TTL_HOURS: 2');
+    expect(cleanupWorkflow).toContain(
+      'NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}',
+    );
+    expect(cleanupWorkflow).toContain('timeout-minutes: 10');
+    expect(cleanupWorkflow).toContain('Validate required configuration');
+    expect(cleanupWorkflow).toContain(
+      'run: bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    expect(helpersReadme).toContain('Neon Branch Cleanup');
+    expect(helpersReadme).toMatch(/contents:\s+read/u);
+    expect(helpersReadme).toContain('NEON_API_KEY');
+    expect(helpersReadme).toContain('NEON_PROJECT_ID');
+    expect(helpersReadme).toContain('DELETE_BRANCH=true');
+    expect(helpersReadme).toContain('two-hour active-test TTL');
+    expect(helpersReadme).toContain('non-canceling `neon-branch-cleanup`');
+    expect(helpersReadme).toMatch(/10-minute job\s+timeout/u);
+
+    expect(workflow).toContain(
+      'if ! bun install --frozen-lockfile --cache-dir ~/.bun/install/cache; then',
+    );
+    expect(workflow).toContain(
+      'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
+    );
+    expect(workflow).toContain('Restore Bun package cache');
+    expect(workflow).toContain('id: bun-package-cache');
+    expect(workflow).toContain('path: ~/.bun/install/cache');
+    expect(workflow).toContain(
+      "key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(workflow).toContain('Restore Bun dependency tree');
+    expect(workflow).toContain('id: bun-dependency-tree-cache');
+    expect(workflow).toContain('path: node_modules');
+    expect(workflow).toContain(
+      "key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(workflow).toContain(
+      'Bun package cache hit: ${{ steps.bun-package-cache.outputs.cache-hit }}',
+    );
+    expect(workflow).toContain('Bun package cache restored:');
+    expect(workflow).toContain(
+      'find "${HOME}/.bun/install/cache" -mindepth 1 -maxdepth 1 -print -quit',
+    );
+    expect(workflow).toContain(
+      'Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
+    );
+    expect(workflow).toContain(
+      'Bun dependency tree cache restored; skipping registry install.',
+    );
+    expect(workflow).toContain('Save warmed Bun package cache');
+    expect(workflow).toContain('Save warmed Bun dependency tree');
+    expect(workflow).toContain('uses: actions/cache/save@v4');
+    expect(workflow).toContain(
+      "if: steps.bun-package-cache.outputs.cache-hit != 'true'",
+    );
+    expect(workflow).toContain(
+      'key: ${{ steps.bun-package-cache.outputs.cache-primary-key }}',
+    );
+    expect(workflow).toContain(
+      "if: steps.bun-dependency-tree-cache.outputs.cache-hit != 'true'",
+    );
+    expect(workflow).toContain(
+      'key: ${{ steps.bun-dependency-tree-cache.outputs.cache-primary-key }}',
+    );
+    expect(workflow).toContain(
+      'Refusing a parallel registry install to avoid repeated Font Awesome package downloads.',
+    );
+    expect(workflow).toContain(
+      'node_modules/.bin/playwright install --with-deps chromium',
+    );
+    expect(workflow).toContain(
+      'PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright',
+    );
+    expect(workflow).toContain('Restore Playwright browser cache');
+    expect(workflow).toContain('Warm Playwright browser cache');
+    expect(workflow).toContain(
+      'key: ${{ runner.os }}-playwright-1.59.1-chromium',
+    );
+    expect(workflow).toContain('uses: actions/cache/restore@v4');
+    expect(workflow).toContain(
+      'node_modules/.bin/playwright test --project=local-chrome-baseline --shard=1/2',
+    );
+    expect(workflow).toContain(
+      'node_modules/.bin/playwright test --project=docs-baseline',
+    );
+    expect(workflow).not.toContain('bunx playwright');
+    expect(workflow).toContain('Restore Docker build cache');
+    expect(workflow).toContain('Force public Font Awesome registry');
+    expect(workflow).toContain('Validate public Font Awesome dependencies');
+    expect(workflow).toContain(
+      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+    );
+    expect(workflow).toContain(
+      String.raw`const privatePackage = /@fortawesome\/(?:duotone|pro|sharp)[^"'\s]*/u;`,
+    );
+    expect(workflow).toContain(
+      'Font Awesome must stay on free public npm packages in CI.',
+    );
+    expect(workflow).toContain(
+      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
+    );
+    expect(workflow).toContain(
+      "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
+    );
+    expect(workflow).toContain(
+      'echo "NPM_CONFIG_USERCONFIG=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
+    );
+    expect(workflow).toContain(
+      'echo "npm_config_userconfig=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
+    );
+    expect(workflow).toContain('Repository .npmrc is not supported');
+    expect(workflow).toContain(
+      'DOCKER_BUILD_CACHE_DIR: /tmp/evorto-docker-build-cache',
+    );
+    expect(
+      workflow.match(
+        /^\s+DOCKER_BUILD_CACHE_DIR: \/tmp\/evorto-docker-build-cache$/gm,
+      )?.length ?? 0,
+    ).toBe(2);
+    expect(workflow).toContain('Set up Docker Buildx');
+    expect(workflow).toContain('id: setup-buildx');
+    expect(workflow).toContain('uses: docker/setup-buildx-action@v4');
+    expect(workflow).toContain('version: latest');
+    expect(workflow).toContain('warm-ci-caches:');
+    expect(workflow).toContain('name: Warm CI dependency caches');
+    expect(workflow).toContain('needs: warm-ci-caches');
+    expect(workflow).toContain('group: e2e-${{ github.ref }}');
+    expect(workflow).toContain('cancel-in-progress: true');
+    expect(workflow).toContain('max-parallel: 1');
+    expect(workflow).toContain('path: ${{ env.DOCKER_BUILD_CACHE_DIR }}');
+    expect(workflow).toContain(
+      "key: ${{ runner.os }}-docker-build-bun-1.3.11-${{ hashFiles('Dockerfile', 'docker-compose.yml', '.github/docker-compose.build-cache.yml', 'package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(workflow).toContain('BUILDKIT_BUN_CACHE_DIR: buildkit-bun-cache');
+    expect(workflow).toContain('Restore Docker Bun cache mount');
+    expect(workflow).toContain('id: docker-bun-cache-mount');
+    expect(workflow).toContain('path: ${{ env.BUILDKIT_BUN_CACHE_DIR }}');
+    expect(workflow).toContain(
+      "key: ${{ runner.os }}-docker-bun-cache-mount-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(workflow).toContain('Inject Docker Bun cache mount');
+    expect(workflow).toContain(
+      'uses: reproducible-containers/buildkit-cache-dance@v3.4.0',
+    );
+    expect(workflow).toContain(
+      'builder: ${{ steps.setup-buildx.outputs.name }}',
+    );
+    expect(workflow).toContain('"target": "/home/bun/.bun/install/cache"');
+    expect(workflow).toContain('"id": "bun-install-cache"');
+    expect(workflow).toContain(
+      'skip-extraction: ${{ steps.docker-bun-cache-mount.outputs.cache-hit }}',
+    );
+    expect(workflow).toContain('skip-extraction: true');
+    expect(workflow).toContain('Prepare Docker build cache directory');
+    expect(workflow).toContain('mkdir -p "${DOCKER_BUILD_CACHE_DIR}"');
+    expect(workflow).toContain('Warm Docker build cache');
+    expect(workflow).toContain(
+      'timeout 20m docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
+    );
+    expect(workflow).toContain(
+      'Retrying once without clearing the package cache',
+    );
+    expect(workflow).not.toContain('bun pm cache rm');
+    expect(workflow).not.toContain('Configure Font Awesome registry auth');
+    expect(workflow).not.toContain('Validate Font Awesome registry auth');
+    expect(workflow).not.toContain('Remove Font Awesome registry auth');
+    expect(workflow).not.toContain('FONT_AWESOME_TOKEN');
+    expect(workflow).not.toContain('npm.fontawesome.com');
+    expect(copilotSetupWorkflow).toContain(
+      'Force public Font Awesome registry',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Validate public Font Awesome dependencies',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      "const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');",
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Font Awesome must stay on free public npm packages in CI.',
+    );
+    expect(copilotSetupWorkflow).toContain('Restore Bun package cache');
+    expect(copilotSetupWorkflow).toContain('Restore Bun dependency tree');
+    expect(copilotSetupWorkflow).toContain(
+      'Bun dependency tree cache restored; skipping registry install.',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Retrying once through the Copilot setup registry install.',
+    );
+    expect(copilotSetupWorkflow).not.toContain('FONT_AWESOME_TOKEN');
+    expect(copilotSetupWorkflow).not.toContain('npm.fontawesome.com');
+    expect(copilotSetupWorkflow).toContain(
+      'npm_config_userconfig="${RUNNER_TEMP}/npmrc-public-fontawesome"',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'echo "NPM_CONFIG_USERCONFIG=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'echo "npm_config_userconfig=${npm_config_userconfig}" >> "${GITHUB_ENV}"',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Repository .npmrc is not supported',
+    );
+    expect(copilotSetupWorkflow).toContain('Restore Bun package cache');
+    expect(copilotSetupWorkflow).toContain('id: bun-package-cache');
+    expect(copilotSetupWorkflow).toContain('path: ~/.bun/install/cache');
+    expect(copilotSetupWorkflow).toContain(
+      "key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(copilotSetupWorkflow).toContain('Restore Bun dependency tree');
+    expect(copilotSetupWorkflow).toContain('id: bun-dependency-tree-cache');
+    expect(copilotSetupWorkflow).toContain('path: node_modules');
+    expect(copilotSetupWorkflow).toContain(
+      "key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Bun package cache hit: ${{ steps.bun-package-cache.outputs.cache-hit }}',
+    );
+    expect(copilotSetupWorkflow).toContain('Bun package cache restored:');
+    expect(copilotSetupWorkflow).toContain(
+      'find "${HOME}/.bun/install/cache" -mindepth 1 -maxdepth 1 -print -quit',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'Bun dependency tree cache restored; skipping registry install.',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'node_modules/.bin/playwright install --with-deps',
+    );
+    expect(copilotSetupWorkflow).toContain(
+      'PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright',
+    );
+    expect(copilotSetupWorkflow).toContain('Restore Playwright browser cache');
+    expect(copilotSetupWorkflow).toContain(
+      'key: ${{ runner.os }}-playwright-1.59.1-chromium',
+    );
+    expect(copilotSetupWorkflow).not.toContain('bunx playwright');
+    expect(copilotSetupWorkflow).toContain(
+      'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
+    );
+    expect(copilotSetupWorkflow).not.toContain('bun pm cache rm');
+    expect(copilotSetupWorkflow).not.toContain(
+      'Configure Font Awesome registry auth',
+    );
+    expect(copilotSetupWorkflow).not.toContain(
+      'Validate Font Awesome registry auth',
+    );
+    expect(copilotSetupWorkflow).not.toContain(
+      'Remove Font Awesome registry auth',
+    );
+    expect(copilotSetupWorkflow).not.toContain('FONT_AWESOME_TOKEN');
+    expect(copilotSetupWorkflow).not.toContain('npm.fontawesome.com');
+    expect(workflow).toContain(
+      'timeout 12m node_modules/.bin/dotenv -c dev -- docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
+    );
+    expect(dockerfile).toContain(
+      'id=bun-install-cache,target=/home/bun/.bun/install/cache',
+    );
+    expect(dockerfile).toContain(
+      'bun install --frozen-lockfile --cache-dir /home/bun/.bun/install/cache',
+    );
+    expect(dockerfile).toContain(
+      'bun install --frozen-lockfile --production --offline --cache-dir /home/bun/.bun/install/cache',
+    );
+    expect(bunfig).toContain('[install.scopes]');
+    expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');
+    expect(ciBuildCacheCompose).toContain('cache_from:');
+    expect(ciBuildCacheCompose).toContain('type=gha,scope=evorto-db-setup');
+    expect(ciBuildCacheCompose).toContain('type=gha,scope=evorto-app');
+    expect(ciBuildCacheCompose).toContain(
+      'type=local,src=${DOCKER_BUILD_CACHE_DIR:-/tmp/evorto-docker-build-cache}',
+    );
+    expect(ciBuildCacheCompose).toContain('cache_to:');
+    expect(ciBuildCacheCompose).toContain(
+      'type=gha,scope=evorto-db-setup,mode=max',
+    );
+    expect(ciBuildCacheCompose).toContain('type=gha,scope=evorto-app,mode=max');
+    expect(ciBuildCacheCompose).toContain(
+      'type=local,dest=${DOCKER_BUILD_CACHE_DIR:-/tmp/evorto-docker-build-cache},mode=max',
+    );
+    expect(workflow).toContain(
+      'timeout 5m node_modules/.bin/dotenv -c dev -- docker compose up --no-build -d',
+    );
+    expect(workflow).toContain(
+      'node_modules/.bin/dotenv -c dev -- docker compose ps',
+    );
+    expect(workflow).toContain(
+      'node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100',
+    );
+    expect(workflow).toContain(
+      'node_modules/.bin/dotenv -c dev -- docker compose logs -f --no-color',
+    );
+    expect(workflow).toContain(
+      'compose_timeout logs --no-color > test-results/docker-logs/docker-compose.log || true',
+    );
+    expect(workflow).toContain(
+      'evorto_container_id="$(compose_timeout ps -q evorto || true)"',
+    );
+    expect(workflow).toContain(
+      'timeout 30s docker cp "${evorto_container_id}:/app/logs/server.log" test-results/docker-logs/server.log || true',
+    );
+    expect(workflow).toContain(
+      'Docker Compose build/start timed out. Pruning builder state and retrying once.',
+    );
+    expect(workflow).toContain('docker builder prune -af || true');
+    expect(workflow).toContain(
+      'docker compose pull --quiet --ignore-buildable --policy missing',
+    );
+    expect(workflow).toContain(
+      'Docker Compose image pre-pull failed on attempt ${attempt}. Retrying in ${delay_seconds}s before startup.',
+    );
+    expect(workflow).toContain(
+      'Docker Compose image pre-pull failed after ${attempt} attempts. Continuing to Compose startup, which can still pull missing images.',
+    );
+    expect(workflow).not.toContain(
+      '::error::Docker Compose image pre-pull failed after ${attempt} attempts.',
+    );
+    expect(workflow).toContain(
+      'Docker Compose build/start timed out before the workflow step timeout',
+    );
+    expect(workflow).toContain('bun run docker:ps || true');
+
+    expect(helper).toContain('BRANCH_ID');
+    expect(helper).toContain('DELETE_BRANCH=false');
+    expect(helper).toContain('NEON_LOCAL_BRANCH_TTL_HOURS');
+    expect(helper).toContain('NEON_LOCAL_METADATA_WAIT_SECONDS');
+    expect(runtimeEnvironment).toContain(
+      "NEON_LOCAL_METADATA_DIR: './.neon_local'",
+    );
+    expect(composeFile).toContain(
+      '"${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local"',
+    );
+    expect(helper).toContain(
+      'Math.min(parsePositiveInteger(ttlHoursValue, 2), 720)',
+    );
+    expect(helper).toContain(
+      'body: JSON.stringify({ branch: { expires_at: expiresAt } })',
+    );
+    expect(helper).toContain(
+      'Timed out waiting for Neon Local branch metadata',
+    );
+    expect(cleanupHelper).toContain('DELETE_BRANCH=false');
+    expect(cleanupHelper).toContain('BRANCH_ID');
+    expect(cleanupHelper).toContain('listNeonBranches');
+    expect(cleanupHelper).toContain('extractStaleEphemeralBranchId');
+    expect(cleanupHelper).toContain('NEON_LOCAL_BRANCH_TTL_HOURS');
+    expect(cleanupHelper).toContain('expires_at');
+    expect(cleanupHelper).toContain('created_at');
+    expect(cleanupHelper).toContain('staleAfter');
+    expect(cleanupHelper).toContain("branch.name === 'main'");
+    expect(cleanupHelper).toContain("method: 'DELETE'");
+    expect(cleanupHelper).toContain('response.status === 404');
+    expect(cleanupHelper).toContain('No Neon Local branch metadata found');
+    expect(cleanupHelper).toContain('No Neon Local branch ids found');
+    expect(cleanupHelper).toContain('logBranchCleanupSummary');
+    expect(cleanupHelper).toContain(
+      'const remainingBranches = await listNeonBranches();',
+    );
+    expect(cleanupHelper).toContain('Neon branch cleanup summary: total=');
+    expect(cleanupHelper).toContain('active_test=');
+    expect(cleanupHelper).toContain('stale_deleted=');
+    expect(cleanupHelper).toContain(
+      'Active Neon Local branches still inside the ${ttlHours}h active-test TTL:',
+    );
+    expect(cleanupHelper).toContain(
+      'No stale Neon Local branches found outside the ${ttlHours}h active-test TTL.',
+    );
+    expect(cleanupHelper).toMatch(
+      /if \(branchIds\.length === 0\) \{[\s\S]*?await deleteStaleEphemeralBranches\(\);[\s\S]*?return;[\s\S]*?\}/u,
+    );
+    expect(cleanupHelper).toContain(
+      'NEON_API_KEY and NEON_PROJECT_ID are required for Neon Local stale cleanup; skipping stale cleanup.',
+    );
   });
 
   it('keeps generated runtime ports stable for non-mutating Docker checks', () => {

@@ -62,6 +62,20 @@ bun run lint
 - Stop the local runtime stack: `bun run docker:stop`
 - Local Docker runs use Neon Local instead of a plain Postgres container.
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts. It first drops and recreates the Docker database `public` schema so Drizzle does not require interactive confirmation inside the container.
+- CI and local Docker runs set a two-hour Neon Local branch TTL. CI prunes stale
+  branches before E2E startup, gives the Neon Local `db` container a graceful
+  stop window before bounded Compose shutdown, force-removes leftover Compose
+  containers one at a time, deletes remaining branch ids from Neon Local
+  metadata after shutdown, and prunes non-main Neon branches whose `expires_at`
+  has passed or whose missing expiration metadata has aged beyond the
+  active-test TTL. The stale sweep also runs when metadata is absent or exists
+  without branch ids, so cancelled or failed E2E jobs do not leave long-lived
+  database branches behind. Generated local `.env.dev` sets
+  `NEON_LOCAL_METADATA_DIR=./.neon_local`, matching the Docker Compose mount so
+  local package-script cleanup reads the active Neon Local metadata file.
+  CI Compose logging and shutdown commands load generated `.env.dev` through
+  `dotenv -c dev` once dependencies exist and otherwise fall back to the
+  already-exported workflow environment before dependency installation.
 - Docker Compose forces app media/uploads to the in-network MinIO endpoint even
   when normal local dotenv values point to an external S3-compatible endpoint.
 - Docker keeps `BASE_URL` browser-facing for Auth0 redirects and sets

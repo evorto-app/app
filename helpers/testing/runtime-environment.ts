@@ -144,6 +144,7 @@ const runtimeEnvironment = {
   NEON_DATABASE_NAME: databaseName,
   NEON_LOCAL_BRANCH_TTL_HOURS: '24',
   NEON_LOCAL_HOST_PORT: String(neonLocalHostPort),
+  NEON_LOCAL_METADATA_DIR: './.neon_local',
   NEON_LOCAL_PROXY: 'true',
 } as const;
 
