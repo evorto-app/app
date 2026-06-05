@@ -1279,6 +1279,18 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Role picker behavior: already selected roles are hidden from suggestions to avoid duplicate eligibility entries.',
     );
+    expect(source).toContain('const eventListSurface =');
+    expect(source).toContain("page.locator('app-event-list nav')");
+    expect(source).toContain('const templateChoiceSurface =');
+    expect(source).toContain("locator('app-template-list nav > div')");
+    expect(source).toContain('const eventDetailsSurface =');
+    expect(source).toContain("locator('router-outlet + * header')");
+    expect(source).toContain('const registrationOptionsSurface =');
+    expect(source).toContain(
+      "page.locator('app-event-registration-option').first()",
+    );
+    expect(source).toContain('const rolePickerSurface =');
+    expect(source).toContain("locator('app-registration-option-form')");
     expect(source).toContain(
       'Expected seeded draft event for event-management role autocomplete docs',
     );
@@ -1290,6 +1302,18 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain("page.getByPlaceholder('Add Role...')");
     expect(source).toContain('Event edit role picker duplicate prevention');
+    expect(source).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    page.getByRole('heading', { level: 1, name: 'Events' })",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    page.getByRole('heading', {\n      level: 1,\n      name: 'Event templates',",
+    );
+    expect(source).not.toContain(
+      'takeScreenshot(\n    testInfo,\n    page.locator(`h1:has-text("${templateName}")`)',
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    page.getByRole('heading', { level: 2, name: 'Registration' })",
+    );
     expect(source).not.toContain('manual check-in from the organizer overview');
     expect(source).not.toContain('managing attendees');
     expect(source).not.toContain('automatic refund controls are available');

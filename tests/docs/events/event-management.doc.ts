@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import type { Locator, Page } from '@playwright/test';
 import { DateTime } from 'luxon';
 
 import { getId } from '../../../helpers/get-id';
@@ -14,6 +15,35 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
+
+const eventListSurface = (page: Page): Locator =>
+  page.locator('app-event-list nav');
+
+const templateChoiceSurface = (page: Page, templateName: string): Locator =>
+  page
+    .locator('app-template-list nav > div')
+    .filter({ has: page.getByRole('link', { name: templateName }) })
+    .first();
+
+const eventDetailsSurface = (page: Page, eventTitle: string): Locator =>
+  page
+    .locator('router-outlet + * header')
+    .filter({ has: page.getByRole('heading', { name: eventTitle }) })
+    .first();
+
+const registrationOptionsSurface = (page: Page): Locator =>
+  page.locator('app-event-registration-option').first();
+
+const rolePickerSurface = (
+  page: Page,
+  selectedRoleName: string,
+  addedRoleName: string,
+): Locator =>
+  page
+    .locator('app-registration-option-form')
+    .filter({ hasText: selectedRoleName })
+    .filter({ hasText: addedRoleName })
+    .first();
 
 test('Create and manage events', async ({
   database,
@@ -52,13 +82,17 @@ Start by navigating to the **Events** section from the main menu to see a list o
 `,
   });
 
+  const templateName = 'Partnach Gorge hike';
+
   await page.getByRole('link', { name: 'Events' }).click();
   await expect(
     page.getByRole('heading', { level: 1, name: 'Events' }).first(),
   ).toBeVisible();
+  const eventList = eventListSurface(page);
+  await expect(eventList).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { level: 1, name: 'Events' }).first(),
+    eventList,
     page,
     'Event list page showing organizer access to event management',
   );
@@ -87,9 +121,11 @@ To create a new event, click the **Create Event** link on the event list page. T
   await expect(
     page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
   ).toBeVisible();
+  const templateChoice = templateChoiceSurface(page, templateName);
+  await expect(templateChoice).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
+    templateChoice,
     page,
     'Templates page with reusable event template choices',
   );
@@ -109,8 +145,6 @@ Once you've selected a template, you'll be able to customize it with your event 
 After selecting a template and customizing your event, you can create it and proceed to the event details page.
 `,
   });
-
-  const templateName = 'Partnach Gorge hike';
 
   // Select a template from the list
   await page.getByRole('link', { name: templateName }).click();
@@ -132,9 +166,11 @@ After creating an event, you'll be taken to the event details page. This page sh
   });
 
   // Use a more specific selector that's guaranteed to be on the page
+  const eventDetails = eventDetailsSurface(page, target.title);
+  await expect(eventDetails).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.locator(`h1:has-text("${target.title}")`).first(),
+    eventDetails,
     page,
     'Event details page showing the editable event management surface',
   );
@@ -178,9 +214,11 @@ Note: The event created from the template already has registration options confi
   await expect(
     page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
   ).toBeVisible();
+  const registrationOptions = registrationOptionsSurface(page);
+  await expect(registrationOptions).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
+    registrationOptions,
     page,
     'Registration options section',
   );
@@ -244,9 +282,15 @@ Note: The event created from the template already has registration options confi
 Role picker behavior: already selected roles are hidden from suggestions to avoid duplicate eligibility entries. The event edit form uses lookup-only role labels for this authoring flow rather than exposing role-management permission details.
 `,
   });
+  const rolePicker = rolePickerSurface(
+    page,
+    selectedRole.name,
+    unselectedRole.name,
+  );
+  await expect(rolePicker).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { name: draftEvent.title }).first(),
+    rolePicker,
     page,
     'Event edit role picker duplicate prevention',
   );
