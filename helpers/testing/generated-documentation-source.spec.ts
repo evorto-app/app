@@ -1223,12 +1223,23 @@ describe('generated docs source current behavior', () => {
     );
     expect(unlistedUserSource).toContain('# Unlisted Events (User)');
     expect(unlistedUserSource).toContain(
-      'Expected an approved listed event in the seeded events',
+      'Expected an upcoming approved listed event in the seeded events',
     );
     expect(unlistedUserSource).toContain(
-      'Expected a second approved listed event for unlisted docs list context',
+      'Expected a second upcoming approved listed event for unlisted docs list context',
     );
-    expect(unlistedUserSource).toContain('const listedContextEvent =');
+    expect(unlistedUserSource).toContain(
+      'const findUpcomingApprovedListedEvents =',
+    );
+    expect(unlistedUserSource).toContain(
+      'event.start.getTime() > listClock.getTime()',
+    );
+    expect(unlistedUserSource).toContain(
+      '.toSorted((left, right) => left.start.getTime() - right.start.getTime())',
+    );
+    expect(unlistedUserSource).toContain(
+      'const [event, listedContextEvent] = findUpcomingApprovedListedEvents',
+    );
     expect(unlistedUserSource).toContain('const visibleListedEventLink =');
     expect(unlistedUserSource).toContain("locator('app-event-list nav a')");
     expect(unlistedUserSource).toContain(

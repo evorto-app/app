@@ -8,30 +8,26 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-const findApprovedListedEvent = (
-  events: {
-    id: string;
-    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
-    title: string;
-    unlisted: boolean;
-  }[],
-) => events.find((event) => event.status === 'APPROVED' && !event.unlisted);
+interface EventListFixtureRecord {
+  id: string;
+  start: Date;
+  status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+  title: string;
+  unlisted: boolean;
+}
 
-const findDifferentApprovedListedEvent = (
-  events: {
-    id: string;
-    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
-    title: string;
-    unlisted: boolean;
-  }[],
-  hiddenEventId: string,
+const findUpcomingApprovedListedEvents = (
+  events: EventListFixtureRecord[],
+  listClock: Date,
 ) =>
-  events.find(
-    (event) =>
-      event.id !== hiddenEventId &&
-      event.status === 'APPROVED' &&
-      !event.unlisted,
-  );
+  events
+    .filter(
+      (event) =>
+        event.status === 'APPROVED' &&
+        !event.unlisted &&
+        event.start.getTime() > listClock.getTime(),
+    )
+    .toSorted((left, right) => left.start.getTime() - right.start.getTime());
 
 const eventRegistrationSection = (page: Page): Locator =>
   page
@@ -65,15 +61,20 @@ test('User: understanding unlisted events', async ({
   database,
   events,
   page,
+  seedDate,
 }, testInfo) => {
-  const event = findApprovedListedEvent(events);
+  const [event, listedContextEvent] = findUpcomingApprovedListedEvents(
+    events,
+    seedDate,
+  );
   if (!event) {
-    throw new Error('Expected an approved listed event in the seeded events');
+    throw new Error(
+      'Expected an upcoming approved listed event in the seeded events',
+    );
   }
-  const listedContextEvent = findDifferentApprovedListedEvent(events, event.id);
   if (!listedContextEvent) {
     throw new Error(
-      'Expected a second approved listed event for unlisted docs list context',
+      'Expected a second upcoming approved listed event for unlisted docs list context',
     );
   }
 
