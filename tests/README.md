@@ -91,9 +91,9 @@ bun run lint
   image pre-pull, build, and startup, `helpers/testing/ci-stop-docker-stack.sh`
   for Docker teardown, and `helpers/testing/ci-prune-neon-local-branches.sh`
   for the dependency-free final prune.
-  Use `bun run neon:cleanup:dry-run` for a local branch audit before deleting
-  anything and `bun run neon:cleanup` for the same TTL-conservative local
-  cleanup path.
+  Use `bun run neon:cleanup:dry-run` for a non-mutating local branch audit
+  before deleting anything and `bun run neon:cleanup` for the same
+  TTL-conservative local cleanup path.
   If cleanup reports a young active-test branch after the owning Docker stack or
   GitHub run has already stopped, delete that exact branch id with
   `NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id> bun run db:cleanup:neon-local`;

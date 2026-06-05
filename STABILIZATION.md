@@ -4710,7 +4710,11 @@ tried to kill container, but did not receive an exit event`. A follow-up
   active-test TTL, and reported
   `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. That keeps the
   live Neon project at the intended non-test state: only protected `main`, with
-  no active-test branches and no stale branch deletions needed.
+  no active-test branches and no stale branch deletions needed. The local
+  `--dry-run` flag is now enforced inside
+  `helpers/testing/delete-neon-local-branches.ts`, so the short audit alias
+  reports would-delete branches without issuing Neon DELETE requests; confirmed
+  local cleanup remains the explicit `bun run neon:cleanup` path.
 - Current CI Docker-start hardening checkpoint: after PR head `b5bb9c286`, the
   visible checks stayed green except the E2E matrix. The serial
   `Warm CI dependency caches` job completed successfully and showed the desired

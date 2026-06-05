@@ -20,6 +20,7 @@ const deleteBranch = process.env['DELETE_BRANCH']?.trim().toLowerCase();
 const forceDeleteBranchIdsValue =
   process.env['NEON_LOCAL_FORCE_DELETE_BRANCH_IDS']?.trim();
 const ttlHoursValue = process.env['NEON_LOCAL_BRANCH_TTL_HOURS']?.trim();
+const dryRun = process.argv.includes('--dry-run');
 
 const metadataDirectory =
   process.env['NEON_LOCAL_METADATA_DIR']?.trim() || '/tmp/.neon_local';
@@ -207,6 +208,11 @@ const logBranchCleanupSummary = (
 };
 
 const deleteBranchById = async (branchId: string): Promise<void> => {
+  if (dryRun) {
+    console.log(`Dry run: would delete Neon Local branch ${branchId}.`);
+    return;
+  }
+
   const response = await fetch(
     `https://console.neon.tech/api/v2/projects/${projectId}/branches/${branchId}`,
     {
@@ -261,8 +267,13 @@ const deleteStaleEphemeralBranches = async (): Promise<void> => {
     await deleteBranchById(branchId);
   }
 
-  const remainingBranches = await listNeonBranches();
-  logBranchCleanupSummary(remainingBranches, staleBranchIds, now);
+  const remainingBranches = dryRun ? branches : await listNeonBranches();
+  logBranchCleanupSummary(remainingBranches, dryRun ? [] : staleBranchIds, now);
+  if (dryRun) {
+    console.log(
+      `Dry run: ${staleBranchIds.length} stale Neon Local branch(es) would be deleted.`,
+    );
+  }
 };
 
 const deleteExplicitBranchIds = async (): Promise<void> => {

@@ -985,6 +985,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(cleanupHelper).toContain('extractStaleEphemeralBranchId');
     expect(cleanupHelper).toContain('NEON_LOCAL_BRANCH_TTL_HOURS');
     expect(cleanupHelper).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
+    expect(cleanupHelper).toContain(
+      "const dryRun = process.argv.includes('--dry-run');",
+    );
     expect(cleanupHelper).toContain('deleteExplicitBranchIds');
     expect(cleanupHelper).toContain('forceDeleteBranchIds');
     expect(cleanupHelper).toContain(
@@ -998,12 +1001,18 @@ describe('evaluateRuntimePreflight', () => {
     expect(cleanupHelper).toContain('staleAfter');
     expect(cleanupHelper).toContain("branch.name === 'main'");
     expect(cleanupHelper).toContain("method: 'DELETE'");
+    expect(cleanupHelper).toMatch(
+      /if \(dryRun\) \{[\s\S]*?Dry run: would delete Neon Local branch \$\{branchId\}\.[\s\S]*?return;[\s\S]*?\}/u,
+    );
     expect(cleanupHelper).toContain('response.status === 404');
     expect(cleanupHelper).toContain('No Neon Local branch metadata found');
     expect(cleanupHelper).toContain('No Neon Local branch ids found');
     expect(cleanupHelper).toContain('logBranchCleanupSummary');
     expect(cleanupHelper).toContain(
-      'const remainingBranches = await listNeonBranches();',
+      'const remainingBranches = dryRun ? branches : await listNeonBranches();',
+    );
+    expect(cleanupHelper).toContain(
+      'Dry run: ${staleBranchIds.length} stale Neon Local branch(es) would be deleted.',
     );
     expect(cleanupHelper).toContain('Neon branch cleanup summary: total=');
     expect(cleanupHelper).toContain('active_test=');
@@ -1021,15 +1030,24 @@ describe('evaluateRuntimePreflight', () => {
       'NEON_API_KEY and NEON_PROJECT_ID are required for Neon Local stale cleanup; skipping stale cleanup.',
     );
     expect(helpersReadme).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
+    expect(helpersReadme).toContain(
+      '`bun run neon:cleanup:dry-run` for a non-mutating local branch audit',
+    );
     expect(helpersReadme).toContain('confirmed-inactive');
     expect(helpersReadme).toContain(
       'default CI and local cleanup remain TTL-conservative',
     );
     expect(testsReadme).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
     expect(testsReadme).toContain(
+      '`bun run neon:cleanup:dry-run` for a non-mutating local branch audit',
+    );
+    expect(testsReadme).toContain(
       'the helper still refuses protected branches',
     );
     expect(inventory).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
+    expect(inventory).toContain(
+      'branch audits can use the non-mutating `bun run neon:cleanup:dry-run`',
+    );
     expect(inventory).toContain('default CI path TTL-conservative');
   });
 
