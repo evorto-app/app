@@ -480,7 +480,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   caption length, verifies generated
   screenshots include the highlighted focus target and visible non-highlight
   page content before attachment, rejects generic page-root screenshot targets
-  such as `body`, `html`, or `app-root`, covers the weak-caption,
+  such as `body`, `html`, or `app-root`, rejects direct single-control
+  screenshot targets such as role/text/label locators before docs can regress
+  to button-only or input-only images, covers the weak-caption,
   missing-highlight, and blank highlighted-image runtime failures in
   reporter-path tests,
   rejects uncaptioned image attachments and orphan image-caption attachments

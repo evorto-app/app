@@ -5551,6 +5551,10 @@ page content outside the highlighted target.
 It also rejects unfiltered broad `section` and `article` screenshot targets, so
 docs must focus a filtered semantic region or a concrete component/control
 instead of highlighting a whole repeated page area by accident.
+It now rejects direct single-control `getByRole`, `getByText`, and `getByLabel`
+screenshot targets as well, so generated docs cannot drift back to button-only,
+input-only, heading-only, or text-only images when a broader form/component
+surface is available.
 The template generated doc now screenshots the seeded template-list navigation
 containing both a category and the Create template action instead of highlighting
 only the standalone create link.

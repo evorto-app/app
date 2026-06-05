@@ -251,6 +251,97 @@ const findUnfilteredBroadScreenshotTargets = (
   return broadTargets;
 };
 
+const findSingleControlScreenshotTargets = (
+  path: string,
+  source: string,
+): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const singleControlTargets: string[] = [];
+  const singleControlRoles = new Set([
+    'button',
+    'checkbox',
+    'combobox',
+    'heading',
+    'link',
+    'menuitem',
+    'radio',
+    'searchbox',
+    'switch',
+    'tab',
+    'textbox',
+  ]);
+
+  const describeCall = (node: ts.CallExpression): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.expression.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const getStringLiteralText = (node: ts.Expression): null | string => {
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      return node.text.trim().toLowerCase();
+    }
+
+    return null;
+  };
+
+  const isSingleControlLocatorTarget = (node: ts.Expression): boolean => {
+    let candidate: ts.Expression = ts.isParenthesizedExpression(node)
+      ? node.expression
+      : node;
+
+    while (
+      ts.isCallExpression(candidate) &&
+      ts.isPropertyAccessExpression(candidate.expression)
+    ) {
+      const methodName = candidate.expression.name.text;
+
+      if (methodName === 'getByRole') {
+        const role = candidate.arguments[0]
+          ? getStringLiteralText(candidate.arguments[0])
+          : null;
+
+        return role ? singleControlRoles.has(role) : false;
+      }
+
+      if (methodName === 'getByText' || methodName === 'getByLabel') {
+        return true;
+      }
+
+      candidate = candidate.expression.expression;
+    }
+
+    return false;
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'takeScreenshot'
+    ) {
+      const target = node.arguments[1];
+
+      if (target && isSingleControlLocatorTarget(target)) {
+        singleControlTargets.push(describeCall(node));
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return singleControlTargets;
+};
+
 const countTakeScreenshotCalls = (path: string, source: string): number => {
   const sourceFile = ts.createSourceFile(
     path,
@@ -462,6 +553,45 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/broad-target.doc.ts:2:13']);
   });
 
+  it('detects single-control documentation screenshot targets', () => {
+    const singleControlTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        page.getByRole('button', { name: 'Create category' }),
+        page,
+        'Single button target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.getByText('Registration opens next week'),
+        page,
+        'Single text target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        profileSummarySurface,
+        page,
+        'Named surface target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [createAccountForm, submitButton],
+        page,
+        'Multi-target form screenshot with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/single-control-target.doc.ts',
+        singleControlTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/single-control-target.doc.ts:2:13',
+      'tests/docs/example/single-control-target.doc.ts:8:13',
+    ]);
+  });
+
   it('keeps generated documentation pages explanatory and image-backed', () => {
     const documentFiles = findFiles('tests/docs')
       .filter((path) => path.endsWith('.doc.ts'))
@@ -565,6 +695,9 @@ describe('generated docs source current behavior', () => {
       expect(source, path).not.toContain('page.screenshot(');
       expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);
       expect(findUnfilteredBroadScreenshotTargets(path, source), path).toEqual(
+        [],
+      );
+      expect(findSingleControlScreenshotTargets(path, source), path).toEqual(
         [],
       );
       for (const [caption, locations] of collectScreenshotCaptions(
