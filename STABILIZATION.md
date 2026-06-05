@@ -5566,9 +5566,9 @@ The global-admin generated doc now uses concrete tenant summary, empty search,
 scope boundary, detail review, and edit-form surfaces for its screenshot
 targets instead of highlighting page or card headings.
 The event-management generated doc now uses concrete event-list,
-template-choice, event-detail header, registration option, scanner guest
-check-in, and event-edit role-picker surfaces instead of highlighting page,
-section, or broad component hosts.
+template-choice, event-detail header, the created event's participant
+registration option, scanner guest check-in, and event-edit role-picker surfaces
+instead of highlighting page, section, or broad component hosts.
 The user-profile generated doc now uses concrete profile summary, multi-state
 event registration section, and seeded receipt card screenshot targets for
 profile data, registration history, and reimbursement evidence instead of broad

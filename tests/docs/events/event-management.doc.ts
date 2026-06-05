@@ -1,6 +1,5 @@
 import { and, eq } from 'drizzle-orm';
 import type { Locator, Page } from '@playwright/test';
-import { DateTime } from 'luxon';
 
 import { getId } from '../../../helpers/get-id';
 import {
@@ -31,8 +30,17 @@ const eventDetailsSurface = (page: Page, eventTitle: string): Locator =>
     .filter({ has: page.getByRole('heading', { name: eventTitle }) })
     .first();
 
-const registrationOptionsSurface = (page: Page): Locator =>
-  page.locator('app-event-registration-option').first();
+const registrationOptionSurface = (
+  page: Page,
+  input: { optionTitle: string },
+): Locator =>
+  page
+    .locator('app-event-registration-option')
+    .filter({
+      has: page.getByRole('heading', { name: input.optionTitle }),
+    })
+    .filter({ hasText: 'Participant option' })
+    .first();
 
 const rolePickerSurface = (
   page: Page,
@@ -162,9 +170,24 @@ After selecting a template and customizing your event, you can create it and pro
   await page.goto(`/events/${target.id}`);
 
   // Wait for the event details page to load
-  await expect(
-    page.locator(`h1:has-text("${target.title}")`).first(),
-  ).toBeVisible();
+  await expect(eventDetailsSurface(page, target.title)).toBeVisible();
+  const [createdParticipantRegistrationOption] = await database
+    .select({
+      title: eventRegistrationOptions.title,
+    })
+    .from(eventRegistrationOptions)
+    .where(
+      and(
+        eq(eventRegistrationOptions.eventId, target.id),
+        eq(eventRegistrationOptions.organizingRegistration, false),
+      ),
+    )
+    .limit(1);
+  if (!createdParticipantRegistrationOption) {
+    throw new Error(
+      `Expected seeded event "${target.title}" to have a participant registration option for docs screenshots`,
+    );
+  }
 
   await testInfo.attach('markdown', {
     body: `
@@ -223,7 +246,9 @@ Note: The event created from the template already has registration options confi
   await expect(
     page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
   ).toBeVisible();
-  const registrationOptions = registrationOptionsSurface(page);
+  const registrationOptions = registrationOptionSurface(page, {
+    optionTitle: createdParticipantRegistrationOption.title,
+  });
   await expect(registrationOptions).toBeVisible();
   await takeScreenshot(
     testInfo,

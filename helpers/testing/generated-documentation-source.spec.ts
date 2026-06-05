@@ -1685,8 +1685,24 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("locator('app-template-list nav > div')");
     expect(source).toContain('const eventDetailsSurface =');
     expect(source).toContain("locator('router-outlet + * header')");
-    expect(source).toContain('const registrationOptionsSurface =');
+    expect(source).toContain('const registrationOptionSurface =');
+    expect(source).toContain("locator('app-event-registration-option')");
     expect(source).toContain(
+      "has: page.getByRole('heading', { name: input.optionTitle })",
+    );
+    expect(source).toContain("filter({ hasText: 'Participant option' })");
+    expect(source).toContain('const createdEventId = page.url().match');
+    expect(source).toContain(
+      'Expected created event URL after event-management docs create flow',
+    );
+    expect(source).toContain('createdParticipantRegistrationOption');
+    expect(source).toContain(
+      'Expected created event "${templateName}" to have a participant registration option for docs screenshots',
+    );
+    expect(source).toContain(
+      'const registrationOptions = registrationOptionSurface(page',
+    );
+    expect(source).not.toContain(
       "page.locator('app-event-registration-option').first()",
     );
     expect(source).toContain('const rolePickerSurface =');
