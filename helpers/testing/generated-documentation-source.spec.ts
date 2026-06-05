@@ -689,8 +689,8 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('const deferredSettingsSummary =');
     expect(source).toContain('const tenantIdentitySummary =');
-    expect(source).toContain('const emailSenderField =');
-    expect(source).toContain('const hostedTermsField =');
+    expect(source).toContain('const brandAndSearchSettingsFields =');
+    expect(source).toContain('const legalPageSettingsFields =');
     expect(source).toContain('const esnDiscountToggle =');
     expect(source).toContain(
       'await expect(deferredSettingsSummary).toBeVisible()',
@@ -698,17 +698,25 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'await expect(tenantIdentitySummary).toBeVisible()',
     );
-    expect(source).toContain('await expect(emailSenderField).toBeVisible()');
-    expect(source).toContain('await expect(hostedTermsField).toBeVisible()');
+    expect(source).toContain(
+      'for (const field of brandAndSearchSettingsFields)',
+    );
+    expect(source).toContain('for (const field of legalPageSettingsFields)');
     expect(source).toContain('await expect(esnDiscountToggle).toBeVisible()');
     expect(source).toContain(
       'Tenant identity summary showing primary domain and Stripe status',
     );
     expect(source).toContain(
-      'Communication and branding fields for tenant email and assets',
+      'Brand asset and search preview settings for tenant public pages',
     );
     expect(source).toContain(
       'Legal page fields for hosted imprint privacy and terms content',
+    );
+    expect(source).not.toContain(
+      'takeScreenshot(\n    testInfo,\n    emailSenderField,',
+    );
+    expect(source).not.toContain(
+      'takeScreenshot(\n    testInfo,\n    hostedTermsField,',
     );
     expect(source).toContain(
       'Receipt and ESN card discount settings near the save action',

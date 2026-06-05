@@ -147,13 +147,20 @@ Tax rates are managed on the separate **Tax Rates** page.
   await expect(generalSettings.getByLabel('Favicon URL')).toBeVisible();
   await expect(generalSettings.getByLabel('SEO title')).toBeVisible();
   await expect(generalSettings.getByLabel('SEO description')).toBeVisible();
-  const emailSenderField = generalSettingsField(page, 'Email sender name');
-  await expect(emailSenderField).toBeVisible();
+  const brandAndSearchSettingsFields = [
+    generalSettingsField(page, 'Logo URL'),
+    generalSettingsField(page, 'Favicon URL'),
+    generalSettingsField(page, 'SEO title'),
+    generalSettingsField(page, 'SEO description'),
+  ];
+  for (const field of brandAndSearchSettingsFields) {
+    await expect(field).toBeVisible();
+  }
   await takeScreenshot(
     testInfo,
-    emailSenderField,
+    brandAndSearchSettingsFields,
     page,
-    'Communication and branding fields for tenant email and assets',
+    'Brand asset and search preview settings for tenant public pages',
   );
   await expect(
     generalSettings.getByLabel('Imprint / legal notice URL'),
@@ -167,11 +174,20 @@ Tax rates are managed on the separate **Tax Rates** page.
   ).toBeVisible();
   await expect(generalSettings.getByLabel('Terms URL')).toBeVisible();
   await expect(generalSettings.getByLabel('Hosted terms text')).toBeVisible();
-  const hostedTermsField = generalSettingsField(page, 'Hosted terms text');
-  await expect(hostedTermsField).toBeVisible();
+  const legalPageSettingsFields = [
+    generalSettingsField(page, 'Imprint / legal notice URL'),
+    generalSettingsField(page, 'Hosted imprint / legal notice text'),
+    generalSettingsField(page, 'Privacy policy URL'),
+    generalSettingsField(page, 'Hosted privacy policy text'),
+    generalSettingsField(page, 'Terms URL'),
+    generalSettingsField(page, 'Hosted terms text'),
+  ];
+  for (const field of legalPageSettingsFields) {
+    await expect(field).toBeVisible();
+  }
   await takeScreenshot(
     testInfo,
-    hostedTermsField,
+    legalPageSettingsFields,
     page,
     'Legal page fields for hosted imprint privacy and terms content',
   );
