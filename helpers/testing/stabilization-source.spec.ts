@@ -5372,7 +5372,10 @@ describe('stabilization source', () => {
     expect(source).toContain('`877493157`');
     expect(source).toContain('NO_WEBSERVER=true');
     expect(source).toContain(
-      'passed all\n  four no-app-startup layout-helper tests',
+      'pinned ignored repository-local\n  `DOCS_OUT_DIR` and `DOCS_IMG_OUT_DIR`',
+    );
+    expect(source).toMatch(
+      /passed\s+all four no-app-startup layout-helper tests/u,
     );
     expect(source).toContain(
       '`bun run docker:ps` showed no generated Compose project containers',
@@ -5395,7 +5398,7 @@ describe('stabilization source', () => {
       'bun run env:runtime && dotenv -c dev -- playwright test tests/setup/mcp-browser-authenticated.seed.ts --project=mcp-browser-authenticated-planner --workers=1',
     );
     expect(packageJson.scripts['test:e2e:layout-helper']).toBe(
-      'bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/page-layout-helper.test.ts --project=local-chrome-baseline --no-deps',
+      'bun run env:runtime && DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/page-layout-helper.test.ts --project=local-chrome-baseline --no-deps',
     );
     expect(packageJson.scripts['test:e2e:public-general-viewports']).toBe(
       'bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/public-general-viewports.spec.ts --project=local-chrome-baseline --workers=1 --no-deps',
@@ -5412,6 +5415,9 @@ describe('stabilization source', () => {
     expect(testsReadme).toContain('bun run test:e2e:mcp-browser-planner');
     expect(testsReadme).toContain('public MCP Browser\n  planner seed');
     expect(testsReadme).toContain('bun run test:e2e:layout-helper');
+    expect(testsReadme).toContain(
+      'pins ignored repository-local docs\n  output paths',
+    );
     expect(testsReadme).toContain('bun run test:e2e:public-general-viewports');
     expect(testsReadme).toContain('bun run test:e2e:reporter-paths');
     expect(testsReadme).toContain('bun run test:e2e:doc-screenshot');
@@ -5432,6 +5438,8 @@ describe('stabilization source', () => {
     expect(source).toContain('shared viewport guard checkpoint');
     expect(source).toContain('`tests/support/utils/page-layout.ts`');
     expect(inventory).toContain('specs/smoke/page-layout-helper.test.ts');
+    expect(inventory).toContain('test:e2e:layout-helper');
+    expect(inventory).toContain('sets ignored docs/image\n    output paths');
     expect(inventory).toContain('specs/reporting/reporter-paths.test.ts');
     expect(inventory).toContain('specs/screenshot/doc-screenshot.test.ts');
     expect(inventory).toContain('test:e2e:reporter-paths');

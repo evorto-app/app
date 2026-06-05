@@ -201,7 +201,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     clipped controls, clipped readable text, vertically clipped fixed controls,
     and vertically clipped fixed readable text with actionable metadata, and
     ignores intentional
-    horizontal-scroll containers such as tables.
+    horizontal-scroll containers such as tables. `bun run test:e2e:layout-helper`
+    is the focused local rerun; it refreshes `.env.dev`, sets ignored docs/image
+    output paths for the reporter, keeps `NO_WEBSERVER=true`, and uses
+    `--no-deps`.
   - `specs/smoke/public-general-viewports.spec.ts` reuses one seeded tenant to
     check the public root redirect, events list, public event detail, hosted
     legal pages, general 403/404/500 pages, and wildcard not-found redirect at

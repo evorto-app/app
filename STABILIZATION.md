@@ -3815,8 +3815,9 @@ fallback rather than a profile discount-card defect.
   the previous paginator false positive in `/finance/transactions` and
   `/admin/users` was removed.
   A fresh June 5, 2026 `bun run test:e2e:layout-helper` run at PR head
-  `877493157` regenerated `.env.dev`, kept `NO_WEBSERVER=true`, and passed all
-  four no-app-startup layout-helper tests in 3.6 seconds. A same-check
+  `877493157` regenerated `.env.dev`, pinned ignored repository-local
+  `DOCS_OUT_DIR` and `DOCS_IMG_OUT_DIR`, kept `NO_WEBSERVER=true`, and passed
+  all four no-app-startup layout-helper tests in 3.6 seconds. A same-check
   `bun run docker:ps` showed no generated Compose project containers, and
   `bun run docker:check` still failed only at `Docker container start path` with
   the bounded disposable Alpine timeout, so fresh Browser route/mobile layout

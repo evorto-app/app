@@ -215,7 +215,9 @@ bun run lint
   authenticated starting points without running the full viewport pack.
 - `bun run test:e2e:layout-helper` runs the shared viewport layout-helper
   contract with `NO_WEBSERVER=true` and `--no-deps`, so it does not start
-  Docker or require seeded app data. Use it after changing
+  Docker or require seeded app data. It also pins ignored repository-local docs
+  output paths because the documentation reporter initializes its output roots
+  for Playwright runs. Use it after changing
   `tests/support/utils/page-layout.ts` or the durable viewport no-glitch
   assertions.
 - `bun run test:e2e:reporter-paths` runs the documentation reporter and

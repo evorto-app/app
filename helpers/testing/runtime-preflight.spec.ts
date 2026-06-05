@@ -1225,6 +1225,9 @@ describe('evaluateRuntimePreflight', () => {
       'NO_WEBSERVER=true',
     );
     expect(packageJson.scripts['test:e2e:layout-helper']).toContain(
+      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images',
+    );
+    expect(packageJson.scripts['test:e2e:layout-helper']).toContain(
       'tests/specs/smoke/page-layout-helper.test.ts',
     );
     expect(packageJson.scripts['test:e2e:layout-helper']).toContain(
