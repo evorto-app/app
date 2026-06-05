@@ -755,7 +755,7 @@ the current working direction until a product decision overrides them.
   direct-link explanation for unlisted event details by hiding a deterministic
   seeded event from the event list, asserting a second listed event remains
   visible before screenshotting the list state, opening the same event through
-  its direct detail URL, screenshotting the registration section with a visible
+  its direct detail URL, screenshotting the event's participant
   registration-option card, and restoring the seeded listing state. Product
   docs intentionally do not generate admin unlisted-event pages; global-admin
   tenant administration now has its own scoped generated guide.

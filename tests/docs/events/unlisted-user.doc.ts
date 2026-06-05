@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Locator, Page } from '@playwright/test';
 
 import { userStateFile } from '../../../helpers/user-data';
@@ -39,6 +39,18 @@ const eventRegistrationSection = (page: Page): Locator =>
     .filter({
       has: page.getByRole('heading', { level: 2, name: 'Registration' }),
     })
+    .first();
+
+const eventRegistrationOptionSurface = (
+  page: Page,
+  input: { optionTitle: string },
+): Locator =>
+  eventRegistrationSection(page)
+    .locator('app-event-registration-option')
+    .filter({
+      has: page.getByRole('heading', { name: input.optionTitle }),
+    })
+    .filter({ hasText: 'Participant option' })
     .first();
 
 const visibleListedEventLink = (page: Page, eventTitle: string): Locator =>
@@ -106,12 +118,30 @@ What this means for you:
     ).toBeVisible();
     const registrationSection = eventRegistrationSection(page);
     await expect(registrationSection).toBeVisible();
-    await expect(
-      registrationSection.locator('app-event-registration-option').first(),
-    ).toBeVisible();
+    const [participantRegistrationOption] = await database
+      .select({
+        title: schema.eventRegistrationOptions.title,
+      })
+      .from(schema.eventRegistrationOptions)
+      .where(
+        and(
+          eq(schema.eventRegistrationOptions.eventId, event.id),
+          eq(schema.eventRegistrationOptions.organizingRegistration, false),
+        ),
+      )
+      .limit(1);
+    if (!participantRegistrationOption) {
+      throw new Error(
+        `Expected unlisted docs event "${event.title}" to have a visible participant registration option`,
+      );
+    }
+    const registrationOption = eventRegistrationOptionSurface(page, {
+      optionTitle: participantRegistrationOption.title,
+    });
+    await expect(registrationOption).toBeVisible();
     await takeScreenshot(
       testInfo,
-      registrationSection,
+      registrationOption,
       page,
       'Direct link opens the unlisted event registration details',
     );

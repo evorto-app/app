@@ -906,15 +906,36 @@ describe('generated docs source current behavior', () => {
       "page.getByRole('heading', { level: 2, name: 'Registration' })",
     );
     expect(unlistedUserSource).toContain(
+      'const eventRegistrationOptionSurface =',
+    );
+    expect(unlistedUserSource).toContain(
+      "locator('app-event-registration-option')",
+    );
+    expect(unlistedUserSource).toContain(
+      "has: page.getByRole('heading', { name: input.optionTitle })",
+    );
+    expect(unlistedUserSource).toContain(
+      'eq(schema.eventRegistrationOptions.organizingRegistration, false)',
+    );
+    expect(unlistedUserSource).toContain(
+      'Expected unlisted docs event "${event.title}" to have a visible participant registration option',
+    );
+    expect(unlistedUserSource).toContain(
+      'const registrationOption = eventRegistrationOptionSurface(page',
+    );
+    expect(unlistedUserSource).toContain(
+      'testInfo,\n      registrationOption,',
+    );
+    expect(unlistedUserSource).not.toContain(
       "registrationSection.locator('app-event-registration-option').first()",
     );
     expect(unlistedUserSource).toContain(
       'Direct link opens the unlisted event registration details',
     );
+    expect(unlistedUserSource).toContain('set({ unlisted: event.unlisted })');
     expect(unlistedUserSource).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.getByRole('heading', { name: event.title }),\n      page,\n      'Direct link opens the unlisted event detail page'",
     );
-    expect(unlistedUserSource).toContain('set({ unlisted: event.unlisted })');
     expect(unlistedUserSource).not.toMatch(/admin|global-admin|global admin/i);
     expect(documentFiles).toEqual(
       expect.arrayContaining(['tests/docs/admin/global-admin.doc.ts']),

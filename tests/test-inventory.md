@@ -89,8 +89,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/events/unlisted-user.doc.ts` screenshots both the seeded unlisted
     event disappearing from the user event list while a second listed event card
     remains visible, and the same unlisted event opening through its direct
-    detail URL with a visible registration-option card before restoring the seed
-    state
+    detail URL with the event's participant registration-option card before
+    restoring the seed state
   - `specs/events/**`
   - `specs/discounts/esn-discounts.test.ts`
   - app event edit, lifecycle-action, and organizer-action guard coverage in
