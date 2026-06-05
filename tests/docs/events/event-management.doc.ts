@@ -45,6 +45,15 @@ const rolePickerSurface = (
     .filter({ hasText: addedRoleName })
     .first();
 
+const scannerGuestCheckInSurface = (page: Page): Locator =>
+  page
+    .locator('app-handle-registration')
+    .filter({ hasText: 'Includes 2 guests.' })
+    .filter({ hasText: '0 checked in, 2 remaining.' })
+    .filter({ has: page.getByLabel('Guests to check in now') })
+    .filter({ has: page.getByRole('button', { name: 'Confirm 3 check-ins' }) })
+    .first();
+
 test('Create and manage events', async ({
   database,
   events,
@@ -405,9 +414,11 @@ Those flows should be documented separately when they exist in the product.
     await expect(
       page.getByRole('button', { name: 'Confirm 3 check-ins' }),
     ).toBeVisible();
+    const scannerCheckIn = scannerGuestCheckInSurface(page);
+    await expect(scannerCheckIn).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-handle-registration'),
+      scannerCheckIn,
       page,
       'Scanned registration with guest check-in',
     );

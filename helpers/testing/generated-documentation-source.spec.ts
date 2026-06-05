@@ -1466,6 +1466,18 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       "page.getByRole('button', { name: 'Confirm 3 check-ins' })",
     );
+    expect(source).toContain('const scannerGuestCheckInSurface =');
+    expect(source).toContain("locator('app-handle-registration')");
+    expect(source).toContain("filter({ hasText: 'Includes 2 guests.' })");
+    expect(source).toContain(
+      "filter({ hasText: '0 checked in, 2 remaining.' })",
+    );
+    expect(source).toContain(
+      "filter({ has: page.getByLabel('Guests to check in now') })",
+    );
+    expect(source).toContain(
+      'const scannerCheckIn = scannerGuestCheckInSurface',
+    );
     expect(source).toContain('Scanned registration with guest check-in');
     expect(source).toContain("page.getByText('Check-in recorded')");
     expect(source).toContain('checkedInGuestCount: true');
@@ -1521,6 +1533,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n    testInfo,\n    page.getByRole('heading', { level: 2, name: 'Registration' })",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-handle-registration'),",
     );
     expect(source).not.toContain('manual check-in from the organizer overview');
     expect(source).not.toContain('managing attendees');
