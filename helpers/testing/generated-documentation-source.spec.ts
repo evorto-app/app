@@ -837,6 +837,31 @@ describe('generated docs source current behavior', () => {
     expect(globalAdminSource).toContain(
       'Create tenant form preserving URL-shaped domain input after rejection',
     );
+    expect(globalAdminSource).toContain('const tenantCreateForm =');
+    expect(globalAdminSource).toContain(
+      "filter({ has: tenantCreate.getByLabel('Tenant name') })",
+    );
+    expect(globalAdminSource).toContain(
+      "filter({ has: tenantCreate.getByLabel('Primary domain') })",
+    );
+    expect(globalAdminSource).toContain(
+      "filter({ has: tenantCreate.getByLabel('Timezone') })",
+    );
+    expect(globalAdminSource).toContain(
+      "has: tenantCreate.getByRole('button', { name: 'Create tenant' })",
+    );
+    expect(globalAdminSource).toContain(
+      'const rejectedDomainForm = tenantCreateForm(tenantCreate);',
+    );
+    expect(globalAdminSource).toContain(
+      'const rejectedDomainMessage = page.getByText(',
+    );
+    expect(globalAdminSource).toContain(
+      '[rejectedDomainForm, rejectedDomainMessage]',
+    );
+    expect(globalAdminSource).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    tenantCreate.getByLabel('Primary domain'),",
+    );
     expect(globalAdminSource).toContain(
       'Tenant detail review with read-only operational fields and actions',
     );

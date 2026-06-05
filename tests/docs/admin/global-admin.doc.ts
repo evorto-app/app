@@ -35,6 +35,21 @@ const tenantScopeCard = (tenantForm: Locator) =>
     })
     .first();
 
+const tenantCreateForm = (tenantCreate: Locator) =>
+  tenantCreate
+    .locator('form')
+    .filter({ has: tenantCreate.getByLabel('Tenant name') })
+    .filter({ has: tenantCreate.getByLabel('Primary domain') })
+    .filter({ has: tenantCreate.getByLabel('Theme') })
+    .filter({ has: tenantCreate.getByLabel('Stripe account ID') })
+    .filter({ has: tenantCreate.getByLabel('Currency') })
+    .filter({ has: tenantCreate.getByLabel('Locale') })
+    .filter({ has: tenantCreate.getByLabel('Timezone') })
+    .filter({
+      has: tenantCreate.getByRole('button', { name: 'Create tenant' }),
+    })
+    .first();
+
 const tenantDetailReviewCard = (tenantDetail: Locator, tenantDomain: string) =>
   tenantDetail
     .locator('section')
@@ -169,13 +184,18 @@ The create form intentionally supports one active primary domain per tenant. Cus
   await expect(
     page.getByText('Domain must be a single host name'),
   ).toBeVisible();
+  const rejectedDomainForm = tenantCreateForm(tenantCreate);
+  const rejectedDomainMessage = page.getByText(
+    'Domain must be a single host name',
+  );
+  await expect(rejectedDomainForm).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
   await expect(tenantCreate.getByLabel('Primary domain')).toHaveValue(
     'section.example.org/path',
   );
   await takeScreenshot(
     testInfo,
-    tenantCreate.getByLabel('Primary domain'),
+    [rejectedDomainForm, rejectedDomainMessage],
     page,
     'Create tenant form preserving URL-shaped domain input after rejection',
   );
