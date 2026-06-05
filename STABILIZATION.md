@@ -4736,7 +4736,9 @@ E2E` long enough to be treated as stale; it was cancelled, and GitHub still
   `tests/docs/roles/about-permissions.doc.ts` as the only text-only reference
   exception. The same source guard now requires screenshot captions to stay
   unique across generated docs, so one generic caption cannot describe unrelated
-  product states while still passing the minimum-caption rule. This closes an
+  product states while still passing the minimum-caption rule. It also rejects
+  fixed `waitForTimeout` sleeps in generated docs so screenshot timing remains
+  tied to concrete UI state instead of arbitrary delays. This closes an
   evidence-drift gap where docs could have kept one valid highlighted screenshot
   and explanatory markdown while quietly dropping
   other image-backed states that are needed to judge flow progress from the

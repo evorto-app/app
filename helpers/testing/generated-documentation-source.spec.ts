@@ -445,6 +445,8 @@ describe('generated docs source current behavior', () => {
 
       expect(source, path).toContain("testInfo.attach('markdown'");
       expect(markdownTextLength, path).toBeGreaterThanOrEqual(120);
+      expect(source, path).not.toContain('waitForTimeout(');
+      expect(source, path).not.toContain('.waitForTimeout(');
 
       if (textOnlyReferenceDocuments.has(path)) {
         expect(source, path).toContain('PERMISSION_GROUPS');
