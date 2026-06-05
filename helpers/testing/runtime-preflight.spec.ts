@@ -613,8 +613,8 @@ describe('evaluateRuntimePreflight', () => {
     ).toBeLessThan(
       ciStopDockerStackHelper.lastIndexOf('remove_compose_project_containers'),
     );
-    expect(ciStopDockerStackHelper).toContain(
-      'bash helpers/testing/ci-prune-neon-local-branches.sh',
+    expect(ciStopDockerStackHelper).not.toContain(
+      'ci-prune-neon-local-branches.sh',
     );
     expect(workflow).toContain('Prune expired Neon branches after E2E');
     expect(workflow).toContain('timeout-minutes: 5');

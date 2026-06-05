@@ -33,4 +33,3 @@ compose_timeout kill db || true
 compose_timeout kill || true
 compose_timeout rm --force --stop -v || true
 remove_compose_project_containers
-bash helpers/testing/ci-prune-neon-local-branches.sh

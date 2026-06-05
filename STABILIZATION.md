@@ -1946,6 +1946,31 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** `bun run docker:resume` now provides a non-recreating resume path for an already initialized Docker stack, while `docker:start`, `docker:start:foreground`, and `docker:start:watch` keep the explicit reset-from-zero behavior through the shared `bun run docker:reset` preflight/teardown step.
 - **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, and session variables before Docker Compose mutates local containers. It also reports local tool readiness and warns when Playwright browsers are missing without blocking Docker start. Font Awesome icons now install from public npm packages only, so local, Docker, Copilot, and E2E dependency installs no longer rely on a project `.npmrc` or private Font Awesome registry token. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. After reusing the main checkout's untracked `.env` secrets locally, this worktree's required runtime variables are present. Earlier Docker preflight retries failed only at the disposable container start-path probe because the host Docker engine could inspect config but could not start containers; the current running-Docker Browser evidence in the review queue supersedes that historical local blocker.
 - **Addressed in this stabilization pass:** Docker `db-setup` now drops/recreates the `public` schema before `drizzle-kit push --force`, preventing Drizzle's non-TTY confirmation prompt from blocking reset-from-zero startup on older local Neon branch state.
+- **Addressed in this stabilization pass:** runtime source coverage now pins the
+  Neon Local branch-expiration mitigation that prevents orphaned local test
+  branches from accumulating: Compose mounts the shared metadata directory into
+  both `db` and `db-expiration`, waits for `db-expiration` before schema setup
+  and app startup, and CI prepares a writable metadata directory, uses a
+  two-hour branch TTL, waits up to 180 seconds for metadata, confirms the
+  expiration helper after detached Compose startup, prunes stale branches
+  before E2E startup, gives the Neon Local `db` container a 60-second stop
+  window inside a bounded command, runs bounded Compose down, force-removes
+  leftover Compose containers, removes any remaining containers carrying the
+  current Compose project label, and then runs a separate dependency-free
+  metadata-backed cleanup workflow step so Docker teardown and Neon pruning stay
+  visible as distinct finalizers. A local cleanup check against the configured
+  Neon project reported `total=1`,
+  `protected=1`, `active_test=0`, and `stale_deleted=0`. The cleanup helper also
+  prunes non-main Neon branches whose `expires_at` has already passed, and
+  non-main branches without expiration metadata once their `created_at` timestamp
+  is outside the active-test TTL. That stale sweep now runs when metadata is
+  absent or exists without branch ids, so stale CI branches can be removed even
+  when local metadata, branch-id recording, or the expiration sidecar is
+  interrupted while active test branches inside the two-hour window are left
+  alone. A fresh cleanup run through the repo dotenv cascade after this fallback
+  change found no local Neon metadata, checked stale branches outside the
+  two-hour TTL, and reported `total=1`, `protected=1`, `active_test=0`, and
+  `stale_deleted=0`.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now relies on the Compose `db-setup` service instead of running a separate host `bun run db:push` step, so CI uses the same non-interactive Docker schema reset path as local Docker startup.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now exports and validates `ISSUER_BASE_URL` and `SECRET` before starting the Docker app container, matching the auth config fields required for runtime startup. CI uses the tracked dev Auth0 issuer and a disposable CI session secret as defaults when repository settings do not override them.
 - **Addressed in this stabilization pass:** the CI Playwright workflow now invokes the baseline Playwright project explicitly instead of the package wrapper, so CI configuration only requires deterministic baseline credentials and does not demand Auth0 Management or Cloudflare Images credentials that belong to integration-tagged projects.
