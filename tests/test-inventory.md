@@ -839,7 +839,10 @@ provider outcomes without live identifiers.
     now functionally create a template with planning tips, a reusable add-on,
     and a registration question, screenshot the saved template detail page, then
     read the persisted template, add-on attachment/quantity, and required
-    question state from the database.
+    question state from the database. The saved-detail docs screenshot targets
+    the template detail section containing those persisted planning tips,
+    reusable add-on, and registration-question labels instead of a heading-only
+    crop.
   - Template detail component coverage pins reusable add-on purchase timing and
     registration-option labels. Server handler coverage pins the current add-on
     read model, simple-template service coverage pins optional add-on write

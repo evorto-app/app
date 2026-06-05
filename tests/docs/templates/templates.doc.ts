@@ -6,6 +6,22 @@ import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { fillTemplateBasics } from '../../support/utils/template-form';
+import type { Locator, Page } from '@playwright/test';
+
+const savedTemplateDetailSurface = (
+  page: Page,
+  input: {
+    addOnTitle: string;
+    planningTips: string;
+    questionTitle: string;
+  },
+): Locator =>
+  page
+    .locator('app-template-details section')
+    .filter({ hasText: input.planningTips })
+    .filter({ hasText: input.addOnTitle })
+    .filter({ hasText: input.questionTitle })
+    .first();
 
 test.use({ storageState: adminStateFile });
 
@@ -226,9 +242,15 @@ You will be redirected to the detail page for that template.
   await expect(page.getByText(planningTips)).toBeVisible();
   await expect(page.getByText(addOnTitle)).toBeVisible();
   await expect(page.getByText(questionTitle)).toBeVisible();
+  const savedTemplateDetail = savedTemplateDetailSurface(page, {
+    addOnTitle,
+    planningTips,
+    questionTitle,
+  });
+  await expect(savedTemplateDetail).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { name: templateTitle }),
+    savedTemplateDetail,
     page,
     'Saved template detail page with planning tips add-on and question',
   );

@@ -1104,6 +1104,12 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('fillTemplateBasics');
     expect(source).toContain('createdTemplate.planningTips');
+    expect(source).toContain('const savedTemplateDetailSurface =');
+    expect(source).toContain("locator('app-template-details section')");
+    expect(source).toContain('filter({ hasText: input.planningTips })');
+    expect(source).toContain('filter({ hasText: input.addOnTitle })');
+    expect(source).toContain('filter({ hasText: input.questionTitle })');
+    expect(source).toContain('await expect(savedTemplateDetail).toBeVisible()');
     expect(source).toContain(
       'Saved template detail page with planning tips add-on and question',
     );
@@ -1120,6 +1126,9 @@ describe('generated docs source current behavior', () => {
       'ESNcard pricing is configured on events only',
     );
     expect(source).not.toContain('standalone add-on sales are configured here');
+    expect(source).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    page.getByRole('heading', { name: templateTitle })",
+    );
   });
 
   it('keeps template category docs backed by deterministic persistence checks', () => {
