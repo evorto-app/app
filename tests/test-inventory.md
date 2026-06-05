@@ -99,7 +99,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/templates/templates.doc.ts`
     screenshots the seeded template overview by targeting the template-list
     navigation containing both seeded categories and the Create template action,
-    then documents focused create/detail form surfaces and persistence readbacks
+    then documents focused create/detail form surfaces, reusable add-on and
+    registration-question forms containing their expected fields, and
+    persistence readbacks
   - `docs/template-categories/categories.doc.ts`
     documents the category create/edit dialog states, save actions, and
     saved/renamed rows with focused screenshots plus deterministic persistence

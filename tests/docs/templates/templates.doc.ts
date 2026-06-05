@@ -56,6 +56,22 @@ const simpleRegistrationSetupSurface = (page: Page): Locator =>
     })
     .first();
 
+const templateAddOnFormSurface = (page: Page): Locator =>
+  page
+    .locator('app-template-addon-form')
+    .filter({ has: page.getByLabel('Add-on name') })
+    .filter({ has: page.getByLabel('Attach to') })
+    .filter({ hasText: 'Purchase timing' })
+    .first();
+
+const templateQuestionFormSurface = (page: Page): Locator =>
+  page
+    .locator('app-template-question-form')
+    .filter({ has: page.getByRole('textbox', { name: 'Question' }) })
+    .filter({ has: page.getByLabel('Ask during') })
+    .filter({ hasText: 'Require an answer' })
+    .first();
+
 test.use({ storageState: adminStateFile });
 
 test('Manage templates', async ({
@@ -237,10 +253,10 @@ When a template creates an event, those reusable add-ons are copied into the eve
 `,
   });
   await page.getByRole('button', { name: 'Add add-on' }).click();
-  const addOnForm = page.locator('app-template-addon-form').first();
+  const addOnForm = templateAddOnFormSurface(page);
   await expect(addOnForm.getByLabel('Add-on name')).toBeVisible();
   await expect(addOnForm.getByLabel('Attach to')).toBeVisible();
-  await expect(page.getByText('Purchase timing')).toBeVisible();
+  await expect(addOnForm.getByText('Purchase timing')).toBeVisible();
   await takeScreenshot(
     testInfo,
     addOnForm,
@@ -256,12 +272,12 @@ Questions can include help text and can be marked as required. Event-side answer
 `,
   });
   await page.getByRole('button', { name: 'Add question' }).click();
-  const questionForm = page.locator('app-template-question-form').first();
+  const questionForm = templateQuestionFormSurface(page);
   await expect(
     questionForm.getByRole('textbox', { name: 'Question' }),
   ).toBeVisible();
   await expect(questionForm.getByLabel('Ask during')).toBeVisible();
-  await expect(page.getByText('Require an answer')).toBeVisible();
+  await expect(questionForm.getByText('Require an answer')).toBeVisible();
   await takeScreenshot(
     testInfo,
     questionForm,

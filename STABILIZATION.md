@@ -5544,6 +5544,9 @@ instead of highlighting a whole repeated page area by accident.
 The template generated doc now screenshots the seeded template-list navigation
 containing both a category and the Create template action instead of highlighting
 only the standalone create link.
+It also screenshots reusable add-on and registration-question forms through
+field-backed component targets containing their expected labels and state text
+instead of accepting the first matching template form component.
 The finance-overview generated doc now screenshots the permission-scoped
 navigation surface containing the transaction, receipt-approval, and
 receipt-reimbursement links instead of highlighting only one finance card.

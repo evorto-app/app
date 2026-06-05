@@ -1390,6 +1390,8 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('const templateOverviewSurface =');
     expect(source).toContain('const templateGeneralSettingsSurface =');
     expect(source).toContain('const simpleRegistrationSetupSurface =');
+    expect(source).toContain('const templateAddOnFormSurface =');
+    expect(source).toContain('const templateQuestionFormSurface =');
     expect(source).toContain("locator('app-template-list nav')");
     expect(source).toContain(
       "filter({ has: page.getByRole('link', { name: 'Create template' }) })",
@@ -1423,6 +1425,22 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Simple registration setup with organizer and participant defaults',
     );
+    expect(source).toContain("locator('app-template-addon-form')");
+    expect(source).toContain("filter({ has: page.getByLabel('Add-on name') })");
+    expect(source).toContain("filter({ has: page.getByLabel('Attach to') })");
+    expect(source).toContain("filter({ hasText: 'Purchase timing' })");
+    expect(source).toContain(
+      'const addOnForm = templateAddOnFormSurface(page)',
+    );
+    expect(source).toContain("locator('app-template-question-form')");
+    expect(source).toContain(
+      "filter({ has: page.getByRole('textbox', { name: 'Question' }) })",
+    );
+    expect(source).toContain("filter({ has: page.getByLabel('Ask during') })");
+    expect(source).toContain("filter({ hasText: 'Require an answer' })");
+    expect(source).toContain(
+      'const questionForm = templateQuestionFormSurface(page)',
+    );
     expect(source).toContain("locator('app-template-details section')");
     expect(source).toContain('filter({ hasText: input.planningTips })');
     expect(source).toContain('filter({ hasText: input.addOnTitle })');
@@ -1452,6 +1470,12 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n    testInfo,\n    page.locator('app-template-create form div').first(),",
+    );
+    expect(source).not.toContain(
+      "const addOnForm = page.locator('app-template-addon-form').first();",
+    );
+    expect(source).not.toContain(
+      "const questionForm = page.locator('app-template-question-form').first();",
     );
     expect(source).not.toContain(
       ".locator('div', { hasText: 'Simple Registration Setup' })",
