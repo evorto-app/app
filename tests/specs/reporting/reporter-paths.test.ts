@@ -153,7 +153,7 @@ test('documentation screenshot helper rejects weak runtime captions', async ({
   await expect(
     takeScreenshot(testInfo, page.locator('#target'), page, 'Too short'),
   ).rejects.toThrow(
-    'Documentation screenshots require a descriptive caption of at least 24 characters.',
+    'Documentation screenshots require a descriptive caption of at least 24 characters and four words.',
   );
 });
 
