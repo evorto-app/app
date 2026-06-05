@@ -9,8 +9,24 @@ import {
 } from '../../../src/app/profile/user-profile/user-profile.esn-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import type { Locator, Page } from '@playwright/test';
 
 test.use({ storageState: userStateFile });
+
+const esnDiscountCardSurface = (
+  page: Page,
+  input: {
+    identifier: string;
+  },
+): Locator =>
+  page
+    .locator('app-user-profile div')
+    .filter({ hasText: 'ESN card' })
+    .filter({ hasText: input.identifier })
+    .filter({ hasText: 'Status: Verified' })
+    .filter({ hasText: 'Refresh' })
+    .filter({ hasText: 'Remove' })
+    .first();
 
 test('Understand ESN discount card states', async ({}, testInfo) => {
   expect(esnCardStatusLabel('verified')).toBe('Verified');
@@ -93,6 +109,10 @@ Open your profile's **Discounts** section directly when you want to review or up
   await expect(page.getByText(/Status: Verified/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible();
+  const seededDiscountCard = esnDiscountCardSurface(page, {
+    identifier: seededEsnCardIdentifier,
+  });
+  await expect(seededDiscountCard).toBeVisible();
   const seededEsnCard = await database.query.userDiscountCards.findFirst({
     where: {
       identifier: seededEsnCardIdentifier,
@@ -110,7 +130,7 @@ Open your profile's **Discounts** section directly when you want to review or up
   );
   await takeScreenshot(
     testInfo,
-    page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
+    seededDiscountCard,
     page,
     'Discount cards section showing available tenant discounts',
   );
