@@ -1054,6 +1054,19 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('cancelledTransactionComment');
     expect(source).toContain('submittedReceiptFileName');
     expect(source).toContain('approvedReceiptFileName');
+    expect(source).toContain('const financeOverviewNavigationCard =');
+    expect(source).toContain("locator('app-finance-overview nav a')");
+    expect(source).toContain('const transactionRow =');
+    expect(source).toContain(
+      "page.getByRole('row').filter({ hasText: comment })",
+    );
+    expect(source).toContain('const receiptApprovalRow =');
+    expect(source).toContain("locator('app-receipt-approval-list a')");
+    expect(source).toContain('const receiptReimbursementRow =');
+    expect(source).toContain('const transactionNavigationCard =');
+    expect(source).toContain('const visibleTransactionRow =');
+    expect(source).toContain('const submittedReceiptRow =');
+    expect(source).toContain('const approvedReceiptRow =');
     expect(source).toContain(
       'Cancelled transactions are omitted from this list.',
     );
@@ -1065,6 +1078,18 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'page.getByText(approvedReceiptFileName)).toBeVisible()',
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-finance-overview')",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-transaction-list')",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-receipt-approval-list')",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-receipt-refund-list')",
     );
     expect(source).not.toContain('all finance users see all finance pages');
     expect(source).not.toContain(

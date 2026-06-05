@@ -8,8 +8,24 @@ import {
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import type { Locator, Page } from '@playwright/test';
 
 test.use({ storageState: organizerStateFile });
+
+const financeOverviewNavigationCard = (page: Page, name: string): Locator =>
+  page.locator('app-finance-overview nav a').filter({ hasText: name }).first();
+
+const transactionRow = (page: Page, comment: string): Locator =>
+  page.getByRole('row').filter({ hasText: comment }).first();
+
+const receiptApprovalRow = (page: Page, fileName: string): Locator =>
+  page
+    .locator('app-receipt-approval-list a')
+    .filter({ hasText: fileName })
+    .first();
+
+const receiptReimbursementRow = (page: Page, fileName: string): Locator =>
+  page.getByRole('row').filter({ hasText: fileName }).first();
 
 test('Manage finances @finance', async ({
   database,
@@ -137,9 +153,20 @@ To access the finance overview, navigate to the **Finances** section from the ma
 `,
     });
     await page.getByRole('link', { name: 'Finances' }).click();
+    const transactionNavigationCard = financeOverviewNavigationCard(
+      page,
+      'Transactions',
+    );
+    await expect(transactionNavigationCard).toBeVisible();
+    await expect(
+      financeOverviewNavigationCard(page, 'Receipt approvals'),
+    ).toBeVisible();
+    await expect(
+      financeOverviewNavigationCard(page, 'Receipt reimbursements'),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-finance-overview'),
+      transactionNavigationCard,
       page,
       'Finance overview page with tenant payment and receipt summaries',
     );
@@ -163,9 +190,14 @@ You can view a detailed list of all transactions by clicking on the **Transactio
     await page.getByRole('link', { name: 'Transactions' }).click();
     await expect(page.getByText(visibleTransactionComment)).toBeVisible();
     await expect(page.getByText(cancelledTransactionComment)).toHaveCount(0);
+    const visibleTransactionRow = transactionRow(
+      page,
+      visibleTransactionComment,
+    );
+    await expect(visibleTransactionRow).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-transaction-list'),
+      visibleTransactionRow,
       page,
       'Transaction list page with filterable finance records',
     );
@@ -195,9 +227,14 @@ Approving or rejecting records the review status in Evorto and queues the submit
     });
     await page.goto('/finance/receipts-approval');
     await expect(page.getByText(submittedReceiptFileName)).toBeVisible();
+    const submittedReceiptRow = receiptApprovalRow(
+      page,
+      submittedReceiptFileName,
+    );
+    await expect(submittedReceiptRow).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-receipt-approval-list'),
+      submittedReceiptRow,
       page,
       'Receipt approval list with submitted reimbursement receipts',
     );
@@ -211,9 +248,14 @@ The **Receipt reimbursements** tab groups approved receipts by recipient and ren
     });
     await page.goto('/finance/receipts-refunds');
     await expect(page.getByText(approvedReceiptFileName)).toBeVisible();
+    const approvedReceiptRow = receiptReimbursementRow(
+      page,
+      approvedReceiptFileName,
+    );
+    await expect(approvedReceiptRow).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-receipt-refund-list'),
+      approvedReceiptRow,
       page,
       'Receipt reimbursements list',
     );

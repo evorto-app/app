@@ -1208,10 +1208,11 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** `tests/docs/finance/finance-overview.doc.ts`
   now seeds visible and cancelled transaction rows, proves the transaction list
   renders the non-cancelled row, and proves cancelled rows stay omitted before
-  generating the transaction-list screenshot. It also seeds deterministic
+  generating the transaction-row screenshot. It also seeds deterministic
   submitted and approved receipt rows, asserts their filenames on the receipt
-  approval and reimbursement queues, and screenshots those concrete rows instead
-  of relying on ambient fixture receipts.
+  approval and reimbursement queues, and screenshots the permission-scoped
+  finance navigation card plus those concrete transaction/receipt rows instead
+  of broad route shells or ambient fixture receipts.
 - **Addressed in stabilization pass:** the transaction-list paginator now
   announces transaction pages instead of the stale user-list label, with the
   template spec pinning both the implemented-route action guard and the
