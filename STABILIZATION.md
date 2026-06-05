@@ -5465,6 +5465,10 @@ evidence-quality checks do not accidentally write to the sibling docs checkout.
 The static doc-screenshot helper settling contract is also package-scripted as
 `bun run test:e2e:doc-screenshot` and runs without Docker for focused helper
 reruns.
+Generated-doc source coverage also rejects generic page-shell screenshot focus
+targets such as `locator('main')`; screenshot evidence must focus a meaningful
+product control, form, component, row, or state while still capturing visible
+page content outside the highlighted target.
 New Playwright skips/fixmes, including
 `test.describe.skip`, should be added only as explicit credential gates or
 honest Browser-backed stabilization placeholders. The Playwright inventory guard now also rejects

@@ -140,6 +140,7 @@ const findGenericScreenshotTargets = (
     'body, html',
     'html',
     'html, body',
+    'main',
   ]);
 
   const describeCall = (node: ts.CallExpression): string => {
@@ -359,6 +360,24 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:5:13',
       'tests/docs/example/bypass.doc.ts:7:16',
     ]);
+  });
+
+  it('detects generic documentation screenshot targets', () => {
+    const genericTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        page.locator('main'),
+        page,
+        'Generic application shell target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/generic-target.doc.ts',
+        genericTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/generic-target.doc.ts:2:13']);
   });
 
   it('keeps generated documentation pages explanatory and image-backed', () => {

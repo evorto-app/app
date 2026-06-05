@@ -1153,9 +1153,11 @@ test.describe('Register for events', () => {
         timeout: 30_000,
       })
       .toMatch(/checkout\.stripe\.com/);
+    const checkoutForm = checkoutPage.locator('form').first();
+    await expect(checkoutForm).toBeVisible({ timeout: 30_000 });
     await takeScreenshot(
       testInfo,
-      checkoutPage.locator('main'),
+      checkoutForm,
       checkoutPage,
       'Stripe Checkout page for completing the paid registration',
     );
