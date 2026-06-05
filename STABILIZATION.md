@@ -5509,6 +5509,10 @@ targets instead of highlighting page or card headings.
 The event-management generated doc now uses concrete event-list,
 template-choice, event-detail header, registration option, and event-edit
 role-picker surfaces instead of highlighting page or section headings.
+The user-profile generated doc now uses concrete profile summary, seeded event
+card, and seeded receipt card screenshot targets for profile data, registration
+history, and reimbursement evidence instead of broad profile-page captures for
+those states.
 New Playwright skips/fixmes, including
 `test.describe.skip`, should be added only as explicit credential gates or
 honest Browser-backed stabilization placeholders. The Playwright inventory guard now also rejects

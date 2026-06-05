@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import type { Locator, Page } from '@playwright/test';
 
 import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
@@ -11,6 +12,31 @@ import {
 } from '../../support/utils/profile-event-cards';
 
 test.use({ storageState: userStateFile });
+
+const profileSummarySurface = (page: Page): Locator =>
+  page
+    .locator('app-user-profile section')
+    .filter({ has: page.getByRole('button', { name: 'Edit profile' }) })
+    .first();
+
+const profileEventCardSurface = (
+  page: Page,
+  eventTitle: string,
+  addOnTitle: string,
+): Locator =>
+  page
+    .locator('article')
+    .filter({ hasText: eventTitle })
+    .filter({
+      hasText: addOnTitle,
+    })
+    .first();
+
+const profileReceiptCardSurface = (
+  page: Page,
+  receiptFileName: string,
+): Locator =>
+  page.locator('article').filter({ hasText: receiptFileName }).first();
 
 test('Manage user profile', async ({
   database,
@@ -112,10 +138,10 @@ From here you can open the edit dialog to update your profile details.
       page.getByRole('button', { name: 'Edit profile' }),
     ).toBeVisible();
 
-    // Take a screenshot of the entire profile component
+    // Take a screenshot of the profile summary card.
     await takeScreenshot(
       testInfo,
-      page.locator('app-user-profile'),
+      profileSummarySurface(page),
       page,
       'Profile information section',
     );
@@ -186,7 +212,7 @@ The notification email is user-managed and may differ from the Auth0 login email
     expect(updatedProfileUser.paypalEmail).toBe(documentedPaypalEmail);
     await takeScreenshot(
       testInfo,
-      page.locator('app-user-profile'),
+      profileSummarySurface(page),
       page,
       'Profile notification email persisted',
     );
@@ -209,9 +235,11 @@ The user profile now uses a two-column layout:
     await expect(
       page.getByRole('heading', { name: 'Your Event Registrations' }),
     ).toBeVisible();
-    const documentedEventCard = page
-      .locator('article')
-      .filter({ hasText: profileEventCards.confirmed.addOnTitle });
+    const documentedEventCard = profileEventCardSurface(
+      page,
+      profileEventCards.confirmed.eventTitle,
+      profileEventCards.confirmed.addOnTitle,
+    );
     await expect(documentedEventCard).toBeVisible();
     await expect(
       documentedEventCard.getByText(profileEventCards.confirmed.eventTitle),
@@ -419,7 +447,7 @@ The user profile now uses a two-column layout:
     );
     await takeScreenshot(
       testInfo,
-      page.locator('app-user-profile'),
+      documentedEventCard,
       page,
       'Profile events tab showing the user registration history',
     );
@@ -428,9 +456,10 @@ The user profile now uses a two-column layout:
     await expect(
       page.getByRole('heading', { name: 'Submitted receipts' }),
     ).toBeVisible();
-    const profileReceiptCard = page
-      .locator('article')
-      .filter({ hasText: profileReceiptFileName });
+    const profileReceiptCard = profileReceiptCardSurface(
+      page,
+      profileReceiptFileName,
+    );
     await expect(profileReceiptCard).toBeVisible();
     await expect(profileReceiptCard.getByText('Submitted')).toBeVisible();
     await expect(
@@ -456,7 +485,7 @@ The user profile now uses a two-column layout:
     );
     await takeScreenshot(
       testInfo,
-      page.locator('app-user-profile'),
+      profileReceiptCard,
       page,
       'Profile receipts tab showing submitted reimbursement receipts',
     );

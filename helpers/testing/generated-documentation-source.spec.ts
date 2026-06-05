@@ -914,6 +914,14 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("getByRole('link', { name: 'Continue payment' })");
     expect(source).toContain('pendingCheckoutRegistration');
     expect(source).toContain('checkedInAddonPurchase');
+    expect(source).toContain('const profileSummarySurface =');
+    expect(source).toContain("locator('app-user-profile section')");
+    expect(source).toContain("button', { name: 'Edit profile' })");
+    expect(source).toContain('const profileEventCardSurface =');
+    expect(source).toContain('filter({ hasText: eventTitle })');
+    expect(source).toContain('hasText: addOnTitle');
+    expect(source).toContain('const profileReceiptCardSurface =');
+    expect(source).toContain('filter({ hasText: receiptFileName })');
     expect(source).toContain(
       'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
     );
@@ -934,6 +942,12 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('attachmentFileName: profileReceiptFileName');
     expect(source).toContain('totalAmount: 1875');
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-user-profile'),\n      page,\n      'Profile events tab showing the user registration history'",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-user-profile'),\n      page,\n      'Profile receipts tab showing submitted reimbursement receipts'",
+    );
     expect(source).not.toContain('automatic refund');
     expect(source).not.toContain('resale');
     expect(source).not.toContain('ticket email');
