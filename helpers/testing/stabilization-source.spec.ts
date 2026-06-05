@@ -3167,6 +3167,16 @@ describe('stabilization source', () => {
     expect(mcpAuthenticatedSeed).toContain(
       "page.getByRole('button', { name: 'Edit profile' })",
     );
+    expect(packageJson.scripts).toHaveProperty('test:e2e:mcp-browser-planner');
+    expect(packageJson.scripts['test:e2e:mcp-browser-planner']).toContain(
+      '--project=mcp-browser-planner',
+    );
+    expect(packageJson.scripts['test:e2e:mcp-browser-planner']).toContain(
+      'NO_WEBSERVER=true',
+    );
+    expect(packageJson.scripts['test:e2e:mcp-browser-planner']).toContain(
+      '--no-deps',
+    );
     expect(packageJson.scripts).toHaveProperty(
       'test:e2e:mcp-browser-authenticated-planner',
     );
@@ -3175,10 +3185,13 @@ describe('stabilization source', () => {
     ).toContain('--project=mcp-browser-authenticated-planner');
     expect(testInventory).toContain('tests/setup/mcp-browser.seed.ts');
     expect(testInventory).toContain('mcp-browser-planner');
+    expect(testInventory).toContain('test:e2e:mcp-browser-planner');
     expect(testInventory).toContain(
       'tests/setup/mcp-browser-authenticated.seed.ts',
     );
     expect(testInventory).toContain('mcp-browser-authenticated-planner');
+    expect(testsReadme).toContain('bun run test:e2e:mcp-browser-planner');
+    expect(testsReadme).toContain('opens the public Terms page');
     expect(testsReadme).toContain(
       'bun run test:e2e:mcp-browser-authenticated-planner',
     );
@@ -5272,6 +5285,14 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['test:e2e:authenticated-viewports']).toBe(
       authenticatedViewportScript,
     );
+    expect(packageJson.scripts['test:e2e:mcp-browser-planner']).toBe(
+      'bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/setup/mcp-browser.seed.ts --project=mcp-browser-planner --workers=1 --no-deps',
+    );
+    expect(
+      packageJson.scripts['test:e2e:mcp-browser-authenticated-planner'],
+    ).toBe(
+      'bun run env:runtime && dotenv -c dev -- playwright test tests/setup/mcp-browser-authenticated.seed.ts --project=mcp-browser-authenticated-planner --workers=1',
+    );
     expect(packageJson.scripts['test:e2e:layout-helper']).toBe(
       'bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/page-layout-helper.test.ts --project=local-chrome-baseline --no-deps',
     );
@@ -5287,6 +5308,8 @@ describe('stabilization source', () => {
     expect(testsReadme).toContain('bun run test:e2e:authenticated-viewports');
     expect(testsReadme).toContain('authenticated durable\n  viewport pack');
     expect(testsReadme).toContain('logged-in app chrome');
+    expect(testsReadme).toContain('bun run test:e2e:mcp-browser-planner');
+    expect(testsReadme).toContain('public MCP Browser\n  planner seed');
     expect(testsReadme).toContain('bun run test:e2e:layout-helper');
     expect(testsReadme).toContain('bun run test:e2e:public-general-viewports');
     expect(testsReadme).toContain('bun run test:e2e:reporter-paths');

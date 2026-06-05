@@ -37,6 +37,7 @@ AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:create-account
 bun run test:e2e:esncard-provider
 bun run test:e2e:authenticated-viewports
+bun run test:e2e:mcp-browser-planner
 bun run test:e2e:mcp-browser-authenticated-planner
 bun run test:e2e:layout-helper
 bun run test:e2e:public-general-viewports
@@ -186,6 +187,11 @@ bun run lint
   events, finance, scanner, and members hub at one worker. Use it when a
   layout or Material surface change could affect logged-in app chrome or
   authenticated responsive pages.
+- `bun run test:e2e:mcp-browser-planner` runs the focused public MCP Browser
+  planner seed against an already-running app. It opens the public Terms page
+  with the no-dependency `mcp-browser-planner` project so Browser planning has a
+  stable public General-page starting point without running database/auth setup
+  or starting Docker itself.
 - `bun run test:e2e:mcp-browser-authenticated-planner` runs the focused
   authenticated MCP Browser planner seed after the normal database/auth setup.
   It opens tenant-admin General settings, global-admin Tenants, and Profile

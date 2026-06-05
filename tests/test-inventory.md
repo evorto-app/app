@@ -898,7 +898,7 @@ provider outcomes without live identifiers.
 
 - `tests/support/fixtures/parallel-test.ts` seeds isolated `test` profile tenants per test.
 - `tests/setup/database.setup.ts` seeds a shared `docs` profile tenant and persists `.e2e-runtime.json`.
-- `tests/setup/mcp-browser.seed.ts` is a no-dependency Playwright-test MCP planner seed for the dedicated `mcp-browser-planner` project. It uses the plain Playwright test API to open `/legal/terms`, so MCP Browser planning can initialize against a public General page without running the database/auth setup projects. The current Browser planner setup path has verified that project/seed pair, resized the seeded Terms page to 320x740, and captured a mobile screenshot with readable legal-page content plus fitting Events/Login bottom navigation.
+- `tests/setup/mcp-browser.seed.ts` is a no-dependency Playwright-test MCP planner seed for the dedicated `mcp-browser-planner` project. It uses the plain Playwright test API to open `/legal/terms`, so MCP Browser planning can initialize against a public General page without running the database/auth setup projects. `bun run test:e2e:mcp-browser-planner` is the focused local rerun for an already-running app; it refreshes `.env.dev`, sets `NO_WEBSERVER=true`, uses `--no-deps`, and keeps the public planner seed on one worker. The current Browser planner setup path has verified that project/seed pair, resized the seeded Terms page to 320x740, and captured a mobile screenshot with readable legal-page content plus fitting Events/Login bottom navigation.
 - `tests/setup/mcp-browser-authenticated.seed.ts` is the authenticated MCP
   Browser planner seed for the dedicated `mcp-browser-authenticated-planner`
   project. It depends on the normal `setup` project, then opens

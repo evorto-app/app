@@ -5310,8 +5310,12 @@ command with `--list` discovered only that seed test. The current
 Playwright-test Browser planner setup now recognizes that project/seed pair,
 opens the seeded `/legal/terms` public General page, and resizes it to 320x740
 with readable legal-page content plus fitting Events/Login bottom navigation in
-the captured `mcp-browser-planner-terms-mobile.png` screenshot. Source and
-Playwright-backed validation should keep moving as durable regression coverage.
+the captured `mcp-browser-planner-terms-mobile.png` screenshot. The focused
+public planner rerun is now package-scripted as
+`bun run test:e2e:mcp-browser-planner`, using generated runtime env,
+`NO_WEBSERVER=true`, `--no-deps`, and one worker for an already-running app.
+Source and Playwright-backed validation should keep moving as durable
+regression coverage.
 A dedicated authenticated `mcp-browser-authenticated-planner` project and
 `tests/setup/mcp-browser-authenticated.seed.ts` now depend on the normal
 database/auth setup and open `/admin/settings`, `/global-admin/tenants`, and
