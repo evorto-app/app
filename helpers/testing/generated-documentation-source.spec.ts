@@ -959,6 +959,15 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('const profileSummarySurface =');
     expect(source).toContain("locator('app-user-profile section')");
     expect(source).toContain("button', { name: 'Edit profile' })");
+    expect(source).toContain('const profileNavigationSurface =');
+    expect(source).toContain("locator('.navigation')");
+    expect(source).toContain(
+      "has: page.getByRole('link', { name: 'Profile' })",
+    );
+    expect(source).toContain(
+      'User profile overview with section navigation and personal details',
+    );
+    expect(source).toContain('[profileNavigation, profileSummary]');
     expect(source).toContain('const profileEventCardSurface =');
     expect(source).toContain('filter({ hasText: eventTitle })');
     expect(source).toContain('hasText: addOnTitle');
@@ -1004,6 +1013,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.locator('app-user-profile'),\n      page,\n      'Profile receipts tab showing submitted reimbursement receipts'",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-user-profile'),\n      page,\n      'User profile page showing personal details and profile tabs'",
     );
     expect(source).not.toContain('automatic refund');
     expect(source).not.toContain('resale');

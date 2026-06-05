@@ -19,6 +19,12 @@ const profileSummarySurface = (page: Page): Locator =>
     .filter({ has: page.getByRole('button', { name: 'Edit profile' }) })
     .first();
 
+const profileNavigationSurface = (page: Page): Locator =>
+  page
+    .locator('.navigation')
+    .filter({ has: page.getByRole('link', { name: 'Profile' }) })
+    .first();
+
 const profileEventCardSurface = (
   page: Page,
   eventTitle: string,
@@ -115,17 +121,20 @@ To access your profile, click on the **Profile** link in the navigation bar at t
 
     // Click on the Profile link in the navigation bar
     await page.getByRole('link', { name: 'Profile' }).click();
+    const profileNavigation = profileNavigationSurface(page);
+    const profileSummary = profileSummarySurface(page);
     await takeScreenshot(
       testInfo,
-      page.locator('.navigation'),
+      profileNavigation,
       page,
       'Navigation bar with Profile link',
     );
+    await expect(profileSummary).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-user-profile'),
+      [profileNavigation, profileSummary],
       page,
-      'User profile page showing personal details and profile tabs',
+      'User profile overview with section navigation and personal details',
     );
 
     await testInfo.attach('markdown', {
@@ -149,7 +158,7 @@ From here you can open the edit dialog to update your profile details.
     // Take a screenshot of the profile summary card.
     await takeScreenshot(
       testInfo,
-      profileSummarySurface(page),
+      profileSummary,
       page,
       'Profile information section',
     );
