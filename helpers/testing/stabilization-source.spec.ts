@@ -1662,6 +1662,12 @@ describe('stabilization source', () => {
     expect(workflow).toContain(
       'Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
     );
+    expect(workflow).toContain(
+      'Bun dependency tree cache was not restored; installing offline from the warmed package cache before falling back to the serial cache warmer registry install.',
+    );
+    expect(workflow).toContain(
+      'bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache',
+    );
     expect(workflow).toContain('Save warmed Bun package cache');
     expect(workflow).toContain('Save warmed Bun dependency tree');
     expect(workflow).toContain('uses: actions/cache/save@v4');
@@ -3509,6 +3515,16 @@ describe('stabilization source', () => {
     );
     expect(workflow).toContain(
       'Bun dependency tree cache restored; skipping registry install.',
+    );
+    expect(workflow).toContain('Bun package cache restored:');
+    expect(workflow).toContain(
+      'find "${HOME}/.bun/install/cache" -mindepth 1 -maxdepth 1 -print -quit',
+    );
+    expect(workflow).toContain(
+      'Bun dependency tree cache was not restored; installing offline from the warmed package cache before falling back to the serial cache warmer registry install.',
+    );
+    expect(workflow).toContain(
+      'bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache',
     );
     expect(workflow).toContain('Save warmed Bun package cache');
     expect(workflow).toContain('Save warmed Bun dependency tree');

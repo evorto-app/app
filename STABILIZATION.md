@@ -4216,9 +4216,13 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   package path. CI now also restores OS/Bun-version/package/config/patch-hash
   keyed `~/.bun/install/cache` and `node_modules` caches in both E2E and
   Copilot setup; on cache hits the workflows skip the registry install path.
-  E2E cache misses still run
+  E2E dependency-tree cache misses first inspect the restored package cache; if
+  a primary-key or restore-key package cache is present, even the serial cache
+  warmer tries
+  `bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache`
+  before using the registry. True package-cache misses still run
   `bun install --frozen-lockfile --cache-dir ~/.bun/install/cache` only in the
-  serial cache warmer. E2E worker jobs and Copilot setup now recover a missing
+  serial cache warmer. E2E worker jobs and Copilot setup recover a missing
   dependency-tree cache by running
   `bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache`
   only when the warmed Bun package cache was restored; if that offline install

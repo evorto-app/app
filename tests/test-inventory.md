@@ -750,6 +750,10 @@ provider outcomes without live identifiers.
     E2E matrix jobs and Copilot setup also fail on a missing warmed
     dependency-tree cache instead of running their own registry installs,
     keeping Font Awesome package downloads limited to the serial cache warmer.
+    The serial warmer now also uses a restored primary-key or restore-key Bun
+    package cache for an offline dependency-tree rebuild before opening the
+    registry install path, so package-cache hits do not spend Font Awesome
+    bandwidth just because the `node_modules` cache missed.
     The Bun package cache and dependency-tree cache are keyed by the same
     package, lockfile, Bun config, and patch inputs, so registry-scope changes
     cannot reuse a stale package cache.

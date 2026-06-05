@@ -624,6 +624,12 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).toContain(
       'Bun dependency tree cache restored; skipping registry install.',
     );
+    expect(workflow).toContain(
+      'Bun dependency tree cache was not restored; installing offline from the warmed package cache before falling back to the serial cache warmer registry install.',
+    );
+    expect(workflow).toContain(
+      'bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache',
+    );
     expect(workflow).toContain('Save warmed Bun package cache');
     expect(workflow).toContain('Save warmed Bun dependency tree');
     expect(workflow).toContain('uses: actions/cache/save@v4');
