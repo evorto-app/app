@@ -4292,6 +4292,14 @@ describe('stabilization source', () => {
     expect(checkpoint).toMatch(
       /CI proof for the pushed E2E matrix still depends/u,
     );
+    expect(checkpoint).toContain('6520e154006dd18db8911b40af0096c1f3afaadf');
+    expect(checkpoint).toMatch(
+      /clean\s+local `codex\/stabilization-flow-coverage` branch/u,
+    );
+    expect(checkpoint).toContain('CodeQL `Analyze (actions)`');
+    expect(checkpoint).toContain('E2E Baseline` run `27003750183`');
+    expect(checkpoint).toMatch(/not by unpushed local commits/u);
+    expect(checkpoint).toMatch(/stale-head check reuse/u);
   });
 
   it('keeps the current Docker Browser runtime checkpoint tied to recovered Browser evidence', () => {
@@ -4972,6 +4980,10 @@ describe('stabilization source', () => {
     );
     expect(checkpointText).toContain('two-hour TTL');
     expect(checkpointText).toContain('cleanup finalizer');
+    expect(checkpointText).toContain('bun run neon:cleanup:dry-run');
+    expect(checkpointText).toContain('pushing head `6520e1540`');
+    expect(checkpointText).toContain('used the short Neon cleanup alias');
+    expect(checkpointText).toContain('only protected `main`');
     expect(workflow).toContain('name: Warm CI dependency caches');
     expect(workflow).toContain('Prepare public Font Awesome registry');
     expect(workflow).toContain(

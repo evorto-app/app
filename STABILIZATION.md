@@ -4525,6 +4525,14 @@ dependency caches` green; the warm-cache job completed the Docker cache build
 (functional-1)` was in progress while `functional-2` and `docs` were queued,
   so CI proof for the pushed E2E matrix still depends on those jobs finishing on
   head `17c35e732`.
+  A fresh June 5, 2026 CI watch after the latest useful push found PR #62 on
+  remote head `6520e154006dd18db8911b40af0096c1f3afaadf`, matching the clean
+  local `codex/stabilization-flow-coverage` branch. CodeQL `Analyze (actions)`,
+  the CodeQL status context, Copilot setup, Git Town branch stack, and
+  CodeRabbit are green on that current head. `E2E Baseline` run `27003750183`
+  exists for the same head and is still queued or in progress at the refresh, so
+  the PR remains blocked only by the draft state and unfinished current-head E2E
+  evidence, not by unpushed local commits or stale-head check reuse.
 - Current Neon active-test branch refresh checkpoint: a fresh June 4, 2026 local
   `bun run env:runtime` plus repo-local
   `node_modules/.bin/dotenv -c dev -- bun helpers/testing/delete-neon-local-branches.ts`
@@ -4686,6 +4694,14 @@ tried to kill container, but did not receive an exit event`. A follow-up
   branches for up to the two-hour TTL, but stale branches are pruned and
   completed or cancelled E2E workers run the cleanup finalizer when Actions
   reaches teardown.
+  A fresh June 5, 2026 local `bun run neon:cleanup:dry-run` checkpoint after
+  pushing head `6520e1540` regenerated `.env.dev`, used the short Neon cleanup
+  alias instead of the helper path, found no Neon Local branch ids in
+  `.neon_local/.branches`, checked for stale branches outside the two-hour
+  active-test TTL, and reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. That keeps the
+  live Neon project at the intended non-test state: only protected `main`, with
+  no active-test branches and no stale branch deletions needed.
 - Current CI Docker-start hardening checkpoint: after PR head `b5bb9c286`, the
   visible checks stayed green except the E2E matrix. The serial
   `Warm CI dependency caches` job completed successfully and showed the desired
