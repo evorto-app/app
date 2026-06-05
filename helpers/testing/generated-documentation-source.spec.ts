@@ -1132,7 +1132,7 @@ describe('generated docs source current behavior', () => {
     );
     expect(globalAdminSource).toContain('const tenantSummaryCard =');
     expect(globalAdminSource).toContain('filter({ hasText: tenantDomain })');
-    expect(globalAdminSource).toContain("filter({ hasText: 'Details' })");
+    expect(globalAdminSource).toContain("filter({ hasText: 'Review tenant' })");
     expect(globalAdminSource).toContain(
       'Empty tenant search result explaining no matching tenants were found',
     );

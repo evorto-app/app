@@ -12,7 +12,7 @@ const tenantSummaryCard = (tenantList: Locator, tenantDomain: string) =>
     .locator('div')
     .filter({ hasText: tenantDomain })
     .filter({ hasText: 'Primary domain' })
-    .filter({ hasText: 'Details' })
+    .filter({ hasText: 'Review tenant' })
     .first();
 
 const tenantSearchEmptyState = (tenantList: Locator) =>
