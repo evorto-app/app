@@ -1138,7 +1138,7 @@ describe('generated docs source current behavior', () => {
     );
     expect(globalAdminSource).toContain('const tenantSearchEmptyState =');
     expect(globalAdminSource).toContain(
-      'Try another name, domain, locale, timezone, or Stripe account.',
+      "filter({ hasText: 'No tenants match this search' })",
     );
     expect(globalAdminSource).toContain(
       'Create tenant form showing the relaunch tenant scope boundaries',

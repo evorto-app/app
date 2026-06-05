@@ -19,9 +19,6 @@ const tenantSearchEmptyState = (tenantList: Locator) =>
   tenantList
     .locator('div')
     .filter({ hasText: 'No tenants match this search' })
-    .filter({
-      hasText: 'Try another name, domain, locale, timezone, or Stripe account.',
-    })
     .first();
 
 const tenantScopeCard = (tenantForm: Locator) =>
