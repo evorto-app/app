@@ -59,8 +59,12 @@ Tenant admins can manage the settings that are currently implemented for the act
       name: 'Tenant identity',
     }),
   ).toBeVisible();
-  await expect(generalSettings.getByText('Primary domain')).toBeVisible();
-  await expect(generalSettings.getByText('Stripe connection')).toBeVisible();
+  await expect(
+    generalSettings.locator('dt').filter({ hasText: /^Primary domain$/ }),
+  ).toBeVisible();
+  await expect(
+    generalSettings.locator('dt').filter({ hasText: /^Stripe account$/ }),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     generalSettings.getByRole('heading', {
