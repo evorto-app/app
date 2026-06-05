@@ -1665,6 +1665,18 @@ describe('generated docs source current behavior', () => {
     );
     expect(rolesSource).toContain('const userList = readOnlyUserListSurface');
     expect(rolesSource).toContain('Read-only tenant user list');
+    expect(rolesSource).toContain('const roleListCreateSurface =');
+    expect(rolesSource).toContain("locator('app-role-list')");
+    expect(rolesSource).toContain(
+      "has: page.getByRole('heading', {\n        name: 'User roles',",
+    );
+    expect(rolesSource).toContain(
+      "filter({ has: page.getByRole('link', { name: 'Create role' }) })",
+    );
+    expect(rolesSource).toContain('const roleListCreateAction =');
+    expect(rolesSource).toContain(
+      'User roles page with the create-role action highlighted',
+    );
     expect(rolesSource).toContain(
       'Saved role detail page with dependent permissions visible',
     );
@@ -1687,6 +1699,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(rolesSource).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.locator('app-user-list')",
+    );
+    expect(rolesSource).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.getByRole('link', { name: 'Create role' })",
     );
     expect(rolesSource).toContain(
       "throw new Error('Expected generated roles doc to persist the role')",

@@ -1070,7 +1070,8 @@ the current working direction until a product decision overrides them.
 - `tests/docs/roles/roles.doc.ts` documents role creation, dependent permissions, and the explicit deferral of existing-user role assignment for relaunch.
 - `tests/docs/roles/roles.doc.ts` now creates a deterministic unique role,
   asserts dependent permission selection, screenshots the filtered read-only
-  admin user row and the saved role detail page with dependent permissions
+  admin user row, the role-list surface containing the User roles heading and
+  Create role action, and the saved role detail page with dependent permissions
   visible, reads the persisted role permissions from the database, and cleans up
   the generated role after the docs journey.
 - `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from tenant-scoped shared permission metadata, including group labels, permission keys/descriptions, and dependent permissions.

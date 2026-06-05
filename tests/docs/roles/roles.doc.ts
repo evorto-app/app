@@ -34,6 +34,17 @@ const roleFormPermissionGroupSurface = (page: Page): Locator =>
     .filter({ hasText: 'Includes: View templates' })
     .first();
 
+const roleListCreateSurface = (page: Page): Locator =>
+  page
+    .locator('app-role-list')
+    .filter({
+      has: page.getByRole('heading', {
+        name: 'User roles',
+      }),
+    })
+    .filter({ has: page.getByRole('link', { name: 'Create role' }) })
+    .first();
+
 const savedRoleDetailSurface = (page: Page, roleDescription: string): Locator =>
   page
     .locator('app-role-details div')
@@ -120,9 +131,11 @@ Navigate to the **User roles** page to create or edit tenant roles.
         name: 'User roles',
       }),
     ).toBeVisible();
+    const roleListCreateAction = roleListCreateSurface(page);
+    await expect(roleListCreateAction).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByRole('link', { name: 'Create role' }),
+      roleListCreateAction,
       page,
       'User roles page with the create-role action highlighted',
     );
