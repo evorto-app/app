@@ -585,6 +585,200 @@ describe('stabilization source', () => {
     expect(queue).not.toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
   });
 
+  it('keeps create-from-template coverage aligned with reusable add-ons and questions', () => {
+    const source = readSource('STABILIZATION.md');
+    const inventory = readSource('tests/test-inventory.md');
+    const eventSpec = readSource('tests/specs/events/events.test.ts');
+    const templateDocumentation = readSource(
+      'tests/docs/templates/templates.doc.ts',
+    );
+    const templateSpec = readSource('tests/specs/templates/templates.test.ts');
+    const seedSpec = readSource('tests/specs/seed/seed-baseline.test.ts');
+    const createEventMapperSpec = readSource(
+      'src/app/templates/template-create-event/template-create-event.mapper.spec.ts',
+    );
+    const createEventComponentSpec = readSource(
+      'src/app/templates/template-create-event/template-create-event.component.spec.ts',
+    );
+    const simpleTemplateServiceSpec = readSource(
+      'src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts',
+    );
+    const templateRpcSchemaSpec = readSource(
+      'src/server/effect/rpc/handlers/templates/templates-rpcs.schema.spec.ts',
+    );
+    const reviewNext = source.slice(source.indexOf('## Review Next'));
+
+    expect(templateDocumentation).toContain('#### Reusable add-ons');
+    expect(templateDocumentation).toContain('#### Registration questions');
+    expect(templateDocumentation).toContain(
+      'Expected template docs flow to persist the reusable add-on',
+    );
+    expect(templateDocumentation).toContain(
+      'Expected template docs flow to persist the registration question',
+    );
+    expect(templateSpec).toContain(
+      'create template with reusable add-ons and registration questions',
+    );
+    expect(templateSpec).toContain(
+      'Expected reusable add-on registration option attachment',
+    );
+    expect(templateSpec).toContain(
+      'Expected reusable registration question to be persisted',
+    );
+    expect(seedSpec).toContain('seededAddOns.length');
+    expect(seedSpec).toContain('seededQuestions.length');
+    expect(createEventMapperSpec).toContain(
+      'preserving source option ids for server-side copying',
+    );
+    expect(createEventMapperSpec).toContain(
+      "expect('addOns' in model).toBe(false)",
+    );
+    expect(createEventComponentSpec).toContain(
+      'keeps the create-event add-on boundary explicit',
+    );
+    expect(createEventComponentSpec).toContain(
+      'standalone before-event and during-event add-on sales are not available yet',
+    );
+    expect(simpleTemplateServiceSpec).toContain(
+      'builds reusable template add-on inserts from simple add-on input',
+    );
+    expect(simpleTemplateServiceSpec).toContain(
+      'attaches reusable add-ons to the selected simple registration option kind',
+    );
+    expect(templateRpcSchemaSpec).toContain(
+      'accepts optional registration questions in simple template writes and find-one responses',
+    );
+    expect(templateRpcSchemaSpec).toContain(
+      'rejects reusable add-ons without a simple registration option target',
+    );
+    expect(eventSpec).toContain('templateEventAddons.findFirst');
+    expect(eventSpec).toContain('addonToTemplateRegistrationOptions.findFirst');
+    expect(eventSpec).toContain('templateRegistrationQuestions.findFirst');
+    expect(eventSpec).toContain('eventAddons.findFirst');
+    expect(eventSpec).toContain('addonToEventRegistrationOptions.findFirst');
+    expect(eventSpec).toContain('eventRegistrationQuestions.findFirst');
+    expect(eventSpec).toContain('sourceTemplateQuestionId');
+    expect(eventSpec).toContain(
+      'Expected template add-on to be copied to created event',
+    );
+    expect(inventory).toContain('event create-from-template coverage checks');
+    expect(inventory).toContain('copied reusable add-ons');
+    expect(inventory).toContain('sourceTemplateQuestionId');
+    expect(inventory).toContain('reusable add-on/question Review Next');
+    expect(inventory).toContain('server RPC helper/schema coverage');
+    expect(source).toContain('Event-creation template add-on/question pass');
+    expect(source).toContain('Source coverage ties that Review\nNext claim');
+    expect(source).toContain('server RPC helper/schema coverage');
+    expect(reviewNext).toContain(
+      'page-backed create-event flow now assert that reusable add-ons and questions',
+    );
+  });
+
+  it('keeps generated-doc publishing explicit and list discovery non-mutating', () => {
+    const source = readSource('STABILIZATION.md');
+    const inventory = readSource('tests/test-inventory.md');
+    const packageJson = JSON.parse(readSource('package.json')) as {
+      scripts: Record<string, string>;
+    };
+    const testsReadme = readSource('tests/README.md');
+    const documentationReporter = readSource(
+      'tests/support/reporters/documentation-reporter.ts',
+    );
+    const reviewNext = source.match(/## Review Next[\s\S]*$/u)?.[0];
+
+    expect(reviewNext).toBeDefined();
+    expect(reviewNext).toContain(
+      'Normal generated docs output now stays local',
+    );
+    expect(reviewNext).toContain('test:e2e:docs:publish');
+    expect(source).toContain(
+      'Normal local docs output now stays in this repository',
+    );
+    expect(source).toContain('test-results/docs');
+    expect(source).toContain('bun run test:e2e:reporter-paths');
+    expect(source).toContain(
+      'Publishing into the sibling documentation checkout',
+    );
+    expect(source).toContain('bun run test:e2e:docs:publish');
+    expect(testsReadme).toContain(
+      'Playwright list/discovery commands do not clean or write generated docs',
+    );
+    expect(testsReadme).toContain('test-results/docs');
+    expect(testsReadme).toContain('bun run test:e2e:docs:publish');
+    expect(inventory).toContain(
+      'Playwright `--list` discovery does not clean or write generated docs output',
+    );
+    expect(packageJson.scripts['test:e2e:docs']).toContain(
+      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images',
+    );
+    expect(packageJson.scripts['test:e2e:reporter-paths']).toContain(
+      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images',
+    );
+    expect(packageJson.scripts['test:e2e:reporter-paths']).toContain(
+      'NO_WEBSERVER=true',
+    );
+    expect(packageJson.scripts['test:e2e:docs:publish']).toContain(
+      'DOCS_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs',
+    );
+    expect(packageJson.scripts['test:e2e:docs:publish']).toContain(
+      'DOCS_IMG_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/public/docs',
+    );
+    expect(documentationReporter).toContain('private get listOnly(): boolean');
+    expect(documentationReporter).toContain(
+      "return this.options.listOnly ?? process.argv.includes('--list');",
+    );
+    expect(documentationReporter).toContain('if (this.listOnly)');
+    expect(documentationReporter).toContain('return;');
+  });
+
+  it('keeps the latest Browser route checkpoint tied to in-app Browser evidence', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current Browser route checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('in-app Browser selected the `iab` tab');
+    expect(checkpoint).toContain('/events');
+    expect(checkpoint).toContain('seeded event cards');
+    expect(checkpoint).toContain('Soccer Match 1');
+    expect(checkpoint).toContain('event header');
+    expect(checkpoint).toContain('participant registration card');
+    expect(checkpoint).toContain('inclusive VAT label');
+    expect(checkpoint).toContain('payment CTA');
+    expect(checkpoint).toContain(
+      'Browser console warning/error logs were\n  empty',
+    );
+    expect(checkpoint).toContain('list and detail checks');
+    expect(checkpoint).not.toContain('system Chrome');
+    expect(checkpoint).not.toContain('standalone Playwright');
+    expect(checkpoint).not.toContain('transport setup');
+    expect(checkpoint).not.toContain('Transport closed');
+  });
+
+  it('keeps the latest Browser template-denial checkpoint tied to the guarded shell', () => {
+    const source = readSource('STABILIZATION.md');
+    const queue = readSection(source, 'Browser Review Queue', 'Review Next');
+    const checkpoint = queue.match(
+      /Current Browser template-denial checkpoint:[\s\S]*?(?=\n- Current |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('regular-user in-app Browser');
+    expect(checkpoint).toContain('generated `BASE_URL`');
+    expect(checkpoint).toContain('/templates');
+    expect(checkpoint).toContain('/403?originalPath=%2Ftemplates');
+    expect(checkpoint).toContain('not-allowed page');
+    expect(checkpoint).toContain('Missing required permission');
+    expect(checkpoint).toContain('stayed absent from the rendered page');
+    expect(checkpoint).toContain('Browser warning/error logs were empty');
+    expect(checkpoint).toContain('template overview access');
+    expect(checkpoint).toContain('durable regression\n  check');
+    expect(checkpoint).not.toContain('reproduced the old template shell');
+    expect(checkpoint).not.toContain('failing later at the RPC boundary');
+  });
+
   it('keeps Review Next scoped to the real remaining watchpoints', () => {
     const source = readSource('STABILIZATION.md');
     const reviewNext = source.split('## Review Next\n')[1];

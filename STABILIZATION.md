@@ -506,7 +506,7 @@ the current working direction until a product decision overrides them.
 - Documentation reporter and screenshot helpers: `tests/support/reporters/documentation-reporter.ts`, `tests/support/reporters/documentation-reporter/**`, `tests/support/utils/doc-screenshot.ts`
 - Generated documentation specs: `tests/docs/**`
 - Playwright specs with stabilization-relevant gaps: `tests/specs/events/**`, `tests/specs/templates/**`, `tests/specs/finance/**`, `tests/specs/scanning/scanner.test.ts`, `tests/specs/permissions/**`, `tests/specs/reporting/reporter-paths.test.ts`, `tests/specs/screenshot/doc-screenshot.test.ts`
-- Lightweight Playwright checks: `bun run test:e2e -- --list`, `bun run test:e2e:docs -- --list`, `bun run test:e2e -- tests/specs/reporting/reporter-paths.test.ts --no-deps`, `bun run test:e2e -- tests/specs/screenshot/doc-screenshot.test.ts --no-deps`
+- Lightweight Playwright checks: `bun run test:e2e -- --list`, `bun run test:e2e:docs -- --list`, `bun run test:e2e:reporter-paths`, `bun run test:e2e -- tests/specs/screenshot/doc-screenshot.test.ts --no-deps`
 - Local runtime/developer workflow: `README.md`, `AGENTS.md`, `tests/README.md`, `helpers/README.md`, `src/server/config/AGENTS.md`, `package.json`, `docker-compose.yml`, `Dockerfile`, `helpers/testing/runtime-environment.ts`, `angular.json`, `tsconfig.spec.json`, `.github/workflows/e2e-baseline.yml`, `.github/workflows/copilot-setup-steps.yml`
 - Local workflow checks: `bun run env:runtime`, `bun --version`, `node --version`, `bunx playwright --version`, `docker compose version`, `node_modules/.bin/dotenv -c dev -- docker compose config --quiet`, `bun run build:app`, `bun run test:unit -- --watch=false`, `bun run test:unit:server`, `DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images bun run test:e2e -- --list`, `DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images bun run test:e2e:docs -- --list`
 
@@ -5340,14 +5340,34 @@ deterministic system-Chrome coverage, and the Browser pass inspected the
 visible profile discount-card UX after enabling tenant-scoped provider test
 mode locally.
 Richer reusable template add-ons and questions are now implemented in the simple
-template flow and should be kept aligned as those surfaces evolve. Normal generated docs output now stays local unless
-`test:e2e:docs:publish` is run intentionally. New Playwright
-skips/fixmes should be added only as explicit credential gates or honest
-Browser-backed stabilization placeholders. Registration confirmation,
-cancellation, transfer, and waitlist spot-available now record durable email
-outbox rows with notification-email details, and paid transfer-code intent
-creation now has server-side RPC coverage for the Stripe-backed direct
-transfer/resale flow. Receipt review now records a durable
+template flow; creation, documentation, server copy helpers, and the
+page-backed create-event flow now assert that reusable add-ons and questions
+remain aligned as templates become events. Source coverage ties that Review
+Next claim to the docs flow, page-backed template spec, seed baseline,
+create-event mapper/component guards, and server RPC helper/schema coverage so
+future edits cannot keep the summary while dropping one of those evidence
+anchors.
+
+Normal generated docs output now stays local unless `test:e2e:docs:publish` is
+run intentionally; source coverage now pins the normal docs, integration, and
+create-account package scripts to ignored `test-results/docs` paths while the
+publish script is the only package script that targets the sibling
+`evorto-pages` checkout. The focused reporter-paths regression entrypoint is
+also package-scripted as `bun run test:e2e:reporter-paths`, runs without
+Docker, and pins ignored repository-local docs output paths so screenshot
+evidence-quality checks do not accidentally write to the sibling docs checkout.
+New Playwright skips/fixmes, including
+`test.describe.skip`, should be added only as explicit credential gates or
+honest Browser-backed stabilization placeholders. The Playwright inventory guard now also rejects
+committed focused-only `.only` and `test.describe.only` declarations plus
+interactive `page.pause()`/`debugger` hooks so stabilization runs cannot silently
+narrow to a partial suite or pause in CI. Playwright's own CI `forbidOnly`
+setting remains source-guarded as the runner-level backstop.
+
+Registration confirmation, cancellation, transfer, and waitlist spot-available
+now record durable email outbox rows with notification-email details, and paid
+transfer-code intent creation now has server-side RPC coverage for the
+Stripe-backed direct transfer/resale flow. Receipt review now records a durable
 `receiptReviewed` email outbox row with submitter notification-email details,
 and the disabled-by-default Resend-backed dispatcher processes pending/failed
 outbox records when configured. Profile/account home-tenant data model and
