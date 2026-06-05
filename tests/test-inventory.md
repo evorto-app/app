@@ -480,7 +480,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   caption length, verifies generated
   screenshots include the highlighted focus target and visible non-highlight
   page content before attachment, rejects generic page-root screenshot targets
-  such as `body`, `html`, or `app-root`, rejects direct single-control
+  such as `body`, `html`, or `app-root`, rejects unfiltered broad `section`,
+  `article`, and `form` screenshot targets, rejects direct single-control
   screenshot targets such as role/text/label/placeholder locators, including
   direct single-control locators inside screenshot target arrays, before docs
   can regress to button-only or input-only images, covers the weak-caption,

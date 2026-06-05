@@ -205,7 +205,7 @@ const findUnfilteredBroadScreenshotTargets = (
     ts.ScriptKind.TS,
   );
   const broadTargets: string[] = [];
-  const broadSelectors = new Set(['article', 'section']);
+  const broadSelectors = new Set(['article', 'form', 'section']);
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -221,13 +221,35 @@ const findUnfilteredBroadScreenshotTargets = (
       );
     }
 
-    return (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === 'locator' &&
-      ts.isStringLiteral(node.arguments[0]) &&
-      broadSelectors.has(node.arguments[0].text.trim().toLowerCase())
-    );
+    let candidate: ts.Expression = ts.isParenthesizedExpression(node)
+      ? node.expression
+      : node;
+    let hasFilteringStep = false;
+
+    while (
+      ts.isCallExpression(candidate) &&
+      ts.isPropertyAccessExpression(candidate.expression)
+    ) {
+      const methodName = candidate.expression.name.text;
+
+      if (methodName === 'filter') {
+        hasFilteringStep = true;
+      }
+
+      if (methodName === 'locator') {
+        const selector = candidate.arguments[0];
+
+        return (
+          !hasFilteringStep &&
+          ts.isStringLiteral(selector) &&
+          broadSelectors.has(selector.text.trim().toLowerCase())
+        );
+      }
+
+      candidate = candidate.expression.expression;
+    }
+
+    return false;
   };
 
   const visit = (node: ts.Node): void => {
@@ -549,9 +571,21 @@ describe('generated docs source current behavior', () => {
       );
       await takeScreenshot(
         testInfo,
+        page.locator('form').first(),
+        page,
+        'Broad form target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
         page.locator('section').filter({ hasText: 'Registration' }),
         page,
         'Filtered registration section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator('form').filter({ has: page.getByLabel('Tenant name') }),
+        page,
+        'Filtered form target with a descriptive caption',
       );
     `;
 
@@ -560,7 +594,10 @@ describe('generated docs source current behavior', () => {
         'tests/docs/example/broad-target.doc.ts',
         broadTargetSource,
       ),
-    ).toEqual(['tests/docs/example/broad-target.doc.ts:2:13']);
+    ).toEqual([
+      'tests/docs/example/broad-target.doc.ts:2:13',
+      'tests/docs/example/broad-target.doc.ts:8:13',
+    ]);
   });
 
   it('detects single-control documentation screenshot targets', () => {

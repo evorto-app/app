@@ -5560,9 +5560,10 @@ Generated-doc source coverage also rejects generic page-shell screenshot focus
 targets such as `locator('main')`; screenshot evidence must focus a meaningful
 product control, form, component, row, or state while still capturing visible
 page content outside the highlighted target.
-It also rejects unfiltered broad `section` and `article` screenshot targets, so
-docs must focus a filtered semantic region or a concrete component/control
-instead of highlighting a whole repeated page area by accident.
+It also rejects unfiltered broad `section`, `article`, and `form` screenshot
+targets, so docs must focus a filtered semantic region, a concrete form state,
+or a concrete component/control instead of highlighting a whole repeated page
+area by accident.
 It now rejects direct single-control `getByRole`, `getByText`, `getByLabel`,
 and `getByPlaceholder` screenshot targets as well, so generated docs cannot
 drift back to button-only, input-only, heading-only, or text-only images when a

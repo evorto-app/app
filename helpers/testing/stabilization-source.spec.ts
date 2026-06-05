@@ -1169,7 +1169,9 @@ describe('stabilization source', () => {
     expect(source).toContain('highlighted focus-target\n  pixels');
     expect(source).toContain('proves');
     expect(source).toContain('generic page-root screenshot targets');
-    expect(source).toContain('unfiltered broad `section` and `article`');
+    expect(source).toContain(
+      'unfiltered broad `section`, `article`, and `form`',
+    );
     expect(source).toContain('direct single-control `getByRole`');
     expect(source).toContain('`getByPlaceholder` screenshot targets');
     expect(source).toContain('target arrays');
@@ -1192,6 +1194,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/documentation\s+reporter\s+barrel/u);
     expect(inventory).toContain('meaningful literal caption');
     expect(inventory).toMatch(/generic page-root\s+screenshot targets/u);
+    expect(inventory).toContain(
+      'unfiltered broad `section`,\n  `article`, and `form` screenshot targets',
+    );
     expect(inventory).toContain('role/text/label/placeholder locators');
     expect(inventory).toContain(
       'single-control locators inside screenshot target arrays',
