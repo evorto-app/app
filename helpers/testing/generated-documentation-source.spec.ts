@@ -1331,6 +1331,10 @@ describe('generated docs source current behavior', () => {
 
     expect(source).toContain('Approval Flow ${seedDate.getTime()}');
     expect(source).toContain('Expected generated approval docs event to exist');
+    expect(source).toContain('const eventStatusSurface =');
+    expect(source).toContain("eventStatusSurface(page, 'Pending Review')");
+    expect(source).toContain('const rejectedStatusSurface =');
+    expect(source).toContain('eventStatusSurface(page, [');
     expect(source).toContain(
       "expect((await readGeneratedEvent()).status).toBe('PENDING_REVIEW')",
     );
@@ -1341,6 +1345,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("expect(approvedEvent.status).toBe('APPROVED')");
     expect(source).toContain('final **Published** state');
     expect(source).toContain('Published event status');
+    expect(source).not.toContain(
+      'takeScreenshot(\n      testInfo,\n      page.getByText(rejectionComment).first(),',
+    );
     expect(source).not.toContain('final published state');
     expect(source).toContain('.delete(schema.eventRegistrationOptions)');
     expect(source).toContain('.delete(schema.eventInstances)');
