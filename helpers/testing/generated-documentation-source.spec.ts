@@ -1268,7 +1268,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('createdTemplate.planningTips');
     expect(source).toContain('const savedTemplateDetailSurface =');
     expect(source).toContain('const templateGeneralSettingsSurface =');
+    expect(source).toContain('const simpleRegistrationSetupSurface =');
     expect(source).toContain("locator('app-template-general-form')");
+    expect(source).toContain("locator('app-template-create form > div')");
     expect(source).toContain(
       "filter({ has: page.getByLabel('Template title') })",
     );
@@ -1280,6 +1282,17 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('const generalSettingsForm =');
     expect(source).toContain('await expect(generalSettingsForm).toBeVisible()');
+    expect(source).toContain('const simpleRegistrationSetup =');
+    expect(source).toContain(
+      "simpleRegistrationSetup.locator('app-template-registration-option-form')",
+    );
+    expect(source).toContain(').toHaveCount(2)');
+    expect(source).toContain(
+      "simpleRegistrationSetup.getByLabel('Registration option name')",
+    );
+    expect(source).toContain(
+      'Simple registration setup with organizer and participant defaults',
+    );
     expect(source).toContain("locator('app-template-details section')");
     expect(source).toContain('filter({ hasText: input.planningTips })');
     expect(source).toContain('filter({ hasText: input.addOnTitle })');
@@ -1306,6 +1319,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n    testInfo,\n    page.locator('app-template-create form div').first(),",
+    );
+    expect(source).not.toContain(
+      ".locator('div', { hasText: 'Simple Registration Setup' })",
     );
   });
 

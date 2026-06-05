@@ -861,10 +861,12 @@ provider outcomes without live identifiers.
     read the persisted template, add-on attachment/quantity, and required
     question state from the database. The create-form docs screenshot targets
     the template general form containing the title, category, and organizer
-    planning tips controls instead of the first wrapper `div`; the saved-detail
-    docs screenshot targets the template detail section containing those
-    persisted planning tips, reusable add-on, and registration-question labels
-    instead of a heading-only crop.
+    planning tips controls instead of the first wrapper `div`; the simple
+    registration setup screenshot targets the filtered create-form panel with
+    the simple-mode copy and exactly two registration-option forms; the
+    saved-detail docs screenshot targets the template detail section containing
+    those persisted planning tips, reusable add-on, and registration-question
+    labels instead of a heading-only crop.
   - Template detail component coverage pins reusable add-on purchase timing and
     registration-option labels. Server handler coverage pins the current add-on
     read model, simple-template service coverage pins optional add-on write

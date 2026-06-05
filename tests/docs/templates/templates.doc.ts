@@ -31,6 +31,21 @@ const templateGeneralSettingsSurface = (page: Page): Locator =>
     .filter({ has: page.getByLabel('Organizer planning tips') })
     .first();
 
+const simpleRegistrationSetupSurface = (page: Page): Locator =>
+  page
+    .locator('app-template-create form > div')
+    .filter({
+      has: page.getByRole('heading', { name: 'Simple Registration Setup' }),
+    })
+    .filter({
+      hasText:
+        'one registration option for organizers and one for participants',
+    })
+    .filter({
+      has: page.locator('app-template-registration-option-form').first(),
+    })
+    .first();
+
 test.use({ storageState: adminStateFile });
 
 test('Manage templates', async ({
@@ -125,13 +140,22 @@ The registration consists of the following settings:
 - **Role picker behavior**: Roles that are already selected are hidden from autocomplete suggestions to prevent duplicates.
 `,
   });
+  const simpleRegistrationSetup = simpleRegistrationSetupSurface(page);
+  await expect(simpleRegistrationSetup).toBeVisible();
+  await expect(
+    simpleRegistrationSetup.locator('app-template-registration-option-form'),
+  ).toHaveCount(2);
+  await expect(
+    simpleRegistrationSetup.getByLabel('Registration option name').first(),
+  ).toBeVisible();
+  await expect(
+    simpleRegistrationSetup.getByLabel('Registration option name').nth(1),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page
-      .locator('app-template-create form')
-      .locator('div', { hasText: 'Simple Registration Setup' }),
+    simpleRegistrationSetup,
     page,
-    'Simple registration setup for participant and organizer template defaults',
+    'Simple registration setup with organizer and participant defaults',
   );
 
   await testInfo.attach('markdown', {
