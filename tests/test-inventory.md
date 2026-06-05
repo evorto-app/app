@@ -945,8 +945,11 @@ provider outcomes without live identifiers.
     journeys for closed registration windows, full participant options with a
     waitlist action, role-ineligible direct links, and unpaid registration
     transfer scope, in addition to free and paid registration walkthroughs.
-    Generated-doc source coverage keeps that unavailable-state and transfer
-    scope documentation aligned with the relaunch behavior.
+    The paid walkthrough screenshots the hosted Stripe Checkout form through a
+    filtered payment/continue/submit form target instead of the first external
+    checkout form. Generated-doc source coverage keeps that unavailable-state,
+    transfer scope, and checkout screenshot target aligned with the relaunch
+    behavior.
   - Server unit coverage now pins registration lifecycle email outbox records
     for free confirmation, cancellation, transfer, and waitlist spot-available
     notifications. Paid checkout confirmation is wired through the Stripe

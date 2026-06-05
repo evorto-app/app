@@ -1536,6 +1536,15 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Timed out waiting for replayed Stripe checkout webhook to be mirrored in the application database',
     );
+    expect(source).toContain('const stripeCheckoutFormSurface =');
+    expect(source).toContain(".locator('form')");
+    expect(source).toContain("has: page.getByRole('button'");
+    expect(source).toContain(
+      'const checkoutForm = stripeCheckoutFormSurface(checkoutPage);',
+    );
+    expect(source).not.toContain(
+      "const checkoutForm = checkoutPage.locator('form').first();",
+    );
     expect(source).not.toContain("getByTestId('hosted-payment-submit-button')");
     expect(source).toContain('registration.questionAnswers');
     expect(source).toContain(

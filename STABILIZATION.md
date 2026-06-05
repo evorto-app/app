@@ -5554,6 +5554,9 @@ and Continue controls instead of highlighting only the email input.
 The registration generated doc now uses concrete registration option and active
 registration card targets for free, ineligible, paid, and post-payment states
 instead of highlighting section headings or a single action button.
+The registration generated doc now also screenshots the hosted Stripe Checkout
+form through a filtered payment/continue/submit form target instead of accepting
+the first form on the external checkout page.
 The create-account generated doc now screenshots the tenant-account form through
 the `app-create-account` form containing the editable Notification email field
 and Create Account action, so the integration guide is not anchored to a generic

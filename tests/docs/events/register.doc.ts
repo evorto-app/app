@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import type { APIRequestContext, Page } from '@playwright/test';
+import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import Stripe from 'stripe';
@@ -82,6 +82,16 @@ const activeRegistrationCard = (page: Page, text: string) =>
   page
     .locator('app-event-active-registration')
     .filter({ hasText: text })
+    .first();
+
+const stripeCheckoutFormSurface = (page: Page): Locator =>
+  page
+    .locator('form')
+    .filter({
+      has: page.getByRole('button', {
+        name: /^(Pay|Continue|Submit)|Pay /i,
+      }),
+    })
     .first();
 
 const readStripeWebhookSecret = async (): Promise<string> => {
@@ -1172,7 +1182,7 @@ test.describe('Register for events', () => {
         timeout: 30_000,
       })
       .toMatch(/checkout\.stripe\.com/);
-    const checkoutForm = checkoutPage.locator('form').first();
+    const checkoutForm = stripeCheckoutFormSurface(checkoutPage);
     await expect(checkoutForm).toBeVisible({ timeout: 30_000 });
     await takeScreenshot(
       testInfo,
