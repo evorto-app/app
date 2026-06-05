@@ -964,6 +964,27 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       "has: page.getByRole('link', { name: 'Profile' })",
     );
+    expect(source).toContain('const profileEditDialogSurface =');
+    expect(source).toContain("locator('mat-dialog-container')");
+    expect(source).toContain(
+      "has: page.getByRole('heading', { name: 'Edit profile' })",
+    );
+    expect(source).toContain(
+      "has: page.getByRole('textbox', { name: 'First name' })",
+    );
+    expect(source).toContain(
+      "has: page.getByRole('textbox', { name: 'Last name' })",
+    );
+    expect(source).toContain(
+      "has: page.getByRole('textbox', { name: 'Notification email' })",
+    );
+    expect(source).toContain(
+      "has: page.getByRole('textbox', { name: 'IBAN' })",
+    );
+    expect(source).toContain(
+      "has: page.getByRole('textbox', { name: 'PayPal email' })",
+    );
+    expect(source).toContain("has: page.getByRole('button', { name: 'Save' })");
     expect(source).toContain(
       'User profile overview with section navigation and personal details',
     );
@@ -1016,6 +1037,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.locator('app-user-profile'),\n      page,\n      'User profile page showing personal details and profile tabs'",
+    );
+    expect(source).not.toContain(
+      "const editDialog = page.locator('mat-dialog-container');",
     );
     expect(source).not.toContain('automatic refund');
     expect(source).not.toContain('resale');

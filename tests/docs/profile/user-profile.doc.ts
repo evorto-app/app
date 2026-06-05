@@ -25,6 +25,22 @@ const profileNavigationSurface = (page: Page): Locator =>
     .filter({ has: page.getByRole('link', { name: 'Profile' }) })
     .first();
 
+const profileEditDialogSurface = (page: Page): Locator =>
+  page
+    .locator('mat-dialog-container')
+    .filter({
+      has: page.getByRole('heading', { name: 'Edit profile' }),
+    })
+    .filter({ has: page.getByRole('textbox', { name: 'First name' }) })
+    .filter({ has: page.getByRole('textbox', { name: 'Last name' }) })
+    .filter({
+      has: page.getByRole('textbox', { name: 'Notification email' }),
+    })
+    .filter({ has: page.getByRole('textbox', { name: 'IBAN' }) })
+    .filter({ has: page.getByRole('textbox', { name: 'PayPal email' }) })
+    .filter({ has: page.getByRole('button', { name: 'Save' }) })
+    .first();
+
 const profileEventCardSurface = (
   page: Page,
   eventTitle: string,
@@ -173,7 +189,7 @@ The form uses inline validation, and the save button is only enabled when both n
     });
 
     await page.getByRole('button', { name: 'Edit profile' }).click();
-    const editDialog = page.locator('mat-dialog-container');
+    const editDialog = profileEditDialogSurface(page);
     await expect(editDialog).toBeVisible();
     await takeScreenshot(
       testInfo,
