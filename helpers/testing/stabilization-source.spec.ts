@@ -1170,7 +1170,7 @@ describe('stabilization source', () => {
     expect(source).toContain('proves');
     expect(source).toContain('generic page-root screenshot targets');
     expect(source).toContain(
-      'unfiltered broad `section`, `article`, and `form`',
+      'unfiltered broad `section`, `article`, `form`, and `app-*`',
     );
     expect(source).toContain('direct single-control `getByRole`');
     expect(source).toContain('`getByPlaceholder` screenshot targets');
@@ -1195,11 +1195,11 @@ describe('stabilization source', () => {
     expect(inventory).toContain('meaningful literal caption');
     expect(inventory).toMatch(/generic page-root\s+screenshot targets/u);
     expect(inventory).toContain(
-      'unfiltered broad `section`,\n  `article`, and `form` screenshot targets',
+      'unfiltered broad `section`,\n  `article`, `form`, and `app-*` component-host screenshot targets',
     );
-    expect(inventory).toContain('role/text/label/placeholder locators');
-    expect(inventory).toContain(
-      'single-control locators inside screenshot target arrays',
+    expect(inventory).toMatch(/role\/text\/label\/placeholder\s+locators/u);
+    expect(inventory).toMatch(
+      /single-control\s+locators inside screenshot target\s+arrays/u,
     );
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local screenshot\s+wrappers/u);

@@ -207,6 +207,15 @@ const findUnfilteredBroadScreenshotTargets = (
   const broadTargets: string[] = [];
   const broadSelectors = new Set(['article', 'form', 'section']);
 
+  const isBroadSelector = (selector: string): boolean => {
+    const normalizedSelector = selector.trim().toLowerCase();
+
+    return (
+      broadSelectors.has(normalizedSelector) ||
+      /^app-[a-z0-9-]+$/u.test(normalizedSelector)
+    );
+  };
+
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
       node.expression.getStart(sourceFile),
@@ -242,7 +251,7 @@ const findUnfilteredBroadScreenshotTargets = (
         return (
           !hasFilteringStep &&
           ts.isStringLiteral(selector) &&
-          broadSelectors.has(selector.text.trim().toLowerCase())
+          isBroadSelector(selector.text)
         );
       }
 
@@ -577,6 +586,12 @@ describe('generated docs source current behavior', () => {
       );
       await takeScreenshot(
         testInfo,
+        page.locator('app-user-profile'),
+        page,
+        'Broad component host target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
         page.locator('section').filter({ hasText: 'Registration' }),
         page,
         'Filtered registration section target with a descriptive caption',
@@ -597,6 +612,7 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/broad-target.doc.ts:2:13',
       'tests/docs/example/broad-target.doc.ts:8:13',
+      'tests/docs/example/broad-target.doc.ts:14:13',
     ]);
   });
 
