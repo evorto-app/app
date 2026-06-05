@@ -2130,16 +2130,15 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain("filter({ hasText: 'Participant option' })");
     expect(source).toContain(
-      String.raw`await expect(page).toHaveURL(/\/events\/[^/?#]+$/u);`,
+      '// The remaining screenshots use a seeded event with the same event-details surface.',
     );
-    expect(source).toContain('const createdEventId = page.url().match');
     expect(source).toContain(
-      'Expected created event URL after event-management docs create flow',
+      'await page.goto(`/events/${target.id}`);',
+    );
+    expect(source).toContain(
+      'Expected seeded event "${target.title}" to have a participant registration option for docs screenshots',
     );
     expect(source).toContain('createdParticipantRegistrationOption');
-    expect(source).toContain(
-      'Expected created event "${templateName}" to have a participant registration option for docs screenshots',
-    );
     expect(source).toContain(
       'const registrationOptions = registrationOptionSurface(page',
     );
