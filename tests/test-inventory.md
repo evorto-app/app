@@ -474,6 +474,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   the shared `takeScreenshot` helper imported from the documentation reporter
   barrel with a meaningful literal caption, requires screenshot captions to stay
   unique across generated docs so one caption cannot describe unrelated states,
+  requires screenshot captions to have at least 24 characters and four words so
+  terse section/list labels do not pass as meaningful evidence,
   rejects fixed `waitForTimeout` sleeps in generated docs so screenshots stay
   tied to concrete UI state,
   keeps the helper's runtime caption parameter required with the same minimum

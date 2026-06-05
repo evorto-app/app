@@ -187,7 +187,7 @@ Approved receipts are grouped by recipient. The contact email shown for each rec
       testInfo,
       reimbursementGroup,
       page,
-      'Receipt reimbursement group',
+      'Receipt reimbursement group with approved manual payout totals',
     );
 
     await reimbursementGroup

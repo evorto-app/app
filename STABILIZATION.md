@@ -5576,6 +5576,9 @@ drift back to button-only, input-only, heading-only, or text-only images when a
 broader form/component surface is available. The guard also inspects screenshot
 target arrays, so a single-control locator cannot bypass the rule by being
 wrapped in a multi-target argument.
+Generated-doc screenshot captions now also require at least four words at
+runtime and in source coverage, so a screenshot cannot pass with a terse
+section/list label that does not explain what the image proves.
 The template generated doc now screenshots the seeded template-list navigation
 containing both a category and the Create template action instead of highlighting
 only the standalone create link.

@@ -661,7 +661,7 @@ test.describe('Register for events', () => {
       testInfo,
       dialog,
       page,
-      'Transfer registration dialog',
+      'Transfer registration dialog with target member selection',
     );
     await dialog.getByRole('button', { name: 'Transfer registration' }).click();
     await expect(dialog).not.toBeVisible();
@@ -986,7 +986,7 @@ test.describe('Register for events', () => {
           })
           .first(),
         page,
-        'Role-ineligible registration state',
+        'Role-ineligible registration state explaining missing access',
       );
 
       await testInfo.attach('markdown', {

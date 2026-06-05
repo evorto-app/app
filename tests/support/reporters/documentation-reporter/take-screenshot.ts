@@ -249,9 +249,11 @@ export async function takeScreenshot(
   page: Page,
   caption: string,
 ) {
-  if (caption.trim().length < 24) {
+  const captionWords = caption.trim().split(/\s+/u).filter(Boolean);
+
+  if (caption.trim().length < 24 || captionWords.length < 4) {
     throw new Error(
-      'Documentation screenshots require a descriptive caption of at least 24 characters.',
+      'Documentation screenshots require a descriptive caption of at least 24 characters and four words.',
     );
   }
 

@@ -176,7 +176,7 @@ From here you can open the edit dialog to update your profile details.
       testInfo,
       profileSummary,
       page,
-      'Profile information section',
+      'Profile information section with editable personal details',
     );
 
     await testInfo.attach('markdown', {

@@ -57,7 +57,11 @@ const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
       const caption = node.arguments[3];
       const captionText = caption ? getCaptionText(caption) : null;
 
-      if (!captionText || captionText.length < 24) {
+      if (
+        !captionText ||
+        captionText.length < 24 ||
+        captionText.split(/\s+/u).filter(Boolean).length < 4
+      ) {
         weakCaptions.push(describeCall(node));
       }
     }
@@ -722,9 +726,11 @@ describe('generated docs source current behavior', () => {
     );
     expect(screenshotHelper).toContain('caption: string');
     expect(screenshotHelper).toContain('caption.trim().length < 24');
+    expect(screenshotHelper).toContain('captionWords.length < 4');
     expect(screenshotHelper).toContain(
       'Documentation screenshots require a descriptive caption',
     );
+    expect(screenshotHelper).toContain('at least 24 characters and four words');
     expect(screenshotHelper).toContain("testInfo.attach('image'");
     expect(screenshotHelper).toContain("testInfo.attach('image-caption'");
     expect(

@@ -261,7 +261,7 @@ Note: The event created from the template already has registration options confi
     testInfo,
     registrationOptions,
     page,
-    'Registration options section',
+    'Registration options section with participant pricing and capacity',
   );
 
   const draftEvent = events.find(

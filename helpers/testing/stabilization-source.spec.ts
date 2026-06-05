@@ -1165,6 +1165,8 @@ describe('stabilization source', () => {
     expect(source).toContain('documentation reporter barrel');
     expect(source).toContain('literal');
     expect(source).toContain('screenshot caption');
+    expect(source).toContain('at least four words');
+    expect(source).toMatch(/terse\s+section\/list label/u);
     expect(source).toContain('captured image');
     expect(source).toContain('highlighted focus-target\n  pixels');
     expect(source).toContain('proves');
@@ -1193,6 +1195,8 @@ describe('stabilization source', () => {
     expect(inventory).toContain('shared `takeScreenshot` helper');
     expect(inventory).toMatch(/documentation\s+reporter\s+barrel/u);
     expect(inventory).toContain('meaningful literal caption');
+    expect(inventory).toContain('at least 24 characters and four words');
+    expect(inventory).toMatch(/terse\s+section\/list labels/u);
     expect(inventory).toMatch(/generic page-root\s+screenshot targets/u);
     expect(inventory).toContain(
       'unfiltered broad `section`,\n  `article`, `form`, and `app-*` component-host screenshot targets',

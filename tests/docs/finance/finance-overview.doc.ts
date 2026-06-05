@@ -269,7 +269,7 @@ The **Receipt reimbursements** tab groups approved receipts by recipient and ren
       testInfo,
       approvedReceiptRow,
       page,
-      'Receipt reimbursements list',
+      'Receipt reimbursements list with approved payout records',
     );
   } finally {
     await database
