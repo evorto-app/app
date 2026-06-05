@@ -3192,11 +3192,13 @@ describe('stabilization source', () => {
       'completed checks and cache warmers are green',
     );
     expect(statusTable).toContain('latest local Neon cleanup reported');
-    expect(statusTable).toContain('`total=1`');
+    expect(statusTable).toContain('`total=2`');
     expect(statusTable).toContain('`protected=1`');
-    expect(statusTable).toContain('`active_test=0`');
+    expect(statusTable).toContain('`active_test=1`');
     expect(statusTable).toContain('`stale_deleted=0`');
-    expect(statusTable).toContain('only protected `main` remained visible');
+    expect(statusTable).toContain(
+      'only non-protected branch still inside the two-hour active-test TTL',
+    );
     expect(statusTable).not.toContain(
       'Current PR status refreshes show visible checks green',
     );
@@ -3452,6 +3454,10 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain('confirmed-inactive young branch');
     expect(checkpoint).toContain('refusing protected branches');
     expect(checkpoint).toContain('default CI cleanup\n  TTL-conservative');
+    expect(checkpoint).toContain('CI must not set `BRANCH_ID`');
+    expect(checkpoint).toContain(
+      'persistent branch modes remain explicit local\n  opt-ins',
+    );
     expect(checkpoint).toMatch(/GitHub\s+E2E mechanism/u);
     expect(checkpoint).toContain('delete_timeline');
     expect(checkpoint).toContain('status/log/debug/stop/down/kill/remove');

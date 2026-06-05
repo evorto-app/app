@@ -143,6 +143,11 @@ remembering the helper script and dotenv cascade. A lightweight
 `Neon Branch Cleanup` workflow also runs the same helper hourly, on manual
 dispatch, and after the E2E workflow completes, so stale branches do not wait
 for the next Playwright attempt before being pruned.
+CI must not set `BRANCH_ID`; it should either receive `PARENT_BRANCH_ID` from
+secrets or resolve the default parent branch before Neon Local starts. Persistent
+Neon branches are an explicit local opt-in through `BRANCH_ID` or
+`DELETE_BRANCH=false`, and they should not be used for E2E because the cleanup
+helper intentionally skips existing-branch and persistent-branch modes.
 That standalone cleanup workflow is intentionally narrow: it has `contents:
 read`, validates `NEON_API_KEY` and `NEON_PROJECT_ID`, uses
 `DELETE_BRANCH=true`, keeps the two-hour active-test TTL, runs in a

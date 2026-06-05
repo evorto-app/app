@@ -1072,6 +1072,9 @@ provider outcomes without live identifiers.
   branch audits can use the non-mutating `bun run neon:cleanup:dry-run`;
   confirmed local cleanup can use `bun run neon:cleanup`, keeping the
   dotenv/runtime cascade behind a short Neon-specific package script.
+  E2E CI must not set `BRANCH_ID`; it uses `PARENT_BRANCH_ID` or resolves the
+  default parent branch so Neon Local creates ephemeral branches, while
+  persistent branch modes stay local-only opt-ins that cleanup skips.
   The current PR #62 head `e07b2fd15` has completed CodeQL, Copilot, Git Town,
   CodeRabbit, and the serial E2E cache warmer successfully; E2E run
   `26999937086` still had `functional-1` in Docker startup and `functional-2`

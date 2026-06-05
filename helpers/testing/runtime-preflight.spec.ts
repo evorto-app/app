@@ -534,7 +534,11 @@ describe('evaluateRuntimePreflight', () => {
     );
 
     expect(workflow).toContain('DELETE_BRANCH: true');
+    expect(workflow).not.toMatch(/^\s+BRANCH_ID:/mu);
     expect(workflow).toContain('NEON_LOCAL_BRANCH_TTL_HOURS: 2');
+    expect(workflow).toContain(
+      'PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}',
+    );
     expect(workflow).toContain(
       'PARENT_BRANCH_ID is not configured; resolving the Neon default branch',
     );
@@ -671,6 +675,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(cleanupWorkflow).toContain('group: neon-branch-cleanup');
     expect(cleanupWorkflow).toContain('cancel-in-progress: false');
     expect(cleanupWorkflow).toContain('DELETE_BRANCH: true');
+    expect(cleanupWorkflow).not.toMatch(/^\s+BRANCH_ID:/mu);
     expect(cleanupWorkflow).toContain(
       'NEON_API_KEY: ${{ secrets.NEON_API_KEY }}',
     );
@@ -691,6 +696,10 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(cleanupWorkflow).not.toContain('bun install');
     expect(helpersReadme).toContain('Neon Branch Cleanup');
+    expect(helpersReadme).toContain('CI must not set `BRANCH_ID`');
+    expect(helpersReadme).toMatch(
+      /Persistent\s+Neon branches are an explicit local opt-in/u,
+    );
     expect(helpersReadme).toMatch(/contents:\s+read/u);
     expect(helpersReadme).toContain('NEON_API_KEY');
     expect(helpersReadme).toContain('NEON_PROJECT_ID');
@@ -700,6 +709,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain('bun run neon:cleanup');
     expect(testsReadme).toContain('bun run neon:cleanup:dry-run');
     expect(testsReadme).toContain('bun run neon:cleanup');
+    expect(testsReadme).toContain('CI must not set `BRANCH_ID`');
     expect(helpersReadme).toContain('non-canceling `neon-branch-cleanup`');
     expect(helpersReadme).toMatch(/10-minute job\s+timeout/u);
     expect(testsReadme).toContain('CI dependency-install workflows call');

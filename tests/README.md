@@ -92,6 +92,11 @@ bun run lint
   for Docker teardown plus a timeout-bound metadata prune, and
   `helpers/testing/ci-prune-neon-local-branches.sh` for the dependency-free
   final prune.
+  CI must not set `BRANCH_ID`; the E2E workflow either uses the configured
+  `PARENT_BRANCH_ID` secret or resolves the default parent branch before startup
+  so Neon Local creates an ephemeral branch. Persistent Neon branches remain a
+  local opt-in through `BRANCH_ID` or `DELETE_BRANCH=false`, and that mode is
+  intentionally skipped by cleanup.
   Use `bun run neon:cleanup:dry-run` for a non-mutating local branch audit
   before deleting anything and `bun run neon:cleanup` for the same
   TTL-conservative local cleanup path.
