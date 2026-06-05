@@ -1,0 +1,70 @@
+Current progress:
+
+- Added and pushed commit `6c778972` (`Add global admin viewport coverage`) to PR #62.
+- Local branch is clean and aligned with `origin/codex/stabilization-flow-coverage`.
+- New coverage added for authenticated global-admin tenant list/create/detail/edit pages across `320x740`, `390x844`, and `1440x900`.
+- Updated `STABILIZATION.md`, `tests/test-inventory.md`, and the stabilization source guard so the new coverage is documented and protected.
+- Verified locally:
+  - `bun run format:write`
+  - `bun run lint`
+  - `bun run test:unit:server -- helpers/testing/stabilization-source.spec.ts`
+  - `bun run test:e2e -- tests/specs/admin/global-admin-tenants.spec.ts --project=local-chrome-baseline --workers=1`
+  - `git diff --check`
+  - WebStorm errors-only diagnostics on edited TypeScript files
+- Browser verification passed for `/global-admin/tenants` at mobile width after real Auth0 login.
+
+What remains next:
+
+- Wait for GitHub checks on PR #62. Current head is `6c778972`; checks are still running: CodeQL, Copilot setup, Playwright functional-1, functional-2, docs, and CodeRabbit.
+- If any PR checks fail, inspect logs and fix.
+- Continue the broader `STABILIZATION.md` work after this checkpoint, keeping the PR updated with regular pushed slices.
+
+---
+
+I restored the webstorm setup, for missing env variables, maybe try to copy .env files from the main checkout, that should be correctly set up
+
+---
+
+# Files mentioned by the user:
+
+## Pasted text.txt: /Users/hedde/.codex/attachments/508b7b08-7b2f-4ca1-981d-423319c501d0/pasted-text.txt
+
+## My request for Codex:
+For some reason we have 14 branches again, we HAVE TO make sure that only branches for active tests exist, all others have to be cleaned.
+
+
+I attached the neon local docs
+
+---
+
+I think that github could be responsible as well, maybe we have to make sure that the containers shut down properly in the actions
+
+---
+
+If branches only live for a couple of hours, that is already much better too
+
+---
+
+I'm getting a warning from fontawesome that I am using too much bandwith from my account, check if we can update the ci to maybe avoid this, can we cache some things maybe?
+
+---
+
+I'm back to approve any ssh requests
+
+---
+
+<heartbeat>
+  <automation_id>pr-62-ci-watch</automation_id>
+  <current_time_iso>2026-06-04T10:25:36.346Z</current_time_iso>
+  <instructions>
+Check PR #62 for the evorto app stabilization branch. Compare the remote PR head and status checks against the local branch state, inspect failing GitHub checks if any, and continue the stabilization work from the current thread context. If local commits remain unpushed because of auth or workflow-scope constraints, report that explicitly instead of claiming CI covers them.
+  </instructions>
+</heartbeat>
+
+---
+
+Try again now, i can approve
+
+---
+
+Since you are working on the local dev setup, it would be nice to simplify everything a little, so if thtere are opportunities, feel free to raise them
