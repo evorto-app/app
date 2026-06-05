@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "env:runtime": "bun helpers/testing/runtime-environment.ts",
+    "env:copy-main": "bun helpers/testing/copy-main-environment.ts",
     "dev:ng": "bunx --bun ng",
     "dev:start": "bun run env:runtime && dotenv -c dev -- sh -c 'bunx --bun ng serve --port \"$APP_HOST_PORT\"'",
     "build:app": "NG_BUILD_PARTIAL_SSR=1 bunx --bun ng build",

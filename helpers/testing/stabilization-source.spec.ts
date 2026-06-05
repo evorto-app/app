@@ -3318,6 +3318,9 @@ describe('stabilization source', () => {
     const testsReadme = readSource('tests/README.md');
     const inventory = readSource('tests/test-inventory.md');
     const runtimePreflight = readSource('helpers/testing/runtime-preflight.ts');
+    const copyMainEnvironment = readSource(
+      'helpers/testing/copy-main-environment.ts',
+    );
     const runtimePreflightSpec = readSource(
       'helpers/testing/runtime-preflight.spec.ts',
     );
@@ -3362,6 +3365,17 @@ describe('stabilization source', () => {
       'Do not copy .env.dev; it is generated per worktree',
     );
     expect(runtimePreflight).not.toContain('copyFileSync');
+    expect(packageJson.scripts['env:copy-main']).toBe(
+      'bun helpers/testing/copy-main-environment.ts',
+    );
+    expect(copyMainEnvironment).toContain("process.env['MAIN_CHECKOUT_DIR']");
+    expect(copyMainEnvironment).toContain("path.join(mainCheckout, '.env')");
+    expect(copyMainEnvironment).toContain("process.argv.includes('--force')");
+    expect(copyMainEnvironment).toContain('Do not copy .env.dev');
+    expect(copyMainEnvironment).not.toContain("'.env.dev'");
+    expect(helpersReadme).toContain('bun run env:copy-main');
+    expect(testsReadme).toContain('bun run env:copy-main');
+    expect(source).toContain('`bun run env:copy-main`');
     expect(runtimePreflightSpec).toContain(
       'points missing-secret worktrees at the main checkout env file when it exists',
     );

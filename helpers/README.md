@@ -209,6 +209,10 @@ required secret still blocks startup. If required variables are missing in a
 Codex worktree and the sibling main checkout has an untracked `.env`, the
 preflight prints the exact `cp ... .env` recovery command. It does not copy
 secrets automatically, and it still warns not to copy generated `.env.dev`.
+Use `bun run env:copy-main` for the same guarded copy path; it reads
+`$HOME/code/<repo>/.env` by default, supports `MAIN_CHECKOUT_DIR=/path/to/repo`
+for a different source checkout, and refuses to overwrite an existing worktree
+`.env` unless rerun with `--force`.
 Font Awesome icons use public npm packages only; Docker and CI installs must
 not depend on a private Font Awesome registry token or project `.npmrc`. CI
 install retries preserve the restored Bun package cache instead of clearing it

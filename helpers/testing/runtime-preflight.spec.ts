@@ -1188,10 +1188,11 @@ describe('evaluateRuntimePreflight', () => {
     const normalizedStabilization = stabilization.replaceAll(/\s+/g, ' ');
 
     expect(normalizedStabilization).toContain(
-      'Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker stack start/reset/resume/webServer/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.',
+      'Important entrypoints remain visible in `package.json`: runtime env helpers, app build/dev, unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker stack start/reset/resume/webServer/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.',
     );
 
     const visibleScriptGroups = [
+      ['env:runtime', 'env:copy-main'],
       ['build:app', 'build:watch', 'dev:start'],
       ['test:unit', 'test:unit:server'],
       ['test:e2e', 'test:e2e:docs', 'test:e2e:docs:publish'],
@@ -1222,6 +1223,54 @@ describe('evaluateRuntimePreflight', () => {
       expect(packageJson.scripts).toHaveProperty(scriptName);
       expect(packageJson.scripts[scriptName]?.trim()).not.toBe('');
     }
+    expect(packageJson.scripts['env:copy-main']).toBe(
+      'bun helpers/testing/copy-main-environment.ts',
+    );
+  });
+
+  it('keeps the main-checkout env copy helper guarded', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+    const helper = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/copy-main-environment.ts'),
+      'utf8',
+    );
+    const helpersReadme = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/README.md'),
+      'utf8',
+    );
+    const testsReadme = fs.readFileSync(
+      path.join(process.cwd(), 'tests/README.md'),
+      'utf8',
+    );
+    const stabilization = fs.readFileSync(
+      path.join(process.cwd(), 'STABILIZATION.md'),
+      'utf8',
+    );
+
+    expect(packageJson.scripts['env:copy-main']).toBe(
+      'bun helpers/testing/copy-main-environment.ts',
+    );
+    expect(helper).toContain("process.env['MAIN_CHECKOUT_DIR']");
+    expect(helper).toContain(
+      "path.join(homeDirectory ?? '', 'code', repositoryName)",
+    );
+    expect(helper).toContain("path.join(mainCheckout, '.env')");
+    expect(helper).toContain("path.join(repositoryRoot, '.env')");
+    expect(helper).toContain("process.argv.includes('--force')");
+    expect(helper).toContain('already exists');
+    expect(helper).toContain('nothing to copy');
+    expect(helper).toContain('No main-checkout developer secrets file found');
+    expect(helper).toContain('Do not copy .env.dev');
+    expect(helper).not.toContain("'.env.dev'");
+    expect(helpersReadme).toContain('bun run env:copy-main');
+    expect(helpersReadme).toContain('MAIN_CHECKOUT_DIR=/path/to/repo');
+    expect(helpersReadme).toContain('unless rerun with `--force`');
+    expect(testsReadme).toContain('bun run env:copy-main');
+    expect(testsReadme).toContain('MAIN_CHECKOUT_DIR=/path/to/repo');
+    expect(stabilization).toContain('`bun run env:copy-main`');
+    expect(stabilization).toContain('Generated `.env.dev` remains');
   });
 
   it('keeps Playwright package scripts on the generated runtime environment path', () => {
