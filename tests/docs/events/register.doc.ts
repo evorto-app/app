@@ -286,9 +286,14 @@ test.describe('Register for events', () => {
   When a participant option is full, registration changes to a distinct **Join waitlist** action instead of pretending a normal spot is still available. Waitlisted participants can return to the event page and use **Leave waitlist** before the event starts.
   If you open a direct event link but your account does not match the roles required by any available option, the event remains visible and the registration area explains that registration is unavailable for your account.`,
     });
+    const participantRegistrationCard = registrationOptionCard(
+      page,
+      'Participant registration',
+    );
+    await expect(participantRegistrationCard).toBeVisible({ timeout: 20_000 });
     await takeScreenshot(
       testInfo,
-      page.getByRole('heading', { level: 2, name: 'Registration' }),
+      participantRegistrationCard,
       page,
       'Free event registration options with participant and organizer choices',
     );
@@ -296,11 +301,6 @@ test.describe('Register for events', () => {
       body: `
   Free registration cards can also offer registration-time add-ons and required questions. Choose the quantity you want, answer any required questions, and then register. After registration, selected add-ons are shown with the active registration so participants can review what they picked. Question answers are stored with the registration for organizers.`,
     });
-    const participantRegistrationCard = page
-      .locator('app-event-registration-option')
-      .filter({ hasText: 'Participant registration' })
-      .first();
-    await expect(participantRegistrationCard).toBeVisible({ timeout: 20_000 });
     await expect(
       participantRegistrationCard.getByText('Snack voucher'),
     ).toBeVisible();
@@ -967,7 +967,14 @@ test.describe('Register for events', () => {
       ).toHaveCount(0);
       await takeScreenshot(
         testInfo,
-        page.getByRole('heading', { name: 'Registration unavailable' }),
+        page
+          .locator('div')
+          .filter({ hasText: 'Registration unavailable' })
+          .filter({
+            hasText:
+              'This event is visible from the direct link, but your account is not eligible for the available registration options.',
+          })
+          .first(),
         page,
         'Role-ineligible registration state',
       );
@@ -1093,9 +1100,9 @@ test.describe('Register for events', () => {
     });
     await takeScreenshot(
       testInfo,
-      payButton,
+      registrationOptionCard(page, 'Pay'),
       page,
-      'Paid registration button before the pending checkout recovery state',
+      'Paid registration card before the pending checkout recovery state',
     );
     const findCheckoutTransaction = async () => {
       if (checkoutTransactionId) {
@@ -1265,7 +1272,7 @@ test.describe('Register for events', () => {
     });
     await takeScreenshot(
       testInfo,
-      page.getByRole('heading', { level: 2, name: 'Registration' }),
+      activeRegistrationCard(page, 'Your event ticket'),
       page,
       'Event details after successful paid registration',
     );

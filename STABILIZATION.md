@@ -5497,6 +5497,9 @@ page content outside the highlighted target.
 It also rejects unfiltered broad `section` and `article` screenshot targets, so
 docs must focus a filtered semantic region or a concrete component/control
 instead of highlighting a whole repeated page area by accident.
+The registration generated doc now uses concrete registration option and active
+registration card targets for free, ineligible, paid, and post-payment states
+instead of highlighting section headings or a single action button.
 New Playwright skips/fixmes, including
 `test.describe.skip`, should be added only as explicit credential gates or
 honest Browser-backed stabilization placeholders. The Playwright inventory guard now also rejects
