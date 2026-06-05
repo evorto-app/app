@@ -193,6 +193,64 @@ const findGenericScreenshotTargets = (
   return genericTargets;
 };
 
+const findUnfilteredBroadScreenshotTargets = (
+  path: string,
+  source: string,
+): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const broadTargets: string[] = [];
+  const broadSelectors = new Set(['article', 'section']);
+
+  const describeCall = (node: ts.CallExpression): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.expression.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const isUnfilteredBroadLocatorTarget = (node: ts.Expression): boolean => {
+    if (ts.isArrayLiteralExpression(node)) {
+      return node.elements.some((element) =>
+        isUnfilteredBroadLocatorTarget(element),
+      );
+    }
+
+    return (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'locator' &&
+      ts.isStringLiteral(node.arguments[0]) &&
+      broadSelectors.has(node.arguments[0].text.trim().toLowerCase())
+    );
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'takeScreenshot'
+    ) {
+      const target = node.arguments[1];
+
+      if (target && isUnfilteredBroadLocatorTarget(target)) {
+        broadTargets.push(describeCall(node));
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return broadTargets;
+};
+
 const countTakeScreenshotCalls = (path: string, source: string): number => {
   const sourceFile = ts.createSourceFile(
     path,
@@ -380,6 +438,30 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/generic-target.doc.ts:2:13']);
   });
 
+  it('detects unfiltered broad documentation screenshot targets', () => {
+    const broadTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        page.locator('section'),
+        page,
+        'Broad page section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator('section').filter({ hasText: 'Registration' }),
+        page,
+        'Filtered registration section target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/broad-target.doc.ts',
+        broadTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/broad-target.doc.ts:2:13']);
+  });
+
   it('keeps generated documentation pages explanatory and image-backed', () => {
     const documentFiles = findFiles('tests/docs')
       .filter((path) => path.endsWith('.doc.ts'))
@@ -482,6 +564,9 @@ describe('generated docs source current behavior', () => {
       expect(importsSharedScreenshotHelper(path, source), path).toBe(true);
       expect(source, path).not.toContain('page.screenshot(');
       expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);
+      expect(findUnfilteredBroadScreenshotTargets(path, source), path).toEqual(
+        [],
+      );
       for (const [caption, locations] of collectScreenshotCaptions(
         path,
         source,

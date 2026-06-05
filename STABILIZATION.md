@@ -5494,6 +5494,9 @@ Generated-doc source coverage also rejects generic page-shell screenshot focus
 targets such as `locator('main')`; screenshot evidence must focus a meaningful
 product control, form, component, row, or state while still capturing visible
 page content outside the highlighted target.
+It also rejects unfiltered broad `section` and `article` screenshot targets, so
+docs must focus a filtered semantic region or a concrete component/control
+instead of highlighting a whole repeated page area by accident.
 New Playwright skips/fixmes, including
 `test.describe.skip`, should be added only as explicit credential gates or
 honest Browser-backed stabilization placeholders. The Playwright inventory guard now also rejects

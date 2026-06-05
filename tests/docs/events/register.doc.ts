@@ -72,6 +72,18 @@ const resolveServerNow = (): Date => {
   return serverNow;
 };
 
+const registrationOptionCard = (page: Page, text: string) =>
+  page
+    .locator('app-event-registration-option')
+    .filter({ hasText: text })
+    .first();
+
+const activeRegistrationCard = (page: Page, text: string) =>
+  page
+    .locator('app-event-active-registration')
+    .filter({ hasText: text })
+    .first();
+
 const readStripeWebhookSecret = async (): Promise<string> => {
   const dockerSecret = await execFileAsync(
     'docker',
@@ -344,9 +356,9 @@ test.describe('Register for events', () => {
 
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      activeRegistrationCard(page, 'Your event ticket'),
       page,
-      'Event details after registration',
+      'Confirmed registration card with selected add-ons and QR ticket',
     );
   });
 
@@ -411,9 +423,9 @@ test.describe('Register for events', () => {
     );
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      registrationOptionCard(page, 'Registration is closed'),
       page,
-      'Closed registration window',
+      'Registration option card after the registration window has closed',
     );
 
     await testInfo.attach('markdown', {
@@ -469,9 +481,9 @@ test.describe('Register for events', () => {
     );
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      registrationOptionCard(page, 'This option is full.'),
       page,
-      'Full registration option with waitlist',
+      'Full participant option showing required question and waitlist action',
     );
     await waitlistButton.click();
     await expect(
@@ -624,9 +636,9 @@ test.describe('Register for events', () => {
     });
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      activeRegistrationCard(page, 'Transfer registration'),
       page,
-      'Transferable unpaid registration',
+      'Confirmed unpaid registration card with transfer action',
     );
 
     await page.getByRole('button', { name: 'Transfer registration' }).click();
@@ -820,7 +832,7 @@ test.describe('Register for events', () => {
       });
       await takeScreenshot(
         testInfo,
-        page.locator('section').filter({ hasText: 'Registration' }),
+        activeRegistrationCard(page, 'Transfer code'),
         page,
         'Paid transfer code shown for manual bank-transfer registration',
       );
@@ -955,7 +967,7 @@ test.describe('Register for events', () => {
       ).toHaveCount(0);
       await takeScreenshot(
         testInfo,
-        page.locator('section').filter({ hasText: 'Registration' }),
+        page.getByRole('heading', { name: 'Registration unavailable' }),
         page,
         'Role-ineligible registration state',
       );
@@ -1066,13 +1078,13 @@ test.describe('Register for events', () => {
     });
     await gotoEventDetail(page, paidEvent.id);
     await waitForRegistrationStatus(page);
+    const payButton = page.getByRole('button', { name: /Pay/i }).first();
     await takeScreenshot(
       testInfo,
-      page.getByRole('heading', { level: 2, name: 'Registration' }),
+      registrationOptionCard(page, 'Pay'),
       page,
       'Paid event registration options before starting Stripe Checkout',
     );
-    const payButton = page.getByRole('button', { name: /Pay/i }).first();
     await testInfo.attach('markdown', {
       body: `
   By clicking the **Pay and register** button, you are starting the payment process.
@@ -1081,9 +1093,9 @@ test.describe('Register for events', () => {
     });
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      payButton,
       page,
-      'Pending paid registration controls with the payment recovery action',
+      'Paid registration button before the pending checkout recovery state',
     );
     const findCheckoutTransaction = async () => {
       if (checkoutTransactionId) {
