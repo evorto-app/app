@@ -1144,7 +1144,7 @@ describe('generated docs source current behavior', () => {
       'Create tenant form showing the relaunch tenant scope boundaries',
     );
     expect(globalAdminSource).toContain('const tenantScopeCard =');
-    expect(globalAdminSource).toContain("locator('form > div')");
+    expect(globalAdminSource).toContain("locator('form > aside')");
     expect(globalAdminSource).toContain(
       'Create tenant form preserving URL-shaped domain input after rejection',
     );

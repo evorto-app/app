@@ -23,7 +23,7 @@ const tenantSearchEmptyState = (tenantList: Locator) =>
 
 const tenantScopeCard = (tenantForm: Locator) =>
   tenantForm
-    .locator('form > div')
+    .locator('form > aside')
     .filter({ hasText: 'Relaunch tenant scope' })
     .filter({ hasText: 'One active primary domain is managed here.' })
     .filter({
