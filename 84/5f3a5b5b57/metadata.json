@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "845f3a5b5b57",
+  "strategy": "manual-commit",
+  "branch": "codex/stabilization-flow-coverage",
+  "checkpoints_count": 0,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/84/5f3a5b5b57/0/metadata.json",
+      "transcript": "/84/5f3a5b5b57/0/full.jsonl",
+      "content_hash": "/84/5f3a5b5b57/0/content_hash.txt",
+      "prompt": "/84/5f3a5b5b57/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 122214,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 2721664,
+    "output_tokens": 7942,
+    "api_call_count": 29
+  }
+}
