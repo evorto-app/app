@@ -1001,7 +1001,10 @@ provider outcomes without live identifiers.
   The cleanup helper also supports
   `NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id>` for the exact confirmed
   inactive branch reported by the cleanup summary, while still refusing
-  protected branches and leaving the default CI path TTL-conservative.
+  protected branches and leaving the default CI path TTL-conservative. Local
+  branch audits can use `bun run neon:cleanup:dry-run`; confirmed local cleanup
+  can use `bun run neon:cleanup`, keeping the dotenv/runtime cascade behind a
+  short Neon-specific package script.
   The current PR #62 head `e07b2fd15` has completed CodeQL, Copilot, Git Town,
   CodeRabbit, and the serial E2E cache warmer successfully; E2E run
   `26999937086` still had `functional-1` in Docker startup and `functional-2`

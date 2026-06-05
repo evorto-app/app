@@ -605,7 +605,10 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain('NEON_PROJECT_ID');
     expect(helpersReadme).toContain('DELETE_BRANCH=true');
     expect(helpersReadme).toContain('two-hour active-test TTL');
-    expect(helpersReadme).toContain('bun run db:cleanup:neon-local');
+    expect(helpersReadme).toContain('bun run neon:cleanup:dry-run');
+    expect(helpersReadme).toContain('bun run neon:cleanup');
+    expect(testsReadme).toContain('bun run neon:cleanup:dry-run');
+    expect(testsReadme).toContain('bun run neon:cleanup');
     expect(helpersReadme).toContain('non-canceling `neon-branch-cleanup`');
     expect(helpersReadme).toMatch(/10-minute job\s+timeout/u);
     expect(testsReadme).toContain('CI dependency-install workflows call');
@@ -617,6 +620,12 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(packageJson.scripts?.['db:cleanup:neon-local']).toBe(
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    expect(packageJson.scripts?.['neon:cleanup']).toBe(
+      'bun run db:cleanup:neon-local',
+    );
+    expect(packageJson.scripts?.['neon:cleanup:dry-run']).toBe(
+      'bun run db:cleanup:neon-local -- --dry-run',
     );
 
     expect(workflow).toContain(

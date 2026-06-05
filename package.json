@@ -31,6 +31,8 @@
     "db:studio": "bun run env:runtime && dotenv -c dev -- drizzle-kit studio",
     "db:reset": "bun run env:runtime && dotenv -c dev -- drizzle-kit push --force && dotenv -c dev -- bun helpers/database.ts",
     "db:cleanup:neon-local": "bun run env:runtime && dotenv -c dev -- bun helpers/testing/delete-neon-local-branches.ts",
+    "neon:cleanup": "bun run db:cleanup:neon-local",
+    "neon:cleanup:dry-run": "bun run db:cleanup:neon-local -- --dry-run",
     "docker:check": "bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker",
     "docker:ps": "bun run env:runtime && dotenv -c dev -- docker compose ps",
     "docker:stop": "bun run env:runtime && dotenv -c dev -- docker compose down",
