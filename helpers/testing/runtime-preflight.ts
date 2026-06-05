@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 // Runtime preflight runs before Docker commands so missing secrets, broken
@@ -301,6 +302,51 @@ const runtimeTargetCheck = (
   };
 };
 
+const developerSecretsFileCheck = (
+  cwd: string,
+  environment: NodeJS.ProcessEnv,
+  fileExists: (filePath: string) => boolean,
+  missingVariables: readonly RequiredVariable[],
+): RuntimeCheck => {
+  if (missingVariables.length === 0) {
+    return {
+      details: ['Required variables are loaded from the local environment.'],
+      label: 'Developer secrets file',
+      severity: 'ok',
+    };
+  }
+
+  const repositoryName = path.basename(cwd);
+  const homeDirectory = environment['HOME']?.trim() || os.homedir();
+  const mainCheckoutEnvironmentPath = path.join(
+    homeDirectory,
+    'code',
+    repositoryName,
+    '.env',
+  );
+
+  if (fileExists(mainCheckoutEnvironmentPath)) {
+    return {
+      details: [
+        `Found a main-checkout developer secrets file at ${mainCheckoutEnvironmentPath}.`,
+        `Copy it into this worktree with: cp ${mainCheckoutEnvironmentPath} ${path.join(cwd, '.env')}`,
+        'Do not copy .env.dev; it is generated per worktree. Review .env.dev.local before copying because it may contain worktree-specific test fallbacks.',
+      ],
+      label: 'Developer secrets file',
+      severity: 'warning',
+    };
+  }
+
+  return {
+    details: [
+      `No main-checkout developer secrets file found at ${mainCheckoutEnvironmentPath}.`,
+      `Use ${path.join(cwd, '.env.example')} as the no-secret checklist, then add missing values to ${path.join(cwd, '.env')} or your shell environment.`,
+    ],
+    label: 'Developer secrets file',
+    severity: 'warning',
+  };
+};
+
 export const evaluateRuntimePreflight = (
   target: RuntimeTarget,
   options: RuntimePreflightOptions = {},
@@ -343,6 +389,7 @@ export const evaluateRuntimePreflight = (
       label: `Available ${target} runtime variables`,
       severity: 'ok',
     },
+    developerSecretsFileCheck(cwd, environment, fileExists, missingVariables),
     {
       details:
         optionalByTarget[target].length > 0

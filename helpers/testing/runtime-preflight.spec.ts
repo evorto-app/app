@@ -396,6 +396,10 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'helpers/testing/ci-start-docker-stack.sh'),
       'utf8',
     );
+    const installDependenciesHelper = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/install-ci-dependencies.sh'),
+      'utf8',
+    );
     const runtimeEnvironment = fs.readFileSync(
       path.join(process.cwd(), 'helpers/testing/runtime-environment.ts'),
       'utf8',
@@ -594,10 +598,20 @@ describe('evaluateRuntimePreflight', () => {
     );
 
     expect(workflow).toContain(
-      'if ! bun install --frozen-lockfile --cache-dir ~/.bun/install/cache; then',
+      'run: bash helpers/testing/install-ci-dependencies.sh',
     );
+    expect(workflow).toContain('CI_DEPENDENCY_INSTALL_MODE: warm');
     expect(workflow).toContain(
-      'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
+      'CI_DEPENDENCY_INSTALL_MODE: offline-required',
+    );
+    expect(installDependenciesHelper).toContain(
+      'if ! bun install --frozen-lockfile --cache-dir "${bun_cache_dir}"; then',
+    );
+    expect(installDependenciesHelper).toContain(
+      'bun install --frozen-lockfile --offline --cache-dir "${bun_cache_dir}"',
+    );
+    expect(installDependenciesHelper).toContain(
+      'Refusing a registry install to avoid repeated Font Awesome package downloads.',
     );
     expect(workflow).toContain('Restore Bun package cache');
     expect(workflow).toContain('id: bun-package-cache');
@@ -611,24 +625,21 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).toContain(
       "key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
     );
-    expect(workflow).toContain(
-      'Bun package cache hit: ${{ steps.bun-package-cache.outputs.cache-hit }}',
+    expect(installDependenciesHelper).toContain('Bun package cache hit:');
+    expect(installDependenciesHelper).toContain(
+      'Bun package cache restored:',
     );
-    expect(workflow).toContain('Bun package cache restored:');
-    expect(workflow).toContain(
-      'find "${HOME}/.bun/install/cache" -mindepth 1 -maxdepth 1 -print -quit',
+    expect(installDependenciesHelper).toContain(
+      'find "${bun_cache_dir}" -mindepth 1 -maxdepth 1 -print -quit',
     );
-    expect(workflow).toContain(
-      'Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
+    expect(installDependenciesHelper).toContain(
+      'Bun dependency tree cache hit:',
     );
-    expect(workflow).toContain(
+    expect(installDependenciesHelper).toContain(
       'Bun dependency tree cache restored; skipping registry install.',
     );
-    expect(workflow).toContain(
+    expect(installDependenciesHelper).toContain(
       'Bun dependency tree cache was not restored; installing offline from the warmed package cache before falling back to the serial cache warmer registry install.',
-    );
-    expect(workflow).toContain(
-      'bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache',
     );
     expect(workflow).toContain('Save warmed Bun package cache');
     expect(workflow).toContain('Save warmed Bun dependency tree');
@@ -748,9 +759,10 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).not.toContain(
       'timeout 20m docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto',
     );
-    expect(workflow).toContain(
+    expect(installDependenciesHelper).toContain(
       'Retrying once without clearing the package cache',
     );
+    expect(installDependenciesHelper).not.toContain('bun pm cache rm');
     expect(workflow).not.toContain('bun pm cache rm');
     expect(workflow).not.toContain('Configure Font Awesome registry auth');
     expect(workflow).not.toContain('Validate Font Awesome registry auth');
@@ -766,13 +778,19 @@ describe('evaluateRuntimePreflight', () => {
     expect(copilotSetupWorkflow).toContain('Restore Bun package cache');
     expect(copilotSetupWorkflow).toContain('Restore Bun dependency tree');
     expect(copilotSetupWorkflow).toContain(
-      'Bun dependency tree cache restored; skipping registry install.',
+      'run: bash helpers/testing/install-ci-dependencies.sh',
     );
     expect(copilotSetupWorkflow).toContain(
-      'bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache',
+      'CI_DEPENDENCY_INSTALL_MODE: offline-required',
     );
     expect(copilotSetupWorkflow).toContain(
       'Retrying once through the Copilot setup registry install.',
+    );
+    expect(installDependenciesHelper).toContain(
+      'Bun dependency tree cache restored; skipping registry install.',
+    );
+    expect(installDependenciesHelper).toContain(
+      'bun install --frozen-lockfile --offline --cache-dir "${bun_cache_dir}"',
     );
     expect(copilotSetupWorkflow).not.toContain('FONT_AWESOME_TOKEN');
     expect(copilotSetupWorkflow).not.toContain('npm.fontawesome.com');
@@ -789,16 +807,22 @@ describe('evaluateRuntimePreflight', () => {
       "key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
     );
     expect(copilotSetupWorkflow).toContain(
-      'Bun package cache hit: ${{ steps.bun-package-cache.outputs.cache-hit }}',
-    );
-    expect(copilotSetupWorkflow).toContain('Bun package cache restored:');
-    expect(copilotSetupWorkflow).toContain(
-      'find "${HOME}/.bun/install/cache" -mindepth 1 -maxdepth 1 -print -quit',
+      'BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-package-cache.outputs.cache-hit }}',
     );
     expect(copilotSetupWorkflow).toContain(
-      'Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
+      'BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
     );
-    expect(copilotSetupWorkflow).toContain(
+    expect(installDependenciesHelper).toContain('Bun package cache hit:');
+    expect(installDependenciesHelper).toContain(
+      'Bun package cache restored:',
+    );
+    expect(installDependenciesHelper).toContain(
+      'find "${bun_cache_dir}" -mindepth 1 -maxdepth 1 -print -quit',
+    );
+    expect(installDependenciesHelper).toContain(
+      'Bun dependency tree cache hit:',
+    );
+    expect(installDependenciesHelper).toContain(
       'Bun dependency tree cache restored; skipping registry install.',
     );
     expect(copilotSetupWorkflow).toContain(
@@ -1314,6 +1338,62 @@ describe('evaluateRuntimePreflight', () => {
       (check) => check.label === 'Runtime target',
     );
     expect(runtimeTarget?.details?.join('\n')).not.toContain('secret');
+  });
+
+  it('points missing-secret worktrees at the main checkout env file when it exists', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/Users/test/.codex/worktrees/e159/evorto',
+      env: {
+        HOME: '/Users/test',
+      },
+      fileExists: (filePath) =>
+        filePath === '/Users/test/code/evorto/.env' ||
+        filePath === '/Users/test/.codex/worktrees/e159/evorto/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.warned).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'Found a main-checkout developer secrets file at /Users/test/code/evorto/.env.',
+            'Copy it into this worktree with: cp /Users/test/code/evorto/.env /Users/test/.codex/worktrees/e159/evorto/.env',
+            'Do not copy .env.dev; it is generated per worktree. Review .env.dev.local before copying because it may contain worktree-specific test fallbacks.',
+          ],
+          label: 'Developer secrets file',
+          severity: 'warning',
+        }),
+      ]),
+    );
+  });
+
+  it('points missing-secret checkouts at the no-secret env checklist when no main env exists', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/Users/test/.codex/worktrees/e159/evorto',
+      env: {
+        HOME: '/Users/test',
+      },
+      fileExists: (filePath) =>
+        filePath === '/Users/test/.codex/worktrees/e159/evorto/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.warned).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'No main-checkout developer secrets file found at /Users/test/code/evorto/.env.',
+            'Use /Users/test/.codex/worktrees/e159/evorto/.env.example as the no-secret checklist, then add missing values to /Users/test/.codex/worktrees/e159/evorto/.env or your shell environment.',
+          ],
+          label: 'Developer secrets file',
+          severity: 'warning',
+        }),
+      ]),
+    );
   });
 
   it('does not require external provider variables for Docker startup', () => {

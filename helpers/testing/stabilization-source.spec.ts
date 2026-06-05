@@ -3259,6 +3259,11 @@ describe('stabilization source', () => {
     };
     const helpersReadme = readSource('helpers/README.md');
     const testsReadme = readSource('tests/README.md');
+    const inventory = readSource('tests/test-inventory.md');
+    const runtimePreflight = readSource('helpers/testing/runtime-preflight.ts');
+    const runtimePreflightSpec = readSource(
+      'helpers/testing/runtime-preflight.spec.ts',
+    );
 
     expect(source).toContain('Earlier Browser/dev-runtime retry checkpoint');
     expect(source).toContain('`bun run dev:start` built the');
@@ -3291,6 +3296,26 @@ describe('stabilization source', () => {
     expect(testsReadme).toContain(
       'If the\n  generated local `DATABASE_URL` points at a closed Neon Local port',
     );
+    expect(runtimePreflight).toContain('developerSecretsFileCheck');
+    expect(runtimePreflight).toContain(
+      'Found a main-checkout developer secrets file',
+    );
+    expect(runtimePreflight).toContain('Copy it into this worktree with: cp');
+    expect(runtimePreflight).toContain(
+      'Do not copy .env.dev; it is generated per worktree',
+    );
+    expect(runtimePreflight).not.toContain('copyFileSync');
+    expect(runtimePreflightSpec).toContain(
+      'points missing-secret worktrees at the main checkout env file when it exists',
+    );
+    expect(runtimePreflightSpec).toContain(
+      'points missing-secret checkouts at the no-secret env checklist when no main env exists',
+    );
+    expect(helpersReadme).toContain(
+      'preflight prints the exact `cp ... .env` recovery command',
+    );
+    expect(testsReadme).toContain('sibling main checkout `.env`');
+    expect(inventory).toContain('missing-secret recovery hint');
   });
 
   it('keeps the active-test Neon branch cleanup checkpoint honest', () => {

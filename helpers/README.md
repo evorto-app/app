@@ -198,11 +198,15 @@ before retrying; if that shutdown also times out, restart Docker Desktop or the
 Docker engine because container removal is blocked below the app tooling layer.
 Required and optional variables that are already available are listed without
 printing their values, so secret availability can be confirmed even when another
-required secret still blocks startup. Font Awesome icons use public npm packages
-only; Docker and CI installs must not depend on a private Font Awesome registry
-token or project `.npmrc`. CI install retries preserve the restored Bun package
-cache instead of clearing it before retrying, so transient failures do not
-force another Font Awesome package download.
+required secret still blocks startup. If required variables are missing in a
+Codex worktree and the sibling main checkout has an untracked `.env`, the
+preflight prints the exact `cp ... .env` recovery command. It does not copy
+secrets automatically, and it still warns not to copy generated `.env.dev`.
+Font Awesome icons use public npm packages only; Docker and CI installs must
+not depend on a private Font Awesome registry token or project `.npmrc`. CI
+install retries preserve the restored Bun package cache instead of clearing it
+before retrying, so transient failures do not force another Font Awesome package
+download.
 `helpers/testing/prepare-public-fontawesome-ci.sh` centralizes the GitHub
 Actions public registry override and private Font Awesome dependency guard.
 `helpers/testing/install-ci-dependencies.sh` centralizes the GitHub Actions

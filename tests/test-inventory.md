@@ -973,7 +973,10 @@ provider outcomes without live identifiers.
   printed by `dev:check` and `docker:check`, including `BASE_URL`, the local
   database host/port/database name without credentials, the generated Compose
   project, app host port, Neon Local host port, and Neon Local metadata
-  directory.
+  directory. It now also guards the missing-secret recovery hint: when a Codex
+  worktree lacks required runtime variables and the sibling main checkout has an
+  untracked `.env`, preflight prints the exact `.env` copy command while
+  keeping generated `.env.dev` worktree-local.
 - `helpers/testing/remove-stale-compose-containers.spec.ts` guards generated
   Compose cleanup target detection for unhealthy Compose JSON health, unhealthy
   Docker `ps` status text fallback, stale created/dead states, healthy running

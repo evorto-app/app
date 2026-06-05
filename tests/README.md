@@ -130,7 +130,11 @@ bun run lint
   `evorto-runtime-preflight-*` container is removed when Docker removal is still
   responsive. Font Awesome icons install from public npm packages only, so
   local, Docker, and CI dependency installs must not require
-  `FONT_AWESOME_TOKEN` or a project `.npmrc`. Codex setup also writes the
+  `FONT_AWESOME_TOKEN` or a project `.npmrc`. When required variables are
+  missing in a Codex worktree, `docker:check` and `dev:check` also look for the
+  sibling main checkout `.env` and print the exact copy command when it exists;
+  `.env.dev` remains generated per worktree and should not be copied. Codex
+  setup also writes the
   temporary public Font Awesome npm user config before `bun install` and reuses
   the Bun package cache. CI workflows call
   `helpers/testing/prepare-public-fontawesome-ci.sh` for the same public
