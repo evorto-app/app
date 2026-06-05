@@ -702,6 +702,26 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts?.['neon:cleanup:dry-run']).toBe(
       'bun run db:cleanup:neon-local -- --dry-run',
     );
+    expect(packageJson.scripts?.['dev:status']).toBe(
+      'bun helpers/testing/local-runtime-status.ts',
+    );
+    const localRuntimeStatusHelper = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/local-runtime-status.ts'),
+      'utf8',
+    );
+    expect(localRuntimeStatusHelper).toContain(
+      'Generate worktree runtime environment',
+    );
+    expect(localRuntimeStatusHelper).toContain('runtime-preflight.ts');
+    expect(localRuntimeStatusHelper).toContain("'dev'");
+    expect(localRuntimeStatusHelper).toContain("'docker'");
+    expect(localRuntimeStatusHelper).toContain('delete-neon-local-branches.ts');
+    expect(localRuntimeStatusHelper).toContain("'--dry-run'");
+    expect(localRuntimeStatusHelper).toContain('failedLabels');
+    expect(helpersReadme).toContain('bun run dev:status');
+    expect(helpersReadme).toContain('combined non-mutating local runtime');
+    expect(inventory).toContain('bun run dev:status');
+    expect(inventory).toContain('combined non-mutating local runtime status');
 
     expect(workflow).toContain(
       'run: bash helpers/testing/install-ci-dependencies.sh',

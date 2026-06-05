@@ -1013,6 +1013,10 @@ provider outcomes without live identifiers.
   worktree lacks required runtime variables and the sibling main checkout has an
   untracked `.env`, preflight prints the exact `.env` copy command while
   keeping generated `.env.dev` worktree-local.
+- `bun run dev:status` is the combined non-mutating local runtime status path.
+  It refreshes `.env.dev`, runs the development preflight, runs the Docker
+  preflight, and still runs the Neon Local cleanup dry-run before returning a
+  combined failed-check summary.
 - `helpers/testing/remove-stale-compose-containers.spec.ts` guards generated
   Compose cleanup target detection for unhealthy Compose JSON health, unhealthy
   Docker `ps` status text fallback, stale created/dead states, healthy running

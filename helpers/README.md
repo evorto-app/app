@@ -81,6 +81,10 @@ bare shell `dotenv` command.
 target summary, including the browser URL, local database target, Compose
 project name, Neon Local host port, and Neon Local metadata directory where
 applicable.
+Use `bun run dev:status` for a combined non-mutating local runtime report. It
+refreshes `.env.dev`, runs the development preflight, runs the Docker preflight,
+and runs the Neon Local cleanup dry-run in one pass so Docker failures do not
+hide branch-cleanup status or missing development variables.
 
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
