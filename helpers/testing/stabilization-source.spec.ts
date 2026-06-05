@@ -3216,18 +3216,18 @@ describe('stabilization source', () => {
       'stable logged-in starting points without running the full viewport pack',
     );
     expect(statusTable).toContain(
-      'Current PR status refreshes show the current pushed head still waiting on running/queued E2E shards',
+      'Current PR status refreshes show head `551daa5f4`',
     );
     expect(statusTable).toContain(
-      'completed checks and cache warmers are green',
+      'static/setup checks plus the serial cache warmer green',
     );
     expect(statusTable).toContain('latest local Neon cleanup reported');
-    expect(statusTable).toContain('`total=2`');
+    expect(statusTable).toContain('`total=1`');
     expect(statusTable).toContain('`protected=1`');
-    expect(statusTable).toContain('`active_test=1`');
+    expect(statusTable).toContain('`active_test=0`');
     expect(statusTable).toContain('`stale_deleted=0`');
     expect(statusTable).toContain(
-      'only non-protected branch still inside the two-hour active-test TTL',
+      'only protected `main` remained visible outside active worker ownership',
     );
     expect(statusTable).not.toContain(
       'Current PR status refreshes show visible checks green',

@@ -1105,13 +1105,13 @@ provider outcomes without live identifiers.
   E2E CI must not set `BRANCH_ID`; it uses `PARENT_BRANCH_ID` or Neon Local's
   documented default project branch so Neon Local creates ephemeral branches,
   while persistent branch modes stay local-only opt-ins that cleanup skips.
-  The current PR #62 head `e07b2fd15` has completed CodeQL, Copilot, Git Town,
+  The current PR #62 head `551daa5f4` has completed CodeQL, Copilot, Git Town,
   CodeRabbit, and the serial E2E cache warmer successfully; E2E run
-  `26999937086` still had `functional-1` in Docker startup and `functional-2`
-  plus `docs` queued at the refresh. A live repo-local Neon cleanup at that
-  checkpoint reported one protected branch, no active test branches, no stale
-  branch deletions, and a two-hour active-test TTL, so only protected `main`
-  remained visible outside active worker ownership.
+  `27025603530` had `functional-1` running and `functional-2` plus `docs`
+  queued at the refresh. A live repo-local Neon cleanup at that checkpoint
+  reported one protected branch, no active test branches, no stale branch
+  deletions, and a two-hour active-test TTL, so only protected `main` remained
+  visible outside active worker ownership.
 - `docs/users/create-account.doc.ts` and
   `specs/profile/create-account.spec.ts` are the current Auth0
   Management-gated integration paths. The doc covers the generated walkthrough;
