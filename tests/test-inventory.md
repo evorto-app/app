@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-06-01
+Updated: 2026-06-05
 
 ## How to Use This Inventory
 
@@ -29,6 +29,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
 - Documentation journeys (`*.doc.ts`):
   - docs/admin/general-settings.doc.ts [admin]
+  - docs/admin/global-admin.doc.ts [admin, globalAdmin]
   - docs/events/event-approval.doc.ts
   - docs/events/event-management.doc.ts
   - docs/events/register.doc.ts [stripe]
@@ -134,6 +135,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     rows, locale/money controls, operations policy controls, branding/SEO
     fields, legal URL/text fields, finance receipt settings, ESNcard discount
     toggle, and Save action before taking those screenshots.
+  - `docs/admin/global-admin.doc.ts` covers the global tenant-administration
+    docs flow with focused screenshots for tenant search/list rows, empty
+    search results, the relaunch-scoped create form, URL-shaped domain
+    validation, read-only tenant detail review, and the edit form. The doc keeps
+    one active primary domain, deferred custom-domain/multi-domain automation,
+    and unavailable tenant-admin impersonation explicit in the generated
+    guidance.
   - `specs/admin/admin-viewports.spec.ts`
   - `specs/admin/general-settings.spec.ts`
   - `specs/admin/global-admin-tenants.spec.ts`
@@ -405,13 +413,14 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   docs, keeping those flows tied to concrete UI state.
 - `helpers/testing/generated-documentation-source.spec.ts` keeps tenant general-settings
   docs aligned with implemented brand-asset uploads and hosted legal routes,
-  verifies product docs are not generated for global-admin functionality, and
-  keeps profile/account docs aligned with implemented
+  keeps global-admin generated docs focused on implemented relaunch tenant
+  operations while still rejecting unrelated unlisted-admin docs, and keeps
+  profile/account docs aligned with implemented
   notification-email semantics, global reimbursement details, event-card
   routing/check-in copy, profile event-page link targets, submitted receipt
   visibility, account-creation retry errors, existing-global-user tenant joins,
   and template role-picker hard-failure guards before duplicate-hiding docs are
-  emitted. It also requires the current 15 documentation source files to attach
+  emitted. It also requires the current 16 documentation source files to attach
   at least 120 characters of explanatory markdown, pins the current per-flow
   screenshot counts with a manifest that must include every image-backed docs
   file so docs cannot quietly drop image-backed states, requires UI docs to use
@@ -657,10 +666,17 @@ provider outcomes without live identifiers.
     fields, connected Stripe-account support lookup, tenant detail review,
     create/edit form relaunch-scope copy, disabled empty create submit, and
     a temporary tenant create with database readback and cleanup, plus seeded
-    edit save with database readback and fixture restoration. Product docs are
-    intentionally not generated for global-admin functionality. The authenticated
-    Browser review has now opened the list, detail, and create surfaces against
-    the local Docker app. Local server/app coverage already proves the list,
+    edit save with database readback and fixture restoration. It also checks
+    the authenticated global-admin tenant list, create, detail, and edit pages
+    at narrow mobile, mobile, and desktop viewports for expected headings, no
+    application-error text, no horizontal overflow, and no horizontally clipped
+    visible controls. Rebuilt-Docker Browser evidence also verified direct
+    authenticated SSR deep links for admin, create-account, global-admin,
+    profile, templates, finance, and scan routes at 390x844 with no horizontal
+    overflow or clipped visible controls. `docs/admin/global-admin.doc.ts` now
+    documents the implemented tenant-administration surface, while unrelated
+    unlisted-admin product docs remain absent. Local
+    server/app coverage already proves the list,
     tenant detail, tenant create, and tenant edit surfaces return, render, and
     persist operational tenant state for support review, and local app
     coverage proves readable load-failure messages and account labels. Tenant

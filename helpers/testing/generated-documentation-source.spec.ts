@@ -320,6 +320,7 @@ describe('generated docs source current behavior', () => {
     ]);
     const expectedScreenshotCounts = new Map([
       ['tests/docs/admin/general-settings.doc.ts', 5],
+      ['tests/docs/admin/global-admin.doc.ts', 6],
       ['tests/docs/events/event-approval.doc.ts', 4],
       ['tests/docs/events/event-management.doc.ts', 7],
       ['tests/docs/events/register.doc.ts', 13],
@@ -341,7 +342,7 @@ describe('generated docs source current behavior', () => {
       (path) => !textOnlyReferenceDocuments.has(path),
     );
 
-    expect(documentFiles.length).toBe(15);
+    expect(documentFiles.length).toBe(16);
     expect([...expectedScreenshotCounts.keys()].toSorted()).toEqual(
       expectedImageBackedDocuments,
     );
@@ -558,8 +559,14 @@ describe('generated docs source current behavior', () => {
     );
   });
 
-  it('does not generate product docs for global-admin functionality', () => {
+  it('keeps global-admin docs focused on implemented relaunch tenant operations', () => {
     const inventorySource = readSource('tests/test-inventory.md');
+    const globalAdminSource = readSource(
+      'tests/docs/admin/global-admin.doc.ts',
+    );
+    const unlistedUserSource = readSource(
+      'tests/docs/events/unlisted-user.doc.ts',
+    );
     const documentFiles = findFiles('tests/docs');
     const generatedDocumentSources = documentFiles
       .map((path) => [path, readSource(path)] as const)
@@ -569,7 +576,7 @@ describe('generated docs source current behavior', () => {
       existsSync(
         nodePath.join(repositoryRoot, 'tests/docs/admin/global-admin.doc.ts'),
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       existsSync(
         nodePath.join(
@@ -578,8 +585,46 @@ describe('generated docs source current behavior', () => {
         ),
       ),
     ).toBe(false);
-    expect(inventorySource).not.toContain('docs/admin/global-admin.doc.ts');
+    expect(inventorySource).toContain('docs/admin/global-admin.doc.ts');
     expect(inventorySource).not.toContain('docs/events/unlisted-admin.doc.ts');
+    expect(globalAdminSource).toContain(
+      "test('Global admin: manage tenants @admin @globalAdmin'",
+    );
+    expect(globalAdminSource).toContain('# Global Tenant Administration');
+    expect(globalAdminSource).toContain(
+      'Global tenant list with search and tenant operational summary rows',
+    );
+    expect(globalAdminSource).toContain(
+      'Empty tenant search result explaining no matching tenants were found',
+    );
+    expect(globalAdminSource).toContain(
+      'Create tenant form showing the relaunch tenant scope boundaries',
+    );
+    expect(globalAdminSource).toContain(
+      'Create tenant validation message for URL-shaped domain input',
+    );
+    expect(globalAdminSource).toContain(
+      'Tenant detail review with read-only operational fields and actions',
+    );
+    expect(globalAdminSource).toContain(
+      'Edit tenant form with relaunch-scoped tenant settings ready to save',
+    );
+    expect(globalAdminSource).toContain('/global-admin/tenants');
+    expect(globalAdminSource).toContain('Relaunch tenant scope');
+    expect(globalAdminSource).toContain(
+      'One active primary domain is managed here.',
+    );
+    expect(globalAdminSource).toContain(
+      'Custom-domain verification and multi-domain automation are deferred.',
+    );
+    expect(globalAdminSource).toContain(
+      'Tenant-admin impersonation is not available in the current relaunch surface.',
+    );
+    expect(globalAdminSource).not.toMatch(
+      /custom.?domain verification is implemented/i,
+    );
+    expect(globalAdminSource).not.toMatch(/multiple domains? can be managed/i);
+    expect(globalAdminSource).not.toMatch(/impersonat(?:e|ion) tenant/i);
     expect(unlistedUserSource).toContain(
       "test('User: understanding unlisted events'",
     );
@@ -603,14 +648,14 @@ describe('generated docs source current behavior', () => {
     );
     expect(unlistedUserSource).toContain('set({ unlisted: event.unlisted })');
     expect(unlistedUserSource).not.toMatch(/admin|global-admin|global admin/i);
-    expect(documentFiles).not.toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(/global-admin|globalAdmin/i),
-      ]),
+    expect(documentFiles).toEqual(
+      expect.arrayContaining(['tests/docs/admin/global-admin.doc.ts']),
     );
     for (const [path, source] of generatedDocumentSources) {
-      expect(source, path).not.toContain('/global-admin');
-      expect(source, path).not.toMatch(/global-admin|global admin/i);
+      if (path !== 'tests/docs/admin/global-admin.doc.ts') {
+        expect(source, path).not.toContain('/global-admin');
+        expect(source, path).not.toMatch(/global-admin|global admin/i);
+      }
     }
   });
 

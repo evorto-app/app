@@ -573,7 +573,7 @@ describe('stabilization source', () => {
     expect(queue).toContain(
       'tests/specs/permissions/global-admin-route-guard.spec.ts',
     );
-    expect(queue).not.toContain('tests/docs/admin/global-admin.doc.ts');
+    expect(queue).toContain('tests/docs/admin/global-admin.doc.ts');
     expect(queue).toContain('bun run test:e2e:esncard-provider');
     expect(queue).toContain(
       'tests/specs/profile/user-profile-esncard-provider.spec.ts',
@@ -878,14 +878,20 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain('generated `BASE_URL`');
     expect(checkpoint).not.toMatch(/http:\/\/localhost:\d+/u);
     expect(checkpoint).toContain('29 passed (3.7m)');
-    expect(checkpoint).toContain('17 generated pages and 57 screenshots');
+    expect(checkpoint).toContain('17\n  generated pages and 57 screenshots');
     expect(checkpoint).toContain(
       'intentionally quoted\n  `User: understanding unlisted events` title',
     );
-    expect(checkpoint).toContain('global-admin product docs\n  stayed absent');
-    expect(checkpoint).toContain('no\n  obvious snackbar bars');
+    expect(checkpoint).toContain(
+      'current global-admin\n  generated-doc source',
+    );
+    expect(checkpoint).toContain('six pinned screenshot-backed states');
+    expect(checkpoint).toContain(
+      'unrelated unlisted-admin product\n  docs stay absent',
+    );
+    expect(checkpoint).toContain('no obvious snackbar bars');
     expect(checkpoint).toContain('blank/loading captures');
-    expect(checkpoint).toContain('half-transition images');
+    expect(checkpoint).toMatch(/half-transition\s+images/u);
     expect(source).toContain('captioned figure\n  output');
     expect(source).toContain('uncaptioned raw markdown image');
     expect(source).toContain('misplaced caption');
@@ -928,7 +934,7 @@ describe('stabilization source', () => {
     expect(source).toContain('app-root');
     expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
     expect(source).toContain('PERMISSION_GROUPS');
-    expect(inventory).toContain('current 15 documentation source files');
+    expect(inventory).toContain('current 16 documentation source files');
     expect(inventory).toContain(
       'at least 120 characters of explanatory markdown',
     );
@@ -962,7 +968,7 @@ describe('stabilization source', () => {
       'keeps generated documentation pages explanatory and image-backed',
     );
     expect(generatedDocumentationSource).toContain(
-      'expect(documentFiles.length).toBe(15)',
+      'expect(documentFiles.length).toBe(16)',
     );
     expect(generatedDocumentationSource).toContain('markdownTextLength');
     expect(generatedDocumentationSource).toContain(
@@ -2233,6 +2239,7 @@ describe('stabilization source', () => {
   it('keeps the Playwright inventory clear about watchlist versus blockers', () => {
     const source = readSource('tests/test-inventory.md');
 
+    expect(source).toContain('Updated: 2026-06-05');
     expect(source).toContain('## Stabilization Coverage Watchlist');
     expect(source).not.toContain('## Stabilization Coverage Still Needed');
     expect(source).toContain(
@@ -2241,6 +2248,20 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'first in-app Browser manual review queue pass has now covered',
     );
+    expect(source).toContain(
+      'first authenticated Browser review pass has covered the global-admin',
+    );
+    expect(source).toContain('docs/admin/global-admin.doc.ts');
+    expect(source).toContain(
+      'global-admin generated docs focused on implemented relaunch tenant\n  operations',
+    );
+    expect(source).toContain(
+      '/global-admin/tenants/:tenantId/edit` allow/deny behavior in page-backed\n  runtime',
+    );
+    expect(source).toContain(
+      'in-app Browser\n    profile refresh also verified the seeded submitted receipt card',
+    );
+    expect(source).toContain('/profile#receipts');
     expect(source).toMatch(
       /satisfying the product-defined direct transfer or\s+resale workflow\.\s+Public resale listing marketplaces remain outside relaunch\s+scope/u,
     );
@@ -2471,7 +2492,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /interactive\s+`page\.pause\(\)`\/`debugger`\s+hooks/u,
     );
-    expect(inventory).toContain('Updated: 2026-06-04');
+    expect(inventory).toContain('Updated: 2026-06-05');
     expect(inventory).toContain(
       'in-app Browser\n    profile refresh also verified the seeded submitted receipt card',
     );

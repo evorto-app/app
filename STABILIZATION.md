@@ -754,7 +754,8 @@ the current working direction until a product decision overrides them.
   visible before screenshotting the list state, opening the same event through
   its direct detail URL, screenshotting that page, and restoring the seeded
   listing state. Product docs intentionally do not generate admin unlisted-event
-  or global-admin functionality pages.
+  pages; global-admin tenant administration now has its own scoped generated
+  guide.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, participant self-cancellation copy, the unpaid self-service transfer dialog, the paid registration transfer-code boundary, and the pending manual refund fallback created for a manually seeded paid cancellation.
 - `tests/docs/events/register.doc.ts` now documents registration-time add-on
   selection, required registration-question answers, active-registration
@@ -1607,7 +1608,7 @@ the current working direction until a product decision overrides them.
   generic fallback legal copy, matching `PRODUCT.md`'s legal-page watchpoint.
 - **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields, tenant review policy, tenant Stripe account-management policy, and the fact that deferred custom-domain automation fields are outside the update payload.
 - **Addressed in stabilization pass:** tenant general-settings payload shaping is now extracted and covered locally, including trim/blank normalization for editable URLs/SEO/ESNcard fields before the RPC call.
-- **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, including connected Stripe account ids for support lookup. Product docs are intentionally not generated for global-admin functionality.
+- **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, including connected Stripe account ids for support lookup. Generated product docs now cover the implemented global-admin tenant-administration surface.
 - **Addressed in stabilization pass:** global-admin tenant create/edit now supports the relaunch one-domain tenant administration surface: name, primary domain, theme, locale, currency, timezone, and connected Stripe account id.
 - **Addressed in stabilization pass:** global-admin tenant create/edit normalizes the primary-domain form value to the same single-host shape enforced by the server and keeps the one-domain/custom-domain-automation deferral visible in the form.
 - **Addressed in stabilization pass:** global-admin tenant create/edit now rejects duplicate primary domains with an explicit RPC bad-request error before relying on the database unique constraint, while allowing updates that keep the current tenant's own domain.
@@ -1617,7 +1618,8 @@ the current working direction until a product decision overrides them.
   domain, deferred custom-domain verification and multi-domain automation, and
   no tenant-admin impersonation in the current relaunch surface.
 - **Addressed in this stabilization pass:** generated-docs source coverage now
-  verifies that product docs are not generated for global-admin functionality.
+  verifies that global-admin product docs cover only implemented relaunch tenant
+  operations while unrelated unlisted-admin docs stay absent.
 - **Addressed in stabilization pass:** global-admin tenant create/edit submit
   actions now stay disabled while the create/update mutation is pending and
   the submit handlers ignore duplicate submit events during the in-flight
@@ -1647,9 +1649,14 @@ the current working direction until a product decision overrides them.
 - `tests/specs/admin/general-settings.spec.ts` functionally covers tenant
   general-settings persistence for editable brand asset URLs, SEO copy, hosted
   legal text, external legal URLs, receipt-country settings, and ESNcard
-  provider buy-link settings with explicit database readback.
-- `helpers/testing/generated-documentation-source.spec.ts` verifies product docs are not
-  generated for global-admin functionality. It also keeps profile/account docs
+  provider buy-link settings with explicit database readback. It also checks
+  authenticated `/admin/settings` at 320x740, 390x844, and 1440x900 for the
+  expected General settings, Deferred settings, and Tenant identity content,
+  without application-error text, horizontal overflow, or horizontally clipped
+  controls.
+- `helpers/testing/generated-documentation-source.spec.ts` verifies global-admin
+  generated docs stay focused on implemented relaunch tenant operations while
+  unrelated unlisted-admin docs stay absent. It also keeps profile/account docs
   aligned with implemented notification-email semantics,
   global reimbursement details, event-card routing/check-in copy, submitted
   receipt visibility, account-creation retry errors, and existing-global-user
@@ -2776,9 +2783,9 @@ implement those decisions or explicitly revise them there before changing code.
   matching functional spec read back the persisted confirmed registration,
   add-on purchase, pending checkout transaction, waitlist registration, and
   checked-in registration rows behind the seeded profile event cards.
-- Global-admin docs source-guard pass: removed product-facing generated
-  documentation for global-admin functionality and pinned that policy with
-  source coverage.
+- Global-admin docs source-guard pass: added product-facing generated
+  documentation for implemented global-admin tenant administration and pinned
+  that scoped policy with source coverage.
 - Global-admin page-backed support-lookup pass: extended the global-admin
   tenant Playwright spec so the searchable tenant list proves connected Stripe
   account ids work as support lookup terms, not only tenant domains.
@@ -3162,9 +3169,8 @@ covered by the linked Playwright specs and generated docs.
    domain rejection, and the visible deferred custom-domain/multi-domain/no
    impersonation scope. Durable coverage lives in
    `tests/specs/admin/global-admin-tenants.spec.ts`,
-   `tests/specs/permissions/global-admin-route-guard.spec.ts`, and the
-   generated-docs source guard that prevents product docs for global-admin
-   functionality.
+   `tests/specs/permissions/global-admin-route-guard.spec.ts`, and
+   `tests/docs/admin/global-admin.doc.ts`.
 6. Deterministic provider checks: run the ESNcard add/refresh/remove path with
    `bun run test:e2e:esncard-provider`
    (`tests/specs/profile/user-profile-esncard-provider.spec.ts`). It uses
@@ -3234,8 +3240,9 @@ functional pass covered `tests/specs/admin/global-admin-tenants.spec.ts` and
 `tests/specs/permissions/global-admin-route-guard.spec.ts`, including
 global-admin tenant list search, tenant detail review, tenant create/edit,
 duplicate-domain rejection, path-like domain rejection, route denial for
-non-global users, and allowed access for global admins. Product docs are not
-generated for global-admin functionality.
+non-global users, and allowed access for global admins. Global-admin generated
+docs now cover the implemented tenant-administration surface while unrelated
+unlisted-admin product docs remain absent.
 
 Deterministic provider queue checkpoint: the sixth queue item's durable anchor
 passed against the same Docker stack. `bun run test:e2e:esncard-provider --
@@ -3374,7 +3381,7 @@ fallback rather than a profile discount-card defect.
   the paid registration docs path no longer timed out waiting for
   `successful:CONFIRMED`. The regenerated docs output contains 17 pages and 57
   screenshots. Contact-sheet review found no snackbar bars, half-transition
-  captures, or generated product docs for global-admin functionality. The
+  captures, or global-admin docs before that later documentation slice. The
   unlisted-event user doc still emits the quoted YAML title
   `User: understanding unlisted events`.
 - Current Browser reseed checkpoint: after the full docs baseline left the
@@ -3415,12 +3422,15 @@ fallback rather than a profile discount-card defect.
 - Current generated-docs refresh checkpoint: with the Docker stack healthy on
   the generated `BASE_URL`, the local generated-docs baseline passed with
   `29 passed (3.7m)` using system Chrome, `NO_WEBSERVER=true`, and one worker.
-  The run produced 17 generated pages and 57 screenshots in the ignored local
-  docs output. Frontmatter title scanning found only the intentionally quoted
-  `User: understanding unlisted events` title, and global-admin product docs
-  stayed absent. Contact-sheet review of the generated screenshots found no
-  obvious snackbar bars, blank/loading captures, or half-transition images;
-  modal/backdrop screenshots were limited to documented dialog states.
+  Before the later global-admin documentation slice, the run produced 17
+  generated pages and 57 screenshots in the ignored local docs output.
+  Frontmatter title scanning found only the intentionally quoted
+  `User: understanding unlisted events` title. The current global-admin
+  generated-doc source now adds the implemented tenant-administration guide with
+  six pinned screenshot-backed states, while unrelated unlisted-admin product
+  docs stay absent. Contact-sheet review of that earlier generated screenshot
+  set found no obvious snackbar bars, blank/loading captures, or half-transition
+  images; modal/backdrop screenshots were limited to documented dialog states.
 - Current generated-docs guard checkpoint: grouped documentation reporter output
   now has regression cases for colon-bearing page titles and captioned figure
   output with escaped caption attributes. The reporter also rejects image
@@ -3429,7 +3439,7 @@ fallback rather than a profile discount-card defect.
   image, so generated docs cannot silently publish an uncaptioned raw markdown image
   or drop a misplaced caption.
   Generated-docs source coverage pins the user-facing unlisted-event guide while continuing to reject
-  global-admin and admin-only unlisted-event product docs.
+  unrelated admin-only unlisted-event product docs.
 - Current generated-docs evidence-quality guard checkpoint:
   `helpers/testing/generated-documentation-source.spec.ts` now fails if generated
   docs stop attaching explanatory markdown or if UI docs stop using the shared
@@ -4706,6 +4716,18 @@ E2E` long enough to be treated as stale; it was cancelled, and GitHub still
   timed out after 15 seconds starting the disposable Alpine container. Browser
   verification therefore remains blocked below the app tooling on this machine,
   while source and CI-backed verification continue.
+- Current global-admin generated-doc checkpoint: `tests/docs/admin/global-admin.doc.ts`
+  now covers the implemented global tenant-administration surface with focused
+  generated-documentation screenshots for the tenant list/search rows, empty
+  search state, relaunch-scoped create form, URL-shaped primary-domain
+  validation, read-only tenant detail review, and edit form. The generated docs
+  explicitly keep the current relaunch boundary honest: one active primary
+  domain is managed here, custom-domain verification and multi-domain
+  automation are deferred, and tenant-admin impersonation is unavailable in the
+  current surface. `helpers/testing/generated-documentation-source.spec.ts`
+  now expects this doc, pins its six screenshot-backed states, keeps
+  `tests/docs/events/unlisted-admin.doc.ts` absent, and continues rejecting
+  global-admin references from unrelated generated docs.
 - Current Docker/Browser runtime recovered checkpoint: the Docker app is again
   serving the current local branch after the protected SSR route fix at local
   head `db7845e5e`. `node_modules/.bin/dotenv -c dev -- docker compose ps`
