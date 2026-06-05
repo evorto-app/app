@@ -214,8 +214,9 @@ not depend on a private Font Awesome registry token or project `.npmrc`. CI
 install retries preserve the restored Bun package cache instead of clearing it
 before retrying, so transient failures do not force another Font Awesome package
 download.
-`helpers/testing/prepare-public-fontawesome-ci.sh` centralizes the GitHub
-Actions public registry override and private Font Awesome dependency guard for
+`.github/actions/setup-bun-dependency-caches/action.yml` centralizes the
+GitHub Actions Bun setup, public Font Awesome registry override, private Font
+Awesome dependency guard, and Bun package/dependency-tree cache restores for
 workflows that install dependencies. The Neon cleanup workflow stays
 install-free and does not need that registry setup.
 `helpers/testing/install-ci-dependencies.sh` centralizes the GitHub Actions

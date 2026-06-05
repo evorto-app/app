@@ -153,8 +153,9 @@ bun run lint
   setup also writes the
   temporary public Font Awesome npm user config before `bun install` and reuses
   the Bun package cache. CI dependency-install workflows call
-  `helpers/testing/prepare-public-fontawesome-ci.sh` for the same public
-  registry override and private-package guard; the Neon cleanup workflow stays
+  `.github/actions/setup-bun-dependency-caches/action.yml` for Bun setup, the
+  same public registry override, the private-package guard, and Bun
+  package/dependency-tree cache restores; the Neon cleanup workflow stays
   install-free and does not need that registry setup. CI also persists the
   Docker BuildKit `bun-install-cache` mount as a separate `buildkit-bun-cache`
   Actions cache through a dependency-only warm build, so Docker rebuilds do not

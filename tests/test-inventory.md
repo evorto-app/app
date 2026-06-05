@@ -763,10 +763,11 @@ provider outcomes without live identifiers.
     container installs, locks the shared BuildKit Bun cache mount, and derives
     build plus production dependency stages from the cache-warmed dependency
     stage with an offline production install.
-    `helpers/testing/prepare-public-fontawesome-ci.sh` centralizes the GitHub
-    Actions public registry override and private Font Awesome dependency guard
-    for workflows that install dependencies; the Neon cleanup workflow is pinned
-    as install-free.
+    `.github/actions/setup-bun-dependency-caches/action.yml` centralizes the
+    GitHub Actions Bun setup, public Font Awesome registry override, private
+    Font Awesome dependency guard, and Bun package/dependency-tree cache
+    restores for workflows that install dependencies; the Neon cleanup workflow
+    is pinned as install-free.
     Source coverage now fails if a new GitHub workflow adds `bun install`
     without the same public Font Awesome registry override and Bun cache
     protections, or if a workflow runs a Docker Compose build without the CI

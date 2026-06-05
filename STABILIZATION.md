@@ -4253,8 +4253,13 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   Font Awesome packages from npm when it refreshes the shared caches.
   Source coverage now also fails if any workflow outside the E2E and Copilot
   setup install paths starts running `bun install`, and those allowed install
-  workflows must keep the public Font Awesome registry override, Bun package
-  cache restore, dependency-tree cache restore, and private-registry bans.
+  workflows must use the shared
+  `.github/actions/setup-bun-dependency-caches/action.yml` action for the public
+  Font Awesome registry override, Bun package cache restore, dependency-tree
+  cache restore, and private-registry bans. The workflows consume the shared
+  action outputs such as `steps.bun-dependency-caches.outputs.package-cache-hit`
+  and `steps.bun-dependency-caches.outputs.dependency-tree-cache-hit`, so E2E
+  and Copilot no longer duplicate the cache/registry setup YAML.
   Install retries now preserve `~/.bun/install/cache`; the serial E2E cache
   warmer retries once without clearing the package cache so transient install
   failures do not turn cache-backed Font Awesome packages into another full
@@ -4273,9 +4278,10 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   in one audited script instead of three inline workflow blocks.
   A fresh June 4, 2026 Copilot setup check on pushed head `49782fc8c` exposed a
   cache-output edge case: `actions/cache/restore@v4` restored
-  `~/.bun/install/cache` from the `Linux-bun-1.3.11-` restore key, but
-  `steps.bun-package-cache.outputs.cache-hit` was `false` because the primary
-  package/config/patch hash key had changed. Copilot setup therefore failed
+  `~/.bun/install/cache` from the `Linux-bun-1.3.11-` restore key, but the
+  shared `steps.bun-dependency-caches.outputs.package-cache-hit` value was
+  `false` because the primary package/config/patch hash key had changed.
+  Copilot setup therefore failed
   before trying the intended offline install. The E2E worker and Copilot install
   steps now also inspect `~/.bun/install/cache` for restored package contents and
   print `Bun package cache restored: ...`; they still refuse network registry

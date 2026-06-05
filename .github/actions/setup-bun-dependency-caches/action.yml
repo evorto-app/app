@@ -1,0 +1,52 @@
+name: Set up Bun dependency caches
+description: Set up Bun, force public Font Awesome packages, and restore dependency caches.
+
+inputs:
+  bun-version:
+    description: Bun version to install.
+    required: false
+    default: "1.3.11"
+
+outputs:
+  dependency-tree-cache-hit:
+    description: Whether the node_modules cache was restored.
+    value: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}
+  dependency-tree-cache-primary-key:
+    description: Primary key for saving the node_modules cache.
+    value: ${{ steps.bun-dependency-tree-cache.outputs.cache-primary-key }}
+  package-cache-hit:
+    description: Whether the Bun package cache was restored.
+    value: ${{ steps.bun-package-cache.outputs.cache-hit }}
+  package-cache-primary-key:
+    description: Primary key for saving the Bun package cache.
+    value: ${{ steps.bun-package-cache.outputs.cache-primary-key }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ inputs.bun-version }}
+
+    - name: Prepare public Font Awesome registry
+      shell: bash
+      run: bash helpers/testing/prepare-public-fontawesome-ci.sh
+
+    - name: Restore Bun package cache
+      id: bun-package-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-${{ inputs.bun-version }}-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-${{ inputs.bun-version }}-
+
+    - name: Restore Bun dependency tree
+      id: bun-dependency-tree-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-bun-node-modules-${{ inputs.bun-version }}-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-node-modules-${{ inputs.bun-version }}-

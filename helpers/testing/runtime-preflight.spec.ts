@@ -370,6 +370,13 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), '.github/docker-compose.build-cache.yml'),
       'utf8',
     );
+    const ciDependencyCacheAction = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        '.github/actions/setup-bun-dependency-caches/action.yml',
+      ),
+      'utf8',
+    );
     const helper = fs.readFileSync(
       path.join(
         process.cwd(),
@@ -613,6 +620,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toMatch(/10-minute job\s+timeout/u);
     expect(testsReadme).toContain('CI dependency-install workflows call');
     expect(testsReadme).toContain(
+      '.github/actions/setup-bun-dependency-caches/action.yml',
+    );
+    expect(ciDependencyCacheAction).toContain(
       'helpers/testing/prepare-public-fontawesome-ci.sh',
     );
     expect(testsReadme).toContain(
@@ -642,17 +652,26 @@ describe('evaluateRuntimePreflight', () => {
     expect(installDependenciesHelper).toContain(
       'Refusing a registry install to avoid repeated Font Awesome package downloads.',
     );
-    expect(workflow).toContain('Restore Bun package cache');
-    expect(workflow).toContain('id: bun-package-cache');
-    expect(workflow).toContain('path: ~/.bun/install/cache');
+    expect(workflow).toContain('Set up Bun dependency caches');
     expect(workflow).toContain(
-      "key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+      'uses: ./.github/actions/setup-bun-dependency-caches',
     );
-    expect(workflow).toContain('Restore Bun dependency tree');
-    expect(workflow).toContain('id: bun-dependency-tree-cache');
-    expect(workflow).toContain('path: node_modules');
-    expect(workflow).toContain(
-      "key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    expect(copilotSetupWorkflow).toContain('Set up Bun dependency caches');
+    expect(copilotSetupWorkflow).toContain(
+      'uses: ./.github/actions/setup-bun-dependency-caches',
+    );
+    expect(ciDependencyCacheAction).toContain('uses: oven-sh/setup-bun@v2');
+    expect(ciDependencyCacheAction).toContain('Restore Bun package cache');
+    expect(ciDependencyCacheAction).toContain('id: bun-package-cache');
+    expect(ciDependencyCacheAction).toContain('path: ~/.bun/install/cache');
+    expect(ciDependencyCacheAction).toContain(
+      "key: ${{ runner.os }}-bun-${{ inputs.bun-version }}-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+    );
+    expect(ciDependencyCacheAction).toContain('Restore Bun dependency tree');
+    expect(ciDependencyCacheAction).toContain('id: bun-dependency-tree-cache');
+    expect(ciDependencyCacheAction).toContain('path: node_modules');
+    expect(ciDependencyCacheAction).toContain(
+      "key: ${{ runner.os }}-bun-node-modules-${{ inputs.bun-version }}-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
     );
     expect(installDependenciesHelper).toContain('Bun package cache hit:');
     expect(installDependenciesHelper).toContain('Bun package cache restored:');
@@ -672,16 +691,16 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).toContain('Save warmed Bun dependency tree');
     expect(workflow).toContain('uses: actions/cache/save@v4');
     expect(workflow).toContain(
-      "if: steps.bun-package-cache.outputs.cache-hit != 'true'",
+      "if: steps.bun-dependency-caches.outputs.package-cache-hit != 'true'",
     );
     expect(workflow).toContain(
-      'key: ${{ steps.bun-package-cache.outputs.cache-primary-key }}',
+      'key: ${{ steps.bun-dependency-caches.outputs.package-cache-primary-key }}',
     );
     expect(workflow).toContain(
-      "if: steps.bun-dependency-tree-cache.outputs.cache-hit != 'true'",
+      "if: steps.bun-dependency-caches.outputs.dependency-tree-cache-hit != 'true'",
     );
     expect(workflow).toContain(
-      'key: ${{ steps.bun-dependency-tree-cache.outputs.cache-primary-key }}',
+      'key: ${{ steps.bun-dependency-caches.outputs.dependency-tree-cache-primary-key }}',
     );
     expect(workflow).toContain(
       'Refusing a parallel registry install to avoid repeated Font Awesome package downloads.',
@@ -706,12 +725,12 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(workflow).not.toContain('bunx playwright');
     expect(workflow).toContain('Restore Docker build cache');
-    expect(workflow).toContain('Prepare public Font Awesome registry');
-    expect(
-      workflow.match(
-        /run: bash helpers\/testing\/prepare-public-fontawesome-ci\.sh/g,
-      )?.length ?? 0,
-    ).toBe(2);
+    expect(ciDependencyCacheAction).toContain(
+      'Prepare public Font Awesome registry',
+    );
+    expect(ciDependencyCacheAction).toContain(
+      'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
+    );
     expect(fontAwesomeCiHelper).toContain('Repository .npmrc is not supported');
     expect(fontAwesomeCiHelper).toContain(
       "privateRegistry = ['npm', 'fontawesome', 'com'].join('.')",
@@ -796,14 +815,10 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).not.toContain('Remove Font Awesome registry auth');
     expect(workflow).not.toContain('FONT_AWESOME_TOKEN');
     expect(workflow).not.toContain('npm.fontawesome.com');
+    expect(copilotSetupWorkflow).toContain('Set up Bun dependency caches');
     expect(copilotSetupWorkflow).toContain(
-      'Prepare public Font Awesome registry',
+      'uses: ./.github/actions/setup-bun-dependency-caches',
     );
-    expect(copilotSetupWorkflow).toContain(
-      'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
-    );
-    expect(copilotSetupWorkflow).toContain('Restore Bun package cache');
-    expect(copilotSetupWorkflow).toContain('Restore Bun dependency tree');
     expect(copilotSetupWorkflow).toContain(
       'run: bash helpers/testing/install-ci-dependencies.sh',
     );
@@ -821,23 +836,11 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(copilotSetupWorkflow).not.toContain('FONT_AWESOME_TOKEN');
     expect(copilotSetupWorkflow).not.toContain('npm.fontawesome.com');
-    expect(copilotSetupWorkflow).toContain('Restore Bun package cache');
-    expect(copilotSetupWorkflow).toContain('id: bun-package-cache');
-    expect(copilotSetupWorkflow).toContain('path: ~/.bun/install/cache');
     expect(copilotSetupWorkflow).toContain(
-      "key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
-    );
-    expect(copilotSetupWorkflow).toContain('Restore Bun dependency tree');
-    expect(copilotSetupWorkflow).toContain('id: bun-dependency-tree-cache');
-    expect(copilotSetupWorkflow).toContain('path: node_modules');
-    expect(copilotSetupWorkflow).toContain(
-      "key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
+      'BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-dependency-caches.outputs.package-cache-hit }}',
     );
     expect(copilotSetupWorkflow).toContain(
-      'BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-package-cache.outputs.cache-hit }}',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      'BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
+      'BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-caches.outputs.dependency-tree-cache-hit }}',
     );
     expect(installDependenciesHelper).toContain('Bun package cache hit:');
     expect(installDependenciesHelper).toContain('Bun package cache restored:');

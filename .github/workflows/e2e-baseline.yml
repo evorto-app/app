@@ -25,8 +25,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up Bun dependency caches
+        id: bun-dependency-caches
+        uses: ./.github/actions/setup-bun-dependency-caches
         with:
           bun-version: "1.3.11"
 
@@ -35,27 +36,6 @@ jobs:
         uses: docker/setup-buildx-action@v4
         with:
           version: latest
-
-      - name: Prepare public Font Awesome registry
-        run: bash helpers/testing/prepare-public-fontawesome-ci.sh
-
-      - name: Restore Bun package cache
-        id: bun-package-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-1.3.11-
-
-      - name: Restore Bun dependency tree
-        id: bun-dependency-tree-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-node-modules-1.3.11-
 
       - name: Restore Docker build cache
         uses: actions/cache@v4
@@ -92,24 +72,24 @@ jobs:
 
       - name: Install dependencies
         env:
-          BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}
-          BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-package-cache.outputs.cache-hit }}
+          BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-caches.outputs.dependency-tree-cache-hit }}
+          BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-dependency-caches.outputs.package-cache-hit }}
           CI_DEPENDENCY_INSTALL_MODE: warm
         run: bash helpers/testing/install-ci-dependencies.sh
 
       - name: Save warmed Bun package cache
-        if: steps.bun-package-cache.outputs.cache-hit != 'true'
+        if: steps.bun-dependency-caches.outputs.package-cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ steps.bun-package-cache.outputs.cache-primary-key }}
+          key: ${{ steps.bun-dependency-caches.outputs.package-cache-primary-key }}
 
       - name: Save warmed Bun dependency tree
-        if: steps.bun-dependency-tree-cache.outputs.cache-hit != 'true'
+        if: steps.bun-dependency-caches.outputs.dependency-tree-cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: node_modules
-          key: ${{ steps.bun-dependency-tree-cache.outputs.cache-primary-key }}
+          key: ${{ steps.bun-dependency-caches.outputs.dependency-tree-cache-primary-key }}
 
       - name: Restore Playwright browser cache
         uses: actions/cache@v4
@@ -174,29 +154,66 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up Bun dependency caches
+        id: bun-dependency-caches
+        uses: ./.github/actions/setup-bun-dependency-caches
         with:
           bun-version: "1.3.11"
 
-      - name: Prepare public Font Awesome registry
-        run: bash helpers/testing/prepare-public-fontawesome-ci.sh
-
-      - name: Restore Bun package cache
-        uses: actions/cache@v4
+      - name: Set up Docker Buildx
+        id: setup-buildx
+        uses: docker/setup-buildx-action@v4
         with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-1.3.11-
+          version: latest
 
-      - name: Restore Bun dependency tree
-        uses: actions/cache@v4
+      - name: Restore Docker build cache
+        uses: actions/cache/restore@v4
         with:
-          path: node_modules
-          key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}
+          path: ${{ env.DOCKER_BUILD_CACHE_DIR }}
+          key: ${{ runner.os }}-docker-build-bun-1.3.11-${{ hashFiles('Dockerfile', 'docker-compose.yml', '.github/docker-compose.build-cache.yml', 'package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}
           restore-keys: |
-            ${{ runner.os }}-bun-node-modules-1.3.11-
+            ${{ runner.os }}-docker-build-bun-1.3.11-
+
+      - name: Restore Docker Bun cache mount
+        id: docker-bun-cache-mount
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.BUILDKIT_BUN_CACHE_DIR }}
+          key: ${{ runner.os }}-docker-bun-cache-mount-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}
+          restore-keys: |
+            ${{ runner.os }}-docker-bun-cache-mount-1.3.11-
+
+      - name: Require warmed Docker Bun cache mount
+        run: |
+          echo "Docker Bun cache mount hit: ${{ steps.docker-bun-cache-mount.outputs.cache-hit }}"
+          if [ "${{ steps.docker-bun-cache-mount.outputs.cache-hit }}" != "true" ]; then
+            echo "::error::Docker Bun cache mount was not restored after warm-ci-caches. Refusing Docker builds that could repeat Font Awesome package downloads inside each E2E worker."
+            exit 1
+          fi
+
+      - name: Inject Docker Bun cache mount
+        uses: reproducible-containers/buildkit-cache-dance@v3.4.0
+        with:
+          builder: ${{ steps.setup-buildx.outputs.name }}
+          cache-map: |
+            {
+              "${{ env.BUILDKIT_BUN_CACHE_DIR }}": {
+                "target": "/home/bun/.bun/install/cache",
+                "id": "bun-install-cache"
+              }
+            }
+          skip-extraction: true
+
+      - name: Restore Playwright browser cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-1.59.1-chromium
+          restore-keys: |
+            ${{ runner.os }}-playwright-1.59.1-
+
+      - name: Prepare Docker build cache directory
+        run: mkdir -p "${DOCKER_BUILD_CACHE_DIR}"
 
       - name: Validate required configuration
         run: |
@@ -231,18 +248,18 @@ jobs:
 
       - name: Install dependencies
         env:
-          BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}
-          BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-package-cache.outputs.cache-hit }}
+          BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-caches.outputs.dependency-tree-cache-hit }}
+          BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-dependency-caches.outputs.package-cache-hit }}
           CI_DEPENDENCY_INSTALL_MISSING_CACHE_MESSAGE: Bun dependency tree cache was not restored after warm-ci-caches. Refusing a parallel registry install to avoid repeated Font Awesome package downloads.
           CI_DEPENDENCY_INSTALL_MODE: offline-required
         run: bash helpers/testing/install-ci-dependencies.sh
 
       - name: Save Bun dependency tree from package cache
-        if: steps.bun-dependency-tree-cache.outputs.cache-hit != 'true'
+        if: steps.bun-dependency-caches.outputs.dependency-tree-cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: node_modules
-          key: ${{ steps.bun-dependency-tree-cache.outputs.cache-primary-key }}
+          key: ${{ steps.bun-dependency-caches.outputs.dependency-tree-cache-primary-key }}
 
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
