@@ -636,11 +636,13 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('const generalSettingsSection =');
     expect(source).toContain('const generalSettingsField =');
     expect(source).toContain('const generalSettingsToggle =');
+    expect(source).toContain('const generalSettingsCheckbox =');
     expect(source).toContain("locator('app-general-settings section')");
     expect(source).toContain("locator('app-general-settings mat-form-field')");
     expect(source).toContain(
       "locator('app-general-settings mat-slide-toggle')",
     );
+    expect(source).toContain("locator('app-general-settings mat-checkbox')");
     expect(source).toContain("generalSettings.getByText('Domain onboarding')");
     expect(source).toContain(
       'Custom-domain verification and multi-domain automation are deferred.',
@@ -691,7 +693,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('const tenantIdentitySummary =');
     expect(source).toContain('const brandAndSearchSettingsFields =');
     expect(source).toContain('const legalPageSettingsFields =');
-    expect(source).toContain('const esnDiscountToggle =');
+    expect(source).toContain('const financeAndDiscountSettingsControls =');
     expect(source).toContain(
       'await expect(deferredSettingsSummary).toBeVisible()',
     );
@@ -702,7 +704,19 @@ describe('generated docs source current behavior', () => {
       'for (const field of brandAndSearchSettingsFields)',
     );
     expect(source).toContain('for (const field of legalPageSettingsFields)');
-    expect(source).toContain('await expect(esnDiscountToggle).toBeVisible()');
+    expect(source).toContain(
+      'for (const control of financeAndDiscountSettingsControls)',
+    );
+    expect(source).toContain(
+      "generalSettingsField(page, 'Allowed receipt countries')",
+    );
+    expect(source).toContain("generalSettingsCheckbox(page, 'Allow other')");
+    expect(source).toContain(
+      "generalSettingsToggle(page, 'ESN Card discounts')",
+    );
+    expect(source).toContain(
+      "generalSettings.getByRole('button', { name: 'Save' })",
+    );
     expect(source).toContain(
       'Tenant identity summary showing primary domain and Stripe status',
     );
@@ -720,6 +734,12 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'Receipt and ESN card discount settings near the save action',
+    );
+    expect(source).not.toContain(
+      "const esnDiscountToggle = generalSettingsToggle(page, 'ESN Card discounts');",
+    );
+    expect(source).not.toContain(
+      'takeScreenshot(\n    testInfo,\n    esnDiscountToggle,',
     );
     expect(source).not.toContain(
       "takeScreenshot(\n    testInfo,\n    generalSettings.getByRole('heading'",

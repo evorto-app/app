@@ -140,7 +140,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/admin/general-settings.doc.ts` covers the tenant general-settings
     docs flow with focused screenshots for the deferred-settings summary,
     tenant identity, brand/search-preview field group, hosted legal field group,
-    and ESN-card discount toggle instead of heading-only or single-field crops.
+    and finance/discount/save controls instead of heading-only or single-field
+    crops.
     The doc asserts the deferred custom-domain rows, identity rows, locale/money
     controls, operations policy controls, branding/SEO fields, legal URL/text
     fields, finance receipt settings, ESNcard discount toggle, and Save action

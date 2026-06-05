@@ -33,6 +33,12 @@ const generalSettingsToggle = (page: Page, label: string): Locator =>
     .filter({ hasText: label })
     .first();
 
+const generalSettingsCheckbox = (page: Page, label: string): Locator =>
+  page
+    .locator('app-general-settings mat-checkbox')
+    .filter({ hasText: label })
+    .first();
+
 test.use({ storageState: adminStateFile });
 
 test('Manage tenant general settings @admin', async ({ page }, testInfo) => {
@@ -199,11 +205,18 @@ Tax rates are managed on the separate **Tax Rates** page.
   await expect(
     generalSettings.getByRole('button', { name: 'Save' }),
   ).toBeVisible();
-  const esnDiscountToggle = generalSettingsToggle(page, 'ESN Card discounts');
-  await expect(esnDiscountToggle).toBeVisible();
+  const financeAndDiscountSettingsControls = [
+    generalSettingsField(page, 'Allowed receipt countries'),
+    generalSettingsCheckbox(page, 'Allow other'),
+    generalSettingsToggle(page, 'ESN Card discounts'),
+    generalSettings.getByRole('button', { name: 'Save' }),
+  ];
+  for (const control of financeAndDiscountSettingsControls) {
+    await expect(control).toBeVisible();
+  }
   await takeScreenshot(
     testInfo,
-    esnDiscountToggle,
+    financeAndDiscountSettingsControls,
     page,
     'Receipt and ESN card discount settings near the save action',
   );
