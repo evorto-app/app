@@ -5536,6 +5536,9 @@ page content outside the highlighted target.
 It also rejects unfiltered broad `section` and `article` screenshot targets, so
 docs must focus a filtered semantic region or a concrete component/control
 instead of highlighting a whole repeated page area by accident.
+The template generated doc now screenshots the seeded template-list navigation
+containing both a category and the Create template action instead of highlighting
+only the standalone create link.
 The registration generated doc now uses concrete registration option and active
 registration card targets for free, ineligible, paid, and post-payment states
 instead of highlighting section headings or a single action button.

@@ -1318,8 +1318,18 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('fillTemplateBasics');
     expect(source).toContain('createdTemplate.planningTips');
     expect(source).toContain('const savedTemplateDetailSurface =');
+    expect(source).toContain('const templateOverviewSurface =');
     expect(source).toContain('const templateGeneralSettingsSurface =');
     expect(source).toContain('const simpleRegistrationSetupSurface =');
+    expect(source).toContain("locator('app-template-list nav')");
+    expect(source).toContain(
+      "filter({ has: page.getByRole('link', { name: 'Create template' }) })",
+    );
+    expect(source).toContain('filter({ hasText: input.categoryTitle })');
+    expect(source).toContain('const templateOverview =');
+    expect(source).toContain(
+      'Templates overview with seeded categories and create-template action',
+    );
     expect(source).toContain("locator('app-template-general-form')");
     expect(source).toContain("locator('app-template-create form > div')");
     expect(source).toContain(
@@ -1367,6 +1377,9 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('standalone add-on sales are configured here');
     expect(source).not.toContain(
       "takeScreenshot(\n    testInfo,\n    page.getByRole('heading', { name: templateTitle })",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    page.getByRole('link', { name: 'Create template' }),",
     );
     expect(source).not.toContain(
       "takeScreenshot(\n    testInfo,\n    page.locator('app-template-create form div').first(),",

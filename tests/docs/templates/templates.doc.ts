@@ -23,6 +23,16 @@ const savedTemplateDetailSurface = (
     .filter({ hasText: input.questionTitle })
     .first();
 
+const templateOverviewSurface = (
+  page: Page,
+  input: { categoryTitle: string },
+): Locator =>
+  page
+    .locator('app-template-list nav')
+    .filter({ has: page.getByRole('link', { name: 'Create template' }) })
+    .filter({ hasText: input.categoryTitle })
+    .first();
+
 const templateGeneralSettingsSurface = (page: Page): Locator =>
   page
     .locator('app-template-general-form')
@@ -82,11 +92,15 @@ Start by navigating to **Templates**. Here you can see an overview of the existi
 Click on _Create template_ to create a new template.`,
   });
   await page.getByRole('link', { name: 'Templates' }).click();
+  const templateOverview = templateOverviewSurface(page, {
+    categoryTitle: category.title,
+  });
+  await expect(templateOverview).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByRole('link', { name: 'Create template' }),
+    templateOverview,
     page,
-    'Templates overview with the create-template action highlighted',
+    'Templates overview with seeded categories and create-template action',
   );
   await page.getByRole('link', { name: 'Create template' }).click();
   await testInfo.attach('markdown', {
