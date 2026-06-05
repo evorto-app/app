@@ -540,17 +540,13 @@ describe('evaluateRuntimePreflight', () => {
       'PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}',
     );
     expect(workflow).toContain(
-      'PARENT_BRANCH_ID is not configured; resolving the Neon default branch',
+      'PARENT_BRANCH_ID is not configured; Neon Local will create ephemeral E2E branches from the project default branch.',
     );
-    expect(workflow).toContain(
+    expect(workflow).not.toContain('resolved_parent_branch_id');
+    expect(workflow).not.toContain(
       'https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches',
     );
-    expect(workflow).toContain(
-      'Unable to resolve a Neon parent branch for E2E',
-    );
-    expect(workflow).toContain(
-      'echo "PARENT_BRANCH_ID=${PARENT_BRANCH_ID}" >> "${GITHUB_ENV}"',
-    );
+    expect(workflow).not.toContain('Unable to resolve a Neon parent branch');
     expect(workflow).toContain(
       'NEON_LOCAL_METADATA_DIR: /tmp/neon-local-metadata',
     );

@@ -221,6 +221,9 @@ jobs:
             echo "::error::Missing required repository variable: NEON_PROJECT_ID"
             exit 1
           fi
+          if [ -z "${PARENT_BRANCH_ID}" ]; then
+            echo "::notice::PARENT_BRANCH_ID is not configured; Neon Local will create ephemeral E2E branches from the project default branch."
+          fi
           if [ -z "${STRIPE_TEST_ACCOUNT_ID}" ]; then
             echo "::error::Missing required Stripe connected account id. Set STRIPE_TEST_ACCOUNT_ID as a secret or repository variable."
             exit 1

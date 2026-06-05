@@ -3456,7 +3456,10 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain('default CI cleanup\n  TTL-conservative');
     expect(checkpoint).toContain('CI must not set `BRANCH_ID`');
     expect(checkpoint).toContain(
-      'persistent branch modes remain explicit local\n  opt-ins',
+      "Neon Local's documented default project branch",
+    );
+    expect(normalizeWhitespace(checkpoint ?? '')).toContain(
+      'persistent branch modes remain explicit local opt-ins',
     );
     expect(checkpoint).toMatch(/GitHub\s+E2E mechanism/u);
     expect(checkpoint).toContain('delete_timeline');
@@ -3531,6 +3534,13 @@ describe('stabilization source', () => {
 
     expect(workflow).toContain('group: e2e-${{ github.ref }}');
     expect(workflow).toContain('cancel-in-progress: true');
+    expect(workflow).toContain(
+      'PARENT_BRANCH_ID is not configured; Neon Local will create ephemeral E2E branches from the project default branch.',
+    );
+    expect(workflow).not.toContain('resolved_parent_branch_id');
+    expect(workflow).not.toContain(
+      'https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches',
+    );
 
     const pruneBeforeE2EIndex = workflow.indexOf(
       'Prune expired Neon branches before E2E',
