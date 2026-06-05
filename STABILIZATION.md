@@ -5624,10 +5624,14 @@ highlighting the whole user-list component, a single checkbox, or the saved role
 heading.
 New Playwright skips/fixmes, including
 `test.describe.skip`, should be added only as explicit credential gates or
-honest Browser-backed stabilization placeholders. The Playwright inventory guard now also rejects
-committed focused-only `.only` and `test.describe.only` declarations plus
-interactive `page.pause()`/`debugger` hooks so stabilization runs cannot silently
-narrow to a partial suite or pause in CI. Playwright's own CI `forbidOnly`
+honest Browser-backed stabilization placeholders. The Playwright inventory guard
+also keeps runtime-affecting modifiers such as `test.describe.configure(...)`
+and `test.slow()` allowlisted with local reasons, rejects committed focused-only
+`.only` and `test.describe.only` declarations, rejects interactive
+`page.pause()`/`debugger` hooks, and rejects fixed `.waitForTimeout(...)` waits
+in specs/docs plus fixed `setTimeout` sleeps in docs screenshot helpers. That
+keeps stabilization runs from silently narrowing to a partial suite, pausing in
+CI, or drifting back to time-based waits. Playwright's own CI `forbidOnly`
 setting remains source-guarded as the runner-level backstop.
 
 Registration confirmation, cancellation, transfer, and waitlist spot-available

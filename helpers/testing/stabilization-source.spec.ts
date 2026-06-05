@@ -2796,6 +2796,23 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /interactive\s+`page\.pause\(\)`\/`debugger`\s+hooks/u,
     );
+    expect(source).toContain(
+      'New Playwright skips/fixmes, including\n`test.describe.skip`, should be added only as explicit credential gates',
+    );
+    expect(source).toContain(
+      'honest Browser-backed stabilization placeholders',
+    );
+    expect(source).toContain(
+      'runtime-affecting modifiers such as `test.describe.configure(...)`',
+    );
+    expect(source).toContain(
+      'and `test.slow()` allowlisted with local reasons',
+    );
+    expect(source).toContain('rejects committed focused-only\n`.only`');
+    expect(source).toContain('rejects interactive\n`page.pause()`/`debugger`');
+    expect(source).toContain('rejects fixed `.waitForTimeout(...)` waits');
+    expect(source).toContain('fixed `setTimeout` sleeps');
+    expect(source).toContain('time-based waits');
     expect(inventory).toContain('Updated: 2026-06-05');
     expect(inventory).toContain(
       'in-app Browser\n    profile refresh also verified the seeded submitted receipt card',

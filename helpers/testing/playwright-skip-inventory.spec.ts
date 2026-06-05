@@ -10,7 +10,7 @@ const testInventoryPath = path.join(testsRoot, 'test-inventory.md');
 
 const allowedPlaywrightSkipEntries = [
   {
-    entry: 'tests/docs/users/create-account.doc.ts:96:test.skip',
+    entry: 'tests/docs/users/create-account.doc.ts:136:test.skip',
     reason:
       'Auth0 Management credentials are required for the integration doc.',
   },
@@ -22,6 +22,25 @@ const allowedPlaywrightSkipEntries = [
   {
     entry: 'tests/specs/finance/stripe-webhook-replay.spec.ts:19:test.skip',
     reason: 'A Stripe webhook signing secret is required for replay coverage.',
+    requiredEnvironment: ['STRIPE_WEBHOOK_SECRET'],
+  },
+] as const;
+
+const allowedPlaywrightRuntimeModifierEntries = [
+  {
+    entry: 'tests/docs/events/register.doc.ts:182:test.describe.configure',
+    reason:
+      'The registration documentation flow runs serially with one retry because it mutates shared event registration state while proving the full free/paid journey.',
+  },
+  {
+    entry: 'tests/docs/events/register.doc.ts:191:test.slow',
+    reason:
+      'The free registration documentation flow performs Auth0 login, event navigation, database readbacks, and generated-doc attachments.',
+  },
+  {
+    entry: 'tests/docs/events/register.doc.ts:987:test.slow',
+    reason:
+      'The paid registration documentation flow performs Stripe checkout replay, webhook delivery, database readbacks, and generated-doc attachments.',
   },
 ] as const;
 
