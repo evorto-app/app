@@ -198,16 +198,34 @@ describe('evaluateRuntimePreflight', () => {
     expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');
   });
 
-  it('keeps Prettier config free of inactive plugin options', () => {
+  it('keeps Prettier Tailwind plugin config and dependency aligned', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
+    ) as {
+      devDependencies?: Record<string, string>;
+    };
     const prettierConfig = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), '.prettierrc'), 'utf8'),
     ) as {
       plugins?: string[];
       tailwindStylesheet?: string;
     };
+    const hasTailwindPluginConfig = prettierConfig.plugins?.includes(
+      'prettier-plugin-tailwindcss',
+    );
 
     if (prettierConfig.tailwindStylesheet) {
-      expect(prettierConfig.plugins).toContain('prettier-plugin-tailwindcss');
+      expect(hasTailwindPluginConfig).toBe(true);
+    }
+
+    if (hasTailwindPluginConfig) {
+      expect(packageJson.devDependencies).toHaveProperty(
+        'prettier-plugin-tailwindcss',
+      );
+    } else {
+      expect(packageJson.devDependencies).not.toHaveProperty(
+        'prettier-plugin-tailwindcss',
+      );
     }
   });
 
