@@ -176,6 +176,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Runtime, reporting, screenshots, and seed health:
   - `specs/auth/storage-state-refresh.test.ts`
   - `specs/reporting/reporter-paths.test.ts`
+    checks documentation reporter output paths, caption pairing, generated
+    figure escaping, highlighted screenshot targets, visible page-content
+    detection, and zero-box host screenshots without app startup.
+    `bun run test:e2e:reporter-paths` is the focused local rerun; it refreshes
+    `.env.dev`, sets ignored docs output paths and `NO_WEBSERVER=true`, and
+    uses `--no-deps`.
   - `specs/screenshot/doc-screenshot.test.ts`
   - `specs/seed/seed-baseline.test.ts` proves the seeded tenant has default
     roles, all template families, paid/free registration options, paid tax-rate

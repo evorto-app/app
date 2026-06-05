@@ -40,6 +40,7 @@ bun run test:e2e:authenticated-viewports
 bun run test:e2e:mcp-browser-authenticated-planner
 bun run test:e2e:layout-helper
 bun run test:e2e:public-general-viewports
+bun run test:e2e:reporter-paths
 bun run test:e2e:docs
 bun run test:e2e:docs:publish
 bun run test:e2e:install
@@ -194,6 +195,10 @@ bun run lint
   Docker or require seeded app data. Use it after changing
   `tests/support/utils/page-layout.ts` or the durable viewport no-glitch
   assertions.
+- `bun run test:e2e:reporter-paths` runs the documentation reporter and
+  highlighted screenshot-helper regression tests with `NO_WEBSERVER=true` and
+  `--no-deps` plus ignored repository-local docs output paths, so generated-doc
+  evidence-quality checks do not require a Docker app or sibling docs checkout.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
 - Playwright list/discovery commands do not clean or write generated docs
