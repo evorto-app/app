@@ -3,9 +3,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-// Runtime preflight runs before Docker commands so missing secrets, broken
-// Compose config, or missing browsers fail clearly before the app starts.
-export type RuntimeTarget = 'docker';
+import {
+  isCleanupTarget,
+  parseComposeContainers,
+} from './remove-stale-compose-containers';
+
+// Runtime preflight runs before local runtime commands so missing secrets,
+// broken Compose config, missing browsers, or closed database ports fail clearly
+// before the app starts.
+export type RuntimeTarget = 'dev' | 'docker';
 
 type RequiredVariable = {
   description: string;
@@ -21,6 +27,7 @@ type RuntimeCheck = {
 };
 
 type CommandResult = {
+  errorMessage?: string;
   stderr: string;
   stdout: string;
   status: null | number;
@@ -36,6 +43,32 @@ type RuntimePreflightOptions = {
 const commandTimeoutMs = 15_000;
 
 export const requiredByTarget = {
+  dev: [
+    {
+      description: 'Browser-facing application URL',
+      name: 'BASE_URL',
+    },
+    {
+      description: 'Database connection for server-side rendering and RPC',
+      name: 'DATABASE_URL',
+    },
+    {
+      description: 'Auth0 application id',
+      name: 'CLIENT_ID',
+    },
+    {
+      description: 'Auth0 application secret',
+      name: 'CLIENT_SECRET',
+    },
+    {
+      description: 'Auth0 issuer URL',
+      name: 'ISSUER_BASE_URL',
+    },
+    {
+      description: 'Application session secret',
+      name: 'SECRET',
+    },
+  ],
   docker: [
     {
       description: 'Neon Local branch creation',
@@ -73,10 +106,11 @@ export const requiredByTarget = {
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
 
 export const optionalByTarget = {
+  dev: [],
   docker: [],
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
 
-const targets = new Set<RuntimeTarget>(['docker']);
+const targets = new Set<RuntimeTarget>(['dev', 'docker']);
 
 const readTarget = (): RuntimeTarget => {
   const target = process.argv[2];
@@ -105,6 +139,7 @@ const defaultRunCommand = (
   });
 
   return {
+    errorMessage: result.error?.message,
     status: result.status,
     stderr: result.stderr ?? '',
     stdout: result.stdout ?? '',
@@ -139,6 +174,235 @@ const commandCheck = (
     details: output ? [output] : undefined,
     label,
     severity: severityOnFailure,
+  };
+};
+
+const dockerComposeProjectContainerCheck = (
+  runCommand: (
+    command: string,
+    commandArguments: readonly string[],
+  ) => CommandResult,
+): RuntimeCheck => {
+  const label = 'Docker Compose project containers';
+  const result = runCommand('docker', [
+    'compose',
+    'ps',
+    '--all',
+    '--format',
+    'json',
+  ]);
+
+  if (result.status !== 0) {
+    const timedOut =
+      result.status === null ||
+      result.errorMessage?.toLowerCase().includes('etimedout') === true;
+
+    return {
+      details: [
+        timedOut
+          ? `Timed out after ${commandTimeoutMs / 1000}s while inspecting Docker Compose project containers.`
+          : (firstLine(result.stderr) ??
+            firstLine(result.stdout) ??
+            result.errorMessage ??
+            'Unable to inspect Docker Compose project containers.'),
+        'Resolve stale Docker Compose containers before starting Docker; uninspectable project state can make docker compose up/down hang before Browser verification can run.',
+        'Run `bun run docker:clean-stale` to attempt bounded cleanup of the generated Compose project containers.',
+        'If bounded cleanup also times out, restart Docker Desktop or the Docker engine before retrying; Docker container removal is then blocked below the app tooling layer.',
+      ],
+      label,
+      severity: 'failure',
+    };
+  }
+
+  const containers = parseComposeContainers(result.stdout);
+  const stalledContainers = containers.flatMap((container) => {
+    if (
+      !isCleanupTarget({
+        health: container.Health,
+        state: container.State,
+        status: container.Status,
+      })
+    ) {
+      return [];
+    }
+
+    const service = String(container.Service ?? 'unknown-service');
+    const name = String(container.Name ?? '').trim() || service;
+    const status = String(container.Status ?? container.State ?? 'unknown');
+    return [`${name} (${service}) is ${status}`];
+  });
+
+  if (stalledContainers.length === 0) {
+    return {
+      details:
+        containers.length === 0
+          ? ['No Docker Compose project containers currently exist.']
+          : [
+              `${containers.length} Docker Compose project container(s) inspectable.`,
+            ],
+      label,
+      severity: 'ok',
+    };
+  }
+
+  return {
+    details: [
+      ...stalledContainers,
+      'Remove stale created/dead/removing or unhealthy containers before starting Docker; they can make docker compose up/down hang before Browser verification can run.',
+      'Run `bun run docker:clean-stale` to attempt bounded cleanup of the generated Compose project containers.',
+      'If the container is still running or bounded cleanup also times out, run `docker compose down` for the generated project or restart Docker Desktop before retrying; Docker container removal is then blocked below the app tooling layer.',
+    ],
+    label,
+    severity: 'failure',
+  };
+};
+
+const dockerContainerStartCheck = (
+  runCommand: (
+    command: string,
+    commandArguments: readonly string[],
+  ) => CommandResult,
+): RuntimeCheck => {
+  const label = 'Docker container start path';
+  const containerName = `evorto-runtime-preflight-${process.pid}`;
+  const timeoutSeconds = String(commandTimeoutMs / 1000);
+  const cleanupTimeoutSeconds = String(commandTimeoutMs / 1000);
+  const result = runCommand('sh', [
+    '-c',
+    `
+container_name="$1"
+timeout_seconds="$2"
+cleanup_timeout_seconds="$3"
+docker rm -f -v "$container_name" >/dev/null 2>&1 || true
+docker run --name "$container_name" --rm --pull missing alpine:latest true &
+docker_pid="$!"
+elapsed=0
+while [ "$elapsed" -lt "$timeout_seconds" ]; do
+  if ! kill -0 "$docker_pid" 2>/dev/null; then
+    wait "$docker_pid"
+    exit "$?"
+  fi
+  sleep 1
+  elapsed=$((elapsed + 1))
+done
+echo "Timed out after ${timeoutSeconds}s while starting a disposable Alpine container." >&2
+kill -9 "$docker_pid" 2>/dev/null || true
+docker rm -f -v "$container_name" >/dev/null 2>&1 &
+cleanup_pid="$!"
+cleanup_elapsed=0
+while [ "$cleanup_elapsed" -lt "$cleanup_timeout_seconds" ]; do
+  if ! kill -0 "$cleanup_pid" 2>/dev/null; then
+    wait "$cleanup_pid"
+    echo "Removed disposable preflight container $container_name after the timed-out start probe." >&2
+    exit 124
+  fi
+  sleep 1
+  cleanup_elapsed=$((cleanup_elapsed + 1))
+done
+echo "Timed out after ${cleanupTimeoutSeconds}s while removing disposable preflight container $container_name." >&2
+kill -9 "$cleanup_pid" 2>/dev/null || true
+exit 124
+`.trim(),
+    'docker-container-start-check',
+    containerName,
+    timeoutSeconds,
+    cleanupTimeoutSeconds,
+  ]);
+
+  if (result.status === 0) {
+    return {
+      details: ['A disposable Alpine container started successfully.'],
+      label,
+      severity: 'ok',
+    };
+  }
+
+  const timedOut =
+    result.status === null ||
+    result.status === 124 ||
+    result.errorMessage?.toLowerCase().includes('etimedout') === true;
+
+  return {
+    details: [
+      timedOut
+        ? `Timed out after ${commandTimeoutMs / 1000}s while starting a disposable Alpine container.`
+        : (firstLine(result.stderr) ??
+          firstLine(result.stdout) ??
+          result.errorMessage ??
+          'Unable to start a disposable Alpine container.'),
+      'Docker can inspect local configuration but cannot start containers; Browser verification and Docker-backed Playwright are blocked below the app tooling layer.',
+      `Attempted bounded cleanup for disposable preflight container ${containerName}; if Docker removal also times out, restart Docker Desktop or the Docker engine.`,
+    ],
+    label,
+    severity: 'failure',
+  };
+};
+
+const localDatabaseHosts = new Set(['127.0.0.1', '::1', 'localhost']);
+
+const normalizedHost = (host: string): string =>
+  host.replaceAll(/^\[|\]$/g, '');
+
+const databaseConnectivityCheck = (
+  environment: NodeJS.ProcessEnv,
+  runCommand: (
+    command: string,
+    commandArguments: readonly string[],
+  ) => CommandResult,
+): RuntimeCheck => {
+  const databaseUrl = environment['DATABASE_URL']?.trim();
+  const label = 'Database endpoint';
+
+  if (!databaseUrl) {
+    return {
+      details: ['DATABASE_URL is missing; the dev server cannot render pages.'],
+      label,
+      severity: 'failure',
+    };
+  }
+
+  let parsedDatabaseUrl: URL;
+  try {
+    parsedDatabaseUrl = new URL(databaseUrl);
+  } catch {
+    return {
+      details: ['DATABASE_URL is not a valid URL.'],
+      label,
+      severity: 'failure',
+    };
+  }
+
+  const host = normalizedHost(parsedDatabaseUrl.hostname);
+  const port = parsedDatabaseUrl.port || '5432';
+  if (!localDatabaseHosts.has(host)) {
+    return {
+      details: [
+        `DATABASE_URL uses non-local host ${host}; skipping local port probe.`,
+      ],
+      label,
+      severity: 'ok',
+    };
+  }
+
+  const result = runCommand('nc', ['-z', host, port]);
+  if (result.status === 0) {
+    return {
+      details: [`DATABASE_URL endpoint ${host}:${port} is reachable.`],
+      label,
+      severity: 'ok',
+    };
+  }
+
+  return {
+    details: [
+      `DATABASE_URL points at ${host}:${port}, but no local database endpoint is reachable.`,
+      'Start the generated Docker stack with bun run docker:start, or set DATABASE_URL to a reachable database before bun run dev:start.',
+      firstLine(result.stderr) ??
+        firstLine(result.stdout) ??
+        'Port probe failed.',
+    ],
+    label,
+    severity: 'failure',
   };
 };
 
@@ -368,7 +632,7 @@ export const evaluateRuntimePreflight = (
     isPresent(env, name),
   );
   const checks: RuntimeCheck[] = [
-    runtimeTargetCheck(target, environment),
+    runtimeTargetCheck(target, env),
     {
       details:
         missingVariables.length > 0
@@ -389,7 +653,7 @@ export const evaluateRuntimePreflight = (
       label: `Available ${target} runtime variables`,
       severity: 'ok',
     },
-    developerSecretsFileCheck(cwd, environment, fileExists, missingVariables),
+    developerSecretsFileCheck(cwd, env, fileExists, missingVariables),
     {
       details:
         optionalByTarget[target].length > 0
@@ -411,29 +675,35 @@ export const evaluateRuntimePreflight = (
       severity: fileExists(path.join(cwd, '.env.dev')) ? 'ok' : 'failure',
     },
     commandCheck('Bun runtime', 'bun', ['--version'], 'failure', runCommand),
-    commandCheck(
-      'Docker Compose',
-      'docker',
-      ['compose', 'version'],
-      'failure',
-      runCommand,
-    ),
-    commandCheck(
-      'Docker Compose config',
-      'docker',
-      ['compose', 'config', '--quiet'],
-      'failure',
-      runCommand,
-    ),
-    commandCheck(
-      'Playwright CLI',
-      'bunx',
-      ['playwright', '--version'],
-      'warning',
-      runCommand,
-    ),
-    stripeWebhookSecretSourceCheck(env),
-    playwrightBrowserCheck(env, fileExists, runCommand),
+    ...(target === 'dev'
+      ? [databaseConnectivityCheck(env, runCommand)]
+      : [
+          commandCheck(
+            'Docker Compose',
+            'docker',
+            ['compose', 'version'],
+            'failure',
+            runCommand,
+          ),
+          commandCheck(
+            'Docker Compose config',
+            'docker',
+            ['compose', 'config', '--quiet'],
+            'failure',
+            runCommand,
+          ),
+          dockerContainerStartCheck(runCommand),
+          dockerComposeProjectContainerCheck(runCommand),
+          commandCheck(
+            'Playwright CLI',
+            'bunx',
+            ['playwright', '--version'],
+            'warning',
+            runCommand,
+          ),
+          stripeWebhookSecretSourceCheck(env),
+          playwrightBrowserCheck(env, fileExists, runCommand),
+        ]),
   ];
 
   return {
@@ -463,8 +733,9 @@ const printResult = (
   }
 
   if (result.failed) {
+    const targetLabel = target === 'docker' ? 'Docker' : 'the dev server';
     console.log(
-      'Fix failed checks before starting Docker. Use .env.example as the checklist, then add secret values to .env or export them in the shell when variables are missing.',
+      `Fix failed checks before starting ${targetLabel}. Use .env.example as the checklist, then add secret values to .env or export them in the shell when variables are missing.`,
     );
   }
 

@@ -370,9 +370,11 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'helpers/testing/runtime-preflight.ts'),
       'utf8',
     );
-    expect(runtimePreflight).toContain('Health?: unknown');
-    expect(runtimePreflight).toContain('[parsed as ComposeContainer]');
-    expect(runtimePreflight).toContain("health === 'unhealthy'");
+    expect(runtimePreflight).toContain('isCleanupTarget');
+    expect(runtimePreflight).toContain('parseComposeContainers');
+    expect(runtimePreflight).toContain(
+      "} from './remove-stale-compose-containers';",
+    );
     expect(runtimePreflight).toContain(
       'created/dead/removing or unhealthy containers',
     );

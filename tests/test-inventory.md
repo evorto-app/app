@@ -1035,7 +1035,10 @@ provider outcomes without live identifiers.
   stabilization-source guards keep the workflow wired to those helpers while
   checking the bounded Docker preflight, bounded Compose image pre-pull,
   bounded Compose shutdown, per-container force removal, and two-hour
-  active-test TTL pruning behavior.
+  active-test TTL pruning behavior. Runtime preflight reuses the same
+  stale/unhealthy Compose container parser and target predicate as
+  `bun run docker:clean-stale`, so diagnostics and cleanup cannot drift on
+  which generated containers are considered cleanup targets.
   The cleanup helper also supports
   `NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id>` for the exact confirmed
   inactive branch reported by the cleanup summary, while still refusing
