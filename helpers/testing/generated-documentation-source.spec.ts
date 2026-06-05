@@ -866,13 +866,24 @@ describe('generated docs source current behavior', () => {
     expect(unlistedUserSource).toContain(
       'Expected a second approved listed event for unlisted docs list context',
     );
-    expect(unlistedUserSource).toContain('set({ unlisted: true })');
+    expect(unlistedUserSource).toContain('const listedContextEvent =');
+    expect(unlistedUserSource).toContain('const visibleListedEventLink =');
+    expect(unlistedUserSource).toContain("locator('app-event-list nav a')");
     expect(unlistedUserSource).toContain(
+      "has: page.getByRole('heading', { level: 2, name: eventTitle })",
+    );
+    expect(unlistedUserSource).toContain(
+      'Visible listed event card while the unlisted event is hidden from the event list',
+    );
+    expect(unlistedUserSource).toContain('set({ unlisted: true })');
+    expect(unlistedUserSource).not.toContain(
       "page.locator('app-event-list nav a').first()",
     );
-    expect(unlistedUserSource).toContain("page.locator('app-event-list nav')");
-    expect(unlistedUserSource).toContain(
+    expect(unlistedUserSource).not.toContain(
       'User-facing events list with visible events while unlisted event stays hidden',
+    );
+    expect(unlistedUserSource).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-event-list nav').first(),",
     );
     expect(unlistedUserSource).toContain('eventRegistrationSection');
     expect(unlistedUserSource).toContain(

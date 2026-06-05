@@ -41,6 +41,14 @@ const eventRegistrationSection = (page: Page): Locator =>
     })
     .first();
 
+const visibleListedEventLink = (page: Page, eventTitle: string): Locator =>
+  page
+    .locator('app-event-list nav a')
+    .filter({
+      has: page.getByRole('heading', { level: 2, name: eventTitle }),
+    })
+    .first();
+
 test('User: understanding unlisted events', async ({
   database,
   events,
@@ -50,7 +58,8 @@ test('User: understanding unlisted events', async ({
   if (!event) {
     throw new Error('Expected an approved listed event in the seeded events');
   }
-  if (!findDifferentApprovedListedEvent(events, event.id)) {
+  const listedContextEvent = findDifferentApprovedListedEvent(events, event.id);
+  if (!listedContextEvent) {
     throw new Error(
       'Expected a second approved listed event for unlisted docs list context',
     );
@@ -79,12 +88,16 @@ What this means for you:
     });
 
     await expect(page.getByRole('link', { name: event.title })).toHaveCount(0);
-    await expect(page.locator('app-event-list nav a').first()).toBeVisible();
+    const visibleListedEvent = visibleListedEventLink(
+      page,
+      listedContextEvent.title,
+    );
+    await expect(visibleListedEvent).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-event-list nav').first(),
+      visibleListedEvent,
       page,
-      'User-facing events list with visible events while unlisted event stays hidden',
+      'Visible listed event card while the unlisted event is hidden from the event list',
     );
 
     await page.goto(`/events/${event.id}`);
