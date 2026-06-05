@@ -3442,6 +3442,9 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['dev:check']).toBe(
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
     );
+    expect(packageJson.scripts['dev:bootstrap']).toBe(
+      "sh -c '[ -f .env ] || bun run env:copy-main' && bun run dev:check",
+    );
     expect(packageJson.scripts['dev:start']).toContain('bun run dev:check');
     expect(packageJson.scripts['dev:start']).toContain('--host 0.0.0.0');
     expect(helpersReadme).toContain(
@@ -3508,8 +3511,11 @@ describe('stabilization source', () => {
       "fs.existsSync(path.join(repositoryRoot, '.env.dev'))",
     );
     expect(helpersReadme).toContain('bun run env:copy-main');
+    expect(helpersReadme).toContain('bun run dev:bootstrap');
     expect(testsReadme).toContain('bun run env:copy-main');
+    expect(testsReadme).toContain('bun run dev:bootstrap');
     expect(source).toContain('`bun run env:copy-main`');
+    expect(source).toContain('`bun run dev:bootstrap`');
     expect(runtimePreflightSpec).toContain(
       'points missing-secret worktrees at the main checkout env file when it exists',
     );
@@ -3527,6 +3533,7 @@ describe('stabilization source', () => {
     );
     expect(testsReadme).toContain('sibling main checkout `.env`');
     expect(inventory).toContain('missing-secret recovery hint');
+    expect(inventory).toContain('bun run dev:bootstrap');
     expect(inventory).toContain(
       'helpers/testing/copy-main-environment.spec.ts',
     );

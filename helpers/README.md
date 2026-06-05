@@ -85,6 +85,9 @@ Use `bun run dev:status` for a combined non-mutating local runtime report. It
 refreshes `.env.dev`, runs the development preflight, runs the Docker preflight,
 and runs the Neon Local cleanup dry-run in one pass so Docker failures do not
 hide branch-cleanup status or missing development variables.
+Use `bun run dev:bootstrap` in a fresh worktree to copy the main checkout `.env`
+only when this worktree does not already have one, then run the normal
+`dev:check` preflight.
 
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 

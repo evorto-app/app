@@ -161,8 +161,9 @@ bun run lint
   exists; `.env.dev` remains generated per worktree and the main checkout
   `.npmrc` must not be copied. It reads `$HOME/code/<repo>/.env` by default,
   supports `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite an
-  existing worktree `.env` unless rerun with `--force`. Codex
-  setup also writes the
+  existing worktree `.env` unless rerun with `--force`. `bun run dev:bootstrap`
+  is the fresh-worktree shortcut: copy `.env` only when it is missing, then run
+  the normal `dev:check` preflight. Codex setup also writes the
   temporary public Font Awesome npm user config before `bun install` and reuses
   the Bun package cache. CI dependency-install workflows call
   `.github/actions/setup-bun-dependency-caches/action.yml` for Bun setup, the

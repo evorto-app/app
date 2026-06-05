@@ -1930,6 +1930,9 @@ the current working direction until a product decision overrides them.
   helper coverage now exercises the default copy path, explicit checkout
   override, overwrite refusal, forced replacement, missing-source checklist
   message, and `.env.dev`/`.npmrc` boundaries.
+- `bun run dev:bootstrap` is the fresh-worktree shortcut for that recovery path:
+  it copies `.env` from the main checkout only when this worktree does not
+  already have one, then runs the normal `dev:check` preflight.
 - Local Playwright package scripts that run `playwright test`, plus `dev:start`,
   `db:*`, and `docker:*`, now refresh `.env.dev` before running
   `dotenv -c dev`, reducing fresh-worktree and wrong-database risk.

@@ -290,7 +290,16 @@ describe('evaluateRuntimePreflight', () => {
       'bun run docker:check && dotenv -c dev -- docker compose up --no-recreate -d',
     );
     expect(packageJson.scripts['docker:webserver']).toBe(
-      'bun run docker:check && dotenv -c dev -- docker compose up --build',
+      'bun run docker:check && dotenv -c dev -- docker compose rm --force && dotenv -c dev -- docker compose up --build',
+    );
+    expect(packageJson.scripts['dev:check']).toBe(
+      'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
+    );
+    expect(packageJson.scripts['dev:bootstrap']).toBe(
+      "sh -c '[ -f .env ] || bun run env:copy-main' && bun run dev:check",
+    );
+    expect(packageJson.scripts['dev:start']).toBe(
+      'bun run dev:check && dotenv -c dev -- sh -c \'bunx --bun ng serve --host 0.0.0.0 --port "$APP_HOST_PORT"\'',
     );
 
     const playwrightConfig = fs.readFileSync(
@@ -1421,6 +1430,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['env:copy-main']).toBe(
       'bun helpers/testing/copy-main-environment.ts',
     );
+    expect(packageJson.scripts['dev:bootstrap']).toBe(
+      "sh -c '[ -f .env ] || bun run env:copy-main' && bun run dev:check",
+    );
     expect(helper).toContain('env?: NodeJS.ProcessEnv');
     expect(helper).toContain('const environment = options.env ?? process.env');
     expect(helper).toContain("environment['MAIN_CHECKOUT_DIR']");
@@ -1437,11 +1449,14 @@ describe('evaluateRuntimePreflight', () => {
     expect(helper).toContain('Do not copy .env.dev or .npmrc');
     expect(helper).not.toContain("'.env.dev'");
     expect(helpersReadme).toContain('bun run env:copy-main');
+    expect(helpersReadme).toContain('bun run dev:bootstrap');
     expect(helpersReadme).toContain('MAIN_CHECKOUT_DIR=/path/to/repo');
     expect(helpersReadme).toContain('unless rerun with `--force`');
     expect(testsReadme).toContain('bun run env:copy-main');
+    expect(testsReadme).toContain('bun run dev:bootstrap');
     expect(testsReadme).toContain('MAIN_CHECKOUT_DIR=/path/to/repo');
     expect(stabilization).toContain('`bun run env:copy-main`');
+    expect(stabilization).toContain('`bun run dev:bootstrap`');
     expect(stabilization).toContain('Generated `.env.dev` remains');
   });
 
