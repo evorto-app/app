@@ -3255,18 +3255,18 @@ describe('stabilization source', () => {
       'stable logged-in starting points without running the full viewport pack',
     );
     expect(statusTable).toContain(
-      'Current PR status refreshes show head `551daa5f4`',
+      'Current PR status refreshes show head `5c196e7d0`',
     );
     expect(statusTable).toContain(
       'static/setup checks plus the serial cache warmer green',
     );
     expect(statusTable).toContain('latest local Neon cleanup reported');
-    expect(statusTable).toContain('`total=1`');
+    expect(statusTable).toContain('`total=2`');
     expect(statusTable).toContain('`protected=1`');
-    expect(statusTable).toContain('`active_test=0`');
+    expect(statusTable).toContain('`active_test=1`');
     expect(statusTable).toContain('`stale_deleted=0`');
     expect(statusTable).toContain(
-      'only protected `main` remained visible outside active worker ownership',
+      'only protected `main` plus one in-TTL active test branch remained visible outside stale cleanup eligibility',
     );
     expect(statusTable).not.toContain(
       'Current PR status refreshes show visible checks green',
