@@ -37,6 +37,13 @@ const createdProfileSummarySurface = (
     .filter({ hasText: 'Edit profile' })
     .first();
 
+const createAccountLoginSurface = (page: Page): Locator =>
+  page
+    .locator('app-navigation')
+    .filter({ has: page.getByRole('link', { name: 'Events' }) })
+    .filter({ has: page.getByRole('link', { name: 'Login' }) })
+    .first();
+
 const createAccountFormSurface = (page: Page): Locator =>
   page
     .locator('app-create-account form')
@@ -149,11 +156,13 @@ Open the app page and click on the **Login** link.`,
     await page.getByRole('link', { name: 'Login' }).first().waitFor({
       state: 'visible',
     });
+    const loginSurface = createAccountLoginSurface(page);
+    await expect(loginSurface).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByRole('link', { name: 'Login' }),
+      loginSurface,
       page,
-      'Login link on desktop browsers',
+      'Application navigation showing the login entry point',
     );
     await page.getByRole('link', { name: 'Login' }).click();
     await testInfo.attach('markdown', {

@@ -5542,6 +5542,9 @@ only the standalone create link.
 The finance-overview generated doc now screenshots the permission-scoped
 navigation surface containing the transaction, receipt-approval, and
 receipt-reimbursement links instead of highlighting only one finance card.
+The create-account generated doc now screenshots the app navigation containing
+the Events and Login entry points before entering Auth0 instead of highlighting
+only the standalone Login link.
 The registration generated doc now uses concrete registration option and active
 registration card targets for free, ineligible, paid, and post-payment states
 instead of highlighting section headings or a single action button.

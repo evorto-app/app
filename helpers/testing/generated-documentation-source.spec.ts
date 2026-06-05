@@ -1077,6 +1077,18 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Profile page after tenant account creation succeeds',
     );
+    expect(source).toContain('createAccountLoginSurface');
+    expect(source).toContain("locator('app-navigation')");
+    expect(source).toContain(
+      "filter({ has: page.getByRole('link', { name: 'Events' }) })",
+    );
+    expect(source).toContain(
+      "filter({ has: page.getByRole('link', { name: 'Login' }) })",
+    );
+    expect(source).toContain('const loginSurface =');
+    expect(source).toContain(
+      'Application navigation showing the login entry point',
+    );
     expect(source).toContain('createAccountFormSurface');
     expect(source).toContain("locator('app-create-account form')");
     expect(source).toContain(
@@ -1095,6 +1107,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.getByRole('heading', {\n        level: 1,\n        name: `${newUser.firstName} ${newUser.lastName}`,\n      }),\n      page,\n      'Profile page after tenant account creation succeeds'",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.getByRole('link', { name: 'Login' }),",
     );
     expect(source).not.toContain(
       "const createAccountForm = page\n      .locator('form')\n      .filter({ has: createAccountButton })\n      .first();",
