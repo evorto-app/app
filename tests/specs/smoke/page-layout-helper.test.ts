@@ -355,3 +355,34 @@ test('shared page layout helper ignores Material paginator touch target overlap'
 
   await expect(readPageLayout(page)).resolves.toEqual(expectedStablePageLayout);
 });
+
+test('shared page layout helper treats nested control icons as the same surface', async ({
+  page,
+}) => {
+  await page.setViewportSize({ height: 740, width: 320 });
+  await page.setContent(`
+    <style>
+      a {
+        display: inline-flex;
+        gap: 8px;
+        margin: 24px;
+        padding: 12px 16px;
+      }
+
+      .icon {
+        display: inline-block;
+        height: 24px;
+        width: 24px;
+      }
+    </style>
+    <main>
+      <h1>Nested icon control page</h1>
+      <a href="/tenants">
+        <span class="icon" aria-hidden="true"></span>
+        Review tenant
+      </a>
+    </main>
+  `);
+
+  await expect(readPageLayout(page)).resolves.toEqual(expectedStablePageLayout);
+});

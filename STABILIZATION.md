@@ -3891,7 +3891,15 @@ fallback rather than a profile discount-card defect.
   A fresh June 5, 2026 `bun run test:e2e:layout-helper` run at PR head
   `877493157` regenerated `.env.dev`, pinned ignored repository-local
   `DOCS_OUT_DIR` and `DOCS_IMG_OUT_DIR`, kept `NO_WEBSERVER=true`, and passed
-  all four no-app-startup layout-helper tests in 3.6 seconds. A same-check
+  all four no-app-startup layout-helper tests in 3.6 seconds. A later
+  `ccddcd67` functional-1 artifact showed the global-admin tenant list could
+  false-positive when a control center hit its own nested icon, so the shared
+  helper now treats nested icon/text hit targets as the same interactive
+  surface. The follow-up local `bun run test:e2e:layout-helper` run passed all
+  five no-app-startup layout-helper tests in 3.1 seconds. The same follow-up
+  removes a parallel-seed contention point by giving seeded reimbursement
+  receipts a tenant-local payout user instead of updating the shared organizer
+  user row during every tenant seed. A same-check
   `bun run docker:ps` showed no generated Compose project containers, and
   `bun run docker:check` still failed only at `Docker container start path` with
   the bounded disposable Alpine timeout, so fresh Browser route/mobile layout

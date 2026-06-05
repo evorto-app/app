@@ -5591,6 +5591,10 @@ describe('stabilization source', () => {
       "!element.classList.contains('mat-mdc-button-touch-target')",
     );
     expect(pageLayoutHelper).toContain('isSameMaterialFormFieldDecoration');
+    expect(pageLayoutHelper).toContain('isSameInteractiveSurface');
+    expect(pageLayoutHelper).toContain(
+      'hitTarget.closest(interactiveSelector)',
+    );
     expect(pageLayoutHelper).toContain('hasVerticalScrollRemaining');
     expect(pageLayoutHelper).toContain('isRecoverableMobileNavigationOverlap');
     expect(pageLayoutHelper).toContain("hitTarget.closest('.navigation')");
@@ -5660,6 +5664,11 @@ describe('stabilization source', () => {
     );
     expect(pageLayoutHelperSpec).toContain('mat-mdc-paginator-touch-target');
     expect(pageLayoutHelperSpec).toContain('Items per page:');
+    expect(pageLayoutHelperSpec).toContain(
+      'shared page layout helper treats nested control icons as the same surface',
+    );
+    expect(pageLayoutHelperSpec).toContain('Nested icon control page');
+    expect(pageLayoutHelperSpec).toContain('Review tenant');
     expect(pageLayoutHelperSpec).toContain('horizontalOverflow');
     expect(pageLayoutHelperSpec).toContain(
       'horizontallyOverflowingElementLabels',
@@ -5681,7 +5690,7 @@ describe('stabilization source', () => {
       'pinned ignored repository-local\n  `DOCS_OUT_DIR` and `DOCS_IMG_OUT_DIR`',
     );
     expect(source).toMatch(
-      /passed\s+all four no-app-startup layout-helper tests/u,
+      /passed\s+all\s+five no-app-startup layout-helper tests/u,
     );
     expect(source).toContain(
       '`bun run docker:ps` showed no generated Compose project containers',
@@ -5733,7 +5742,7 @@ describe('stabilization source', () => {
     expect(source).toContain('local head `bb9431e66`');
     expect(source).toContain('passed all three layout-helper tests');
     expect(source).toContain('pushed-head fix `a9d4544e1`');
-    expect(source).toContain('passed all four layout-helper tests');
+    expect(source).toMatch(/passed\s+all\s+five no-app-startup/u);
     expect(source).toContain('same-paginator touch-target overlap');
     expect(source).toContain('`.mat-mdc-paginator-touch-target`');
     expect(source).toContain('`/finance/transactions` and\n  `/admin/users`');
