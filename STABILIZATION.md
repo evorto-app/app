@@ -5539,6 +5539,10 @@ instead of highlighting a whole repeated page area by accident.
 The registration generated doc now uses concrete registration option and active
 registration card targets for free, ineligible, paid, and post-payment states
 instead of highlighting section headings or a single action button.
+The create-account generated doc now screenshots the tenant-account form through
+the `app-create-account` form containing the editable Notification email field
+and Create Account action, so the integration guide is not anchored to a generic
+first matching page form.
 The global-admin generated doc now uses concrete tenant summary, empty search,
 scope boundary, detail review, and edit-form surfaces for its screenshot
 targets instead of highlighting page or card headings.

@@ -37,6 +37,17 @@ const createdProfileSummarySurface = (
     .filter({ hasText: 'Edit profile' })
     .first();
 
+const createAccountFormSurface = (page: Page): Locator =>
+  page
+    .locator('app-create-account form')
+    .filter({
+      has: page.getByRole('textbox', { name: 'Notification email' }),
+    })
+    .filter({
+      has: page.getByRole('button', { exact: true, name: 'Create Account' }),
+    })
+    .first();
+
 test('Understand tenant account creation', async ({}, testInfo) => {
   expect(
     createAccountModelFromAuthData(
@@ -185,10 +196,7 @@ Review the prefilled first name, last name, and **Notification email** address, 
 
 If the same global login already exists for another tenant, this step joins the current tenant instead of creating a duplicate global user. If account creation fails, the form shows the server error and lets you retry after resolving the issue.`,
     });
-    const createAccountForm = page
-      .locator('form')
-      .filter({ has: createAccountButton })
-      .first();
+    const createAccountForm = createAccountFormSurface(page);
     await createAccountForm.waitFor({ state: 'visible' });
     await expect(
       createAccountForm.getByRole('textbox', { name: 'Notification email' }),

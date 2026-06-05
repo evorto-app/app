@@ -1077,6 +1077,14 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Profile page after tenant account creation succeeds',
     );
+    expect(source).toContain('createAccountFormSurface');
+    expect(source).toContain("locator('app-create-account form')");
+    expect(source).toContain(
+      "has: page.getByRole('textbox', { name: 'Notification email' })",
+    );
+    expect(source).toContain(
+      "has: page.getByRole('button', { exact: true, name: 'Create Account' })",
+    );
     expect(source).toContain('createdProfileSummarySurface');
     expect(source).toContain("locator('app-user-profile section')");
     expect(source).toContain('filter({ hasText: input.fullName })');
@@ -1087,6 +1095,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.getByRole('heading', {\n        level: 1,\n        name: `${newUser.firstName} ${newUser.lastName}`,\n      }),\n      page,\n      'Profile page after tenant account creation succeeds'",
+    );
+    expect(source).not.toContain(
+      "const createAccountForm = page\n      .locator('form')\n      .filter({ has: createAccountButton })\n      .first();",
     );
     expect(source).not.toContain('login email as your notification email');
     expect(source).not.toContain('tenant-specific notification email');
