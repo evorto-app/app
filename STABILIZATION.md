@@ -745,9 +745,11 @@ the current working direction until a product decision overrides them.
 - `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations; unpaid self-service transfer copy; paid transfer-code copy; cancellation/transfer/code action disabling; target-email normalization; and transfer/resale-unavailable notes for pending, waitlisted, and blocked confirmed active registrations.
 - `tests/docs/events/event-approval.doc.ts` now creates a deterministic
   approval-flow event, reads back draft submission, rejection feedback,
-  resubmission, and approval states from the database, screenshots the review
-  action and rejected-status surfaces instead of only isolated status/comment
-  text, and cleans up generated event rows after the documentation journey.
+  resubmission, and approval states from the database, screenshots the submit
+  confirmation dialog, review action surface, reject-comment dialog,
+  rejected-status surface, and published state instead of only isolated
+  status/comment text, and cleans up generated event rows after the
+  documentation journey.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-user.doc.ts` covers the participant-facing
   direct-link explanation for unlisted event details by hiding a deterministic

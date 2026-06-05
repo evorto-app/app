@@ -472,7 +472,7 @@ describe('generated docs source current behavior', () => {
     const expectedScreenshotCounts = new Map([
       ['tests/docs/admin/general-settings.doc.ts', 5],
       ['tests/docs/admin/global-admin.doc.ts', 6],
-      ['tests/docs/events/event-approval.doc.ts', 4],
+      ['tests/docs/events/event-approval.doc.ts', 6],
       ['tests/docs/events/event-management.doc.ts', 7],
       ['tests/docs/events/register.doc.ts', 13],
       ['tests/docs/events/unlisted-user.doc.ts', 2],
@@ -1462,6 +1462,22 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Approval Flow ${seedDate.getTime()}');
     expect(source).toContain('Expected generated approval docs event to exist');
     expect(source).toContain('const eventStatusSurface =');
+    expect(source).toContain('const submitForReviewDialogSurface =');
+    expect(source).toContain('const rejectEventDialogSurface =');
+    expect(source).toContain(
+      "has: page.getByRole('heading', { name: 'Submit Event for Review' })",
+    );
+    expect(source).toContain(
+      'locked for editing until it is either approved or rejected',
+    );
+    expect(source).toContain(
+      "has: page.getByRole('heading', { name: 'Review Event' })",
+    );
+    expect(source).toContain("has: page.getByLabel('Review Comment')");
+    expect(source).toContain('Submit event for review confirmation dialog');
+    expect(source).toContain(
+      'Reject event dialog with required review comment field',
+    );
     expect(source).toContain("eventStatusSurface(page, 'Pending Review')");
     expect(source).toContain('const rejectedStatusSurface =');
     expect(source).toContain('eventStatusSurface(page, [');
@@ -1482,6 +1498,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.locator('app-event-status').first(),",
+    );
+    expect(source).not.toContain(
+      "page\n      .locator('mat-dialog-container')\n      .first()\n      .getByRole('button', { name: 'Submit for Review' })",
     );
     expect(source).not.toContain('final published state');
     expect(source).toContain('.delete(schema.eventRegistrationOptions)');
