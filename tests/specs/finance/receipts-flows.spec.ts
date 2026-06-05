@@ -6,13 +6,12 @@ import { eq } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import { adminStateFile } from '../../../helpers/user-data';
+import { createId } from '../../../src/db/create-id';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({ storageState: adminStateFile });
-
-const organizerUserId = 'ef7d925a3b3d9a50831a';
 
 const openEventOrganizePage = async (page: Page, eventId: string) => {
   await page.goto(`/events/${eventId}/organize`);
@@ -145,13 +144,24 @@ test.skip('approve and record receipt reimbursements in finance', async ({
   const seededEventId = seeded.scenario.events.past.eventId;
   const receiptId = getId();
   const receiptFileName = `approval-reimbursement-${seedDate.getTime()}.pdf`;
+  const reimbursementUserId = createId();
+  await database.insert(schema.users).values({
+    auth0Id: `receipt-flow-${reimbursementUserId}`,
+    communicationEmail: `receipt-flow-${reimbursementUserId}@example.com`,
+    email: `receipt-flow-${reimbursementUserId}@example.com`,
+    firstName: 'Receipt',
+    iban: 'DE00123456781234567890',
+    id: reimbursementUserId,
+    lastName: 'Recipient',
+    paypalEmail: 'organizer-refunds@example.com',
+  });
   await seedPendingReceiptForApproval({
     database,
     eventId: seededEventId,
     receiptFileName,
     receiptId,
     seedDate,
-    submittedByUserId: organizerUserId,
+    submittedByUserId: reimbursementUserId,
     tenantId: tenant.id,
   });
 

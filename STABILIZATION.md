@@ -3898,8 +3898,10 @@ fallback rather than a profile discount-card defect.
   surface. The follow-up local `bun run test:e2e:layout-helper` run passed all
   five no-app-startup layout-helper tests in 3.1 seconds. The same follow-up
   removes a parallel-seed contention point by giving seeded reimbursement
-  receipts a tenant-local payout user instead of updating the shared organizer
-  user row during every tenant seed. A same-check
+  receipts a tenant-local payout user with a non-seeded id instead of updating
+  the shared organizer user row during every tenant seed. The finance
+  reimbursement flow spec now seeds its own payout recipient explicitly instead
+  of relying on that broader seed side effect. A same-check
   `bun run docker:ps` showed no generated Compose project containers, and
   `bun run docker:check` still failed only at `Docker container start path` with
   the bounded disposable Alpine timeout, so fresh Browser route/mobile layout
