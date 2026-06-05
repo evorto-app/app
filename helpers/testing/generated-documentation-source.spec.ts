@@ -317,7 +317,11 @@ const findSingleControlScreenshotTargets = (
         return role ? singleControlRoles.has(role) : false;
       }
 
-      if (methodName === 'getByText' || methodName === 'getByLabel') {
+      if (
+        methodName === 'getByText' ||
+        methodName === 'getByLabel' ||
+        methodName === 'getByPlaceholder'
+      ) {
         return true;
       }
 
@@ -581,6 +585,12 @@ describe('generated docs source current behavior', () => {
       );
       await takeScreenshot(
         testInfo,
+        page.getByPlaceholder('Search users'),
+        page,
+        'Single placeholder target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
         profileSummarySurface,
         page,
         'Named surface target with a descriptive caption',
@@ -602,6 +612,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/single-control-target.doc.ts:2:13',
       'tests/docs/example/single-control-target.doc.ts:8:13',
       'tests/docs/example/single-control-target.doc.ts:14:13',
+      'tests/docs/example/single-control-target.doc.ts:20:13',
     ]);
   });
 
