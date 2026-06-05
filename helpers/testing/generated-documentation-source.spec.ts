@@ -1355,8 +1355,19 @@ describe('generated docs source current behavior', () => {
     );
 
     expect(source).toContain('Category docs ${seedDate.getTime()}');
-    expect(source).toContain('categoryDialogForm');
-    expect(source).toContain("page.locator('mat-dialog-container form')");
+    expect(source).toContain('categoryDialogSurface');
+    expect(source).toContain(".locator('mat-dialog-container')");
+    expect(source).toContain(
+      "filter({ has: page.getByRole('heading', { name: title }) })",
+    );
+    expect(source).toContain(
+      "filter({ has: page.getByRole('textbox', { name: 'Category title' }) })",
+    );
+    expect(source).toContain(
+      "filter({ has: page.getByRole('button', { name: 'Save' }) })",
+    );
+    expect(source).toContain("'Create a new category'");
+    expect(source).toContain("'Edit category'");
     expect(source).toContain(
       'Template category create dialog with title and save action',
     );
@@ -1367,6 +1378,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Updated template category row after renaming');
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.getByRole('textbox', { name: 'Category title' }),",
+    );
+    expect(source).not.toContain(
+      "const categoryDialogForm = (page: Page): Locator =>\n  page.locator('mat-dialog-container form').first();",
     );
     expect(source).toContain(
       'Expected generated category docs to persist the category',

@@ -100,7 +100,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/template-categories/categories.doc.ts`
     documents the category create/edit dialog states, save actions, and
     saved/renamed rows with focused screenshots plus deterministic persistence
-    checks
+    checks; the dialog screenshots target the expected create/edit heading,
+    Category title field, and Save action instead of the first open dialog form
   - `specs/templates/**`
   - template create/detail/tax-rate specs that fail explicitly when seeded
     template categories/templates or reusable attachment/question readbacks are

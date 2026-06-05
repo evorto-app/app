@@ -8,8 +8,13 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-const categoryDialogForm = (page: Page): Locator =>
-  page.locator('mat-dialog-container form').first();
+const categoryDialogSurface = (page: Page, title: string): Locator =>
+  page
+    .locator('mat-dialog-container')
+    .filter({ has: page.getByRole('heading', { name: title }) })
+    .filter({ has: page.getByRole('textbox', { name: 'Category title' }) })
+    .filter({ has: page.getByRole('button', { name: 'Save' }) })
+    .first();
 
 test('Manage template categories', async ({
   database,
@@ -48,7 +53,10 @@ Click on _Create category_ to create a new category.`,
     await expect(
       page.getByRole('textbox', { name: 'Category title' }),
     ).toBeVisible();
-    const createCategoryForm = categoryDialogForm(page);
+    const createCategoryForm = categoryDialogSurface(
+      page,
+      'Create a new category',
+    );
     await expect(
       createCategoryForm.getByRole('button', { name: 'Save' }),
     ).toBeVisible();
@@ -104,7 +112,7 @@ After you have changed the name, click on _Save_ to save your changes.`,
     await expect(
       page.getByRole('textbox', { name: 'Category title' }),
     ).toHaveValue(categoryTitle);
-    const editCategoryForm = categoryDialogForm(page);
+    const editCategoryForm = categoryDialogSurface(page, 'Edit category');
     await expect(
       editCategoryForm.getByRole('button', { name: 'Save' }),
     ).toBeVisible();

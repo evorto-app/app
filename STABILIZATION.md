@@ -894,7 +894,9 @@ the current working direction until a product decision overrides them.
   category create/edit with focused screenshots for the create dialog and save
   action, saved row, edit dialog with the existing title loaded, and renamed
   row, plus deterministic category names, database readbacks for created and
-  edited rows, and cleanup of the generated category.
+  edited rows, and cleanup of the generated category. The create/edit dialog
+  screenshots now target the dialog containing the expected heading, Category
+  title field, and Save action instead of relying on the first open dialog form.
 - Template page-backed specs fail explicitly when required seeded template
   categories or templates are missing before create/detail/tax-rate flows use
   them.
