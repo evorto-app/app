@@ -1169,6 +1169,10 @@ describe('stabilization source', () => {
     expect(source).toContain('highlighted focus-target\n  pixels');
     expect(source).toContain('proves');
     expect(source).toContain('generic page-root screenshot targets');
+    expect(source).toContain('unfiltered broad `section` and `article`');
+    expect(source).toContain('direct single-control `getByRole`');
+    expect(source).toContain('`getByPlaceholder` screenshot targets');
+    expect(source).toContain('target arrays');
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
     expect(source).toContain('Synthetic failing examples');
@@ -1188,6 +1192,10 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/documentation\s+reporter\s+barrel/u);
     expect(inventory).toContain('meaningful literal caption');
     expect(inventory).toMatch(/generic page-root\s+screenshot targets/u);
+    expect(inventory).toContain('role/text/label/placeholder locators');
+    expect(inventory).toContain(
+      'single-control locators inside screenshot target arrays',
+    );
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local screenshot\s+wrappers/u);
     expect(inventory).toContain('self-tests those bypass examples');
@@ -1247,7 +1255,23 @@ describe('stabilization source', () => {
       'findGenericScreenshotTargets',
     );
     expect(generatedDocumentationSource).toContain(
+      'findUnfilteredBroadScreenshotTargets',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'findSingleControlScreenshotTargets',
+    );
+    expect(generatedDocumentationSource).toContain(
       'findScreenshotHelperBypasses',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects unfiltered broad documentation screenshot targets',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects single-control documentation screenshot targets',
+    );
+    expect(generatedDocumentationSource).toContain('getByPlaceholder');
+    expect(generatedDocumentationSource).toContain(
+      'ts.isArrayLiteralExpression(node)',
     );
     expect(generatedDocumentationSource).toContain(
       'detects screenshot helper bypass patterns before generated docs can use them',
