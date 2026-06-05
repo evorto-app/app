@@ -427,10 +427,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   the shared `takeScreenshot` helper imported from the documentation reporter
   barrel with a meaningful literal caption, keeps the helper's runtime caption
   parameter required with the same minimum caption length, verifies generated
-  screenshots include the highlighted focus target before attachment, rejects
-  generic page-root screenshot targets such as `body`, `html`, or `app-root`,
-  covers the
-  weak-caption and missing-highlight runtime failures in reporter-path tests,
+  screenshots include the highlighted focus target and visible non-highlight
+  page content before attachment, rejects generic page-root screenshot targets
+  such as `body`, `html`, or `app-root`, covers the weak-caption,
+  missing-highlight, and blank highlighted-image runtime failures in
+  reporter-path tests,
   rejects uncaptioned image attachments and orphan image-caption attachments
   before generated markdown is written, rejects raw `page.screenshot` calls,
   rejects aliased/helper-internal screenshot imports and local screenshot

@@ -6,6 +6,7 @@ const locatorSettleTimeoutMs = 1_500;
 const snackbarSettleTimeoutMs = 750;
 const highlightedTargetColor = { b: 153, g: 72, r: 236 };
 const minimumHighlightedPixelCount = 16;
+const minimumVisibleContentPixelCount = 128;
 
 export const countDocumentationHighlightPixels = (image: Buffer): number => {
   const png = (() => {
@@ -40,6 +41,39 @@ export const countDocumentationHighlightPixels = (image: Buffer): number => {
   return highlightedPixels;
 };
 
+export const countDocumentationContentPixels = (image: Buffer): number => {
+  const png = (() => {
+    try {
+      return PNG.sync.read(image);
+    } catch {
+      return null;
+    }
+  })();
+  let contentPixels = 0;
+
+  if (!png) {
+    return contentPixels;
+  }
+
+  for (let offset = 0; offset < png.data.length; offset += 4) {
+    const r = png.data[offset];
+    const g = png.data[offset + 1];
+    const b = png.data[offset + 2];
+    const a = png.data[offset + 3];
+    const isHighlight =
+      r === highlightedTargetColor.r &&
+      g === highlightedTargetColor.g &&
+      b === highlightedTargetColor.b;
+    const isNearWhite = r >= 248 && g >= 248 && b >= 248;
+
+    if (a > 0 && !isHighlight && !isNearWhite) {
+      contentPixels += 1;
+    }
+  }
+
+  return contentPixels;
+};
+
 const assertHighlightedTargetCaptured = (image: Buffer): void => {
   const highlightedPixels = countDocumentationHighlightPixels(image);
 
@@ -63,6 +97,16 @@ const ignoreTimeout =
 
     throw error;
   };
+
+const assertVisibleContentCaptured = (image: Buffer): void => {
+  const contentPixels = countDocumentationContentPixels(image);
+
+  if (contentPixels < minimumVisibleContentPixelCount) {
+    throw new Error(
+      'Documentation screenshots must include visible page content outside the highlighted focus target.',
+    );
+  }
+};
 
 const waitForLoadingIndicators = async (page: Page): Promise<void> => {
   const loadingIndicator = page.getByText(/^Loading\b.*$/).first();
@@ -360,6 +404,7 @@ export async function takeScreenshot(
       '.tsqd-parent-container, mat-snack-bar-container, .mat-mdc-snack-bar-container { display: none; }',
   });
   assertHighlightedTargetCaptured(image);
+  assertVisibleContentCaptured(image);
   await testInfo.attach('image', {
     body: image,
     contentType: 'image/png',

@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
+import { PNG } from 'pngjs';
 
 import DocumentationReporter from '../../support/reporters/documentation-reporter';
 import {
+  countDocumentationContentPixels,
   countDocumentationHighlightPixels,
   takeScreenshot,
 } from '../../support/reporters/documentation-reporter/take-screenshot';
@@ -181,6 +183,9 @@ test('documentation screenshot helper captures the highlighted target', async ({
   expect(
     countDocumentationHighlightPixels(imageAttachment?.body ?? Buffer.alloc(0)),
   ).toBeGreaterThanOrEqual(16);
+  expect(
+    countDocumentationContentPixels(imageAttachment?.body ?? Buffer.alloc(0)),
+  ).toBeGreaterThanOrEqual(128);
 });
 
 test('documentation screenshot helper highlights a visible child for zero-box hosts', async ({
@@ -216,6 +221,52 @@ test('documentation screenshot helper highlights a visible child for zero-box ho
     /.+/u,
   );
   await expect(page.locator('[data-docs-highlight-overlay]')).toHaveCount(0);
+});
+
+test('documentation screenshot helper rejects captures without visible page content', async ({
+  page,
+}, testInfo) => {
+  await page.setContent(`
+    <main>
+      <section id="target">Documented UI state</section>
+    </main>
+  `);
+  const originalScreenshot = page.screenshot.bind(page);
+  const png = new PNG({ height: 64, width: 64 });
+  png.data.fill(255);
+  for (let y = 8; y < 16; y += 1) {
+    for (let x = 8; x < 16; x += 1) {
+      const offset = (y * png.width + x) * 4;
+      png.data[offset] = 236;
+      png.data[offset + 1] = 72;
+      png.data[offset + 2] = 153;
+      png.data[offset + 3] = 255;
+    }
+  }
+  const blankHighlightedPng = PNG.sync.write(png);
+  const pageWithScreenshotOverride = page as typeof page & {
+    screenshot: () => Promise<Buffer>;
+  };
+  pageWithScreenshotOverride.screenshot = async () => blankHighlightedPng;
+
+  try {
+    expect(
+      countDocumentationHighlightPixels(blankHighlightedPng),
+    ).toBeGreaterThanOrEqual(16);
+    expect(countDocumentationContentPixels(blankHighlightedPng)).toBe(0);
+    await expect(
+      takeScreenshot(
+        testInfo,
+        page.locator('#target'),
+        page,
+        'Blank highlighted documentation screenshot should fail content check',
+      ),
+    ).rejects.toThrow(
+      'Documentation screenshots must include visible page content outside the highlighted focus target.',
+    );
+  } finally {
+    pageWithScreenshotOverride.screenshot = originalScreenshot;
+  }
 });
 
 test('documentation screenshot helper rejects captures without the highlighted target', async ({

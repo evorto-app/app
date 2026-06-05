@@ -354,8 +354,12 @@ describe('generated docs source current behavior', () => {
     expect(screenshotHelper).toContain("'data-docs-highlight-overlay'");
     expect(screenshotHelper).toContain('element.querySelectorAll');
     expect(screenshotHelper).toContain('countDocumentationHighlightPixels');
+    expect(screenshotHelper).toContain('countDocumentationContentPixels');
     expect(screenshotHelper).toContain(
       'Documentation screenshots must include the highlighted focus target.',
+    );
+    expect(screenshotHelper).toContain(
+      'Documentation screenshots must include visible page content outside the highlighted focus target.',
     );
     expect(screenshotHelper).toContain('caption: string');
     expect(screenshotHelper).toContain('caption.trim().length < 24');
@@ -368,6 +372,11 @@ describe('generated docs source current behavior', () => {
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(
       'documentation screenshot helper highlights a visible child for zero-box hosts',
+    );
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation screenshot helper rejects captures without visible page content',
     );
 
     for (const path of documentFiles) {

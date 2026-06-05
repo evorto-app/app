@@ -3467,10 +3467,12 @@ fallback rather than a profile discount-card defect.
   silently render as an uncaptioned or weakly captioned image even if a future
   docs flow bypasses the source parser. The same helper now parses the captured
   PNG and rejects screenshots that do not include the highlighted focus-target
-  pixels, so a generated-doc attachment cannot pass as a blank or unrelated page
-  image after the target locator is selected. `tests/specs/reporting/reporter-paths.test.ts`
-  covers both the weak-caption runtime failure and the missing-highlight
-  runtime failure without app startup.
+  pixels, then also rejects captures without enough visible non-white,
+  non-highlight page content. A generated-doc attachment therefore cannot pass
+  as a blank page with only the highlight outline or as an unrelated page image
+  after the target locator is selected. `tests/specs/reporting/reporter-paths.test.ts`
+  covers the weak-caption runtime failure, the missing-highlight runtime
+  failure, and the blank highlighted-image runtime failure without app startup.
 - Current docs screenshot-stability checkpoint: the focused generated-docs
   screenshot helper now waits for target locator bounds to stabilize before
   capture, matching the full documentation reporter path. The shared stability
