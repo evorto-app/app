@@ -1669,7 +1669,7 @@ the current working direction until a product decision overrides them.
   global reimbursement details, event-card routing/check-in copy, submitted
   receipt visibility, account-creation retry errors, and existing-global-user
   tenant joins.
-- `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management and now screenshots seeded compatible VAT rows plus the full paid registration option tax-rate controls instead of broad route shells or single-field crops.
+- `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management and now screenshots seeded compatible VAT rows, the filtered Stripe import dialog with VAT/imported chips and the Import selected action, plus the full paid registration option tax-rate controls instead of broad route shells, generic dialog containers, or single-field crops.
 - `src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.spec.ts` covers the local Stripe tax-rate import guard so empty selections and pending imports cannot submit duplicate tax-rate writes.
 - `src/server/effect/rpc/handlers/admin.handlers.spec.ts` covers tenant settings normalization plus the server-side currency/locale/timezone lock once event or payment data exists.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.

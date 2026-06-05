@@ -1126,6 +1126,7 @@ describe('generated docs source current behavior', () => {
 
     expect(source).toContain('taxRateSection');
     expect(source).toContain('taxRateRow');
+    expect(source).toContain('importStripeTaxRatesDialogSurface');
     expect(source).toContain('eventPaidRegistrationOptionForm');
     expect(source).toContain('Compatible Tax Rates');
     expect(source).toContain('txr_1S6a7sPPcz51fqyK4AVB8NSS');
@@ -1134,9 +1135,18 @@ describe('generated docs source current behavior', () => {
       'Compatible inclusive tax-rate rows available for paid registrations',
     );
     expect(source).toContain(
+      'Import Stripe tax rates dialog with compatible imported VAT rows',
+    );
+    expect(source).toContain("importDialog.locator('mat-checkbox').first()");
+    expect(source).toContain("importDialog.getByText('included').first()");
+    expect(source).toContain("importDialog.getByText('imported').first()");
+    expect(source).toContain(
       'Event edit paid registration option tax-rate controls',
     );
     expect(source).toContain('Inclusive tax; shown price is final');
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('mat-dialog-container'),",
+    );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.locator('app-tax-rates-settings'),\n      page,\n      'Tax rates overview showing inclusive rate management'",
     );

@@ -19,6 +19,20 @@ const taxRateSection = (page: Page, heading: string): Locator =>
 const taxRateRow = (section: Locator, providerId: string): Locator =>
   section.locator('tr.mat-mdc-row').filter({ hasText: providerId }).first();
 
+const importStripeTaxRatesDialogSurface = (page: Page): Locator =>
+  page
+    .locator('mat-dialog-container')
+    .filter({
+      has: page.getByRole('heading', { name: 'Import Stripe tax rates' }),
+    })
+    .filter({
+      has: page.getByText(
+        'Only inclusive (VAT-style) and active tax rates are compatible',
+      ),
+    })
+    .filter({ has: page.getByRole('button', { name: 'Import selected' }) })
+    .first();
+
 const eventPaidRegistrationOptionForm = (page: Page): Locator =>
   page
     .locator('app-registration-option-form')
@@ -95,12 +109,22 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
     await expect(
       page.getByRole('heading', { name: 'Import Stripe tax rates' }),
     ).toBeVisible();
+    const importDialog = importStripeTaxRatesDialogSurface(page);
+    await expect(importDialog).toBeVisible();
+    await expect(importDialog.locator('mat-checkbox').first()).toContainText(
+      'VAT',
+    );
+    await expect(importDialog.getByText('included').first()).toBeVisible();
+    await expect(importDialog.getByText('imported').first()).toBeVisible();
+    await expect(
+      importDialog.getByRole('button', { name: 'Import selected' }),
+    ).toBeVisible();
 
     await takeScreenshot(
       testInfo,
-      page.locator('mat-dialog-container'),
+      importDialog,
       page,
-      'Import Stripe tax rates dialog',
+      'Import Stripe tax rates dialog with compatible imported VAT rows',
     );
 
     await testInfo.attach('markdown', {
