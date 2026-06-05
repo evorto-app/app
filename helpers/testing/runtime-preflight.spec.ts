@@ -1124,9 +1124,12 @@ describe('evaluateRuntimePreflight', () => {
       ['test:e2e', 'test:e2e:docs', 'test:e2e:docs:publish'],
       [
         'test:e2e:authenticated-viewports',
+        'test:e2e:mcp-browser-planner',
         'test:e2e:mcp-browser-authenticated-planner',
         'test:e2e:layout-helper',
         'test:e2e:public-general-viewports',
+        'test:e2e:reporter-paths',
+        'test:e2e:doc-screenshot',
       ],
       [
         'docker:start',

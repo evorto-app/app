@@ -118,7 +118,12 @@ bun run lint
   Authentication setup fails fast on the Auth0 `Callback URL mismatch.` page and
   reports the evaluated `BASE_URL` and `APP_HOST_PORT` instead of timing out
   while waiting for the login form.
-- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default. Use `bun run docker:ps` rather than bare `docker compose ps` when checking a worktree stack because the generated `COMPOSE_PROJECT_NAME` must be loaded from `.env.dev`.
+- Local Playwright package scripts that run `playwright test`, plus
+  `dev:start`, `db:*`, and `docker:*`, refresh `.env.dev` before invoking
+  `dotenv -c dev`, so new worktrees get isolated local app/service ports and
+  database URLs by default. Use `bun run docker:ps` rather than bare
+  `docker compose ps` when checking a worktree stack because the generated
+  `COMPOSE_PROJECT_NAME` must be loaded from `.env.dev`.
 - `bun run dev:start` runs `bun run dev:check` before Angular starts. If the
   generated local `DATABASE_URL` points at a closed Neon Local port, the
   preflight fails instead of starting a dev server that returns SSR HTTP 500

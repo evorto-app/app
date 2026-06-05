@@ -89,9 +89,11 @@ For runtime/test details, read:
 - `helpers/README.md`
 - `src/server/config/AGENTS.md`
 
-Local `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*`
-package scripts refresh `.env.dev` before invoking `dotenv -c dev`; use those
-package scripts instead of bare `dotenv` shell commands.
+Local Playwright package scripts that run `playwright test`, plus `dev:start`,
+`db:*`, and `docker:*`, refresh `.env.dev` before invoking `dotenv -c dev`.
+Use those package scripts instead of bare `dotenv` shell commands. The only
+Playwright package script that writes generated docs outside this repository is
+`test:e2e:docs:publish`.
 
 ## Type Safety
 

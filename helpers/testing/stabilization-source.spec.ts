@@ -680,6 +680,7 @@ describe('stabilization source', () => {
     const packageJson = JSON.parse(readSource('package.json')) as {
       scripts: Record<string, string>;
     };
+    const rootAgents = readSource('AGENTS.md');
     const testsReadme = readSource('tests/README.md');
     const documentationReporter = readSource(
       'tests/support/reporters/documentation-reporter.ts',
@@ -702,6 +703,13 @@ describe('stabilization source', () => {
     expect(source).toContain('bun run test:e2e:docs:publish');
     expect(testsReadme).toContain(
       'Playwright list/discovery commands do not clean or write generated docs',
+    );
+    expect(rootAgents).toContain(
+      'Local Playwright package scripts that run `playwright test`',
+    );
+    expect(rootAgents).toContain('`test:e2e:docs:publish`');
+    expect(testsReadme).toContain(
+      'Local Playwright package scripts that run `playwright test`',
     );
     expect(testsReadme).toContain('test-results/docs');
     expect(testsReadme).toContain('bun run test:e2e:docs:publish');
