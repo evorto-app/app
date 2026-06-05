@@ -866,8 +866,18 @@ describe('generated docs source current behavior', () => {
     expect(unlistedUserSource).toContain(
       'User-facing events list with visible events while unlisted event stays hidden',
     );
+    expect(unlistedUserSource).toContain('eventRegistrationSection');
     expect(unlistedUserSource).toContain(
-      'Direct link opens the unlisted event detail page',
+      "page.getByRole('heading', { level: 2, name: 'Registration' })",
+    );
+    expect(unlistedUserSource).toContain(
+      "registrationSection.locator('app-event-registration-option').first()",
+    );
+    expect(unlistedUserSource).toContain(
+      'Direct link opens the unlisted event registration details',
+    );
+    expect(unlistedUserSource).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.getByRole('heading', { name: event.title }),\n      page,\n      'Direct link opens the unlisted event detail page'",
     );
     expect(unlistedUserSource).toContain('set({ unlisted: event.unlisted })');
     expect(unlistedUserSource).not.toMatch(/admin|global-admin|global admin/i);

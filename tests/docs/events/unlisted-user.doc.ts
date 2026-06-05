@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import type { Locator, Page } from '@playwright/test';
 
 import { userStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
@@ -31,6 +32,14 @@ const findDifferentApprovedListedEvent = (
       event.status === 'APPROVED' &&
       !event.unlisted,
   );
+
+const eventRegistrationSection = (page: Page): Locator =>
+  page
+    .locator('section')
+    .filter({
+      has: page.getByRole('heading', { level: 2, name: 'Registration' }),
+    })
+    .first();
 
 test('User: understanding unlisted events', async ({
   database,
@@ -82,11 +91,16 @@ What this means for you:
     await expect(
       page.getByRole('heading', { name: event.title }),
     ).toBeVisible();
+    const registrationSection = eventRegistrationSection(page);
+    await expect(registrationSection).toBeVisible();
+    await expect(
+      registrationSection.locator('app-event-registration-option').first(),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByRole('heading', { name: event.title }),
+      registrationSection,
       page,
-      'Direct link opens the unlisted event detail page',
+      'Direct link opens the unlisted event registration details',
     );
 
     await testInfo.attach('markdown', {
