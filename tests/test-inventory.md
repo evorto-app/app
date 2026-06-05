@@ -334,9 +334,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   handlers share the same lifecycle write boundaries.
 - Event approval docs create a deterministic approval-flow event, assert the
   persisted pending/rejected/approved lifecycle states and rejection feedback,
-  screenshot the submit confirmation dialog, review action surface,
-  reject-comment dialog, rejected status, and published status surfaces, and
-  clean up the generated event rows.
+  screenshot the draft submit action surface, submit confirmation dialog,
+  review action surface, reject-comment dialog, rejected status, and published
+  status surfaces, and clean up the generated event rows.
 - Event registration option component coverage pins participant registration and
   waitlist action disabling while a register or waitlist mutation is pending.
 - `specs/events/free-registration.test.ts` covers the seeded free-registration

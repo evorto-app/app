@@ -1650,6 +1650,15 @@ describe('generated docs source current behavior', () => {
       "has: page.getByRole('heading', { name: 'Review Event' })",
     );
     expect(source).toContain("has: page.getByLabel('Review Comment')");
+    expect(source).toContain('const draftStatusSurface =');
+    expect(source).toContain("eventStatusSurface(page, [\n      'Draft',");
+    expect(source).toContain("'Submit for Review',");
+    expect(source).toContain(
+      "const submitButton = draftStatusSurface.getByRole('button',",
+    );
+    expect(source).toContain(
+      'Draft event status with submit-for-review action',
+    );
     expect(source).toContain('Submit event for review confirmation dialog');
     expect(source).toContain(
       'Reject event dialog with required review comment field',
@@ -1674,6 +1683,12 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.locator('app-event-status').first(),",
+    );
+    expect(source).not.toContain(
+      "const submitButton = page.getByRole('button', {\n      name: 'Submit for Review',\n    });",
+    );
+    expect(source).not.toContain(
+      'takeScreenshot(\n      testInfo,\n      submitButton,',
     );
     expect(source).not.toContain(
       "page\n      .locator('mat-dialog-container')\n      .first()\n      .getByRole('button', { name: 'Submit for Review' })",
