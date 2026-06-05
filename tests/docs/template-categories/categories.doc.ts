@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import type { Locator, Page } from '@playwright/test';
 
 import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
@@ -6,6 +7,9 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
+
+const categoryDialogForm = (page: Page): Locator =>
+  page.locator('mat-dialog-container form').first();
 
 test('Manage template categories', async ({
   database,
@@ -44,11 +48,15 @@ Click on _Create category_ to create a new category.`,
     await expect(
       page.getByRole('textbox', { name: 'Category title' }),
     ).toBeVisible();
+    const createCategoryForm = categoryDialogForm(page);
+    await expect(
+      createCategoryForm.getByRole('button', { name: 'Save' }),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByRole('textbox', { name: 'Category title' }),
+      createCategoryForm,
       page,
-      'Template category create form with the category title field highlighted',
+      'Template category create dialog with title and save action',
     );
     await testInfo.attach('markdown', {
       body: `
@@ -96,11 +104,15 @@ After you have changed the name, click on _Save_ to save your changes.`,
     await expect(
       page.getByRole('textbox', { name: 'Category title' }),
     ).toHaveValue(categoryTitle);
+    const editCategoryForm = categoryDialogForm(page);
+    await expect(
+      editCategoryForm.getByRole('button', { name: 'Save' }),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByRole('textbox', { name: 'Category title' }),
+      editCategoryForm,
       page,
-      'Template category edit form with the existing title loaded',
+      'Template category edit dialog with existing title and save action',
     );
     await page
       .getByRole('textbox', { name: 'Category title' })

@@ -1217,14 +1217,19 @@ describe('generated docs source current behavior', () => {
     );
 
     expect(source).toContain('Category docs ${seedDate.getTime()}');
+    expect(source).toContain('categoryDialogForm');
+    expect(source).toContain("page.locator('mat-dialog-container form')");
     expect(source).toContain(
-      'Template category create form with the category title field highlighted',
+      'Template category create dialog with title and save action',
     );
     expect(source).toContain('New template category row after saving');
     expect(source).toContain(
-      'Template category edit form with the existing title loaded',
+      'Template category edit dialog with existing title and save action',
     );
     expect(source).toContain('Updated template category row after renaming');
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.getByRole('textbox', { name: 'Category title' }),",
+    );
     expect(source).toContain(
       'Expected generated category docs to persist the category',
     );
