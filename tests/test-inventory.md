@@ -566,8 +566,9 @@ provider outcomes without live identifiers.
     assignment, default role assignment, and DB cleanup.
     The matching integration-tagged create-account doc now reads back the
     persisted global user, tenant assignment, default role assignment, and
-    screenshots the post-create profile landing state before cleaning up the
-    generated database rows when Auth0 Management credentials are available.
+    screenshots the post-create profile summary with notification-email and
+    edit-action evidence before cleaning up the generated database rows when
+    Auth0 Management credentials are available.
     Shared RPC schema coverage proves account-creation and profile-update
     notification email format validation, matching the create-account/profile
     edit form validators.

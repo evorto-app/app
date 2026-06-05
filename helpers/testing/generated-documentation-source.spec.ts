@@ -981,8 +981,16 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Profile page after tenant account creation succeeds',
     );
+    expect(source).toContain('createdProfileSummarySurface');
+    expect(source).toContain("locator('app-user-profile section')");
+    expect(source).toContain('filter({ hasText: input.fullName })');
+    expect(source).toContain('filter({ hasText: input.notificationEmail })');
+    expect(source).toContain("filter({ hasText: 'Edit profile' })");
     expect(source).toContain(
       'If account creation fails, the page shows a retryable server error instead of silently losing the submit attempt.',
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.getByRole('heading', {\n        level: 1,\n        name: `${newUser.firstName} ${newUser.lastName}`,\n      }),\n      page,\n      'Profile page after tenant account creation succeeds'",
     );
     expect(source).not.toContain('login email as your notification email');
     expect(source).not.toContain('tenant-specific notification email');

@@ -1,5 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { ConfigProvider, Effect } from 'effect';
+import type { Locator, Page } from '@playwright/test';
 
 import * as schema from '../../../src/db/schema';
 import {
@@ -24,6 +25,17 @@ const hasManagementEnvironment = Effect.runSync(
     ),
   ),
 );
+
+const createdProfileSummarySurface = (
+  page: Page,
+  input: { fullName: string; notificationEmail: string },
+): Locator =>
+  page
+    .locator('app-user-profile section')
+    .filter({ hasText: input.fullName })
+    .filter({ hasText: input.notificationEmail })
+    .filter({ hasText: 'Edit profile' })
+    .first();
 
 test('Understand tenant account creation', async ({}, testInfo) => {
   expect(
@@ -229,12 +241,14 @@ If the same global login already exists for another tenant, this step joins the 
       body: `
 You should now be on your profile page for the current tenant. From here you can review your profile, manage discount cards when the tenant supports them, and register for events.`,
     });
+    const createdProfileSummary = createdProfileSummarySurface(page, {
+      fullName: `${newUser.firstName} ${newUser.lastName}`,
+      notificationEmail: newUser.email,
+    });
+    await expect(createdProfileSummary).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByRole('heading', {
-        level: 1,
-        name: `${newUser.firstName} ${newUser.lastName}`,
-      }),
+      createdProfileSummary,
       page,
       'Profile page after tenant account creation succeeds',
     );
