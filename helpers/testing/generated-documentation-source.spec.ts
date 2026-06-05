@@ -610,7 +610,7 @@ describe('generated docs source current behavior', () => {
       'Create tenant form showing the relaunch tenant scope boundaries',
     );
     expect(globalAdminSource).toContain(
-      'Create tenant validation message for URL-shaped domain input',
+      'Create tenant form preserving URL-shaped domain input after rejection',
     );
     expect(globalAdminSource).toContain(
       'Tenant detail review with read-only operational fields and actions',

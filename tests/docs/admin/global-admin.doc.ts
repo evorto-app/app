@@ -113,13 +113,17 @@ The create form intentionally supports one active primary domain per tenant. Cus
   ).toBeEnabled();
   await tenantCreate.getByRole('button', { name: 'Create tenant' }).click();
   await expect(
-    tenantCreate.getByText('Domain must be a single host name'),
+    page.getByText('Domain must be a single host name'),
   ).toBeVisible();
+  await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
+  await expect(tenantCreate.getByLabel('Primary domain')).toHaveValue(
+    'section.example.org/path',
+  );
   await takeScreenshot(
     testInfo,
-    tenantCreate.getByText('Domain must be a single host name'),
+    tenantCreate.getByLabel('Primary domain'),
     page,
-    'Create tenant validation message for URL-shaped domain input',
+    'Create tenant form preserving URL-shaped domain input after rejection',
   );
 
   await page.goto(`/global-admin/tenants/${tenant.id}`);

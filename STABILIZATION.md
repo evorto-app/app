@@ -4725,8 +4725,8 @@ E2E` long enough to be treated as stale; it was cancelled, and GitHub still
 - Current global-admin generated-doc checkpoint: `tests/docs/admin/global-admin.doc.ts`
   now covers the implemented global tenant-administration surface with focused
   generated-documentation screenshots for the tenant list/search rows, empty
-  search state, relaunch-scoped create form, URL-shaped primary-domain
-  validation, read-only tenant detail review, and edit form. The generated docs
+  search state, relaunch-scoped create form, rejected URL-shaped primary-domain
+  form state, read-only tenant detail review, and edit form. The generated docs
   explicitly keep the current relaunch boundary honest: one active primary
   domain is managed here, custom-domain verification and multi-domain
   automation are deferred, and tenant-admin impersonation is unavailable in the

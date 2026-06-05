@@ -137,8 +137,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     toggle, and Save action before taking those screenshots.
   - `docs/admin/global-admin.doc.ts` covers the global tenant-administration
     docs flow with focused screenshots for tenant search/list rows, empty
-    search results, the relaunch-scoped create form, URL-shaped domain
-    validation, read-only tenant detail review, and the edit form. The doc keeps
+    search results, the relaunch-scoped create form, rejected URL-shaped domain
+    form state, read-only tenant detail review, and the edit form. The doc keeps
     one active primary domain, deferred custom-domain/multi-domain automation,
     and unavailable tenant-admin impersonation explicit in the generated
     guidance.
