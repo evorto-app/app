@@ -2129,6 +2129,9 @@ describe('generated docs source current behavior', () => {
       "has: page.getByRole('heading', { name: input.optionTitle })",
     );
     expect(source).toContain("filter({ hasText: 'Participant option' })");
+    expect(source).toContain(
+      String.raw`await expect(page).toHaveURL(/\/events\/[^/?#]+$/u);`,
+    );
     expect(source).toContain('const createdEventId = page.url().match');
     expect(source).toContain(
       'Expected created event URL after event-management docs create flow',

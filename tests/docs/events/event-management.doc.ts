@@ -189,6 +189,7 @@ After selecting a template and customizing your event, you can create it and pro
   await page.goto(`/events/${target.id}`);
 
   // Wait for the event details page to load
+  await expect(page).toHaveURL(`/events/${target.id}`);
   await expect(eventDetailsSurface(page, target.title)).toBeVisible();
   const [createdParticipantRegistrationOption] = await database
     .select({
