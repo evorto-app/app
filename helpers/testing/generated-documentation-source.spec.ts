@@ -1533,6 +1533,22 @@ describe('generated docs source current behavior', () => {
     );
 
     expect(source).toContain('Category docs ${seedDate.getTime()}');
+    expect(source).toContain('const categoryManagerSurface =');
+    expect(source).toContain("locator('app-category-list')");
+    expect(source).toContain(
+      "has: page.getByRole('heading', { name: 'Template Categories' })",
+    );
+    expect(source).toContain(
+      "filter({ has: page.getByRole('button', { name: 'Create category' }) })",
+    );
+    expect(source).toContain("filter({ has: page.getByRole('table') })");
+    expect(source).toContain('const categoryManager = categoryManagerSurface');
+    expect(source).toContain(
+      'Template category manager with the create-category action highlighted',
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.getByRole('button', { name: 'Create category' }),",
+    );
     expect(source).toContain('categoryDialogSurface');
     expect(source).toContain(".locator('mat-dialog-container')");
     expect(source).toContain(

@@ -103,10 +103,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     registration-question forms containing their expected fields, and
     persistence readbacks
   - `docs/template-categories/categories.doc.ts`
-    documents the category create/edit dialog states, save actions, and
+    documents the category manager, create/edit dialog states, save actions, and
     saved/renamed rows with focused screenshots plus deterministic persistence
-    checks; the dialog screenshots target the expected create/edit heading,
-    Category title field, and Save action instead of the first open dialog form
+    checks; the manager screenshot targets the Template Categories surface with
+    the table and Create category action, while the dialog screenshots target
+    the expected create/edit heading, Category title field, and Save action
+    instead of the first open dialog form
   - `specs/templates/**`
   - template create/detail/tax-rate specs that fail explicitly when seeded
     template categories/templates or reusable attachment/question readbacks are

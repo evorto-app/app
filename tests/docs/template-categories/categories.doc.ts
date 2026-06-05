@@ -8,6 +8,16 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
+const categoryManagerSurface = (page: Page): Locator =>
+  page
+    .locator('app-category-list')
+    .filter({
+      has: page.getByRole('heading', { name: 'Template Categories' }),
+    })
+    .filter({ has: page.getByRole('button', { name: 'Create category' }) })
+    .filter({ has: page.getByRole('table') })
+    .first();
+
 const categoryDialogSurface = (page: Page, title: string): Locator =>
   page
     .locator('mat-dialog-container')
@@ -43,9 +53,11 @@ Click on _Create category_ to create a new category.`,
     await page.getByRole('link', { name: 'Manage categories' }).click();
     const categoriesTable = page.getByRole('table');
     await expect(categoriesTable).toBeVisible();
+    const categoryManager = categoryManagerSurface(page);
+    await expect(categoryManager).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByRole('button', { name: 'Create category' }),
+      categoryManager,
       page,
       'Template category manager with the create-category action highlighted',
     );
