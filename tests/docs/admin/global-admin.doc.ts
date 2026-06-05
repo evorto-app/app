@@ -1,10 +1,50 @@
 import { gaStateFile } from '../../../helpers/user-data';
+import type { Locator } from '@playwright/test';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: gaStateFile });
 
 const tenantSearchLabel = 'Search tenants';
+
+const tenantSummaryCard = (tenantList: Locator, tenantDomain: string) =>
+  tenantList
+    .locator('div')
+    .filter({ hasText: tenantDomain })
+    .filter({ hasText: 'Primary domain' })
+    .filter({ hasText: 'Details' })
+    .first();
+
+const tenantSearchEmptyState = (tenantList: Locator) =>
+  tenantList
+    .locator('div')
+    .filter({ hasText: 'No tenants match this search' })
+    .filter({
+      hasText: 'Try another name, domain, locale, timezone, or Stripe account.',
+    })
+    .first();
+
+const tenantScopeCard = (tenantForm: Locator) =>
+  tenantForm
+    .locator('form > div')
+    .filter({ hasText: 'Relaunch tenant scope' })
+    .filter({ hasText: 'One active primary domain is managed here.' })
+    .filter({
+      hasText:
+        'Tenant-admin impersonation is not available in the current relaunch surface.',
+    })
+    .first();
+
+const tenantDetailReviewCard = (tenantDetail: Locator, tenantDomain: string) =>
+  tenantDetail
+    .locator('section')
+    .filter({ hasText: 'Read-only operational tenant review' })
+    .filter({ hasText: tenantDomain })
+    .filter({ hasText: 'Open tenant domain' })
+    .first();
+
+const tenantEditForm = (tenantEdit: Locator) =>
+  tenantEdit.locator('form').first();
 
 test('Global admin: manage tenants @admin @globalAdmin', async ({
   page,
@@ -33,9 +73,11 @@ Global admins use the tenant administration surface to review tenant setup, crea
   ).toHaveAttribute('href', '/global-admin/tenants/create');
   await expect(tenantList.getByText('Primary domain').first()).toBeVisible();
   await expect(tenantList.getByText(tenant.domain).first()).toBeVisible();
+  const visibleTenantSummaryCard = tenantSummaryCard(tenantList, tenant.domain);
+  await expect(visibleTenantSummaryCard).toBeVisible();
   await takeScreenshot(
     testInfo,
-    tenantList.getByRole('heading', { level: 1, name: 'Tenants' }),
+    visibleTenantSummaryCard,
     page,
     'Global tenant list with search and tenant operational summary rows',
   );
@@ -52,9 +94,11 @@ The tenant list shows operational tenant fields that global admins need during r
   await expect(
     tenantList.getByRole('heading', { name: 'No tenants match this search' }),
   ).toBeVisible();
+  const visibleEmptySearchState = tenantSearchEmptyState(tenantList);
+  await expect(visibleEmptySearchState).toBeVisible();
   await takeScreenshot(
     testInfo,
-    tenantList.getByRole('heading', { name: 'No tenants match this search' }),
+    visibleEmptySearchState,
     page,
     'Empty tenant search result explaining no matching tenants were found',
   );
@@ -89,9 +133,11 @@ The tenant list shows operational tenant fields that global admins need during r
   await expect(tenantCreate.getByLabel('Currency')).toBeVisible();
   await expect(tenantCreate.getByLabel('Locale')).toBeVisible();
   await expect(tenantCreate.getByLabel('Timezone')).toBeVisible();
+  const visibleTenantScopeCard = tenantScopeCard(tenantCreate);
+  await expect(visibleTenantScopeCard).toBeVisible();
   await takeScreenshot(
     testInfo,
-    tenantCreate.getByRole('heading', { name: 'Relaunch tenant scope' }),
+    visibleTenantScopeCard,
     page,
     'Create tenant form showing the relaunch tenant scope boundaries',
   );
@@ -142,9 +188,14 @@ The create form intentionally supports one active primary domain per tenant. Cus
   await expect(
     tenantDetail.getByRole('link', { name: 'Edit tenant' }),
   ).toHaveAttribute('href', `/global-admin/tenants/${tenant.id}/edit`);
+  const visibleTenantDetailReviewCard = tenantDetailReviewCard(
+    tenantDetail,
+    tenant.domain,
+  );
+  await expect(visibleTenantDetailReviewCard).toBeVisible();
   await takeScreenshot(
     testInfo,
-    tenantDetail.getByRole('heading', { level: 1, name: tenant.name }),
+    visibleTenantDetailReviewCard,
     page,
     'Tenant detail review with read-only operational fields and actions',
   );
@@ -175,9 +226,11 @@ Tenant detail is a read-only operational review page. From there, global admins 
   await expect(
     tenantEdit.getByRole('link', { name: 'Cancel' }),
   ).toHaveAttribute('href', `/global-admin/tenants/${tenant.id}`);
+  const visibleTenantEditForm = tenantEditForm(tenantEdit);
+  await expect(visibleTenantEditForm).toBeVisible();
   await takeScreenshot(
     testInfo,
-    tenantEdit.getByRole('heading', { level: 1, name: 'Edit tenant' }),
+    visibleTenantEditForm,
     page,
     'Edit tenant form with relaunch-scoped tenant settings ready to save',
   );

@@ -778,20 +778,46 @@ describe('generated docs source current behavior', () => {
     expect(globalAdminSource).toContain(
       'Global tenant list with search and tenant operational summary rows',
     );
+    expect(globalAdminSource).toContain('const tenantSummaryCard =');
+    expect(globalAdminSource).toContain('filter({ hasText: tenantDomain })');
+    expect(globalAdminSource).toContain("filter({ hasText: 'Details' })");
     expect(globalAdminSource).toContain(
       'Empty tenant search result explaining no matching tenants were found',
+    );
+    expect(globalAdminSource).toContain('const tenantSearchEmptyState =');
+    expect(globalAdminSource).toContain(
+      'Try another name, domain, locale, timezone, or Stripe account.',
     );
     expect(globalAdminSource).toContain(
       'Create tenant form showing the relaunch tenant scope boundaries',
     );
+    expect(globalAdminSource).toContain('const tenantScopeCard =');
+    expect(globalAdminSource).toContain("locator('form > div')");
     expect(globalAdminSource).toContain(
       'Create tenant form preserving URL-shaped domain input after rejection',
     );
     expect(globalAdminSource).toContain(
       'Tenant detail review with read-only operational fields and actions',
     );
+    expect(globalAdminSource).toContain('const tenantDetailReviewCard =');
+    expect(globalAdminSource).toContain(
+      "filter({ hasText: 'Open tenant domain' })",
+    );
     expect(globalAdminSource).toContain(
       'Edit tenant form with relaunch-scoped tenant settings ready to save',
+    );
+    expect(globalAdminSource).toContain('const tenantEditForm =');
+    expect(globalAdminSource).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    tenantList.getByRole('heading'",
+    );
+    expect(globalAdminSource).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    tenantCreate.getByRole('heading'",
+    );
+    expect(globalAdminSource).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    tenantDetail.getByRole('heading'",
+    );
+    expect(globalAdminSource).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    tenantEdit.getByRole('heading'",
     );
     expect(globalAdminSource).toContain('/global-admin/tenants');
     expect(globalAdminSource).toContain('Relaunch tenant scope');

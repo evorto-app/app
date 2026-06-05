@@ -5503,6 +5503,9 @@ instead of highlighting a whole repeated page area by accident.
 The registration generated doc now uses concrete registration option and active
 registration card targets for free, ineligible, paid, and post-payment states
 instead of highlighting section headings or a single action button.
+The global-admin generated doc now uses concrete tenant summary, empty search,
+scope boundary, detail review, and edit-form surfaces for its screenshot
+targets instead of highlighting page or card headings.
 New Playwright skips/fixmes, including
 `test.describe.skip`, should be added only as explicit credential gates or
 honest Browser-backed stabilization placeholders. The Playwright inventory guard now also rejects

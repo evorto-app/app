@@ -136,12 +136,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     fields, legal URL/text fields, finance receipt settings, ESNcard discount
     toggle, and Save action before taking those screenshots.
   - `docs/admin/global-admin.doc.ts` covers the global tenant-administration
-    docs flow with focused screenshots for tenant search/list rows, empty
-    search results, the relaunch-scoped create form, rejected URL-shaped domain
-    form state, read-only tenant detail review, and the edit form. The doc keeps
-    one active primary domain, deferred custom-domain/multi-domain automation,
-    and unavailable tenant-admin impersonation explicit in the generated
-    guidance.
+    docs flow with concrete screenshot targets for tenant search/list rows,
+    empty search results, the relaunch-scoped create form, rejected URL-shaped
+    domain form state, read-only tenant detail review, and the edit form instead
+    of highlighting page or card headings. The doc keeps one active primary
+    domain, deferred custom-domain/multi-domain automation, and unavailable
+    tenant-admin impersonation explicit in the generated guidance.
   - `specs/admin/admin-viewports.spec.ts`
   - `specs/admin/general-settings.spec.ts`
   - `specs/admin/global-admin-tenants.spec.ts`
