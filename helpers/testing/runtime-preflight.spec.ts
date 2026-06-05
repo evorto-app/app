@@ -148,8 +148,21 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'bunfig.toml'),
       'utf8',
     );
+    const dockerignore = fs.readFileSync(
+      path.join(process.cwd(), '.dockerignore'),
+      'utf8',
+    );
+    const runtimePreflight = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/runtime-preflight.ts'),
+      'utf8',
+    );
+    const codexEnvironment = fs.readFileSync(
+      path.join(process.cwd(), '.codex/environments/environment.toml'),
+      'utf8',
+    );
 
     expect(fs.existsSync(path.join(process.cwd(), '.npmrc'))).toBe(false);
+    expect(dockerignore).toContain('.npmrc');
     expect(dockerfile).not.toContain('FONT_AWESOME_TOKEN');
     expect(dockerfile).not.toContain('npm.fontawesome.com');
     expect(dockerfile).toContain(

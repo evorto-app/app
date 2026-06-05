@@ -9,5 +9,6 @@ playwright.config.ts
 .env.local
 .env.runtime
 .env.ci
+.npmrc
 old
 dist

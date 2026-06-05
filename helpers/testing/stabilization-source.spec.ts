@@ -1695,6 +1695,7 @@ describe('stabilization source', () => {
     };
     const lockfile = readSource('bun.lock');
     const bunfig = readSource('bunfig.toml');
+    const dockerignore = readSource('.dockerignore');
     const dockerfile = readSource('Dockerfile');
     const fontAwesomeCiHelper = readSource(
       'helpers/testing/prepare-public-fontawesome-ci.sh',
@@ -1995,6 +1996,7 @@ describe('stabilization source', () => {
     expect(lockfile).not.toContain('npm.fontawesome.com');
     expect(bunfig).toContain('[install.scopes]');
     expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');
+    expect(dockerignore).toContain('.npmrc');
     expect(dockerfile).not.toContain('FONT_AWESOME_TOKEN');
     expect(dockerfile).not.toContain('npm.fontawesome.com');
     expect(dockerfile).toContain(
@@ -3655,6 +3657,7 @@ describe('stabilization source', () => {
       '.github/workflows/neon-branch-cleanup.yml',
     );
     const bunfig = readSource('bunfig.toml');
+    const dockerignore = readSource('.dockerignore');
     const fontAwesomeIconUsageSpec = readSource(
       'src/app/shared/components/icon/font-awesome-icon-usage.spec.ts',
     );
@@ -3973,6 +3976,7 @@ describe('stabilization source', () => {
     );
     expect(cleanupWorkflow).not.toContain('bun install');
     expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');
+    expect(dockerignore).toContain('.npmrc');
     expect(fontAwesomeIconUsageSpec).toContain(
       'keeps icon-only Material buttons accessible by label',
     );

@@ -238,7 +238,10 @@ Compose builds, because BuildKit layer caches alone do not carry
 `RUN --mount=type=cache` contents between GitHub-hosted runners. Codex setup
 also ignores copied `.npmrc` files, writes the same
 temporary public Font Awesome npm user config, and installs through the Bun
-package cache instead of requiring `FONT_AWESOME_TOKEN`. The Docker
+package cache instead of requiring `FONT_AWESOME_TOKEN`. `.dockerignore` also
+keeps `.npmrc` out of Docker and remote deploy build contexts, so a
+developer-level private registry file cannot be copied into the image context by
+accident. The Docker
 Stripe webhook sidecar is pinned in `docker-compose.yml`; if
 its logs report a newer CLI version, update that image pin and rebuild with
 `APP_HOST_PORT=4200 bun run docker:start` before relying on paid-flow webhook
