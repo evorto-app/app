@@ -601,9 +601,7 @@ describe('evaluateRuntimePreflight', () => {
       'run: bash helpers/testing/install-ci-dependencies.sh',
     );
     expect(workflow).toContain('CI_DEPENDENCY_INSTALL_MODE: warm');
-    expect(workflow).toContain(
-      'CI_DEPENDENCY_INSTALL_MODE: offline-required',
-    );
+    expect(workflow).toContain('CI_DEPENDENCY_INSTALL_MODE: offline-required');
     expect(installDependenciesHelper).toContain(
       'if ! bun install --frozen-lockfile --cache-dir "${bun_cache_dir}"; then',
     );
@@ -626,9 +624,7 @@ describe('evaluateRuntimePreflight', () => {
       "key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
     );
     expect(installDependenciesHelper).toContain('Bun package cache hit:');
-    expect(installDependenciesHelper).toContain(
-      'Bun package cache restored:',
-    );
+    expect(installDependenciesHelper).toContain('Bun package cache restored:');
     expect(installDependenciesHelper).toContain(
       'find "${bun_cache_dir}" -mindepth 1 -maxdepth 1 -print -quit',
     );
@@ -813,9 +809,7 @@ describe('evaluateRuntimePreflight', () => {
       'BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}',
     );
     expect(installDependenciesHelper).toContain('Bun package cache hit:');
-    expect(installDependenciesHelper).toContain(
-      'Bun package cache restored:',
-    );
+    expect(installDependenciesHelper).toContain('Bun package cache restored:');
     expect(installDependenciesHelper).toContain(
       'find "${bun_cache_dir}" -mindepth 1 -maxdepth 1 -print -quit',
     );

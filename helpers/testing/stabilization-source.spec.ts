@@ -3078,7 +3078,7 @@ describe('stabilization source', () => {
       'no horizontal overflow, clipped visible controls, rendered application-error text, Browser warning/error logs, or Auth0 redirect',
     );
     expect(statusTable).toContain(
-      'pushed-head Docker/Browser refreshes through PR head `7eca0e970`',
+      'pushed-head Docker/Browser refreshes through PR head `19e5bb0bc`',
     );
     expect(statusTable).toContain(
       'rechecked all anonymous General routes at 320x740, 390x844, and 1440x900',
@@ -5434,6 +5434,25 @@ describe('stabilization source', () => {
     expect(source).toMatch(/generated `BASE_URL` on port 4577/u);
     expect(source).toContain(
       '/tmp/evorto-current-head-17c35e-general-mobile-events.jpg',
+    );
+    expect(source).toContain('PR head `19e5bb0bc`');
+    expect(source).toContain('recovered from the existing port-4200 listener');
+    expect(source).toContain('`bun run test:e2e:public-general-viewports`');
+    expect(source).toContain('`/not-a-real-general-route-browser-refresh`');
+    expect(source).toContain(
+      'normalizing the implemented `/403` and `/500` headings',
+    );
+    expect(source).toContain('all 27 route/viewport checks');
+    expect(source).toContain('zero Browser warning/error logs');
+    expect(source).toContain(
+      'first 320x740 `/events` screenshot caught a loading placeholder',
+    );
+    expect(source).toContain('replaced only after seeded event cards were');
+    expect(source).toContain(
+      '/tmp/evorto-pr62-19e5bb0-current-browser-events-320.png',
+    );
+    expect(source).toContain(
+      '/tmp/evorto-pr62-19e5bb0-current-browser-terms-390.png',
     );
     expect(inventory).toContain('specs/smoke/public-general-viewports.spec.ts');
     expect(inventory).toContain('test:e2e:authenticated-viewports');
