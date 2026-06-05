@@ -21,6 +21,7 @@
     "test:e2e:layout-helper": "bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/page-layout-helper.test.ts --project=local-chrome-baseline --no-deps",
     "test:e2e:public-general-viewports": "bun run env:runtime && NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/public-general-viewports.spec.ts --project=local-chrome-baseline --workers=1 --no-deps",
     "test:e2e:reporter-paths": "bun run env:runtime && DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/reporting/reporter-paths.test.ts --project=local-chrome-baseline --no-deps",
+    "test:e2e:doc-screenshot": "bun run env:runtime && DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/screenshot/doc-screenshot.test.ts --project=local-chrome-baseline --no-deps",
     "test:e2e:docs": "bun run env:runtime && DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images dotenv -c dev -- playwright test --project=docs-baseline",
     "test:e2e:docs:publish": "bun run env:runtime && DOCS_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs DOCS_IMG_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/public/docs dotenv -c dev -- playwright test --project=docs-baseline",
     "test:e2e:install": "playwright install",

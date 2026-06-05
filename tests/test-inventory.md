@@ -183,6 +183,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     `.env.dev`, sets ignored docs output paths and `NO_WEBSERVER=true`, and
     uses `--no-deps`.
   - `specs/screenshot/doc-screenshot.test.ts`
+    checks the static doc-screenshot helper contract for relative image paths,
+    loading-text waits, finite transition waits, stable target bounds, transient
+    snackbar waits, persistent snackbar tolerance, and image-root resolution
+    without app startup. `bun run test:e2e:doc-screenshot` is the focused local
+    rerun; it refreshes `.env.dev`, sets ignored docs/image output paths and
+    `NO_WEBSERVER=true`, and uses `--no-deps`.
   - `specs/seed/seed-baseline.test.ts` proves the seeded tenant has default
     roles, all template families, paid/free registration options, paid tax-rate
     wiring, reusable template add-ons, scenario handles, confirmed

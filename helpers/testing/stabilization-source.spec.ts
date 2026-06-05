@@ -5286,12 +5286,16 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['test:e2e:reporter-paths']).toBe(
       'bun run env:runtime && DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/reporting/reporter-paths.test.ts --project=local-chrome-baseline --no-deps',
     );
+    expect(packageJson.scripts['test:e2e:doc-screenshot']).toBe(
+      'bun run env:runtime && DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/screenshot/doc-screenshot.test.ts --project=local-chrome-baseline --no-deps',
+    );
     expect(testsReadme).toContain('bun run test:e2e:authenticated-viewports');
     expect(testsReadme).toContain('authenticated durable\n  viewport pack');
     expect(testsReadme).toContain('logged-in app chrome');
     expect(testsReadme).toContain('bun run test:e2e:layout-helper');
     expect(testsReadme).toContain('bun run test:e2e:public-general-viewports');
     expect(testsReadme).toContain('bun run test:e2e:reporter-paths');
+    expect(testsReadme).toContain('bun run test:e2e:doc-screenshot');
     expect(testsReadme).toContain('NO_WEBSERVER=true');
     expect(testsReadme).toContain('--no-deps');
     expect(testsReadme).toContain('does not start\n  Docker');
@@ -5310,8 +5314,11 @@ describe('stabilization source', () => {
     expect(source).toContain('`tests/support/utils/page-layout.ts`');
     expect(inventory).toContain('specs/smoke/page-layout-helper.test.ts');
     expect(inventory).toContain('specs/reporting/reporter-paths.test.ts');
+    expect(inventory).toContain('specs/screenshot/doc-screenshot.test.ts');
     expect(inventory).toContain('test:e2e:reporter-paths');
+    expect(inventory).toContain('test:e2e:doc-screenshot');
     expect(inventory).toContain('highlighted screenshot targets');
+    expect(inventory).toContain('static doc-screenshot helper contract');
     expect(inventory).toMatch(/visible page-content\s+detection/u);
     expect(inventory).toContain('ignored docs output paths');
     expect(inventory).toContain('support/utils/page-layout.ts');

@@ -506,7 +506,7 @@ the current working direction until a product decision overrides them.
 - Documentation reporter and screenshot helpers: `tests/support/reporters/documentation-reporter.ts`, `tests/support/reporters/documentation-reporter/**`, `tests/support/utils/doc-screenshot.ts`
 - Generated documentation specs: `tests/docs/**`
 - Playwright specs with stabilization-relevant gaps: `tests/specs/events/**`, `tests/specs/templates/**`, `tests/specs/finance/**`, `tests/specs/scanning/scanner.test.ts`, `tests/specs/permissions/**`, `tests/specs/reporting/reporter-paths.test.ts`, `tests/specs/screenshot/doc-screenshot.test.ts`
-- Lightweight Playwright checks: `bun run test:e2e -- --list`, `bun run test:e2e:docs -- --list`, `bun run test:e2e:reporter-paths`, `bun run test:e2e -- tests/specs/screenshot/doc-screenshot.test.ts --no-deps`
+- Lightweight Playwright checks: `bun run test:e2e -- --list`, `bun run test:e2e:docs -- --list`, `bun run test:e2e:reporter-paths`, `bun run test:e2e:doc-screenshot`
 - Local runtime/developer workflow: `README.md`, `AGENTS.md`, `tests/README.md`, `helpers/README.md`, `src/server/config/AGENTS.md`, `package.json`, `docker-compose.yml`, `Dockerfile`, `helpers/testing/runtime-environment.ts`, `angular.json`, `tsconfig.spec.json`, `.github/workflows/e2e-baseline.yml`, `.github/workflows/copilot-setup-steps.yml`
 - Local workflow checks: `bun run env:runtime`, `bun --version`, `node --version`, `bunx playwright --version`, `docker compose version`, `node_modules/.bin/dotenv -c dev -- docker compose config --quiet`, `bun run build:app`, `bun run test:unit -- --watch=false`, `bun run test:unit:server`, `DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images bun run test:e2e -- --list`, `DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images bun run test:e2e:docs -- --list`
 
@@ -5356,6 +5356,9 @@ publish script is the only package script that targets the sibling
 also package-scripted as `bun run test:e2e:reporter-paths`, runs without
 Docker, and pins ignored repository-local docs output paths so screenshot
 evidence-quality checks do not accidentally write to the sibling docs checkout.
+The static doc-screenshot helper settling contract is also package-scripted as
+`bun run test:e2e:doc-screenshot`, runs without Docker, and pins ignored
+repository-local docs/image output paths for focused helper reruns.
 New Playwright skips/fixmes, including
 `test.describe.skip`, should be added only as explicit credential gates or
 honest Browser-backed stabilization placeholders. The Playwright inventory guard now also rejects
