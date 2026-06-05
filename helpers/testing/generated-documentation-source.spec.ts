@@ -1787,6 +1787,11 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('const rolePickerSurface =');
     expect(source).toContain("locator('app-registration-option-form')");
+    expect(source).toContain('const eventStatusActionSurface =');
+    expect(source).toContain("locator('app-event-status')");
+    expect(source).toContain(
+      "filter({ has: page.getByRole('link', { name: 'Edit Event' }) })",
+    );
     expect(source).toContain(
       'Expected seeded draft event for event-management role autocomplete docs',
     );
@@ -1798,6 +1803,13 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain("page.getByPlaceholder('Add Role...')");
     expect(source).toContain('Event edit role picker duplicate prevention');
+    expect(source).toContain(
+      'const statusActions = eventStatusActionSurface(page)',
+    );
+    expect(source).toContain(
+      "await expect(statusActions.locator('app-event-status')).toBeVisible()",
+    );
+    expect(source).toContain('Event status and management action surface');
     expect(source).not.toContain(
       "takeScreenshot(\n    testInfo,\n    page.getByRole('heading', { level: 1, name: 'Events' })",
     );
@@ -1809,6 +1821,12 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n    testInfo,\n    page.getByRole('heading', { level: 2, name: 'Registration' })",
+    );
+    expect(source).not.toContain(
+      'takeScreenshot(\n      testInfo,\n      statusChip,',
+    );
+    expect(source).not.toContain(
+      'page\n    .getByText(/Draft|Pending Review|Published|Rejected/i)\n    .first()',
     );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.locator('app-handle-registration'),",

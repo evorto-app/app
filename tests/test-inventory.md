@@ -705,8 +705,9 @@ provider outcomes without live identifiers.
     transfer-code paid transfer boundaries.
     Event-management generated screenshots now focus concrete event-list,
     template-choice, event-detail header, the created event's participant
-    registration option, scanner guest check-in, and event-edit role-picker
-    surfaces instead of page or section headings.
+    registration option, event status/action, scanner guest check-in, and
+    event-edit role-picker surfaces instead of page, section, or status-text
+    headings.
     Generated event-management docs also seed a confirmed registration with
     guests, capture the scanned-registration page, assert the organizer
     checked-in aggregate after scanner writes, and restore the seeded counter,

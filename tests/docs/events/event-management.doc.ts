@@ -53,6 +53,13 @@ const rolePickerSurface = (
     .filter({ hasText: addedRoleName })
     .first();
 
+const eventStatusActionSurface = (page: Page): Locator =>
+  page
+    .locator('app-event-status')
+    .locator('xpath=ancestor::div[contains(@class,"bg-surface")]')
+    .filter({ has: page.getByRole('link', { name: 'Edit Event' }) })
+    .first();
+
 const scannerGuestCheckInSurface = (page: Page): Locator =>
   page
     .locator('app-handle-registration')
@@ -348,17 +355,16 @@ For a full walkthrough of the review and approval lifecycle, see the dedicated E
 `,
   });
 
-  // Take a screenshot of the event status section
-  const statusChip = page
-    .getByText(/Draft|Pending Review|Published|Rejected/i)
-    .first();
+  // Take a screenshot of the event status and management action surface.
+  const statusActions = eventStatusActionSurface(page);
   try {
-    await statusChip.waitFor({ state: 'visible', timeout: 2000 });
+    await expect(statusActions).toBeVisible({ timeout: 2000 });
+    await expect(statusActions.locator('app-event-status')).toBeVisible();
     await takeScreenshot(
       testInfo,
-      statusChip,
+      statusActions,
       page,
-      'Event status section showing the published state',
+      'Event status and management action surface',
     );
   } catch {
     await testInfo.attach('markdown', {
