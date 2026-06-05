@@ -5539,6 +5539,9 @@ instead of highlighting a whole repeated page area by accident.
 The template generated doc now screenshots the seeded template-list navigation
 containing both a category and the Create template action instead of highlighting
 only the standalone create link.
+The finance-overview generated doc now screenshots the permission-scoped
+navigation surface containing the transaction, receipt-approval, and
+receipt-reimbursement links instead of highlighting only one finance card.
 The registration generated doc now uses concrete registration option and active
 registration card targets for free, ineligible, paid, and post-payment states
 instead of highlighting section headings or a single action button.

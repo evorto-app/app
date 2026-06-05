@@ -1229,8 +1229,20 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('cancelledTransactionComment');
     expect(source).toContain('submittedReceiptFileName');
     expect(source).toContain('approvedReceiptFileName');
+    expect(source).toContain('const financeOverviewNavigationSurface =');
+    expect(source).toContain("locator('app-finance-overview nav')");
+    expect(source).toContain(
+      "filter({ has: page.getByRole('link', { name: 'Transactions' }) })",
+    );
+    expect(source).toContain(
+      "filter({ has: page.getByRole('link', { name: 'Receipt approvals' }) })",
+    );
+    expect(source).toContain(
+      "has: page.getByRole('link', { name: 'Receipt reimbursements' })",
+    );
     expect(source).toContain('const financeOverviewNavigationCard =');
     expect(source).toContain("locator('app-finance-overview nav a')");
+    expect(source).toContain('const financeNavigation =');
     expect(source).toContain('const transactionRow =');
     expect(source).toContain(
       "page.getByRole('row').filter({ hasText: comment })",
@@ -1256,6 +1268,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.locator('app-finance-overview')",
+    );
+    expect(source).not.toContain(
+      'takeScreenshot(\n      testInfo,\n      transactionNavigationCard,',
     );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.locator('app-transaction-list')",

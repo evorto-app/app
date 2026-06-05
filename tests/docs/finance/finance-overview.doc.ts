@@ -12,6 +12,16 @@ import type { Locator, Page } from '@playwright/test';
 
 test.use({ storageState: organizerStateFile });
 
+const financeOverviewNavigationSurface = (page: Page): Locator =>
+  page
+    .locator('app-finance-overview nav')
+    .filter({ has: page.getByRole('link', { name: 'Transactions' }) })
+    .filter({ has: page.getByRole('link', { name: 'Receipt approvals' }) })
+    .filter({
+      has: page.getByRole('link', { name: 'Receipt reimbursements' }),
+    })
+    .first();
+
 const financeOverviewNavigationCard = (page: Page, name: string): Locator =>
   page.locator('app-finance-overview nav a').filter({ hasText: name }).first();
 
@@ -164,9 +174,11 @@ To access the finance overview, navigate to the **Finances** section from the ma
     await expect(
       financeOverviewNavigationCard(page, 'Receipt reimbursements'),
     ).toBeVisible();
+    const financeNavigation = financeOverviewNavigationSurface(page);
+    await expect(financeNavigation).toBeVisible();
     await takeScreenshot(
       testInfo,
-      transactionNavigationCard,
+      financeNavigation,
       page,
       'Finance overview page with tenant payment and receipt summaries',
     );

@@ -161,7 +161,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/finance/**`
   - `docs/finance/finance-overview.doc.ts` seeds its own visible transaction,
     omitted cancelled transaction, submitted receipt, and approved receipt rows
-    before screenshotting the permission-scoped finance navigation card,
+    before screenshotting the permission-scoped finance navigation surface,
     visible transaction row, submitted receipt approval row, and approved
     reimbursement row.
   - `docs/finance/inclusive-tax-rates.doc.ts` screenshots seeded compatible VAT
