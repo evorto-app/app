@@ -23,6 +23,14 @@ const savedTemplateDetailSurface = (
     .filter({ hasText: input.questionTitle })
     .first();
 
+const templateGeneralSettingsSurface = (page: Page): Locator =>
+  page
+    .locator('app-template-general-form')
+    .filter({ has: page.getByLabel('Template title') })
+    .filter({ has: page.getByLabel('Template Category') })
+    .filter({ has: page.getByLabel('Organizer planning tips') })
+    .first();
+
 test.use({ storageState: adminStateFile });
 
 test('Manage templates', async ({
@@ -79,9 +87,18 @@ There are a few general settings that are required for templates:
 - **Organizer planning tips**: Optional private organizer notes, setup checklists, or recurring reminders that stay on the template detail page and are not shown on the public event page.
 `,
   });
+  const generalSettingsForm = templateGeneralSettingsSurface(page);
+  await expect(generalSettingsForm).toBeVisible();
+  await expect(generalSettingsForm.getByLabel('Template title')).toBeVisible();
+  await expect(
+    generalSettingsForm.getByLabel('Template Category'),
+  ).toBeVisible();
+  await expect(
+    generalSettingsForm.getByLabel('Organizer planning tips'),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.locator('app-template-create form div').first(),
+    generalSettingsForm,
     page,
     'Template create form showing reusable general settings',
   );

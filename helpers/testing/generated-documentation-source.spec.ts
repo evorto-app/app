@@ -1234,6 +1234,19 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('fillTemplateBasics');
     expect(source).toContain('createdTemplate.planningTips');
     expect(source).toContain('const savedTemplateDetailSurface =');
+    expect(source).toContain('const templateGeneralSettingsSurface =');
+    expect(source).toContain("locator('app-template-general-form')");
+    expect(source).toContain(
+      "filter({ has: page.getByLabel('Template title') })",
+    );
+    expect(source).toContain(
+      "filter({ has: page.getByLabel('Template Category') })",
+    );
+    expect(source).toContain(
+      "filter({ has: page.getByLabel('Organizer planning tips') })",
+    );
+    expect(source).toContain('const generalSettingsForm =');
+    expect(source).toContain('await expect(generalSettingsForm).toBeVisible()');
     expect(source).toContain("locator('app-template-details section')");
     expect(source).toContain('filter({ hasText: input.planningTips })');
     expect(source).toContain('filter({ hasText: input.addOnTitle })');
@@ -1257,6 +1270,9 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('standalone add-on sales are configured here');
     expect(source).not.toContain(
       "takeScreenshot(\n    testInfo,\n    page.getByRole('heading', { name: templateTitle })",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    page.locator('app-template-create form div').first(),",
     );
   });
 
