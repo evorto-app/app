@@ -4222,6 +4222,10 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   source-guarded in one place instead of duplicated inline in the workflow. That
   keeps a stuck Docker client, stuck leftover container, or stuck Neon API prune
   from consuming the rest of the E2E job while branch cleanup remains ambiguous.
+  Required GitHub Actions environment validation is now also delegated to
+  `helpers/testing/validate-ci-runtime-env.sh`, so the E2E and standalone Neon
+  cleanup workflows share the same Neon credential checks while E2E keeps the
+  additional Auth0 and Stripe checks in one named helper instead of inline YAML.
   That keeps the intended invariant explicit: outside currently active tests and
   their short two-hour TTL, only `main` should remain. The E2E workflow now also
   prunes Neon from the Docker teardown helper and still runs a separate

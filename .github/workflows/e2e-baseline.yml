@@ -224,38 +224,7 @@ jobs:
         run: mkdir -p "${DOCKER_BUILD_CACHE_DIR}"
 
       - name: Validate required configuration
-        run: |
-          if [ -z "${NEON_API_KEY}" ]; then
-            echo "::error::Missing required secret: NEON_API_KEY"
-            exit 1
-          fi
-          if [ -z "${NEON_PROJECT_ID}" ]; then
-            echo "::error::Missing required repository variable: NEON_PROJECT_ID"
-            exit 1
-          fi
-          if [ -z "${PARENT_BRANCH_ID}" ]; then
-            echo "::notice::PARENT_BRANCH_ID is not configured; Neon Local will create ephemeral E2E branches from the project default branch."
-          fi
-          if [ -z "${STRIPE_TEST_ACCOUNT_ID}" ]; then
-            echo "::error::Missing required Stripe connected account id. Set STRIPE_TEST_ACCOUNT_ID as a secret or repository variable."
-            exit 1
-          fi
-          if [ -z "${CLIENT_SECRET}" ]; then
-            echo "::error::Missing required secret: CLIENT_SECRET"
-            exit 1
-          fi
-          if [ -z "${ISSUER_BASE_URL}" ]; then
-            echo "::error::Missing required Auth0 issuer URL. Set ISSUER_BASE_URL as a secret or repository variable."
-            exit 1
-          fi
-          if [ -z "${SECRET}" ]; then
-            echo "::error::Missing required secret: SECRET"
-            exit 1
-          fi
-          if [ -z "${STRIPE_API_KEY}" ]; then
-            echo "::error::Missing required secret: STRIPE_API_KEY"
-            exit 1
-          fi
+        run: bash helpers/testing/validate-ci-runtime-env.sh e2e
 
       - name: Install dependencies
         env:

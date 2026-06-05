@@ -1084,6 +1084,7 @@ provider outcomes without live identifiers.
   Docker `ps` status text fallback, stale created/dead states, healthy running
   exclusions, and duplicate target de-duplication.
 - E2E CI Docker startup, teardown, and final Neon pruning live in
+  `helpers/testing/validate-ci-runtime-env.sh`,
   `helpers/testing/ci-start-docker-stack.sh`,
   `helpers/testing/ci-stop-docker-stack.sh`, and
   `helpers/testing/ci-prune-neon-local-branches.sh`; runtime-preflight and

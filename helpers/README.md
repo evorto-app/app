@@ -114,6 +114,9 @@ helper refuses protected branches.
 bounds the runtime preflight, bounds Compose image pre-pull attempts, builds the
 app images with the CI BuildKit cache overlay, starts the already-built stack,
 and keeps the existing one-prune retry before surfacing startup failure.
+`helpers/testing/validate-ci-runtime-env.sh` owns the shared GitHub Actions
+required-variable checks for the E2E and Neon cleanup workflows, so Neon,
+Auth0, and Stripe validation does not drift across inline workflow YAML.
 `helpers/testing/ci-stop-docker-stack.sh` owns the E2E Docker shutdown path: it
 first gives the Neon Local `db` container a 60-second stop window inside a
 bounded 90-second command, then runs bounded Compose down, force-removes leftover

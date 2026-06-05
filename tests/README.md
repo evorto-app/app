@@ -88,6 +88,8 @@ bun run lint
   active-test TTL. The stale sweep also runs when metadata is absent or exists
   without branch ids, so cancelled or failed E2E jobs do not leave long-lived
   database branches behind. E2E CI calls
+  `helpers/testing/validate-ci-runtime-env.sh` for shared required Neon, Auth0,
+  and Stripe environment validation,
   `helpers/testing/ci-start-docker-stack.sh` for bounded Docker preflight,
   image pre-pull, build, and startup, `helpers/testing/ci-stop-docker-stack.sh`
   for Docker teardown plus a timeout-bound metadata prune, and

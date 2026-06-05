@@ -3552,6 +3552,9 @@ describe('stabilization source', () => {
     const ciPruneHelper = readSource(
       'helpers/testing/ci-prune-neon-local-branches.sh',
     );
+    const ciRuntimeValidationHelper = readSource(
+      'helpers/testing/validate-ci-runtime-env.sh',
+    );
     const ciStopDockerStackHelper = readSource(
       'helpers/testing/ci-stop-docker-stack.sh',
     );
@@ -3649,13 +3652,32 @@ describe('stabilization source', () => {
     expect(checkpoint).toMatch(/final dependency-free\s+prune/u);
     expect(checkpoint).toMatch(/no longer\s+block the current PR head/u);
     expect(checkpoint).toMatch(/repeated Font Awesome cache warmups/u);
+    expect(checkpoint).toContain('helpers/testing/validate-ci-runtime-env.sh');
+    expect(checkpoint).toMatch(/same Neon credential checks/u);
+    expect(checkpoint).toMatch(/additional Auth0 and Stripe checks/u);
     expect(checkpoint).not.toContain('four-hour');
     expect(checkpoint).not.toContain('fourteen branches remain');
 
     expect(workflow).toContain('group: e2e-${{ github.ref }}');
     expect(workflow).toContain('cancel-in-progress: true');
     expect(workflow).toContain(
+      'run: bash helpers/testing/validate-ci-runtime-env.sh e2e',
+    );
+    expect(ciRuntimeValidationHelper).toContain('require_neon_cleanup_env');
+    expect(ciRuntimeValidationHelper).toContain(
+      'require_secret "NEON_API_KEY"',
+    );
+    expect(ciRuntimeValidationHelper).toContain(
+      'require_repository_variable "NEON_PROJECT_ID"',
+    );
+    expect(ciRuntimeValidationHelper).toContain(
       'PARENT_BRANCH_ID is not configured; Neon Local will create ephemeral E2E branches from the project default branch.',
+    );
+    expect(ciRuntimeValidationHelper).toContain(
+      'Missing required Stripe connected account id. Set STRIPE_TEST_ACCOUNT_ID as a secret or repository variable.',
+    );
+    expect(ciRuntimeValidationHelper).toContain(
+      'Missing required Auth0 issuer URL. Set ISSUER_BASE_URL as a secret or repository variable.',
     );
     expect(workflow).not.toContain('resolved_parent_branch_id');
     expect(workflow).not.toContain(
@@ -3773,10 +3795,10 @@ describe('stabilization source', () => {
     );
     expect(cleanupWorkflow).toContain('timeout-minutes: 10');
     expect(cleanupWorkflow).toContain('Validate required configuration');
-    expect(cleanupWorkflow).toContain('Missing required secret: NEON_API_KEY');
     expect(cleanupWorkflow).toContain(
-      'Missing required repository variable: NEON_PROJECT_ID',
+      'run: bash helpers/testing/validate-ci-runtime-env.sh neon-cleanup',
     );
+    expect(cleanupWorkflow).not.toContain('if [ -z "${NEON_API_KEY}" ]');
     expect(cleanupWorkflow).toContain(
       'Prune branches outside the active-test TTL',
     );
