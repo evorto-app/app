@@ -1036,8 +1036,9 @@ provider outcomes without live identifiers.
   `helpers/testing/ci-prune-neon-local-branches.sh`; runtime-preflight and
   stabilization-source guards keep the workflow wired to those helpers while
   checking the bounded Docker preflight, bounded Compose image pre-pull,
-  bounded Compose shutdown, per-container force removal, and two-hour
-  active-test TTL pruning behavior. Runtime preflight reuses the same
+  bounded Compose shutdown, per-container force removal, teardown-owned metadata
+  branch pruning, and two-hour active-test TTL pruning behavior. Runtime
+  preflight reuses the same
   stale/unhealthy Compose container parser and target predicate as
   `bun run docker:clean-stale`, so diagnostics and cleanup cannot drift on
   which generated containers are considered cleanup targets.

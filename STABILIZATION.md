@@ -4186,17 +4186,19 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   also bounds the whole-stack `compose kill` and `compose rm` fallback calls
   through the same `compose_timeout` wrapper, force-removes leftover Compose
   containers one at a time, gives the Docker cleanup step a 10-minute cleanup
-  step timeout, and gives the dependency-free post-teardown Neon prune a
-  5-minute final prune timeout. The current workflow delegates those finalizers
-  to `helpers/testing/ci-stop-docker-stack.sh` and
+  step timeout, invokes `helpers/testing/ci-prune-neon-local-branches.sh` from
+  the stop helper after container removal, and keeps the dependency-free
+  post-teardown Neon prune with its 5-minute final prune timeout. The current workflow
+  delegates those finalizers to `helpers/testing/ci-stop-docker-stack.sh` and
   `helpers/testing/ci-prune-neon-local-branches.sh`, so shutdown behavior stays
   source-guarded in one place instead of duplicated inline in the workflow. That
   keeps a stuck Docker client or stuck leftover container from consuming the rest
   of the E2E job while branch cleanup remains ambiguous.
   That keeps the intended invariant explicit: outside currently active tests and
   their short two-hour TTL, only `main` should remain. The E2E workflow now also
-  runs a separate dependency-free `if: always()` Neon prune after Docker
-  teardown, so a Compose shutdown problem is not the only in-job cleanup path. A
+  prunes Neon from the Docker teardown helper and still runs a separate
+  dependency-free `if: always()` Neon prune after Docker teardown, so a Compose
+  shutdown problem is not the only in-job cleanup path. A
   standalone `Neon Branch Cleanup` workflow now runs the same dependency-free helper
   hourly, on manual dispatch, and after the E2E workflow completes, so canceled
   or crashed GitHub runner cleanup does not have to wait for the next

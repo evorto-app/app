@@ -114,17 +114,19 @@ helper refuses protected branches.
 bounds the runtime preflight, bounds Compose image pre-pull attempts, builds the
 app images with the CI BuildKit cache overlay, starts the already-built stack,
 and keeps the existing one-prune retry before surfacing startup failure.
-`helpers/testing/ci-stop-docker-stack.sh` owns only the E2E Docker shutdown
-path: it first gives the Neon Local `db` container a 60-second stop window
-inside a bounded 90-second command, then runs bounded Compose down and
-force-removes leftover Compose containers. The workflow's separate
-`Prune expired Neon branches after E2E` finalizer then runs
+`helpers/testing/ci-stop-docker-stack.sh` owns the E2E Docker shutdown path: it
+first gives the Neon Local `db` container a 60-second stop window inside a
+bounded 90-second command, then runs bounded Compose down, force-removes leftover
+Compose containers, and invokes the Neon prune helper against the metadata branch
+that shutdown should have released. The workflow's separate
+`Prune expired Neon branches after E2E` finalizer still runs
 `helpers/testing/ci-prune-neon-local-branches.sh` so Neon cleanup remains
-visible, dependency-free, and independent from Docker teardown. CI Compose
-status, logs, debug streaming, shutdown, and container-removal commands use the
-generated `.env.dev` dotenv cascade after dependencies exist, while final branch
-deletion runs directly against the already-exported workflow environment so
-dependency-install failures cannot prevent Neon cleanup. The same cleanup helper
+visible, dependency-free, and independent if Docker teardown hangs or times out.
+CI Compose status, logs, debug streaming, shutdown, and container-removal
+commands use the generated `.env.dev` dotenv cascade after dependencies exist,
+while final branch deletion runs directly against the already-exported workflow
+environment so dependency-install failures cannot prevent Neon cleanup. The same
+cleanup helper
 also prunes non-main Neon branches whose `expires_at` has already passed, and
 also prunes non-main branches without expiration metadata once their
 `created_at` timestamp is outside the active-test TTL. It runs that stale sweep

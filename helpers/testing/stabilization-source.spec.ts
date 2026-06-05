@@ -3474,7 +3474,7 @@ describe('stabilization source', () => {
     expect(checkpoint).toMatch(/active-test rule/u);
     expect(checkpoint).toMatch(/only the protected branch remains/u);
     expect(checkpoint).toMatch(/before Docker\s+startup/u);
-    expect(checkpoint).toContain('separate dependency-free `if: always()`');
+    expect(checkpoint).toMatch(/separate\s+dependency-free `if: always\(\)`/u);
     expect(checkpoint).toContain('not the only in-job cleanup path');
     expect(checkpoint).toContain('project (`polished-frost-79768881`)');
     expect(checkpoint).toMatch(/zero active-test branches\s+inside/u);
@@ -3565,8 +3565,15 @@ describe('stabilization source', () => {
     expect(ciPruneHelper).toContain(
       'bun helpers/testing/delete-neon-local-branches.ts',
     );
-    expect(ciStopDockerStackHelper).not.toContain(
-      'ci-prune-neon-local-branches.sh',
+    expect(ciStopDockerStackHelper).toContain(
+      'bash helpers/testing/ci-prune-neon-local-branches.sh || true',
+    );
+    expect(
+      ciStopDockerStackHelper.indexOf(
+        'bash helpers/testing/ci-prune-neon-local-branches.sh || true',
+      ),
+    ).toBeGreaterThan(
+      ciStopDockerStackHelper.lastIndexOf('remove_compose_project_containers'),
     );
     expect(workflow).toContain('Prune expired Neon branches after E2E');
     expect(workflow).toContain('timeout-minutes: 5');
