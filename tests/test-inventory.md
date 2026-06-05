@@ -476,6 +476,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   unique across generated docs so one caption cannot describe unrelated states,
   requires screenshot captions to have at least 24 characters and four words so
   terse section/list labels do not pass as meaningful evidence,
+  maps the root product docs' important documentation areas to the generated
+  docs files and concrete source terms for browsing events, registration,
+  transfers, create-from-template, event review/publishing, templates,
+  roles/capabilities, check-in, receipts, tenant branding/settings, and
+  legal/privacy settings,
   rejects fixed `waitForTimeout` sleeps in generated docs so screenshots stay
   tied to concrete UI state,
   keeps the helper's runtime caption parameter required with the same minimum

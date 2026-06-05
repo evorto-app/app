@@ -806,6 +806,101 @@ describe('generated docs source current behavior', () => {
     ).toEqual([]);
   });
 
+  it('keeps product-important documentation areas represented by generated docs', () => {
+    const productSource = readSource('PRODUCT.md');
+    const imageBackedDocumentationAreas = [
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        productArea: 'browsing events',
+        terms: ['browse the events', 'Events list'],
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        productArea: 'registering for events',
+        terms: ['Register for a free event', 'Successful registration'],
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        productArea: 'transferring a registration',
+        terms: ['Transfer an unpaid registration', 'Transfer code'],
+      },
+      {
+        files: ['tests/docs/events/event-management.doc.ts'],
+        productArea: 'creating an event from a template',
+        terms: [
+          'Create Event',
+          'Templates page with reusable event template choices',
+        ],
+      },
+      {
+        files: ['tests/docs/events/event-approval.doc.ts'],
+        productArea: 'submitting an event for review',
+        terms: ['Submit Event for Review', 'Submit a draft for review'],
+      },
+      {
+        files: ['tests/docs/events/event-approval.doc.ts'],
+        productArea: 'publishing an event',
+        terms: ['Published', 'publishes it'],
+      },
+      {
+        files: ['tests/docs/templates/templates.doc.ts'],
+        productArea: 'managing templates',
+        terms: ['Creating templates', 'Saved template detail page'],
+      },
+      {
+        files: [
+          'tests/docs/roles/about-permissions.doc.ts',
+          'tests/docs/roles/roles.doc.ts',
+        ],
+        productArea: 'configuring roles and capabilities',
+        terms: [
+          'tenant-scoped capabilities',
+          'Role form with permission groups',
+        ],
+      },
+      {
+        files: ['tests/docs/events/event-management.doc.ts'],
+        productArea: 'checking in participants',
+        terms: [
+          'Guests to check in now',
+          'Scanned registration with guest check-in',
+        ],
+      },
+      {
+        files: ['tests/docs/events/event-management.doc.ts'],
+        productArea: 'submitting receipts',
+        terms: ['Submit receipt', 'Receipt submission dialog'],
+      },
+      {
+        files: ['tests/docs/finance/receipt-review-reimbursement.doc.ts'],
+        productArea: 'reviewing receipts',
+        terms: ['Receipt approval queue', 'Receipt review detail'],
+      },
+      {
+        files: ['tests/docs/admin/general-settings.doc.ts'],
+        productArea: 'tenant branding/settings',
+        terms: ['Brand asset and search preview settings', 'General settings'],
+      },
+      {
+        files: ['tests/docs/admin/general-settings.doc.ts'],
+        productArea: 'legal/privacy settings',
+        terms: ['Legal page fields', 'Hosted privacy policy text'],
+      },
+    ] as const;
+
+    for (const documentationArea of imageBackedDocumentationAreas) {
+      expect(productSource).toContain(`- ${documentationArea.productArea}`);
+
+      const combinedSource = documentationArea.files
+        .map((file) => readSource(file))
+        .join('\n');
+
+      for (const term of documentationArea.terms) {
+        expect(combinedSource, documentationArea.productArea).toContain(term);
+      }
+    }
+  });
+
   it('keeps generated documentation publishing explicit in package scripts', () => {
     const packageJson = JSON.parse(readSource('package.json')) as {
       scripts?: Record<string, string>;

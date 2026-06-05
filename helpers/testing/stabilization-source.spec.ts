@@ -1226,6 +1226,19 @@ describe('stabilization source', () => {
       'keeps generated documentation pages explanatory and image-backed',
     );
     expect(generatedDocumentationSource).toContain(
+      'keeps product-important documentation areas represented by generated docs',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'imageBackedDocumentationAreas',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'creating an event from a template',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'configuring roles and capabilities',
+    );
+    expect(generatedDocumentationSource).toContain('legal/privacy settings');
+    expect(generatedDocumentationSource).toContain(
       'expect(documentFiles.length).toBe(16)',
     );
     expect(generatedDocumentationSource).toContain('markdownTextLength');

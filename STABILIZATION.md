@@ -5582,6 +5582,12 @@ wrapped in a multi-target argument.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.
+Generated-doc source coverage now also maps the root product docs' important
+documentation areas to generated doc files and concrete source terms, so
+essential flows like browsing events, registering, transfers, create-from-template,
+event review/publishing, templates, roles/capabilities, check-in, receipts,
+tenant branding/settings, and legal/privacy settings cannot silently disappear
+from the product-facing documentation inventory.
 The template generated doc now screenshots the seeded template-list navigation
 containing both a category and the Create template action instead of highlighting
 only the standalone create link.
