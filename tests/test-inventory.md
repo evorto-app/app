@@ -992,6 +992,10 @@ provider outcomes without live identifiers.
   checking the bounded Docker preflight, bounded Compose image pre-pull,
   bounded Compose shutdown, per-container force removal, and two-hour
   active-test TTL pruning behavior.
+  The cleanup helper also supports
+  `NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id>` for the exact confirmed
+  inactive branch reported by the cleanup summary, while still refusing
+  protected branches and leaving the default CI path TTL-conservative.
   The current PR #62 head `e07b2fd15` has completed CodeQL, Copilot, Git Town,
   CodeRabbit, and the serial E2E cache warmer successfully; E2E run
   `26999937086` still had `functional-1` in Docker startup and `functional-2`

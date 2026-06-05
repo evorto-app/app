@@ -91,6 +91,11 @@ bun run lint
   image pre-pull, build, and startup, `helpers/testing/ci-stop-docker-stack.sh`
   for Docker teardown, and `helpers/testing/ci-prune-neon-local-branches.sh`
   for the dependency-free final prune.
+  If cleanup reports a young active-test branch after the owning Docker stack or
+  GitHub run has already stopped, delete that exact branch id with
+  `NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id> bun run db:cleanup:neon-local`;
+  the helper still refuses protected branches and does not change the default
+  TTL-conservative CI path.
   Generated local `.env.dev` sets
   `NEON_LOCAL_METADATA_DIR=./.neon_local`, matching the Docker Compose mount so
   local package-script cleanup reads the active Neon Local metadata file.

@@ -408,6 +408,14 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'helpers/README.md'),
       'utf8',
     );
+    const testsReadme = fs.readFileSync(
+      path.join(process.cwd(), 'tests/README.md'),
+      'utf8',
+    );
+    const inventory = fs.readFileSync(
+      path.join(process.cwd(), 'tests/test-inventory.md'),
+      'utf8',
+    );
 
     expect(databaseService).toContain(
       'DELETE_BRANCH: "${DELETE_BRANCH:-true}"',
@@ -953,6 +961,15 @@ describe('evaluateRuntimePreflight', () => {
     expect(cleanupHelper).toContain('listNeonBranches');
     expect(cleanupHelper).toContain('extractStaleEphemeralBranchId');
     expect(cleanupHelper).toContain('NEON_LOCAL_BRANCH_TTL_HOURS');
+    expect(cleanupHelper).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
+    expect(cleanupHelper).toContain('deleteExplicitBranchIds');
+    expect(cleanupHelper).toContain('forceDeleteBranchIds');
+    expect(cleanupHelper).toContain(
+      'Refusing to force-delete protected Neon branch',
+    );
+    expect(cleanupHelper).toContain(
+      'Requested Neon Local branch ${branchId} is already absent.',
+    );
     expect(cleanupHelper).toContain('expires_at');
     expect(cleanupHelper).toContain('created_at');
     expect(cleanupHelper).toContain('staleAfter');
@@ -980,6 +997,17 @@ describe('evaluateRuntimePreflight', () => {
     expect(cleanupHelper).toContain(
       'NEON_API_KEY and NEON_PROJECT_ID are required for Neon Local stale cleanup; skipping stale cleanup.',
     );
+    expect(helpersReadme).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
+    expect(helpersReadme).toContain('confirmed-inactive');
+    expect(helpersReadme).toContain(
+      'default CI and local cleanup remain TTL-conservative',
+    );
+    expect(testsReadme).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
+    expect(testsReadme).toContain(
+      'the helper still refuses protected branches',
+    );
+    expect(inventory).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
+    expect(inventory).toContain('default CI path TTL-conservative');
   });
 
   it('keeps generated runtime ports stable for non-mutating Docker checks', () => {
