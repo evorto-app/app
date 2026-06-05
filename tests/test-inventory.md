@@ -815,6 +815,9 @@ provider outcomes without live identifiers.
     Font Awesome dependency guard, Font Awesome token-env scrubbing, and Bun
     package/dependency-tree cache restores for workflows that install
     dependencies; the Neon cleanup workflow is pinned as install-free.
+    The E2E cache warmer also runs TTL-conservative Neon branch cleanup before
+    dependency installs when Neon credentials are available, keeping stale-branch
+    recovery separate from Font Awesome bandwidth mitigation.
     Source coverage now fails if a new GitHub workflow adds `bun install`
     without the same public Font Awesome registry override and Bun cache
     protections, or if a workflow runs a Docker Compose build without the CI
@@ -1079,6 +1082,9 @@ provider outcomes without live identifiers.
   branch audits can use the non-mutating `bun run neon:cleanup:dry-run`;
   confirmed local cleanup can use `bun run neon:cleanup`, keeping the
   dotenv/runtime cascade behind a short Neon-specific package script.
+  The cache-warmer cleanup checkpoint runs before dependency installs, so
+  branch-count recovery does not depend on Playwright shards reaching Docker
+  startup or shutdown.
   E2E CI must not set `BRANCH_ID`; it uses `PARENT_BRANCH_ID` or Neon Local's
   documented default project branch so Neon Local creates ephemeral branches,
   while persistent branch modes stay local-only opt-ins that cleanup skips.

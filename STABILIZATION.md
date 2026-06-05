@@ -5534,6 +5534,10 @@ combined failed-check summary. A current local run failed on the expected closed
 database port and Docker container-start path while still reporting the Neon
 summary as one protected branch, no active-test branches, no stale deletions,
 and a two-hour TTL.
+The E2E cache-warmer now also runs TTL-conservative Neon Local branch cleanup
+before dependency installs when Neon credentials are available, so stale branch
+recovery does not depend on Playwright shards reaching Docker startup or
+shutdown and remains separate from the Font Awesome bandwidth mitigation path.
 Generated-doc source coverage also rejects generic page-shell screenshot focus
 targets such as `locator('main')`; screenshot evidence must focus a meaningful
 product control, form, component, row, or state while still capturing visible

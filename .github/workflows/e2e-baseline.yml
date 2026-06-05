@@ -20,7 +20,11 @@ jobs:
     timeout-minutes: 30
     env:
       BUILDKIT_BUN_CACHE_DIR: buildkit-bun-cache
+      DELETE_BRANCH: true
       DOCKER_BUILD_CACHE_DIR: /tmp/evorto-docker-build-cache
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_LOCAL_BRANCH_TTL_HOURS: 2
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,6 +32,14 @@ jobs:
       - name: Set up Bun dependency caches
         id: bun-dependency-caches
         uses: ./.github/actions/setup-bun-dependency-caches
+
+      - name: Prune expired Neon branches before cache installs
+        run: |
+          if [ -z "${NEON_API_KEY}" ] || [ -z "${NEON_PROJECT_ID}" ]; then
+            echo "::notice::Skipping pre-cache Neon cleanup because NEON_API_KEY or NEON_PROJECT_ID is not configured."
+            exit 0
+          fi
+          bun helpers/testing/delete-neon-local-branches.ts
 
       - name: Set up Docker Buildx
         id: setup-buildx

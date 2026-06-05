@@ -79,8 +79,9 @@ bun run lint
 - Local Docker runs use Neon Local instead of a plain Postgres container.
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts. It first drops and recreates the Docker database `public` schema so Drizzle does not require interactive confirmation inside the container.
 - CI and local Docker runs set a two-hour Neon Local branch TTL. CI prunes stale
-  branches before E2E startup, gives the Neon Local `db` container a graceful
-  stop window before bounded Compose shutdown, force-removes leftover Compose
+  branches before the E2E cache warmer opens any dependency-install path, prunes
+  again before E2E startup, gives the Neon Local `db` container a graceful stop
+  window before bounded Compose shutdown, force-removes leftover Compose
   containers one at a time, deletes remaining branch ids from Neon Local
   metadata after shutdown, and prunes non-main Neon branches whose `expires_at`
   has passed or whose missing expiration metadata has aged beyond the

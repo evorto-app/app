@@ -536,6 +536,8 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).toContain('DELETE_BRANCH: true');
     expect(workflow).not.toMatch(/^\s+BRANCH_ID:/mu);
     expect(workflow).toContain('NEON_LOCAL_BRANCH_TTL_HOURS: 2');
+    expect(workflow).toContain('NEON_API_KEY: ${{ secrets.NEON_API_KEY }}');
+    expect(workflow).toContain('NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}');
     expect(workflow).toContain(
       'PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}',
     );
@@ -560,6 +562,18 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).toContain('Prune expired Neon branches before E2E');
     expect(workflow).toContain(
       'bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    expect(workflow).toContain(
+      'Prune expired Neon branches before cache installs',
+    );
+    expect(workflow).toContain(
+      'Skipping pre-cache Neon cleanup because NEON_API_KEY or NEON_PROJECT_ID is not configured.',
+    );
+    const preCachePruneIndex = workflow.indexOf(
+      'Prune expired Neon branches before cache installs',
+    );
+    expect(preCachePruneIndex).toBeLessThan(
+      workflow.indexOf('- name: Install dependencies'),
     );
     const pruneBeforeE2EIndex = workflow.indexOf(
       'Prune expired Neon branches before E2E',

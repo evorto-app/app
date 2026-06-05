@@ -154,6 +154,10 @@ read`, validates `NEON_API_KEY` and `NEON_PROJECT_ID`, uses
 `DELETE_BRANCH=true`, keeps the two-hour active-test TTL, runs in a
 non-canceling `neon-branch-cleanup` concurrency group, and has a 10-minute job
 timeout.
+The E2E cache-warmer also runs the same TTL cleanup before dependency installs
+when Neon credentials are available. That keeps branch-count recovery out of the
+Font Awesome bandwidth path and gives cancelled or replaced PR runs another
+pre-Docker cleanup checkpoint.
 Playwright `webServer` uses `bun run docker:webserver`, which removes
 stopped/created Compose service containers and then starts the foreground
 Compose stack without forcing `docker compose down` first. Use

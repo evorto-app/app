@@ -1855,6 +1855,12 @@ describe('stabilization source', () => {
     expect(workflow).toContain('version: latest');
     expect(workflow).toContain('warm-ci-caches:');
     expect(workflow).toContain('name: Warm CI dependency caches');
+    expect(workflow).toContain(
+      'Prune expired Neon branches before cache installs',
+    );
+    expect(workflow).toContain(
+      'Skipping pre-cache Neon cleanup because NEON_API_KEY or NEON_PROJECT_ID is not configured.',
+    );
     expect(workflow).toContain('needs: warm-ci-caches');
     expect(workflow).toContain('max-parallel: 1');
     expect(workflow).toContain('path: ${{ env.DOCKER_BUILD_CACHE_DIR }}');
@@ -5113,6 +5119,14 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain('used the short Neon cleanup alias');
     expect(checkpointText).toContain('only protected `main`');
     expect(workflow).toContain('name: Warm CI dependency caches');
+    expect(workflow).toContain('DELETE_BRANCH: true');
+    expect(workflow).toContain('NEON_LOCAL_BRANCH_TTL_HOURS: 2');
+    expect(workflow).toContain(
+      'Prune expired Neon branches before cache installs',
+    );
+    expect(workflow).toContain(
+      'Skipping pre-cache Neon cleanup because NEON_API_KEY or NEON_PROJECT_ID is not configured.',
+    );
     expect(ciDependencyCacheAction).toContain(
       'Prepare public Font Awesome registry',
     );
