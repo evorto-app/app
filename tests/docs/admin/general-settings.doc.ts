@@ -1,6 +1,37 @@
 import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import type { Locator, Page } from '@playwright/test';
+
+const generalSettingsSection = (
+  page: Page,
+  input: {
+    title: string;
+    requiredText: string[];
+  },
+): Locator => {
+  let section = page
+    .locator('app-general-settings section')
+    .filter({ hasText: input.title });
+
+  for (const text of input.requiredText) {
+    section = section.filter({ hasText: text });
+  }
+
+  return section.first();
+};
+
+const generalSettingsField = (page: Page, label: string): Locator =>
+  page
+    .locator('app-general-settings mat-form-field')
+    .filter({ hasText: label })
+    .first();
+
+const generalSettingsToggle = (page: Page, label: string): Locator =>
+  page
+    .locator('app-general-settings mat-slide-toggle')
+    .filter({ hasText: label })
+    .first();
 
 test.use({ storageState: adminStateFile });
 
@@ -42,13 +73,17 @@ Tenant admins can manage the settings that are currently implemented for the act
       'Custom-domain verification and multi-domain automation are deferred.',
     ),
   ).toBeVisible();
+  const deferredSettingsSummary = generalSettingsSection(page, {
+    requiredText: [
+      'Domain onboarding',
+      'Custom-domain verification and multi-domain automation are deferred.',
+    ],
+    title: 'Deferred settings',
+  });
+  await expect(deferredSettingsSummary).toBeVisible();
   await takeScreenshot(
     testInfo,
-    generalSettings.getByRole('heading', {
-      exact: true,
-      level: 1,
-      name: 'General settings',
-    }),
+    deferredSettingsSummary,
     page,
     'Tenant general settings page with editable relaunch configuration fields',
   );
@@ -65,13 +100,14 @@ Tenant admins can manage the settings that are currently implemented for the act
   await expect(
     generalSettings.getByText('Stripe account', { exact: true }),
   ).toBeVisible();
+  const tenantIdentitySummary = generalSettingsSection(page, {
+    requiredText: ['Primary domain', 'Stripe account'],
+    title: 'Tenant identity',
+  });
+  await expect(tenantIdentitySummary).toBeVisible();
   await takeScreenshot(
     testInfo,
-    generalSettings.getByRole('heading', {
-      exact: true,
-      level: 2,
-      name: 'Tenant identity',
-    }),
+    tenantIdentitySummary,
     page,
     'Tenant identity summary showing primary domain and Stripe status',
   );
@@ -111,9 +147,11 @@ Tax rates are managed on the separate **Tax Rates** page.
   await expect(generalSettings.getByLabel('Favicon URL')).toBeVisible();
   await expect(generalSettings.getByLabel('SEO title')).toBeVisible();
   await expect(generalSettings.getByLabel('SEO description')).toBeVisible();
+  const emailSenderField = generalSettingsField(page, 'Email sender name');
+  await expect(emailSenderField).toBeVisible();
   await takeScreenshot(
     testInfo,
-    generalSettings.getByLabel('Email sender name'),
+    emailSenderField,
     page,
     'Communication and branding fields for tenant email and assets',
   );
@@ -129,13 +167,11 @@ Tax rates are managed on the separate **Tax Rates** page.
   ).toBeVisible();
   await expect(generalSettings.getByLabel('Terms URL')).toBeVisible();
   await expect(generalSettings.getByLabel('Hosted terms text')).toBeVisible();
+  const hostedTermsField = generalSettingsField(page, 'Hosted terms text');
+  await expect(hostedTermsField).toBeVisible();
   await takeScreenshot(
     testInfo,
-    generalSettings.getByRole('heading', {
-      exact: true,
-      level: 3,
-      name: 'Legal pages',
-    }),
+    hostedTermsField,
     page,
     'Legal page fields for hosted imprint privacy and terms content',
   );
@@ -147,13 +183,11 @@ Tax rates are managed on the separate **Tax Rates** page.
   await expect(
     generalSettings.getByRole('button', { name: 'Save' }),
   ).toBeVisible();
+  const esnDiscountToggle = generalSettingsToggle(page, 'ESN Card discounts');
+  await expect(esnDiscountToggle).toBeVisible();
   await takeScreenshot(
     testInfo,
-    generalSettings.getByRole('heading', {
-      exact: true,
-      level: 3,
-      name: 'Discount providers',
-    }),
+    esnDiscountToggle,
     page,
     'Receipt and ESN card discount settings near the save action',
   );

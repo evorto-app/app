@@ -633,11 +633,13 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state.',
     );
+    expect(source).toContain('const generalSettingsSection =');
+    expect(source).toContain('const generalSettingsField =');
+    expect(source).toContain('const generalSettingsToggle =');
+    expect(source).toContain("locator('app-general-settings section')");
+    expect(source).toContain("locator('app-general-settings mat-form-field')");
     expect(source).toContain(
-      "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 1,\n      name: 'General settings',\n    })",
-    );
-    expect(source).toContain(
-      "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 2,\n      name: 'Tenant identity',\n    })",
+      "locator('app-general-settings mat-slide-toggle')",
     );
     expect(source).toContain("generalSettings.getByText('Domain onboarding')");
     expect(source).toContain(
@@ -664,9 +666,6 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("generalSettings.getByLabel('SEO title')");
     expect(source).toContain("generalSettings.getByLabel('SEO description')");
     expect(source).toContain(
-      "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 3,\n      name: 'Legal pages',\n    })",
-    );
-    expect(source).toContain(
       "generalSettings.getByLabel('Imprint / legal notice URL')",
     );
     expect(source).toContain(
@@ -681,9 +680,6 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("generalSettings.getByLabel('Terms URL')");
     expect(source).toContain("generalSettings.getByLabel('Hosted terms text')");
     expect(source).toContain(
-      "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 3,\n      name: 'Discount providers',\n    })",
-    );
-    expect(source).toContain(
       "generalSettings.getByLabel('Allowed receipt countries')",
     );
     expect(source).toContain("generalSettings.getByLabel('Allow other')");
@@ -691,6 +687,20 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       "generalSettings.getByRole('button', { name: 'Save' })",
     );
+    expect(source).toContain('const deferredSettingsSummary =');
+    expect(source).toContain('const tenantIdentitySummary =');
+    expect(source).toContain('const emailSenderField =');
+    expect(source).toContain('const hostedTermsField =');
+    expect(source).toContain('const esnDiscountToggle =');
+    expect(source).toContain(
+      'await expect(deferredSettingsSummary).toBeVisible()',
+    );
+    expect(source).toContain(
+      'await expect(tenantIdentitySummary).toBeVisible()',
+    );
+    expect(source).toContain('await expect(emailSenderField).toBeVisible()');
+    expect(source).toContain('await expect(hostedTermsField).toBeVisible()');
+    expect(source).toContain('await expect(esnDiscountToggle).toBeVisible()');
     expect(source).toContain(
       'Tenant identity summary showing primary domain and Stripe status',
     );
@@ -702,6 +712,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'Receipt and ESN card discount settings near the save action',
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    generalSettings.getByRole('heading'",
     );
     expect(source).toContain(
       'One-domain-per-tenant remains the current relaunch scope in the application schema.',
