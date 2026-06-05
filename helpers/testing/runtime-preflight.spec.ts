@@ -169,8 +169,18 @@ describe('evaluateRuntimePreflight', () => {
       'NPM_CONFIG_USERCONFIG=/tmp/npmrc-public-fontawesome',
     );
     expect(dockerfile).toContain(
+      'npm_config_userconfig=/tmp/npmrc-public-fontawesome',
+    );
+    expect(dockerfile).toContain(
+      'NPM_CONFIG_GLOBALCONFIG=/tmp/npmrc-empty-global',
+    );
+    expect(dockerfile).toContain(
+      'npm_config_globalconfig=/tmp/npmrc-empty-global',
+    );
+    expect(dockerfile).toContain(
       "'@fortawesome:registry=https://registry.npmjs.org/'",
     );
+    expect(dockerfile).toContain('RUN : > /tmp/npmrc-empty-global');
     expect(dockerfile).toContain('sharing=locked');
     expect(dockerfile).toContain('FROM base AS dependencies');
     expect(dockerfile).toContain('FROM dependencies AS build');
@@ -843,6 +853,21 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(fontAwesomeCiHelper).toContain('NPM_CONFIG_USERCONFIG=');
     expect(fontAwesomeCiHelper).toContain('npm_config_userconfig=');
+    expect(fontAwesomeCiHelper).toContain('NPM_CONFIG_GLOBALCONFIG=');
+    expect(fontAwesomeCiHelper).toContain('npm_config_globalconfig=');
+    expect(fontAwesomeCiHelper).toContain(
+      'fontawesome_token_environment_names=(',
+    );
+    expect(fontAwesomeCiHelper).toContain('FONT_AWESOME_TOKEN');
+    expect(fontAwesomeCiHelper).toContain('FONTAWESOME_TOKEN');
+    expect(fontAwesomeCiHelper).toContain('FONTAWESOME_NPM_AUTH_TOKEN');
+    expect(fontAwesomeCiHelper).toContain('FONTAWESOME_PACKAGE_TOKEN');
+    expect(fontAwesomeCiHelper).toContain(
+      'unset "${fontawesome_token_environment_name}"',
+    );
+    expect(fontAwesomeCiHelper).toContain(
+      'echo "${fontawesome_token_environment_name}="',
+    );
     expect(workflow).toContain(
       'DOCKER_BUILD_CACHE_DIR: /tmp/evorto-docker-build-cache',
     );
@@ -985,6 +1010,13 @@ describe('evaluateRuntimePreflight', () => {
     expect(dockerfile).toContain(
       'id=bun-install-cache,target=/home/bun/.bun/install/cache',
     );
+    expect(dockerfile).toContain(
+      'NPM_CONFIG_GLOBALCONFIG=/tmp/npmrc-empty-global',
+    );
+    expect(dockerfile).toContain(
+      'npm_config_globalconfig=/tmp/npmrc-empty-global',
+    );
+    expect(dockerfile).toContain('RUN : > /tmp/npmrc-empty-global');
     expect(dockerfile).toContain(
       'bun install --frozen-lockfile --cache-dir /home/bun/.bun/install/cache',
     );

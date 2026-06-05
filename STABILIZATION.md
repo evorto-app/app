@@ -4354,6 +4354,14 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   appears. That keeps GitHub-hosted installs from inheriting a user/account-level
   Font Awesome registry configuration while preserving the existing
   `bunfig.toml` public-registry pin and cache-hit install skip. A follow-up
+  June 5 hardening pass also writes an empty runner-temp npm global config,
+  exports `NPM_CONFIG_GLOBALCONFIG` and `npm_config_globalconfig`, and clears
+  common Font Awesome token environment variables in `$GITHUB_ENV`; Docker
+  installs now use the same empty global-config path before any BuildKit Bun
+  cache-mount install. That preserves the cache-hit behavior while removing the
+  account-backed private registry path when a runner or inherited environment
+  contains Font Awesome credentials.
+  A follow-up
   simplification keeps the scheduled `Neon Branch Cleanup` workflow out of the
   Font Awesome registry setup path because it does not run dependency
   installation; its source guard now pins that cleanup-only workflow as

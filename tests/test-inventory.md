@@ -786,14 +786,15 @@ provider outcomes without live identifiers.
     separate BuildKit cache scopes for the dependency, `db-setup`, and `evorto`
     images; CI also explicitly enables Docker BuildKit before Compose builds.
     The Dockerfile writes the public Font Awesome npm user config before
-    container installs, locks the shared BuildKit Bun cache mount, and derives
-    build plus production dependency stages from the cache-warmed dependency
-    stage with an offline production install.
+    container installs, points npm global config at an empty temp file, locks the
+    shared BuildKit Bun cache mount, and derives build plus production
+    dependency stages from the cache-warmed dependency stage with an offline
+    production install.
     `.github/actions/setup-bun-dependency-caches/action.yml` centralizes the
     GitHub Actions Bun setup, public Font Awesome registry override, private
-    Font Awesome dependency guard, and Bun package/dependency-tree cache
-    restores for workflows that install dependencies; the Neon cleanup workflow
-    is pinned as install-free.
+    Font Awesome dependency guard, Font Awesome token-env scrubbing, and Bun
+    package/dependency-tree cache restores for workflows that install
+    dependencies; the Neon cleanup workflow is pinned as install-free.
     Source coverage now fails if a new GitHub workflow adds `bun install`
     without the same public Font Awesome registry override and Bun cache
     protections, or if a workflow runs a Docker Compose build without the CI

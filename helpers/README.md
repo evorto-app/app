@@ -225,6 +225,10 @@ not depend on a private Font Awesome registry token or project `.npmrc`. CI
 install retries preserve the restored Bun package cache instead of clearing it
 before retrying, so transient failures do not force another Font Awesome package
 download.
+CI also clears common Font Awesome token environment variables and points npm's
+user and global config paths at temporary public-only files before dependency
+steps run, so account-level registry configuration cannot leak into cache misses
+or Docker installs.
 `.github/actions/setup-bun-dependency-caches/action.yml` centralizes the
 GitHub Actions Bun setup, public Font Awesome registry override, private Font
 Awesome dependency guard, and Bun package/dependency-tree cache restores for
@@ -236,13 +240,14 @@ cache warmer, while E2E workers and Copilot setup use `offline-required` mode
 and fail before opening another registry install path when warmed caches are
 missing.
 Docker builds also write a temporary public Font Awesome npm user config before
-container installs and lock the shared BuildKit Bun cache mount so parallel
-install stages do not race the cache. CI persists that `bun-install-cache` mount
-as a separate `buildkit-bun-cache` Actions cache and injects it back into the
-BuildKit builder before a dependency-only warm build and the later Docker
-Compose builds, because BuildKit layer caches alone do not carry
-`RUN --mount=type=cache` contents between GitHub-hosted runners. Codex setup
-also ignores copied `.npmrc` files, writes the same
+container installs, writes an empty npm global config, and locks the shared
+BuildKit Bun cache mount so parallel install stages do not race the cache. CI
+persists that `bun-install-cache` mount as a separate `buildkit-bun-cache`
+Actions cache and injects it back into the BuildKit builder before a
+dependency-only warm build and the later Docker Compose builds, because
+BuildKit layer caches alone do not carry `RUN --mount=type=cache` contents
+between GitHub-hosted runners. Codex setup also ignores copied `.npmrc` files,
+writes the same
 temporary public Font Awesome npm user config, and installs through the Bun
 package cache instead of requiring `FONT_AWESOME_TOKEN`. `.dockerignore` also
 keeps `.npmrc` out of Docker and remote deploy build contexts, so a

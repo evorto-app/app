@@ -1806,6 +1806,24 @@ describe('stabilization source', () => {
     expect(fontAwesomeCiHelper).toContain(
       'npm_config_userconfig="${RUNNER_TEMP:-/tmp}/npmrc-public-fontawesome"',
     );
+    expect(fontAwesomeCiHelper).toContain(
+      'npm_config_globalconfig="${RUNNER_TEMP:-/tmp}/npmrc-empty-global"',
+    );
+    expect(fontAwesomeCiHelper).toContain('NPM_CONFIG_GLOBALCONFIG=');
+    expect(fontAwesomeCiHelper).toContain('npm_config_globalconfig=');
+    expect(fontAwesomeCiHelper).toContain(
+      'fontawesome_token_environment_names=(',
+    );
+    expect(fontAwesomeCiHelper).toContain('FONT_AWESOME_TOKEN');
+    expect(fontAwesomeCiHelper).toContain('FONTAWESOME_TOKEN');
+    expect(fontAwesomeCiHelper).toContain('FONTAWESOME_NPM_AUTH_TOKEN');
+    expect(fontAwesomeCiHelper).toContain('FONTAWESOME_PACKAGE_TOKEN');
+    expect(fontAwesomeCiHelper).toContain(
+      'unset "${fontawesome_token_environment_name}"',
+    );
+    expect(fontAwesomeCiHelper).toContain(
+      'echo "${fontawesome_token_environment_name}="',
+    );
     expect(copilotSetupWorkflow).not.toContain(
       'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
     );
@@ -2006,8 +2024,15 @@ describe('stabilization source', () => {
       'npm_config_userconfig=/tmp/npmrc-public-fontawesome',
     );
     expect(dockerfile).toContain(
+      'NPM_CONFIG_GLOBALCONFIG=/tmp/npmrc-empty-global',
+    );
+    expect(dockerfile).toContain(
+      'npm_config_globalconfig=/tmp/npmrc-empty-global',
+    );
+    expect(dockerfile).toContain(
       "'@fortawesome:registry=https://registry.npmjs.org/'",
     );
+    expect(dockerfile).toContain('RUN : > /tmp/npmrc-empty-global');
     expect(dockerfile).toContain(
       'id=bun-install-cache,target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked',
     );
@@ -3835,6 +3860,24 @@ describe('stabilization source', () => {
     expect(fontAwesomeCiHelper).toContain(
       'npm_config_userconfig="${RUNNER_TEMP:-/tmp}/npmrc-public-fontawesome"',
     );
+    expect(fontAwesomeCiHelper).toContain(
+      'npm_config_globalconfig="${RUNNER_TEMP:-/tmp}/npmrc-empty-global"',
+    );
+    expect(fontAwesomeCiHelper).toContain('NPM_CONFIG_GLOBALCONFIG=');
+    expect(fontAwesomeCiHelper).toContain('npm_config_globalconfig=');
+    expect(fontAwesomeCiHelper).toContain(
+      'fontawesome_token_environment_names=(',
+    );
+    expect(fontAwesomeCiHelper).toContain('FONT_AWESOME_TOKEN');
+    expect(fontAwesomeCiHelper).toContain('FONTAWESOME_TOKEN');
+    expect(fontAwesomeCiHelper).toContain('FONTAWESOME_NPM_AUTH_TOKEN');
+    expect(fontAwesomeCiHelper).toContain('FONTAWESOME_PACKAGE_TOKEN');
+    expect(fontAwesomeCiHelper).toContain(
+      'unset "${fontawesome_token_environment_name}"',
+    );
+    expect(fontAwesomeCiHelper).toContain(
+      'echo "${fontawesome_token_environment_name}="',
+    );
     expect(ciDependencyCacheAction).toContain(
       "key: ${{ runner.os }}-bun-node-modules-${{ inputs.bun-version }}-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
     );
@@ -4002,8 +4045,15 @@ describe('stabilization source', () => {
       'npm_config_userconfig=/tmp/npmrc-public-fontawesome',
     );
     expect(dockerfile).toContain(
+      'NPM_CONFIG_GLOBALCONFIG=/tmp/npmrc-empty-global',
+    );
+    expect(dockerfile).toContain(
+      'npm_config_globalconfig=/tmp/npmrc-empty-global',
+    );
+    expect(dockerfile).toContain(
       "'@fortawesome:registry=https://registry.npmjs.org/'",
     );
+    expect(dockerfile).toContain('RUN : > /tmp/npmrc-empty-global');
     expect(dockerfile).toContain('sharing=locked');
     expect(dockerfile).toContain('FROM base AS dependencies');
     expect(dockerfile).toContain('FROM dependencies AS build');
