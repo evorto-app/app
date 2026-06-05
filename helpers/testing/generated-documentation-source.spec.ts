@@ -293,6 +293,12 @@ const findSingleControlScreenshotTargets = (
   };
 
   const isSingleControlLocatorTarget = (node: ts.Expression): boolean => {
+    if (ts.isArrayLiteralExpression(node)) {
+      return node.elements.some((element) =>
+        isSingleControlLocatorTarget(element),
+      );
+    }
+
     let candidate: ts.Expression = ts.isParenthesizedExpression(node)
       ? node.expression
       : node;
@@ -569,6 +575,12 @@ describe('generated docs source current behavior', () => {
       );
       await takeScreenshot(
         testInfo,
+        [page.getByLabel('Email address')],
+        page,
+        'Single array target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
         profileSummarySurface,
         page,
         'Named surface target with a descriptive caption',
@@ -589,6 +601,7 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/single-control-target.doc.ts:2:13',
       'tests/docs/example/single-control-target.doc.ts:8:13',
+      'tests/docs/example/single-control-target.doc.ts:14:13',
     ]);
   });
 
