@@ -4731,8 +4731,11 @@ E2E` long enough to be treated as stale; it was cancelled, and GitHub still
   flow, including 13 screenshots for `tests/docs/events/register.doc.ts` and
   eight screenshots for `tests/docs/templates/templates.doc.ts`, while keeping
   `tests/docs/roles/about-permissions.doc.ts` as the only text-only reference
-  exception. This closes an evidence-drift gap where docs could have kept one
-  valid highlighted screenshot and explanatory markdown while quietly dropping
+  exception. The same source guard now requires screenshot captions to stay
+  unique across generated docs, so one generic caption cannot describe unrelated
+  product states while still passing the minimum-caption rule. This closes an
+  evidence-drift gap where docs could have kept one valid highlighted screenshot
+  and explanatory markdown while quietly dropping
   other image-backed states that are needed to judge flow progress from the
   generated documentation. A current local Browser retry at PR head `f2180a209`
   could not start the Docker app because `bun run docker:start` failed in

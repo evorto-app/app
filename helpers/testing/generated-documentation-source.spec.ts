@@ -70,6 +70,56 @@ const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
   return weakCaptions;
 };
 
+const collectScreenshotCaptions = (
+  path: string,
+  source: string,
+): Map<string, string[]> => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const captions = new Map<string, string[]>();
+
+  const describeCall = (node: ts.Expression): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const addCaption = (caption: string, location: string): void => {
+    const existingLocations = captions.get(caption) ?? [];
+    captions.set(caption, [...existingLocations, location]);
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'takeScreenshot'
+    ) {
+      const caption = node.arguments[3];
+
+      if (
+        caption &&
+        (ts.isStringLiteral(caption) ||
+          ts.isNoSubstitutionTemplateLiteral(caption))
+      ) {
+        addCaption(caption.text.trim(), describeCall(caption));
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return captions;
+};
+
 const findGenericScreenshotTargets = (
   path: string,
   source: string,
@@ -341,6 +391,7 @@ describe('generated docs source current behavior', () => {
     const expectedImageBackedDocuments = documentFiles.filter(
       (path) => !textOnlyReferenceDocuments.has(path),
     );
+    const screenshotCaptions = new Map<string, string[]>();
 
     expect(documentFiles.length).toBe(16);
     expect([...expectedScreenshotCounts.keys()].toSorted()).toEqual(
@@ -410,9 +461,27 @@ describe('generated docs source current behavior', () => {
       expect(importsSharedScreenshotHelper(path, source), path).toBe(true);
       expect(source, path).not.toContain('page.screenshot(');
       expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);
+      for (const [caption, locations] of collectScreenshotCaptions(
+        path,
+        source,
+      )) {
+        screenshotCaptions.set(caption, [
+          ...(screenshotCaptions.get(caption) ?? []),
+          ...locations,
+        ]);
+      }
       expect(findGenericScreenshotTargets(path, source), path).toEqual([]);
       expect(findScreenshotHelperBypasses(path, source), path).toEqual([]);
     }
+
+    expect(
+      [...screenshotCaptions.entries()]
+        .filter(([, locations]) => locations.length > 1)
+        .map(
+          ([caption, locations]) =>
+            `${caption}: ${locations.toSorted().join(', ')}`,
+        ),
+    ).toEqual([]);
   });
 
   it('keeps generated documentation publishing explicit in package scripts', () => {

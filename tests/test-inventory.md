@@ -437,8 +437,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   screenshot counts with a manifest that must include every image-backed docs
   file so docs cannot quietly drop image-backed states, requires UI docs to use
   the shared `takeScreenshot` helper imported from the documentation reporter
-  barrel with a meaningful literal caption, keeps the helper's runtime caption
-  parameter required with the same minimum caption length, verifies generated
+  barrel with a meaningful literal caption, requires screenshot captions to stay
+  unique across generated docs so one caption cannot describe unrelated states,
+  keeps the helper's runtime caption parameter required with the same minimum
+  caption length, verifies generated
   screenshots include the highlighted focus target and visible non-highlight
   page content before attachment, rejects generic page-root screenshot targets
   such as `body`, `html`, or `app-root`, covers the weak-caption,
