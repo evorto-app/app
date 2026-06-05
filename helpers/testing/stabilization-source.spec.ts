@@ -3383,6 +3383,12 @@ describe('stabilization source', () => {
     const runtimePreflightSpec = readSource(
       'helpers/testing/runtime-preflight.spec.ts',
     );
+    const localRuntimeStatus = readSource(
+      'helpers/testing/local-runtime-status.ts',
+    );
+    const localRuntimeStatusSpec = readSource(
+      'helpers/testing/local-runtime-status.spec.ts',
+    );
     const copyMainEnvironmentSpec = readSource(
       'helpers/testing/copy-main-environment.spec.ts',
     );
@@ -3477,6 +3483,20 @@ describe('stabilization source', () => {
       'helpers/testing/copy-main-environment.spec.ts',
     );
     expect(inventory).toContain('overwrite refusal unless `--force`');
+    expect(localRuntimeStatus).toContain('export const statusCommands');
+    expect(localRuntimeStatus).toContain('export const runLocalRuntimeStatus');
+    expect(localRuntimeStatus).toContain('if (import.meta.main)');
+    expect(localRuntimeStatusSpec).toContain(
+      'runs every local runtime status check and reports success',
+    );
+    expect(localRuntimeStatusSpec).toContain(
+      'keeps running after failed checks and reports the failed labels together',
+    );
+    expect(localRuntimeStatusSpec).toContain(
+      'reports command startup failures as failed status checks',
+    );
+    expect(inventory).toContain('helpers/testing/local-runtime-status.spec.ts');
+    expect(inventory).toContain('failed labels stay\n  grouped together');
   });
 
   it('keeps the active-test Neon branch cleanup checkpoint honest', () => {

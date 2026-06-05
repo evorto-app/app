@@ -1071,6 +1071,10 @@ provider outcomes without live identifiers.
   It refreshes `.env.dev`, runs the development preflight, runs the Docker
   preflight, and still runs the Neon Local cleanup dry-run before returning a
   combined failed-check summary.
+  `helpers/testing/local-runtime-status.spec.ts` exercises the status runner
+  directly so the command list stays complete, failures do not stop later
+  checks from running, startup errors are reported, and failed labels stay
+  grouped together for operators.
 - `helpers/testing/remove-stale-compose-containers.spec.ts` guards generated
   Compose cleanup target detection for unhealthy Compose JSON health, unhealthy
   Docker `ps` status text fallback, stale created/dead states, healthy running

@@ -1,25 +1,44 @@
 import { spawnSync } from 'node:child_process';
 
+interface LocalRuntimeStatusOptions {
+  runCommand?: (commandArguments: readonly string[]) => StatusCommandResult;
+  writeError?: (message: string) => void;
+  writeOutput?: (message: string) => void;
+}
+
 interface StatusCommand {
   args: readonly string[];
   label: string;
 }
 
-const runStatusCommand = ({ args, label }: StatusCommand): boolean => {
-  console.log(`\n== ${label} ==`);
-  const result = spawnSync(args[0] ?? '', args.slice(1), {
+interface StatusCommandResult {
+  error?: Error;
+  status: null | number;
+}
+
+const defaultRunCommand = (
+  commandArguments: readonly string[],
+): StatusCommandResult =>
+  spawnSync(commandArguments[0] ?? '', commandArguments.slice(1), {
     stdio: 'inherit',
   });
 
+const runStatusCommand = (
+  { args, label }: StatusCommand,
+  options: Required<LocalRuntimeStatusOptions>,
+): boolean => {
+  options.writeOutput(`\n== ${label} ==`);
+  const result = options.runCommand(args);
+
   if (result.error) {
-    console.error(`${label} failed to start: ${result.error.message}`);
+    options.writeError(`${label} failed to start: ${result.error.message}`);
     return false;
   }
 
   return result.status === 0;
 };
 
-const statusCommands: readonly StatusCommand[] = [
+export const statusCommands: readonly StatusCommand[] = [
   {
     args: ['bun', 'run', 'env:runtime'],
     label: 'Generate worktree runtime environment',
@@ -62,13 +81,32 @@ const statusCommands: readonly StatusCommand[] = [
   },
 ];
 
-const failedLabels = statusCommands
-  .filter((command) => !runStatusCommand(command))
-  .map((command) => command.label);
+export const runLocalRuntimeStatus = (
+  options: LocalRuntimeStatusOptions = {},
+): readonly string[] => {
+  const resolvedOptions: Required<LocalRuntimeStatusOptions> = {
+    runCommand: options.runCommand ?? defaultRunCommand,
+    writeError: options.writeError ?? console.error,
+    writeOutput: options.writeOutput ?? console.log,
+  };
+  const failedLabels = statusCommands
+    .filter((command) => !runStatusCommand(command, resolvedOptions))
+    .map((command) => command.label);
 
-if (failedLabels.length > 0) {
-  console.error(`\nLocal runtime status failed: ${failedLabels.join(', ')}.`);
-  process.exitCode = 1;
-} else {
-  console.log('\nLocal runtime status passed.');
+  if (failedLabels.length > 0) {
+    resolvedOptions.writeError(
+      `\nLocal runtime status failed: ${failedLabels.join(', ')}.`,
+    );
+  } else {
+    resolvedOptions.writeOutput('\nLocal runtime status passed.');
+  }
+
+  return failedLabels;
+};
+
+if (import.meta.main) {
+  const failedLabels = runLocalRuntimeStatus();
+  if (failedLabels.length > 0) {
+    process.exitCode = 1;
+  }
 }

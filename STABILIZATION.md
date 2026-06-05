@@ -5544,7 +5544,10 @@ reruns.
 Local runtime diagnosis is now package-scripted as `bun run dev:status`: it
 regenerates `.env.dev`, runs the development preflight, runs the Docker
 preflight, and still runs the Neon Local cleanup dry-run before returning a
-combined failed-check summary. A current local run failed on the expected closed
+combined failed-check summary. Focused helper coverage now verifies that the
+status runner keeps executing later non-mutating checks after earlier failures,
+reports command startup errors, and groups failed labels in one operator-facing
+summary. A current local run failed on the expected closed
 database port and Docker container-start path while still reporting the Neon
 summary as one protected branch, no active-test branches, no stale deletions,
 and a two-hour TTL.

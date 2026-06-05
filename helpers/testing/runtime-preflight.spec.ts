@@ -788,6 +788,23 @@ describe('evaluateRuntimePreflight', () => {
     expect(localRuntimeStatusHelper).toContain('delete-neon-local-branches.ts');
     expect(localRuntimeStatusHelper).toContain("'--dry-run'");
     expect(localRuntimeStatusHelper).toContain('failedLabels');
+    expect(localRuntimeStatusHelper).toContain('export const statusCommands');
+    expect(localRuntimeStatusHelper).toContain(
+      'export const runLocalRuntimeStatus',
+    );
+    const localRuntimeStatusSpec = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/local-runtime-status.spec.ts'),
+      'utf8',
+    );
+    expect(localRuntimeStatusSpec).toContain(
+      'runs every local runtime status check and reports success',
+    );
+    expect(localRuntimeStatusSpec).toContain(
+      'keeps running after failed checks and reports the failed labels together',
+    );
+    expect(localRuntimeStatusSpec).toContain(
+      'reports command startup failures as failed status checks',
+    );
     expect(helpersReadme).toContain('bun run dev:status');
     expect(helpersReadme).toContain('combined non-mutating local runtime');
     expect(inventory).toContain('bun run dev:status');
