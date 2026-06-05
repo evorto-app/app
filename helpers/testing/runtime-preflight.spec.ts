@@ -1631,7 +1631,8 @@ describe('evaluateRuntimePreflight', () => {
         expect.objectContaining({
           details: [
             'Found a main-checkout developer secrets file at /Users/test/code/evorto/.env.',
-            'Copy it into this worktree with: cp /Users/test/code/evorto/.env /Users/test/.codex/worktrees/e159/evorto/.env',
+            'Copy it into this worktree with: bun run env:copy-main',
+            'Source: /Users/test/code/evorto/.env',
             'Do not copy .env.dev; it is generated per worktree. Review .env.dev.local before copying because it may contain worktree-specific test fallbacks.',
           ],
           label: 'Developer secrets file',

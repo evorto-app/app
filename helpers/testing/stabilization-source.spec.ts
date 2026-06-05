@@ -3387,7 +3387,12 @@ describe('stabilization source', () => {
     expect(runtimePreflight).toContain(
       'Found a main-checkout developer secrets file',
     );
-    expect(runtimePreflight).toContain('Copy it into this worktree with: cp');
+    expect(runtimePreflight).toContain(
+      'Copy it into this worktree with: bun run env:copy-main',
+    );
+    expect(runtimePreflight).toContain(
+      '`Source: ${mainCheckoutEnvironmentPath}`',
+    );
     expect(runtimePreflight).toContain(
       'Do not copy .env.dev; it is generated per worktree',
     );
@@ -3410,7 +3415,7 @@ describe('stabilization source', () => {
       'points missing-secret checkouts at the no-secret env checklist when no main env exists',
     );
     expect(helpersReadme).toContain(
-      'preflight prints the exact `cp ... .env` recovery command',
+      'preflight points at `bun run env:copy-main`',
     );
     expect(testsReadme).toContain('sibling main checkout `.env`');
     expect(inventory).toContain('missing-secret recovery hint');

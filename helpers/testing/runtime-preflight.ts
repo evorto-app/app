@@ -593,7 +593,8 @@ const developerSecretsFileCheck = (
     return {
       details: [
         `Found a main-checkout developer secrets file at ${mainCheckoutEnvironmentPath}.`,
-        `Copy it into this worktree with: cp ${mainCheckoutEnvironmentPath} ${path.join(cwd, '.env')}`,
+        'Copy it into this worktree with: bun run env:copy-main',
+        `Source: ${mainCheckoutEnvironmentPath}`,
         'Do not copy .env.dev; it is generated per worktree. Review .env.dev.local before copying because it may contain worktree-specific test fallbacks.',
       ],
       label: 'Developer secrets file',

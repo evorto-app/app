@@ -1029,8 +1029,8 @@ provider outcomes without live identifiers.
   project, app host port, Neon Local host port, and Neon Local metadata
   directory. It now also guards the missing-secret recovery hint: when a Codex
   worktree lacks required runtime variables and the sibling main checkout has an
-  untracked `.env`, preflight prints the exact `.env` copy command while
-  keeping generated `.env.dev` worktree-local.
+  untracked `.env`, preflight points at the guarded `bun run env:copy-main`
+  command while keeping generated `.env.dev` worktree-local.
 - `bun run dev:status` is the combined non-mutating local runtime status path.
   It refreshes `.env.dev`, runs the development preflight, runs the Docker
   preflight, and still runs the Neon Local cleanup dry-run before returning a

@@ -1917,8 +1917,8 @@ the current working direction until a product decision overrides them.
 - Local runtime config uses `.env.dev.local` for tracked shared defaults, `.env.dev` for generated worktree-specific values, and `.env` for untracked developer secrets.
 - `bun run env:runtime` writes `.env.dev` with worktree-specific `COMPOSE_PROJECT_NAME`, Neon Local port, MinIO ports, `BASE_URL`, and local `DATABASE_URL`. It now also prints the non-secret generated `BASE_URL`, `COMPOSE_PROJECT_NAME`, and `NEON_LOCAL_HOST_PORT`, so Browser and Docker checks can find the current worktree target without ad hoc shell `dotenv` probes.
 - `bun run env:copy-main` provides the guarded version of the missing-secret
-  recovery path that `dev:check` and `docker:check` print: it copies only the
-  main checkout's untracked `.env`, defaults to `$HOME/code/<repo>/.env`,
+  recovery path that `dev:check` and `docker:check` now recommend directly: it
+  copies only the main checkout's untracked `.env`, defaults to `$HOME/code/<repo>/.env`,
   accepts `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite the
   worktree `.env` unless rerun with `--force`. Generated `.env.dev` remains
   worktree-local and is never copied.
@@ -2023,8 +2023,9 @@ the current working direction until a product decision overrides them.
   failing preflight message points developers at the checklist before asking
   them to add missing values to `.env` or the shell environment. A follow-up
   local-worktree simplification now also detects `/Users/.../code/evorto/.env`
-  when required runtime variables are missing and prints the exact copy command,
-  while keeping generated `.env.dev` explicitly worktree-local.
+  when required runtime variables are missing and points at
+  `bun run env:copy-main`, while keeping generated `.env.dev` explicitly
+  worktree-local.
 - **Addressed in stabilization pass:** local workflow guidance now consistently routes developers through `bun run ...` package scripts or `node_modules/.bin/dotenv -c dev -- ...` for direct external-tool calls. The server config guidance no longer treats unsupported `.env.local` as part of the normal local dotenv contract.
 - **Acceptable for now:** keeping core commands visible in `package.json` makes the workflow easier for agents than hiding orchestration in helper wrappers.
 - **Acceptable for now:** `.env.dev` is ignored and generated per worktree, while `.env.dev.local` remains tracked for shared defaults.

@@ -149,9 +149,8 @@ bun run lint
   local, Docker, and CI dependency installs must not require
   `FONT_AWESOME_TOKEN` or a project `.npmrc`. When required variables are
   missing in a Codex worktree, `docker:check` and `dev:check` also look for the
-  sibling main checkout `.env` and print the exact copy command when it exists;
-  `.env.dev` remains generated per worktree and should not be copied. Use
-  `bun run env:copy-main` for the guarded copy path; it reads
+  sibling main checkout `.env` and point at `bun run env:copy-main` when it
+  exists; `.env.dev` remains generated per worktree and should not be copied. It reads
   `$HOME/code/<repo>/.env` by default, supports
   `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite an existing
   worktree `.env` unless rerun with `--force`. Codex
