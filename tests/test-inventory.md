@@ -781,6 +781,11 @@ provider outcomes without live identifiers.
     main-checkout `.npmrc`, no longer requires `FONT_AWESOME_TOKEN`, writes the
     same temporary public Font Awesome npm user config before `bun install`, and
     installs through `~/.bun/install/cache`.
+    `helpers/testing/install-ci-dependencies.sh` now owns the shared GitHub
+    Actions cache/offline install decision: the serial E2E cache warmer may use
+    registry fallback in `warm` mode, while E2E workers and Copilot setup run
+    `offline-required` mode and fail before spending Font Awesome bandwidth when
+    warmed caches are unavailable.
     Local design-token coverage now also fails if app UI files introduce
     hardcoded hex/rgb/hsl color literals or arbitrary color utilities instead
     of Material/Tailwind semantic color tokens, and it fails on app UI

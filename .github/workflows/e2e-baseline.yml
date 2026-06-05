@@ -91,29 +91,11 @@ jobs:
         run: mkdir -p "${DOCKER_BUILD_CACHE_DIR}"
 
       - name: Install dependencies
-        run: |
-          echo "Bun package cache hit: ${{ steps.bun-package-cache.outputs.cache-hit }}"
-          echo "Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}"
-          bun_package_cache_restored="false"
-          if [ -n "$(find "${HOME}/.bun/install/cache" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
-            bun_package_cache_restored="true"
-          fi
-          echo "Bun package cache restored: ${bun_package_cache_restored}"
-          if [ "${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "Bun dependency tree cache restored; skipping registry install."
-            exit 0
-          fi
-          if [ "${bun_package_cache_restored}" = "true" ]; then
-            echo "Bun dependency tree cache was not restored; installing offline from the warmed package cache before falling back to the serial cache warmer registry install."
-            if bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache; then
-              exit 0
-            fi
-            echo "::warning::Offline Bun install failed even though the package cache was restored. Retrying once through the serial cache warmer registry install without clearing the package cache."
-          fi
-          if ! bun install --frozen-lockfile --cache-dir ~/.bun/install/cache; then
-            echo "::warning::Bun install failed. Retrying once without clearing the package cache."
-            bun install --frozen-lockfile --cache-dir ~/.bun/install/cache
-          fi
+        env:
+          BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}
+          BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-package-cache.outputs.cache-hit }}
+          CI_DEPENDENCY_INSTALL_MODE: warm
+        run: bash helpers/testing/install-ci-dependencies.sh
 
       - name: Save warmed Bun package cache
         if: steps.bun-package-cache.outputs.cache-hit != 'true'
@@ -248,7 +230,19 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        env:
+          BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}
+          BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-package-cache.outputs.cache-hit }}
+          CI_DEPENDENCY_INSTALL_MISSING_CACHE_MESSAGE: Bun dependency tree cache was not restored after warm-ci-caches. Refusing a parallel registry install to avoid repeated Font Awesome package downloads.
+          CI_DEPENDENCY_INSTALL_MODE: offline-required
+        run: bash helpers/testing/install-ci-dependencies.sh
+
+      - name: Save Bun dependency tree from package cache
+        if: steps.bun-dependency-tree-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules
+          key: ${{ steps.bun-dependency-tree-cache.outputs.cache-primary-key }}
 
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium

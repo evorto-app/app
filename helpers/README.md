@@ -205,6 +205,11 @@ cache instead of clearing it before retrying, so transient failures do not
 force another Font Awesome package download.
 `helpers/testing/prepare-public-fontawesome-ci.sh` centralizes the GitHub
 Actions public registry override and private Font Awesome dependency guard.
+`helpers/testing/install-ci-dependencies.sh` centralizes the GitHub Actions
+Bun cache/offline install policy: `warm` mode is reserved for the serial E2E
+cache warmer, while E2E workers and Copilot setup use `offline-required` mode
+and fail before opening another registry install path when warmed caches are
+missing.
 Docker builds also write a temporary public Font Awesome npm user config before
 container installs and lock the shared BuildKit Bun cache mount so parallel
 install stages do not race the cache. CI persists that `bun-install-cache` mount

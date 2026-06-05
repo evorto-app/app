@@ -4247,6 +4247,14 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   cache-hit values before deciding whether to skip `bun install`, so the CI logs
   show whether a Font Awesome bandwidth warning came from an expected cache miss
   or from an unexpected install path.
+  A follow-up CI simplification extracts the duplicated E2E/Copilot Bun install
+  decision tree into `helpers/testing/install-ci-dependencies.sh`. The serial
+  E2E cache warmer runs that helper with `CI_DEPENDENCY_INSTALL_MODE=warm`, so
+  it is still the only path that may open a registry install after cache/offline
+  recovery fails. E2E workers and Copilot setup run the same helper with
+  `CI_DEPENDENCY_INSTALL_MODE=offline-required`, preserving the fail-fast rule
+  when warmed caches are absent while keeping the Font Awesome bandwidth policy
+  in one audited script instead of three inline workflow blocks.
   A fresh June 4, 2026 Copilot setup check on pushed head `49782fc8c` exposed a
   cache-output edge case: `actions/cache/restore@v4` restored
   `~/.bun/install/cache` from the `Linux-bun-1.3.11-` restore key, but

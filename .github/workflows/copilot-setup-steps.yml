@@ -71,26 +71,11 @@ jobs:
             ${{ runner.os }}-bun-node-modules-1.3.11-
 
       - name: Install dependencies
-        run: |
-          echo "Bun package cache hit: ${{ steps.bun-package-cache.outputs.cache-hit }}"
-          echo "Bun dependency tree cache hit: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}"
-          bun_package_cache_restored="false"
-          if [ -n "$(find "${HOME}/.bun/install/cache" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
-            bun_package_cache_restored="true"
-          fi
-          echo "Bun package cache restored: ${bun_package_cache_restored}"
-          if [ "${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "Bun dependency tree cache restored; skipping registry install."
-            exit 0
-          fi
-          if [ "${bun_package_cache_restored}" = "true" ]; then
-            echo "Bun dependency tree cache was not restored; installing offline from the warmed package cache."
-            if bun install --frozen-lockfile --offline --cache-dir ~/.bun/install/cache; then
-              exit 0
-            fi
-            echo "::warning::Offline Bun install failed even though the package cache was restored. Retrying once through the Copilot setup registry install."
-          fi
-          bun install --frozen-lockfile --cache-dir ~/.bun/install/cache
+        env:
+          BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-tree-cache.outputs.cache-hit }}
+          BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-package-cache.outputs.cache-hit }}
+          CI_DEPENDENCY_INSTALL_MODE: warm
+        run: bash helpers/testing/install-ci-dependencies.sh
 
       - name: Save Bun package cache
         if: steps.bun-package-cache.outputs.cache-hit != 'true'
