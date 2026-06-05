@@ -259,6 +259,48 @@ const stripeWebhookSecretSourceCheck = (
   };
 };
 
+const databaseTarget = (databaseUrl: string | undefined): string => {
+  if (!databaseUrl?.trim()) {
+    return 'DATABASE_URL=<missing>';
+  }
+
+  try {
+    const parsed = new URL(databaseUrl);
+    const host = normalizedHost(parsed.hostname);
+    const port = parsed.port || '5432';
+    const database = parsed.pathname.replace(/^\//u, '') || '<missing-db>';
+
+    return `DATABASE_URL target=${host}:${port}/${database}`;
+  } catch {
+    return 'DATABASE_URL=<invalid-url>';
+  }
+};
+
+const runtimeTargetCheck = (
+  target: RuntimeTarget,
+  environment: NodeJS.ProcessEnv,
+): RuntimeCheck => {
+  const details = [
+    `BASE_URL=${environment['BASE_URL']?.trim() || '<missing>'}`,
+    databaseTarget(environment['DATABASE_URL']),
+  ];
+
+  if (target === 'docker') {
+    details.push(
+      `COMPOSE_PROJECT_NAME=${environment['COMPOSE_PROJECT_NAME']?.trim() || '<missing>'}`,
+      `APP_HOST_PORT=${environment['APP_HOST_PORT']?.trim() || '<missing>'}`,
+      `NEON_LOCAL_HOST_PORT=${environment['NEON_LOCAL_HOST_PORT']?.trim() || '<missing>'}`,
+      `NEON_LOCAL_METADATA_DIR=${environment['NEON_LOCAL_METADATA_DIR']?.trim() || '<missing>'}`,
+    );
+  }
+
+  return {
+    details,
+    label: 'Runtime target',
+    severity: 'ok',
+  };
+};
+
 export const evaluateRuntimePreflight = (
   target: RuntimeTarget,
   options: RuntimePreflightOptions = {},
@@ -280,6 +322,7 @@ export const evaluateRuntimePreflight = (
     isPresent(env, name),
   );
   const checks: RuntimeCheck[] = [
+    runtimeTargetCheck(target, environment),
     {
       details:
         missingVariables.length > 0

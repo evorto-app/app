@@ -1252,8 +1252,15 @@ describe('evaluateRuntimePreflight', () => {
     const result = evaluateRuntimePreflight('docker', {
       cwd: '/repo',
       env: {
+        APP_HOST_PORT: '4200',
+        BASE_URL: 'http://localhost:4200',
         CLIENT_ID: 'client-id',
+        COMPOSE_PROJECT_NAME: 'evorto-local',
+        DATABASE_URL:
+          'postgresql://neon:secret@localhost:55443/appdb?sslmode=require',
         ISSUER_BASE_URL: 'issuer',
+        NEON_LOCAL_HOST_PORT: '55443',
+        NEON_LOCAL_METADATA_DIR: './.neon_local',
         NEON_PROJECT_ID: 'project-id',
         SECRET: 'secret',
       },
@@ -1264,6 +1271,18 @@ describe('evaluateRuntimePreflight', () => {
     expect(result.failed).toBe(true);
     expect(result.checks).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'BASE_URL=http://localhost:4200',
+            'DATABASE_URL target=localhost:55443/appdb',
+            'COMPOSE_PROJECT_NAME=evorto-local',
+            'APP_HOST_PORT=4200',
+            'NEON_LOCAL_HOST_PORT=55443',
+            'NEON_LOCAL_METADATA_DIR=./.neon_local',
+          ]),
+          label: 'Runtime target',
+          severity: 'ok',
+        }),
         expect.objectContaining({
           details: expect.arrayContaining([
             'NEON_API_KEY: Neon Local branch creation',
@@ -1291,6 +1310,10 @@ describe('evaluateRuntimePreflight', () => {
         }),
       ]),
     );
+    const runtimeTarget = result.checks.find(
+      (check) => check.label === 'Runtime target',
+    );
+    expect(runtimeTarget?.details?.join('\n')).not.toContain('secret');
   });
 
   it('does not require external provider variables for Docker startup', () => {
@@ -1307,6 +1330,267 @@ describe('evaluateRuntimePreflight', () => {
         expect.objectContaining({
           details: ['No optional variables are configured for this target.'],
           label: 'Optional docker variables',
+          severity: 'ok',
+        }),
+      ]),
+    );
+  });
+
+  it('fails docker preflight before Compose startup when Docker cannot start a disposable container', () => {
+    const commandLog: string[] = [];
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: (command, commandArguments) => {
+        commandLog.push([command, ...commandArguments].join(' '));
+        if (
+          command === 'sh' &&
+          commandArguments[0] === '-c' &&
+          commandArguments[1]?.includes('docker run --name "$container_name"')
+        ) {
+          return {
+            status: 124,
+            stderr:
+              'Timed out after 15s while starting a disposable Alpine container.\n',
+            stdout: '',
+          };
+        }
+
+        return successfulCommand(command, commandArguments);
+      },
+    });
+
+    expect(result.failed).toBe(true);
+    expect(commandLog).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /^sh -c [\s\S]+docker run --name "\$container_name" --rm --pull missing alpine:latest true[\s\S]+docker-container-start-check evorto-runtime-preflight-\d+ 15 15$/u,
+        ),
+      ]),
+    );
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'Timed out after 15s while starting a disposable Alpine container.',
+            'Docker can inspect local configuration but cannot start containers; Browser verification and Docker-backed Playwright are blocked below the app tooling layer.',
+            expect.stringMatching(
+              /^Attempted bounded cleanup for disposable preflight container evorto-runtime-preflight-\d+; if Docker removal also times out, restart Docker Desktop or the Docker engine\.$/u,
+            ),
+          ]),
+          label: 'Docker container start path',
+          severity: 'failure',
+        }),
+      ]),
+    );
+  });
+
+  it('fails docker preflight before startup when generated project containers are stuck created', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: (command, commandArguments) => {
+        if (
+          command === 'docker' &&
+          commandArguments.join(' ') === 'compose ps --all --format json'
+        ) {
+          return {
+            status: 0,
+            stderr: '',
+            stdout: JSON.stringify([
+              {
+                Name: 'evorto-4dddca18-db-1',
+                Service: 'db',
+                State: 'created',
+                Status: 'Created',
+              },
+              {
+                Name: 'evorto-4dddca18-stripe-1',
+                Service: 'stripe',
+                State: 'created',
+                Status: 'Created',
+              },
+            ]),
+          };
+        }
+
+        return successfulCommand(command, commandArguments);
+      },
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'evorto-4dddca18-db-1 (db) is Created',
+            'evorto-4dddca18-stripe-1 (stripe) is Created',
+            'Remove stale created/dead/removing or unhealthy containers before starting Docker; they can make docker compose up/down hang before Browser verification can run.',
+            'Run `bun run docker:clean-stale` to attempt bounded cleanup of the generated Compose project containers.',
+            'If the container is still running or bounded cleanup also times out, run `docker compose down` for the generated project or restart Docker Desktop before retrying; Docker container removal is then blocked below the app tooling layer.',
+          ]),
+          label: 'Docker Compose project containers',
+          severity: 'failure',
+        }),
+      ]),
+    );
+  });
+
+  it('fails docker preflight before startup when generated project containers are unhealthy', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: (command, commandArguments) => {
+        if (
+          command === 'docker' &&
+          commandArguments.join(' ') === 'compose ps --all --format json'
+        ) {
+          return {
+            status: 0,
+            stderr: '',
+            stdout: JSON.stringify({
+              Health: 'unhealthy',
+              Name: 'evorto-4dddca18-db-1',
+              Service: 'db',
+              State: 'running',
+              Status: 'Up 2 hours (unhealthy)',
+            }),
+          };
+        }
+
+        return successfulCommand(command, commandArguments);
+      },
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'evorto-4dddca18-db-1 (db) is Up 2 hours (unhealthy)',
+            'Remove stale created/dead/removing or unhealthy containers before starting Docker; they can make docker compose up/down hang before Browser verification can run.',
+            'Run `bun run docker:clean-stale` to attempt bounded cleanup of the generated Compose project containers.',
+            'If the container is still running or bounded cleanup also times out, run `docker compose down` for the generated project or restart Docker Desktop before retrying; Docker container removal is then blocked below the app tooling layer.',
+          ]),
+          label: 'Docker Compose project containers',
+          severity: 'failure',
+        }),
+      ]),
+    );
+  });
+
+  it('fails docker preflight before startup when generated project containers cannot be inspected', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: (command, commandArguments) => {
+        if (
+          command === 'docker' &&
+          commandArguments.join(' ') === 'compose ps --all --format json'
+        ) {
+          return {
+            errorMessage: 'spawnSync docker ETIMEDOUT',
+            status: 255,
+            stderr: '',
+            stdout: '',
+          };
+        }
+
+        return successfulCommand(command, commandArguments);
+      },
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'Timed out after 15s while inspecting Docker Compose project containers.',
+            'Resolve stale Docker Compose containers before starting Docker; uninspectable project state can make docker compose up/down hang before Browser verification can run.',
+            'Run `bun run docker:clean-stale` to attempt bounded cleanup of the generated Compose project containers.',
+            'If bounded cleanup also times out, restart Docker Desktop or the Docker engine before retrying; Docker container removal is then blocked below the app tooling layer.',
+          ]),
+          label: 'Docker Compose project containers',
+          severity: 'failure',
+        }),
+      ]),
+    );
+  });
+
+  it('fails dev preflight before starting a server against a closed local database port', () => {
+    const result = evaluateRuntimePreflight('dev', {
+      cwd: '/repo',
+      env: {
+        ...requiredDevelopmentEnvironment,
+        DATABASE_URL:
+          'postgresql://neon:npg@localhost:55443/appdb?sslmode=require',
+      },
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: (command, commandArguments) => {
+        if (command === 'nc') {
+          expect(commandArguments).toEqual(['-z', 'localhost', '55443']);
+          return {
+            status: 1,
+            stderr: 'nc: connectx to localhost port 55443 failed\n',
+            stdout: '',
+          };
+        }
+
+        return successfulCommand(command, commandArguments);
+      },
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'DATABASE_URL points at localhost:55443, but no local database endpoint is reachable.',
+            'Start the generated Docker stack with bun run docker:start, or set DATABASE_URL to a reachable database before bun run dev:start.',
+            'nc: connectx to localhost port 55443 failed',
+          ]),
+          label: 'Database endpoint',
+          severity: 'failure',
+        }),
+      ]),
+    );
+  });
+
+  it('passes dev preflight when the generated local database endpoint is reachable', () => {
+    const result = evaluateRuntimePreflight('dev', {
+      cwd: '/repo',
+      env: {
+        ...requiredDevelopmentEnvironment,
+        DATABASE_URL:
+          'postgresql://neon:npg@localhost:55432/appdb?sslmode=require',
+      },
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'BASE_URL=base_url-value',
+            'DATABASE_URL target=localhost:55432/appdb',
+          ]),
+          label: 'Runtime target',
+          severity: 'ok',
+        }),
+        expect.objectContaining({
+          details: ['All required variables are present.'],
+          label: 'Required dev runtime variables',
+          severity: 'ok',
+        }),
+        expect.objectContaining({
+          details: ['DATABASE_URL endpoint localhost:55432 is reachable.'],
+          label: 'Database endpoint',
           severity: 'ok',
         }),
       ]),

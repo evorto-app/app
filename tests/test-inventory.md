@@ -951,6 +951,11 @@ provider outcomes without live identifiers.
 - The same runtime-preflight source coverage keeps the configured Bun version
   aligned across `package.json`, Docker, Compose-managed Bun services, and
   GitHub workflows.
+- Runtime-preflight coverage also guards the non-secret runtime target summary
+  printed by `dev:check` and `docker:check`, including `BASE_URL`, the local
+  database host/port/database name without credentials, the generated Compose
+  project, app host port, Neon Local host port, and Neon Local metadata
+  directory.
 - `helpers/testing/remove-stale-compose-containers.spec.ts` guards generated
   Compose cleanup target detection for unhealthy Compose JSON health, unhealthy
   Docker `ps` status text fallback, stale created/dead states, healthy running

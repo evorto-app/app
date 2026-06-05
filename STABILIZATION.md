@@ -5315,7 +5315,13 @@ Stripe/Sentry ops, theme generation, and receipt-image cleanup. The runtime
 preflight source guard now protects the focused authenticated viewport, public
 General viewport, layout-helper, and authenticated MCP planner scripts as
 generated-env entrypoints so local stabilization reruns stay simple and
-discoverable. The next stabilization work should continue with small cleanup
+discoverable. The local runtime preflight now also prints a non-secret target
+summary for `dev:check` and `docker:check`: `BASE_URL`, the local database
+host/port/database name without credentials, `COMPOSE_PROJECT_NAME`,
+`APP_HOST_PORT`, `NEON_LOCAL_HOST_PORT`, and `NEON_LOCAL_METADATA_DIR` where
+applicable. That keeps Browser and Docker diagnostics simpler when the current
+host Docker engine can inspect configuration but cannot start containers. The
+next stabilization work should continue with small cleanup
 commits around evidence drift, relaunch-scope watchpoints, and richer
 authenticated Browser evidence as those surfaces change. ESNcard provider
 add/refresh/remove outcomes now use deterministic ESNcard provider test mode.

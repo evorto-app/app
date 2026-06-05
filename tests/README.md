@@ -114,7 +114,10 @@ bun run lint
 - `bun run docker:check` fails before Docker Compose mutates local app
   containers when required local runtime variables are missing. The check covers
   Neon Local, Auth0, Stripe, and the application session secret. It also reports
-  Bun, Docker Compose, Compose config, a disposable Alpine container start path,
+  the non-secret runtime target values it evaluated, including `BASE_URL`,
+  `COMPOSE_PROJECT_NAME`, the local database host/port/database name, the Neon
+  Local host port, and the Neon Local metadata directory. It also reports Bun,
+  Docker Compose, Compose config, a disposable Alpine container start path,
   Playwright CLI, `.env.dev`, and Playwright browser cache status. If the
   disposable container start probe times out, Docker can inspect local
   configuration but cannot start containers; Browser verification and

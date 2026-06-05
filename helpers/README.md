@@ -77,6 +77,10 @@ This will:
 `COMPOSE_PROJECT_NAME`, and `NEON_LOCAL_HOST_PORT` after writing `.env.dev`.
 Use that output to find the app URL or Compose project instead of running a
 bare shell `dotenv` command.
+`bun run dev:check` and `bun run docker:check` also print a non-secret runtime
+target summary, including the browser URL, local database target, Compose
+project name, Neon Local host port, and Neon Local metadata directory where
+applicable.
 
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
