@@ -1757,6 +1757,7 @@ describe('stabilization source', () => {
       expect(workflowSource).toContain(
         'uses: ./.github/actions/setup-bun-dependency-caches',
       );
+      expect(workflowSource).not.toContain('bun-version: "1.3.11"');
       expect(workflowSource).toContain(
         'BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-dependency-caches.outputs.package-cache-hit }}',
       );
@@ -1777,6 +1778,10 @@ describe('stabilization source', () => {
     );
     expect(ciDependencyCacheAction).toContain(
       'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
+    );
+    expect(ciDependencyCacheAction).toContain('default: "1.3.11"');
+    expect(ciDependencyCacheAction).toContain(
+      'bun-version: ${{ inputs.bun-version }}',
     );
     expect(ciDependencyCacheAction).toContain('Restore Bun package cache');
     expect(ciDependencyCacheAction).toContain('id: bun-package-cache');

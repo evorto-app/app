@@ -87,7 +87,59 @@ const serviceBlock = (composeFile: string, service: string): string => {
 };
 
 describe('evaluateRuntimePreflight', () => {
-  it('keeps Docker and local Font Awesome installs on the public registry', () => {
+  it('keeps configured Bun versions aligned across local, Docker, and CI setup', () => {
+    const expectedBunVersion = '1.3.11';
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { packageManager: string };
+    const dockerfile = fs.readFileSync(
+      path.join(process.cwd(), 'Dockerfile'),
+      'utf8',
+    );
+    const composeFile = fs.readFileSync(
+      path.join(process.cwd(), 'docker-compose.yml'),
+      'utf8',
+    );
+    const workflowPaths = [
+      '.github/workflows/e2e-baseline.yml',
+      '.github/workflows/copilot-setup-steps.yml',
+    ];
+    const dependencyCacheAction = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        '.github/actions/setup-bun-dependency-caches/action.yml',
+      ),
+      'utf8',
+    );
+    const cleanupWorkflow = fs.readFileSync(
+      path.join(process.cwd(), '.github/workflows/neon-branch-cleanup.yml'),
+      'utf8',
+    );
+
+    expect(packageJson.packageManager).toBe(`bun@${expectedBunVersion}`);
+    expect(dockerfile).toContain(`FROM oven/bun:${expectedBunVersion} AS base`);
+    expect(composeFile).toContain(
+      `image: oven/bun:${expectedBunVersion}-alpine`,
+    );
+    expect(dependencyCacheAction).toContain(`default: "${expectedBunVersion}"`);
+    expect(dependencyCacheAction).toContain(
+      'bun-version: ${{ inputs.bun-version }}',
+    );
+    expect(cleanupWorkflow).toContain(`bun-version: "${expectedBunVersion}"`);
+
+    for (const workflowPath of workflowPaths) {
+      const workflow = fs.readFileSync(path.join(process.cwd(), workflowPath), {
+        encoding: 'utf8',
+      });
+
+      expect(workflow).toContain(
+        'uses: ./.github/actions/setup-bun-dependency-caches',
+      );
+      expect(workflow).not.toContain(`bun-version: "${expectedBunVersion}"`);
+    }
+  });
+
+  it('keeps Docker and local Font Awesome installs public-registry only', () => {
     const dockerfile = fs.readFileSync(
       path.join(process.cwd(), 'Dockerfile'),
       'utf8',
