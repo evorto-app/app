@@ -1149,18 +1149,12 @@ describe('generated docs source current behavior', () => {
       'Create tenant form preserving URL-shaped domain input after rejection',
     );
     expect(globalAdminSource).toContain('const tenantCreateForm =');
+    expect(globalAdminSource).toContain("filter({ hasText: 'Tenant name' })");
     expect(globalAdminSource).toContain(
-      "filter({ has: tenantCreate.getByLabel('Tenant name') })",
+      "filter({ hasText: 'Primary domain' })",
     );
-    expect(globalAdminSource).toContain(
-      "filter({ has: tenantCreate.getByLabel('Primary domain') })",
-    );
-    expect(globalAdminSource).toContain(
-      "filter({ has: tenantCreate.getByLabel('Timezone') })",
-    );
-    expect(globalAdminSource).toContain(
-      "has: tenantCreate.getByRole('button', { name: 'Create tenant' })",
-    );
+    expect(globalAdminSource).toContain("filter({ hasText: 'Timezone' })");
+    expect(globalAdminSource).toContain("filter({ hasText: 'Create tenant' })");
     expect(globalAdminSource).toContain(
       'const rejectedDomainForm = tenantCreateForm(tenantCreate);',
     );
@@ -1185,18 +1179,14 @@ describe('generated docs source current behavior', () => {
     );
     expect(globalAdminSource).toContain('const tenantEditForm =');
     expect(globalAdminSource).toContain("locator('form')");
+    expect(globalAdminSource).toContain("filter({ hasText: 'Tenant name' })");
     expect(globalAdminSource).toContain(
-      "filter({ has: tenantEdit.getByLabel('Tenant name') })",
+      "filter({ hasText: 'Primary domain' })",
     );
     expect(globalAdminSource).toContain(
-      "filter({ has: tenantEdit.getByLabel('Primary domain') })",
+      "filter({ hasText: 'Relaunch tenant scope' })",
     );
-    expect(globalAdminSource).toContain(
-      "tenantEdit.getByRole('heading', { name: 'Relaunch tenant scope' })",
-    );
-    expect(globalAdminSource).toContain(
-      "filter({ has: tenantEdit.getByRole('button', { name: 'Save tenant' }) })",
-    );
+    expect(globalAdminSource).toContain("filter({ hasText: 'Save tenant' })");
     expect(globalAdminSource).not.toContain(
       "const tenantEditForm = (tenantEdit: Locator) =>\n  tenantEdit.locator('form').first();",
     );

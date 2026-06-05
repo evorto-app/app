@@ -35,16 +35,14 @@ const tenantScopeCard = (tenantForm: Locator) =>
 const tenantCreateForm = (tenantCreate: Locator) =>
   tenantCreate
     .locator('form')
-    .filter({ has: tenantCreate.getByLabel('Tenant name') })
-    .filter({ has: tenantCreate.getByLabel('Primary domain') })
-    .filter({ has: tenantCreate.getByLabel('Theme') })
-    .filter({ has: tenantCreate.getByLabel('Stripe account ID') })
-    .filter({ has: tenantCreate.getByLabel('Currency') })
-    .filter({ has: tenantCreate.getByLabel('Locale') })
-    .filter({ has: tenantCreate.getByLabel('Timezone') })
-    .filter({
-      has: tenantCreate.getByRole('button', { name: 'Create tenant' }),
-    })
+    .filter({ hasText: 'Tenant name' })
+    .filter({ hasText: 'Primary domain' })
+    .filter({ hasText: 'Theme' })
+    .filter({ hasText: 'Stripe account ID' })
+    .filter({ hasText: 'Currency' })
+    .filter({ hasText: 'Locale' })
+    .filter({ hasText: 'Timezone' })
+    .filter({ hasText: 'Create tenant' })
     .first();
 
 const tenantDetailReviewCard = (tenantDetail: Locator, tenantDomain: string) =>
@@ -58,12 +56,10 @@ const tenantDetailReviewCard = (tenantDetail: Locator, tenantDomain: string) =>
 const tenantEditForm = (tenantEdit: Locator) =>
   tenantEdit
     .locator('form')
-    .filter({ has: tenantEdit.getByLabel('Tenant name') })
-    .filter({ has: tenantEdit.getByLabel('Primary domain') })
-    .filter({
-      has: tenantEdit.getByRole('heading', { name: 'Relaunch tenant scope' }),
-    })
-    .filter({ has: tenantEdit.getByRole('button', { name: 'Save tenant' }) })
+    .filter({ hasText: 'Tenant name' })
+    .filter({ hasText: 'Primary domain' })
+    .filter({ hasText: 'Relaunch tenant scope' })
+    .filter({ hasText: 'Save tenant' })
     .first();
 
 test('Global admin: manage tenants @admin @globalAdmin', async ({
