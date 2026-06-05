@@ -4278,15 +4278,19 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   `FONT_AWESOME_TOKEN`, writes a temporary `@fortawesome` public npm user
   config before `bun install`, and installs through `~/.bun/install/cache`.
   A fresh CI bandwidth hardening pass centralizes the GitHub Actions public
-  registry setup in `helpers/testing/prepare-public-fontawesome-ci.sh`: the E2E,
-  Copilot setup, and Neon cleanup workflows call it to write a runner-temp npm
-  user config containing `@fortawesome:registry=https://registry.npmjs.org/`,
-  export both `NPM_CONFIG_USERCONFIG` and `npm_config_userconfig` through
-  `$GITHUB_ENV`, reject private Font Awesome package names, and fail fast if a
-  tracked `.npmrc` appears. That keeps GitHub-hosted installs from inheriting a
-  user/account-level Font Awesome registry configuration while preserving the
-  existing `bunfig.toml` public-registry pin and cache-hit
-  install skip.
+  registry setup in `helpers/testing/prepare-public-fontawesome-ci.sh`: the E2E
+  and Copilot setup dependency-install workflows call it to write a runner-temp
+  npm user config containing
+  `@fortawesome:registry=https://registry.npmjs.org/`, export both
+  `NPM_CONFIG_USERCONFIG` and `npm_config_userconfig` through `$GITHUB_ENV`,
+  reject private Font Awesome package names, and fail fast if a tracked `.npmrc`
+  appears. That keeps GitHub-hosted installs from inheriting a user/account-level
+  Font Awesome registry configuration while preserving the existing
+  `bunfig.toml` public-registry pin and cache-hit install skip. A follow-up
+  simplification keeps the scheduled `Neon Branch Cleanup` workflow out of the
+  Font Awesome registry setup path because it does not run dependency
+  installation; its source guard now pins that cleanup-only workflow as
+  install-free.
   The E2E workflow now starts with a `warm-ci-caches` job that restores or warms
   the Bun package cache, the `node_modules` dependency-tree cache, the
   Docker-specific Bun cache mount, and Playwright browsers before the
@@ -4373,14 +4377,13 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   follow-up commits, including the E2E cache warmer, Docker
   Buildx/cache-scope hardening, app diagnostics logging guard, and related
   docs/source guards.
-  A fresh CI bandwidth hardening pass at local head `f41715149` also added the
-  public Font Awesome registry override and private-package guard to the
-  scheduled `Neon Branch Cleanup` workflow; the current shared helper keeps that
-  cleanup workflow aligned with E2E and Copilot setup. That workflow still does
-  not run dependency installation, but the runner-temp `NPM_CONFIG_USERCONFIG`
-  and `npm_config_userconfig` export now prevents the hourly cleanup runner from
-  inheriting an account-level Font Awesome registry configuration before it
-  executes the Bun helper.
+  A fresh CI bandwidth hardening pass at local head `f41715149` originally added
+  the public Font Awesome registry override and private-package guard to the
+  scheduled `Neon Branch Cleanup` workflow. A later simplification keeps that
+  cleanup-only workflow out of the Font Awesome registry setup path instead:
+  the workflow still does not run dependency installation, and the source guard
+  now pins it as install-free while keeping the registry helper required on the
+  E2E and Copilot dependency-install workflows.
   SSH push is blocked by local key-agent signing and HTTPS push is blocked
   because the current GitHub OAuth token lacks `workflow` scope for
   workflow-file updates. Earlier push attempts either hung in the SSH transport

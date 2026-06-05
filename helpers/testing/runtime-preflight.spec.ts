@@ -592,6 +592,13 @@ describe('evaluateRuntimePreflight', () => {
     expect(cleanupWorkflow).toContain(
       'run: bun helpers/testing/delete-neon-local-branches.ts',
     );
+    expect(cleanupWorkflow).not.toContain(
+      'Prepare public Font Awesome registry',
+    );
+    expect(cleanupWorkflow).not.toContain(
+      'helpers/testing/prepare-public-fontawesome-ci.sh',
+    );
+    expect(cleanupWorkflow).not.toContain('bun install');
     expect(helpersReadme).toContain('Neon Branch Cleanup');
     expect(helpersReadme).toMatch(/contents:\s+read/u);
     expect(helpersReadme).toContain('NEON_API_KEY');

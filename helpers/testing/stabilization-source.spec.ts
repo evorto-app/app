@@ -3730,11 +3730,13 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain('local head `f41715149`');
     expect(checkpoint).toContain('scheduled `Neon Branch Cleanup` workflow');
     expect(checkpoint).toMatch(/does\s+not\s+run\s+dependency installation/u);
-    expect(checkpoint).toMatch(/runner-temp `NPM_CONFIG_USERCONFIG`/u);
-    expect(checkpoint).toContain('`npm_config_userconfig`');
     expect(checkpoint).toMatch(
-      /inheriting an account-level Font Awesome\s+registry configuration/u,
+      /keeps[\s\S]*cleanup-only workflow out of the Font Awesome registry setup path/u,
     );
+    expect(checkpoint).toMatch(/runner-temp\s+npm\s+user config/u);
+    expect(checkpoint).toContain('`NPM_CONFIG_USERCONFIG`');
+    expect(checkpoint).toContain('`npm_config_userconfig`');
+    expect(checkpoint).toMatch(/inheriting a user\/account-level/u);
     expect(checkpoint).toContain('newer local cache/source-guard slices');
     expect(source).not.toMatch(/premium\/brand Font Awesome/u);
     expect(source).not.toMatch(/Font Awesome premium and brand/u);
@@ -3920,9 +3922,11 @@ describe('stabilization source', () => {
     expect(copilotWorkflow).toContain('Restore Playwright browser cache');
     expect(copilotWorkflow).not.toContain('bunx playwright');
     expect(cleanupWorkflow).toContain('name: Neon Branch Cleanup');
-    expect(cleanupWorkflow).toContain('Prepare public Font Awesome registry');
-    expect(cleanupWorkflow).toContain(
-      'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
+    expect(cleanupWorkflow).not.toContain(
+      'Prepare public Font Awesome registry',
+    );
+    expect(cleanupWorkflow).not.toContain(
+      'helpers/testing/prepare-public-fontawesome-ci.sh',
     );
     expect(cleanupWorkflow).not.toContain('bun install');
     expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');

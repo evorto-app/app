@@ -757,7 +757,9 @@ provider outcomes without live identifiers.
     build plus production dependency stages from the cache-warmed dependency
     stage with an offline production install.
     `helpers/testing/prepare-public-fontawesome-ci.sh` centralizes the GitHub
-    Actions public registry override and private Font Awesome dependency guard.
+    Actions public registry override and private Font Awesome dependency guard
+    for workflows that install dependencies; the Neon cleanup workflow is pinned
+    as install-free.
     Source coverage now fails if a new GitHub workflow adds `bun install`
     without the same public Font Awesome registry override and Bun cache
     protections, or if a workflow runs a Docker Compose build without the CI
