@@ -3814,6 +3814,14 @@ fallback rather than a profile discount-card defect.
   warm-cache, functional-1, functional-2, and docs jobs on the same head after
   the previous paginator false positive in `/finance/transactions` and
   `/admin/users` was removed.
+  A fresh June 5, 2026 `bun run test:e2e:layout-helper` run at PR head
+  `877493157` regenerated `.env.dev`, kept `NO_WEBSERVER=true`, and passed all
+  four no-app-startup layout-helper tests in 3.6 seconds. A same-check
+  `bun run docker:ps` showed no generated Compose project containers, and
+  `bun run docker:check` still failed only at `Docker container start path` with
+  the bounded disposable Alpine timeout, so fresh Browser route/mobile layout
+  verification is blocked by the host Docker start path rather than by current
+  app code, Neon cleanup, Font Awesome install, or the shared viewport detector.
   Stabilization source coverage also pins the
   durable viewport spec matrix to 320x740 narrow mobile, 390x844 mobile, and
   1440x900 desktop entries and requires each durable spec to loop that matrix,

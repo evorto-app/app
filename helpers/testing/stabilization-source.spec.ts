@@ -5366,6 +5366,23 @@ describe('stabilization source', () => {
       'verticallyClippedFixedControlLabels',
     );
     expect(pageLayoutHelperSpec).toContain('verticallyClippedFixedTextLabels');
+    expect(source).toContain(
+      'A fresh June 5, 2026 `bun run test:e2e:layout-helper` run at PR head',
+    );
+    expect(source).toContain('`877493157`');
+    expect(source).toContain('NO_WEBSERVER=true');
+    expect(source).toContain(
+      'passed all\n  four no-app-startup layout-helper tests',
+    );
+    expect(source).toContain(
+      '`bun run docker:ps` showed no generated Compose project containers',
+    );
+    expect(source).toContain(
+      'failed only at `Docker container start path` with\n  the bounded disposable Alpine timeout',
+    );
+    expect(source).toContain(
+      'fresh Browser route/mobile layout\n  verification is blocked by the host Docker start path',
+    );
     expect(packageJson.scripts['test:e2e:authenticated-viewports']).toBe(
       authenticatedViewportScript,
     );
