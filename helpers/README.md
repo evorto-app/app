@@ -117,8 +117,8 @@ and keeps the existing one-prune retry before surfacing startup failure.
 `helpers/testing/ci-stop-docker-stack.sh` owns the E2E Docker shutdown path: it
 first gives the Neon Local `db` container a 60-second stop window inside a
 bounded 90-second command, then runs bounded Compose down, force-removes leftover
-Compose containers, and invokes the Neon prune helper against the metadata branch
-that shutdown should have released. The workflow's separate
+Compose containers, and invokes the Neon prune helper with a 5-minute timeout
+against the metadata branch that shutdown should have released. The workflow's separate
 `Prune expired Neon branches after E2E` finalizer still runs
 `helpers/testing/ci-prune-neon-local-branches.sh` so Neon cleanup remains
 visible, dependency-free, and independent if Docker teardown hangs or times out.

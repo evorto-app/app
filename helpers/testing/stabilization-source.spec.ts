@@ -3469,7 +3469,7 @@ describe('stabilization source', () => {
       /bounds\s+the\s+whole-stack\s+`compose kill` and `compose rm`/u,
     );
     expect(checkpoint).toMatch(/10-minute cleanup\s+step timeout/u);
-    expect(checkpoint).toMatch(/5-minute final prune timeout/u);
+    expect(checkpoint).toMatch(/5-minute final\s+prune timeout/u);
     expect(checkpoint).toContain('only `main` should remain');
     expect(checkpoint).toContain('Neon Branch Cleanup');
     expect(checkpoint).toContain('hourly');
@@ -3591,11 +3591,11 @@ describe('stabilization source', () => {
       'bun helpers/testing/delete-neon-local-branches.ts',
     );
     expect(ciStopDockerStackHelper).toContain(
-      'bash helpers/testing/ci-prune-neon-local-branches.sh || true',
+      'timeout 5m bash helpers/testing/ci-prune-neon-local-branches.sh || true',
     );
     expect(
       ciStopDockerStackHelper.indexOf(
-        'bash helpers/testing/ci-prune-neon-local-branches.sh || true',
+        'timeout 5m bash helpers/testing/ci-prune-neon-local-branches.sh || true',
       ),
     ).toBeGreaterThan(
       ciStopDockerStackHelper.lastIndexOf('remove_compose_project_containers'),

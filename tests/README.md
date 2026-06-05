@@ -89,8 +89,9 @@ bun run lint
   database branches behind. E2E CI calls
   `helpers/testing/ci-start-docker-stack.sh` for bounded Docker preflight,
   image pre-pull, build, and startup, `helpers/testing/ci-stop-docker-stack.sh`
-  for Docker teardown, and `helpers/testing/ci-prune-neon-local-branches.sh`
-  for the dependency-free final prune.
+  for Docker teardown plus a timeout-bound metadata prune, and
+  `helpers/testing/ci-prune-neon-local-branches.sh` for the dependency-free
+  final prune.
   Use `bun run neon:cleanup:dry-run` for a non-mutating local branch audit
   before deleting anything and `bun run neon:cleanup` for the same
   TTL-conservative local cleanup path.

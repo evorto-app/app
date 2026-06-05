@@ -4189,13 +4189,14 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   through the same `compose_timeout` wrapper, force-removes leftover Compose
   containers one at a time, gives the Docker cleanup step a 10-minute cleanup
   step timeout, invokes `helpers/testing/ci-prune-neon-local-branches.sh` from
-  the stop helper after container removal, and keeps the dependency-free
-  post-teardown Neon prune with its 5-minute final prune timeout. The current workflow
-  delegates those finalizers to `helpers/testing/ci-stop-docker-stack.sh` and
+  the stop helper after container removal with its own 5-minute timeout, and
+  keeps the dependency-free post-teardown Neon prune with its 5-minute final
+  prune timeout. The current workflow delegates those finalizers to
+  `helpers/testing/ci-stop-docker-stack.sh` and
   `helpers/testing/ci-prune-neon-local-branches.sh`, so shutdown behavior stays
   source-guarded in one place instead of duplicated inline in the workflow. That
-  keeps a stuck Docker client or stuck leftover container from consuming the rest
-  of the E2E job while branch cleanup remains ambiguous.
+  keeps a stuck Docker client, stuck leftover container, or stuck Neon API prune
+  from consuming the rest of the E2E job while branch cleanup remains ambiguous.
   That keeps the intended invariant explicit: outside currently active tests and
   their short two-hour TTL, only `main` should remain. The E2E workflow now also
   prunes Neon from the Docker teardown helper and still runs a separate
