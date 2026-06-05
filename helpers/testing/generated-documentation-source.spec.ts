@@ -951,6 +951,10 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('const profileEventCardSurface =');
     expect(source).toContain('filter({ hasText: eventTitle })');
     expect(source).toContain('hasText: addOnTitle');
+    expect(source).toContain('const profileEventsSectionSurface =');
+    expect(source).toContain(
+      "has: page.getByRole('heading', { name: 'Your Event Registrations' })",
+    );
     expect(source).toContain('const profileReceiptCardSurface =');
     expect(source).toContain('filter({ hasText: receiptFileName })');
     expect(source).toContain(
@@ -965,6 +969,14 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('profileEvent.title');
     expect(source).toContain('18.75 €');
     expect(source).toContain(
+      'Profile events tab showing confirmed, pending, waitlist, and checked-in registrations',
+    );
+    expect(source).toContain('[\n        profileEventsSectionSurface(page),');
+    expect(source).toContain(
+      'documentedEventCard,\n        pendingCheckoutCard',
+    );
+    expect(source).toContain('waitlistCard,\n        checkedInEventCard');
+    expect(source).toContain(
       'Expected generated profile docs user after update',
     );
     expect(source).toContain('updatedProfileUser.communicationEmail).toBe');
@@ -975,6 +987,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('totalAmount: 1875');
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.locator('app-user-profile'),\n      page,\n      'Profile events tab showing the user registration history'",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      documentedEventCard,\n      page,\n      'Profile events tab showing the user registration history'",
     );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.locator('app-user-profile'),\n      page,\n      'Profile receipts tab showing submitted reimbursement receipts'",

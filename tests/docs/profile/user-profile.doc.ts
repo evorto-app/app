@@ -32,6 +32,14 @@ const profileEventCardSurface = (
     })
     .first();
 
+const profileEventsSectionSurface = (page: Page): Locator =>
+  page
+    .locator('app-user-profile section')
+    .filter({
+      has: page.getByRole('heading', { name: 'Your Event Registrations' }),
+    })
+    .first();
+
 const profileReceiptCardSurface = (
   page: Page,
   receiptFileName: string,
@@ -447,9 +455,15 @@ The user profile now uses a two-column layout:
     );
     await takeScreenshot(
       testInfo,
-      documentedEventCard,
+      [
+        profileEventsSectionSurface(page),
+        documentedEventCard,
+        pendingCheckoutCard,
+        waitlistCard,
+        checkedInEventCard,
+      ],
       page,
-      'Profile events tab showing the user registration history',
+      'Profile events tab showing confirmed, pending, waitlist, and checked-in registrations',
     );
 
     await page.getByRole('button', { name: 'Receipts' }).click();

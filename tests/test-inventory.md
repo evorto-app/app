@@ -528,9 +528,12 @@ provider outcomes without live identifiers.
     and read back the pending registration plus checked-in add-on purchase rows
     behind those visible cards.
     Generated profile screenshots now focus the concrete profile summary,
-    seeded event card, and seeded receipt card targets for profile data,
-    registration history, and reimbursement evidence instead of broad
-    profile-page captures for those states.
+    multi-state event registration section, and seeded receipt card targets for
+    profile data, registration history, and reimbursement evidence instead of
+    broad profile-page captures for those states. The profile events screenshot
+    highlights the registrations section plus confirmed, pending-checkout,
+    waitlisted, and checked-in cards so the generated image shows the states
+    asserted by the surrounding docs text.
     Organizer overview app coverage also proves checked-in rows and in-flight
     writes disable participant cancellation and organizer-assisted transfer.
   - ESNcard add, refresh, remove, and provider-unavailable outcomes with

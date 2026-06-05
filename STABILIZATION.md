@@ -5523,10 +5523,13 @@ targets instead of highlighting page or card headings.
 The event-management generated doc now uses concrete event-list,
 template-choice, event-detail header, registration option, and event-edit
 role-picker surfaces instead of highlighting page or section headings.
-The user-profile generated doc now uses concrete profile summary, seeded event
-card, and seeded receipt card screenshot targets for profile data, registration
-history, and reimbursement evidence instead of broad profile-page captures for
-those states.
+The user-profile generated doc now uses concrete profile summary, multi-state
+event registration section, and seeded receipt card screenshot targets for
+profile data, registration history, and reimbursement evidence instead of broad
+profile-page captures for those states. The profile events screenshot
+highlights the registrations section plus confirmed, pending-checkout,
+waitlisted, and checked-in cards so the generated image shows the states
+asserted by the surrounding docs text.
 The roles generated doc now focuses the role-form permission group and saved
 role-detail permission surface when documenting dependent permissions instead of
 highlighting a single checkbox or the saved role heading.
