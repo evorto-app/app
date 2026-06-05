@@ -1059,8 +1059,12 @@ provider outcomes without live identifiers.
   directory. It now also guards the missing-secret recovery hint: when a Codex
   worktree lacks required runtime variables and the sibling main checkout has an
   untracked `.env`, preflight points at the guarded `bun run env:copy-main`
-  command while keeping generated `.env.dev` worktree-local. The same source
-  coverage keeps Prettier's Tailwind plugin config and dev dependency aligned,
+  command while keeping generated `.env.dev` worktree-local.
+  `helpers/testing/copy-main-environment.spec.ts` exercises the helper behavior
+  directly: default sibling-checkout copy, explicit `MAIN_CHECKOUT_DIR`,
+  overwrite refusal unless `--force`, missing-source checklist copy, and the
+  boundary that `.env.dev` is never copied. The same source coverage keeps
+  Prettier's Tailwind plugin config and dev dependency aligned,
   so local `format:write` runs stay warning-free without installing inactive
   formatter plugins.
 - `bun run dev:status` is the combined non-mutating local runtime status path.

@@ -1377,13 +1377,16 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['env:copy-main']).toBe(
       'bun helpers/testing/copy-main-environment.ts',
     );
-    expect(helper).toContain("process.env['MAIN_CHECKOUT_DIR']");
+    expect(helper).toContain('env?: NodeJS.ProcessEnv');
+    expect(helper).toContain('const environment = options.env ?? process.env');
+    expect(helper).toContain("environment['MAIN_CHECKOUT_DIR']");
     expect(helper).toContain(
       "path.join(homeDirectory ?? '', 'code', repositoryName)",
     );
     expect(helper).toContain("path.join(mainCheckout, '.env')");
     expect(helper).toContain("path.join(repositoryRoot, '.env')");
-    expect(helper).toContain("process.argv.includes('--force')");
+    expect(helper).toContain('const argv = options.argv ?? process.argv');
+    expect(helper).toContain("argv.includes('--force')");
     expect(helper).toContain('already exists');
     expect(helper).toContain('nothing to copy');
     expect(helper).toContain('No main-checkout developer secrets file found');

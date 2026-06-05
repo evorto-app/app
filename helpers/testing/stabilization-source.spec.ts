@@ -3383,6 +3383,9 @@ describe('stabilization source', () => {
     const runtimePreflightSpec = readSource(
       'helpers/testing/runtime-preflight.spec.ts',
     );
+    const copyMainEnvironmentSpec = readSource(
+      'helpers/testing/copy-main-environment.spec.ts',
+    );
 
     expect(source).toContain('Earlier Browser/dev-runtime retry checkpoint');
     expect(source).toContain('`bun run dev:start` built the');
@@ -3432,11 +3435,30 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['env:copy-main']).toBe(
       'bun helpers/testing/copy-main-environment.ts',
     );
-    expect(copyMainEnvironment).toContain("process.env['MAIN_CHECKOUT_DIR']");
+    expect(copyMainEnvironment).toContain('env?: NodeJS.ProcessEnv');
+    expect(copyMainEnvironment).toContain(
+      'const environment = options.env ?? process.env',
+    );
+    expect(copyMainEnvironment).toContain("environment['MAIN_CHECKOUT_DIR']");
     expect(copyMainEnvironment).toContain("path.join(mainCheckout, '.env')");
-    expect(copyMainEnvironment).toContain("process.argv.includes('--force')");
+    expect(copyMainEnvironment).toContain(
+      'const argv = options.argv ?? process.argv',
+    );
+    expect(copyMainEnvironment).toContain("argv.includes('--force')");
     expect(copyMainEnvironment).toContain('Do not copy .env.dev');
     expect(copyMainEnvironment).not.toContain("'.env.dev'");
+    expect(copyMainEnvironment).toContain('export const copyMainEnvironment');
+    expect(copyMainEnvironmentSpec).toContain(
+      'copies only the main checkout .env into the current worktree',
+    );
+    expect(copyMainEnvironmentSpec).toContain(
+      'refuses to overwrite an existing worktree .env unless forced',
+    );
+    expect(copyMainEnvironmentSpec).toContain('MAIN_CHECKOUT_DIR');
+    expect(copyMainEnvironmentSpec).toContain(String.raw`env\.example`);
+    expect(copyMainEnvironmentSpec).toContain(
+      "fs.existsSync(path.join(repositoryRoot, '.env.dev'))",
+    );
     expect(helpersReadme).toContain('bun run env:copy-main');
     expect(testsReadme).toContain('bun run env:copy-main');
     expect(source).toContain('`bun run env:copy-main`');
@@ -3451,6 +3473,10 @@ describe('stabilization source', () => {
     );
     expect(testsReadme).toContain('sibling main checkout `.env`');
     expect(inventory).toContain('missing-secret recovery hint');
+    expect(inventory).toContain(
+      'helpers/testing/copy-main-environment.spec.ts',
+    );
+    expect(inventory).toContain('overwrite refusal unless `--force`');
   });
 
   it('keeps the active-test Neon branch cleanup checkpoint honest', () => {

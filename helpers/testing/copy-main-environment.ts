@@ -5,12 +5,28 @@ const fail = (messages: readonly string[]): never => {
   throw new Error(messages.join('\n'));
 };
 
-const main = (): void => {
-  const repositoryRoot = process.cwd();
+interface CopyMainEnvironmentOptions {
+  argv?: readonly string[];
+  copyFile?: (source: string, destination: string) => void;
+  env?: NodeJS.ProcessEnv;
+  fileExists?: (filePath: string) => boolean;
+  log?: (message: string) => void;
+  repositoryRoot?: string;
+}
+
+export const copyMainEnvironment = (
+  options: CopyMainEnvironmentOptions = {},
+): void => {
+  const repositoryRoot = options.repositoryRoot ?? process.cwd();
   const repositoryName = path.basename(repositoryRoot);
-  const homeDirectory = process.env['HOME']?.trim();
-  const explicitMainCheckout = process.env['MAIN_CHECKOUT_DIR']?.trim();
-  const force = process.argv.includes('--force');
+  const environment = options.env ?? process.env;
+  const argv = options.argv ?? process.argv;
+  const fileExists = options.fileExists ?? existsSync;
+  const copyFile = options.copyFile ?? copyFileSync;
+  const log = options.log ?? console.log;
+  const homeDirectory = environment['HOME']?.trim();
+  const explicitMainCheckout = environment['MAIN_CHECKOUT_DIR']?.trim();
+  const force = argv.includes('--force');
 
   if (!homeDirectory && !explicitMainCheckout) {
     fail([
@@ -30,29 +46,31 @@ const main = (): void => {
     ]);
   }
 
-  if (!existsSync(source)) {
+  if (!fileExists(source)) {
     fail([
       `No main-checkout developer secrets file found at ${source}.`,
       `Use ${path.join(repositoryRoot, '.env.example')} as the no-secret checklist, then add missing values to ${destination}.`,
     ]);
   }
 
-  if (existsSync(destination) && !force) {
+  if (fileExists(destination) && !force) {
     fail([
       `${destination} already exists.`,
       'Rerun with --force only when you intentionally want to replace it.',
     ]);
   }
 
-  copyFileSync(source, destination);
-  console.log(`Copied developer secrets from ${source} to ${destination}.`);
-  console.log(
+  copyFile(source, destination);
+  log(`Copied developer secrets from ${source} to ${destination}.`);
+  log(
     'Do not copy .env.dev; it is generated per worktree by bun run env:runtime.',
   );
 };
 
 try {
-  main();
+  if (import.meta.main) {
+    copyMainEnvironment();
+  }
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;

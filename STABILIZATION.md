@@ -1925,7 +1925,9 @@ the current working direction until a product decision overrides them.
   copies only the main checkout's untracked `.env`, defaults to `$HOME/code/<repo>/.env`,
   accepts `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite the
   worktree `.env` unless rerun with `--force`. Generated `.env.dev` remains
-  worktree-local and is never copied.
+  worktree-local and is never copied. Focused helper coverage now exercises the
+  default copy path, explicit checkout override, overwrite refusal, forced
+  replacement, missing-source checklist message, and `.env.dev` boundary.
 - Local Playwright package scripts that run `playwright test`, plus `dev:start`,
   `db:*`, and `docker:*`, now refresh `.env.dev` before running
   `dotenv -c dev`, reducing fresh-worktree and wrong-database risk.
