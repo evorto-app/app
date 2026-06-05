@@ -120,7 +120,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/roles/about-permissions.doc.ts`
   - `docs/roles/roles.doc.ts`
   - role docs create a deterministic tenant role, assert dependent permission
-    selection, read back persisted permissions, and clean up the generated row
+    selection with focused permission-group and saved-detail screenshots, read
+    back persisted permissions, and clean up the generated row
   - `specs/admin/roles-management.spec.ts`
   - `specs/permissions/**`
   - shared permission-guard denial coverage in `src/app/core/guards`

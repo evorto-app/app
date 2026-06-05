@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import type { Locator, Page } from '@playwright/test';
 
 import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
@@ -6,6 +7,23 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
+
+const roleFormPermissionGroupSurface = (page: Page): Locator =>
+  page
+    .locator('app-role-form div')
+    .filter({
+      has: page.getByRole('checkbox', { exact: true, name: 'Events' }),
+    })
+    .filter({ hasText: 'Includes: View templates' })
+    .first();
+
+const savedRoleDetailSurface = (page: Page, roleDescription: string): Locator =>
+  page
+    .locator('app-role-details div')
+    .filter({ hasText: roleDescription })
+    .filter({ hasText: 'Create events' })
+    .filter({ hasText: 'View templates' })
+    .first();
 
 test('Manage tenant roles and review users @admin', async ({
   database,
@@ -116,9 +134,11 @@ Permissions that are required by another permission are automatically included a
     await expect(
       page.getByRole('checkbox', { name: 'View templates' }),
     ).toBeChecked();
+    const rolePermissionGroup = roleFormPermissionGroupSurface(page);
+    await expect(rolePermissionGroup).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByRole('checkbox', { exact: true, name: 'Events' }),
+      rolePermissionGroup,
       page,
       'Role form with permission groups',
     );
@@ -127,9 +147,11 @@ Permissions that are required by another permission are automatically included a
     await expect(page.getByText(roleDescription)).toBeVisible();
     await expect(page.getByText('Create events')).toBeVisible();
     await expect(page.getByText('View templates')).toBeVisible();
+    const savedRoleDetail = savedRoleDetailSurface(page, roleDescription);
+    await expect(savedRoleDetail).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByRole('heading', { name: roleName }),
+      savedRoleDetail,
       page,
       'Saved role detail page with dependent permissions visible',
     );

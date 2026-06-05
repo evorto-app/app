@@ -5513,6 +5513,9 @@ The user-profile generated doc now uses concrete profile summary, seeded event
 card, and seeded receipt card screenshot targets for profile data, registration
 history, and reimbursement evidence instead of broad profile-page captures for
 those states.
+The roles generated doc now focuses the role-form permission group and saved
+role-detail permission surface when documenting dependent permissions instead of
+highlighting a single checkbox or the saved role heading.
 New Playwright skips/fixmes, including
 `test.describe.skip`, should be added only as explicit credential gates or
 honest Browser-backed stabilization placeholders. The Playwright inventory guard now also rejects

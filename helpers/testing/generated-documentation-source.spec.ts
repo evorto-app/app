@@ -1350,6 +1350,23 @@ describe('generated docs source current behavior', () => {
     expect(rolesSource).toContain(
       'Saved role detail page with dependent permissions visible',
     );
+    expect(rolesSource).toContain('const roleFormPermissionGroupSurface =');
+    expect(rolesSource).toContain("locator('app-role-form div')");
+    expect(rolesSource).toContain(
+      "getByRole('checkbox', { exact: true, name: 'Events' })",
+    );
+    expect(rolesSource).toContain('Includes: View templates');
+    expect(rolesSource).toContain('const savedRoleDetailSurface =');
+    expect(rolesSource).toContain("locator('app-role-details div')");
+    expect(rolesSource).toContain('filter({ hasText: roleDescription })');
+    expect(rolesSource).toContain("filter({ hasText: 'Create events' })");
+    expect(rolesSource).toContain("filter({ hasText: 'View templates' })");
+    expect(rolesSource).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.getByRole('checkbox', { exact: true, name: 'Events' })",
+    );
+    expect(rolesSource).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.getByRole('heading', { name: roleName })",
+    );
     expect(rolesSource).toContain(
       "throw new Error('Expected generated roles doc to persist the role')",
     );
