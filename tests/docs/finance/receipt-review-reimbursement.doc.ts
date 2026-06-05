@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import type { Locator, Page } from '@playwright/test';
 
 import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
@@ -7,10 +8,30 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test.skip(
-  true,
-  'Receipt reimbursement docs are completed by a later stacked docs slice.',
-);
+const approvalQueueReceiptSurface = (
+  page: Page,
+  receiptFileName: string,
+): Locator =>
+  page.locator('app-receipt-approval-list section').filter({
+    has: page.getByRole('link', { name: receiptFileName }),
+  });
+
+const receiptReviewDecisionSurface = (page: Page): Locator =>
+  page
+    .locator('app-receipt-approval-detail section')
+    .filter({ has: page.getByRole('heading', { name: 'Receipt data' }) })
+    .filter({
+      has: page.getByText(
+        'Approving or rejecting this receipt records the review status and queues a submitter email after saving.',
+      ),
+    })
+    .first();
+
+const recordedReimbursementStateSurface = (page: Page): Locator =>
+  page
+    .locator('app-receipt-refund-list')
+    .filter({ has: page.getByText('Selected total: 0.00 €') })
+    .first();
 
 test('Review and reimburse receipts @finance', async ({
   database,
@@ -76,9 +97,14 @@ The approval queue groups submitted receipts by event. Each receipt links to a r
     await expect(
       page.getByRole('link', { name: receiptFileName }),
     ).toHaveAttribute('href', `/finance/receipts-approval/${receipt.id}`);
+    const approvalQueueReceipt = approvalQueueReceiptSurface(
+      page,
+      receiptFileName,
+    );
+    await expect(approvalQueueReceipt).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-receipt-approval-list'),
+      approvalQueueReceipt,
       page,
       'Receipt approval queue with reimbursable receipt submissions',
     );
@@ -100,9 +126,11 @@ The approval queue groups submitted receipts by event. Each receipt links to a r
 The review page shows the receipt file, normalized receipt data, tax/deposit/alcohol fields, and the queued-notification caveat. Approving or rejecting updates Evorto's receipt status and queues the submitter email for delivery.
 `,
     });
+    const receiptReviewDecision = receiptReviewDecisionSurface(page);
+    await expect(receiptReviewDecision).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-receipt-approval-detail'),
+      receiptReviewDecision,
       page,
       'Receipt review detail with reimbursement decision controls',
     );
@@ -176,9 +204,11 @@ Approved receipts are grouped by recipient. The contact email shown for each rec
     await expect(
       page.getByText('Selected total: 0.00 €').first(),
     ).toBeVisible();
+    const recordedReimbursementState = recordedReimbursementStateSurface(page);
+    await expect(recordedReimbursementState).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-receipt-refund-list'),
+      recordedReimbursementState,
       page,
       'Receipt reimbursement page after recording the manual transaction',
     );

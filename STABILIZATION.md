@@ -1219,7 +1219,7 @@ the current working direction until a product decision overrides them.
   announces transaction pages instead of the stale user-list label, with the
   template spec pinning both the implemented-route action guard and the
   transaction-specific pagination label.
-- **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the exact seeded receipt through the approval queue, approval detail page, queued submitter-email caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording, then screenshots the post-recording reimbursement page, reads back the final receipt state, and restores the seeded row.
+- **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the exact seeded receipt through the approval queue, approval detail page, queued submitter-email caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording, then screenshots the exact approval queue receipt group, review decision card, reimbursement group, and post-recording reimbursement state, reads back the final receipt state, and restores the seeded row.
 - `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, payout-detail gating, payout-detail labels, selected-total math, and reimbursement record disabled guard. The receipt reimbursement doc/spec assert the manual-money notice on the page.
 - `src/app/finance/receipt-approval-detail/receipt-approval-detail.component.spec.ts`
   pins the approval/rejection action guard for invalid forms, loading receipt
@@ -5530,6 +5530,9 @@ profile-page captures for those states. The profile events screenshot
 highlights the registrations section plus confirmed, pending-checkout,
 waitlisted, and checked-in cards so the generated image shows the states
 asserted by the surrounding docs text.
+The receipt review generated doc now uses concrete approval queue receipt,
+review decision, reimbursement group, and post-recording reimbursement state
+targets instead of broad receipt component hosts.
 The roles generated doc now focuses the role-form permission group and saved
 role-detail permission surface when documenting dependent permissions instead of
 highlighting a single checkbox or the saved role heading.

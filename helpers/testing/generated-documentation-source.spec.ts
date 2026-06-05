@@ -1058,8 +1058,25 @@ describe('generated docs source current behavior', () => {
     expect(receiptSource).toContain(
       "page.getByRole('link', { name: receiptFileName })",
     );
+    expect(receiptSource).toContain('const approvalQueueReceiptSurface =');
+    expect(receiptSource).toContain(
+      "locator('app-receipt-approval-list section')",
+    );
+    expect(receiptSource).toContain('const receiptReviewDecisionSurface =');
+    expect(receiptSource).toContain(
+      "locator('app-receipt-approval-detail section')",
+    );
+    expect(receiptSource).toContain(
+      "has: page.getByRole('heading', { name: 'Receipt data' })",
+    );
     expect(receiptSource).toContain('return approvedReceipt?.status');
     expect(receiptSource).toContain('filter({ hasText: receiptFileName })');
+    expect(receiptSource).toContain(
+      'const recordedReimbursementStateSurface =',
+    );
+    expect(receiptSource).toContain(
+      "filter({ has: page.getByText('Selected total: 0.00 €') })",
+    );
     expect(receiptSource).toContain(
       'Receipt reimbursement page after recording the manual transaction',
     );
@@ -1070,6 +1087,15 @@ describe('generated docs source current behavior', () => {
     expect(combinedSource).not.toContain('automatic email');
     expect(combinedSource).not.toContain('automatically transfer');
     expect(combinedSource).not.toContain('automatic money movement');
+    expect(receiptSource).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-receipt-approval-list'),",
+    );
+    expect(receiptSource).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-receipt-approval-detail'),",
+    );
+    expect(receiptSource).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-receipt-refund-list'),",
+    );
   });
 
   it('keeps inclusive tax-rate docs focused on seeded compatible rows and paid option controls', () => {
