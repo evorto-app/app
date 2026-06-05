@@ -3108,9 +3108,18 @@ describe('stabilization source', () => {
       'stable logged-in starting points without running the full viewport pack',
     );
     expect(statusTable).toContain(
+      'Current PR status refreshes show the current pushed head still waiting on running/queued E2E shards',
+    );
+    expect(statusTable).toContain(
+      'completed checks and cache warmers are green',
+    );
+    expect(statusTable).toContain(
+      'local Neon cleanup shows only protected `main`',
+    );
+    expect(statusTable).not.toContain(
       'Current PR status refreshes show visible checks green',
     );
-    expect(statusTable).toContain('merge blocked only by draft status');
+    expect(statusTable).not.toContain('merge blocked only by draft status');
     expect(statusTable).not.toMatch(/current PR head `[0-9a-f]{9}`/u);
     expect(playwrightConfig).toContain(
       "import { makeRuntimeConfigProvider } from './src/server/config/provider';",
@@ -4857,29 +4866,32 @@ describe('stabilization source', () => {
 
     expect(checkpoint).toBeDefined();
     const checkpointText = normalizeWhitespace(checkpoint ?? '');
-    expect(checkpointText).toContain('local head `b0ddd9e94`');
+    expect(checkpointText).toContain('local head `e07b2fd15`');
     expect(checkpointText).toContain('CodeQL, CodeQL `Analyze (actions)`');
     expect(checkpointText).toContain(
-      'Copilot setup, Git Town, CodeRabbit, and the E2E',
+      'Copilot setup, Git Town, CodeRabbit, and the serial E2E',
     );
+    expect(checkpointText).toContain('E2E run `26999937086`');
     expect(checkpointText).toContain(
-      'E2E run `26985956884` was warming Docker cache',
+      '`functional-1` shard in `Start Docker stack for E2E`',
     );
+    expect(checkpointText).toContain('`functional-2` plus `docs` queued');
     expect(checkpointText).toContain(
-      '`functional-1`, `functional-2`, and `docs` worker checks',
+      'shards are pending and the PR is still draft',
     );
-    expect(checkpointText).toContain('mergeable=MERGEABLE');
-    expect(checkpointText).toContain('`BLOCKED` by draft status');
     expect(checkpointText).toContain('public Font Awesome registry guard');
     expect(checkpointText).toContain('Bun package cache');
-    expect(checkpointText).toContain('dependency-tree cache');
-    expect(checkpointText).toContain('skipped the registry install path');
-    expect(checkpointText).toContain('private Font Awesome registry access');
-    expect(checkpointText).toContain('E2E run `26985315757`');
-    expect(checkpointText).toContain('`functional-1` successfully');
+    expect(checkpointText).toContain('Docker build cache');
+    expect(checkpointText).toContain('Docker Bun cache mount');
+    expect(checkpointText).toContain('Playwright browser cache');
     expect(checkpointText).toContain(
-      'cancelled only the queued `functional-2` and `docs` shards',
+      'completed dependency installation in the serial warmer',
     );
+    expect(checkpointText).toContain('required the warmed Docker Bun cache');
+    expect(checkpointText).toContain('pruned expired Neon branches before E2E');
+    expect(checkpointText).toContain('skipped a worker registry install path');
+    expect(checkpointText).toContain('E2E run `26999536035`');
+    expect(checkpointText).toContain('was cancelled by the next push');
     expect(checkpointText).toContain('Docker log collection');
     expect(checkpointText).toContain('both cleanup finalizer steps succeeded');
     expect(checkpointText).toContain('serial `Warm CI dependency caches` job');

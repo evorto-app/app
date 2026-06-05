@@ -986,6 +986,13 @@ provider outcomes without live identifiers.
   checking the bounded Docker preflight, bounded Compose image pre-pull,
   bounded Compose shutdown, per-container force removal, and two-hour
   active-test TTL pruning behavior.
+  The current PR #62 head `e07b2fd15` has completed CodeQL, Copilot, Git Town,
+  CodeRabbit, and the serial E2E cache warmer successfully; E2E run
+  `26999937086` still had `functional-1` in Docker startup and `functional-2`
+  plus `docs` queued at the refresh. A live repo-local Neon cleanup at that
+  checkpoint reported one protected branch, no active test branches, no stale
+  branch deletions, and a two-hour active-test TTL, so only protected `main`
+  remained visible outside active worker ownership.
 - `docs/users/create-account.doc.ts` and
   `specs/profile/create-account.spec.ts` are the current Auth0
   Management-gated integration paths. The doc covers the generated walkthrough;
