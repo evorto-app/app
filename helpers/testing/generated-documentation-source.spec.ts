@@ -1576,6 +1576,16 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("filter({ hasText: 'Remove' })");
     expect(source).toContain('const seededDiscountCard =');
     expect(source).toContain('await expect(seededDiscountCard).toBeVisible()');
+    expect(source).toContain('const esnDiscountFormSurface =');
+    expect(source).toContain("locator('app-user-profile section')");
+    expect(source).toContain(
+      "has: page.getByRole('heading', { level: 2, name: 'Discount Cards' })",
+    );
+    expect(source).toContain(
+      "has: page.getByRole('button', { name: 'Save ESN card' })",
+    );
+    expect(source).toContain('const providerOutageForm =');
+    expect(source).toContain('const invalidCardForm =');
     expect(source).toContain('unchangedSeededEsnCard');
     expect(source).toContain(
       "page.getByRole('button', { name: 'Save ESN card' })",
@@ -1591,6 +1601,12 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('ESNcard validation provider is unavailable');
     expect(source).not.toContain(
       "takeScreenshot(\n    testInfo,\n    page.getByRole('heading', { level: 2, name: 'Discount Cards' })",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n    testInfo,\n    page.getByText('Could not validate ESN card right now. Try again later.'),",
+    );
+    expect(source).not.toContain(
+      'takeScreenshot(\n    testInfo,\n    page.getByText(/Enter a valid ESN card number/),',
     );
     expect(source).not.toContain('provider outages mark the card invalid');
     expect(source).not.toContain('overlap ESNcard writes');

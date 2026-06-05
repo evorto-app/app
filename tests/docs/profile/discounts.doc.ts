@@ -28,6 +28,19 @@ const esnDiscountCardSurface = (
     .filter({ hasText: 'Remove' })
     .first();
 
+const esnDiscountFormSurface = (
+  page: Page,
+  message: string | RegExp,
+): Locator =>
+  page
+    .locator('app-user-profile section')
+    .filter({
+      has: page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
+    })
+    .filter({ has: page.getByRole('button', { name: 'Save ESN card' }) })
+    .filter({ has: page.getByText(message) })
+    .first();
+
 test('Understand ESN discount card states', async ({}, testInfo) => {
   expect(esnCardStatusLabel('verified')).toBe('Verified');
   expect(esnCardStatusLabel('expired')).toBe('Expired');
@@ -148,9 +161,14 @@ If you already added your ESN card, you will see a readable verification status 
   await expect(
     page.getByText('Could not validate ESN card right now. Try again later.'),
   ).toBeVisible({ timeout: 20_000 });
+  const providerOutageForm = esnDiscountFormSurface(
+    page,
+    'Could not validate ESN card right now. Try again later.',
+  );
+  await expect(providerOutageForm).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByText('Could not validate ESN card right now. Try again later.'),
+    providerOutageForm,
     page,
     'Discount card provider outage keeps the stored card unchanged',
   );
@@ -177,9 +195,14 @@ If you already added your ESN card, you will see a readable verification status 
   await expect(
     page.getByRole('button', { name: 'Save ESN card' }),
   ).toBeDisabled();
+  const invalidCardForm = esnDiscountFormSurface(
+    page,
+    /Enter a valid ESN card number/,
+  );
+  await expect(invalidCardForm).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByText(/Enter a valid ESN card number/),
+    invalidCardForm,
     page,
     'Discount card form showing invalid ESN card validation',
   );

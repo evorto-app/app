@@ -5533,6 +5533,9 @@ asserted by the surrounding docs text.
 The receipt review generated doc now uses concrete approval queue receipt,
 review decision, reimbursement group, and post-recording reimbursement state
 targets instead of broad receipt component hosts.
+The profile discounts generated doc now uses concrete saved-card and
+discount-form targets for verified, provider-outage, and invalid-input ESNcard
+states instead of heading-only or error-text-only crops.
 The roles generated doc now focuses the role-form permission group and saved
 role-detail permission surface when documenting dependent permissions instead of
 highlighting a single checkbox or the saved role heading.
