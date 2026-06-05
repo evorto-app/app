@@ -4679,6 +4679,33 @@ describe('stabilization source', () => {
     expect(cleanupWorkflow).toContain('NEON_LOCAL_BRANCH_TTL_HOURS: 2');
   });
 
+  it('keeps CI Docker-start retry cleanup bounded in the checkpoint', () => {
+    const source = readSource('STABILIZATION.md');
+    const ciStartDockerStackHelper = readSource(
+      'helpers/testing/ci-start-docker-stack.sh',
+    );
+    const checkpoint = source.match(
+      /Current CI Docker-start hardening checkpoint:[\s\S]*?(?=\n- Current |\n- Observed |\n\n## Review Next|\n$)/u,
+    )?.[0];
+
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint).toContain('PR head `b5bb9c286`');
+    expect(checkpoint).toContain('`helpers/testing/ci-start-docker-stack.sh`');
+    expect(checkpoint).toContain(
+      'bounds\n  `docker compose down --timeout 60 --remove-orphans` to 90 seconds',
+    );
+    expect(checkpoint).toContain(
+      'in-retry Neon Local branch cleanup to five minutes',
+    );
+    expect(checkpoint).toContain('cannot sit in an unbounded cleanup command');
+    expect(ciStartDockerStackHelper).toContain(
+      'timeout 90s node_modules/.bin/dotenv -c dev -- docker compose down --timeout 60 --remove-orphans',
+    );
+    expect(ciStartDockerStackHelper).toContain(
+      'timeout 5m node_modules/.bin/dotenv -c dev -- bun helpers/testing/delete-neon-local-branches.ts',
+    );
+  });
+
   it('keeps the PR docs assertion checkpoint tied to current-head CI evidence', () => {
     const source = readSource('STABILIZATION.md');
     const checkpoint = source.match(

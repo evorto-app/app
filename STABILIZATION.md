@@ -4667,7 +4667,11 @@ E2E` long enough to be treated as stale; it was cancelled, and GitHub still
   the one-prune retry before surfacing startup failure. The E2E workflow keeps
   the same 25-minute step timeout while the versioned helper makes the Docker
   startup path easier to audit beside the existing teardown and Neon prune
-  helpers.
+  helpers. The retry cleanup inside the startup helper now also bounds
+  `docker compose down --timeout 60 --remove-orphans` to 90 seconds and the
+  in-retry Neon Local branch cleanup to five minutes, so a failed Docker-start
+  retry cannot sit in an unbounded cleanup command before the normal
+  `if: always()` finalizers run.
 - Current PR #62 docs assertion checkpoint: after PR head `23dcc9c53`, E2E
   run `26982986517` proved the bounded Docker startup and teardown path for all
   three shards. The functional-1 and functional-2 Playwright E2E shards were

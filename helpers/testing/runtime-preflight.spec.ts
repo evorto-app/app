@@ -880,6 +880,12 @@ describe('evaluateRuntimePreflight', () => {
       'Docker Compose build/start timed out. Pruning builder state and retrying once.',
     );
     expect(ciStartDockerStackHelper).toContain(
+      'timeout 90s node_modules/.bin/dotenv -c dev -- docker compose down --timeout 60 --remove-orphans',
+    );
+    expect(ciStartDockerStackHelper).toContain(
+      'timeout 5m node_modules/.bin/dotenv -c dev -- bun helpers/testing/delete-neon-local-branches.ts',
+    );
+    expect(ciStartDockerStackHelper).toContain(
       'docker builder prune -af || true',
     );
     expect(ciStartDockerStackHelper).toContain(
