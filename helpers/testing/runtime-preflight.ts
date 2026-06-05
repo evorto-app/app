@@ -612,6 +612,44 @@ const developerSecretsFileCheck = (
   };
 };
 
+const missingRequiredVariableDetails = (
+  cwd: string,
+  environment: NodeJS.ProcessEnv,
+  fileExists: (filePath: string) => boolean,
+  missingVariables: readonly RequiredVariable[],
+): readonly string[] => {
+  if (missingVariables.length === 0) {
+    return ['All required variables are present.'];
+  }
+
+  const details = missingVariables.map(
+    ({ description, name }) => `${name}: ${description}`,
+  );
+  const repositoryName = path.basename(cwd);
+  const homeDirectory = environment['HOME']?.trim() || os.homedir();
+  const mainCheckoutEnvironmentPath = path.join(
+    homeDirectory,
+    'code',
+    repositoryName,
+    '.env',
+  );
+
+  if (fileExists(mainCheckoutEnvironmentPath)) {
+    return [
+      ...details,
+      'Missing variables may be recoverable from the main checkout secrets file.',
+      'Run `bun run env:copy-main` to copy only `.env` from the default main checkout.',
+      'For another source checkout, run `MAIN_CHECKOUT_DIR=/path/to/repo bun run env:copy-main`.',
+    ];
+  }
+
+  return [
+    ...details,
+    `No main-checkout developer secrets file was found at ${mainCheckoutEnvironmentPath}.`,
+    `Use ${path.join(cwd, '.env.example')} as the no-secret checklist, then add missing values to ${path.join(cwd, '.env')} or your shell environment.`,
+  ];
+};
+
 export const evaluateRuntimePreflight = (
   target: RuntimeTarget,
   options: RuntimePreflightOptions = {},
@@ -635,12 +673,12 @@ export const evaluateRuntimePreflight = (
   const checks: RuntimeCheck[] = [
     runtimeTargetCheck(target, env),
     {
-      details:
-        missingVariables.length > 0
-          ? missingVariables.map(
-              ({ description, name }) => `${name}: ${description}`,
-            )
-          : ['All required variables are present.'],
+      details: missingRequiredVariableDetails(
+        cwd,
+        environment,
+        fileExists,
+        missingVariables,
+      ),
       label: `Required ${target} runtime variables`,
       severity: missingVariables.length > 0 ? 'failure' : 'ok',
     },

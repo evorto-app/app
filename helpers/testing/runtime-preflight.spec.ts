@@ -1625,13 +1625,16 @@ describe('evaluateRuntimePreflight', () => {
         COMPOSE_PROJECT_NAME: 'evorto-local',
         DATABASE_URL:
           'postgresql://neon:secret@localhost:55443/appdb?sslmode=require',
+        HOME: '/missing-home',
         ISSUER_BASE_URL: 'issuer',
         NEON_LOCAL_HOST_PORT: '55443',
         NEON_LOCAL_METADATA_DIR: './.neon_local',
         NEON_PROJECT_ID: 'project-id',
         SECRET: 'secret',
       },
-      fileExists: (filePath) => filePath !== '/repo/.env.dev',
+      fileExists: (filePath) =>
+        filePath !== '/repo/.env.dev' &&
+        filePath !== '/missing-home/code/repo/.env',
       runCommand: successfulCommand,
     });
 
@@ -1656,6 +1659,8 @@ describe('evaluateRuntimePreflight', () => {
             'CLIENT_SECRET: Auth0 application secret',
             'STRIPE_API_KEY: Stripe API access for paid registration flows',
             'STRIPE_TEST_ACCOUNT_ID: Stripe connected account id for seeded paid flows',
+            'No main-checkout developer secrets file was found at /missing-home/code/repo/.env.',
+            'Use /repo/.env.example as the no-secret checklist, then add missing values to /repo/.env or your shell environment.',
           ]),
           label: 'Required docker runtime variables',
           severity: 'failure',
@@ -1700,6 +1705,15 @@ describe('evaluateRuntimePreflight', () => {
     expect(result.checks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          details: expect.arrayContaining([
+            'Missing variables may be recoverable from the main checkout secrets file.',
+            'Run `bun run env:copy-main` to copy only `.env` from the default main checkout.',
+            'For another source checkout, run `MAIN_CHECKOUT_DIR=/path/to/repo bun run env:copy-main`.',
+          ]),
+          label: 'Required docker runtime variables',
+          severity: 'failure',
+        }),
+        expect.objectContaining({
           details: [
             'Found a main-checkout developer secrets file at /Users/test/code/evorto/.env.',
             'Copy it into this worktree with: bun run env:copy-main',
@@ -1728,6 +1742,14 @@ describe('evaluateRuntimePreflight', () => {
     expect(result.warned).toBe(true);
     expect(result.checks).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'No main-checkout developer secrets file was found at /Users/test/code/evorto/.env.',
+            'Use /Users/test/.codex/worktrees/e159/evorto/.env.example as the no-secret checklist, then add missing values to /Users/test/.codex/worktrees/e159/evorto/.env or your shell environment.',
+          ]),
+          label: 'Required docker runtime variables',
+          severity: 'failure',
+        }),
         expect.objectContaining({
           details: [
             'No main-checkout developer secrets file found at /Users/test/code/evorto/.env.',

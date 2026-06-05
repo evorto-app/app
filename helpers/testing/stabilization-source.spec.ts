@@ -3425,6 +3425,16 @@ describe('stabilization source', () => {
       'If the\n  generated local `DATABASE_URL` points at a closed Neon Local port',
     );
     expect(runtimePreflight).toContain('developerSecretsFileCheck');
+    expect(runtimePreflight).toContain('missingRequiredVariableDetails');
+    expect(runtimePreflight).toContain(
+      'Missing variables may be recoverable from the main checkout secrets file.',
+    );
+    expect(runtimePreflight).toContain(
+      'Run `bun run env:copy-main` to copy only `.env` from the default main checkout.',
+    );
+    expect(runtimePreflight).toContain(
+      'MAIN_CHECKOUT_DIR=/path/to/repo bun run env:copy-main',
+    );
     expect(runtimePreflight).toContain(
       'Found a main-checkout developer secrets file',
     );
@@ -3472,10 +3482,16 @@ describe('stabilization source', () => {
       'points missing-secret worktrees at the main checkout env file when it exists',
     );
     expect(runtimePreflightSpec).toContain(
+      'Missing variables may be recoverable from the main checkout secrets file.',
+    );
+    expect(runtimePreflightSpec).toContain(
+      'Run `bun run env:copy-main` to copy only `.env` from the default main checkout.',
+    );
+    expect(runtimePreflightSpec).toContain(
       'points missing-secret checkouts at the no-secret env checklist when no main env exists',
     );
     expect(helpersReadme).toContain(
-      'preflight points at `bun run env:copy-main`',
+      'failed required-variable row and the developer-secrets warning both point at\n`bun run env:copy-main`',
     );
     expect(testsReadme).toContain('sibling main checkout `.env`');
     expect(inventory).toContain('missing-secret recovery hint');
