@@ -608,6 +608,13 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain('bun run db:cleanup:neon-local');
     expect(helpersReadme).toContain('non-canceling `neon-branch-cleanup`');
     expect(helpersReadme).toMatch(/10-minute job\s+timeout/u);
+    expect(testsReadme).toContain('CI dependency-install workflows call');
+    expect(testsReadme).toContain(
+      'helpers/testing/prepare-public-fontawesome-ci.sh',
+    );
+    expect(testsReadme).toContain(
+      'the Neon cleanup workflow stays\n  install-free and does not need that registry setup',
+    );
     expect(packageJson.scripts?.['db:cleanup:neon-local']).toBe(
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/delete-neon-local-branches.ts',
     );
