@@ -1089,6 +1089,21 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Application navigation showing the login entry point',
     );
+    expect(source).toContain('auth0LoginFormSurface');
+    expect(source).toContain("locator('form')");
+    expect(source).toContain(
+      "filter({ has: page.getByLabel('Email address') })",
+    );
+    expect(source).toContain(
+      "filter({ has: page.getByRole('textbox', { name: 'Password' }) })",
+    );
+    expect(source).toContain(
+      "has: page.getByRole('button', { exact: true, name: 'Continue' })",
+    );
+    expect(source).toContain('const auth0LoginForm =');
+    expect(source).toContain(
+      'Auth0 login form requesting the tenant account email address',
+    );
     expect(source).toContain('createAccountFormSurface');
     expect(source).toContain("locator('app-create-account form')");
     expect(source).toContain(
@@ -1110,6 +1125,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.getByRole('link', { name: 'Login' }),",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.getByLabel('Email address'),",
     );
     expect(source).not.toContain(
       "const createAccountForm = page\n      .locator('form')\n      .filter({ has: createAccountButton })\n      .first();",

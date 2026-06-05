@@ -5545,6 +5545,8 @@ receipt-reimbursement links instead of highlighting only one finance card.
 The create-account generated doc now screenshots the app navigation containing
 the Events and Login entry points before entering Auth0 instead of highlighting
 only the standalone Login link.
+It also screenshots the Auth0 login form containing the Email address, Password,
+and Continue controls instead of highlighting only the email input.
 The registration generated doc now uses concrete registration option and active
 registration card targets for free, ineligible, paid, and post-payment states
 instead of highlighting section headings or a single action button.

@@ -44,6 +44,16 @@ const createAccountLoginSurface = (page: Page): Locator =>
     .filter({ has: page.getByRole('link', { name: 'Login' }) })
     .first();
 
+const auth0LoginFormSurface = (page: Page): Locator =>
+  page
+    .locator('form')
+    .filter({ has: page.getByLabel('Email address') })
+    .filter({ has: page.getByRole('textbox', { name: 'Password' }) })
+    .filter({
+      has: page.getByRole('button', { exact: true, name: 'Continue' }),
+    })
+    .first();
+
 const createAccountFormSurface = (page: Page): Locator =>
   page
     .locator('app-create-account form')
@@ -172,9 +182,11 @@ After starting the login flow, sign in with the account you want to use for this
 If your Auth0 email address is not verified yet, Evorto asks you to verify it before the tenant account form is shown.`,
     });
     await page.getByLabel('Email address').waitFor({ state: 'visible' });
+    const auth0LoginForm = auth0LoginFormSurface(page);
+    await expect(auth0LoginForm).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByLabel('Email address'),
+      auth0LoginForm,
       page,
       'Auth0 login form requesting the tenant account email address',
     );
