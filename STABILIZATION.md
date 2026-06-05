@@ -1064,9 +1064,10 @@ the current working direction until a product decision overrides them.
   review; repeat Browser review should stay focused on changed UI behavior.
 - `tests/docs/roles/roles.doc.ts` documents role creation, dependent permissions, and the explicit deferral of existing-user role assignment for relaunch.
 - `tests/docs/roles/roles.doc.ts` now creates a deterministic unique role,
-  asserts dependent permission selection, screenshots the saved role detail page
-  with dependent permissions visible, reads the persisted role permissions from
-  the database, and cleans up the generated role after the docs journey.
+  asserts dependent permission selection, screenshots the filtered read-only
+  admin user row and the saved role detail page with dependent permissions
+  visible, reads the persisted role permissions from the database, and cleans up
+  the generated role after the docs journey.
 - `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from tenant-scoped shared permission metadata, including group labels, permission keys/descriptions, and dependent permissions.
 - `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions` for permission reference details.
 - `tests/specs/admin/roles-management.spec.ts` functionally covers the
@@ -5538,9 +5539,10 @@ targets instead of broad receipt component hosts.
 The profile discounts generated doc now uses concrete saved-card and
 discount-form targets for verified, provider-outage, and invalid-input ESNcard
 states instead of heading-only or error-text-only crops.
-The roles generated doc now focuses the role-form permission group and saved
-role-detail permission surface when documenting dependent permissions instead of
-highlighting a single checkbox or the saved role heading.
+The roles generated doc now focuses the filtered read-only admin user row,
+role-form permission group, and saved role-detail permission surface instead of
+highlighting the whole user-list component, a single checkbox, or the saved role
+heading.
 New Playwright skips/fixmes, including
 `test.describe.skip`, should be added only as explicit credential gates or
 honest Browser-backed stabilization placeholders. The Playwright inventory guard now also rejects

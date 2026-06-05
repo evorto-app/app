@@ -8,6 +8,23 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
+const readOnlyUserListSurface = (page: Page): Locator =>
+  page
+    .locator('app-user-list')
+    .filter({
+      has: page.getByText(
+        'Existing-user role assignment is deferred for relaunch.',
+      ),
+    })
+    .filter({
+      has: page.getByRole('cell', {
+        exact: true,
+        name: 'admin@evorto.app',
+      }),
+    })
+    .filter({ hasText: 'Admin' })
+    .first();
+
 const roleFormPermissionGroupSurface = (page: Page): Locator =>
   page
     .locator('app-role-form div')
@@ -80,9 +97,11 @@ Start by navigating to **Admin tools**. The current relaunch admin surface separ
     ).toBeVisible();
     await expect(page.getByText('Admin').first()).toBeVisible();
     await expect(page.getByText('Edit template')).toHaveCount(0);
+    const userList = readOnlyUserListSurface(page);
+    await expect(userList).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.locator('app-user-list'),
+      userList,
       page,
       'Read-only tenant user list',
     );

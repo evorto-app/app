@@ -1529,6 +1529,16 @@ describe('generated docs source current behavior', () => {
       'Permissions that are required by another permission are automatically included and shown as non-editable dependent permissions with the same admin-facing labels used in the permission reference.',
     );
     expect(rolesSource).toContain('Role docs ${seedDate.getTime()}');
+    expect(rolesSource).toContain('const readOnlyUserListSurface =');
+    expect(rolesSource).toContain("locator('app-user-list')");
+    expect(rolesSource).toContain(
+      'Existing-user role assignment is deferred for relaunch.',
+    );
+    expect(rolesSource).toContain(
+      "getByRole('cell', {\n        exact: true,\n        name: 'admin@evorto.app',",
+    );
+    expect(rolesSource).toContain('const userList = readOnlyUserListSurface');
+    expect(rolesSource).toContain('Read-only tenant user list');
     expect(rolesSource).toContain(
       'Saved role detail page with dependent permissions visible',
     );
@@ -1548,6 +1558,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(rolesSource).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.getByRole('heading', { name: roleName })",
+    );
+    expect(rolesSource).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-user-list')",
     );
     expect(rolesSource).toContain(
       "throw new Error('Expected generated roles doc to persist the role')",

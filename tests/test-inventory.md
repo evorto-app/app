@@ -897,8 +897,8 @@ provider outcomes without live identifiers.
     permission reference. Generated-doc source coverage keeps the role guide
     linked to that permission reference and keeps the reference aligned with
     tenant-scoped roles, wildcard permissions, dependent permissions, separate
-    global-admin semantics, and the saved role detail screenshot after role
-    creation.
+    global-admin semantics, the filtered read-only admin user-list screenshot,
+    and the saved role detail screenshot after role creation.
   - Keep role create/edit submit guards aligned with the write lifecycle. Local
     app coverage now pins that invalid, submitting, and mutation-pending role
     forms stay disabled, and the component submit path shares the same guard.
