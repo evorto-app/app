@@ -1384,10 +1384,15 @@ describe('generated docs source current behavior', () => {
       'expect(rejectedEvent.statusComment).toBe(rejectionComment)',
     );
     expect(source).toContain("expect(approvedEvent.status).toBe('APPROVED')");
+    expect(source).toContain('const publishedStatusSurface =');
+    expect(source).toContain("eventStatusSurface(page, 'Published')");
     expect(source).toContain('final **Published** state');
     expect(source).toContain('Published event status');
     expect(source).not.toContain(
       'takeScreenshot(\n      testInfo,\n      page.getByText(rejectionComment).first(),',
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-event-status').first(),",
     );
     expect(source).not.toContain('final published state');
     expect(source).toContain('.delete(schema.eventRegistrationOptions)');
