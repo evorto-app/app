@@ -781,7 +781,14 @@ describe('stabilization source', () => {
 
   it('keeps Review Next scoped to the real remaining watchpoints', () => {
     const source = readSource('STABILIZATION.md');
+    const quality = readSource('QUALITY.md');
+    const authenticationSetup = readSource(
+      'tests/setup/authentication.setup.ts',
+    );
+    const testInventory = readSource('tests/test-inventory.md');
+    const testsReadme = readSource('tests/README.md');
     const reviewNext = source.split('## Review Next\n')[1];
+    const normalizedReviewNext = normalizeWhitespace(reviewNext);
 
     expect(reviewNext).toContain(
       'first manual in-app Browser queue pass has been completed',
@@ -906,6 +913,23 @@ describe('stabilization source', () => {
     expect(normalizedReviewNext).toContain(
       'logged-in starting points without running the full authenticated viewport pack',
     );
+    expect(normalizedReviewNext).toContain('Callback URL mismatch.');
+    expect(normalizedReviewNext).toContain(
+      'reports the evaluated `BASE_URL`, `APP_HOST_PORT`, and current Auth0 URL',
+    );
+    expect(authenticationSetup).toContain('Callback URL mismatch.');
+    expect(authenticationSetup).toContain(
+      'Auth0 rejected the local login callback for BASE_URL=',
+    );
+    expect(authenticationSetup).toContain("process.env['APP_HOST_PORT']");
+    expect(authenticationSetup).toContain('Current Auth0 URL: ${page.url()}');
+    expect(authenticationSetup).toContain('waitForAuth0UsernameInput(page)');
+    expect(testsReadme).toContain(
+      'Auth0 callback URLs are registered out-of-band',
+    );
+    expect(testsReadme).toContain('APP_HOST_PORT=4200 bun run docker:start');
+    expect(testsReadme).toContain('Callback URL mismatch.');
+    expect(testInventory).toContain('Callback URL mismatch.');
     expect(normalizedReviewNext).not.toContain('Browser setup recovery');
     expect(normalizedReviewNext).toContain(
       'evidence drift, relaunch-scope watchpoints, and richer authenticated Browser evidence',
@@ -3114,8 +3138,9 @@ describe('stabilization source', () => {
       'completed checks and cache warmers are green',
     );
     expect(statusTable).toContain(
-      'local Neon cleanup shows only protected `main`',
+      'latest local Neon cleanup saw one non-main branch still inside the active-test TTL while PR E2E was running',
     );
+    expect(statusTable).toContain('deleted no stale branches');
     expect(statusTable).not.toContain(
       'Current PR status refreshes show visible checks green',
     );

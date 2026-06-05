@@ -910,6 +910,9 @@ provider outcomes without live identifiers.
 - Docker-backed authenticated checks currently need an Auth0-registered app
   origin. Use `APP_HOST_PORT=4200 bun run docker:start` on this machine unless
   the generated worktree port has been added to the Auth0 callback URLs.
+  Authentication setup recognizes Auth0 `Callback URL mismatch.` errors and
+  reports the current `BASE_URL` and `APP_HOST_PORT` before the normal username
+  field wait can become a misleading timeout.
 - Scenario handles from `seeded.scenario.events.*` are the preferred way to address seeded entities.
 - `tests/specs/scanning/scanner.test.ts`,
   `tests/specs/profile/user-profile-discounts.spec.ts`, and
