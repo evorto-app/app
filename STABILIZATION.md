@@ -4854,7 +4854,10 @@ E2E` long enough to be treated as stale; it was cancelled, and GitHub still
   now covers the implemented global tenant-administration surface with focused
   generated-documentation screenshots for the tenant list/search rows, empty
   search state, relaunch-scoped create form, rejected URL-shaped primary-domain
-  form state, read-only tenant detail review, and edit form. The generated docs
+  form state, read-only tenant detail review, and edit form. The edit-form
+  screenshot now targets the form containing the tenant name, primary domain,
+  relaunch-scope heading, and Save tenant action instead of relying on the first
+  form. The generated docs
   explicitly keep the current relaunch boundary honest: one active primary
   domain is managed here, custom-domain verification and multi-domain
   automation are deferred, and tenant-admin impersonation is unavailable in the

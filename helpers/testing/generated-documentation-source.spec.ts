@@ -828,6 +828,22 @@ describe('generated docs source current behavior', () => {
       'Edit tenant form with relaunch-scoped tenant settings ready to save',
     );
     expect(globalAdminSource).toContain('const tenantEditForm =');
+    expect(globalAdminSource).toContain("locator('form')");
+    expect(globalAdminSource).toContain(
+      "filter({ has: tenantEdit.getByLabel('Tenant name') })",
+    );
+    expect(globalAdminSource).toContain(
+      "filter({ has: tenantEdit.getByLabel('Primary domain') })",
+    );
+    expect(globalAdminSource).toContain(
+      "tenantEdit.getByRole('heading', { name: 'Relaunch tenant scope' })",
+    );
+    expect(globalAdminSource).toContain(
+      "filter({ has: tenantEdit.getByRole('button', { name: 'Save tenant' }) })",
+    );
+    expect(globalAdminSource).not.toContain(
+      "const tenantEditForm = (tenantEdit: Locator) =>\n  tenantEdit.locator('form').first();",
+    );
     expect(globalAdminSource).not.toContain(
       "takeScreenshot(\n    testInfo,\n    tenantList.getByRole('heading'",
     );

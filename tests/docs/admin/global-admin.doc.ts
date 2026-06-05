@@ -44,7 +44,15 @@ const tenantDetailReviewCard = (tenantDetail: Locator, tenantDomain: string) =>
     .first();
 
 const tenantEditForm = (tenantEdit: Locator) =>
-  tenantEdit.locator('form').first();
+  tenantEdit
+    .locator('form')
+    .filter({ has: tenantEdit.getByLabel('Tenant name') })
+    .filter({ has: tenantEdit.getByLabel('Primary domain') })
+    .filter({
+      has: tenantEdit.getByRole('heading', { name: 'Relaunch tenant scope' }),
+    })
+    .filter({ has: tenantEdit.getByRole('button', { name: 'Save tenant' }) })
+    .first();
 
 test('Global admin: manage tenants @admin @globalAdmin', async ({
   page,
