@@ -3450,7 +3450,7 @@ describe('stabilization source', () => {
       '`Source: ${mainCheckoutEnvironmentPath}`',
     );
     expect(runtimePreflight).toContain(
-      'Do not copy .env.dev; it is generated per worktree',
+      'Do not copy .env.dev or .npmrc; .env.dev is generated per worktree',
     );
     expect(runtimePreflight).not.toContain('copyFileSync');
     expect(packageJson.scripts['env:copy-main']).toBe(
@@ -3466,11 +3466,17 @@ describe('stabilization source', () => {
       'const argv = options.argv ?? process.argv',
     );
     expect(copyMainEnvironment).toContain("argv.includes('--force')");
-    expect(copyMainEnvironment).toContain('Do not copy .env.dev');
+    expect(copyMainEnvironment).toContain('Do not copy .env.dev or .npmrc');
     expect(copyMainEnvironment).not.toContain("'.env.dev'");
     expect(copyMainEnvironment).toContain('export const copyMainEnvironment');
     expect(copyMainEnvironmentSpec).toContain(
       'copies only the main checkout .env into the current worktree',
+    );
+    expect(copyMainEnvironmentSpec).toContain(
+      '@fortawesome:registry=https://npm.fontawesome.com/',
+    );
+    expect(copyMainEnvironmentSpec).toContain(
+      "fs.existsSync(path.join(repositoryRoot, '.npmrc'))",
     );
     expect(copyMainEnvironmentSpec).toContain(
       'refuses to overwrite an existing worktree .env unless forced',

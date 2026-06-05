@@ -63,7 +63,7 @@ export const copyMainEnvironment = (
   copyFile(source, destination);
   log(`Copied developer secrets from ${source} to ${destination}.`);
   log(
-    'Do not copy .env.dev; it is generated per worktree by bun run env:runtime.',
+    'Do not copy .env.dev or .npmrc; .env.dev is generated per worktree and Font Awesome must stay on the public npm registry.',
   );
 };
 

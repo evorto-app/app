@@ -1407,7 +1407,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(helper).toContain('already exists');
     expect(helper).toContain('nothing to copy');
     expect(helper).toContain('No main-checkout developer secrets file found');
-    expect(helper).toContain('Do not copy .env.dev');
+    expect(helper).toContain('Do not copy .env.dev or .npmrc');
     expect(helper).not.toContain("'.env.dev'");
     expect(helpersReadme).toContain('bun run env:copy-main');
     expect(helpersReadme).toContain('MAIN_CHECKOUT_DIR=/path/to/repo');
@@ -1718,7 +1718,7 @@ describe('evaluateRuntimePreflight', () => {
             'Found a main-checkout developer secrets file at /Users/test/code/evorto/.env.',
             'Copy it into this worktree with: bun run env:copy-main',
             'Source: /Users/test/code/evorto/.env',
-            'Do not copy .env.dev; it is generated per worktree. Review .env.dev.local before copying because it may contain worktree-specific test fallbacks.',
+            'Do not copy .env.dev or .npmrc; .env.dev is generated per worktree and Font Awesome must stay on the public npm registry.',
           ],
           label: 'Developer secrets file',
           severity: 'warning',

@@ -27,6 +27,10 @@ describe('copyMainEnvironment', () => {
       fs.mkdirSync(mainCheckout, { recursive: true });
       fs.writeFileSync(path.join(mainCheckout, '.env'), 'SECRET=main\n');
       fs.writeFileSync(path.join(mainCheckout, '.env.dev'), 'BASE_URL=wrong\n');
+      fs.writeFileSync(
+        path.join(mainCheckout, '.npmrc'),
+        '@fortawesome:registry=https://npm.fontawesome.com/\n',
+      );
       const messages: string[] = [];
 
       copyMainEnvironment({
@@ -39,8 +43,9 @@ describe('copyMainEnvironment', () => {
         'SECRET=main\n',
       );
       expect(fs.existsSync(path.join(repositoryRoot, '.env.dev'))).toBe(false);
+      expect(fs.existsSync(path.join(repositoryRoot, '.npmrc'))).toBe(false);
       expect(messages).toContain(
-        'Do not copy .env.dev; it is generated per worktree by bun run env:runtime.',
+        'Do not copy .env.dev or .npmrc; .env.dev is generated per worktree and Font Awesome must stay on the public npm registry.',
       );
     });
   });

@@ -226,10 +226,10 @@ required secret still blocks startup. If required variables are missing in a
 Codex worktree and the sibling main checkout has an untracked `.env`, the
 failed required-variable row and the developer-secrets warning both point at
 `bun run env:copy-main`. It does not copy secrets automatically, and it still
-warns not to copy generated `.env.dev`. The guarded copy path reads
-`$HOME/code/<repo>/.env` by default, supports `MAIN_CHECKOUT_DIR=/path/to/repo`
-for a different source checkout, and refuses to overwrite an existing worktree
-`.env` unless rerun with `--force`.
+warns not to copy generated `.env.dev` or the main checkout `.npmrc`. The
+guarded copy path reads `$HOME/code/<repo>/.env` by default, supports
+`MAIN_CHECKOUT_DIR=/path/to/repo` for a different source checkout, and refuses
+to overwrite an existing worktree `.env` unless rerun with `--force`.
 Font Awesome icons use public npm packages only; Docker and CI installs must
 not depend on a private Font Awesome registry token or project `.npmrc`. CI
 install retries preserve the restored Bun package cache instead of clearing it

@@ -156,10 +156,10 @@ bun run lint
   `FONT_AWESOME_TOKEN` or a project `.npmrc`. When required variables are
   missing in a Codex worktree, `docker:check` and `dev:check` also look for the
   sibling main checkout `.env` and point at `bun run env:copy-main` when it
-  exists; `.env.dev` remains generated per worktree and should not be copied. It reads
-  `$HOME/code/<repo>/.env` by default, supports
-  `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite an existing
-  worktree `.env` unless rerun with `--force`. Codex
+  exists; `.env.dev` remains generated per worktree and the main checkout
+  `.npmrc` must not be copied. It reads `$HOME/code/<repo>/.env` by default,
+  supports `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite an
+  existing worktree `.env` unless rerun with `--force`. Codex
   setup also writes the
   temporary public Font Awesome npm user config before `bun install` and reuses
   the Bun package cache. CI dependency-install workflows call
