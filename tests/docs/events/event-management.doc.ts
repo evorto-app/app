@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { and, eq } from 'drizzle-orm';
 import type { Locator, Page } from '@playwright/test';
 
@@ -67,6 +69,16 @@ const scannerGuestCheckInSurface = (page: Page): Locator =>
     .filter({ hasText: '0 checked in, 2 remaining.' })
     .filter({ has: page.getByLabel('Guests to check in now') })
     .filter({ has: page.getByRole('button', { name: 'Confirm 3 check-ins' }) })
+    .first();
+
+const receiptSubmissionDialogSurface = (page: Page): Locator =>
+  page
+    .getByRole('dialog')
+    .filter({ has: page.getByRole('heading', { name: 'Add receipt' }) })
+    .filter({ has: page.getByLabel('Total amount (EUR)') })
+    .filter({ has: page.getByLabel('Purchase country') })
+    .filter({ has: page.getByRole('button', { name: 'Choose receipt file' }) })
+    .filter({ has: page.getByRole('button', { name: 'Submit receipt' }) })
     .first();
 
 test('Create and manage events', async ({
@@ -401,6 +413,33 @@ Those flows should be documented separately when they exist in the product.
   });
 
   const scannerEventId = seeded.scenario.events.past.eventId;
+  await page.goto(`/events/${scannerEventId}/organize`);
+  await expect(page.getByRole('heading', { name: 'Receipts' })).toBeVisible();
+  await page.getByRole('button', { name: 'Add receipt' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Add receipt' }),
+  ).toBeVisible();
+  await page.getByLabel('Deposit involved').check();
+  await expect(page.getByLabel('Deposit amount (EUR)')).toBeVisible();
+  await page.getByLabel('Alcohol purchased').check();
+  await expect(page.getByLabel('Alcohol amount (EUR)')).toBeVisible();
+  await page.getByLabel('Total amount (EUR)').fill('14.50');
+  await page.getByLabel('Receipt name').fill('Kitchen supplies');
+  await page
+    .locator('input[type="file"][accept="image/*,application/pdf"]')
+    .setInputFiles(path.resolve('tests/fixtures/sample-receipt.pdf'));
+  await expect(page.getByText('sample-receipt.pdf')).toBeVisible();
+  const receiptSubmissionDialog = receiptSubmissionDialogSurface(page);
+  await expect(receiptSubmissionDialog).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    receiptSubmissionDialog,
+    page,
+    'Receipt submission dialog with amount country and file controls',
+  );
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
   const [scannerRegistrationOption] = await database
     .select()
     .from(eventRegistrationOptions)

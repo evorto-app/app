@@ -684,7 +684,7 @@ describe('generated docs source current behavior', () => {
       ['tests/docs/admin/general-settings.doc.ts', 5],
       ['tests/docs/admin/global-admin.doc.ts', 6],
       ['tests/docs/events/event-approval.doc.ts', 6],
-      ['tests/docs/events/event-management.doc.ts', 7],
+      ['tests/docs/events/event-management.doc.ts', 8],
       ['tests/docs/events/register.doc.ts', 13],
       ['tests/docs/events/unlisted-user.doc.ts', 2],
       ['tests/docs/finance/finance-overview.doc.ts', 4],
@@ -1966,6 +1966,22 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'Organizers check in attendees from the dedicated QR scanner.',
+    );
+    expect(source).toContain('- Event receipt submission and receipt list');
+    expect(source).toContain('const receiptSubmissionDialogSurface =');
+    expect(source).toContain("page.getByRole('heading', { name: 'Receipts' })");
+    expect(source).toContain(
+      "page.getByRole('button', { name: 'Add receipt' }).click()",
+    );
+    expect(source).toContain("page.getByLabel('Deposit involved').check()");
+    expect(source).toContain("page.getByLabel('Alcohol purchased').check()");
+    expect(source).toContain("page.getByLabel('Total amount (EUR)')");
+    expect(source).toContain(
+      'input[type="file"][accept="image/*,application/pdf"]',
+    );
+    expect(source).toContain('sample-receipt.pdf');
+    expect(source).toContain(
+      'Receipt submission dialog with amount country and file controls',
     );
     expect(source).toContain(
       'The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.',

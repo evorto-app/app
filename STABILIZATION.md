@@ -750,7 +750,7 @@ the current working direction until a product decision overrides them.
   reject-comment dialog, rejected-status surface, and published state instead
   of only isolated status/comment text, and cleans up generated event rows
   after the documentation journey.
-- `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
+- `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces. It now screenshots the receipt submission dialog with amount, country, and file controls so submitting receipts is image-backed instead of prose-only.
 - `tests/docs/events/unlisted-user.doc.ts` covers the participant-facing
   direct-link explanation for unlisted event details by hiding a deterministic
   seeded event from the event list, asserting a second listed event remains
@@ -5609,9 +5609,9 @@ surfaces for its screenshot targets instead of highlighting page headings, card
 headings, or single-field crops.
 The event-management generated doc now uses concrete event-list,
 template-choice, event-detail header, the created event's participant
-registration option, event status/action, scanner guest check-in, and
-event-edit role-picker surfaces instead of highlighting page, section, broad
-component hosts, or isolated status text.
+registration option, receipt-submission dialog, event status/action, scanner
+guest check-in, and event-edit role-picker surfaces instead of highlighting
+page, section, broad component hosts, or isolated status text.
 The user-profile generated doc now uses concrete profile summary, multi-state
 event registration section, and seeded receipt card screenshot targets for
 profile data, registration history, and reimbursement evidence instead of broad
