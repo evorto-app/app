@@ -1981,11 +1981,12 @@ the current working direction until a product decision overrides them.
 - Root, test, helper, and config docs now agree that local runtime scripts refresh `.env.dev`, use `dotenv -c dev`, and provide a non-mutating Docker preflight.
 - The Angular unit-test target now has explicit app/shared discovery ownership; server/db/helper specs remain covered by Vitest through `test:unit:server`.
 - The generated-docs pass already records stale docs and placeholder Playwright coverage; the workflow pass removed the list-mode docs-output mutation risk.
-- Normal docs-generating package scripts now pin `DOCS_OUT_DIR=test-results/docs`
-  and `DOCS_IMG_OUT_DIR=test-results/docs/images` before loading local dotenv
+- Local package scripts that run `playwright test` now pin
+  `DOCS_OUT_DIR=test-results/docs` and
+  `DOCS_IMG_OUT_DIR=test-results/docs/images` before loading local dotenv
   secrets, so a developer `.env` that points at the `evorto-pages` publish
-  checkout cannot make routine docs, integration, or create-account runs dirty
-  that external repo. Publishing generated docs remains explicit through
+  checkout cannot make routine Playwright runs dirty that external repo.
+  Publishing generated docs remains explicit through
   `bun run test:e2e:docs:publish`.
 - CI and local setup both install or expose Playwright browser installation, and
   local exploratory runs can opt into system Chrome with
@@ -5432,16 +5433,15 @@ future edits cannot keep the summary while dropping one of those evidence
 anchors.
 
 Normal generated docs output now stays local unless `test:e2e:docs:publish` is
-run intentionally; source coverage now pins the normal docs, integration, and
-create-account package scripts to ignored `test-results/docs` paths while the
-publish script is the only package script that targets the sibling
-`evorto-pages` checkout. The focused reporter-paths regression entrypoint is
-also package-scripted as `bun run test:e2e:reporter-paths`, runs without
-Docker, and pins ignored repository-local docs output paths so screenshot
+run intentionally; source coverage now pins every local package script that runs
+`playwright test` to ignored `test-results/docs` paths while the publish script
+is the only package script that targets the sibling `evorto-pages` checkout. The
+focused reporter-paths regression entrypoint is also package-scripted as
+`bun run test:e2e:reporter-paths` and runs without Docker, so screenshot
 evidence-quality checks do not accidentally write to the sibling docs checkout.
 The static doc-screenshot helper settling contract is also package-scripted as
-`bun run test:e2e:doc-screenshot`, runs without Docker, and pins ignored
-repository-local docs/image output paths for focused helper reruns.
+`bun run test:e2e:doc-screenshot` and runs without Docker for focused helper
+reruns.
 New Playwright skips/fixmes, including
 `test.describe.skip`, should be added only as explicit credential gates or
 honest Browser-backed stabilization placeholders. The Playwright inventory guard now also rejects

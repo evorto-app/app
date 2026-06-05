@@ -186,6 +186,9 @@ bun run lint
   only for an already initialized stack when you want to bring containers back
   without recreating them.
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
+- Local Playwright package scripts that run `playwright test` pin ignored
+  repository-local docs/image output paths before loading dotenv. Only
+  `bun run test:e2e:docs:publish` targets the sibling documentation checkout.
 - `bun run test:e2e:integration` runs all integration-only Playwright
   projects. It is intended for credential-gated specs and docs such as Auth0
   Management account creation.
@@ -215,9 +218,7 @@ bun run lint
   authenticated starting points without running the full viewport pack.
 - `bun run test:e2e:layout-helper` runs the shared viewport layout-helper
   contract with `NO_WEBSERVER=true` and `--no-deps`, so it does not start
-  Docker or require seeded app data. It also pins ignored repository-local docs
-  output paths because the documentation reporter initializes its output roots
-  for Playwright runs. Use it after changing
+  Docker or require seeded app data. Use it after changing
   `tests/support/utils/page-layout.ts` or the durable viewport no-glitch
   assertions.
 - `bun run test:e2e:reporter-paths` runs the documentation reporter and
@@ -238,8 +239,8 @@ bun run lint
   artifacts. Run the docs projects without `--list` when you intentionally want
   to regenerate documentation artifacts.
 - `bun run test:e2e:docs` writes generated docs to ignored local
-  `test-results/docs` paths by default. Use
-  `bun run test:e2e:docs:publish` only when you intentionally want to update
+  `test-results/docs` paths. Use `bun run test:e2e:docs:publish` only when you
+  intentionally want to update
   `/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs` and
   `/Users/hedde/code/evorto-pages/apps/documentation/public/docs`.
 

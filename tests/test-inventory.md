@@ -218,8 +218,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     runs, including a failure if a new anonymous General route is added without
     coverage. `bun run test:e2e:public-general-viewports` is the focused local
     rerun for an already-running Docker app; it refreshes `.env.dev`, sets
-    `NO_WEBSERVER=true`, uses `--no-deps`, and keeps the route matrix on one
-    worker. `/create-account` is intentionally excluded from this anonymous
+    ignored docs/image output paths and `NO_WEBSERVER=true`, uses `--no-deps`,
+    and keeps the route matrix on one worker. `/create-account` is
+    intentionally excluded from this anonymous
     General sweep because it is auth-guarded account coverage.
   - `specs/admin/general-settings.spec.ts` also checks authenticated tenant
     General settings at narrow mobile, mobile, and desktop viewports for
@@ -253,7 +254,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     `bun run test:e2e:authenticated-viewports` is the focused authenticated
     rerun for the durable logged-in viewport pack; it keeps the tenant admin,
     global-admin, role/user-management, profile, template, event, finance,
-    scanner, and members-hub viewport specs on one worker.
+    scanner, and members-hub viewport specs on one worker and uses ignored
+    docs/image output paths for the globally initialized documentation reporter.
   - `specs/admin/admin-viewports.spec.ts` checks the authenticated tenant admin
     overview, tax-rate table, and event-review queue routes at narrow mobile,
     mobile, and desktop viewports for expected headings/content through the
@@ -1023,3 +1025,6 @@ provider outcomes without live identifiers.
   `@needs-auth0-management` paths when the required credentials are available.
 - Playwright `--list` discovery does not clean or write generated docs output,
   and baseline fixture imports do not require Auth0 Management credentials.
+  Local package scripts that run `playwright test` are source-guarded to write
+  generated docs into ignored `test-results/docs` paths, while only
+  `test:e2e:docs:publish` may target the sibling `evorto-pages` checkout.

@@ -1160,14 +1160,39 @@ describe('evaluateRuntimePreflight', () => {
       'test:e2e:create-account',
       'test:e2e:esncard-provider',
       'test:e2e:authenticated-viewports',
+      'test:e2e:mcp-browser-planner',
       'test:e2e:mcp-browser-authenticated-planner',
       'test:e2e:layout-helper',
       'test:e2e:public-general-viewports',
+      'test:e2e:reporter-paths',
+      'test:e2e:doc-screenshot',
       'test:e2e:docs',
       'test:e2e:docs:publish',
     ]) {
       expect(packageJson.scripts[scriptName]).toContain('bun run env:runtime');
       expect(packageJson.scripts[scriptName]).toContain('dotenv -c dev --');
+    }
+
+    const localDocumentationOutput =
+      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images';
+    for (const scriptName of [
+      'test:e2e',
+      'test:e2e:ui',
+      'test:e2e:integration',
+      'test:e2e:create-account',
+      'test:e2e:esncard-provider',
+      'test:e2e:authenticated-viewports',
+      'test:e2e:mcp-browser-planner',
+      'test:e2e:mcp-browser-authenticated-planner',
+      'test:e2e:layout-helper',
+      'test:e2e:public-general-viewports',
+      'test:e2e:reporter-paths',
+      'test:e2e:doc-screenshot',
+      'test:e2e:docs',
+    ]) {
+      expect(packageJson.scripts[scriptName]).toContain(
+        localDocumentationOutput,
+      );
     }
 
     expect(packageJson.scripts['test:e2e:integration']).toContain(
