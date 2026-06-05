@@ -60,10 +60,10 @@ Tenant admins can manage the settings that are currently implemented for the act
     }),
   ).toBeVisible();
   await expect(
-    generalSettings.locator('dt').filter({ hasText: /^Primary domain$/ }),
+    generalSettings.getByRole('term', { name: 'Primary domain' }),
   ).toBeVisible();
   await expect(
-    generalSettings.locator('dt').filter({ hasText: /^Stripe account$/ }),
+    generalSettings.getByRole('term', { name: 'Stripe account' }),
   ).toBeVisible();
   await takeScreenshot(
     testInfo,
