@@ -1058,7 +1058,9 @@ provider outcomes without live identifiers.
   directory. It now also guards the missing-secret recovery hint: when a Codex
   worktree lacks required runtime variables and the sibling main checkout has an
   untracked `.env`, preflight points at the guarded `bun run env:copy-main`
-  command while keeping generated `.env.dev` worktree-local.
+  command while keeping generated `.env.dev` worktree-local. The same source
+  coverage keeps inactive Prettier plugin options out of `.prettierrc` so local
+  `format:write` runs stay warning-free unless the matching plugin is enabled.
 - `bun run dev:status` is the combined non-mutating local runtime status path.
   It refreshes `.env.dev`, runs the development preflight, runs the Docker
   preflight, and still runs the Neon Local cleanup dry-run before returning a

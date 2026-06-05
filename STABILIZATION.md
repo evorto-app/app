@@ -2014,7 +2014,12 @@ the current working direction until a product decision overrides them.
   missing but system Chrome is installed, `docker:check` now points local
   exploratory runs at `E2E_BROWSER_CHANNEL=chrome` instead of only recommending
   the network-heavy browser install path.
-- **Addressed in stabilization pass:** `helpers/testing/runtime-preflight.spec.ts` now pins that destructive Docker start scripts call `docker:check` first, required runtime variables are wired into Compose services, and Font Awesome registry access remains available to Docker through the same secret path for premium and brand icon packages.
+- **Addressed in stabilization pass:** `helpers/testing/runtime-preflight.spec.ts` now pins that destructive Docker start scripts call `docker:check` first, required runtime variables are wired into Compose services, and Font Awesome installs stay on public npm packages without Docker registry-token wiring.
+- **Addressed in this stabilization pass:** the Prettier config no longer carries
+  an inactive Tailwind plugin comment or `tailwindStylesheet` option, so
+  `bun run format:write` runs without repeated ignored-option warnings. Runtime
+  source coverage now permits `tailwindStylesheet` only when
+  `prettier-plugin-tailwindcss` is actually enabled.
 - **Addressed in stabilization pass:** `bun run docker:ps` now loads the generated `.env.dev` before running `docker compose ps`, so worktree stack checks use the isolated `COMPOSE_PROJECT_NAME` instead of accidentally inspecting the default Compose project.
 - **Addressed in stabilization pass:** `bun run env:runtime` now prints the generated Browser-facing `BASE_URL`, generated `COMPOSE_PROJECT_NAME`, and Neon Local host port after writing `.env.dev`. This makes the current worktree target visible from the supported package script and reduces the need for direct `dotenv` shell probes that can resolve to the wrong executable.
 - **Addressed in stabilization pass:** `tests/test-inventory.md` now names its remaining stabilization list as a coverage watchlist instead of implying all listed items are still missing. It records that the first in-app Browser manual review queue pass has covered the local Docker app and routes ESNcard provider outcomes through deterministic provider test mode.

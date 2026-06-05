@@ -198,7 +198,20 @@ describe('evaluateRuntimePreflight', () => {
     expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');
   });
 
-  it('keeps Font Awesome packages on public npm artifacts', () => {
+  it('keeps Prettier config free of inactive plugin options', () => {
+    const prettierConfig = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), '.prettierrc'), 'utf8'),
+    ) as {
+      plugins?: string[];
+      tailwindStylesheet?: string;
+    };
+
+    if (prettierConfig.tailwindStylesheet) {
+      expect(prettierConfig.plugins).toContain('prettier-plugin-tailwindcss');
+    }
+  });
+
+  it('keeps icon packages on public Font Awesome dependencies', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
     ) as { dependencies: Record<string, string> };
