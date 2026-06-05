@@ -156,6 +156,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     before screenshotting the permission-scoped finance navigation card,
     visible transaction row, submitted receipt approval row, and approved
     reimbursement row.
+  - `docs/finance/inclusive-tax-rates.doc.ts` screenshots seeded compatible VAT
+    tax-rate rows and the full paid registration option tax-rate controls, so
+    the generated guide proves selectable inclusive rates instead of route-shell
+    presence or a single combobox crop.
   - finance viewport coverage checks the authenticated finance overview,
     transactions, receipt approval list/detail, and reimbursement pages at
     narrow mobile, mobile, and desktop viewports for expected seeded content,

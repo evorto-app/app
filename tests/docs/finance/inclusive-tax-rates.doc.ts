@@ -1,8 +1,29 @@
 import { DateTime } from 'luxon';
+import type { Locator, Page } from '@playwright/test';
 
 import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+
+const taxRateSection = (page: Page, heading: string): Locator =>
+  page
+    .locator('app-tax-rates-settings')
+    .getByRole('heading', {
+      level: 2,
+      name: heading,
+    })
+    .locator(
+      'xpath=ancestor::div[contains(@class, "bg-surface-container-low")][1]',
+    );
+
+const taxRateRow = (section: Locator, providerId: string): Locator =>
+  section.locator('tr.mat-mdc-row').filter({ hasText: providerId }).first();
+
+const eventPaidRegistrationOptionForm = (page: Page): Locator =>
+  page
+    .locator('app-registration-option-form')
+    .filter({ has: page.getByRole('combobox', { name: 'Tax rate' }) })
+    .first();
 
 test.describe('Inclusive tax rates documentation (admin)', () => {
   test.use({ storageState: adminStateFile });
@@ -40,11 +61,19 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
         .getByRole('heading', { level: 1, name: 'Tax Rates' }),
     ).toBeVisible();
 
+    const compatibleTaxRates = taxRateSection(page, 'Compatible Tax Rates');
+    await expect(compatibleTaxRates).toBeVisible();
+    await expect(
+      taxRateRow(compatibleTaxRates, 'txr_1S6a7sPPcz51fqyK4AVB8NSS'),
+    ).toContainText(['VAT', '19%', 'Compatible']);
+    await expect(
+      taxRateRow(compatibleTaxRates, 'txr_1S6a8LPPcz51fqyK4CPonBgy'),
+    ).toContainText(['VAT', 'Tax Free', 'Compatible']);
     await takeScreenshot(
       testInfo,
-      page.locator('app-tax-rates-settings'),
+      compatibleTaxRates,
       page,
-      'Tax rates overview showing inclusive rate management',
+      'Compatible inclusive tax-rate rows available for paid registrations',
     );
 
     await testInfo.attach('markdown', {
@@ -256,12 +285,19 @@ Open **Edit Event** on a draft event to adjust tax rates if regulations or prici
     const eventEditTax = eventEditForm.getByRole('combobox', {
       name: 'Tax rate',
     });
+    await expect(eventEditTax.first()).toBeVisible();
+    const eventRegistrationOption = eventPaidRegistrationOptionForm(page);
+    await expect(eventRegistrationOption).toBeVisible();
+    await expect(eventRegistrationOption).toContainText('Price (in cents)');
+    await expect(eventRegistrationOption).toContainText(
+      'Inclusive tax; shown price is final',
+    );
 
     await takeScreenshot(
       testInfo,
-      eventEditTax.first(),
+      eventRegistrationOption,
       page,
-      'Event edit tax rate selector',
+      'Event edit paid registration option tax-rate controls',
     );
 
     await testInfo.attach('markdown', {

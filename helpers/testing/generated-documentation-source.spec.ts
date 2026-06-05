@@ -1039,6 +1039,30 @@ describe('generated docs source current behavior', () => {
     expect(combinedSource).not.toContain('automatic money movement');
   });
 
+  it('keeps inclusive tax-rate docs focused on seeded compatible rows and paid option controls', () => {
+    const source = readSource('tests/docs/finance/inclusive-tax-rates.doc.ts');
+
+    expect(source).toContain('taxRateSection');
+    expect(source).toContain('taxRateRow');
+    expect(source).toContain('eventPaidRegistrationOptionForm');
+    expect(source).toContain('Compatible Tax Rates');
+    expect(source).toContain('txr_1S6a7sPPcz51fqyK4AVB8NSS');
+    expect(source).toContain('txr_1S6a8LPPcz51fqyK4CPonBgy');
+    expect(source).toContain(
+      'Compatible inclusive tax-rate rows available for paid registrations',
+    );
+    expect(source).toContain(
+      'Event edit paid registration option tax-rate controls',
+    );
+    expect(source).toContain('Inclusive tax; shown price is final');
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      page.locator('app-tax-rates-settings'),\n      page,\n      'Tax rates overview showing inclusive rate management'",
+    );
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      eventEditTax.first(),\n      page,\n      'Event edit tax rate selector'",
+    );
+  });
+
   it('keeps finance overview docs aligned with permission-scoped navigation', () => {
     const source = readSource('tests/docs/finance/finance-overview.doc.ts');
 
