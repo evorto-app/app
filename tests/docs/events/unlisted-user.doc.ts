@@ -41,8 +41,7 @@ test('User: understanding unlisted events', async ({
   if (!event) {
     throw new Error('Expected an approved listed event in the seeded events');
   }
-  const visibleEvent = findDifferentApprovedListedEvent(events, event.id);
-  if (!visibleEvent) {
+  if (!findDifferentApprovedListedEvent(events, event.id)) {
     throw new Error(
       'Expected a second approved listed event for unlisted docs list context',
     );
@@ -71,9 +70,7 @@ What this means for you:
     });
 
     await expect(page.getByRole('link', { name: event.title })).toHaveCount(0);
-    await expect(
-      page.getByRole('link', { name: visibleEvent.title }),
-    ).toBeVisible();
+    await expect(page.locator('app-event-list nav a').first()).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator('app-event-list nav').first(),

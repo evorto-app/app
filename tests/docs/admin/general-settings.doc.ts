@@ -152,7 +152,7 @@ Tax rates are managed on the separate **Tax Rates** page.
     generalSettings.getByRole('heading', {
       exact: true,
       level: 3,
-      name: 'ESN Card discounts',
+      name: 'Discount providers',
     }),
     page,
     'Receipt and ESN card discount settings near the save action',

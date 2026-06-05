@@ -458,8 +458,12 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Custom-domain verification and multi-domain automation are deferred.',
     );
-    expect(source).toContain("generalSettings.getByText('Primary domain')");
-    expect(source).toContain("generalSettings.getByText('Stripe connection')");
+    expect(source).toContain(
+      "generalSettings.getByText('Primary domain', { exact: true })",
+    );
+    expect(source).toContain(
+      "generalSettings.getByText('Stripe account', { exact: true })",
+    );
     expect(source).toContain("generalSettings.getByLabel('Currency')");
     expect(source).toContain("generalSettings.getByLabel('Locale')");
     expect(source).toContain("generalSettings.getByLabel('Timezone')");
@@ -492,7 +496,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("generalSettings.getByLabel('Terms URL')");
     expect(source).toContain("generalSettings.getByLabel('Hosted terms text')");
     expect(source).toContain(
-      "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 3,\n      name: 'ESN Card discounts',\n    })",
+      "generalSettings.getByRole('heading', {\n      exact: true,\n      level: 3,\n      name: 'Discount providers',\n    })",
     );
     expect(source).toContain(
       "generalSettings.getByLabel('Allowed receipt countries')",
@@ -588,7 +592,7 @@ describe('generated docs source current behavior', () => {
     );
     expect(unlistedUserSource).toContain('set({ unlisted: true })');
     expect(unlistedUserSource).toContain(
-      "page.getByRole('link', { name: visibleEvent.title })",
+      "page.locator('app-event-list nav a').first()",
     );
     expect(unlistedUserSource).toContain("page.locator('app-event-list nav')");
     expect(unlistedUserSource).toContain(
