@@ -991,9 +991,11 @@ provider outcomes without live identifiers.
     transfer scope, in addition to free and paid registration walkthroughs.
     The paid walkthrough screenshots the hosted Stripe Checkout form through a
     filtered payment/continue/submit form target instead of the first external
-    checkout form. Generated-doc source coverage keeps that unavailable-state,
-    transfer scope, and checkout screenshot target aligned with the relaunch
-    behavior.
+    checkout form. The generated narrative also documents queued confirmation,
+    cancellation, transfer-completed, and waitlist spot-available emails while
+    keeping direct QR email delivery out of relaunch scope. Generated-doc
+    source coverage keeps that unavailable-state, transfer scope, notification,
+    and checkout screenshot target aligned with the relaunch behavior.
   - Server unit coverage now pins registration lifecycle email outbox records
     for free confirmation, cancellation, transfer, and waitlist spot-available
     notifications. Paid checkout confirmation is wired through the Stripe

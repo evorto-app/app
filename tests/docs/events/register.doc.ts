@@ -360,8 +360,9 @@ test.describe('Register for events', () => {
   You should now have a successful registration.
   You can see this by additional information being available and also your ticket QR code.
   Participant registrations can include guests, registration-time add-ons, and registration-question answers. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
+  Evorto queues a registration-confirmation email to your notification email address. The email tells you to open Evorto for the ticket and event details; it does not send the QR code directly.
   This code is needed when attending the event. Keep this page available because QR email delivery is not part of the current relaunch flow.
-  You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached. If the registration was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.`,
+  You can cancel a pending or confirmed registration from this event page before the event starts. Cancellation queues a registration-cancelled email to your notification email address. Confirmed cancellation releases your selected spots, including guests when attached. If the registration was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.`,
     });
 
     await takeScreenshot(
@@ -555,7 +556,7 @@ test.describe('Register for events', () => {
 
     await testInfo.attach('markdown', {
       body: `
-  Full participant options expose a distinct **Join waitlist** action. If that option asks required registration questions, participants must answer them before joining the waitlist. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full. Participants can leave the waitlist before the event starts, which cancels the waitlist registration and releases the waitlist position.
+  Full participant options expose a distinct **Join waitlist** action. If that option asks required registration questions, participants must answer them before joining the waitlist. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full. Participants can leave the waitlist before the event starts, which cancels the waitlist registration and releases the waitlist position. When a confirmed cancellation opens capacity for the option, the oldest waitlisted participant receives a spot-available email telling them to return to the event page while the spot is still available.
 `,
     });
     await database
@@ -641,6 +642,7 @@ test.describe('Register for events', () => {
   ## Transfer an unpaid registration
 
   Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts. The target account must already exist in the tenant and be eligible for the same registration option.
+  A completed unpaid transfer queues a transfer-completed email for the new participant's notification email address. The email tells the new participant to open Evorto for the registration details.
 
   Paid registration transfer or direct resale now starts with a transfer link/code. The replacement participant can start a Stripe Checkout registration from the link; after checkout succeeds, Evorto cancels the original registration and handles the source refund path. Public resale listings are outside the relaunch scope.`,
     });

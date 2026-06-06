@@ -2723,6 +2723,15 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'QR email delivery is not part of the current relaunch flow.',
     );
+    expect(source).toContain(
+      'Evorto queues a registration-confirmation email to your notification email address.',
+    );
+    expect(source).toContain(
+      'The email tells you to open Evorto for the ticket and event details; it does not send the QR code directly.',
+    );
+    expect(source).toContain(
+      'Cancellation queues a registration-cancelled email to your notification email address.',
+    );
     expect(source).toContain('seedRequiredRegistrationQuestion');
     expect(source).toContain(
       'Free registration cards can also offer registration-time add-ons and required questions.',
@@ -2754,6 +2763,15 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('waitlistRegistration.questionAnswers');
     expect(source).toContain(
       'Participants can leave the waitlist before the event starts, which cancels the waitlist registration and releases the waitlist position.',
+    );
+    expect(source).toContain(
+      'the oldest waitlisted participant receives a spot-available email telling them to return to the event page while the spot is still available.',
+    );
+    expect(source).toContain(
+      'A completed unpaid transfer queues a transfer-completed email for the new participant',
+    );
+    expect(source).toContain(
+      'The email tells the new participant to open Evorto for the registration details.',
     );
     expect(source).toContain('fullOptionAfterLeaving.waitlistSpots');
     expect(source).not.toContain('Register button stays available');
