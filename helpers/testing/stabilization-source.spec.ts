@@ -3542,6 +3542,9 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'HTTP-error route-probe message now points operators at `bun run docker:check`',
     );
+    expect(source).toContain('checks Docker Compose port ownership');
+    expect(source).toContain('another `evorto-*` project owns');
+    expect(source).toContain('without stopping that stack automatically');
     expect(source).toContain('runs `dev:check` before Angular starts');
     expect(source).toContain('binds the dev server to `0.0.0.0`');
     expect(source).toContain('covered-control detection');
@@ -3568,6 +3571,8 @@ describe('stabilization source', () => {
     expect(helpersReadme).toContain(
       'identify whether another Evorto Compose\nproject owns the selected port',
     );
+    expect(helpersReadme).toContain('route probe skips the HTTP request');
+    expect(helpersReadme).toContain('leaves\nthat other stack running');
     expect(localRuntimeStatus).toContain('local-app-route-probe.ts');
     expect(localAppRouteProbe).toContain(
       "const defaultRoutePath = '/legal/terms'",
@@ -3577,11 +3582,21 @@ describe('stabilization source', () => {
     expect(localAppRouteProbe).toContain(
       'Run bun run docker:check to confirm whether another Evorto stack owns the selected port',
     );
+    expect(localAppRouteProbe).toContain('findOtherEvortoComposePortOwners');
+    expect(localAppRouteProbe).toContain(
+      'Skipping app route probe for ${probeUrl.toString()} because another Evorto Compose project is publishing that port.',
+    );
+    expect(localAppRouteProbe).toContain(
+      'COMPOSE_PROJECT_NAME=${project} docker compose down',
+    );
     expect(localAppRouteProbeSpec).toContain(
       'does not fail when no app is currently listening',
     );
     expect(localAppRouteProbeSpec).toContain(
       'fails when an already-running local app returns an HTTP error',
+    );
+    expect(localAppRouteProbeSpec).toContain(
+      'skips route probing when another Evorto checkout owns the local port',
     );
     expect(localAppRouteProbeSpec).toContain(
       'before using this app for Browser evidence',

@@ -1109,13 +1109,18 @@ provider outcomes without live identifiers.
   public page, making stale or broken port-4200 stacks visible before Browser
   planner runs are treated as current worktree evidence. That HTTP-error
   message points at `bun run docker:check` so operators can identify a different
-  Evorto Compose project on the selected port without stopping it.
+  Evorto Compose project on the selected port without stopping it. The route
+  probe also skips the HTTP request when Docker already shows another `evorto-*`
+  Compose project publishing the selected local port, and prints the manual
+  `COMPOSE_PROJECT_NAME=<owning-project> docker compose down` command for that
+  owner instead of treating the other checkout's app response as current
+  worktree evidence.
   `helpers/testing/local-runtime-status.spec.ts` exercises the status runner
   directly so the command list stays complete, failures do not stop later
   checks from running, startup errors are reported, and failed labels stay
   grouped together for operators. `helpers/testing/local-app-route-probe.spec.ts`
-  covers successful public-route probes, closed-port skips, HTTP-error failures,
-  and missing `BASE_URL` skips.
+  covers successful public-route probes, closed-port skips, other-checkout port
+  ownership skips, HTTP-error failures, and missing `BASE_URL` skips.
 - `helpers/testing/remove-stale-compose-containers.spec.ts` guards generated
   Compose cleanup target detection for unhealthy Compose JSON health, unhealthy
   Docker `ps` status text fallback, stale created/dead states, healthy running
