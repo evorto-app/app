@@ -5650,6 +5650,10 @@ parser; before the HTTP request, the probe skips when another `evorto-*` project
 owns the selected local port, printing the owning
 `COMPOSE_PROJECT_NAME=<owning-project> docker compose down` command without
 stopping that stack automatically.
+The public General viewport Playwright sweep now also records browser console
+warnings/errors while it opens each covered anonymous General route, so the
+durable 320x740, 390x844, and 1440x900 route matrix protects the same clean-log
+invariant that the in-app Browser refreshes checked manually.
 A current local run failed on the expected closed database port and Docker
 container-start path, reported the existing port-4200 app's HTTP 500 on
 `/legal/terms`, and still reported the Neon summary as one protected branch, no

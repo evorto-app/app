@@ -6277,6 +6277,17 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'no overflowing visible text or panel elements',
     );
+    expect(viewportSpec).toContain('collectBrowserLogFailures');
+    expect(viewportSpec).toContain("page.on('console'");
+    expect(viewportSpec).toContain("'error'");
+    expect(viewportSpec).toContain("'warning'");
+    expect(viewportSpec).toContain(
+      'should not emit browser warning/error logs',
+    );
+    expect(inventory).toContain('browser console\n    warning/error logs');
+    expect(source).toContain(
+      'public General viewport Playwright sweep now also records browser console',
+    );
     expect(source).toContain('authenticated SSR deep-link checkpoint');
     expect(source).toContain('`src/app/app.routes.server.ts`');
     expect(source).toContain('`src/app/app.routes.server.spec.ts`');

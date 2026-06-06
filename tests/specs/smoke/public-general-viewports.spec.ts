@@ -14,6 +14,26 @@ const viewportSizes = [
   { height: 900, label: 'desktop', width: 1440 },
 ] as const;
 
+const blockedConsoleTypes = new Set(['error', 'warning']);
+
+const collectBrowserLogFailures = (page: Page): string[] => {
+  const browserLogFailures: string[] = [];
+
+  page.on('console', (message) => {
+    if (!blockedConsoleTypes.has(message.type())) {
+      return;
+    }
+
+    const location = message.location();
+    const source = location.url
+      ? `${location.url}:${location.lineNumber}:${location.columnNumber}`
+      : page.url();
+    browserLogFailures.push(`${message.type()}: ${message.text()} (${source})`);
+  });
+
+  return browserLogFailures;
+};
+
 const expectAnonymousNavigation = async (
   page: Page,
   viewport: (typeof viewportSizes)[number],
@@ -59,6 +79,8 @@ test('public General pages have stable layouts across viewports', async ({
       'Expected seeded public event for General viewport coverage',
     );
   }
+
+  const browserLogFailures = collectBrowserLogFailures(page);
 
   const publicRoutes = [
     {
@@ -129,6 +151,7 @@ test('public General pages have stable layouts across viewports', async ({
 
       for (const route of publicRoutes) {
         await test.step(route.name, async () => {
+          browserLogFailures.length = 0;
           await page.goto(route.path);
 
           await expect(
@@ -142,6 +165,10 @@ test('public General pages have stable layouts across viewports', async ({
           await expect(readPageLayout(page)).resolves.toEqual(
             expectedStablePageLayout,
           );
+          expect(
+            browserLogFailures,
+            `${viewport.label} ${route.name} should not emit browser warning/error logs`,
+          ).toEqual([]);
         });
       }
     });

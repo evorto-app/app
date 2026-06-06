@@ -246,8 +246,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     legal pages, general 403/404/500 pages, and wildcard not-found redirect at
     narrow mobile, mobile, and desktop viewports for rendered content, no
     application-error text, no horizontal overflow, no horizontally clipped
-    visible controls, and no overflowing visible text or panel elements outside
-    intentional horizontal scroll containers. It also asserts the anonymous
+    visible controls, no overflowing visible text or panel elements outside
+    intentional horizontal scroll containers, and no browser console
+    warning/error logs while each route is opened. It also asserts the anonymous
     Events/Login navigation remains visible and fixed as bottom navigation on
     mobile and side navigation on desktop. The source guard pins the exact
     public General route list and route content assertions against
