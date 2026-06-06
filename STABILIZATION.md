@@ -4789,23 +4789,23 @@ tried to kill container, but did not receive an exit event`. A follow-up
   `(unhealthy)`, stale `created`/`dead` states, healthy running-container
   exclusion, and duplicate target de-duplication.
 - Observed PR #62 active-head CI cleanup checkpoint: after pushing local head
-  `e07b2fd15`, the visible current-head rollup shows CodeQL, CodeQL
-  `Analyze (actions)`, Copilot setup, Git Town, CodeRabbit, and the serial E2E
-  `Warm CI dependency caches` job green on the pushed head. E2E run
-  `26999937086` then exposed the worker checks with the `functional-1` shard in
-  `Start Docker stack for E2E` and `functional-2` plus `docs` queued at the
-  refresh, so PR merge state remains `BLOCKED` while those shards are pending
-  and the PR is still draft. The warm-cache job ran the
-  public Font Awesome registry guard, restored the Bun package cache, Docker
-  build cache, Docker Bun cache mount, and Playwright browser cache, completed
-  dependency installation in the serial warmer, and warmed the Docker build
-  cache before the matrix workers started. The `functional-1` worker restored
-  the same caches, required the warmed Docker Bun cache mount before startup,
-  pruned expired Neon branches before E2E, skipped a worker registry install
-  path, installed Playwright browsers from cache, and reached Docker stack
-  startup with the normal cleanup finalizer steps still queued behind the run.
-  The previous pushed-head E2E run `26999536035` was cancelled by the next push
-  only after Actions reached Docker log collection, `Stop Docker stack`, and
+  `92194859`, the current PR rollup shows CodeQL, CodeQL `Analyze (actions)`,
+  Copilot setup, Git Town, CodeRabbit, the serial E2E
+  `Warm CI dependency caches` job, `Playwright E2E (functional-1)`,
+  `Playwright E2E (functional-2)`, and `Playwright E2E (docs)` green on the
+  pushed head. E2E run `27050227993` completed all three serialized worker
+  shards on that head. The warm-cache job ran the public Font Awesome registry
+  guard, restored the Bun package cache, dependency-tree cache, Docker build
+  cache, Docker Bun cache mount, and Playwright browser cache, then reported
+  `Bun dependency tree cache restored; skipping registry install.` before
+  warming the Docker build cache. Each worker restored the same caches, required
+  the warmed Docker Bun cache mount before startup, pruned expired Neon branches
+  before E2E, skipped a worker registry install path, installed Playwright
+  browsers from cache, started Docker, confirmed Neon branch expiration, waited
+  for the app, ran its shard, collected Docker logs, stopped the Docker stack,
+  and ran `Prune expired Neon branches after E2E`. The previous pushed-head E2E
+  run `27050099887` was cancelled by the next push only after Actions reached
+  Docker log collection, `Stop Docker stack`, and
   `Prune expired Neon branches after E2E`; both cleanup finalizer steps
   succeeded. The E2E workflow still keeps normal workers behind the serial
   `Warm CI dependency caches` job, requires the warmed Docker Bun cache mount
@@ -4814,7 +4814,7 @@ tried to kill container, but did not receive an exit event`. A follow-up
   `Prune expired Neon branches after E2E`; the hourly and `workflow_run` Neon
   cleanup workflow remains the backstop for hard cancellation or runner loss
   once that new workflow file exists on the default branch. A live repo-local
-  cleanup run while no current worker branch was visible reported
+  cleanup run after the green current-head E2E run reported
   `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`, so only
   protected `main` remained at this checkpoint. That keeps the branch-hygiene
   signal aligned with the intended state: active CI workers may own short-lived

@@ -5265,31 +5265,32 @@ describe('stabilization source', () => {
 
     expect(checkpoint).toBeDefined();
     const checkpointText = normalizeWhitespace(checkpoint ?? '');
-    expect(checkpointText).toContain('local head `e07b2fd15`');
+    expect(checkpointText).toContain('local head `92194859`');
     expect(checkpointText).toContain('CodeQL, CodeQL `Analyze (actions)`');
     expect(checkpointText).toContain(
-      'Copilot setup, Git Town, CodeRabbit, and the serial E2E',
+      'Copilot setup, Git Town, CodeRabbit, the serial E2E',
     );
-    expect(checkpointText).toContain('E2E run `26999937086`');
+    expect(checkpointText).toContain('E2E run `27050227993`');
     expect(checkpointText).toContain(
-      '`functional-1` shard in `Start Docker stack for E2E`',
+      '`Playwright E2E (functional-1)`, `Playwright E2E (functional-2)`, and `Playwright E2E (docs)` green',
     );
-    expect(checkpointText).toContain('`functional-2` plus `docs` queued');
     expect(checkpointText).toContain(
-      'shards are pending and the PR is still draft',
+      'completed all three serialized worker shards',
     );
     expect(checkpointText).toContain('public Font Awesome registry guard');
     expect(checkpointText).toContain('Bun package cache');
+    expect(checkpointText).toContain('dependency-tree cache');
     expect(checkpointText).toContain('Docker build cache');
     expect(checkpointText).toContain('Docker Bun cache mount');
     expect(checkpointText).toContain('Playwright browser cache');
     expect(checkpointText).toContain(
-      'completed dependency installation in the serial warmer',
+      '`Bun dependency tree cache restored; skipping registry install.`',
     );
     expect(checkpointText).toContain('required the warmed Docker Bun cache');
     expect(checkpointText).toContain('pruned expired Neon branches before E2E');
     expect(checkpointText).toContain('skipped a worker registry install path');
-    expect(checkpointText).toContain('E2E run `26999536035`');
+    expect(checkpointText).toContain('confirmed Neon branch expiration');
+    expect(checkpointText).toContain('E2E run `27050099887`');
     expect(checkpointText).toContain('was cancelled by the next push');
     expect(checkpointText).toContain('Docker log collection');
     expect(checkpointText).toContain('both cleanup finalizer steps succeeded');
@@ -5305,6 +5306,7 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain(
       '`total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`',
     );
+    expect(checkpointText).toContain('green current-head E2E run');
     expect(checkpointText).toContain('only protected `main` remained');
     expect(checkpointText).toContain(
       'active CI workers may own short-lived branches',
