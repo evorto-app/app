@@ -5632,7 +5632,9 @@ without requiring Docker or Neon credentials.
 Generated-doc source coverage also rejects generic page-shell screenshot focus
 targets such as `locator('main')`; screenshot evidence must focus a meaningful
 product control, form, component, row, or state while still capturing visible
-page content outside the highlighted target.
+page content outside the highlighted target. The guard now also follows aliased
+generic shell locator targets and helper functions returning generic shell
+locators into screenshot arguments and arrays.
 It also rejects unfiltered broad `section`, `article`, `form`, and `app-*`
 component-host screenshot targets, so docs must focus a filtered semantic
 region, a concrete form state, or a concrete component/control instead of

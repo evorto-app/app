@@ -136,6 +136,8 @@ const findGenericScreenshotTargets = (
     ts.ScriptKind.TS,
   );
   const genericTargets: string[] = [];
+  const genericTargetAliases = new Set<string>();
+  const genericTargetFunctions = new Set<string>();
   const genericSelectors = new Set([
     '*',
     ':root',
@@ -162,6 +164,18 @@ const findGenericScreenshotTargets = (
       );
     }
 
+    if (ts.isIdentifier(node)) {
+      return genericTargetAliases.has(node.text);
+    }
+
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      genericTargetFunctions.has(node.expression.text)
+    ) {
+      return true;
+    }
+
     if (
       ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
@@ -176,7 +190,65 @@ const findGenericScreenshotTargets = (
     return false;
   };
 
+  const returnsGenericLocator = (
+    node: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression,
+  ): boolean => {
+    if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+      return isGenericLocatorTarget(node.body);
+    }
+
+    if (!ts.isBlock(node.body)) {
+      return false;
+    }
+
+    let returnsGenericTarget = false;
+
+    const visitReturn = (child: ts.Node): void => {
+      if (
+        ts.isReturnStatement(child) &&
+        child.expression &&
+        isGenericLocatorTarget(child.expression)
+      ) {
+        returnsGenericTarget = true;
+      }
+
+      ts.forEachChild(child, visitReturn);
+    };
+
+    visitReturn(node.body);
+
+    return returnsGenericTarget;
+  };
+
   const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      isGenericLocatorTarget(node.initializer)
+    ) {
+      genericTargetAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      (ts.isArrowFunction(node.initializer) ||
+        ts.isFunctionExpression(node.initializer)) &&
+      returnsGenericLocator(node.initializer)
+    ) {
+      genericTargetFunctions.add(node.name.text);
+    }
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      returnsGenericLocator(node)
+    ) {
+      genericTargetFunctions.add(node.name.text);
+    }
+
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
@@ -930,6 +1002,20 @@ describe('generated docs source current behavior', () => {
         page,
         'Generic application shell target with a descriptive caption',
       );
+      const appRootShell = page.locator('app-root');
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, appRootShell],
+        page,
+        'Aliased generic application shell target with a descriptive caption',
+      );
+      const mainShellSurface = (page) => page.locator('main');
+      await takeScreenshot(
+        testInfo,
+        mainShellSurface(page),
+        page,
+        'Helper-returned generic shell target with a descriptive caption',
+      );
     `;
 
     expect(
@@ -937,7 +1023,11 @@ describe('generated docs source current behavior', () => {
         'tests/docs/example/generic-target.doc.ts',
         genericTargetSource,
       ),
-    ).toEqual(['tests/docs/example/generic-target.doc.ts:2:13']);
+    ).toEqual([
+      'tests/docs/example/generic-target.doc.ts:2:13',
+      'tests/docs/example/generic-target.doc.ts:9:13',
+      'tests/docs/example/generic-target.doc.ts:16:13',
+    ]);
   });
 
   it('detects unfiltered broad documentation screenshot targets', () => {

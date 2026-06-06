@@ -489,11 +489,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   caption length, verifies generated
   screenshots include the highlighted focus target and visible non-highlight
   page content before attachment, rejects generic page-root screenshot targets
-  such as `body`, `html`, or `app-root`, rejects unfiltered broad `section`,
-  `article`, `form`, and `app-*` component-host screenshot targets, including
-  aliased broad locators and helper-returned broad locators inside screenshot
-  arguments and arrays, rejects direct single-control screenshot targets such as
-  role/text/label/placeholder
+  such as `body`, `html`, or `app-root`, including aliased generic locators and
+  helper-returned generic locators inside screenshot arguments and arrays,
+  rejects unfiltered broad `section`, `article`, `form`, and `app-*`
+  component-host screenshot targets, including aliased broad locators and
+  helper-returned broad locators inside screenshot arguments and arrays, rejects
+  direct single-control screenshot targets such as role/text/label/placeholder
   locators plus direct single-control CSS locator targets such as `button`,
   `input`, ARIA role selectors, and Material control hosts/classes, including
   helper-returned single-control locators, rejects direct icon/media targets such

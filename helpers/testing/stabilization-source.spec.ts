@@ -1195,6 +1195,10 @@ describe('stabilization source', () => {
     expect(source).toContain('highlighted focus-target\n  pixels');
     expect(source).toContain('proves');
     expect(source).toContain('generic page-root screenshot targets');
+    expect(source).toContain('aliased\ngeneric shell locator targets');
+    expect(source).toContain(
+      'helper functions returning generic shell\nlocators',
+    );
     expect(source).toContain(
       'unfiltered broad `section`, `article`, `form`, and `app-*`',
     );
@@ -1233,10 +1237,13 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/terse\s+section\/list labels/u);
     expect(inventory).toMatch(/generic page-root\s+screenshot targets/u);
     expect(inventory).toContain(
-      'unfiltered broad `section`,\n  `article`, `form`, and `app-*` component-host screenshot targets',
+      'aliased generic locators and\n  helper-returned generic locators inside screenshot arguments and arrays',
     );
     expect(inventory).toContain(
-      'aliased broad locators and helper-returned broad locators inside screenshot\n  arguments and arrays',
+      'unfiltered broad `section`, `article`, `form`, and `app-*`\n  component-host screenshot targets',
+    );
+    expect(inventory).toContain(
+      'aliased broad locators and\n  helper-returned broad locators inside screenshot arguments and arrays',
     );
     expect(inventory).toMatch(/role\/text\/label\/placeholder\s+locators/u);
     expect(inventory).toContain('single-control CSS locator targets');
@@ -1369,6 +1376,9 @@ describe('stabilization source', () => {
       'documentation-reporter/take-screenshot',
     );
     expect(generatedDocumentationSource).toContain('genericSelectors');
+    expect(generatedDocumentationSource).toContain('genericTargetAliases');
+    expect(generatedDocumentationSource).toContain('returnsGenericLocator');
+    expect(generatedDocumentationSource).toContain('mainShellSurface');
     expect(generatedDocumentationSource).toContain(
       "'../../support/reporters/documentation-reporter'",
     );
