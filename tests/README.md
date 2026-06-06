@@ -143,8 +143,9 @@ bun run lint
   an authenticated local run cannot bind the Auth0-registered `localhost:4200`
   origin. Stop that owning stack manually only after confirming it is not active.
 - Local Playwright package scripts that run `playwright test` go through
-  `helpers/testing/run-playwright.ts`, which refreshes `.env.dev`, sets ignored
-  docs output paths, and invokes
+  `helpers/testing/run-playwright.ts`, which copies the sibling main checkout
+  `.env` only when the worktree is missing one, refreshes `.env.dev`, sets
+  ignored docs output paths, and invokes
   `dotenv -c dev -- node_modules/.bin/playwright test`, so new worktrees get
   isolated local app/service ports and database URLs by default.
   Local `dev:start`, `db:*`, and `docker:*` scripts also refresh `.env.dev`

@@ -1950,6 +1950,11 @@ the current working direction until a product decision overrides them.
   `bun run dev:start` now uses `dev:bootstrap` before starting Angular, so a
   fresh worktree does not need a separate bootstrap command before the first
   dev-server run.
+- Local Playwright package scripts now use the same guarded
+  `env:copy-main --if-missing` path before refreshing `.env.dev`, so focused
+  local E2E reruns inherit the main checkout developer secrets only when the
+  current worktree has no `.env`; CI still bypasses that local wrapper and reads
+  GitHub Actions `env`, `vars`, and `secrets` directly.
 - `bun run docker:bootstrap` is the matching fresh-Docker-worktree shortcut for
   the same recovery path: it copies the main checkout `.env` only when missing
   and then runs `docker:check`, so Docker preflight setup stays one command

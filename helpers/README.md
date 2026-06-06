@@ -87,9 +87,11 @@ and runs the Neon Local cleanup dry-run in one pass so Docker failures do not
 hide branch-cleanup status or missing development variables.
 Use `bun run dev:bootstrap` in a fresh worktree to copy the main checkout `.env`
 only when this worktree does not already have one, then run the normal
-`dev:check` preflight. The missing-file decision lives in
-`env:copy-main --if-missing`, so the package script does not need a shell
-conditional.
+`dev:check` preflight. Local Playwright package scripts use the same guarded
+copy-if-missing step before refreshing `.env.dev`, so fresh worktrees do not
+need a separate manual secret-copy command before focused E2E reruns. The
+missing-file decision lives in `env:copy-main --if-missing`, so package scripts
+do not need shell conditionals.
 Use `bun run docker:bootstrap` for the same guarded copy-if-missing step before
 the Docker preflight, without making `docker:check` overwrite or create
 worktree `.env` files by itself.

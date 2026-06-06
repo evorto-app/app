@@ -1725,6 +1725,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(runPlaywright).toContain(
       "DOCS_IMG_OUT_DIR: 'test-results/docs/images'",
     );
+    expect(runPlaywright).toContain(
+      "['run', 'env:copy-main', '--', '--if-missing']",
+    );
     expect(runPlaywright).toContain("spawn('bun', ['run', 'env:runtime']");
     expect(runPlaywright).toContain("'node_modules/.bin/dotenv'");
     expect(runPlaywright).toContain("'node_modules/.bin/playwright'");
@@ -1735,6 +1738,9 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(runPlaywrightSpec).toContain(
       'maps the helper no-webserver flag to the Playwright environment',
+    );
+    expect(runPlaywrightSpec).toContain(
+      'does not refresh runtime environment when the guarded .env copy fails',
     );
     expect(runPlaywrightSpec).toContain(
       'does not run Playwright when the runtime environment refresh fails',

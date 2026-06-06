@@ -41,8 +41,19 @@ describe('runPlaywright', () => {
     });
 
     expect(status).toBe(0);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(calls[0]).toEqual({
+      args: ['run', 'env:copy-main', '--', '--if-missing'],
+      command: 'bun',
+      options: {
+        env: {
+          DOCS_OUT_DIR: '/outside/docs',
+          EXISTING: 'kept',
+        },
+        stdio: 'inherit',
+      },
+    });
+    expect(calls[1]).toEqual({
       args: ['run', 'env:runtime'],
       command: 'bun',
       options: {
@@ -53,8 +64,8 @@ describe('runPlaywright', () => {
         stdio: 'inherit',
       },
     });
-    expect(calls[1].command).toBe('node_modules/.bin/dotenv');
-    expect(calls[1].args).toEqual([
+    expect(calls[2].command).toBe('node_modules/.bin/dotenv');
+    expect(calls[2].args).toEqual([
       '-c',
       'dev',
       '--',
@@ -63,7 +74,7 @@ describe('runPlaywright', () => {
       'tests/specs/smoke/page-layout-helper.test.ts',
       '--no-deps',
     ]);
-    expect(calls[1].options).toEqual({
+    expect(calls[2].options).toEqual({
       env: {
         DOCS_IMG_OUT_DIR: localDocumentationEnvironment.DOCS_IMG_OUT_DIR,
         DOCS_OUT_DIR: localDocumentationEnvironment.DOCS_OUT_DIR,
@@ -73,7 +84,7 @@ describe('runPlaywright', () => {
     });
   });
 
-  it('does not run Playwright when the runtime environment refresh fails', () => {
+  it('does not refresh runtime environment when the guarded .env copy fails', () => {
     const calls: SpawnCall[] = [];
     const status = runPlaywright({
       argv: ['--list'],
@@ -84,6 +95,39 @@ describe('runPlaywright', () => {
     expect(status).toBe(1);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
+      args: ['run', 'env:copy-main', '--', '--if-missing'],
+      command: 'bun',
+    });
+  });
+
+  it('does not run Playwright when the runtime environment refresh fails', () => {
+    const calls: SpawnCall[] = [];
+    const createRuntimeFailureSpawn = (): typeof spawnSync =>
+      ((command, arguments_, options) => {
+        calls.push({
+          args: arguments_ ?? [],
+          command,
+          options,
+        });
+
+        return {
+          output: [],
+          pid: 1,
+          signal: null,
+          status: calls.length === 2 ? 1 : 0,
+          stderr: Buffer.from(''),
+          stdout: Buffer.from(''),
+        };
+      }) as typeof spawnSync;
+    const status = runPlaywright({
+      argv: ['--list'],
+      env: {},
+      spawn: createRuntimeFailureSpawn(),
+    });
+
+    expect(status).toBe(1);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toMatchObject({
       args: ['run', 'env:runtime'],
       command: 'bun',
     });
@@ -102,7 +146,7 @@ describe('runPlaywright', () => {
       spawn: createSpawn(calls),
     });
 
-    expect(calls[1].args).toEqual([
+    expect(calls[2].args).toEqual([
       '-c',
       'dev',
       '--',
@@ -111,7 +155,7 @@ describe('runPlaywright', () => {
       'tests/setup/mcp-browser.seed.ts',
       '--project=mcp-browser-planner',
     ]);
-    expect(calls[1].options?.env).toMatchObject({
+    expect(calls[2].options?.env).toMatchObject({
       NO_WEBSERVER: 'true',
     });
   });
@@ -130,7 +174,7 @@ describe('runPlaywright', () => {
           output: [],
           pid: 1,
           signal: null,
-          status: calls.length === 1 ? 0 : 1,
+          status: calls.length === 3 ? 1 : 0,
           stderr: Buffer.from(''),
           stdout: Buffer.from(''),
         };
@@ -142,6 +186,6 @@ describe('runPlaywright', () => {
     });
 
     expect(status).toBe(1);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
   });
 });

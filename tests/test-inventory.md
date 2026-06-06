@@ -1125,10 +1125,12 @@ provider outcomes without live identifiers.
   `bun run dev:bootstrap` is covered as the fresh-worktree shortcut that asks
   `env:copy-main --if-missing` to copy `.env` only when missing before running
   `dev:check`, `bun run docker:bootstrap` does the same before `docker:check`,
-  and `bun run dev:start` now uses that shortcut before starting Angular. This
-  keeps the missing-file decision inside the tested Bun helper instead of a
-  package-script shell conditional. The helper also no-ops before
-  source-checkout lookup when `--if-missing` finds an existing worktree `.env`.
+  local Playwright package scripts run the same guarded copy-if-missing helper
+  before refreshing `.env.dev`, and `bun run dev:start` now uses that shortcut
+  before starting Angular. This keeps the missing-file decision inside the
+  tested Bun helper instead of a package-script shell conditional. The helper
+  also no-ops before source-checkout lookup when `--if-missing` finds an
+  existing worktree `.env`.
   `helpers/testing/copy-main-environment.spec.ts` exercises the helper behavior
   directly: default sibling-checkout copy, explicit `MAIN_CHECKOUT_DIR`,
   overwrite refusal unless `--force`, if-missing no-op with and without a source

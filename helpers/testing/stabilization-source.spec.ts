@@ -1315,7 +1315,7 @@ describe('stabilization source', () => {
       'helper functions returning generic shell\nlocators',
     );
     expect(source).toContain(
-      'unfiltered broad `section`, `article`, `form`, and `app-*`',
+      'unfiltered broad `section`, `article`, `div`, `form`, and `app-*`',
     );
     expect(source).toContain('aliased broad locator targets');
     expect(source).toContain(
@@ -1369,7 +1369,7 @@ describe('stabilization source', () => {
       'aliased generic locators and\n  helper-returned generic locators inside screenshot arguments and arrays',
     );
     expect(inventory).toContain(
-      'unfiltered broad `section`, `article`, `form`, and `app-*`\n  component-host screenshot targets',
+      'unfiltered broad `section`, `article`, `div`, `form`, and `app-*`\n  component-host screenshot targets',
     );
     expect(inventory).toContain(
       'aliased broad locators and\n  helper-returned broad locators inside screenshot arguments and arrays',
