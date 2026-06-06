@@ -1393,10 +1393,12 @@ describe('stabilization source', () => {
       /target arrays\s+and helper-returned icon\/media locators/u,
     );
     expect(inventory).toContain('helper-internal screenshot imports');
-    expect(inventory).toMatch(/local screenshot\s+wrappers/u);
+    expect(inventory).toMatch(/local\s+screenshot\s+wrappers/u);
     expect(inventory).toContain('captureDocumentationImage');
     expect(inventory).toContain('unwraps `as const`');
     expect(inventory).toContain('`satisfies` grouped target objects');
+    expect(inventory).toContain('`locator.screenshot`');
+    expect(inventory).toContain("direct `testInfo.attach('image', ...)`");
     expect(inventory).toContain('self-tests those bypass examples');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('missing-highlight');
@@ -1406,7 +1408,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('failure');
     expect(inventory).toContain('rejects');
     expect(inventory).toContain('raw');
-    expect(inventory).toContain('`page.screenshot` calls');
+    expect(inventory).toContain('raw `page.screenshot`');
     expect(inventory).toContain('generated\n  `{% figure %}` blocks');
     expect(inventory).toContain('escapes caption attributes');
     expect(inventory).toContain(
@@ -1464,7 +1466,10 @@ describe('stabilization source', () => {
       'tests/docs/roles/about-permissions.doc.ts',
     );
     expect(generatedDocumentationSource).toContain('takeScreenshot(');
-    expect(generatedDocumentationSource).toContain('page.screenshot(');
+    expect(generatedDocumentationSource).toContain(
+      "expect(source, path).not.toContain('.screenshot(')",
+    );
+    expect(generatedDocumentationSource).toContain('testInfo.attach("image"');
     expect(generatedDocumentationSource).toContain(
       'findWeakScreenshotCaptions',
     );

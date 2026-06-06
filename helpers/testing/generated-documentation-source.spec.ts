@@ -1861,7 +1861,9 @@ describe('generated docs source current behavior', () => {
         expectedScreenshotCounts.get(path),
       );
       expect(importsSharedScreenshotHelper(path, source), path).toBe(true);
-      expect(source, path).not.toContain('page.screenshot(');
+      expect(source, path).not.toContain('.screenshot(');
+      expect(source, path).not.toContain("testInfo.attach('image'");
+      expect(source, path).not.toContain('testInfo.attach("image"');
       expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);
       expect(findUnfilteredBroadScreenshotTargets(path, source), path).toEqual(
         [],
