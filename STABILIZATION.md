@@ -5876,9 +5876,10 @@ broad, single-control, or icon/media-only screenshot target before passing it to
 the shared docs screenshot helper.
 Generated-doc sources must also avoid direct `page.screenshot`,
 `locator.screenshot`, and raw `testInfo.attach('image', ...)` calls; screenshot
-function aliases, destructured screenshot aliases, image attachment aliases,
-direct attach-function aliases, and destructured attach aliases are rejected as
-well. Image evidence has to flow through the shared helper so captions,
+function aliases, destructured and nested destructured screenshot aliases, image
+attachment aliases, direct attach-function aliases, and destructured or nested
+destructured attach aliases are rejected as well. Image evidence has to flow
+through the shared helper so captions,
 highlights, content pixel checks, and generated figure output stay enforced.
 Grouped screenshot and attach-function aliases are rejected too, including
 object-literal helpers, static bracket-property helpers, tuple/array helper

@@ -1526,10 +1526,12 @@ describe('stabilization source', () => {
     expect(inventory).toContain("`page['screenshot']`");
     expect(inventory).toContain("`testInfo['attach']`");
     expect(inventory).toContain("`documentationReporter['takeScreenshot']`");
-    expect(inventory).toMatch(/destructured\s+screenshot-function aliases/u);
+    expect(inventory).toMatch(
+      /nested destructured\s+screenshot-function aliases/u,
+    );
     expect(inventory).toMatch(/grouped screenshot-function\s+properties/u);
     expect(inventory).toMatch(
-      /shorthand or alias-valued grouped screenshot helpers/u,
+      /shorthand or alias-valued grouped\s+screenshot helpers/u,
     );
     expect(inventory).toMatch(
       /direct or alias-valued tuple\/array screenshot-function\s+entries/u,
@@ -1547,7 +1549,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/computed\s+object keys/u);
     expect(inventory).toMatch(/bracket property references/u);
     expect(inventory).toMatch(
-      /destructured,\s+grouped,\s+shorthand,\s+alias-valued,\s+or\s+direct\/alias-valued tuple\/array attach-function\s+aliases/u,
+      /destructured,\s+nested destructured,\s+grouped,\s+shorthand,\s+alias-valued,\s+or\s+direct\/alias-valued tuple\/array\s+attach-function aliases/u,
     );
     expect(inventory).toContain('dynamic screenshot-helper imports');
     expect(inventory).toMatch(/no-substitution template-literal\s+specifiers/u);
@@ -1677,6 +1679,9 @@ describe('stabilization source', () => {
       'destructuredAttachEvidence',
     );
     expect(generatedDocumentationSource).toContain(
+      'nestedDestructuredAttachEvidence',
+    );
+    expect(generatedDocumentationSource).toContain(
       'attachHelpers.assignedEvidence',
     );
     expect(generatedDocumentationSource).toContain('attachHelperList[0]');
@@ -1785,6 +1790,9 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'destructuredGroupedCapture',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'nestedDestructuredGroupedCapture',
     );
     expect(generatedDocumentationSource).toContain(
       'screenshotHelpers.assignedCapture',

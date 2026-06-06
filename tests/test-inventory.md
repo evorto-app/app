@@ -556,16 +556,18 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs
   sources, treats static bracket-property forms such as `page['screenshot']`,
   `testInfo['attach']`, and `documentationReporter['takeScreenshot']` the same
-  as dot-property access, rejects direct screenshots through simple or
-  destructured screenshot-function aliases, grouped screenshot-function
-  properties, shorthand or alias-valued grouped screenshot helpers, and
+  as dot-property access, rejects direct screenshots through simple,
+  destructured, or nested destructured screenshot-function aliases,
+  grouped screenshot-function properties, shorthand or alias-valued grouped
+  screenshot helpers, and
   direct or alias-valued tuple/array screenshot-function entries, rejects direct
   image attachments through simple attachment-name aliases, raw image
   MIME/file-extension payloads, aliased raw image payload objects, aliased
   MIME/path values, object shorthand image payloads, computed raw image payload
   keys, raw screenshot and image attach call/apply invocations,
-  forward-declared raw aliases, and simple, destructured, grouped, shorthand,
-  alias-valued, or direct/alias-valued tuple/array attach-function aliases, rejects
+  forward-declared raw aliases, and simple, destructured, nested destructured,
+  grouped, shorthand, alias-valued, or direct/alias-valued tuple/array
+  attach-function aliases, rejects
   aliased/helper-internal screenshot imports, dynamic screenshot-helper imports,
   and local screenshot wrappers, self-tests those bypass examples, and keeps the permission
   reference image-backed with the actual role-form permission/dependency

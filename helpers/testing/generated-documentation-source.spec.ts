@@ -104,6 +104,54 @@ const collectIndexedPropertyAliases = (
   });
 };
 
+const addBindingIdentifiers = (
+  name: ts.BindingName,
+  aliases: Set<string>,
+): void => {
+  if (ts.isIdentifier(name)) {
+    aliases.add(name.text);
+    return;
+  }
+
+  for (const element of name.elements) {
+    if (!ts.isOmittedExpression(element)) {
+      addBindingIdentifiers(element.name, aliases);
+    }
+  }
+};
+
+const collectPropertyBindingAliases = (
+  name: ts.BindingName,
+  propertyName: string,
+  aliases: Set<string>,
+): void => {
+  if (ts.isIdentifier(name)) {
+    return;
+  }
+
+  for (const element of name.elements) {
+    if (ts.isOmittedExpression(element)) {
+      continue;
+    }
+
+    if (ts.isArrayBindingPattern(name)) {
+      collectPropertyBindingAliases(element.name, propertyName, aliases);
+      continue;
+    }
+
+    const staticPropertyName = getStaticPropertyNameFromName(
+      element.propertyName ?? element.name,
+    );
+
+    if (staticPropertyName === propertyName) {
+      addBindingIdentifiers(element.name, aliases);
+      continue;
+    }
+
+    collectPropertyBindingAliases(element.name, propertyName, aliases);
+  }
+};
+
 const isTrackedReferenceOrAlias = (
   node: ts.Expression,
   isTrackedReference: (node: ts.Expression) => boolean,
@@ -1691,16 +1739,7 @@ const findDirectImageAttachmentCalls = (
   };
 
   const addAttachBindingAliases = (name: ts.BindingName): void => {
-    if (ts.isIdentifier(name)) {
-      attachFunctionAliases.add(name.text);
-      return;
-    }
-
-    for (const element of name.elements) {
-      if (ts.isIdentifier(element.name)) {
-        attachFunctionAliases.add(element.name.text);
-      }
-    }
+    addBindingIdentifiers(name, attachFunctionAliases);
   };
 
   const collectAliasValuesAndAttachFunctions = (node: ts.Node): void => {
@@ -1791,18 +1830,8 @@ const findDirectImageAttachmentCalls = (
       }
     }
 
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isObjectBindingPattern(node.name)
-    ) {
-      for (const element of node.name.elements) {
-        const propertyName = element.propertyName ?? element.name;
-        const staticPropertyName = getStaticPropertyNameFromName(propertyName);
-
-        if (staticPropertyName === 'attach') {
-          addAttachBindingAliases(element.name);
-        }
-      }
+    if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+      collectPropertyBindingAliases(node.name, 'attach', attachFunctionAliases);
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -1976,16 +2005,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
   };
 
   const addScreenshotBindingAliases = (name: ts.BindingName): void => {
-    if (ts.isIdentifier(name)) {
-      screenshotFunctionAliases.add(name.text);
-      return;
-    }
-
-    for (const element of name.elements) {
-      if (ts.isIdentifier(element.name)) {
-        screenshotFunctionAliases.add(element.name.text);
-      }
-    }
+    addBindingIdentifiers(name, screenshotFunctionAliases);
   };
 
   const collectAliases = (node: ts.Node): void => {
@@ -2073,18 +2093,12 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       }
     }
 
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isObjectBindingPattern(node.name)
-    ) {
-      for (const element of node.name.elements) {
-        const propertyName = element.propertyName ?? element.name;
-        const staticPropertyName = getStaticPropertyNameFromName(propertyName);
-
-        if (staticPropertyName === 'screenshot') {
-          addScreenshotBindingAliases(element.name);
-        }
-      }
+    if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+      collectPropertyBindingAliases(
+        node.name,
+        'screenshot',
+        screenshotFunctionAliases,
+      );
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -2257,6 +2271,8 @@ describe('generated docs source current behavior', () => {
       await attachEvidenceByElement('image', { body: imageBuffer });
       const { attach: attachImageDirectly } = testInfo;
       await attachImageDirectly('image', { body: imageBuffer });
+      const [{ attach: nestedAttachImageDirectly }] = [testInfo];
+      await nestedAttachImageDirectly('image', { body: imageBuffer });
       await testInfo['attach']('image', { body: imageBuffer });
       await testInfo.attach('raw evidence', { body: imageBuffer, contentType: 'image/png' });
       await testInfo.attach('raw file evidence', { path: 'raw-evidence.webp' });
@@ -2288,6 +2304,8 @@ describe('generated docs source current behavior', () => {
       await attachHelpers.evidenceFromAlias('image', { body: imageBuffer });
       const { evidence: destructuredAttachEvidence } = attachHelpers;
       await destructuredAttachEvidence('image', { body: imageBuffer });
+      const [{ evidence: nestedDestructuredAttachEvidence }] = [attachHelpers];
+      await nestedDestructuredAttachEvidence('image', { body: imageBuffer });
       attachHelpers.assignedEvidence = testInfo.attach.bind(testInfo);
       await attachHelpers.assignedEvidence('image', { body: imageBuffer });
       const attachHelperList = [
@@ -2326,34 +2344,35 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:7:13',
       'tests/docs/example/direct-image.doc.ts:9:13',
       'tests/docs/example/direct-image.doc.ts:11:13',
-      'tests/docs/example/direct-image.doc.ts:12:13',
       'tests/docs/example/direct-image.doc.ts:13:13',
       'tests/docs/example/direct-image.doc.ts:14:13',
+      'tests/docs/example/direct-image.doc.ts:15:13',
       'tests/docs/example/direct-image.doc.ts:16:13',
       'tests/docs/example/direct-image.doc.ts:18:13',
       'tests/docs/example/direct-image.doc.ts:20:13',
       'tests/docs/example/direct-image.doc.ts:22:13',
       'tests/docs/example/direct-image.doc.ts:24:13',
-      'tests/docs/example/direct-image.doc.ts:25:13',
       'tests/docs/example/direct-image.doc.ts:26:13',
       'tests/docs/example/direct-image.doc.ts:27:13',
       'tests/docs/example/direct-image.doc.ts:28:13',
+      'tests/docs/example/direct-image.doc.ts:29:13',
       'tests/docs/example/direct-image.doc.ts:30:13',
-      'tests/docs/example/direct-image.doc.ts:37:13',
-      'tests/docs/example/direct-image.doc.ts:38:13',
+      'tests/docs/example/direct-image.doc.ts:32:13',
       'tests/docs/example/direct-image.doc.ts:39:13',
       'tests/docs/example/direct-image.doc.ts:40:13',
+      'tests/docs/example/direct-image.doc.ts:41:13',
       'tests/docs/example/direct-image.doc.ts:42:13',
       'tests/docs/example/direct-image.doc.ts:44:13',
-      'tests/docs/example/direct-image.doc.ts:51:13',
-      'tests/docs/example/direct-image.doc.ts:52:13',
-      'tests/docs/example/direct-image.doc.ts:53:13',
-      'tests/docs/example/direct-image.doc.ts:54:13',
+      'tests/docs/example/direct-image.doc.ts:48:13',
+      'tests/docs/example/direct-image.doc.ts:55:13',
       'tests/docs/example/direct-image.doc.ts:56:13',
+      'tests/docs/example/direct-image.doc.ts:57:13',
       'tests/docs/example/direct-image.doc.ts:58:13',
-      'tests/docs/example/direct-image.doc.ts:59:13',
       'tests/docs/example/direct-image.doc.ts:60:13',
-      'tests/docs/example/direct-image.doc.ts:61:13',
+      'tests/docs/example/direct-image.doc.ts:62:13',
+      'tests/docs/example/direct-image.doc.ts:63:13',
+      'tests/docs/example/direct-image.doc.ts:64:13',
+      'tests/docs/example/direct-image.doc.ts:65:13',
     ]);
   });
 
@@ -2368,6 +2387,8 @@ describe('generated docs source current behavior', () => {
       await capturePageByElement({ path: 'page-element-alias.png' });
       const { screenshot: capturePageScreenshot } = page;
       await capturePageScreenshot({ path: 'page-alias.png' });
+      const [{ screenshot: nestedCapturePageScreenshot }] = [page];
+      await nestedCapturePageScreenshot({ path: 'nested-page-alias.png' });
       await forwardCaptureScreenshot({ path: 'forward-page-alias.png' });
       const screenshotHelpers = {
         capture: page.screenshot.bind(page),
@@ -2381,6 +2402,8 @@ describe('generated docs source current behavior', () => {
       await screenshotHelpers.captureFromAlias({ path: 'grouped-property-page-alias.png' });
       const { capture: destructuredGroupedCapture } = screenshotHelpers;
       await destructuredGroupedCapture({ path: 'destructured-grouped-page-alias.png' });
+      const [{ capture: nestedDestructuredGroupedCapture }] = [screenshotHelpers];
+      await nestedDestructuredGroupedCapture({ path: 'nested-destructured-grouped-page-alias.png' });
       screenshotHelpers.assignedCapture = page.screenshot.bind(page);
       await screenshotHelpers.assignedCapture({ path: 'assigned-grouped-page-alias.png' });
       const screenshotHelperList = [
@@ -2421,22 +2444,23 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:6:13',
       'tests/docs/example/direct-screenshot.doc.ts:8:13',
       'tests/docs/example/direct-screenshot.doc.ts:10:13',
-      'tests/docs/example/direct-screenshot.doc.ts:11:13',
-      'tests/docs/example/direct-screenshot.doc.ts:18:13',
-      'tests/docs/example/direct-screenshot.doc.ts:19:13',
+      'tests/docs/example/direct-screenshot.doc.ts:12:13',
+      'tests/docs/example/direct-screenshot.doc.ts:13:13',
       'tests/docs/example/direct-screenshot.doc.ts:20:13',
       'tests/docs/example/direct-screenshot.doc.ts:21:13',
+      'tests/docs/example/direct-screenshot.doc.ts:22:13',
       'tests/docs/example/direct-screenshot.doc.ts:23:13',
       'tests/docs/example/direct-screenshot.doc.ts:25:13',
-      'tests/docs/example/direct-screenshot.doc.ts:32:13',
-      'tests/docs/example/direct-screenshot.doc.ts:33:13',
-      'tests/docs/example/direct-screenshot.doc.ts:34:13',
-      'tests/docs/example/direct-screenshot.doc.ts:35:13',
+      'tests/docs/example/direct-screenshot.doc.ts:29:13',
+      'tests/docs/example/direct-screenshot.doc.ts:36:13',
       'tests/docs/example/direct-screenshot.doc.ts:37:13',
+      'tests/docs/example/direct-screenshot.doc.ts:38:13',
       'tests/docs/example/direct-screenshot.doc.ts:39:13',
-      'tests/docs/example/direct-screenshot.doc.ts:40:13',
       'tests/docs/example/direct-screenshot.doc.ts:41:13',
-      'tests/docs/example/direct-screenshot.doc.ts:42:13',
+      'tests/docs/example/direct-screenshot.doc.ts:43:13',
+      'tests/docs/example/direct-screenshot.doc.ts:44:13',
+      'tests/docs/example/direct-screenshot.doc.ts:45:13',
+      'tests/docs/example/direct-screenshot.doc.ts:46:13',
     ]);
   });
 
