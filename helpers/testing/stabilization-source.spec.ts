@@ -3476,14 +3476,12 @@ describe('stabilization source', () => {
     expect(statusTable).toContain(
       'stable logged-in starting points without running the full viewport pack',
     );
-    expect(statusTable).toContain(
-      'Latest completed full PR head before the follow-up evidence-only slice, `36c6f524`, showed',
-    );
+    expect(statusTable).toContain('Current PR head `9672416e` shows');
     expect(statusTable).toContain(
       'CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` green',
     );
     expect(statusTable).toContain(
-      'E2E run `27065005139` completed all three serialized worker shards on pushed head `36c6f524`',
+      'E2E run `27066380325` completed all three serialized worker shards on pushed head `9672416e`',
     );
     expect(statusTable).toContain('warmed Bun, Docker, and Playwright caches');
     expect(statusTable).toContain(
@@ -5654,12 +5652,12 @@ describe('stabilization source', () => {
 
     expect(checkpoint).toBeDefined();
     const checkpointText = normalizeWhitespace(checkpoint ?? '');
-    expect(checkpointText).toContain('local head `36c6f524`');
+    expect(checkpointText).toContain('local head `9672416e`');
     expect(checkpointText).toContain('CodeQL, CodeQL `Analyze (actions)`');
     expect(checkpointText).toContain(
       'Copilot setup, Git Town, CodeRabbit, the serial E2E',
     );
-    expect(checkpointText).toContain('E2E run `27065005139`');
+    expect(checkpointText).toContain('E2E run `27066380325`');
     expect(checkpointText).toContain(
       '`Playwright E2E (functional-1)`, `Playwright E2E (functional-2)`, and `Playwright E2E (docs)` green',
     );

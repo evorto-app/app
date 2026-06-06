@@ -1216,14 +1216,14 @@ provider outcomes without live identifiers.
   E2E CI must not set `BRANCH_ID`; it uses `PARENT_BRANCH_ID` or Neon Local's
   documented default project branch so Neon Local creates ephemeral branches,
   while persistent branch modes stay local-only opt-ins that cleanup skips.
-  The latest completed full PR head before the follow-up evidence-only slice, `36c6f524`, showed
-  CodeQL, Copilot setup, Git Town, CodeRabbit, the E2E cache warmer,
-  `functional-1`, `functional-2`, and `docs` green. The cache warmer restored
-  the Bun package cache, dependency-tree cache, Docker build cache, Docker Bun
-  cache mount, and Playwright browser cache, then skipped registry install from
-  the restored dependency tree. Each E2E shard confirmed Neon branch expiration
-  and completed the Docker stop plus final Neon prune steps in E2E run
-  `27065005139`. Live repo-local Neon cleanup dry-runs returned to `total=1`,
+  Current PR head `9672416e` shows CodeQL, Copilot setup, Git Town, CodeRabbit,
+  the E2E cache warmer, `functional-1`, `functional-2`, and `docs` green. The
+  cache warmer restored the Bun package cache, dependency-tree cache, Docker
+  build cache, Docker Bun cache mount, and Playwright browser cache, then
+  skipped registry install from the restored dependency tree. Each E2E shard
+  confirmed Neon branch expiration and completed the Docker stop plus final Neon
+  prune steps in E2E run `27066380325`. Live repo-local Neon cleanup dry-runs
+  returned to `total=1`,
   `protected=1`, `active_test=0`, `stale_deleted=0`, and `ttl=2h` after the
   completed current-head finalizers, so only protected `main` remained visible
   outside stale cleanup eligibility.
