@@ -175,8 +175,10 @@ bun run lint
   missing in a Codex worktree, `docker:check` and `dev:check` also look for the
   sibling main checkout `.env` and point at
   `bun run env:copy-main -- --if-missing` when it exists; fresh dev-server
-  worktrees also get the simpler `bun run dev:bootstrap` shortcut. `.env.dev`
-  remains generated per worktree and the main checkout `.npmrc` must not be
+  worktrees also get the simpler `bun run dev:bootstrap` shortcut, and fresh
+  Docker worktrees can use `bun run docker:bootstrap` for the same guarded copy
+  before Docker preflight. `.env.dev` remains generated per worktree and the
+  main checkout `.npmrc` must not be
   copied. It reads `$HOME/code/<repo>/.env` by default, supports
   `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite an existing
   worktree `.env` unless rerun with `--if-missing` to leave it unchanged or

@@ -3704,6 +3704,9 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['dev:bootstrap']).toBe(
       'bun run env:copy-main -- --if-missing && bun run dev:check',
     );
+    expect(packageJson.scripts['docker:bootstrap']).toBe(
+      'bun run env:copy-main -- --if-missing && bun run docker:check',
+    );
     expect(packageJson.scripts['dev:start']).toContain('bun run dev:bootstrap');
     expect(packageJson.scripts['dev:start']).toContain('--host 0.0.0.0');
     expect(helpersReadme).toContain(
@@ -3793,6 +3796,9 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['env:copy-main']).toBe(
       'bun helpers/testing/copy-main-environment.ts',
     );
+    expect(packageJson.scripts['docker:bootstrap']).toBe(
+      'bun run env:copy-main -- --if-missing && bun run docker:check',
+    );
     expect(copyMainEnvironment).toContain('env?: NodeJS.ProcessEnv');
     expect(copyMainEnvironment).toContain(
       'const environment = options.env ?? process.env',
@@ -3840,13 +3846,16 @@ describe('stabilization source', () => {
     );
     expect(helpersReadme).toContain('bun run env:copy-main');
     expect(helpersReadme).toContain('bun run dev:bootstrap');
+    expect(helpersReadme).toContain('bun run docker:bootstrap');
     expect(helpersReadme).toContain(
       'leave it unchanged before source-checkout lookup',
     );
     expect(testsReadme).toContain('bun run env:copy-main');
     expect(testsReadme).toContain('bun run dev:bootstrap');
+    expect(testsReadme).toContain('bun run docker:bootstrap');
     expect(source).toContain('`bun run env:copy-main`');
     expect(source).toContain('`bun run dev:bootstrap`');
+    expect(source).toContain('`bun run docker:bootstrap`');
     expect(runtimePreflightSpec).toContain(
       'points missing-secret worktrees at the main checkout env file when it exists',
     );

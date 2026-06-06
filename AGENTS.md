@@ -43,6 +43,7 @@ More specific guidance may exist deeper in some subtrees.
 ## Build, Test, and Development Commands
 
 - `bun run dev:start` - copy the main checkout `.env` only when missing, refresh worktree-local runtime env, and run Angular dev server at the generated `BASE_URL`.
+- `bun run docker:bootstrap` - copy the main checkout `.env` only when missing, then run the Docker preflight for a fresh worktree.
 - `bun run build:app` - build client + server bundles.
 - `bun run test:unit` - run unit tests.
 - `bun run test:unit:server` - run server unit tests.

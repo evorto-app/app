@@ -1,12 +1,13 @@
 {
   "name": "evorto",
   "version": "0.0.0",
-  "scripts": {
+    "scripts": {
     "env:runtime": "bun helpers/testing/runtime-environment.ts",
     "env:copy-main": "bun helpers/testing/copy-main-environment.ts",
+    "env:bootstrap": "bun run env:copy-main -- --if-missing && bun run env:runtime",
     "dev:ng": "bunx --bun ng",
     "dev:check": "bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev",
-    "dev:bootstrap": "bun run env:copy-main -- --if-missing && bun run dev:check",
+    "dev:bootstrap": "bun run env:bootstrap && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev",
     "dev:status": "bun helpers/testing/local-runtime-status.ts",
     "dev:start": "bun run dev:bootstrap && dotenv -c dev -- sh -c 'bunx --bun ng serve --host 0.0.0.0 --port \"$APP_HOST_PORT\"'",
     "build:app": "NG_BUILD_PARTIAL_SSR=1 bunx --bun ng build",
@@ -38,6 +39,8 @@
     "neon:cleanup": "bun run db:cleanup:neon-local",
     "neon:cleanup:dry-run": "bun run db:cleanup:neon-local -- --dry-run",
     "docker:check": "bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker",
+    "docker:bootstrap": "bun run env:bootstrap && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker",
+    "docker:clean-stale": "bun run env:runtime && dotenv -c dev -- bun helpers/testing/remove-stale-compose-containers.ts",
     "docker:ps": "bun run env:runtime && dotenv -c dev -- docker compose ps",
     "docker:stop": "bun run env:runtime && dotenv -c dev -- bash helpers/testing/ci-stop-docker-stack.sh",
     "docker:reset": "bun run docker:check && dotenv -c dev -- docker compose down",

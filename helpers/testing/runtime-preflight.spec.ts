@@ -332,6 +332,12 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['docker:check']).toBe(
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker',
     );
+    expect(packageJson.scripts['docker:bootstrap']).toBe(
+      'bun run env:bootstrap && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker',
+    );
+    expect(packageJson.scripts['docker:clean-stale']).toBe(
+      'bun run env:runtime && dotenv -c dev -- bun helpers/testing/remove-stale-compose-containers.ts',
+    );
     expect(packageJson.scripts['docker:ps']).toBe(
       'bun run env:runtime && dotenv -c dev -- docker compose ps',
     );
@@ -1560,7 +1566,7 @@ describe('evaluateRuntimePreflight', () => {
     const normalizedStabilization = stabilization.replaceAll(/\s+/g, ' ');
 
     expect(normalizedStabilization).toContain(
-      'Important entrypoints remain visible in `package.json`: runtime env helpers, app build/dev, unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker stack start/reset/resume/webServer/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.',
+      'Important entrypoints remain visible in `package.json`: runtime env helpers, app build/dev, unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker stack bootstrap/start/reset/resume/webServer/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.',
     );
 
     const visibleScriptGroups = [
@@ -1578,6 +1584,7 @@ describe('evaluateRuntimePreflight', () => {
         'test:e2e:doc-screenshot',
       ],
       [
+        'docker:bootstrap',
         'docker:start',
         'docker:reset',
         'docker:resume',
@@ -1649,6 +1656,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(helper).not.toContain("'.env.dev'");
     expect(helpersReadme).toContain('bun run env:copy-main');
     expect(helpersReadme).toContain('bun run dev:bootstrap');
+    expect(helpersReadme).toContain('bun run docker:bootstrap');
     expect(helpersReadme).toContain('MAIN_CHECKOUT_DIR=/path/to/repo');
     expect(helpersReadme).toContain(
       'leave it unchanged before source-checkout lookup',
@@ -1657,9 +1665,11 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain('`--force` to replace it');
     expect(testsReadme).toContain('bun run env:copy-main');
     expect(testsReadme).toContain('bun run dev:bootstrap');
+    expect(testsReadme).toContain('bun run docker:bootstrap');
     expect(testsReadme).toContain('MAIN_CHECKOUT_DIR=/path/to/repo');
     expect(stabilization).toContain('`bun run env:copy-main`');
     expect(stabilization).toContain('`bun run dev:bootstrap`');
+    expect(stabilization).toContain('`bun run docker:bootstrap`');
     expect(stabilization).toContain('Generated `.env.dev`');
     expect(stabilization).toContain('Font Awesome token omission');
   });

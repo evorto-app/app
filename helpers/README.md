@@ -90,6 +90,9 @@ only when this worktree does not already have one, then run the normal
 `dev:check` preflight. The missing-file decision lives in
 `env:copy-main --if-missing`, so the package script does not need a shell
 conditional.
+Use `bun run docker:bootstrap` for the same guarded copy-if-missing step before
+the Docker preflight, without making `docker:check` overwrite or create
+worktree `.env` files by itself.
 
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
@@ -274,9 +277,10 @@ required secret still blocks startup. If required variables are missing in a
 Codex worktree and the sibling main checkout has an untracked `.env`, the
 failed required-variable row and the developer-secrets warning both point at
 `bun run env:copy-main -- --if-missing`; for a fresh dev-server worktree they
-also name `bun run dev:bootstrap`. It does not copy secrets automatically, and
-it still warns not to copy generated `.env.dev` or the main checkout `.npmrc`. The
-guarded copy path reads `$HOME/code/<repo>/.env` by default, supports
+also name `bun run dev:bootstrap`, and fresh Docker worktrees can run
+`bun run docker:bootstrap`. It does not copy secrets automatically, and it still
+warns not to copy generated `.env.dev` or the main checkout `.npmrc`. The guarded
+copy path reads `$HOME/code/<repo>/.env` by default, supports
 `MAIN_CHECKOUT_DIR=/path/to/repo` for a different source checkout, and refuses
 to overwrite an existing worktree `.env` unless rerun with `--if-missing` to
 leave it unchanged before source-checkout lookup or `--force` to replace it.

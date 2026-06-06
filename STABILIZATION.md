@@ -1920,9 +1920,9 @@ the current working direction until a product decision overrides them.
   install-free Neon cleanup workflow's direct Bun setup aligned.
 - Important entrypoints remain visible in `package.json`: runtime env helpers,
   app build/dev, unit tests, Playwright e2e/docs and focused viewport/layout/MCP
-  reruns, Docker stack start/reset/resume/webServer/stop, database commands,
-  dependency updates, Stripe/Sentry ops, theme generation, and receipt-image
-  cleanup. Local source coverage now fails if any of those command groups
+  reruns, Docker stack bootstrap/start/reset/resume/webServer/stop, database
+  commands, dependency updates, Stripe/Sentry ops, theme generation, and
+  receipt-image cleanup. Local source coverage now fails if any of those command groups
   disappear from the visible package-script surface.
 - Local runtime config uses `.env.dev.local` for tracked shared defaults, `.env.dev` for generated worktree-specific values, and `.env` for untracked developer secrets.
 - `bun run env:runtime` writes `.env.dev` with worktree-specific `COMPOSE_PROJECT_NAME`, Neon Local port, MinIO ports, `BASE_URL`, and local `DATABASE_URL`. It now also prints the non-secret generated `BASE_URL`, `COMPOSE_PROJECT_NAME`, and `NEON_LOCAL_HOST_PORT`, so Browser and Docker checks can find the current worktree target without ad hoc shell `dotenv` probes.
@@ -1950,6 +1950,10 @@ the current working direction until a product decision overrides them.
   `bun run dev:start` now uses `dev:bootstrap` before starting Angular, so a
   fresh worktree does not need a separate bootstrap command before the first
   dev-server run.
+- `bun run docker:bootstrap` is the matching fresh-Docker-worktree shortcut for
+  the same recovery path: it copies the main checkout `.env` only when missing
+  and then runs `docker:check`, so Docker preflight setup stays one command
+  without making `docker:check` overwrite or create `.env` files by itself.
 - `bun run docker:stop` now uses the same bounded Docker shutdown helper as E2E
   CI instead of a raw `docker compose down`. Local stop gives Neon Local's `db`
   container a graceful stop window, force-removes leftover generated Compose
