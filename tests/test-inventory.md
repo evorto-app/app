@@ -1127,13 +1127,12 @@ provider outcomes without live identifiers.
   E2E CI must not set `BRANCH_ID`; it uses `PARENT_BRANCH_ID` or Neon Local's
   documented default project branch so Neon Local creates ephemeral branches,
   while persistent branch modes stay local-only opt-ins that cleanup skips.
-  The current PR #62 head `5c196e7d0` has completed CodeQL, Copilot, Git Town,
-  CodeRabbit, static action analysis, and the serial E2E cache warmer
-  successfully; the current E2E run had `functional-1` running and
-  `functional-2` plus `docs` queued at the refresh. A live repo-local Neon
-  cleanup at that checkpoint reported `total=2`, `protected=1`,
-  `active_test=1`, `stale_deleted=0`, and `ttl=2h`, so only protected `main`
-  plus one in-TTL active test branch remained visible outside stale cleanup
+  The latest pre-edit PR status refresh for pushed head `50dfd37e` showed
+  CodeQL, Copilot setup, Git Town, CodeRabbit, and the E2E cache warmer green;
+  the `functional-1` E2E shard was in progress while `functional-2` and `docs`
+  were queued. A live repo-local Neon cleanup dry-run at that checkpoint
+  reported `total=1`, `protected=1`, `active_test=0`, `stale_deleted=0`, and
+  `ttl=2h`, so only protected `main` remained visible outside stale cleanup
   eligibility.
 - `docs/users/create-account.doc.ts` and
   `specs/profile/create-account.spec.ts` are the current Auth0

@@ -3279,24 +3279,28 @@ describe('stabilization source', () => {
       'stable logged-in starting points without running the full viewport pack',
     );
     expect(statusTable).toContain(
-      'Current PR status refreshes show head `5c196e7d0`',
+      'Latest pre-edit PR status refresh for pushed head `50dfd37e`',
     );
     expect(statusTable).toContain(
-      'static/setup checks plus the serial cache warmer green',
+      'CodeQL, Git Town, Copilot setup, CodeRabbit, and the E2E cache warmer green',
     );
-    expect(statusTable).toContain('latest local Neon cleanup reported');
-    expect(statusTable).toContain('`total=2`');
+    expect(statusTable).toContain(
+      '`functional-1` E2E shard was in progress while `functional-2` and `docs` were queued',
+    );
+    expect(statusTable).toContain('latest local Neon cleanup dry-run reported');
+    expect(statusTable).toContain('`total=1`');
     expect(statusTable).toContain('`protected=1`');
-    expect(statusTable).toContain('`active_test=1`');
+    expect(statusTable).toContain('`active_test=0`');
     expect(statusTable).toContain('`stale_deleted=0`');
     expect(statusTable).toContain(
-      'only protected `main` plus one in-TTL active test branch remained visible outside stale cleanup eligibility',
+      'only protected `main` remained visible outside stale cleanup eligibility',
     );
     expect(statusTable).not.toContain(
       'Current PR status refreshes show visible checks green',
     );
+    expect(statusTable).not.toContain('Current PR status refreshes show head');
     expect(statusTable).not.toContain('merge blocked only by draft status');
-    expect(statusTable).not.toMatch(/current PR head `[0-9a-f]{9}`/u);
+    expect(statusTable).not.toMatch(/green on the current PR head/u);
     expect(playwrightConfig).toContain(
       "import { makeRuntimeConfigProvider } from './src/server/config/provider';",
     );
