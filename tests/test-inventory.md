@@ -190,7 +190,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     and Continue controls, then
     screenshots the account-creation form by targeting the
     `app-create-account` form containing the editable Notification email field
-    and Create Account action instead of filtering the first matching page form
+    and Create Account action instead of filtering the first matching page
+    form, then reads back the created user, home tenant, tenant assignment,
+    default role assignment, and post-create profile summary
   - `specs/profile/create-account.spec.ts`
   - `specs/profile/user-profile-discounts.spec.ts`
   - `specs/profile/user-profile-edit.spec.ts`

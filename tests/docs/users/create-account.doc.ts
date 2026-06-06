@@ -268,7 +268,7 @@ If the same global login already exists for another tenant, this step joins the 
 
     await testInfo.attach('markdown', {
       body: `
-You should now be on your profile page for the current tenant. From here you can review your profile, manage discount cards when the tenant supports them, and register for events.`,
+You should now be on your profile page for the current tenant. Evorto has attached your global login to this tenant, granted the tenant's default roles, and set this tenant as your home tenant for future tenant-mismatch warnings. From here you can review your profile, manage discount cards when the tenant supports them, and register for events.`,
     });
     const createdProfileSummary = createdProfileSummarySurface(page, {
       fullName: `${newUser.firstName} ${newUser.lastName}`,

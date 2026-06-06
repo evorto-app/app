@@ -2236,6 +2236,9 @@ describe('generated docs source current behavior', () => {
       'Existing global users with the same Auth0 id join the current tenant instead of creating a duplicate global user.',
     );
     expect(source).toContain(
+      "Evorto has attached your global login to this tenant, granted the tenant's default roles, and set this tenant as your home tenant for future tenant-mismatch warnings.",
+    );
+    expect(source).toContain(
       'Profile page after tenant account creation succeeds',
     );
     expect(source).toContain('createAccountLoginSurface');
@@ -2278,6 +2281,11 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('filter({ hasText: input.fullName })');
     expect(source).toContain('filter({ hasText: input.notificationEmail })');
     expect(source).toContain("filter({ hasText: 'Edit profile' })");
+    expect(source).toContain('homeTenantId: tenant.id');
+    expect(source).toContain(
+      'Expected account creation docs to join current tenant',
+    );
+    expect(source).toContain('roleAssignments.length).toBeGreaterThan(0)');
     expect(source).toContain(
       'If account creation fails, the page shows a retryable server error instead of silently losing the submit attempt.',
     );
