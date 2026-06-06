@@ -1,5 +1,10 @@
 import { spawnSync } from 'node:child_process';
 
+import {
+  type EvortoComposePortOwner,
+  findOtherEvortoComposePortOwnersFromDockerPs,
+} from './evorto-compose-port-owners';
+
 interface CommandResult {
   status: null | number;
   stderr: string;
@@ -19,8 +24,6 @@ interface RouteProbeOptions {
 const defaultRoutePath = '/legal/terms';
 const timeoutMs = 5000;
 const localProbeHosts = new Set(['127.0.0.1', '::1', 'localhost']);
-const publishedPortExpression =
-  /(?:^|[,\s])(?:0\.0\.0\.0|\[::\]|127\.0\.0\.1|\[::1\]|\*)?:(\d+)->/gu;
 
 const defaultRunCommand = (
   command: string,
@@ -61,21 +64,13 @@ const isConnectionUnavailable = (error: unknown): boolean => {
   );
 };
 
-const extractPublishedHostPorts = (ports: unknown): readonly string[] => {
-  if (typeof ports !== 'string') {
-    return [];
-  }
-
-  return [...ports.matchAll(publishedPortExpression)].map((match) => match[1]);
-};
-
 const findOtherEvortoComposePortOwners = (
   probeUrl: URL,
   runCommand: (
     command: string,
     commandArguments: readonly string[],
   ) => CommandResult,
-): readonly { name: string; project: string }[] => {
+): readonly EvortoComposePortOwner[] => {
   if (!localProbeHosts.has(probeUrl.hostname)) {
     return [];
   }
@@ -95,41 +90,11 @@ const findOtherEvortoComposePortOwners = (
     return [];
   }
 
-  return result.stdout
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .flatMap((line) => {
-      try {
-        const parsed = JSON.parse(line) as {
-          Labels?: unknown;
-          Names?: unknown;
-          Ports?: unknown;
-        };
-        const labels = String(parsed.Labels ?? '');
-        const project = /(?:^|,)com\.docker\.compose\.project=([^,]+)/u.exec(
-          labels,
-        )?.[1];
-
-        if (
-          !project ||
-          project === composeProjectName ||
-          !project.startsWith('evorto-') ||
-          !extractPublishedHostPorts(parsed.Ports).includes(probePort)
-        ) {
-          return [];
-        }
-
-        return [
-          {
-            name: String(parsed.Names ?? '').trim() || '<unnamed>',
-            project,
-          },
-        ];
-      } catch {
-        return [];
-      }
-    });
+  return findOtherEvortoComposePortOwnersFromDockerPs({
+    currentComposeProjectName: composeProjectName,
+    dockerPsOutput: result.stdout,
+    hostPort: probePort,
+  });
 };
 
 export const runLocalAppRouteProbe = async (

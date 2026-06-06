@@ -3503,6 +3503,12 @@ describe('stabilization source', () => {
     const testsReadme = readSource('tests/README.md');
     const inventory = readSource('tests/test-inventory.md');
     const runtimePreflight = readSource('helpers/testing/runtime-preflight.ts');
+    const composePortOwners = readSource(
+      'helpers/testing/evorto-compose-port-owners.ts',
+    );
+    const composePortOwnersSpec = readSource(
+      'helpers/testing/evorto-compose-port-owners.spec.ts',
+    );
     const copyMainEnvironment = readSource(
       'helpers/testing/copy-main-environment.ts',
     );
@@ -3542,9 +3548,9 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'HTTP-error route-probe message now points operators at `bun run docker:check`',
     );
-    expect(source).toContain('checks Docker Compose port ownership');
-    expect(source).toContain('another `evorto-*` project owns');
-    expect(source).toContain('without stopping that stack automatically');
+    expect(source).toContain('share one Docker Compose port-owner\nparser');
+    expect(source).toContain('another `evorto-*` project\nowns');
+    expect(source).toContain('without\nstopping that stack automatically');
     expect(source).toContain('runs `dev:check` before Angular starts');
     expect(source).toContain('binds the dev server to `0.0.0.0`');
     expect(source).toContain('covered-control detection');
@@ -3583,6 +3589,19 @@ describe('stabilization source', () => {
       'Run bun run docker:check to confirm whether another Evorto stack owns the selected port',
     );
     expect(localAppRouteProbe).toContain('findOtherEvortoComposePortOwners');
+    expect(runtimePreflight).toContain(
+      'findOtherEvortoComposePortOwnersFromDockerPs',
+    );
+    expect(composePortOwners).toContain(
+      'findOtherEvortoComposePortOwnersFromDockerPs',
+    );
+    expect(composePortOwners).toContain("project.startsWith('evorto-')");
+    expect(composePortOwnersSpec).toContain(
+      'returns other Evorto Compose projects publishing the selected port',
+    );
+    expect(composePortOwnersSpec).toContain(
+      'ignores unrelated projects, non-matching ports, and malformed rows',
+    );
     expect(localAppRouteProbe).toContain(
       'Skipping app route probe for ${probeUrl.toString()} because another Evorto Compose project is publishing that port.',
     );

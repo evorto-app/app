@@ -467,6 +467,10 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'helpers/testing/runtime-preflight.ts'),
       'utf8',
     );
+    const composePortOwnersHelper = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/evorto-compose-port-owners.ts'),
+      'utf8',
+    );
     expect(runtimePreflight).toContain('isCleanupTarget');
     expect(runtimePreflight).toContain('parseComposeContainers');
     expect(runtimePreflight).toContain(
@@ -491,7 +495,10 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(runtimePreflight).toContain('Auth0 registered app port');
     expect(runtimePreflight).toContain("'label=com.docker.compose.project'");
-    expect(runtimePreflight).toContain("!project.startsWith('evorto-')");
+    expect(runtimePreflight).toContain(
+      'findOtherEvortoComposePortOwnersFromDockerPs',
+    );
+    expect(composePortOwnersHelper).toContain("project.startsWith('evorto-')");
     expect(runtimePreflight).toContain(
       'Another Evorto stack is already publishing localhost:${appHostPort}',
     );

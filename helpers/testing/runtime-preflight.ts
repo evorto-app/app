@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { findOtherEvortoComposePortOwnersFromDockerPs } from './evorto-compose-port-owners';
 import {
   isCleanupTarget,
   parseComposeContainers,
@@ -257,17 +258,6 @@ const dockerComposeProjectContainerCheck = (
   };
 };
 
-const publishedPortExpression =
-  /(?:^|[,\s])(?:0\.0\.0\.0|\[::\]|127\.0\.0\.1|\[::1\]|\*)?:(\d+)->/gu;
-
-const extractPublishedHostPorts = (ports: unknown): readonly string[] => {
-  if (typeof ports !== 'string') {
-    return [];
-  }
-
-  return [...ports.matchAll(publishedPortExpression)].map((match) => match[1]);
-};
-
 const auth0RegisteredPortConflictCheck = (
   environment: NodeJS.ProcessEnv,
   runCommand: (
@@ -309,39 +299,11 @@ const auth0RegisteredPortConflictCheck = (
     };
   }
 
-  const conflicts = result.stdout
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .flatMap((line) => {
-      try {
-        const parsed = JSON.parse(line) as {
-          Labels?: unknown;
-          Names?: unknown;
-          Ports?: unknown;
-        };
-        const labels = String(parsed.Labels ?? '');
-        const project = /(?:^|,)com\.docker\.compose\.project=([^,]+)/u.exec(
-          labels,
-        )?.[1];
-        if (
-          !project ||
-          project === composeProjectName ||
-          !project.startsWith('evorto-')
-        ) {
-          return [];
-        }
-
-        if (!extractPublishedHostPorts(parsed.Ports).includes(appHostPort)) {
-          return [];
-        }
-
-        const name = String(parsed.Names ?? '').trim() || '<unnamed>';
-        return [{ name, project }];
-      } catch {
-        return [];
-      }
-    });
+  const conflicts = findOtherEvortoComposePortOwnersFromDockerPs({
+    currentComposeProjectName: composeProjectName,
+    dockerPsOutput: result.stdout,
+    hostPort: appHostPort,
+  });
 
   if (conflicts.length === 0) {
     return {

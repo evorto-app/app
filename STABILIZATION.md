@@ -5603,10 +5603,11 @@ stale or broken port-4200 stack cannot be mistaken for current Browser evidence.
 The HTTP-error route-probe message now points operators at `bun run docker:check`
 to identify a different Evorto Compose project on the selected port before
 trusting that route for Browser evidence.
-It now checks Docker Compose port ownership before the HTTP request and skips
-the probe when another `evorto-*` project owns the selected local port, printing
-the owning `COMPOSE_PROJECT_NAME=<owning-project> docker compose down` command
-without stopping that stack automatically.
+The route probe and Docker preflight now share one Docker Compose port-owner
+parser; before the HTTP request, the probe skips when another `evorto-*` project
+owns the selected local port, printing the owning
+`COMPOSE_PROJECT_NAME=<owning-project> docker compose down` command without
+stopping that stack automatically.
 A current local run failed on the expected closed database port and Docker
 container-start path, reported the existing port-4200 app's HTTP 500 on
 `/legal/terms`, and still reported the Neon summary as one protected branch, no
