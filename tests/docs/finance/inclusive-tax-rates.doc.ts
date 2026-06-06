@@ -19,6 +19,25 @@ const taxRateSection = (page: Page, heading: string): Locator =>
 const taxRateRow = (section: Locator, providerId: string): Locator =>
   section.locator('tr.mat-mdc-row').filter({ hasText: providerId }).first();
 
+const expectTaxRateRow = async (
+  section: Locator,
+  providerId: string,
+  expected: {
+    country: string;
+    displayName: string;
+    percentage: string;
+    status: string;
+  },
+): Promise<void> => {
+  const row = taxRateRow(section, providerId);
+
+  await expect(row).toContainText(providerId);
+  await expect(row).toContainText(expected.displayName);
+  await expect(row).toContainText(expected.percentage);
+  await expect(row).toContainText(expected.country);
+  await expect(row).toContainText(expected.status);
+};
+
 const importStripeTaxRatesDialogSurface = (page: Page): Locator =>
   page
     .locator('mat-dialog-container')
@@ -77,12 +96,18 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
 
     const compatibleTaxRates = taxRateSection(page, 'Compatible Tax Rates');
     await expect(compatibleTaxRates).toBeVisible();
-    await expect(
-      taxRateRow(compatibleTaxRates, 'txr_1S6a7sPPcz51fqyK4AVB8NSS'),
-    ).toContainText(/VAT\s+19%\s+Global\s+Compatible/u);
-    await expect(
-      taxRateRow(compatibleTaxRates, 'txr_1S6a8LPPcz51fqyK4CPonBgy'),
-    ).toContainText(/VAT\s+Tax Free\s+Global\s+Compatible/u);
+    await expectTaxRateRow(compatibleTaxRates, 'txr_1S6a7sPPcz51fqyK4AVB8NSS', {
+      country: 'Global',
+      displayName: 'VAT',
+      percentage: '19%',
+      status: 'Compatible',
+    });
+    await expectTaxRateRow(compatibleTaxRates, 'txr_1S6a8LPPcz51fqyK4CPonBgy', {
+      country: 'Global',
+      displayName: 'VAT',
+      percentage: 'Tax Free',
+      status: 'Compatible',
+    });
     await takeScreenshot(
       testInfo,
       compatibleTaxRates,
