@@ -4820,9 +4820,12 @@ describe('generated docs source current behavior', () => {
         terms: [
           'registration-confirmation email',
           'does not send the QR code directly',
+          'Payment success, payment failure, and checkout expiry do not send separate email notifications',
           'registration-cancelled email',
           'spot-available email',
+          'does not send a transfer-started email',
           'transfer-completed email',
+          'does not send a receipt-submitted email',
           'queues the submitter email for delivery',
         ],
       },
@@ -4944,8 +4947,11 @@ describe('generated docs source current behavior', () => {
         terms: [
           'registration-confirmation email',
           'registration-cancelled email',
+          'Payment success, payment failure, and checkout expiry do not send separate email notifications',
           'spot-available email',
+          'does not send a transfer-started email',
           'transfer-completed email',
+          'does not send a receipt-submitted email',
           'queues the submitter email for delivery',
         ],
         topic: 'email notifications',
@@ -5667,6 +5673,9 @@ describe('generated docs source current behavior', () => {
       'queues the submitter email notification for delivery',
     );
     expect(combinedSource).toContain('queues a submitter email after saving');
+    expect(receiptSource).toContain(
+      'Submitting a receipt does not send a receipt-submitted email in the current relaunch scope; the notification boundary starts when finance review is saved.',
+    );
     expect(combinedSource).toContain(
       'Recording a reimbursement creates the Evorto finance transaction only.',
     );
@@ -6123,6 +6132,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('replayCheckoutCompletedWebhook');
     expect(source).toContain(
+      'Payment success, payment failure, and checkout expiry do not send separate email notifications in the current relaunch scope.',
+    );
+    expect(source).toContain(
       'Timed out waiting for replayed Stripe checkout webhook to be mirrored in the application database',
     );
     expect(source).toContain('const stripeCheckoutFormSurface =');
@@ -6151,6 +6163,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'The email tells the new participant to open Evorto for the registration details.',
+    );
+    expect(source).toContain(
+      'Creating the transfer link does not send a transfer-started email; only a completed unpaid transfer queues a transfer-completed email.',
     );
     expect(source).toContain('fullOptionAfterLeaving.waitlistSpots');
     expect(source).not.toContain('Register button stays available');

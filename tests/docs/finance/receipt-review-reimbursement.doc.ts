@@ -92,6 +92,7 @@ Finance users review submitted receipts first. Approved receipts then appear in 
 ## Receipt Approval Queue
 
 The approval queue groups submitted receipts by event. Each receipt links to a review page where finance users can inspect the attachment metadata and validate the submitted amounts before approving or rejecting it.
+Submitting a receipt does not send a receipt-submitted email in the current relaunch scope; the notification boundary starts when finance review is saved.
 `,
     });
     await expect(

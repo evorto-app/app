@@ -2905,7 +2905,9 @@ implement those decisions or explicitly revise them there before changing code.
 - Finance docs source-guard pass: pinned generated finance receipt docs to the
   current queued submitter-email and manual reimbursement money-movement scope
   so relaunch docs do not imply missing email delivery or automatic payout
-  behavior.
+  behavior. A follow-up notification-boundary guard also pins that receipt
+  submission itself does not send a receipt-submitted email; the queued
+  notification boundary starts when finance review is saved.
 - Template docs source-guard pass: pinned generated template docs to the
   current simple-mode relaunch surface with one organizer block, one participant
   block, reusable add-ons, registration questions, and private organizer
@@ -2914,7 +2916,8 @@ implement those decisions or explicitly revise them there before changing code.
 - Registration docs source-guard pass: pinned generated registration docs to
   the current unavailable-state and transfer scope, including closed windows,
   full-option waitlists, role-ineligible direct links, unpaid transfer, paid
-  transfer/resale deferral, and no QR email delivery.
+  transfer/resale deferral, no QR email delivery, and no separate payment
+  success/failure, checkout-expiry, or transfer-started emails.
 - Scanner docs source-guard pass: pinned generated event-management docs to the
   dedicated QR scanner flow, scanner warning states, guest-quantity checked-in
   counts, organizer cancellation scope, and direct-organizer versus
@@ -6029,6 +6032,10 @@ transfer/resale, registration confirmation with QR ticket availability,
 payments, direct QR email-delivery boundaries, email notifications, and
 documentation/help, so the product and quality root docs cannot drift apart on
 which user/admin guides are expected.
+The email-notification docs/source guards now also pin product-level absent
+email promises: no separate payment success/failure emails, checkout-expiry
+emails, transfer-started emails, or receipt-submitted emails in the current
+relaunch scope.
 The template generated doc now screenshots the seeded template-list navigation
 containing both a category and the Create template action instead of highlighting
 only the standalone create link.

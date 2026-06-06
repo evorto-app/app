@@ -775,11 +775,14 @@ provider outcomes without live identifiers.
     reimbursement recording stays disabled while the refund mutation is pending,
     that receipt preview rendering only trusts HTTP(S) or app-relative preview
     URLs, and that finance receipt contact details prefer the submitter's
-    notification email with login email fallback. Server handler coverage also
-    pins that reimbursement recording rejects a selected receipt set with mixed
-    submitters before a transaction can be recorded, rejects missing or changed
-    payout details, and rejects the transaction when approved receipt
-    preconditions change before the reimbursement update.
+    notification email with login email fallback. Generated-doc source coverage
+    also pins that receipt submission itself does not send a receipt-submitted
+    email; the queued notification boundary starts when finance review is saved.
+    Server handler coverage also pins that reimbursement recording rejects a
+    selected receipt set with mixed submitters before a transaction can be
+    recorded, rejects missing or changed payout details, and rejects the
+    transaction when approved receipt preconditions change before the
+    reimbursement update.
     `docs/finance/receipt-review-reimbursement.doc.ts` now follows the exact
     seeded receipt through approval and reimbursement by id/file name, reads the
     approved/refunded state back, screenshots the exact approval queue receipt
@@ -1095,9 +1098,11 @@ provider outcomes without live identifiers.
     filtered payment/continue/submit form target instead of the first external
     checkout form. The generated narrative also documents queued confirmation,
     cancellation, transfer-completed, and waitlist spot-available emails while
-    keeping direct QR email delivery out of relaunch scope. Generated-doc
-    source coverage keeps that unavailable-state, transfer scope, notification,
-    and checkout screenshot target aligned with the relaunch behavior.
+    keeping direct QR email delivery, separate payment success/failure emails,
+    checkout-expiry emails, and transfer-started emails out of relaunch scope.
+    Generated-doc source coverage keeps that unavailable-state, transfer scope,
+    notification boundary, and checkout screenshot target aligned with the
+    relaunch behavior.
   - Server unit coverage now pins registration lifecycle email outbox records
     for free confirmation, cancellation, transfer, and waitlist spot-available
     notifications. Paid checkout confirmation is wired through the Stripe

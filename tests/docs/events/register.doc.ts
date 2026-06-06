@@ -852,6 +852,7 @@ test.describe('Register for events', () => {
   ## Paid transfer and resale boundary
 
   Paid registrations can create a 24-hour transfer link and code from the event page before check-in and before the event starts. The replacement participant can start a Stripe Checkout registration from that link; after checkout succeeds, Evorto cancels the original registration and handles the source refund path. This covers direct transfer or resale without adding a public resale listing marketplace to relaunch scope.
+  Creating the transfer link does not send a transfer-started email; only a completed unpaid transfer queues a transfer-completed email.
 
   Paid confirmed cancellations are still allowed before the event starts. Cancelling one releases the selected spots and submits a Stripe refund when the original payment reference is available; older or manually seeded payment records still create a pending manual refund record for organizer follow-up.`,
       });
@@ -1121,7 +1122,8 @@ test.describe('Register for events', () => {
       body: `
   By clicking the **Pay and register** button, you are starting the payment process.
   Paid guest spots are included in the Stripe Checkout quantity and reserve the matching capacity while payment is pending.
-  Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind. Cancelling a pending payment registration releases every selected buyer and guest spot and expires the pending checkout when possible.`,
+  Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind. Cancelling a pending payment registration releases every selected buyer and guest spot and expires the pending checkout when possible.
+  Payment success, payment failure, and checkout expiry do not send separate email notifications in the current relaunch scope.`,
     });
     await takeScreenshot(
       testInfo,
