@@ -5703,10 +5703,11 @@ the copied local `.env`, the Neon dry-run remains clean with only protected
 closed generated database port plus Docker timing out while starting a
 disposable Alpine preflight container.
 A fresh in-app Browser route probe against `http://localhost:4353/legal/terms`
-also failed before app content rendered, with the Browser reporting the local
-URL as blocked/unreachable. This confirms the current lack of Browser route
-evidence is still a runtime reachability problem, not a passed General-page
-visual check.
+on current pushed head `8fc32ae8` also failed before app content rendered at
+the 390x844 mobile viewport, with the Browser reporting
+`net::ERR_BLOCKED_BY_CLIENT` for the local URL and no warning/error page logs.
+This confirms the current lack of Browser route evidence is still a runtime
+reachability problem, not a passed General-page visual check.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project

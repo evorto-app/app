@@ -3912,6 +3912,10 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'HTTP-error route-probe message now points operators at `bun run docker:check`',
     );
+    expect(source).toContain('current pushed head `8fc32ae8`');
+    expect(source).toContain('390x844 mobile viewport');
+    expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');
+    expect(source).toContain('no warning/error page logs');
     expect(source).toContain('share one Docker Compose port-owner\nparser');
     expect(source).toContain('another `evorto-*` project\nowns');
     expect(source).toContain('without\nstopping that stack automatically');
