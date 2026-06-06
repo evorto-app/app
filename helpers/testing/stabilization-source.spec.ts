@@ -1472,6 +1472,8 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('simple body forwarding');
     expect(source).toContain('`Buffer.from(...)`');
+    expect(source).toContain('conditionals');
+    expect(source).toContain('nullish/logical expressions');
     expect(source).toMatch(/shorthand\s+`\{ body \}`,\s+bound/u);
     expect(source).toMatch(/destructured,\s+grouped,\s+indexed/u);
     expect(source).toContain('assigned `attach` helpers');
@@ -2057,6 +2059,15 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'body: \\`\\${rawMarkdownBody}\\`',
     );
+    expect(generatedDocumentationSource).toContain(
+      "body: useRawMarkdown ? rawMarkdownBody : 'Plain fallback'",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'body: safeMarkdownBody ?? rawMarkdownBody',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'body: safeMarkdownBody || rawMarkdownBody',
+    );
     expect(generatedDocumentationSource).toContain('rawMarkdownPayloadAliases');
     expect(generatedDocumentationSource).toContain(
       "await testInfo.attach('markdown', rawMarkdownPayload)",
@@ -2134,6 +2145,8 @@ describe('stabilization source', () => {
     expect(inventory).toContain('simple forwarding through');
     expect(inventory).toContain('`Buffer.from(...)`');
     expect(inventory).toContain('template interpolation');
+    expect(inventory).toContain('conditionals');
+    expect(inventory).toContain('nullish/logical expressions');
     expect(inventory).toMatch(/aliased payload\s+objects/u);
     expect(inventory).toMatch(
       /bound,\s+destructured,\s+grouped,\s+indexed,\s+or assigned/u,

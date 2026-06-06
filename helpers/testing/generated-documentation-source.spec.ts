@@ -580,6 +580,28 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       );
     }
 
+    if (ts.isConditionalExpression(expression)) {
+      return (
+        hasRawMarkdownImage(expression.whenTrue) ||
+        hasRawMarkdownImage(expression.whenFalse)
+      );
+    }
+
+    if (
+      ts.isBinaryExpression(expression) &&
+      [
+        ts.SyntaxKind.BarBarToken,
+        ts.SyntaxKind.AmpersandAmpersandToken,
+        ts.SyntaxKind.QuestionQuestionToken,
+        ts.SyntaxKind.PlusToken,
+      ].includes(expression.operatorToken.kind)
+    ) {
+      return (
+        hasRawMarkdownImage(expression.left) ||
+        hasRawMarkdownImage(expression.right)
+      );
+    }
+
     return (
       (ts.isIdentifier(expression) &&
         rawMarkdownBodyAliases.has(expression.text)) ||
@@ -3594,6 +3616,11 @@ describe('generated docs source current behavior', () => {
       const bufferedMarkdownPayload = { body: Buffer.from(rawMarkdownBody) };
       const stringWrappedMarkdownPayload = { body: String(body) };
       const interpolatedMarkdownPayload = { body: \`\${rawMarkdownBody}\` };
+      const conditionalMarkdownPayload = {
+        body: useRawMarkdown ? rawMarkdownBody : 'Plain fallback',
+      };
+      const nullishMarkdownPayload = { body: safeMarkdownBody ?? rawMarkdownBody };
+      const logicalMarkdownPayload = { body: safeMarkdownBody || rawMarkdownBody };
       await testInfo.attach('markdown', {
         body: \`
           Introductory copy.
@@ -3613,11 +3640,23 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach('markdown', {
         body: \`\${rawMarkdownBody}\`,
       });
+      await testInfo.attach('markdown', {
+        body: useRawMarkdown ? rawMarkdownBody : 'Plain fallback',
+      });
+      await testInfo.attach(markdownAttachmentName, {
+        body: safeMarkdownBody ?? rawMarkdownBody,
+      });
+      await testInfo.attach('markdown', {
+        body: safeMarkdownBody || rawMarkdownBody,
+      });
       await testInfo.attach('markdown', rawMarkdownPayload);
       await testInfo.attach(markdownAttachmentName, shorthandMarkdownPayload);
       await testInfo.attach('markdown', bufferedMarkdownPayload);
       await testInfo.attach(markdownAttachmentName, stringWrappedMarkdownPayload);
       await testInfo.attach('markdown', interpolatedMarkdownPayload);
+      await testInfo.attach('markdown', conditionalMarkdownPayload);
+      await testInfo.attach(markdownAttachmentName, nullishMarkdownPayload);
+      await testInfo.attach('markdown', logicalMarkdownPayload);
       const rawMarkdownPayloads = {
         evidence: rawMarkdownPayload,
         shorthandMarkdownPayload,
@@ -3688,36 +3727,42 @@ describe('generated docs source current behavior', () => {
         rawMarkdownImageSource,
       ),
     ).toEqual([
-      'tests/docs/example/raw-markdown-image.doc.ts:18:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:24:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:27:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:28:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:31:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:34:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:37:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:38:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:23:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:29:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:32:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:33:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:36:13',
       'tests/docs/example/raw-markdown-image.doc.ts:39:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:40:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:41:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:50:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:42:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:45:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:48:13',
       'tests/docs/example/raw-markdown-image.doc.ts:51:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:52:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:53:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:54:13',
       'tests/docs/example/raw-markdown-image.doc.ts:55:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:56:13',
       'tests/docs/example/raw-markdown-image.doc.ts:57:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:59:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:64:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:65:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:69:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:70:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:58:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:67:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:68:13',
       'tests/docs/example/raw-markdown-image.doc.ts:72:13',
       'tests/docs/example/raw-markdown-image.doc.ts:74:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:75:13',
       'tests/docs/example/raw-markdown-image.doc.ts:76:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:77:13',
       'tests/docs/example/raw-markdown-image.doc.ts:81:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:82:13',
       'tests/docs/example/raw-markdown-image.doc.ts:86:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:90:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:87:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:89:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:91:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:92:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:93:13',
       'tests/docs/example/raw-markdown-image.doc.ts:94:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:95:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:98:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:103:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:107:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:111:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:112:13',
     ]);
   });
 
