@@ -5364,7 +5364,18 @@ describe('stabilization source', () => {
     );
     expect(checkpointText).toContain('two-hour TTL');
     expect(checkpointText).toContain('cleanup finalizer');
+    expect(checkpointText).toContain('superseded CI run');
+    expect(checkpointText).toContain('`27056153072`');
+    expect(checkpointText).toContain('head `07631279`');
+    expect(checkpointText).toContain('newer head `0c63e38d`');
+    expect(checkpointText).toContain('started Docker');
+    expect(checkpointText).toContain('recorded Neon Local metadata');
+    expect(checkpointText).toContain('`Collect Docker logs`');
+    expect(checkpointText).toContain('`2026-06-06T07:33:57Z`');
     expect(checkpointText).toContain('bun run neon:cleanup:dry-run');
+    expect(checkpointText).toContain(
+      'no Neon Local branch ids in `.neon_local/.branches`',
+    );
     expect(checkpointText).toContain('pushing head `6520e1540`');
     expect(checkpointText).toContain('used the short Neon cleanup alias');
     expect(checkpointText).toContain('only protected `main`');

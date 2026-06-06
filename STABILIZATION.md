@@ -4824,7 +4824,17 @@ tried to kill container, but did not receive an exit event`. A follow-up
   That keeps the branch-hygiene signal aligned with the intended state: active
   CI workers may own short-lived branches for up to the two-hour TTL, but stale
   branches are pruned and completed or cancelled E2E workers run the cleanup
-  finalizer when Actions reaches teardown.
+  finalizer when Actions reaches teardown. A later superseded CI run
+  `27056153072` on head `07631279` was cancelled by newer head `0c63e38d`
+  after functional-1 had started Docker, confirmed Neon branch expiration,
+  recorded Neon Local metadata, and waited for the app. GitHub still reached
+  `Collect Docker logs`, `Stop Docker stack`, and
+  `Prune expired Neon branches after E2E`; those finalizers completed
+  successfully at `2026-06-06T07:33:57Z`. A fresh local
+  `bun run neon:cleanup:dry-run` immediately afterward found no Neon Local
+  branch ids in `.neon_local/.branches` and reported
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`, so the
+  cancellation path preserved the expected protected-main-only state.
   A fresh June 5, 2026 local `bun run neon:cleanup:dry-run` checkpoint after
   pushing head `6520e1540` regenerated `.env.dev`, used the short Neon cleanup
   alias instead of the helper path, found no Neon Local branch ids in

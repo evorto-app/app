@@ -1154,6 +1154,13 @@ provider outcomes without live identifiers.
   `protected=1`, `active_test=0`, `stale_deleted=0`, and `ttl=2h` after the
   functional-1, functional-2, and docs finalizers, so only protected `main`
   remained visible outside stale cleanup eligibility.
+  Superseded E2E run `27056153072` on head `07631279` was cancelled by newer
+  head `0c63e38d` after functional-1 started Docker, confirmed Neon branch
+  expiration, recorded Neon Local metadata, and waited for the app; GitHub
+  still ran `Collect Docker logs`, `Stop Docker stack`, and
+  `Prune expired Neon branches after E2E` to completion. A fresh local
+  `bun run neon:cleanup:dry-run` afterward again reported `total=1`,
+  `protected=1`, `active_test=0`, `stale_deleted=0`, and `ttl=2h`.
 - `docs/users/create-account.doc.ts` and
   `specs/profile/create-account.spec.ts` are the current Auth0
   Management-gated integration paths. The doc covers the generated walkthrough;
