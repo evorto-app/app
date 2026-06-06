@@ -5696,6 +5696,12 @@ A current local run failed on the expected closed database port and Docker
 container-start path, reported the existing port-4200 app's HTTP 500 on
 `/legal/terms`, and still reported the Neon summary as one protected branch, no
 active-test branches, no stale deletions, and a two-hour TTL.
+A fresh current local status run after `bun run env:copy-main -- --if-missing`
+confirmed the worktree now has the required dev and Docker secrets loaded from
+the copied local `.env`, the Neon dry-run remains clean with only protected
+`main`, and Browser verification is still blocked below the app layer by the
+closed generated database port plus Docker timing out while starting a
+disposable Alpine preflight container.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
@@ -5764,7 +5770,10 @@ helper is declared later in the file. Object-property aliases such as
 docs from hiding weak screenshot targets behind a grouped target object. The guard
 normalizes static computed keys such as `targets['shell']` and
 `{ ['shell']: page.locator('main') }`, so bracketed grouped targets do not
-bypass meaningful-image enforcement. It also
+bypass meaningful-image enforcement. It also resolves grouped target shorthand,
+alias-valued grouped properties, and static indexed target lists such as
+`targetList[0]`, so `targets.shell` and `targetList[0]` cannot hide weak
+screenshot targets behind an intermediate collection. It also
 rejects local aliases, assigned helper properties, indexed helper entries, and
 wrapper functions that reference `takeScreenshot`, so future docs cannot route
 screenshots through a differently named helper such as

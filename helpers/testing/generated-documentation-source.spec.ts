@@ -104,6 +104,65 @@ const collectIndexedPropertyAliases = (
   });
 };
 
+const isTrackedReferenceOrAlias = (
+  node: ts.Expression,
+  isTrackedReference: (node: ts.Expression) => boolean,
+  aliases: ReadonlySet<string>,
+): boolean => {
+  const expression = unwrapExpression(node);
+
+  return (
+    isTrackedReference(node) ||
+    (ts.isIdentifier(expression) && aliases.has(expression.text))
+  );
+};
+
+const collectGroupedPropertyAliases = (
+  ownerName: string,
+  initializer: ts.Expression,
+  isTrackedReference: (node: ts.Expression) => boolean,
+  aliases: ReadonlySet<string>,
+  propertyAliases: Set<string>,
+): void => {
+  const groupedInitializer = unwrapExpression(initializer);
+
+  if (ts.isObjectLiteralExpression(groupedInitializer)) {
+    for (const property of groupedInitializer.properties) {
+      if (
+        ts.isPropertyAssignment(property) &&
+        isTrackedReferenceOrAlias(
+          property.initializer,
+          isTrackedReference,
+          aliases,
+        )
+      ) {
+        const propertyName = getStaticPropertyNameFromName(property.name);
+
+        if (propertyName) {
+          propertyAliases.add(`${ownerName}.${propertyName}`);
+        }
+      }
+
+      if (
+        ts.isShorthandPropertyAssignment(property) &&
+        aliases.has(property.name.text)
+      ) {
+        propertyAliases.add(`${ownerName}.${property.name.text}`);
+      }
+    }
+  }
+
+  if (ts.isArrayLiteralExpression(groupedInitializer)) {
+    collectIndexedPropertyAliases(
+      ownerName,
+      groupedInitializer.elements,
+      (element) =>
+        isTrackedReferenceOrAlias(element, isTrackedReference, aliases),
+      propertyAliases,
+    );
+  }
+};
+
 const isTakeScreenshotCall = (node: ts.CallExpression): boolean => {
   const callee = unwrapExpression(node.expression);
 
@@ -406,24 +465,13 @@ const findGenericScreenshotTargets = (
       ts.isIdentifier(node.name) &&
       node.initializer
     ) {
-      const objectInitializer = unwrapExpression(node.initializer);
-
-      if (ts.isObjectLiteralExpression(objectInitializer)) {
-        for (const property of objectInitializer.properties) {
-          if (
-            ts.isPropertyAssignment(property) &&
-            isGenericLocatorTarget(unwrapExpression(property.initializer))
-          ) {
-            const propertyName = getStaticPropertyNameFromName(property.name);
-
-            if (propertyName) {
-              genericTargetPropertyAliases.add(
-                `${node.name.text}.${propertyName}`,
-              );
-            }
-          }
-        }
-      }
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isGenericLocatorTarget,
+        genericTargetAliases,
+        genericTargetPropertyAliases,
+      );
     }
 
     if (
@@ -630,26 +678,13 @@ const findUnfilteredBroadScreenshotTargets = (
       ts.isIdentifier(node.name) &&
       node.initializer
     ) {
-      const objectInitializer = unwrapExpression(node.initializer);
-
-      if (ts.isObjectLiteralExpression(objectInitializer)) {
-        for (const property of objectInitializer.properties) {
-          if (
-            ts.isPropertyAssignment(property) &&
-            isUnfilteredBroadLocatorTarget(
-              unwrapExpression(property.initializer),
-            )
-          ) {
-            const propertyName = getStaticPropertyNameFromName(property.name);
-
-            if (propertyName) {
-              broadTargetPropertyAliases.add(
-                `${node.name.text}.${propertyName}`,
-              );
-            }
-          }
-        }
-      }
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isUnfilteredBroadLocatorTarget,
+        broadTargetAliases,
+        broadTargetPropertyAliases,
+      );
     }
 
     if (
@@ -927,24 +962,13 @@ const findSingleControlScreenshotTargets = (
       ts.isIdentifier(node.name) &&
       node.initializer
     ) {
-      const objectInitializer = unwrapExpression(node.initializer);
-
-      if (ts.isObjectLiteralExpression(objectInitializer)) {
-        for (const property of objectInitializer.properties) {
-          if (
-            ts.isPropertyAssignment(property) &&
-            isSingleControlLocatorTarget(unwrapExpression(property.initializer))
-          ) {
-            const propertyName = getStaticPropertyNameFromName(property.name);
-
-            if (propertyName) {
-              singleControlPropertyAliases.add(
-                `${node.name.text}.${propertyName}`,
-              );
-            }
-          }
-        }
-      }
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isSingleControlLocatorTarget,
+        singleControlAliases,
+        singleControlPropertyAliases,
+      );
     }
 
     if (
@@ -1180,24 +1204,13 @@ const findIconOrMediaScreenshotTargets = (
       ts.isIdentifier(node.name) &&
       node.initializer
     ) {
-      const objectInitializer = unwrapExpression(node.initializer);
-
-      if (ts.isObjectLiteralExpression(objectInitializer)) {
-        for (const property of objectInitializer.properties) {
-          if (
-            ts.isPropertyAssignment(property) &&
-            isIconOrMediaLocatorTarget(unwrapExpression(property.initializer))
-          ) {
-            const propertyName = getStaticPropertyNameFromName(property.name);
-
-            if (propertyName) {
-              iconOrMediaPropertyAliases.add(
-                `${node.name.text}.${propertyName}`,
-              );
-            }
-          }
-        }
-      }
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isIconOrMediaLocatorTarget,
+        iconOrMediaAliases,
+        iconOrMediaPropertyAliases,
+      );
     }
 
     if (
@@ -2405,6 +2418,108 @@ describe('generated docs source current behavior', () => {
         computedTargetSource,
       ),
     ).toEqual(['tests/docs/example/computed-target.doc.ts:29:13']);
+  });
+
+  it('detects grouped weak documentation screenshot target aliases', () => {
+    const groupedTargetSource = `
+      const shell = page.locator('main');
+      const broad = page.locator('section');
+      const single = page.getByRole('button', { name: 'Save' });
+      const icon = page.locator('svg');
+      const groupedTargets = {
+        shell,
+        broadAlias: broad,
+        single,
+        iconAlias: icon,
+      };
+      const indexedTargets = [shell, broad, single, icon];
+
+      await takeScreenshot(
+        testInfo,
+        groupedTargets.shell,
+        page,
+        'Grouped shorthand generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        groupedTargets.broadAlias,
+        page,
+        'Grouped alias broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        groupedTargets.single,
+        page,
+        'Grouped shorthand single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        groupedTargets.iconAlias,
+        page,
+        'Grouped alias icon target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        indexedTargets[0],
+        page,
+        'Indexed generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        indexedTargets[1],
+        page,
+        'Indexed broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        indexedTargets[2],
+        page,
+        'Indexed single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        indexedTargets[3],
+        page,
+        'Indexed icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/grouped-target.doc.ts',
+        groupedTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/grouped-target.doc.ts:14:13',
+      'tests/docs/example/grouped-target.doc.ts:38:13',
+    ]);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/grouped-target.doc.ts',
+        groupedTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/grouped-target.doc.ts:20:13',
+      'tests/docs/example/grouped-target.doc.ts:44:13',
+    ]);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/grouped-target.doc.ts',
+        groupedTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/grouped-target.doc.ts:26:13',
+      'tests/docs/example/grouped-target.doc.ts:50:13',
+    ]);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/grouped-target.doc.ts',
+        groupedTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/grouped-target.doc.ts:32:13',
+      'tests/docs/example/grouped-target.doc.ts:56:13',
+    ]);
   });
 
   it('detects generic documentation screenshot targets', () => {

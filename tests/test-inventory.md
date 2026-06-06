@@ -532,7 +532,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   inspecting screenshot calls so later declarations cannot bypass those
   meaningful-target checks, includes object-property target aliases so grouped
   screenshot target objects cannot hide weak locator targets, including computed
-  object keys and bracket property references, unwraps `as const` and
+  object keys, bracket property references, shorthand properties, alias-valued
+  properties, and static indexed target lists, unwraps `as const` and
   `satisfies` grouped target objects before alias collection, rejects local
   aliases, assigned helper properties, indexed helper entries, and wrapper
   functions that reference `takeScreenshot` even when the helper is named like

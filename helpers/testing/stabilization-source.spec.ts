@@ -1399,6 +1399,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('captureDocumentationImage');
     expect(inventory).toContain('unwraps `as const`');
     expect(inventory).toContain('`satisfies` grouped target objects');
+    expect(inventory).toContain('shorthand properties');
+    expect(inventory).toContain('alias-valued\n  properties');
+    expect(inventory).toContain('static indexed target lists');
     expect(inventory).toContain('`locator.screenshot`');
     expect(inventory).toContain("direct `testInfo.attach('image', ...)`");
     expect(inventory).toContain("`page['screenshot']`");
@@ -1622,6 +1625,20 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain("targets['shell']");
     expect(generatedDocumentationSource).toContain("targets['assignedShell']");
+    expect(generatedDocumentationSource).toContain(
+      'detects grouped weak documentation screenshot target aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'collectGroupedPropertyAliases',
+    );
+    expect(generatedDocumentationSource).toContain('isTrackedReferenceOrAlias');
+    expect(generatedDocumentationSource).toContain(
+      'ts.isShorthandPropertyAssignment',
+    );
+    expect(generatedDocumentationSource).toContain('groupedTargets.shell');
+    expect(generatedDocumentationSource).toContain('groupedTargets.broadAlias');
+    expect(generatedDocumentationSource).toContain('indexedTargets[0]');
+    expect(generatedDocumentationSource).toContain('indexedTargets[3]');
     expect(generatedDocumentationSource).toContain('computed-raw-evidence.png');
     expect(generatedDocumentationSource).toContain(
       'screenshotFunctionPropertyAliases',
