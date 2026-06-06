@@ -5,6 +5,10 @@ import { getId } from '../../../helpers/get-id';
 import { gaStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { test } from '../../support/fixtures/base-test';
+import {
+  collectBrowserLogFailures,
+  expectStablePageLayout,
+} from '../../support/utils/page-layout';
 
 test.setTimeout(120_000);
 
@@ -13,6 +17,12 @@ test.use({ storageState: gaStateFile });
 const tenantSearchLabel = 'Search tenants';
 const expectedStripeAccountId =
   process.env['STRIPE_TEST_ACCOUNT_ID'] ?? 'acct_playwright_list';
+
+const viewportSizes = [
+  { height: 740, label: 'narrow mobile', width: 320 },
+  { height: 844, label: 'mobile', width: 390 },
+  { height: 900, label: 'desktop', width: 1440 },
+] as const;
 
 const expectTenantRows = async (page: Page) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
@@ -58,6 +68,76 @@ const expectTenantFormScope = async (
   await expect(form.getByRole('combobox').first()).toBeVisible();
 };
 
+const expectStableLayout = async (page: Page) => {
+  await expect(async () => {
+    await expectStablePageLayout(page);
+  }).toPass({ timeout: 15_000 });
+};
+
+test('global tenant admin pages have stable layouts across viewports @admin @globalAdmin', async ({
+  database,
+  page,
+}) => {
+  const browserLogFailures = collectBrowserLogFailures(page);
+  const tenant = await database.query.tenants.findFirst({
+    where: (tenantTable) => eq(tenantTable.domain, 'localhost'),
+  });
+  if (!tenant) {
+    throw new Error('Expected seeded global-admin tenant');
+  }
+
+  const routes = [
+    {
+      expectedHeading: 'Global admin',
+      extraText: 'Tenants',
+      path: '/global-admin',
+    },
+    {
+      expectedHeading: 'Tenants',
+      path: '/global-admin/tenants',
+    },
+    {
+      expectedHeading: 'Create tenant',
+      path: '/global-admin/tenants/create',
+    },
+    {
+      expectedHeading: tenant.name,
+      path: `/global-admin/tenants/${tenant.id}`,
+    },
+    {
+      expectedHeading: 'Edit tenant',
+      path: `/global-admin/tenants/${tenant.id}/edit`,
+    },
+  ] as const;
+
+  for (const viewport of viewportSizes) {
+    await test.step(`${viewport.label} viewport`, async () => {
+      await page.setViewportSize(viewport);
+
+      for (const route of routes) {
+        await test.step(route.path, async () => {
+          browserLogFailures.length = 0;
+          await page.goto(route.path);
+          await expect(
+            page.getByRole('heading', {
+              level: 1,
+              name: route.expectedHeading,
+            }),
+          ).toBeVisible();
+          if ('extraText' in route) {
+            await expect(page.getByText(route.extraText).first()).toBeVisible();
+          }
+          await expectStableLayout(page);
+          expect(
+            browserLogFailures,
+            `${viewport.label} ${route.path} should not emit browser warning/error logs`,
+          ).toEqual([]);
+        });
+      }
+    });
+  }
+});
+
 test('global tenant admin reviews tenant list, detail, and forms @admin @globalAdmin', async ({
   database,
   page,
@@ -102,8 +182,9 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeDisabled();
-    await page.getByLabel('Tenant name').fill(createdTenantName);
-    await page.getByLabel('Primary domain').fill('section.example.org/path');
+    const createTenantInputs = page.locator('form input');
+    await createTenantInputs.first().fill(createdTenantName);
+    await createTenantInputs.nth(1).fill('section.example.org/path');
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -112,11 +193,11 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
       page.getByText('Domain must be a single host name'),
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
-    await page.getByLabel('Primary domain').fill(originalTenant.domain);
+    await createTenantInputs.nth(1).fill(originalTenant.domain);
     await page.getByRole('button', { name: 'Create tenant' }).click();
     await expect(page.getByText('Tenant domain already exists')).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
-    await page.getByLabel('Primary domain').fill(createdTenantDomain);
+    await createTenantInputs.nth(1).fill(createdTenantDomain);
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();

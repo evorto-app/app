@@ -6341,9 +6341,9 @@ describe('stabilization source', () => {
     expect(source).toContain(
       '/tmp/evorto-global-admin-tenants-20260604-refresh-mobile.jpg',
     );
-    expect(inventory).toContain('authenticated\n    global-admin tenant list');
-    expect(inventory).toContain('global-admin tenant list, create, detail');
-    expect(source).toContain('global-admin tenant list, create');
+    expect(inventory).toContain('authenticated\n    global-admin overview');
+    expect(inventory).toContain('global-admin overview, tenant list, create');
+    expect(source).toContain('global-admin overview shell plus');
     expect(source).toContain('overflowing\n  visible text or panel elements');
     expect(inventory).toContain(
       'no overflowing visible text or panel elements',
@@ -6385,6 +6385,9 @@ describe('stabilization source', () => {
     expect(globalAdminSpec).toContain(
       "test('global tenant admin pages have stable layouts across viewports @admin @globalAdmin'",
     );
+    expect(globalAdminSpec).toContain("path: '/global-admin'");
+    expect(globalAdminSpec).toContain("expectedHeading: 'Global admin'");
+    expect(globalAdminSpec).toContain("extraText: 'Tenants'");
     expect(globalAdminSpec).toContain("path: '/global-admin/tenants'");
     expect(globalAdminSpec).toContain("path: '/global-admin/tenants/create'");
     expect(globalAdminSpec).toContain(

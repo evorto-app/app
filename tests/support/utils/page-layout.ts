@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 export type OverflowingElementLabel = {
   className: string;
@@ -114,6 +114,26 @@ export const expectedStablePageLayout = {
   verticallyClippedFixedTextCount: 0,
   verticallyClippedFixedTextLabels: [],
 } satisfies PageLayout;
+
+const blockedConsoleTypes = new Set(['error', 'warning']);
+
+export const collectBrowserLogFailures = (page: Page): string[] => {
+  const browserLogFailures: string[] = [];
+
+  page.on('console', (message) => {
+    if (!blockedConsoleTypes.has(message.type())) {
+      return;
+    }
+
+    const location = message.location();
+    const source = location.url
+      ? `${location.url}:${location.lineNumber}:${location.columnNumber}`
+      : page.url();
+    browserLogFailures.push(`${message.type()}: ${message.text()} (${source})`);
+  });
+
+  return browserLogFailures;
+};
 
 export const readPageLayout = async (page: Page): Promise<PageLayout> =>
   page.evaluate(() => {
@@ -614,3 +634,13 @@ export const readPageLayout = async (page: Page): Promise<PageLayout> =>
       verticallyClippedFixedTextLabels,
     };
   });
+
+export const expectStablePageLayout = async (page: Page) => {
+  await expect
+    .poll(() => readPageLayout(page), {
+      message:
+        'page layout should settle without visible loading text or glitches',
+      timeout: 15_000,
+    })
+    .toEqual(expectedStablePageLayout);
+};

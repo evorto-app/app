@@ -291,11 +291,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     mobile, and desktop viewports for expected headings/content through the
     shared viewport layout guard.
   - `specs/admin/global-admin-tenants.spec.ts` also checks authenticated
-    global-admin tenant list, create, detail, and edit pages at narrow mobile,
-    mobile, and desktop viewports for expected headings, no application-error
-    text, no horizontal overflow, no horizontally clipped visible controls, and
-    no overflowing visible text or panel elements outside intentional horizontal
-    scroll containers.
+    global-admin overview, tenant list, create, detail, and edit pages at
+    narrow mobile, mobile, and desktop viewports for expected headings/content,
+    no application-error text, no horizontal overflow, no horizontally clipped
+    visible controls, and no overflowing visible text or panel elements outside
+    intentional horizontal scroll containers.
   - `src/app/app.routes.server.spec.ts` guards that authenticated route groups
     stay client-rendered in production SSR, so direct deep links such as
     `/admin/settings`, `/create-account`, `/global-admin/tenants`, `/profile`,

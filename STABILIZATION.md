@@ -3687,9 +3687,10 @@ fallback rather than a profile discount-card defect.
   temporary Browser viewport override was reset after the pass.
 - Current global-admin viewport coverage checkpoint:
   `tests/specs/admin/global-admin-tenants.spec.ts` now includes authenticated
-  Docker-backed system-Chrome coverage for the global-admin tenant list, create,
-  detail, and edit pages at 320x740, 390x844, and 1440x900. The viewport guard
-  asserts the expected page headings, then rejects application-error text,
+  Docker-backed system-Chrome coverage for the global-admin overview shell plus
+  tenant list, create, detail, and edit pages at 320x740, 390x844, and
+  1440x900. The viewport guard asserts the expected page headings/content, then
+  rejects application-error text,
   horizontal overflow, horizontally clipped visible controls, and overflowing
   visible text or panel elements outside intentional horizontal scroll
   containers while allowing normal vertical scrolling on mobile. A current
