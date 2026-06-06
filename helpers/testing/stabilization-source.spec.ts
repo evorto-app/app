@@ -2970,24 +2970,33 @@ describe('stabilization source', () => {
     )?.[0];
 
     expect(checkpoint).toBeDefined();
-    expect(checkpoint).toContain('PR head\n  `fb77d966c`');
+    expect(checkpoint).toContain('PR head\n  `aad2bab1`');
     expect(checkpoint).toContain('`bun run docker:start` rebuilt');
-    expect(checkpoint).toContain('offline Bun production dependency cache');
-    expect(checkpoint).toContain('Font Awesome packages');
-    expect(checkpoint).toContain('/events` at 320x740');
-    expect(checkpoint).toContain('Murnau, Munich, and Soccer Match events');
-    expect(checkpoint).toContain('document and body widths stayed at 305px');
+    expect(checkpoint).toContain('seeded the local Docker database');
     expect(checkpoint).toContain(
-      '`/legal/terms`, `/legal/privacy`, and `/404` at 390x844',
+      'derived the public `Soccer Match 1` event detail link',
     );
-    expect(checkpoint).toContain('document and body widths\n  stayed at 375px');
-    expect(checkpoint).toContain('mobile bottom navigation');
-    expect(checkpoint).toContain('no horizontal overflow');
-    expect(checkpoint).toContain('clipped\n  visible controls');
+    expect(checkpoint).toContain('full anonymous General route set');
+    expect(checkpoint).toContain('320x740, 390x844, and\n  1440x900');
+    expect(checkpoint).toContain('root redirect, events list');
+    expect(checkpoint).toContain('public event detail');
+    expect(checkpoint).toContain('imprint, privacy,\n  terms');
+    expect(checkpoint).toContain('403, 500, 404');
+    expect(checkpoint).toContain('wildcard not-found redirect');
+    expect(checkpoint).toContain('All 30 route/viewport\n  checks');
+    expect(checkpoint).toContain('avoided loading placeholders');
     expect(checkpoint).toContain('rendered application-error text');
-    expect(checkpoint).toContain('only app info logs');
+    expect(checkpoint).toContain('visible\n  left/right overflow entries');
+    expect(checkpoint).toContain('Browser warning/error logs');
+    expect(checkpoint).toContain('390x844 `/events` screenshot');
+    expect(checkpoint).toContain('readable Material event cards');
+    expect(checkpoint).toContain('dates, times');
+    expect(checkpoint).toContain('mobile bottom navigation');
+    expect(checkpoint).toContain('evorto-aad2bab-general-mobile-events.png');
+    expect(checkpoint).toContain('Browser viewport override was reset');
+    expect(checkpoint).toContain('bun run test:e2e:public-general-viewports');
     expect(checkpoint).not.toContain('system Chrome');
-    expect(checkpoint).not.toContain('standalone Playwright');
+    expect(checkpoint).not.toContain('Browser review was blocked');
   });
 
   it('keeps the current Browser unlisted-event checkpoint tied to list hiding and direct access', () => {
@@ -4007,10 +4016,14 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'HTTP-error route-probe message now points operators at `bun run docker:check`',
     );
-    expect(source).toContain('current pushed head `8fc32ae8`');
-    expect(source).toContain('390x844 mobile viewport');
-    expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');
-    expect(source).toContain('no warning/error page logs');
+    expect(source).toContain('current pushed head `aad2bab1`');
+    expect(source).toContain('320x740, 390x844, and 1440x900');
+    expect(source).toContain('all 10 anonymous General routes');
+    expect(source).toContain('no loading\nplaceholders');
+    expect(source).toContain('no Browser warning/error logs');
+    expect(source).toContain(
+      'bun run test:e2e:public-general-viewports` run passed',
+    );
     expect(source).toContain('share one Docker Compose port-owner\nparser');
     expect(source).toContain('another `evorto-*` project\nowns');
     expect(source).toContain('without\nstopping that stack automatically');
@@ -4023,7 +4036,7 @@ describe('stabilization source', () => {
       /from the\s+current Font Awesome install blocker/u,
     );
     expect(source).not.toContain('current local source slice');
-    expect(source).not.toContain('dev-runtime Browser evidence passed');
+    expect(source).not.toContain('`net::ERR_BLOCKED_BY_CLIENT`');
     expect(packageJson.scripts['dev:check']).toBe(
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
     );

@@ -4008,18 +4008,22 @@ fallback rather than a profile discount-card defect.
   body showed the seeded event list including `Soccer Match 1`, and Browser
   warning/error logs were empty.
 - Current public General Browser refresh checkpoint: after pushing PR head
-  `fb77d966c`, `bun run docker:start` rebuilt the Docker app on the generated
-  `BASE_URL` and reused the offline Bun production dependency cache for public
-  Font Awesome packages. A fresh in-app Browser tab opened `/events` at 320x740
-  and rendered seeded event cards for Murnau, Munich, and Soccer Match events;
-  document and body widths stayed at 305px with no horizontal overflow, clipped
-  visible controls, overflowing visible elements, or rendered application-error
-  text. The same Browser tab then opened
-  `/legal/terms`, `/legal/privacy`, and `/404` at 390x844; each page rendered
-  its expected heading and mobile bottom navigation, document and body widths
-  stayed at 375px, and the probes again found no horizontal overflow, clipped
-  visible controls, or rendered application-error text. Browser console output
-  for the sampled Events page contained only app info logs.
+  `aad2bab1`, `bun run docker:start` rebuilt the Docker app on the generated
+  `BASE_URL` and seeded the local Docker database. A fresh in-app Browser tab
+  derived the public `Soccer Match 1` event detail link from `/events`, then
+  rechecked the full anonymous General route set at 320x740, 390x844, and
+  1440x900: root redirect, events list, public event detail, imprint, privacy,
+  terms, 403, 500, 404, and wildcard not-found redirect. All 30 route/viewport
+  checks rendered the expected route content, avoided loading placeholders and
+  rendered application-error text, reported no horizontal overflow or visible
+  left/right overflow entries, and had no Browser warning/error logs. The
+  390x844 `/events` screenshot showed readable Material event cards with icons,
+  dates, times, and fixed mobile bottom navigation fitting without overlap; it
+  was saved at
+  `/var/folders/d5/ghwypcsd403dfcl8bpl7grfw0000gn/T/evorto-aad2bab-general-mobile-events.png`.
+  The temporary Browser viewport override was reset after the pass. The matching
+  durable `bun run test:e2e:public-general-viewports` run also passed against the
+  same running Docker app.
 - Current live Browser route refresh checkpoint: the Docker stack stayed healthy
   on the generated `BASE_URL`, the in-app Browser opened `/events`, found the
   seeded `Soccer Match 1` event link, and loaded that event detail page. The
@@ -5726,18 +5730,21 @@ A current local run failed on the expected closed database port and Docker
 container-start path, reported the existing port-4200 app's HTTP 500 on
 `/legal/terms`, and still reported the Neon summary as one protected branch, no
 active-test branches, no stale deletions, and a two-hour TTL.
-A fresh current local status run after `bun run env:copy-main -- --if-missing`
-confirmed the worktree now has the required dev and Docker secrets loaded from
-the copied local `.env`, the Neon dry-run remains clean with only protected
-`main`, and Browser verification is still blocked below the app layer by the
-closed generated database port plus Docker timing out while starting a
-disposable Alpine preflight container.
-A fresh in-app Browser route probe against `http://localhost:4353/legal/terms`
-on current pushed head `8fc32ae8` also failed before app content rendered at
-the 390x844 mobile viewport, with the Browser reporting
-`net::ERR_BLOCKED_BY_CLIENT` for the local URL and no warning/error page logs.
-This confirms the current lack of Browser route evidence is still a runtime
-reachability problem, not a passed General-page visual check.
+A fresh June 6, 2026 local status run after
+`bun run env:copy-main -- --if-missing` confirmed the worktree has the required
+dev and Docker secrets loaded from the copied local `.env`, the Neon dry-run
+remains clean with only protected `main`, and the Docker container start path is
+healthy again. The development preflight still reports the generated database
+port as closed until the Docker stack is running, but `bun run docker:start`
+successfully rebuilt and started the generated stack on `BASE_URL`
+`http://localhost:4353`.
+A fresh in-app Browser General-route sweep on current pushed head `aad2bab1`
+then opened the running Docker app, checked all 10 anonymous General routes at
+320x740, 390x844, and 1440x900, and found expected content, no loading
+placeholders, no rendered application-error text, no horizontal overflow or
+visible left/right overflow entries, and no Browser warning/error logs. The
+matching focused `bun run test:e2e:public-general-viewports` run passed against
+the same Docker app.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
