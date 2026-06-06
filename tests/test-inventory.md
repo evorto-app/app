@@ -1135,8 +1135,9 @@ provider outcomes without live identifiers.
   inactive branch reported by the cleanup summary, while still refusing
   protected branches and leaving the default CI path TTL-conservative. Local
   branch audits can use the non-mutating `bun run neon:cleanup:dry-run`;
-  confirmed local cleanup can use `bun run neon:cleanup`, keeping the
-  dotenv/runtime cascade behind a short Neon-specific package script.
+  confirmed local cleanup and exact force-delete cleanup can use
+  `bun run neon:cleanup`, keeping the dotenv/runtime cascade behind a short
+  Neon-specific package script.
   The cache-warmer cleanup checkpoint runs before dependency installs, so
   branch-count recovery does not depend on Playwright shards reaching Docker
   startup or shutdown.

@@ -1375,6 +1375,12 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(helpersReadme).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
     expect(helpersReadme).toContain(
+      'NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id>` to `bun run\nneon:cleanup`',
+    );
+    expect(helpersReadme).not.toContain(
+      'NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id>` to `bun run\ndb:cleanup:neon-local`',
+    );
+    expect(helpersReadme).toContain(
       '`bun run neon:cleanup:dry-run` for a non-mutating local branch audit',
     );
     expect(helpersReadme).toContain('confirmed-inactive');
@@ -1382,6 +1388,12 @@ describe('evaluateRuntimePreflight', () => {
       'default CI and local cleanup remain TTL-conservative',
     );
     expect(testsReadme).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
+    expect(testsReadme).toContain(
+      'NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id> bun run neon:cleanup',
+    );
+    expect(testsReadme).not.toContain(
+      'NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id> bun run db:cleanup:neon-local',
+    );
     expect(testsReadme).toContain(
       '`bun run neon:cleanup:dry-run` for a non-mutating local branch audit',
     );
@@ -1391,6 +1403,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(inventory).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
     expect(inventory).toContain(
       'branch audits can use the non-mutating `bun run neon:cleanup:dry-run`',
+    );
+    expect(inventory).toContain(
+      'exact force-delete cleanup can use\n  `bun run neon:cleanup`',
     );
     expect(inventory).toContain('default CI path TTL-conservative');
   });

@@ -112,9 +112,9 @@ job, and again after Compose shutdown.
 When a cancelled local or GitHub run has already stopped but cleanup still
 reports a specific young active-test branch inside the TTL, pass the exact id as
 `NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id>` to `bun run
-db:cleanup:neon-local`. That explicit path is intended for confirmed-inactive
-branches only; default CI and local cleanup remain TTL-conservative and the
-helper refuses protected branches.
+neon:cleanup`. That explicit path is intended for confirmed-inactive branches
+only; default CI and local cleanup remain TTL-conservative and the helper
+refuses protected branches.
 `helpers/testing/ci-start-docker-stack.sh` owns the E2E Docker startup path. It
 bounds the runtime preflight, bounds Compose image pre-pull attempts, builds the
 app images with the CI BuildKit cache overlay, starts the already-built stack,

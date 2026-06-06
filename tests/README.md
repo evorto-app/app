@@ -108,7 +108,7 @@ bun run lint
   TTL-conservative local cleanup path.
   If cleanup reports a young active-test branch after the owning Docker stack or
   GitHub run has already stopped, delete that exact branch id with
-  `NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id> bun run db:cleanup:neon-local`;
+  `NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id> bun run neon:cleanup`;
   the helper still refuses protected branches and does not change the default
   TTL-conservative CI path.
   Generated local `.env.dev` sets

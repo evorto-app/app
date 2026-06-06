@@ -3683,8 +3683,9 @@ describe('stabilization source', () => {
     expect(checkpoint).toMatch(/active\s+branches still inside the TTL/u);
     expect(checkpoint).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
     expect(checkpoint).toContain('confirmed-inactive young branch');
+    expect(checkpoint).toContain('through `bun run neon:cleanup`');
     expect(checkpoint).toContain('refusing protected branches');
-    expect(checkpoint).toContain('default CI cleanup\n  TTL-conservative');
+    expect(checkpoint).toContain('default CI cleanup TTL-conservative');
     expect(checkpoint).toContain('CI must not set `BRANCH_ID`');
     expect(checkpoint).toContain(
       "Neon Local's documented default project branch",
