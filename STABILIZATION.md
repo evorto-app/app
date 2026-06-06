@@ -3619,6 +3619,13 @@ fallback rather than a profile discount-card defect.
   still generates its text from `PERMISSION_GROUPS`, but it also screenshots the
   actual role-form permission group/dependency surface so the reference is tied
   to the UI labels admins see.
+  After the raw-markdown alias guard pass, pushed head `dfcd0cce` also passed
+  the no-Docker generated-doc helper checks: `bun run test:e2e:reporter-paths`
+  returned `18 passed (4.0s)` and `bun run test:e2e:doc-screenshot` returned
+  `6 passed (7.1s)` with `NO_WEBSERVER=true`, so reporter output, caption/image
+  pairing, highlighted focus-target validation, visible page-content validation,
+  and screenshot settling contracts were rechecked without claiming fresh
+  current-head Browser route evidence.
 - Current generated-docs runtime caption checkpoint:
   `tests/support/reporters/documentation-reporter/take-screenshot.ts` now makes
   the caption parameter required and fails fast when the caption is shorter than

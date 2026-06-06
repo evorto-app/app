@@ -1375,6 +1375,13 @@ describe('stabilization source', () => {
     expect(source).toContain('bracketed `attach` call');
     expect(source).toContain('aliased payload object');
     expect(source).toContain('shorthand `{ body }`');
+    expect(source).toContain('pushed head `dfcd0cce`');
+    expect(source).toContain('bun run test:e2e:reporter-paths');
+    expect(source).toContain('18 passed (4.0s)');
+    expect(source).toContain('bun run test:e2e:doc-screenshot');
+    expect(source).toContain('6 passed (7.1s)');
+    expect(source).toContain('NO_WEBSERVER=true');
+    expect(source).toContain('without claiming fresh\n  current-head Browser');
     expect(documentationScreenshotSpec).toContain(
       'doc-screenshot waits for descriptive loading text before capture',
     );
