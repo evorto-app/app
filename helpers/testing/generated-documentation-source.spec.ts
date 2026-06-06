@@ -459,13 +459,17 @@ const findSingleControlScreenshotTargets = (
   ]);
   const singleControlRoles = new Set([
     'button',
+    'cell',
     'checkbox',
+    'columnheader',
     'combobox',
+    'gridcell',
     'heading',
     'link',
     'menuitem',
     'option',
     'radio',
+    'rowheader',
     'searchbox',
     'spinbutton',
     'switch',
@@ -1131,6 +1135,12 @@ describe('generated docs source current behavior', () => {
       );
       await takeScreenshot(
         testInfo,
+        page.getByRole('cell', { name: 'admin@evorto.app' }),
+        page,
+        'Single table cell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
         page.getByText('Registration opens next week'),
         page,
         'Single text target with a descriptive caption',
@@ -1234,8 +1244,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/single-control-target.doc.ts:50:13',
       'tests/docs/example/single-control-target.doc.ts:56:13',
       'tests/docs/example/single-control-target.doc.ts:62:13',
-      'tests/docs/example/single-control-target.doc.ts:69:13',
-      'tests/docs/example/single-control-target.doc.ts:76:13',
+      'tests/docs/example/single-control-target.doc.ts:68:13',
+      'tests/docs/example/single-control-target.doc.ts:75:13',
+      'tests/docs/example/single-control-target.doc.ts:82:13',
     ]);
   });
 

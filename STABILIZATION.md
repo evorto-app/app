@@ -5662,8 +5662,9 @@ It also rejects direct single-control CSS locator targets such as `button`,
 `input`, ARIA role selectors, and Material control hosts/classes when they are
 passed to generated-doc screenshots, so docs cannot bypass the role/label guard
 with selector syntax while still cropping to one control.
-Single-option ARIA targets are covered by the same guard, so docs cannot use a
-single dropdown option as evidence for a full selection workflow.
+Single-option and single table-cell/header ARIA targets are covered by the same
+guard, so docs cannot use one dropdown option or one table datum as evidence for
+a full selection, row, or queue workflow.
 It now also rejects direct single-control-looking test-id screenshot targets
 such as `*-button`, `*-input`, `*-field`, and `*-icon-button`, while still
 allowing surface-level test ids, so future docs cannot hide a button-only crop

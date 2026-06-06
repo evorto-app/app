@@ -1209,7 +1209,9 @@ describe('stabilization source', () => {
     expect(source).toContain('direct single-control `getByRole`');
     expect(source).toContain('`getByPlaceholder` screenshot targets');
     expect(source).toContain('single-control CSS locator targets');
-    expect(source).toContain('Single-option ARIA targets');
+    expect(source).toContain(
+      'Single-option and single table-cell/header ARIA targets',
+    );
     expect(source).toContain(
       'single-control-looking test-id screenshot targets',
     );
@@ -1253,13 +1255,16 @@ describe('stabilization source', () => {
     );
     expect(inventory).toMatch(/role\/text\/label\/placeholder\s+locators/u);
     expect(inventory).toContain('single-control CSS locator targets');
-    expect(inventory).toContain('helper-returned single-control locators');
-    expect(inventory).toContain('single-option ARIA targets');
+    expect(inventory).toMatch(/helper-returned\s+single-control locators/u);
+    expect(inventory).toContain(
+      'single-option and single table-cell/header ARIA targets',
+    );
+    expect(inventory).toContain('cell-only');
     expect(inventory).toContain('ARIA role selectors');
     expect(inventory).toContain('Material control hosts/classes');
     expect(inventory).toMatch(/single-control-looking\s+`getByTestId`/u);
     expect(inventory).toContain("getByRole('img')");
-    expect(inventory).toMatch(/icon\/media targets such as `svg`/u);
+    expect(inventory).toMatch(/icon\/media targets\s+such as\s+`svg`/u);
     expect(inventory).toMatch(
       /target arrays\s+and helper-returned icon\/media locators/u,
     );
