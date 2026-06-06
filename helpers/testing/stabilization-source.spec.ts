@@ -1600,6 +1600,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /raw screenshot and image attach call\/apply\s+invocations/u,
     );
+    expect(inventory).toContain('`Reflect.apply(...)` raw screenshot');
     expect(inventory).toContain('forward-declared raw aliases');
     expect(inventory).toMatch(/computed\s+object keys/u);
     expect(inventory).toMatch(/bracket property references/u);
@@ -2149,8 +2150,10 @@ describe('stabilization source', () => {
       'Tracked direct image attachment calls with spread arguments',
     );
     expect(source).toContain('Inline `bind(...)(...)` invocations');
+    expect(source).toContain('`Reflect.apply(...)` invocations');
     expect(inventory).toContain('spread direct attachment arguments');
     expect(inventory).toContain('opaque\n  attachment `apply(...)` lists');
+    expect(inventory).toContain('`Reflect.apply(...)` raw screenshot');
     expect(inventory).toContain('inline bound raw screenshot and image attach');
   });
 

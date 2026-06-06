@@ -390,6 +390,27 @@ const getStaticPropertyReceiver = (
   return null;
 };
 
+const isReflectApplyCallee = (node: ts.Expression): boolean => {
+  const callee = unwrapExpression(node);
+
+  if (
+    !ts.isPropertyAccessExpression(callee) &&
+    !ts.isElementAccessExpression(callee)
+  ) {
+    return false;
+  }
+
+  const receiver = unwrapExpression(
+    getStaticPropertyReceiver(callee) ?? callee,
+  );
+
+  return (
+    ts.isIdentifier(receiver) &&
+    receiver.text === 'Reflect' &&
+    getStaticPropertyName(callee) === 'apply'
+  );
+};
+
 const getStaticPropertyReference = (
   node: ts.Expression,
   sourceFile: ts.SourceFile,
@@ -2019,6 +2040,14 @@ const findScreenshotHelperBypasses = (
       if (isIndirectTakeScreenshotCall(callee)) {
         bypasses.push(describeNode(node.expression));
       }
+
+      if (
+        isReflectApplyCallee(callee) &&
+        node.arguments[0] &&
+        expressionReferencesTakeScreenshot(node.arguments[0])
+      ) {
+        bypasses.push(describeNode(node.expression));
+      }
     }
 
     if (
@@ -2544,6 +2573,34 @@ const findDirectImageAttachmentCalls = (
     );
   };
 
+  const isReflectApplyImageAttachmentCall = (
+    callee: ts.Expression,
+    args: ts.NodeArray<ts.Expression>,
+  ): boolean => {
+    if (
+      !isReflectApplyCallee(callee) ||
+      !args[0] ||
+      !isTrackedAttachFunctionReference(args[0])
+    ) {
+      return false;
+    }
+
+    const applyArguments = args[2] ? unwrapExpression(args[2]) : null;
+
+    if (!applyArguments || !ts.isArrayLiteralExpression(applyArguments)) {
+      return true;
+    }
+
+    if (hasSpreadArrayElement(applyArguments.elements)) {
+      return true;
+    }
+
+    return hasImageAttachmentArguments(
+      applyArguments.elements[0],
+      applyArguments.elements[1],
+    );
+  };
+
   const inspectImageAttachmentCalls = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = unwrapExpression(node.expression);
@@ -2561,7 +2618,8 @@ const findDirectImageAttachmentCalls = (
               node.arguments[0],
               node.arguments[1],
             ))) ||
-        isIndirectImageAttachmentCall(callee, node.arguments)
+        isIndirectImageAttachmentCall(callee, node.arguments) ||
+        isReflectApplyImageAttachmentCall(callee, node.arguments)
       ) {
         imageAttachments.push(describeCall(node));
       }
@@ -2793,6 +2851,10 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
         (getStaticPropertyName(callee) === 'call' ||
           getStaticPropertyName(callee) === 'apply') &&
         isTrackedScreenshotFunctionReference(receiver);
+      const isReflectApplyScreenshotCall =
+        isReflectApplyCallee(callee) &&
+        !!node.arguments[0] &&
+        isTrackedScreenshotFunctionReference(node.arguments[0]);
 
       if (
         ((ts.isPropertyAccessExpression(callee) ||
@@ -2804,7 +2866,8 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
         (ts.isIdentifier(callee) &&
           screenshotFunctionAliases.has(callee.text)) ||
         isInlineBoundScreenshotCall(callee) ||
-        isIndirectScreenshotCall
+        isIndirectScreenshotCall ||
+        isReflectApplyScreenshotCall
       ) {
         screenshotCalls.push(describeCall(node));
       }
@@ -2895,6 +2958,12 @@ describe('generated docs source current behavior', () => {
         page,
         'Indirect bind helper bypass with descriptive caption',
       );
+      await Reflect.apply(takeScreenshot, undefined, [
+        testInfo,
+        settingsSurface,
+        page,
+        'Reflect apply helper bypass with descriptive caption',
+      ]);
     `;
 
     expect(
@@ -2924,6 +2993,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:56:13',
       'tests/docs/example/bypass.doc.ts:63:13',
       'tests/docs/example/bypass.doc.ts:69:13',
+      'tests/docs/example/bypass.doc.ts:75:13',
     ]);
   });
 
@@ -3025,6 +3095,8 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach.call(testInfo, 'image', { body: imageBuffer });
       await testInfo['attach'].apply(testInfo, ['image', { body: imageBuffer }]);
       await attachEvidence.call(testInfo, 'image', { body: imageBuffer });
+      await Reflect.apply(testInfo.attach, testInfo, ['image', { body: imageBuffer }]);
+      await Reflect.apply(attachEvidence, testInfo, ['reflect raw evidence', { contentType: 'image/png' }]);
       await testInfo.attach('markdown', { body: markdown });
       const forwardAttachEvidence = testInfo.attach.bind(testInfo);
       const forwardAttachmentName = 'image';
@@ -3088,6 +3160,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:95:13',
       'tests/docs/example/direct-image.doc.ts:96:13',
       'tests/docs/example/direct-image.doc.ts:97:13',
+      'tests/docs/example/direct-image.doc.ts:98:13',
+      'tests/docs/example/direct-image.doc.ts:99:13',
     ]);
   });
 
@@ -3198,6 +3272,8 @@ describe('generated docs source current behavior', () => {
       await page.screenshot.call(page, { path: 'page-call.png' });
       await page['screenshot'].apply(page, [{ path: 'page-apply.png' }]);
       await capturePageScreenshot.call(page, { path: 'page-alias-call.png' });
+      await Reflect.apply(page.screenshot, page, [{ path: 'page-reflect.png' }]);
+      await Reflect.apply(capturePageScreenshot, page, [{ path: 'page-alias-reflect.png' }]);
       await takeScreenshot(
         testInfo,
         settingsSurface,
@@ -3236,6 +3312,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:44:13',
       'tests/docs/example/direct-screenshot.doc.ts:45:13',
       'tests/docs/example/direct-screenshot.doc.ts:46:13',
+      'tests/docs/example/direct-screenshot.doc.ts:47:13',
+      'tests/docs/example/direct-screenshot.doc.ts:48:13',
     ]);
   });
 

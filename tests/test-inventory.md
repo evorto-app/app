@@ -594,7 +594,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   grouped or indexed MIME/path values, object shorthand image payloads,
   computed raw image payload keys, spread direct attachment arguments, opaque
   attachment `apply(...)` lists, raw screenshot and image attach call/apply
-  invocations, inline bound raw screenshot and image attach invocations,
+  invocations, `Reflect.apply(...)` raw screenshot and image attach invocations,
+  inline bound raw screenshot and image attach invocations,
   forward-declared raw aliases, and simple, destructured, nested destructured,
   grouped, shorthand, alias-valued, or direct/alias-valued tuple/array
   attach-function aliases, rejects
