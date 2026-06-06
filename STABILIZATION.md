@@ -5590,7 +5590,8 @@ active-test branches, no stale deletions, and a two-hour TTL.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
-and the manual `COMPOSE_PROJECT_NAME=<project> docker compose down` pattern.
+and the exact `COMPOSE_PROJECT_NAME=<owning-project> docker compose down`
+command for that project.
 The check ignores the current generated Compose project and unrelated non-Evorto
 Compose projects, so it explains `localhost:4200` conflicts without stopping
 another active checkout automatically.

@@ -337,7 +337,7 @@ const auth0RegisteredPortConflictCheck = (
         }
 
         const name = String(parsed.Names ?? '').trim() || '<unnamed>';
-        return [`${name} from Compose project ${project}`];
+        return [{ name, project }];
       } catch {
         return [];
       }
@@ -355,9 +355,14 @@ const auth0RegisteredPortConflictCheck = (
 
   return {
     details: [
-      ...conflicts,
+      ...conflicts.map(
+        ({ name, project }) => `${name} from Compose project ${project}`,
+      ),
       `Another Evorto stack is already publishing localhost:${appHostPort}. Auth0 callbacks are usually registered for this port, so generated fallback ports can fail authenticated Browser and Playwright verification.`,
-      'Stop the owning stack if it is not active: COMPOSE_PROJECT_NAME=<project> docker compose down',
+      ...conflicts.map(
+        ({ project }) =>
+          `Stop the owning stack if it is not active: COMPOSE_PROJECT_NAME=${project} docker compose down`,
+      ),
     ],
     label,
     severity: 'warning',

@@ -1087,8 +1087,9 @@ provider outcomes without live identifiers.
   so local `format:write` runs stay warning-free without installing inactive
   formatter plugins.
   The Docker preflight now also warns when a different running Evorto Compose
-  project already publishes the selected `APP_HOST_PORT`, prints the manual
-  `COMPOSE_PROJECT_NAME=<project> docker compose down` pattern, and ignores
+  project already publishes the selected `APP_HOST_PORT`, prints the exact
+  `COMPOSE_PROJECT_NAME=evorto-cc7ef3a9 docker compose down` style command for
+  the owning project, and ignores
   unrelated non-Evorto Compose projects so active work in another checkout is not
   stopped automatically.
 - `bun run dev:status` is the combined non-mutating local runtime status path.

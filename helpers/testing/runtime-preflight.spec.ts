@@ -496,7 +496,7 @@ describe('evaluateRuntimePreflight', () => {
       'Another Evorto stack is already publishing localhost:${appHostPort}',
     );
     expect(runtimePreflight).toContain(
-      'COMPOSE_PROJECT_NAME=<project> docker compose down',
+      'COMPOSE_PROJECT_NAME=${project} docker compose down',
     );
   });
 
@@ -954,7 +954,7 @@ describe('evaluateRuntimePreflight', () => {
       'different running Evorto Compose\n  project already publishes the selected `APP_HOST_PORT`',
     );
     expect(inventory).toContain(
-      'COMPOSE_PROJECT_NAME=<project> docker compose down',
+      'COMPOSE_PROJECT_NAME=evorto-cc7ef3a9 docker compose down',
     );
 
     expect(workflow).toContain(
@@ -2185,7 +2185,7 @@ describe('evaluateRuntimePreflight', () => {
           details: [
             'evorto-cc7ef3a9-evorto-1 from Compose project evorto-cc7ef3a9',
             'Another Evorto stack is already publishing localhost:4200. Auth0 callbacks are usually registered for this port, so generated fallback ports can fail authenticated Browser and Playwright verification.',
-            'Stop the owning stack if it is not active: COMPOSE_PROJECT_NAME=<project> docker compose down',
+            'Stop the owning stack if it is not active: COMPOSE_PROJECT_NAME=evorto-cc7ef3a9 docker compose down',
           ],
           label: 'Auth0 registered app port',
           severity: 'warning',
