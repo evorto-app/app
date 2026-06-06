@@ -554,7 +554,7 @@ the current working direction until a product decision overrides them.
   generated docs now label the persisted `APPROVED` review state as
   **Published**, matching `PRODUCT.md`'s lifecycle language while keeping the
   internal enum unchanged.
-- **Addressed in stabilization pass:** `event-management.doc.ts` no longer describes attendee export, attendee messaging, manual check-in controls, event settings tabs, event tags, featured images, notification settings, integrations, or event deletion as existing event-management UI.
+- **Addressed in stabilization pass:** `event-management.doc.ts` no longer describes attendee export, attendee messaging, manual check-in controls, event settings tabs, event tags, featured images, notification settings, integrations, event deletion, event-cancellation controls, or event-cancelled email as existing event-management UI.
 - **Addressed in stabilization pass:** unlisted-event dialog and event detail status copy now explain that unlisted events are hidden from lists while eligible direct links still work.
 - **Addressed in this stabilization pass:** event detail listing actions now
   render only after the event query succeeds, and the update-listing handler

@@ -6401,6 +6401,10 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('managing attendees');
     expect(source).not.toContain('automatic refund controls are available');
     expect(source).not.toContain('paid registration transfer is available');
+    expect(source).not.toContain('event-cancelled email');
+    expect(source).not.toContain('event cancellation workflow');
+    expect(source).not.toContain('Cancel event');
+    expect(source).not.toContain('cancel the event');
   });
 
   it('keeps role docs aligned with generated permission reference semantics', () => {

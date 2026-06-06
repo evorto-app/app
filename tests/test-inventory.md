@@ -825,7 +825,9 @@ provider outcomes without live identifiers.
     Generated-doc source coverage keeps the event-management docs aligned with
     the dedicated scanner flow, scanner warning states, guest-quantity count
     updates, organizer cancellation scope, and direct-organizer versus
-    transfer-code paid transfer boundaries.
+    transfer-code paid transfer boundaries. It also rejects event-cancellation
+    workflow/control and event-cancelled email claims until that product path
+    exists.
     Event-management generated screenshots now focus concrete event-list,
     template-choice, event-detail header, the created event's participant
     registration option, receipt submission dialog, event status/action,
