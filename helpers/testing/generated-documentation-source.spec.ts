@@ -1318,6 +1318,74 @@ const findDirectImageAttachmentCalls = (
   return imageAttachments;
 };
 
+const findDirectScreenshotCalls = (path: string, source: string): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const screenshotCalls: string[] = [];
+  const screenshotFunctionAliases = new Set<string>();
+
+  const describeCall = (node: ts.CallExpression): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.expression.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const isScreenshotFunctionReference = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (ts.isPropertyAccessExpression(expression)) {
+      return expression.name.text === 'screenshot';
+    }
+
+    if (
+      ts.isCallExpression(expression) &&
+      ts.isPropertyAccessExpression(expression.expression) &&
+      expression.expression.name.text === 'bind' &&
+      ts.isPropertyAccessExpression(expression.expression.expression) &&
+      expression.expression.expression.name.text === 'screenshot'
+    ) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      isScreenshotFunctionReference(node.initializer)
+    ) {
+      screenshotFunctionAliases.add(node.name.text);
+    }
+
+    if (ts.isCallExpression(node)) {
+      const callee = unwrapExpression(node.expression);
+
+      if (
+        (ts.isPropertyAccessExpression(callee) &&
+          callee.name.text === 'screenshot') ||
+        (ts.isIdentifier(callee) && screenshotFunctionAliases.has(callee.text))
+      ) {
+        screenshotCalls.push(describeCall(node));
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return screenshotCalls;
+};
+
 describe('generated docs source current behavior', () => {
   it('detects screenshot helper bypass patterns before generated docs can use them', () => {
     const bypassSource = `
@@ -1372,6 +1440,32 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:3:13',
       'tests/docs/example/direct-image.doc.ts:5:13',
       'tests/docs/example/direct-image.doc.ts:7:13',
+    ]);
+  });
+
+  it('detects direct screenshot calls before generated docs can use them', () => {
+    const directScreenshotSource = `
+      await page.screenshot({ path: 'page.png' });
+      await page.locator('main').screenshot();
+      const captureElement = page.locator('section').screenshot.bind(page.locator('section'));
+      await captureElement({ path: 'section.png' });
+      await takeScreenshot(
+        testInfo,
+        settingsSurface,
+        page,
+        'Shared helper screenshot remains the allowed path',
+      );
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/direct-screenshot.doc.ts',
+        directScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/direct-screenshot.doc.ts:2:13',
+      'tests/docs/example/direct-screenshot.doc.ts:3:13',
+      'tests/docs/example/direct-screenshot.doc.ts:5:13',
     ]);
   });
 
@@ -1989,7 +2083,7 @@ describe('generated docs source current behavior', () => {
         expectedScreenshotCounts.get(path),
       );
       expect(importsSharedScreenshotHelper(path, source), path).toBe(true);
-      expect(source, path).not.toContain('.screenshot(');
+      expect(findDirectScreenshotCalls(path, source), path).toEqual([]);
       expect(findDirectImageAttachmentCalls(path, source), path).toEqual([]);
       expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);
       expect(findUnfilteredBroadScreenshotTargets(path, source), path).toEqual(

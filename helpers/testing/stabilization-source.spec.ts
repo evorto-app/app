@@ -1399,6 +1399,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('`satisfies` grouped target objects');
     expect(inventory).toContain('`locator.screenshot`');
     expect(inventory).toContain("direct `testInfo.attach('image', ...)`");
+    expect(inventory).toContain('screenshot-function aliases');
     expect(inventory).toContain('simple attachment-name');
     expect(inventory).toContain('attach-function aliases');
     expect(inventory).toContain('self-tests those bypass examples');
@@ -1468,8 +1469,9 @@ describe('stabilization source', () => {
       'tests/docs/roles/about-permissions.doc.ts',
     );
     expect(generatedDocumentationSource).toContain('takeScreenshot(');
+    expect(generatedDocumentationSource).toContain('findDirectScreenshotCalls');
     expect(generatedDocumentationSource).toContain(
-      "expect(source, path).not.toContain('.screenshot(')",
+      'detects direct screenshot calls before generated docs can use them',
     );
     expect(generatedDocumentationSource).toContain(
       'findDirectImageAttachmentCalls',

@@ -541,7 +541,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   rejects uncaptioned image attachments and orphan image-caption attachments
   before generated markdown is written, rejects raw `page.screenshot`,
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs
-  sources, rejects direct image attachments through simple attachment-name and
+  sources, rejects direct screenshots through simple screenshot-function aliases,
+  rejects direct image attachments through simple attachment-name and
   attach-function aliases, rejects aliased/helper-internal screenshot imports and
   local screenshot wrappers, self-tests those bypass examples, and keeps the permission
   reference image-backed with the actual role-form permission/dependency
