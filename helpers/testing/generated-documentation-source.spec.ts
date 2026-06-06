@@ -1214,6 +1214,110 @@ const findScreenshotHelperBypasses = (
   return bypasses;
 };
 
+const findDirectImageAttachmentCalls = (
+  path: string,
+  source: string,
+): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const imageAttachments: string[] = [];
+  const imageAttachmentNameAliases = new Set<string>();
+  const attachFunctionAliases = new Set<string>();
+
+  const describeCall = (node: ts.CallExpression): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.expression.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const getStringLiteralText = (node: ts.Expression): null | string => {
+    const expression = unwrapExpression(node);
+
+    if (
+      ts.isStringLiteral(expression) ||
+      ts.isNoSubstitutionTemplateLiteral(expression)
+    ) {
+      return expression.text;
+    }
+
+    return null;
+  };
+
+  const isImageAttachmentName = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (ts.isIdentifier(expression)) {
+      return imageAttachmentNameAliases.has(expression.text);
+    }
+
+    return getStringLiteralText(expression) === 'image';
+  };
+
+  const isAttachFunctionReference = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (ts.isPropertyAccessExpression(expression)) {
+      return expression.name.text === 'attach';
+    }
+
+    if (
+      ts.isCallExpression(expression) &&
+      ts.isPropertyAccessExpression(expression.expression) &&
+      expression.expression.name.text === 'bind' &&
+      ts.isPropertyAccessExpression(expression.expression.expression) &&
+      expression.expression.expression.name.text === 'attach'
+    ) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
+      if (getStringLiteralText(node.initializer) === 'image') {
+        imageAttachmentNameAliases.add(node.name.text);
+      }
+
+      if (isAttachFunctionReference(node.initializer)) {
+        attachFunctionAliases.add(node.name.text);
+      }
+    }
+
+    if (
+      ts.isCallExpression(node) &&
+      node.arguments[0] &&
+      isImageAttachmentName(node.arguments[0])
+    ) {
+      const callee = unwrapExpression(node.expression);
+
+      if (
+        (ts.isPropertyAccessExpression(callee) &&
+          callee.name.text === 'attach') ||
+        (ts.isIdentifier(callee) && attachFunctionAliases.has(callee.text))
+      ) {
+        imageAttachments.push(describeCall(node));
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return imageAttachments;
+};
+
 describe('generated docs source current behavior', () => {
   it('detects screenshot helper bypass patterns before generated docs can use them', () => {
     const bypassSource = `
@@ -1244,6 +1348,30 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:6:13',
       'tests/docs/example/bypass.doc.ts:8:16',
       'tests/docs/example/bypass.doc.ts:12:16',
+    ]);
+  });
+
+  it('detects direct image attachments before generated docs can use them', () => {
+    const directImageAttachmentSource = `
+      await testInfo.attach('image', { body: imageBuffer });
+      await testInfo.attach(\`image\`, { body: imageBuffer });
+      const attachmentName = 'image';
+      await testInfo.attach(attachmentName, { body: imageBuffer });
+      const attachEvidence = testInfo.attach.bind(testInfo);
+      await attachEvidence('image', { body: imageBuffer });
+      await testInfo.attach('markdown', { body: markdown });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/direct-image.doc.ts',
+        directImageAttachmentSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/direct-image.doc.ts:2:13',
+      'tests/docs/example/direct-image.doc.ts:3:13',
+      'tests/docs/example/direct-image.doc.ts:5:13',
+      'tests/docs/example/direct-image.doc.ts:7:13',
     ]);
   });
 
@@ -1862,8 +1990,7 @@ describe('generated docs source current behavior', () => {
       );
       expect(importsSharedScreenshotHelper(path, source), path).toBe(true);
       expect(source, path).not.toContain('.screenshot(');
-      expect(source, path).not.toContain("testInfo.attach('image'");
-      expect(source, path).not.toContain('testInfo.attach("image"');
+      expect(findDirectImageAttachmentCalls(path, source), path).toEqual([]);
       expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);
       expect(findUnfilteredBroadScreenshotTargets(path, source), path).toEqual(
         [],
