@@ -1081,8 +1081,9 @@ provider outcomes without live identifiers.
     linked to that permission reference and keeps the reference aligned with
     tenant-scoped roles, wildcard permissions, dependent permissions, separate
     global-admin semantics, the permission-reference role-form screenshot, the
-    filtered read-only admin user-list screenshot, the role-list create-action
-    screenshot, and the saved role detail screenshot after role creation. The
+    Product.md tenant-defined/default-role boundary, the filtered read-only
+    admin user-list screenshot, the role-list create-action screenshot, and the
+    saved role detail screenshot after role creation. The
     role-list screenshot targets the surface containing the User roles heading
     and Create role action instead of the isolated link.
   - Keep role create/edit submit guards aligned with the write lifecycle. Local

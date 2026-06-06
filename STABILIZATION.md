@@ -6085,7 +6085,9 @@ ESN-card discount behavior, check-in, receipts, tenant branding/settings,
 legal/privacy settings, and email notifications cannot silently disappear from
 the product-facing documentation inventory. Role documentation source coverage
 also rejects existing-user role-assignment instructions and action selectors
-while the relaunch user-list surface remains read-only.
+while the relaunch user-list surface remains read-only, and it keeps the role
+guide tied to Product.md's tenant-defined/default-role boundary instead of
+system-defined or global default-role wording.
 It also maps `QUALITY.md` generated-documentation topics to checked-in docs
 sources, including paid registration, waitlists, registration cancellation,
 transfer/resale, registration confirmation with QR ticket availability,
@@ -6168,7 +6170,9 @@ states instead of heading-only or error-text-only crops.
 The roles generated doc now focuses the filtered read-only admin user row,
 role-form permission group, and saved role-detail permission surface instead of
 highlighting the whole user-list component, a single checkbox, or the saved role
-heading.
+heading. The matching source guard now also pins default-user and
+default-organizer role copy to tenant-defined roles while rejecting
+system-defined, built-in, or global default-role wording.
 New Playwright skips/fixmes, including
 `test.describe.skip`, should be added only as explicit credential gates or
 honest Browser-backed stabilization placeholders. The Playwright inventory guard

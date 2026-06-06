@@ -6555,6 +6555,18 @@ describe('generated docs source current behavior', () => {
     );
 
     expect(productSource).toContain('- manage roles');
+    expect(productSource).toContain(
+      'Tenants can define their own roles. There is no single system-defined default role.',
+    );
+    expect(productSource).toContain(
+      'Instead, roles can be marked as default by the tenant.',
+    );
+    expect(productSource).toContain(
+      'Permissions should be modeled as capabilities.',
+    );
+    expect(productSource).toContain(
+      'Agents must not bypass capability checks or make authorization behavior more permissive for convenience.',
+    );
     expect(rolesSource).toContain(
       'Learn more at [about permissions](/docs/about-permissions).',
     );
@@ -6596,6 +6608,12 @@ describe('generated docs source current behavior', () => {
       "getByRole('checkbox', { exact: true, name: 'Events' })",
     );
     expect(rolesSource).toContain('Includes: View templates');
+    expect(rolesSource).toContain(
+      '**Default user role**: This role will be assigned to all new users.',
+    );
+    expect(rolesSource).toContain(
+      '**Default organizer role**: This role will be automatically included in the allowed roles of an organizer registration.',
+    );
     expect(rolesSource).toContain('const savedRoleDetailSurface =');
     expect(rolesSource).toContain("locator('app-role-details div')");
     expect(rolesSource).toContain('filter({ hasText: roleDescription })');
@@ -6615,6 +6633,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(rolesSource).not.toMatch(/can assign roles to existing users/i);
     expect(rolesSource).not.toMatch(/assign roles from the all users page/i);
+    expect(rolesSource).not.toMatch(/system-defined default role/i);
+    expect(rolesSource).not.toMatch(/built-in default role/i);
+    expect(rolesSource).not.toMatch(/global default role/i);
     expect(rolesSource).not.toContain(
       "getByRole('button', { name: 'Assign roles' })",
     );
@@ -6656,6 +6677,8 @@ describe('generated docs source current behavior', () => {
     expect(permissionsSource).not.toMatch(/global-admin|global admin/i);
     expect(permissionsSource).not.toContain('Global admin access is a role');
     expect(permissionsSource).not.toContain('tenant roles grant global admin');
+    expect(permissionsSource).not.toMatch(/system-defined default role/i);
+    expect(permissionsSource).not.toMatch(/global default role/i);
   });
 
   it('keeps ESN discount docs aligned with provider-error and write-guard behavior', () => {
