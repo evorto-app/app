@@ -5634,6 +5634,10 @@ drift back to button-only, input-only, heading-only, or text-only images when a
 broader form/component surface is available. The guard also inspects screenshot
 target arrays, so a single-control locator cannot bypass the rule by being
 wrapped in a multi-target argument.
+It also rejects direct single-control CSS locator targets such as `button`,
+`input`, and Material control hosts when they are passed to generated-doc
+screenshots, so docs cannot bypass the role/label guard with selector syntax
+while still cropping to one control.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.

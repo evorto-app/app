@@ -1200,6 +1200,8 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('direct single-control `getByRole`');
     expect(source).toContain('`getByPlaceholder` screenshot targets');
+    expect(source).toContain('single-control CSS locator targets');
+    expect(source).toContain('Material control hosts');
     expect(source).toContain('target arrays');
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
@@ -1226,9 +1228,9 @@ describe('stabilization source', () => {
       'unfiltered broad `section`,\n  `article`, `form`, and `app-*` component-host screenshot targets',
     );
     expect(inventory).toMatch(/role\/text\/label\/placeholder\s+locators/u);
-    expect(inventory).toMatch(
-      /single-control\s+locators inside screenshot target\s+arrays/u,
-    );
+    expect(inventory).toContain('single-control CSS locator targets');
+    expect(inventory).toContain('Material control hosts');
+    expect(inventory).toContain('inside screenshot target arrays');
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local screenshot\s+wrappers/u);
     expect(inventory).toContain('self-tests those bypass examples');

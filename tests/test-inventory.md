@@ -492,8 +492,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   such as `body`, `html`, or `app-root`, rejects unfiltered broad `section`,
   `article`, `form`, and `app-*` component-host screenshot targets, rejects
   direct single-control screenshot targets such as role/text/label/placeholder
-  locators, including direct single-control locators inside screenshot target
-  arrays, before docs can regress to button-only or input-only images, covers
+  locators plus direct single-control CSS locator targets such as `button`,
+  `input`, and Material control hosts, including direct single-control locators
+  inside screenshot target arrays, before docs can regress to button-only or
+  input-only images, covers
   the weak-caption,
   missing-highlight, and blank highlighted-image runtime failures in
   reporter-path tests,

@@ -299,6 +299,17 @@ const findSingleControlScreenshotTargets = (
   );
   const singleControlTargets: string[] = [];
   const singleControlAliases = new Set<string>();
+  const singleControlCssSelectors = new Set([
+    'a',
+    'button',
+    'input',
+    'mat-checkbox',
+    'mat-form-field',
+    'mat-radio-button',
+    'mat-slide-toggle',
+    'select',
+    'textarea',
+  ]);
   const singleControlRoles = new Set([
     'button',
     'checkbox',
@@ -328,6 +339,15 @@ const findSingleControlScreenshotTargets = (
     return null;
   };
 
+  const isSingleControlCssSelector = (selector: string): boolean => {
+    const normalizedSelector = selector.trim().toLowerCase();
+    const selectorHead = normalizedSelector
+      .split(/\s|>|\+|~|:|\.|#|\[/u, 1)[0]
+      ?.trim();
+
+    return selectorHead ? singleControlCssSelectors.has(selectorHead) : false;
+  };
+
   const isSingleControlLocatorTarget = (node: ts.Expression): boolean => {
     if (ts.isArrayLiteralExpression(node)) {
       return node.elements.some((element) =>
@@ -355,6 +375,17 @@ const findSingleControlScreenshotTargets = (
           : null;
 
         return role ? singleControlRoles.has(role) : false;
+      }
+
+      if (methodName === 'locator') {
+        const selector = candidate.arguments[0];
+        if (
+          selector &&
+          (ts.isStringLiteral(selector) ||
+            ts.isNoSubstitutionTemplateLiteral(selector))
+        ) {
+          return isSingleControlCssSelector(selector.text);
+        }
       }
 
       if (
@@ -660,6 +691,18 @@ describe('generated docs source current behavior', () => {
         page,
         'Single placeholder target with a descriptive caption',
       );
+      await takeScreenshot(
+        testInfo,
+        page.locator('button[data-action="save"]'),
+        page,
+        'Single CSS button target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator('input[name="email"]'),
+        page,
+        'Single CSS input target with a descriptive caption',
+      );
       const aliasedErrorMessage = page.getByText('Domain must be a single host name');
       await takeScreenshot(
         testInfo,
@@ -691,7 +734,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/single-control-target.doc.ts:8:13',
       'tests/docs/example/single-control-target.doc.ts:14:13',
       'tests/docs/example/single-control-target.doc.ts:20:13',
-      'tests/docs/example/single-control-target.doc.ts:27:13',
+      'tests/docs/example/single-control-target.doc.ts:26:13',
+      'tests/docs/example/single-control-target.doc.ts:32:13',
+      'tests/docs/example/single-control-target.doc.ts:39:13',
     ]);
   });
 
@@ -753,6 +798,9 @@ describe('generated docs source current behavior', () => {
       'Documentation screenshots require a descriptive caption',
     );
     expect(screenshotHelper).toContain('at least 24 characters and four words');
+    expect(
+      readSource('helpers/testing/generated-documentation-source.spec.ts'),
+    ).toContain('singleControlCssSelectors');
     expect(screenshotHelper).toContain("testInfo.attach('image'");
     expect(screenshotHelper).toContain("testInfo.attach('image-caption'");
     expect(
