@@ -3275,33 +3275,59 @@ describe('stabilization source', () => {
     )?.[0];
 
     expect(checkpoint).toBeDefined();
-    expect(checkpoint).toContain('PR head\n  `aad2bab1`');
-    expect(checkpoint).toContain('`bun run docker:start` rebuilt');
-    expect(checkpoint).toContain('seeded the local Docker database');
-    expect(checkpoint).toContain(
+    const checkpointText = checkpoint ?? '';
+    const normalizedCheckpoint = checkpointText.replace(/\s+/gu, ' ');
+
+    expect(normalizedCheckpoint).toContain('PR head `71c08ed9`');
+    expect(normalizedCheckpoint).toContain('`bun run docker:start` rebuilt');
+    expect(normalizedCheckpoint).toContain('generated `BASE_URL`');
+    expect(normalizedCheckpoint).toContain('seeded the local Docker database');
+    expect(normalizedCheckpoint).toContain('`bun run dev:status` then passed');
+    expect(normalizedCheckpoint).toContain(
+      'reachable database and `/legal/terms`',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'seven inspectable Compose project containers',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'one active test branch inside the two-hour TTL',
+    );
+    expect(normalizedCheckpoint).toContain(
       'derived the public `Soccer Match 1` event detail link',
     );
-    expect(checkpoint).toContain('full anonymous General route set');
-    expect(checkpoint).toContain('320x740, 390x844, and\n  1440x900');
-    expect(checkpoint).toContain('root redirect, events list');
-    expect(checkpoint).toContain('public event detail');
-    expect(checkpoint).toContain('imprint, privacy,\n  terms');
-    expect(checkpoint).toContain('403, 500, 404');
-    expect(checkpoint).toContain('wildcard not-found redirect');
-    expect(checkpoint).toContain('All 30 route/viewport\n  checks');
-    expect(checkpoint).toContain('avoided loading placeholders');
-    expect(checkpoint).toContain('rendered application-error text');
-    expect(checkpoint).toContain('visible\n  left/right overflow entries');
-    expect(checkpoint).toContain('Browser warning/error logs');
-    expect(checkpoint).toContain('390x844 `/events` screenshot');
-    expect(checkpoint).toContain('readable Material event cards');
-    expect(checkpoint).toContain('dates, times');
-    expect(checkpoint).toContain('mobile bottom navigation');
-    expect(checkpoint).toContain('evorto-aad2bab-general-mobile-events.png');
-    expect(checkpoint).toContain('Browser viewport override was reset');
-    expect(checkpoint).toContain('bun run test:e2e:public-general-viewports');
-    expect(checkpoint).not.toContain('system Chrome');
-    expect(checkpoint).not.toContain('Browser review was blocked');
+    expect(normalizedCheckpoint).toContain('full anonymous General route set');
+    expect(normalizedCheckpoint).toContain('320x740, 390x844, and 1440x900');
+    expect(normalizedCheckpoint).toContain('root redirect, events list');
+    expect(normalizedCheckpoint).toContain('public event detail');
+    expect(normalizedCheckpoint).toContain('imprint, privacy, terms');
+    expect(normalizedCheckpoint).toContain('403, 500, 404');
+    expect(normalizedCheckpoint).toContain('wildcard not-found redirect');
+    expect(normalizedCheckpoint).toContain('All 30 route/viewport checks');
+    expect(normalizedCheckpoint).toContain('avoided loading placeholders');
+    expect(normalizedCheckpoint).toContain('rendered application-error text');
+    expect(normalizedCheckpoint).toContain(
+      'visible left/right overflow entries',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'fixed navigation fit each viewport',
+    );
+    expect(normalizedCheckpoint).toContain('Browser warning/error logs');
+    expect(normalizedCheckpoint).toContain('390x844 `/events` screenshot');
+    expect(normalizedCheckpoint).toContain('readable Material event cards');
+    expect(normalizedCheckpoint).toContain('dates, times');
+    expect(normalizedCheckpoint).toContain('mobile bottom navigation');
+    expect(normalizedCheckpoint).toContain(
+      'evorto-current-head-71c08ed-general-mobile-events.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'Browser viewport override was reset',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'bun run test:e2e:public-general-viewports',
+    );
+    expect(checkpointText).not.toContain('system Chrome');
+    expect(checkpointText).not.toContain('Browser review was blocked');
+    expect(checkpointText).not.toMatch(/http:\/\/localhost:\d+/u);
   });
 
   it('keeps the current Browser unlisted-event checkpoint tied to list hiding and direct access', () => {

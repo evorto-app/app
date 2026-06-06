@@ -4097,22 +4097,26 @@ fallback rather than a profile discount-card defect.
   body showed the seeded event list including `Soccer Match 1`, and Browser
   warning/error logs were empty.
 - Current public General Browser refresh checkpoint: after pushing PR head
-  `aad2bab1`, `bun run docker:start` rebuilt the Docker app on the generated
-  `BASE_URL` and seeded the local Docker database. A fresh in-app Browser tab
-  derived the public `Soccer Match 1` event detail link from `/events`, then
-  rechecked the full anonymous General route set at 320x740, 390x844, and
-  1440x900: root redirect, events list, public event detail, imprint, privacy,
-  terms, 403, 500, 404, and wildcard not-found redirect. All 30 route/viewport
-  checks rendered the expected route content, avoided loading placeholders and
-  rendered application-error text, reported no horizontal overflow or visible
-  left/right overflow entries, and had no Browser warning/error logs. The
-  390x844 `/events` screenshot showed readable Material event cards with icons,
-  dates, times, and fixed mobile bottom navigation fitting without overlap; it
-  was saved at
-  `/var/folders/d5/ghwypcsd403dfcl8bpl7grfw0000gn/T/evorto-aad2bab-general-mobile-events.png`.
-  The temporary Browser viewport override was reset after the pass. The matching
-  durable `bun run test:e2e:public-general-viewports` run also passed against the
-  same running Docker app.
+  `71c08ed9`, `bun run docker:start` rebuilt the Docker app on the generated
+  `BASE_URL` and seeded the local Docker database. `bun run dev:status` then
+  passed, including reachable database and
+  `/legal/terms` route probes, seven inspectable Compose project containers, and
+  a Neon dry-run with only protected `main` plus one active test branch inside
+  the two-hour TTL. A fresh in-app Browser tab derived the public
+  `Soccer Match 1` event detail link from `/events`, then rechecked the full
+  anonymous General route set at 320x740, 390x844, and 1440x900: root redirect,
+  events list, public event detail, imprint, privacy, terms, 403, 500, 404, and
+  wildcard not-found redirect. All 30 route/viewport checks rendered the
+  expected route content, avoided loading placeholders and rendered
+  application-error text, reported no horizontal overflow or visible left/right
+  overflow entries, confirmed the fixed navigation fit each viewport, and had
+  no Browser warning/error logs. The 390x844 `/events` screenshot showed
+  readable Material event cards with icons, dates, times, and fixed mobile
+  bottom navigation fitting without overlap; it was saved at
+  `/tmp/evorto-current-head-71c08ed-general-mobile-events.png`. The temporary
+  Browser viewport override was reset after the pass. The matching durable
+  `bun run test:e2e:public-general-viewports` run also passed against the same
+  running Docker app.
 - Current live Browser route refresh checkpoint: the Docker stack stayed healthy
   on the generated `BASE_URL`, the in-app Browser opened `/events`, found the
   seeded `Soccer Match 1` event link, and loaded that event detail page. The
