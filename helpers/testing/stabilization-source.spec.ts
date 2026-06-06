@@ -1401,6 +1401,12 @@ describe('stabilization source', () => {
     expect(source).toContain('design-token/mobile drift guard');
     expect(source).toContain('anonymous public General route manifest');
     expect(source).toContain('without claiming fresh Browser-rendered route');
+    expect(source).toContain('pushed head `7717f124`');
+    expect(source).toContain('bun run test:e2e:docs -- --list');
+    expect(source).toContain('docs-baseline');
+    expect(source).toContain('`30 tests`');
+    expect(source).toContain('`18 files`');
+    expect(source).toContain('without claiming fresh generated screenshots');
     expect(documentationScreenshotSpec).toContain(
       'doc-screenshot waits for descriptive loading text before capture',
     );

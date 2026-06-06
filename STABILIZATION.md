@@ -3639,6 +3639,13 @@ fallback rather than a profile discount-card defect.
   `2 passed (2)` files with `21 passed (21)` tests. This verifies the
   design-token/mobile drift guard and anonymous public General route manifest
   without claiming fresh Browser-rendered route evidence.
+  A current generated-doc discovery refresh on pushed head `7717f124` ran
+  `bun run test:e2e:docs -- --list`; it refreshed `.env.dev`, listed the
+  `docs-baseline` suite without starting the webserver, and reported `30 tests`
+  across `18 files`, including setup/authentication entries plus every
+  checked-in generated-doc source file. This verifies docs inventory/discovery
+  wiring without claiming fresh generated screenshots or Browser-rendered route
+  evidence.
 - Current generated-docs runtime caption checkpoint:
   `tests/support/reporters/documentation-reporter/take-screenshot.ts` now makes
   the caption parameter required and fails fast when the caption is shorter than
