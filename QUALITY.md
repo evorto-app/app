@@ -153,6 +153,7 @@ Organize generated docs by feature area, such as:
 - roles and permissions
 - tenant settings
 - receipts
+- email notifications
 - documentation/help
 
 Persona tags or metadata may be added later.

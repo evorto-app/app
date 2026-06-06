@@ -317,6 +317,7 @@ Important documentation areas include:
 - reviewing receipts
 - tenant branding/settings
 - legal/privacy settings
+- email notifications
 
 Playwright-generated documentation is primarily user/admin product documentation. It also provides useful verification evidence for future agents.
 

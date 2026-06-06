@@ -1891,6 +1891,20 @@ describe('generated docs source current behavior', () => {
         productArea: 'legal/privacy settings',
         terms: ['Legal page fields', 'Hosted privacy policy text'],
       },
+      {
+        files: [
+          'tests/docs/events/register.doc.ts',
+          'tests/docs/finance/receipt-review-reimbursement.doc.ts',
+        ],
+        productArea: 'email notifications',
+        terms: [
+          'registration-confirmation email',
+          'registration-cancelled email',
+          'spot-available email',
+          'transfer-completed email',
+          'queues the submitter email for delivery',
+        ],
+      },
     ] as const;
 
     for (const documentationArea of imageBackedDocumentationAreas) {
@@ -1991,6 +2005,20 @@ describe('generated docs source current behavior', () => {
         ],
         terms: ['Receipt approval queue', 'Receipt review detail'],
         topic: 'receipts',
+      },
+      {
+        files: [
+          'tests/docs/events/register.doc.ts',
+          'tests/docs/finance/receipt-review-reimbursement.doc.ts',
+        ],
+        terms: [
+          'registration-confirmation email',
+          'registration-cancelled email',
+          'spot-available email',
+          'transfer-completed email',
+          'queues the submitter email for delivery',
+        ],
+        topic: 'email notifications',
       },
       {
         files: ['tests/docs/roles/about-permissions.doc.ts'],
