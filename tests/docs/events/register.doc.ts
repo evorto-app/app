@@ -195,6 +195,54 @@ const replayCheckoutCompletedWebhook = async ({
 test.describe('Register for events', () => {
   test.describe.configure({ mode: 'serial', retries: 1 });
 
+  test('Review anonymous registration entry point', async ({
+    browser,
+    seeded,
+  }, testInfo) => {
+    const freeEventId = seeded.scenario.events.freeOpen.eventId;
+    const anonymousContext = await browser.newContext({ storageState: {} });
+    const anonymousPage = await anonymousContext.newPage();
+
+    try {
+      await gotoEventDetail(anonymousPage, freeEventId);
+      await waitForRegistrationStatus(anonymousPage);
+
+      await testInfo.attach('markdown', {
+        body: `
+  ## Account-required registration
+
+  Anonymous visitors can browse listed public events, but registration stays account-required. The registration option explains that registration is only available after logging in and offers a **Log in now** action that returns to the same event after authentication.`,
+      });
+
+      const loginRequiredRegistrationCard = registrationOptionCard(
+        anonymousPage,
+        'Log in now',
+      );
+      await expect(loginRequiredRegistrationCard).toBeVisible();
+      await expect(
+        loginRequiredRegistrationCard.getByText(
+          'You can only register after logging in',
+        ),
+      ).toBeVisible();
+      await expect(
+        loginRequiredRegistrationCard.getByRole('link', {
+          name: 'Log in now',
+        }),
+      ).toHaveAttribute(
+        'href',
+        `/forward-login?redirectUrl=/events/${freeEventId}`,
+      );
+      await takeScreenshot(
+        testInfo,
+        loginRequiredRegistrationCard,
+        anonymousPage,
+        'Anonymous registration card with login-required action',
+      );
+    } finally {
+      await anonymousContext.close();
+    }
+  });
+
   test('Register for a free event', async ({
     database,
     events,

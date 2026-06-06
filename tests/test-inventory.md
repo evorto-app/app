@@ -1094,9 +1094,12 @@ provider outcomes without live identifiers.
     registration-mode rejection,
     waitlist joining, and leave-waitlist cancellation.
   - `docs/events/register.doc.ts` now includes generated documentation
-    journeys for closed registration windows, full participant options with a
-    waitlist action, role-ineligible direct links, and unpaid registration
-    transfer scope, in addition to free and paid registration walkthroughs.
+    journeys for the anonymous account-required registration entry point, closed
+    registration windows, full participant options with a waitlist action,
+    role-ineligible direct links, and unpaid registration transfer scope, in
+    addition to free and paid registration walkthroughs. The anonymous
+    walkthrough screenshots the full registration option card containing the
+    login-required copy and return-to-event login action.
     The paid walkthrough screenshots the hosted Stripe Checkout form through a
     filtered payment/continue/submit form target instead of the first external
     checkout form. The generated narrative also documents queued confirmation,

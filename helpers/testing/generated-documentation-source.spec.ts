@@ -4551,7 +4551,7 @@ describe('generated docs source current behavior', () => {
       ['tests/docs/admin/global-admin.doc.ts', 6],
       ['tests/docs/events/event-approval.doc.ts', 6],
       ['tests/docs/events/event-management.doc.ts', 8],
-      ['tests/docs/events/register.doc.ts', 13],
+      ['tests/docs/events/register.doc.ts', 14],
       ['tests/docs/events/unlisted-user.doc.ts', 2],
       ['tests/docs/finance/finance-overview.doc.ts', 4],
       ['tests/docs/finance/inclusive-tax-rates.doc.ts', 5],
@@ -4705,9 +4705,15 @@ describe('generated docs source current behavior', () => {
         ],
       },
       {
-        files: ['tests/docs/users/create-account.doc.ts'],
+        files: [
+          'tests/docs/events/register.doc.ts',
+          'tests/docs/users/create-account.doc.ts',
+        ],
         productArea: 'Registration requires an account.',
         terms: [
+          'Account-required registration',
+          'You can only register after logging in',
+          'Log in now',
           'Tenant Account Creation',
           'Creating the account joins the current tenant',
         ],
@@ -6068,6 +6074,18 @@ describe('generated docs source current behavior', () => {
   it('keeps registration docs aligned with unavailable states and transfer scope', () => {
     const source = readSource('tests/docs/events/register.doc.ts');
 
+    expect(source).toContain('Review anonymous registration entry point');
+    expect(source).toContain(
+      'Anonymous visitors can browse listed public events, but registration stays account-required.',
+    );
+    expect(source).toContain('browser.newContext({ storageState: {} })');
+    expect(source).toContain("'You can only register after logging in'");
+    expect(source).toContain(
+      '`/forward-login?redirectUrl=/events/${freeEventId}`',
+    );
+    expect(source).toContain(
+      'Anonymous registration card with login-required action',
+    );
     expect(source).toContain(
       'When a participant option is full, registration changes to a distinct **Join waitlist** action',
     );

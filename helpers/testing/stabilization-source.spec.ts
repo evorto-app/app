@@ -1418,10 +1418,12 @@ describe('stabilization source', () => {
     expect(source).toContain('design-token/mobile drift guard');
     expect(source).toContain('anonymous public General route manifest');
     expect(source).toContain('without claiming fresh Browser-rendered route');
-    expect(source).toContain('pushed head `7717f124`');
+    expect(source).toContain(
+      'after adding the account-required\n  registration docs step',
+    );
     expect(source).toContain('bun run test:e2e:docs -- --list');
     expect(source).toContain('docs-baseline');
-    expect(source).toContain('`30 tests`');
+    expect(source).toContain('`31 tests`');
     expect(source).toContain('`18 files`');
     expect(source).toContain('without claiming fresh generated screenshots');
     expect(documentationScreenshotSpec).toContain(
@@ -1688,7 +1690,7 @@ describe('stabilization source', () => {
       '[...expectedScreenshotCounts.keys()].toSorted()',
     );
     expect(generatedDocumentationSource).toContain(
-      "['tests/docs/events/register.doc.ts', 13]",
+      "['tests/docs/events/register.doc.ts', 14]",
     );
     expect(generatedDocumentationSource).toContain(
       "['tests/docs/templates/templates.doc.ts', 8]",

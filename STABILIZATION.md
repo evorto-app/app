@@ -1355,7 +1355,15 @@ the current working direction until a product decision overrides them.
 - `src/app/scanning/handle-registration/handle-registration.component.spec.ts` covers scanned-registration check-in button and spot-count labels.
 - `src/app/scanning/handle-registration/handle-registration.component.spec.ts` also covers the local check-in action guard for unavailable, completed, pending, and empty spot-count states, plus guest-count input clamping before mutation payload creation.
 - Server unit coverage proves future-event timing disables scan check-in and rejects direct check-in writes before the pre-start window opens. Server unit coverage also proves pending, cancelled, and waitlisted registrations disable scan check-in and reject direct check-in writes.
-- `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment, asserts the visible QR image before screenshotting successful free and paid registration ticket cards, no longer claims QR email delivery exists in the current relaunch flow, and now explains the queued confirmation, cancellation, transfer-completed, and waitlist spot-available registration lifecycle emails.
+- `tests/docs/events/register.doc.ts` documents that anonymous visitors can
+  browse public event details but registration remains account-required, then
+  screenshots the full registration option card containing the login-required
+  copy and return-to-event login action. It also documents that the ticket QR
+  code is available after registration/payment, asserts the visible QR image
+  before screenshotting successful free and paid registration ticket cards, no
+  longer claims QR email delivery exists in the current relaunch flow, and now
+  explains the queued confirmation, cancellation, transfer-completed, and
+  waitlist spot-available registration lifecycle emails.
 - `tests/docs/events/event-management.doc.ts` documents the organizer-facing QR scan/check-in flow, including scan warnings, check-in authorization, buyer-plus-selected-guests checked-in count updates, and selected guest-quantity check-in.
 - **Addressed in stabilization pass:** `tests/docs/events/event-management.doc.ts`
   now seeds a deterministic confirmed registration with guests, opens the
@@ -3645,9 +3653,10 @@ fallback rather than a profile discount-card defect.
   `2 passed (2)` files with `21 passed (21)` tests. This verifies the
   design-token/mobile drift guard and anonymous public General route manifest
   without claiming fresh Browser-rendered route evidence.
-  A current generated-doc discovery refresh on pushed head `7717f124` ran
+  A current generated-doc discovery refresh after adding the account-required
+  registration docs step ran
   `bun run test:e2e:docs -- --list`; it refreshed `.env.dev`, listed the
-  `docs-baseline` suite without starting the webserver, and reported `30 tests`
+  `docs-baseline` suite without starting the webserver, and reported `31 tests`
   across `18 files`, including setup/authentication entries plus every
   checked-in generated-doc source file. This verifies docs inventory/discovery
   wiring without claiming fresh generated screenshots or Browser-rendered route
