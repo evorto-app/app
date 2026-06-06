@@ -220,7 +220,7 @@ const findGenericScreenshotTargets = (
     return returnsGenericTarget;
   };
 
-  const visit = (node: ts.Node): void => {
+  const collectAliases = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
@@ -249,6 +249,10 @@ const findGenericScreenshotTargets = (
       genericTargetFunctions.add(node.name.text);
     }
 
+    ts.forEachChild(node, collectAliases);
+  };
+
+  const inspectScreenshotCalls = (node: ts.Node): void => {
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
@@ -261,10 +265,11 @@ const findGenericScreenshotTargets = (
       }
     }
 
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, inspectScreenshotCalls);
   };
 
-  visit(sourceFile);
+  collectAliases(sourceFile);
+  inspectScreenshotCalls(sourceFile);
 
   return genericTargets;
 };
@@ -381,7 +386,7 @@ const findUnfilteredBroadScreenshotTargets = (
     return returnsBroadLocator;
   };
 
-  const visit = (node: ts.Node): void => {
+  const collectAliases = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
@@ -410,6 +415,10 @@ const findUnfilteredBroadScreenshotTargets = (
       broadTargetFunctions.add(node.name.text);
     }
 
+    ts.forEachChild(node, collectAliases);
+  };
+
+  const inspectScreenshotCalls = (node: ts.Node): void => {
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
@@ -422,10 +431,11 @@ const findUnfilteredBroadScreenshotTargets = (
       }
     }
 
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, inspectScreenshotCalls);
   };
 
-  visit(sourceFile);
+  collectAliases(sourceFile);
+  inspectScreenshotCalls(sourceFile);
 
   return broadTargets;
 };
@@ -613,7 +623,7 @@ const findSingleControlScreenshotTargets = (
     return returnsSingleControl;
   };
 
-  const visit = (node: ts.Node): void => {
+  const collectAliases = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
@@ -642,6 +652,10 @@ const findSingleControlScreenshotTargets = (
       singleControlFunctions.add(node.name.text);
     }
 
+    ts.forEachChild(node, collectAliases);
+  };
+
+  const inspectScreenshotCalls = (node: ts.Node): void => {
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
@@ -654,10 +668,11 @@ const findSingleControlScreenshotTargets = (
       }
     }
 
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, inspectScreenshotCalls);
   };
 
-  visit(sourceFile);
+  collectAliases(sourceFile);
+  inspectScreenshotCalls(sourceFile);
 
   return singleControlTargets;
 };
@@ -803,7 +818,7 @@ const findIconOrMediaScreenshotTargets = (
     return returnsIconOrMedia;
   };
 
-  const visit = (node: ts.Node): void => {
+  const collectAliases = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
@@ -832,6 +847,10 @@ const findIconOrMediaScreenshotTargets = (
       iconOrMediaFunctions.add(node.name.text);
     }
 
+    ts.forEachChild(node, collectAliases);
+  };
+
+  const inspectScreenshotCalls = (node: ts.Node): void => {
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
@@ -844,10 +863,11 @@ const findIconOrMediaScreenshotTargets = (
       }
     }
 
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, inspectScreenshotCalls);
   };
 
-  visit(sourceFile);
+  collectAliases(sourceFile);
+  inspectScreenshotCalls(sourceFile);
 
   return iconOrMediaTargets;
 };
@@ -1331,6 +1351,62 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/icon-target.doc.ts:38:13',
       'tests/docs/example/icon-target.doc.ts:45:13',
       'tests/docs/example/icon-target.doc.ts:52:13',
+    ]);
+  });
+
+  it('detects screenshot target aliases and helpers declared after use', () => {
+    const forwardAliasSource = `
+      await takeScreenshot(
+        testInfo,
+        forwardAliasTarget,
+        page,
+        'Forward alias target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        forwardHelperTarget(page),
+        page,
+        'Forward helper target with a descriptive caption',
+      );
+      const forwardAliasTarget = page.locator('main');
+      const forwardHelperTarget = (page) => page.locator('main');
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/forward-alias-target.doc.ts',
+        forwardAliasSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/forward-alias-target.doc.ts:2:13',
+      'tests/docs/example/forward-alias-target.doc.ts:8:13',
+    ]);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/forward-alias-target.doc.ts',
+        forwardAliasSource.replaceAll("locator('main')", "locator('section')"),
+      ),
+    ).toEqual([
+      'tests/docs/example/forward-alias-target.doc.ts:2:13',
+      'tests/docs/example/forward-alias-target.doc.ts:8:13',
+    ]);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/forward-alias-target.doc.ts',
+        forwardAliasSource.replaceAll("locator('main')", "locator('button')"),
+      ),
+    ).toEqual([
+      'tests/docs/example/forward-alias-target.doc.ts:2:13',
+      'tests/docs/example/forward-alias-target.doc.ts:8:13',
+    ]);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/forward-alias-target.doc.ts',
+        forwardAliasSource.replaceAll("locator('main')", "locator('img')"),
+      ),
+    ).toEqual([
+      'tests/docs/example/forward-alias-target.doc.ts:2:13',
+      'tests/docs/example/forward-alias-target.doc.ts:8:13',
     ]);
   });
 

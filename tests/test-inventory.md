@@ -526,7 +526,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `getByTitle`, including direct single-control or icon/media locators inside
   screenshot target arrays and helper-returned icon/media locators, before docs
   can regress to button-only, input-only, option-only, cell-only, or icon-only
-  images, covers
+  images, resolves screenshot target aliases and helper functions before
+  inspecting screenshot calls so later declarations cannot bypass those
+  meaningful-target checks, covers
   the weak-caption,
   missing-highlight, and blank highlighted-image runtime failures in
   reporter-path tests,

@@ -5722,6 +5722,10 @@ when they are passed to generated-doc screenshots, so docs cannot crop to a lone
 icon or uploaded media asset instead of the surrounding workflow surface. The
 guard also inspects screenshot target arrays and helper-returned targets for
 direct icon/media screenshot targets.
+The generated-doc source guard now collects screenshot target aliases and helper
+functions before it inspects screenshot calls, so generic shell, broad,
+single-control, and icon/media-only targets are still rejected when the alias or
+helper is declared later in the file.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.
