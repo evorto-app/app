@@ -5730,6 +5730,10 @@ product control, form, component, row, or state while still capturing visible
 page content outside the highlighted target. The guard now also follows aliased
 generic shell locator targets and helper functions returning generic shell
 locators into screenshot arguments and arrays.
+It now walks locator call chains too, so `page.locator('main').first()` and
+`page.locator('body').filter(...)` still count as generic page-shell targets
+instead of bypassing the meaningful-surface rule through harmless-looking
+Playwright chaining.
 It also rejects unfiltered broad `section`, `article`, `div`, `form`, and `app-*`
 component-host screenshot targets, so docs must focus a filtered semantic
 region, a concrete form state, or a concrete component/control instead of

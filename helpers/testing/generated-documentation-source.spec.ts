@@ -406,15 +406,22 @@ const findGenericScreenshotTargets = (
       return true;
     }
 
-    if (
-      ts.isCallExpression(target) &&
-      ts.isPropertyAccessExpression(target.expression) &&
-      target.expression.name.text === 'locator'
+    let candidate: ts.Expression = target;
+
+    while (
+      ts.isCallExpression(candidate) &&
+      ts.isPropertyAccessExpression(candidate.expression)
     ) {
-      const selector = target.arguments[0];
-      if (ts.isStringLiteral(selector)) {
-        return genericSelectors.has(selector.text.trim().toLowerCase());
+      const methodName = candidate.expression.name.text;
+
+      if (methodName === 'locator') {
+        const selector = candidate.arguments[0];
+        if (ts.isStringLiteral(selector)) {
+          return genericSelectors.has(selector.text.trim().toLowerCase());
+        }
       }
+
+      candidate = candidate.expression.expression;
     }
 
     return false;
@@ -2519,6 +2526,41 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/grouped-target.doc.ts:32:13',
       'tests/docs/example/grouped-target.doc.ts:56:13',
+    ]);
+  });
+
+  it('detects chained generic documentation screenshot targets', () => {
+    const chainedGenericTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        page.locator('main').first(),
+        page,
+        'Chained generic main shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator('body').filter({ hasText: 'Settings' }),
+        page,
+        'Filtered generic body shell target with a descriptive caption',
+      );
+      const filteredShell = page.locator('app-root').filter({ hasText: 'Evorto' });
+      await takeScreenshot(
+        testInfo,
+        filteredShell,
+        page,
+        'Aliased filtered app root shell target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/chained-generic-target.doc.ts',
+        chainedGenericTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/chained-generic-target.doc.ts:2:13',
+      'tests/docs/example/chained-generic-target.doc.ts:8:13',
+      'tests/docs/example/chained-generic-target.doc.ts:15:13',
     ]);
   });
 

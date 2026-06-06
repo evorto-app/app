@@ -1371,6 +1371,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'aliased generic locators and\n  helper-returned generic locators inside screenshot arguments and arrays',
     );
+    expect(inventory).toMatch(/chained generic page-shell locators/u);
     expect(inventory).toContain(
       'unfiltered broad `section`, `article`, `div`, `form`, and `app-*`\n  component-host screenshot targets',
     );
@@ -1677,6 +1678,15 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('genericTargetAliases');
     expect(generatedDocumentationSource).toContain('returnsGenericLocator');
     expect(generatedDocumentationSource).toContain('mainShellSurface');
+    expect(generatedDocumentationSource).toContain(
+      'detects chained generic documentation screenshot targets',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "page.locator('main').first()",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "page.locator('body').filter",
+    );
     expect(generatedDocumentationSource).toContain(
       "'../../support/reporters/documentation-reporter'",
     );
