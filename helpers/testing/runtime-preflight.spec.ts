@@ -328,7 +328,7 @@ describe('evaluateRuntimePreflight', () => {
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
     );
     expect(packageJson.scripts['dev:bootstrap']).toBe(
-      "sh -c '[ -f .env ] || bun run env:copy-main' && bun run dev:check",
+      'bun run env:copy-main -- --if-missing && bun run dev:check',
     );
     expect(packageJson.scripts['dev:start']).toBe(
       'bun run dev:check && dotenv -c dev -- sh -c \'bunx --bun ng serve --host 0.0.0.0 --port "$APP_HOST_PORT"\'',
@@ -1493,7 +1493,7 @@ describe('evaluateRuntimePreflight', () => {
       'bun helpers/testing/copy-main-environment.ts',
     );
     expect(packageJson.scripts['dev:bootstrap']).toBe(
-      "sh -c '[ -f .env ] || bun run env:copy-main' && bun run dev:check",
+      'bun run env:copy-main -- --if-missing && bun run dev:check',
     );
     expect(helper).toContain('env?: NodeJS.ProcessEnv');
     expect(helper).toContain('const environment = options.env ?? process.env');
@@ -1505,6 +1505,8 @@ describe('evaluateRuntimePreflight', () => {
     expect(helper).toContain("path.join(repositoryRoot, '.env')");
     expect(helper).toContain('const argv = options.argv ?? process.argv');
     expect(helper).toContain("argv.includes('--force')");
+    expect(helper).toContain("argv.includes('--if-missing')");
+    expect(helper).toContain('already exists; leaving it unchanged');
     expect(helper).toContain('already exists');
     expect(helper).toContain('nothing to copy');
     expect(helper).toContain('No main-checkout developer secrets file found');
@@ -1513,7 +1515,8 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain('bun run env:copy-main');
     expect(helpersReadme).toContain('bun run dev:bootstrap');
     expect(helpersReadme).toContain('MAIN_CHECKOUT_DIR=/path/to/repo');
-    expect(helpersReadme).toContain('unless rerun with `--force`');
+    expect(helpersReadme).toContain('unless rerun with `--if-missing`');
+    expect(helpersReadme).toContain('`--force` to replace it');
     expect(testsReadme).toContain('bun run env:copy-main');
     expect(testsReadme).toContain('bun run dev:bootstrap');
     expect(testsReadme).toContain('MAIN_CHECKOUT_DIR=/path/to/repo');

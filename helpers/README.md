@@ -87,7 +87,9 @@ and runs the Neon Local cleanup dry-run in one pass so Docker failures do not
 hide branch-cleanup status or missing development variables.
 Use `bun run dev:bootstrap` in a fresh worktree to copy the main checkout `.env`
 only when this worktree does not already have one, then run the normal
-`dev:check` preflight.
+`dev:check` preflight. The missing-file decision lives in
+`env:copy-main --if-missing`, so the package script does not need a shell
+conditional.
 
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
@@ -239,7 +241,8 @@ failed required-variable row and the developer-secrets warning both point at
 warns not to copy generated `.env.dev` or the main checkout `.npmrc`. The
 guarded copy path reads `$HOME/code/<repo>/.env` by default, supports
 `MAIN_CHECKOUT_DIR=/path/to/repo` for a different source checkout, and refuses
-to overwrite an existing worktree `.env` unless rerun with `--force`.
+to overwrite an existing worktree `.env` unless rerun with `--if-missing` to
+leave it unchanged or `--force` to replace it.
 Font Awesome icons use public npm packages only; Docker and CI installs must
 not depend on a private Font Awesome registry token or project `.npmrc`. CI
 install retries preserve the restored Bun package cache instead of clearing it

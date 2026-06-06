@@ -1071,7 +1071,9 @@ provider outcomes without live identifiers.
   warning both point at the guarded `bun run env:copy-main` command while
   keeping generated `.env.dev` worktree-local and the main checkout `.npmrc`
   out of the worktree. `bun run dev:bootstrap` is covered as the fresh-worktree
-  shortcut that copies `.env` only when missing before running `dev:check`.
+  shortcut that asks `env:copy-main --if-missing` to copy `.env` only when
+  missing before running `dev:check`, keeping the missing-file decision inside
+  the tested Bun helper instead of a package-script shell conditional.
   `helpers/testing/copy-main-environment.spec.ts` exercises the helper behavior
   directly: default sibling-checkout copy, explicit `MAIN_CHECKOUT_DIR`,
   overwrite refusal unless `--force`, missing-source checklist copy, and the

@@ -65,7 +65,7 @@ describe('copyMainEnvironment', () => {
           log: ignoreLog,
           repositoryRoot,
         }),
-      ).toThrow(/already exists/u);
+      ).toThrow(/--if-missing[\s\S]*--force/u);
       expect(fs.readFileSync(path.join(repositoryRoot, '.env'), 'utf8')).toBe(
         'SECRET=worktree\n',
       );
@@ -80,6 +80,36 @@ describe('copyMainEnvironment', () => {
       expect(fs.readFileSync(path.join(repositoryRoot, '.env'), 'utf8')).toBe(
         'SECRET=main\n',
       );
+    });
+  });
+
+  it('leaves an existing worktree .env unchanged when if-missing is requested', () => {
+    withTemporaryDirectory((root) => {
+      const repositoryRoot = path.join(root, 'worktrees', 'e159', 'evorto');
+      const mainCheckout = path.join(root, 'home', 'code', 'evorto');
+      fs.mkdirSync(repositoryRoot, { recursive: true });
+      fs.mkdirSync(mainCheckout, { recursive: true });
+      fs.writeFileSync(path.join(mainCheckout, '.env'), 'SECRET=main\n');
+      fs.writeFileSync(path.join(repositoryRoot, '.env'), 'SECRET=worktree\n');
+      const messages: string[] = [];
+
+      copyMainEnvironment({
+        argv: [
+          'bun',
+          'helpers/testing/copy-main-environment.ts',
+          '--if-missing',
+        ],
+        env: { HOME: path.join(root, 'home') },
+        log: (message) => messages.push(message),
+        repositoryRoot,
+      });
+
+      expect(fs.readFileSync(path.join(repositoryRoot, '.env'), 'utf8')).toBe(
+        'SECRET=worktree\n',
+      );
+      expect(messages).toEqual([
+        `${path.join(repositoryRoot, '.env')} already exists; leaving it unchanged.`,
+      ]);
     });
   });
 

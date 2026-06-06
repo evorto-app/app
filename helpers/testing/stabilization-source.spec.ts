@@ -3456,7 +3456,7 @@ describe('stabilization source', () => {
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
     );
     expect(packageJson.scripts['dev:bootstrap']).toBe(
-      "sh -c '[ -f .env ] || bun run env:copy-main' && bun run dev:check",
+      'bun run env:copy-main -- --if-missing && bun run dev:check',
     );
     expect(packageJson.scripts['dev:start']).toContain('bun run dev:check');
     expect(packageJson.scripts['dev:start']).toContain('--host 0.0.0.0');
@@ -3503,6 +3503,10 @@ describe('stabilization source', () => {
       'const argv = options.argv ?? process.argv',
     );
     expect(copyMainEnvironment).toContain("argv.includes('--force')");
+    expect(copyMainEnvironment).toContain("argv.includes('--if-missing')");
+    expect(copyMainEnvironment).toContain(
+      'already exists; leaving it unchanged',
+    );
     expect(copyMainEnvironment).toContain('Do not copy .env.dev or .npmrc');
     expect(copyMainEnvironment).not.toContain("'.env.dev'");
     expect(copyMainEnvironment).toContain('export const copyMainEnvironment');
@@ -3517,6 +3521,9 @@ describe('stabilization source', () => {
     );
     expect(copyMainEnvironmentSpec).toContain(
       'refuses to overwrite an existing worktree .env unless forced',
+    );
+    expect(copyMainEnvironmentSpec).toContain(
+      'leaves an existing worktree .env unchanged when if-missing is requested',
     );
     expect(copyMainEnvironmentSpec).toContain('MAIN_CHECKOUT_DIR');
     expect(copyMainEnvironmentSpec).toContain(String.raw`env\.example`);
@@ -3547,6 +3554,8 @@ describe('stabilization source', () => {
     expect(testsReadme).toContain('sibling main checkout `.env`');
     expect(inventory).toContain('missing-secret recovery hint');
     expect(inventory).toContain('bun run dev:bootstrap');
+    expect(inventory).toContain('env:copy-main --if-missing');
+    expect(inventory).toContain('package-script shell conditional');
     expect(inventory).toContain(
       'helpers/testing/copy-main-environment.spec.ts',
     );

@@ -1924,15 +1924,16 @@ the current working direction until a product decision overrides them.
   recovery path that `dev:check` and `docker:check` now recommend directly: it
   copies only the main checkout's untracked `.env`, defaults to `$HOME/code/<repo>/.env`,
   accepts `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite the
-  worktree `.env` unless rerun with `--force`. Generated `.env.dev` remains
-  worktree-local and is never copied; the main checkout `.npmrc` is also never
-  copied, keeping Font Awesome installs on the public npm registry. Focused
-  helper coverage now exercises the default copy path, explicit checkout
-  override, overwrite refusal, forced replacement, missing-source checklist
+  worktree `.env` unless rerun with `--if-missing` to leave it unchanged or
+  `--force` to replace it. Generated `.env.dev` remains worktree-local and is
+  never copied; the main checkout `.npmrc` is also never copied, keeping Font
+  Awesome installs on the public npm registry. Focused helper coverage now
+  exercises the default copy path, explicit checkout override, if-missing
+  no-op, overwrite refusal, forced replacement, missing-source checklist
   message, and `.env.dev`/`.npmrc` boundaries.
 - `bun run dev:bootstrap` is the fresh-worktree shortcut for that recovery path:
-  it copies `.env` from the main checkout only when this worktree does not
-  already have one, then runs the normal `dev:check` preflight.
+  it delegates the missing-file decision to `env:copy-main --if-missing`, then
+  runs the normal `dev:check` preflight.
 - Local Playwright package scripts that run `playwright test`, plus `dev:start`,
   `db:*`, and `docker:*`, now refresh `.env.dev` before running
   `dotenv -c dev`, reducing fresh-worktree and wrong-database risk.

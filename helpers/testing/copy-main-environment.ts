@@ -27,6 +27,7 @@ export const copyMainEnvironment = (
   const homeDirectory = environment['HOME']?.trim();
   const explicitMainCheckout = environment['MAIN_CHECKOUT_DIR']?.trim();
   const force = argv.includes('--force');
+  const ifMissing = argv.includes('--if-missing');
 
   if (!homeDirectory && !explicitMainCheckout) {
     fail([
@@ -53,10 +54,15 @@ export const copyMainEnvironment = (
     ]);
   }
 
+  if (fileExists(destination) && ifMissing && !force) {
+    log(`${destination} already exists; leaving it unchanged.`);
+    return;
+  }
+
   if (fileExists(destination) && !force) {
     fail([
       `${destination} already exists.`,
-      'Rerun with --force only when you intentionally want to replace it.',
+      'Rerun with --if-missing to leave it unchanged or --force only when you intentionally want to replace it.',
     ]);
   }
 
