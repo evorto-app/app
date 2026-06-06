@@ -1614,6 +1614,35 @@ describe('generated docs source current behavior', () => {
         topic: 'registrations',
       },
       {
+        files: ['tests/docs/events/register.doc.ts'],
+        terms: ['Stripe Checkout', 'Paid event registration options'],
+        topic: 'registering for a paid event',
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        terms: [
+          'Full participant options expose a distinct **Join waitlist** action',
+          'Leave waitlist',
+        ],
+        topic: 'joining a waitlist',
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        terms: [
+          'Cancellation queues a registration-cancelled email',
+          'Paid confirmed cancellations are still allowed',
+        ],
+        topic: 'cancelling a registration',
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        terms: [
+          'Transfer an unpaid registration',
+          'Paid transfer and resale boundary',
+        ],
+        topic: 'transferring/reselling a registration',
+      },
+      {
         files: [
           'tests/docs/events/register.doc.ts',
           'tests/docs/finance/inclusive-tax-rates.doc.ts',

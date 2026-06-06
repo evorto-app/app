@@ -5700,7 +5700,8 @@ create-from-template, event review/publishing, templates, roles/capabilities,
 check-in, receipts, tenant branding/settings, and legal/privacy settings cannot
 silently disappear from the product-facing documentation inventory.
 It also maps `QUALITY.md` generated-documentation topics to checked-in docs
-sources, including payments and documentation/help, so the product and quality
+sources, including paid registration, waitlists, registration cancellation,
+transfer/resale, payments, and documentation/help, so the product and quality
 root docs cannot drift apart on which user/admin guides are expected.
 The template generated doc now screenshots the seeded template-list navigation
 containing both a category and the Create template action instead of highlighting

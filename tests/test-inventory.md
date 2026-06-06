@@ -493,7 +493,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   scope, transfers, waitlists, create-from-template, event review/publishing,
   templates, roles/capabilities, check-in, receipts, tenant branding/settings,
   and legal/privacy settings, maps root `QUALITY.md` generated-documentation topics
-  including payments and documentation/help to checked-in docs sources,
+  including paid registration, waitlists, registration cancellation,
+  transfer/resale, payments, and documentation/help to checked-in docs sources,
   rejects fixed `waitForTimeout` sleeps in generated docs so screenshots stay
   tied to concrete UI state,
   keeps the helper's runtime caption parameter required with the same minimum
