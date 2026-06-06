@@ -850,6 +850,34 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     );
   };
 
+  const isReflectApplyRawMarkdownAttachmentCall = (
+    callee: ts.Expression,
+    args: ts.NodeArray<ts.Expression>,
+  ): boolean => {
+    if (
+      !isReflectApplyCallee(callee) ||
+      !args[0] ||
+      !isTrackedAttachFunctionReference(args[0])
+    ) {
+      return false;
+    }
+
+    const applyArguments = args[2] ? unwrapExpression(args[2]) : null;
+
+    if (!applyArguments || !ts.isArrayLiteralExpression(applyArguments)) {
+      return true;
+    }
+
+    if (hasSpreadArrayElement(applyArguments.elements)) {
+      return true;
+    }
+
+    return hasRawMarkdownAttachmentArguments(
+      applyArguments.elements[0],
+      applyArguments.elements[1],
+    );
+  };
+
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = unwrapExpression(node.expression);
@@ -867,7 +895,8 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
               node.arguments[0],
               node.arguments[1],
             ))) ||
-        isIndirectRawMarkdownAttachmentCall(callee, node.arguments)
+        isIndirectRawMarkdownAttachmentCall(callee, node.arguments) ||
+        isReflectApplyRawMarkdownAttachmentCall(callee, node.arguments)
       ) {
         rawImages.push(describeCall(node));
       }
@@ -3437,6 +3466,14 @@ describe('generated docs source current behavior', () => {
         markdownAttachmentName,
         shorthandMarkdownPayload,
       );
+      await Reflect.apply(testInfo.attach, testInfo, [
+        'markdown',
+        rawMarkdownPayload,
+      ]);
+      await Reflect.apply(attachMarkdownEvidence, testInfo, [
+        markdownAttachmentName,
+        shorthandMarkdownPayload,
+      ]);
       await testInfo.attach.bind(testInfo)('markdown', rawMarkdownPayload);
       await attachHelpers.evidence.bind(testInfo)(
         markdownAttachmentName,
@@ -3471,7 +3508,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/raw-markdown-image.doc.ts:44:13',
       'tests/docs/example/raw-markdown-image.doc.ts:48:13',
       'tests/docs/example/raw-markdown-image.doc.ts:53:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:54:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:57:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:61:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:62:13',
     ]);
   });
 

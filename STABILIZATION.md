@@ -6093,9 +6093,9 @@ Generated-doc markdown attachments also reject raw Markdown image syntax and
 HTML `<img>` tags, including aliased markdown names, bracketed `attach` calls,
 aliased body variables, aliased payload objects, shorthand `{ body }`, bound,
 destructured, grouped, indexed, or assigned `attach` helpers, and spread,
-`call`, `apply`, or inline `bind` forwarding, so product docs cannot add
-unrelated or unhighlighted images outside the shared screenshot helper, caption,
-highlight, and content-pixel checks.
+`call`, `apply`, `Reflect.apply`, or inline `bind` forwarding, so product docs
+cannot add unrelated or unhighlighted images outside the shared screenshot
+helper, caption, highlight, and content-pixel checks.
 Generated-doc source coverage now also maps the root product docs' important
 documentation areas to generated doc files and concrete source terms, so
 essential flows like browsing events, registering, account-required tenant

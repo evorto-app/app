@@ -1469,7 +1469,9 @@ describe('stabilization source', () => {
     expect(source).toContain('HTML `<img>` tags');
     expect(source).toContain('bound,\ndestructured, grouped, indexed');
     expect(source).toContain('assigned `attach` helpers');
-    expect(source).toContain('spread,\n`call`, `apply`, or inline `bind`');
+    expect(source).toContain(
+      'spread,\n`call`, `apply`, `Reflect.apply`, or inline `bind`',
+    );
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
