@@ -3279,13 +3279,22 @@ describe('stabilization source', () => {
       'stable logged-in starting points without running the full viewport pack',
     );
     expect(statusTable).toContain(
-      'Latest PR status refresh for pushed head `acc6af1e`',
+      'Latest PR status refresh for pushed head `d984c9bf`',
     );
     expect(statusTable).toContain(
-      'CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` green',
+      'CodeQL, Git Town, Copilot setup, CodeRabbit, and the E2E cache warmer green',
     );
     expect(statusTable).toContain(
-      'E2E run `27051129075` completed all three serialized Playwright shards with warmed Bun, Docker, and Playwright caches',
+      'serialized Playwright shards are still running or queued',
+    );
+    expect(statusTable).toContain(
+      '`functional-1` already restoring and requiring the warmed Docker Bun cache mount before Docker startup',
+    );
+    expect(statusTable).toContain(
+      'latest fully green serialized E2E run remains `27051129075` on pushed head `acc6af1e`',
+    );
+    expect(statusTable).toContain(
+      'all three Playwright shards completed with warmed Bun, Docker, and Playwright caches',
     );
     expect(statusTable).toContain(
       'confirmed Neon branch expiration in each worker',
@@ -3294,15 +3303,24 @@ describe('stabilization source', () => {
       'completed Docker stop plus final Neon prune in each worker',
     );
     expect(statusTable).toContain(
-      'The previous full current-head E2E run `27050227993` on pushed head `92194859` also completed all three serialized Playwright shards green',
+      'E2E run `27053225359` has now proven both functional serialized worker cleanup paths on pushed head `d984c9bf`',
     );
-    expect(statusTable).toContain('latest local Neon cleanup dry-run reported');
+    expect(statusTable).toContain(
+      '`functional-1` and `functional-2` restored the warmed caches, started Docker, confirmed Neon branch expiration',
+    );
+    expect(statusTable).toContain('recorded Neon Local metadata');
+    expect(statusTable).toContain('passed their Playwright shards');
+    expect(statusTable).toContain('stopped Docker');
+    expect(statusTable).toContain('ran the final Neon prune');
+    expect(statusTable).toContain(
+      'Post-finalizer local Neon cleanup dry-runs after each functional worker',
+    );
     expect(statusTable).toContain('`total=1`');
     expect(statusTable).toContain('`protected=1`');
     expect(statusTable).toContain('`active_test=0`');
     expect(statusTable).toContain('`stale_deleted=0`');
     expect(statusTable).toContain(
-      'only protected `main` remained visible outside stale cleanup eligibility',
+      'only protected `main` remained once each worker released Neon Local',
     );
     expect(statusTable).not.toContain(
       'Current PR status refreshes show visible checks green',
