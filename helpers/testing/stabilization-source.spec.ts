@@ -1558,10 +1558,10 @@ describe('stabilization source', () => {
     expect(inventory).toContain('missing-highlight');
     expect(inventory).toContain('blank/context-free highlighted-image');
     expect(inventory).toContain('uncaptioned image attachments');
-    expect(inventory).toContain('orphan image-caption attachments');
-    expect(inventory).toContain('valid PNG screenshots');
-    expect(inventory).toContain(
-      'highlighted focus-target pixels and visible surrounding page content',
+    expect(inventory).toContain('orphan or weak image-caption attachments');
+    expect(inventory).toMatch(/valid\s+PNG\s+screenshots/u);
+    expect(inventory).toMatch(
+      /highlighted\s+focus-target\s+pixels\s+and\s+visible\s+surrounding\s+page\s+content/u,
     );
     expect(inventory).toContain('runtime');
     expect(inventory).toContain('failure');
@@ -1874,6 +1874,12 @@ describe('stabilization source', () => {
       'Documentation image-caption attachment in ${test.title} is missing a preceding image attachment.',
     );
     expect(reporterAttachmentsSource).toContain(
+      'assertDescriptiveDocumentationCaption',
+    );
+    expect(reporterAttachmentsSource).toContain(
+      'must be a descriptive caption of at least 24 characters and four words',
+    );
+    expect(reporterAttachmentsSource).toContain(
       'must be a valid PNG screenshot',
     );
     expect(reporterAttachmentsSource).toContain(
@@ -1897,10 +1903,16 @@ describe('stabilization source', () => {
       'documentation reporter rejects orphan image-caption attachments',
     );
     expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects weak image captions at output time',
+    );
+    expect(reporterPathsSpec).toContain(
       'Documentation image attachment in Uncaptioned image is missing a paired image-caption attachment.',
     );
     expect(reporterPathsSpec).toContain(
       'Documentation image-caption attachment in Orphan caption is missing a preceding image attachment.',
+    );
+    expect(reporterPathsSpec).toContain(
+      'Documentation image-caption attachment in Weak reporter caption must be a descriptive caption of at least 24 characters and four words.',
     );
     expect(reporterPathsSpec).toContain(
       'documentation screenshot helper rejects weak runtime captions',
@@ -6604,10 +6616,10 @@ describe('stabilization source', () => {
     expect(inventory).toContain('specs/screenshot/doc-screenshot.test.ts');
     expect(inventory).toContain('test:e2e:reporter-paths');
     expect(inventory).toContain('test:e2e:doc-screenshot');
-    expect(inventory).toContain('highlighted screenshot targets');
+    expect(inventory).toMatch(/highlighted\s+screenshot\s+targets/u);
     expect(inventory).toContain('static doc-screenshot helper contract');
     expect(inventory).toMatch(/visible page-content\s+detection/u);
-    expect(inventory).toContain('ignored docs/image output paths');
+    expect(inventory).toMatch(/ignored\s+docs(?:\/image)?\s+output paths/u);
     expect(inventory).toContain('support/utils/page-layout.ts');
     expect(inventory).toContain('shared viewport layout guard');
     expect(inventory).toContain('common ARIA/Material\n    interactive roles');

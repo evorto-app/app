@@ -211,9 +211,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Runtime, reporting, screenshots, and seed health:
   - `specs/auth/storage-state-refresh.test.ts`
   - `specs/reporting/reporter-paths.test.ts`
-    checks documentation reporter output paths, caption pairing, generated
-    figure escaping, highlighted screenshot targets, visible page-content
-    detection, and zero-box host screenshots without app startup.
+    checks documentation reporter output paths, caption pairing, weak
+    image-caption rejection, generated figure escaping, highlighted screenshot
+    targets, visible page-content detection, and zero-box host screenshots
+    without app startup.
     `bun run test:e2e:reporter-paths` is the focused local rerun; it uses
     `helpers/testing/run-playwright.ts` to refresh `.env.dev`, set ignored docs
     output paths, set `NO_WEBSERVER=true`, and pass `--no-deps`.
@@ -547,9 +548,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   the weak-caption,
   invalid-image, missing-highlight, and blank/context-free highlighted-image
   runtime failures in reporter-path tests, rejects uncaptioned image attachments
-  and orphan image-caption attachments before generated markdown is written,
-  requires reporter-written image attachments to be valid PNG screenshots with
-  highlighted focus-target pixels and visible surrounding page content, rejects
+  and orphan or weak image-caption attachments before generated markdown is
+  written, requires reporter-written image attachments to be valid PNG
+  screenshots with highlighted focus-target pixels and visible surrounding page
+  content, rejects
   raw `page.screenshot`,
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs
   sources, treats static bracket-property forms such as `page['screenshot']`,
