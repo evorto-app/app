@@ -986,6 +986,8 @@ provider outcomes without live identifiers.
     Local design-token coverage now also fails if app UI files introduce
     hardcoded hex/rgb/hsl color literals or arbitrary color utilities instead
     of Material/Tailwind semantic color tokens, and it fails on app UI
+    Tailwind semantic color, radius, and elevation tokens that stop mapping to
+    Material system variables. It also rejects app UI
     letter-spacing utilities/declarations or viewport-scaled text/font-size
     rules so typography stays stable across viewport coverage. The same source
     guard rejects no-wrap, truncate, and line-clamp utilities in app UI files so

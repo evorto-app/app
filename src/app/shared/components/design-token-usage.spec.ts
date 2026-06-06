@@ -2,7 +2,9 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const sourceRoot = path.join(process.cwd(), 'src/app');
+const workspaceRoot = process.cwd();
+const sourceRoot = path.join(workspaceRoot, 'src/app');
+const tailwindThemePath = path.join(workspaceRoot, 'src/tailwind.css');
 const sourceExtensions = ['.css', '.html', '.scss', '.ts'] as const;
 const literalColorPatterns = [
   {
@@ -130,6 +132,63 @@ const adHocElevationPatterns = [
     pattern: /\bmat-elevation-z\d+\b/u,
   },
 ] as const;
+const materialColorTokenMappings = [
+  ['background', 'background'],
+  ['error', 'error'],
+  ['error-container', 'error-container'],
+  ['inverse-on-surface', 'inverse-on-surface'],
+  ['inverse-primary', 'inverse-primary'],
+  ['inverse-surface', 'inverse-surface'],
+  ['on-background', 'on-background'],
+  ['on-error', 'on-error'],
+  ['on-error-container', 'on-error-container'],
+  ['on-primary', 'on-primary'],
+  ['on-primary-container', 'on-primary-container'],
+  ['on-secondary', 'on-secondary'],
+  ['on-secondary-container', 'on-secondary-container'],
+  ['on-surface', 'on-surface'],
+  ['on-surface-variant', 'on-surface-variant'],
+  ['on-tertiary', 'on-tertiary'],
+  ['on-tertiary-container', 'on-tertiary-container'],
+  ['outline', 'outline'],
+  ['outline-variant', 'outline-variant'],
+  ['primary', 'primary'],
+  ['primary-container', 'primary-container'],
+  ['scrim', 'scrim'],
+  ['secondary', 'secondary'],
+  ['secondary-container', 'secondary-container'],
+  ['surface', 'surface'],
+  ['surface-bright', 'surface-bright'],
+  ['surface-container', 'surface-container'],
+  ['surface-container-high', 'surface-container-high'],
+  ['surface-container-highest', 'surface-container-highest'],
+  ['surface-container-low', 'surface-container-low'],
+  ['surface-container-lowest', 'surface-container-lowest'],
+  ['surface-dim', 'surface-dim'],
+  ['surface-tint', 'surface-tint'],
+  ['surface-variant', 'surface-variant'],
+  ['tertiary', 'tertiary'],
+  ['tertiary-container', 'tertiary-container'],
+] as const;
+const materialRadiusTokenMappings = [
+  ['none', 'corner-none'],
+  ['sm', 'corner-extra-small'],
+  ['', 'corner-small'],
+  ['md', 'corner-medium'],
+  ['lg', 'corner-medium'],
+  ['xl', 'corner-medium'],
+  ['2xl', 'corner-large'],
+  ['3xl', 'corner-extra-large'],
+  ['full', 'corner-full'],
+] as const;
+const materialShadowTokenMappings = [
+  ['0', 'level0'],
+  ['1', 'level1'],
+  ['2', 'level2'],
+  ['3', 'level3'],
+  ['4', 'level4'],
+  ['5', 'level5'],
+] as const;
 
 const appSourceFiles = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -151,6 +210,41 @@ const appSourceFiles = (directory: string): string[] =>
   });
 
 describe('design token usage', () => {
+  it('keeps Tailwind semantic colors backed by Material system tokens', () => {
+    const themeSource = readFileSync(tailwindThemePath, 'utf8');
+    const missingMappings = materialColorTokenMappings.flatMap(
+      ([tailwindToken, materialToken]) => {
+        const declaration = `--color-${tailwindToken}: var(--mat-sys-${materialToken});`;
+
+        return themeSource.includes(declaration) ? [] : [declaration];
+      },
+    );
+
+    expect(themeSource).toContain('@theme inline');
+    expect(missingMappings).toEqual([]);
+  });
+
+  it('keeps Tailwind radius and elevation backed by Material system tokens', () => {
+    const themeSource = readFileSync(tailwindThemePath, 'utf8');
+    const missingRadiusMappings = materialRadiusTokenMappings.flatMap(
+      ([tailwindToken, materialToken]) => {
+        const tokenSuffix = tailwindToken ? `-${tailwindToken}` : '';
+        const declaration = `--radius${tokenSuffix}: var(--mat-sys-${materialToken});`;
+
+        return themeSource.includes(declaration) ? [] : [declaration];
+      },
+    );
+    const missingShadowMappings = materialShadowTokenMappings.flatMap(
+      ([tailwindToken, materialToken]) => {
+        const declaration = `--shadow-${tailwindToken}: var(--mat-sys-${materialToken});`;
+
+        return themeSource.includes(declaration) ? [] : [declaration];
+      },
+    );
+
+    expect([...missingRadiusMappings, ...missingShadowMappings]).toEqual([]);
+  });
+
   it('keeps app UI colors on Material and Tailwind tokens', () => {
     const offenders = appSourceFiles(sourceRoot).flatMap((filePath) => {
       const source = readFileSync(filePath, 'utf8');

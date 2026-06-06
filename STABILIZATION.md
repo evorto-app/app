@@ -2075,6 +2075,9 @@ the current working direction until a product decision overrides them.
   by local design-token source coverage. App templates/components/styles fail if
   they introduce hardcoded hex/rgb/hsl color literals or arbitrary color
   utilities instead of Material/Tailwind semantic color tokens. The same source
+  coverage now also pins `src/tailwind.css` so Tailwind semantic color tokens
+  stay backed by Material system color variables, and Tailwind radius/elevation
+  tokens stay backed by Material shape and elevation variables. The same source
   guard now fails if app UI files introduce letter-spacing utilities,
   `letter-spacing` declarations, viewport-scaled Tailwind text utilities, or
   viewport-scaled `font-size` declarations, keeping responsive typography stable
@@ -2091,15 +2094,15 @@ the current working direction until a product decision overrides them.
   treatments (`shadow-*`, `drop-shadow-*`, `box-shadow`, and
   `mat-elevation-*`) so app surfaces stay on the Material/Tailwind token system
   instead of accumulating non-Material decoration.
-  A fresh June 6, 2026 focused app-source design-token guard run in this
+  A fresh June 7, 2026 focused app-source design-token guard run in this
   worktree passed
   `bunx --bun ng test --include src/app/shared/components/design-token-usage.spec.ts`
-  with 8 tests. This is source-level Material/mobile drift coverage, not fresh
+  with 10 tests. This is source-level Material/mobile drift coverage, not fresh
   Browser-rendered page evidence: it keeps app UI files off hardcoded
-  hex/rgb/hsl colors, arbitrary color utilities, viewport-scaled typography,
-  no-wrap/truncate/line-clamp text clipping, viewport-width containers, direct
-  `console.*`/`debugger`, Angular Material card shells, and decorative
-  gradient/orb/large-blur backgrounds plus
+  hex/rgb/hsl colors, arbitrary color utilities, Material-token bridge drift,
+  viewport-scaled typography, no-wrap/truncate/line-clamp text clipping,
+  viewport-width containers, direct `console.*`/`debugger`, Angular Material
+  card shells, and decorative gradient/orb/large-blur backgrounds plus
   shadow/drop-shadow/box-shadow/mat-elevation surface treatments.
 - **Addressed in stabilization pass:** `specs/seed/seed-baseline.test.ts` now treats the reset-from-zero seed as a runtime contract: default user/organizer roles, every template seed family, paid/free registration options, paid tax-rate wiring, open/closed/draft/past scenario handles, confirmed registrations, and scanner aggregate data must all exist after seeding.
 - **Addressed in stabilization pass:** `.env.example` is now a checked-in

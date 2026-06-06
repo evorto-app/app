@@ -98,6 +98,16 @@ describe('stabilization source', () => {
 
     expect(designTokenSpec).toContain('keeps app UI colors on Material');
     expect(designTokenSpec).toContain(
+      'keeps Tailwind semantic colors backed by Material system tokens',
+    );
+    expect(designTokenSpec).toContain(
+      'keeps Tailwind radius and elevation backed by Material system tokens',
+    );
+    expect(designTokenSpec).toContain('materialColorTokenMappings');
+    expect(designTokenSpec).toContain('materialRadiusTokenMappings');
+    expect(designTokenSpec).toContain('materialShadowTokenMappings');
+    expect(designTokenSpec).toContain('src/tailwind.css');
+    expect(designTokenSpec).toContain(
       'keeps app typography stable across viewports',
     );
     expect(designTokenSpec).toContain(
@@ -148,6 +158,9 @@ describe('stabilization source', () => {
     expect(designTokenSpec).toContain("entry.name.endsWith('.spec.ts')");
     expect(source).toContain('app UI color usage is now protected');
     expect(source).toContain('Material/Tailwind semantic color tokens');
+    expect(source).toContain('Tailwind semantic color tokens');
+    expect(source).toContain('Material system color variables');
+    expect(source).toContain('Material shape and elevation variables');
     expect(source).toContain('responsive typography stable');
     expect(source).toContain('mobile labels wrap');
     expect(source).toContain('full viewport-width sizing');
@@ -157,12 +170,12 @@ describe('stabilization source', () => {
     expect(source).toContain('decorative gradient/orb backgrounds');
     expect(source).toContain('ad hoc shadow/elevation\n  treatments');
     expect(source).toContain(
-      'June 6, 2026 focused app-source design-token guard run',
+      'June 7, 2026 focused app-source design-token guard run',
     );
     expect(source).toContain(
       'src/app/shared/components/design-token-usage.spec.ts',
     );
-    expect(source).toMatch(/with 8 tests/u);
+    expect(source).toMatch(/with 10 tests/u);
     expect(source).toMatch(/source-level Material\/mobile drift coverage/u);
     expect(source).toMatch(/not fresh\s+Browser-rendered page evidence/u);
     expect(source).toMatch(/viewport-scaled typography/u);
@@ -175,6 +188,10 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'hardcoded hex/rgb/hsl color literals or arbitrary color utilities',
     );
+    expect(inventory).toContain(
+      'Tailwind semantic color, radius, and elevation tokens',
+    );
+    expect(inventory).toContain('Material system variables');
     expect(inventory).toContain('typography stays stable across viewport');
     expect(inventory).toContain('mobile labels wrap instead of clipping');
     expect(inventory).toContain('full viewport-width');
