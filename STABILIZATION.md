@@ -5827,6 +5827,17 @@ while starting the disposable Alpine preflight container, then reported that
 Docker can inspect local configuration but cannot start containers. No
 current-head Browser route/layout evidence is claimed for `ce8b5d07`; the
 blocker remains below the app and Browser tooling.
+A fresh June 7, 2026 current-head status retry on PR head `c298c427` ran
+`bun run dev:status` after the Material-token bridge guard push. It regenerated
+`.env.dev` with `BASE_URL=http://localhost:4218`, reported all required dev and
+Docker variables present, confirmed no other Evorto Compose project was
+publishing port 4218, and returned a clean Neon dry-run
+(`total=1`, `protected=1`, `active_test=0`, `stale_deleted=0`, `ttl=2h`). The
+database endpoint on `localhost:55618` was closed, Docker's disposable Alpine
+start probe again timed out, and the existing app route probe could not connect
+to `/legal/terms`. No current-head Browser route/layout evidence is claimed for
+`c298c427`; the blocker remains the host Docker container start path below app,
+Playwright, Browser, and Material layout code.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
