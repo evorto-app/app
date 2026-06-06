@@ -6004,8 +6004,10 @@ CI, or drifting back to time-based waits. Playwright's own CI `forbidOnly`
 setting remains source-guarded as the runner-level backstop. Bracket-property
 modifier spellings such as `test['skip'](...)`, `test.describe['fixme'](...)`,
 `test['only'](...)`, `test.describe['configure'](...)`, and `test['slow'](...)`
-are matched by the same inventory guard, so tests cannot hide skipped, focused,
-or runtime-altered coverage behind alternate JavaScript property access.
+are matched by the same inventory guard, even when the modifier access is split
+across lines, so tests cannot hide skipped, focused, or runtime-altered
+coverage behind alternate JavaScript property access or formatter-resistant
+line wrapping.
 
 Registration confirmation, cancellation, transfer, and waitlist spot-available
 now record durable email outbox rows with notification-email details, and paid

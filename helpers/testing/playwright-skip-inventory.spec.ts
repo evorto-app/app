@@ -48,15 +48,19 @@ const allowedEntries = new Set(
   allowedPlaywrightSkipEntries.map((entry) => entry.entry),
 );
 
-const playwrightCallablePattern = /\b(?:test(?:\.describe)?|it|describe)/u;
+const playwrightDescribeAccessPattern = String.raw`(?:\s*\.\s*describe|\s*\[\s*['"]describe['"]\s*\])`;
+const playwrightCallablePattern = new RegExp(
+  String.raw`\b(?:test(?:${playwrightDescribeAccessPattern})?|it|describe)`,
+  'u',
+);
 const playwrightModifierAccessPattern = (names: string): string =>
-  String.raw`(?:\.(?:${names})\b|\[\s*['"](?:${names})['"]\s*\])`;
+  String.raw`(?:\s*\.\s*(?:${names})\b|\s*\[\s*['"](?:${names})['"]\s*\])`;
 const skipPattern = new RegExp(
   String.raw`${playwrightCallablePattern.source}${playwrightModifierAccessPattern('skip|fixme')}`,
   'g',
 );
 const runtimeModifierPattern = new RegExp(
-  String.raw`\b(?:test\.describe${playwrightModifierAccessPattern('configure')}|test${playwrightModifierAccessPattern('slow')})`,
+  String.raw`\b(?:test${playwrightDescribeAccessPattern}${playwrightModifierAccessPattern('configure')}|test${playwrightModifierAccessPattern('slow')})`,
   'g',
 );
 const focusedOnlyPattern = new RegExp(
@@ -117,18 +121,82 @@ const collectActiveInventoryFiles = () => {
     .filter((path): path is string => path !== undefined);
 };
 
-const collectPlaywrightSkipEntries = () =>
+const lineNumberForOffset = (source: string, offset: number): number =>
+  source.slice(0, offset).split('\n').length;
+
+const formatPatternMatch = (matchText: string): string =>
+  matchText.replace(/\s+/gu, ' ').trim();
+
+const collectPatternEntriesForSource = (
+  relativePath: string,
+  source: string,
+  pattern: RegExp,
+) =>
+  [...source.matchAll(pattern)].map((match) => {
+    const offset = match.index ?? 0;
+    return `${relativePath}:${lineNumberForOffset(source, offset)}:${formatPatternMatch(match[0])}`.replaceAll(
+      '\\',
+      '/',
+    );
+  });
+
+const collectPatternEntries = (pattern: RegExp) =>
+  collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectPatternEntriesForSource(relativePath, source, pattern);
+  });
+
+const collectPlaywrightSkipEntries = () => collectPatternEntries(skipPattern);
+
+const collectPlaywrightRuntimeModifierEntries = () =>
+  collectPatternEntries(runtimeModifierPattern);
+
+const collectFocusedOnlyEntries = () =>
+  collectPatternEntries(focusedOnlyPattern);
+
+const collectInteractiveDebugEntries = () =>
   collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
     const source = readFileSync(filePath, 'utf8');
     const lines = source.split('\n');
-    const relativePath = path.relative(repositoryRoot, filePath);
+    const relativePath = path
+      .relative(repositoryRoot, filePath)
+      .replaceAll('\\', '/');
 
     return lines.flatMap((line, index) =>
-      [...line.matchAll(skipPattern)].map((match) =>
-        `${relativePath}:${index + 1}:${match[0]}`.replaceAll('\\', '/'),
+      [...line.matchAll(interactiveDebugPattern)].map(
+        (match) => `${relativePath}:${index + 1}:${match[0]}`,
       ),
     );
   });
+
+const sourceContextForEntry = (entry: string): string => {
+  const [relativePath, lineNumber] = entry.split(':');
+  if (relativePath === undefined || lineNumber === undefined) {
+    throw new Error(`Invalid skip inventory entry: ${entry}`);
+  }
+
+  const source = readFileSync(path.join(repositoryRoot, relativePath), 'utf8');
+  const lines = source.split('\n');
+  const startLineIndex = Math.max(Number.parseInt(lineNumber, 10) - 8, 0);
+  const endLineIndex = Math.min(
+    Number.parseInt(lineNumber, 10) + 8,
+    lines.length,
+  );
+
+  return lines.slice(startLineIndex, endLineIndex).join('\n');
+};
+
+const pathForSkipEntry = (entry: string): string => {
+  const [relativePath] = entry.split(':');
+
+  if (relativePath === undefined) {
+    throw new Error(`Invalid skip inventory entry: ${entry}`);
+  }
+
+return relativePath.replace(/^tests\//u, '');
+};
 
 const collectPlaceholderMetadataEntries = () =>
   collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
@@ -194,10 +262,22 @@ describe('Playwright skip inventory', () => {
       [...`test['skip']('x')`.matchAll(skipPattern)].map((match) => match[0]),
     ).toEqual([`test['skip']`]);
     expect(
+      [
+        ...`test
+          .skip('x')`.matchAll(skipPattern),
+      ].map((match) => formatPatternMatch(match[0])),
+    ).toEqual(['test .skip']);
+    expect(
       [...`test.describe["fixme"]('x')`.matchAll(skipPattern)].map(
         (match) => match[0],
       ),
     ).toEqual([`test.describe["fixme"]`]);
+    expect(
+      [
+        ...`test['describe']
+          .fixme('x')`.matchAll(skipPattern),
+      ].map((match) => formatPatternMatch(match[0])),
+    ).toEqual([`test['describe'] .fixme`]);
     expect(
       [...`test.describe.only('x')`.matchAll(focusedOnlyPattern)].map(
         (match) => match[0],
@@ -208,6 +288,12 @@ describe('Playwright skip inventory', () => {
         (match) => match[0],
       ),
     ).toEqual([`test['only']`]);
+    expect(
+      [
+        ...`test.describe
+          ['only']('x')`.matchAll(focusedOnlyPattern),
+      ].map((match) => formatPatternMatch(match[0])),
+    ).toEqual([`test.describe ['only']`]);
     expect(
       [
         ...`test.describe.configure({ mode: 'serial' })`.matchAll(
@@ -223,6 +309,12 @@ describe('Playwright skip inventory', () => {
       ].map((match) => match[0]),
     ).toEqual([`test.describe['configure']`]);
     expect(
+      [
+        ...`test['describe']
+          .configure({ mode: 'serial' })`.matchAll(runtimeModifierPattern),
+      ].map((match) => formatPatternMatch(match[0])),
+    ).toEqual([`test['describe'] .configure`]);
+    expect(
       [...`test.slow()`.matchAll(runtimeModifierPattern)].map(
         (match) => match[0],
       ),
@@ -232,6 +324,31 @@ describe('Playwright skip inventory', () => {
         (match) => match[0],
       ),
     ).toEqual([`test["slow"]`]);
+    expect(
+      [
+        ...`test
+          ['slow']()`.matchAll(runtimeModifierPattern),
+      ].map((match) => formatPatternMatch(match[0])),
+    ).toEqual([`test ['slow']`]);
+    expect(
+      collectPatternEntriesForSource(
+        'tests/specs/example/split-modifiers.spec.ts',
+        `test
+          .skip('hidden skip', () => {});
+test.describe
+          ['only']('hidden focus', () => {});
+test['describe']
+          .configure({ mode: 'serial' });`,
+        new RegExp(
+          String.raw`${skipPattern.source}|${focusedOnlyPattern.source}|${runtimeModifierPattern.source}`,
+          'g',
+        ),
+      ),
+    ).toEqual([
+      'tests/specs/example/split-modifiers.spec.ts:1:test .skip',
+      "tests/specs/example/split-modifiers.spec.ts:3:test.describe ['only']",
+      "tests/specs/example/split-modifiers.spec.ts:5:test['describe'] .configure",
+    ]);
   });
 
   it('keeps the active test inventory aligned with Playwright docs and specs on disk', () => {

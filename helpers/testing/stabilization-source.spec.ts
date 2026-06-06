@@ -3450,13 +3450,16 @@ describe('stabilization source', () => {
     ).toContain('collectPlaywrightRuntimeModifierEntries');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
-    ).toContain(String.raw`test(?:\.describe)?`);
+    ).toContain('playwrightDescribeAccessPattern');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('runtimeModifierPattern');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('playwrightModifierAccessPattern');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('collectPatternEntriesForSource');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('test.describe.skip');
@@ -3483,6 +3486,9 @@ describe('stabilization source', () => {
     ).toContain(`test["slow"]`);
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('split-modifiers.spec.ts');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('collectInteractiveDebugEntries');
     expect(inventory).toContain('`test.describe.skip`');
     expect(inventory).toContain(
@@ -3490,6 +3496,7 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain('bracket-property spellings');
     expect(inventory).toContain("test['skip'](...)");
+    expect(inventory).toContain('split across lines');
     expect(inventory).toContain('Playwright `forbidOnly` remains enabled');
     expect(inventory).toContain(
       'Runtime-affecting modifiers such as\n  `test.describe.configure(...)` and `test.slow()`',
@@ -3517,6 +3524,7 @@ describe('stabilization source', () => {
     expect(source).toContain('rejects committed focused-only\n`.only`');
     expect(source).toContain('Bracket-property\nmodifier spellings');
     expect(source).toContain("test.describe['fixme'](...)");
+    expect(source).toContain('split\nacross lines');
     expect(source).toContain('rejects interactive\n`page.pause()`/`debugger`');
     expect(source).toContain('rejects fixed `.waitForTimeout(...)` waits');
     expect(source).toContain('fixed `setTimeout` sleeps');
