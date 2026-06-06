@@ -1253,6 +1253,19 @@ const findScreenshotHelperBypasses = (
       const callee = unwrapExpression(node.expression);
 
       if (
+        callee.kind === ts.SyntaxKind.ImportKeyword &&
+        node.arguments[0] &&
+        ts.isStringLiteral(node.arguments[0]) &&
+        (node.arguments[0].text ===
+          '../../support/reporters/documentation-reporter' ||
+          node.arguments[0].text.includes(
+            'documentation-reporter/take-screenshot',
+          ))
+      ) {
+        bypasses.push(describeNode(node.expression));
+      }
+
+      if (
         ts.isPropertyAccessExpression(callee) &&
         callee.name.text === 'takeScreenshot'
       ) {
@@ -1546,6 +1559,12 @@ describe('generated docs source current behavior', () => {
         page,
         'Direct namespace helper call with descriptive caption',
       );
+
+      async function dynamicImportBypass() {
+        const dynamicReporter = await import('../../support/reporters/documentation-reporter');
+        const dynamicDirectHelper = await import('../../support/reporters/documentation-reporter/take-screenshot');
+        return [dynamicReporter, dynamicDirectHelper];
+      }
     `;
 
     expect(
@@ -1564,6 +1583,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:14:16',
       'tests/docs/example/bypass.doc.ts:18:13',
       'tests/docs/example/bypass.doc.ts:24:13',
+      'tests/docs/example/bypass.doc.ts:32:39',
+      'tests/docs/example/bypass.doc.ts:33:43',
     ]);
   });
 

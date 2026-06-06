@@ -5772,6 +5772,9 @@ through the reporter module object.
 Parenthesized helper calls such as `(takeScreenshot)(...)` are unwrapped before
 the same screenshot counting, caption, and target-quality checks run, so
 syntactic wrapping cannot hide weak generated-doc image evidence.
+Dynamic imports of the generated-doc screenshot reporter or direct helper module
+are rejected as helper bypasses too, keeping docs on the static shared-helper
+import path that the source guard can inspect consistently.
 Grouped screenshot target objects wrapped in `as const`, `satisfies`, type
 assertions, or parentheses are unwrapped before alias collection, so TypeScript
 syntax cannot hide a weak `targets.shell` locator from the same meaningful-image
