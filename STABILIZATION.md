@@ -5765,6 +5765,10 @@ docs from hiding weak screenshot targets behind a grouped target object. It also
 rejects local aliases and wrapper functions that reference `takeScreenshot`, so
 future docs cannot route screenshots through a differently named helper such as
 `captureDocumentationImage` to bypass direct target and caption inspection.
+Namespace imports and property-access calls such as
+`documentationReporter.takeScreenshot(...)` are rejected too, so generated docs
+cannot bypass direct `takeScreenshot(...)` target, caption, and count checks
+through the reporter module object.
 Grouped screenshot target objects wrapped in `as const`, `satisfies`, type
 assertions, or parentheses are unwrapped before alias collection, so TypeScript
 syntax cannot hide a weak `targets.shell` locator from the same meaningful-image

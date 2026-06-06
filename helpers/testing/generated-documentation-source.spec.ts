@@ -1260,6 +1260,26 @@ const findScreenshotHelperBypasses = (
           }
         }
       }
+
+      if (
+        namedBindings &&
+        ts.isNamespaceImport(namedBindings) &&
+        (moduleSpecifier === '../../support/reporters/documentation-reporter' ||
+          moduleSpecifier.includes('documentation-reporter/take-screenshot'))
+      ) {
+        bypasses.push(describeNode(namedBindings.name));
+      }
+    }
+
+    if (ts.isCallExpression(node)) {
+      const callee = unwrapExpression(node.expression);
+
+      if (
+        ts.isPropertyAccessExpression(callee) &&
+        callee.name.text === 'takeScreenshot'
+      ) {
+        bypasses.push(describeNode(node.expression));
+      }
     }
 
     if (
@@ -1522,6 +1542,8 @@ describe('generated docs source current behavior', () => {
     const bypassSource = `
       import { takeScreenshot as grabImage } from '../../support/reporters/documentation-reporter';
       import { takeScreenshot } from '../../support/reporters/documentation-reporter/take-screenshot';
+      import * as documentationReporter from '../../support/reporters/documentation-reporter';
+      import * as directScreenshotHelper from '../../support/reporters/documentation-reporter/take-screenshot';
 
       const captureScreenshotEvidence = takeScreenshot;
       const captureDocumentationImage = takeScreenshot;
@@ -1533,6 +1555,19 @@ describe('generated docs source current behavior', () => {
       function captureDocumentationImageLater() {
         return takeScreenshot;
       }
+
+      await documentationReporter.takeScreenshot(
+        testInfo,
+        settingsSurface,
+        page,
+        'Namespace helper call with descriptive caption',
+      );
+      await directScreenshotHelper.takeScreenshot(
+        testInfo,
+        settingsSurface,
+        page,
+        'Direct namespace helper call with descriptive caption',
+      );
     `;
 
     expect(
@@ -1543,10 +1578,14 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/bypass.doc.ts:2:16',
       'tests/docs/example/bypass.doc.ts:3:16',
-      'tests/docs/example/bypass.doc.ts:5:13',
-      'tests/docs/example/bypass.doc.ts:6:13',
-      'tests/docs/example/bypass.doc.ts:8:16',
-      'tests/docs/example/bypass.doc.ts:12:16',
+      'tests/docs/example/bypass.doc.ts:4:19',
+      'tests/docs/example/bypass.doc.ts:5:19',
+      'tests/docs/example/bypass.doc.ts:7:13',
+      'tests/docs/example/bypass.doc.ts:8:13',
+      'tests/docs/example/bypass.doc.ts:10:16',
+      'tests/docs/example/bypass.doc.ts:14:16',
+      'tests/docs/example/bypass.doc.ts:18:13',
+      'tests/docs/example/bypass.doc.ts:24:13',
     ]);
   });
 
