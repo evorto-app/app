@@ -512,7 +512,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   page content before attachment, rejects generic page-root screenshot targets
   such as `body`, `html`, or `app-root`, including aliased generic locators and
   helper-returned generic locators inside screenshot arguments and arrays,
-  rejects unfiltered broad `section`, `article`, `form`, and `app-*`
+  rejects unfiltered broad `section`, `article`, `div`, `form`, and `app-*`
   component-host screenshot targets, including aliased broad locators and
   helper-returned broad locators inside screenshot arguments and arrays, rejects
   direct single-control screenshot targets such as role/text/label/placeholder

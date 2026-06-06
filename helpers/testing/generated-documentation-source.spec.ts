@@ -323,7 +323,7 @@ const findUnfilteredBroadScreenshotTargets = (
   const broadTargetAliases = new Set<string>();
   const broadTargetPropertyAliases = new Set<string>();
   const broadTargetFunctions = new Set<string>();
-  const broadSelectors = new Set(['article', 'form', 'section']);
+  const broadSelectors = new Set(['article', 'div', 'form', 'section']);
 
   const isBroadSelector = (selector: string): boolean => {
     const normalizedSelector = selector.trim().toLowerCase();
@@ -1223,6 +1223,12 @@ describe('generated docs source current behavior', () => {
       );
       await takeScreenshot(
         testInfo,
+        page.locator('div'),
+        page,
+        'Broad div target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
         page.locator('form').first(),
         page,
         'Broad form target with a descriptive caption',
@@ -1255,6 +1261,12 @@ describe('generated docs source current behavior', () => {
       );
       await takeScreenshot(
         testInfo,
+        page.locator('div').filter({ hasText: 'Registration unavailable' }),
+        page,
+        'Filtered registration state div target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
         page.locator('form').filter({ has: page.getByLabel('Tenant name') }),
         page,
         'Filtered form target with a descriptive caption',
@@ -1270,8 +1282,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/broad-target.doc.ts:2:13',
       'tests/docs/example/broad-target.doc.ts:8:13',
       'tests/docs/example/broad-target.doc.ts:14:13',
-      'tests/docs/example/broad-target.doc.ts:21:13',
-      'tests/docs/example/broad-target.doc.ts:28:13',
+      'tests/docs/example/broad-target.doc.ts:20:13',
+      'tests/docs/example/broad-target.doc.ts:27:13',
+      'tests/docs/example/broad-target.doc.ts:34:13',
     ]);
   });
 

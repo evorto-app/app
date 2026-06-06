@@ -5690,12 +5690,12 @@ product control, form, component, row, or state while still capturing visible
 page content outside the highlighted target. The guard now also follows aliased
 generic shell locator targets and helper functions returning generic shell
 locators into screenshot arguments and arrays.
-It also rejects unfiltered broad `section`, `article`, `form`, and `app-*`
+It also rejects unfiltered broad `section`, `article`, `div`, `form`, and `app-*`
 component-host screenshot targets, so docs must focus a filtered semantic
 region, a concrete form state, or a concrete component/control instead of
 highlighting a whole repeated page area by accident. The guard now also follows
 aliased broad locator targets into screenshot arguments and arrays, so storing
-`page.locator('section')` or another unfiltered broad locator in a variable
+`page.locator('section')`, `page.locator('div')`, or another unfiltered broad locator in a variable
 cannot bypass the evidence-quality rule. Helper functions returning unfiltered
 broad locators are rejected for the same reason.
 It now rejects direct single-control `getByRole`, `getByText`, `getByLabel`,
