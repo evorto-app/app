@@ -707,7 +707,8 @@ provider outcomes without live identifiers.
     `#discounts` profile fragment waits for tenant ESNcard provider availability
     before selecting the section. Generated-doc source coverage keeps the
     discounts guide tied to the local ESNcard helper functions and provider
-    outage retry semantics.
+    outage retry semantics, and rejects all-tenant ESN wording so the guide stays
+    aligned with the tenant opt-in provider boundary.
   - Account-creation retry and tenant-join behavior. Server coverage already
     proves transactional creation, existing-global-user tenant joins,
     duplicate-assignment conflicts, and visible create-account error message

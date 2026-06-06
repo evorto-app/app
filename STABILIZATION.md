@@ -5772,7 +5772,9 @@ system-Chrome coverage and a first manual Browser review pass. The ESN
 discounted-pricing slice and ESNcard provider outcomes now have Docker-backed
 deterministic system-Chrome coverage, and the Browser pass inspected the
 visible profile discount-card UX after enabling tenant-scoped provider test
-mode locally.
+mode locally. Generated-doc source coverage also rejects all-tenant ESN wording
+in the profile discounts guide so the documentation remains aligned with the
+tenant opt-in provider boundary.
 Richer reusable template add-ons and questions are now implemented in the simple
 template flow; creation, documentation, server copy helpers, and the
 page-backed create-event flow now assert that reusable add-ons and questions

@@ -6552,6 +6552,7 @@ describe('generated docs source current behavior', () => {
   });
 
   it('keeps ESN discount docs aligned with provider-error and write-guard behavior', () => {
+    const productSource = readSource('PRODUCT.md');
     const source = readSource('tests/docs/profile/discounts.doc.ts');
 
     expect(source).toContain('esnCardStatusLabel');
@@ -6572,6 +6573,12 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Evorto leaves the stored ESN card unchanged so the user can retry later.',
     );
+    expect(productSource).toContain(
+      'ESN-card behavior should be opt-in because not every tenant is an ESN section.',
+    );
+    expect(source).not.toMatch(/every tenant/i);
+    expect(source).not.toMatch(/all tenants/i);
+    expect(source).not.toMatch(/hard[- ]coded ESN/i);
     expect(source).toContain("page.goto('/profile#discounts')");
     expect(source).toContain(
       "page.getByRole('heading', { level: 2, name: 'Discount Cards' })",
