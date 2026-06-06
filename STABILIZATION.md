@@ -1924,19 +1924,21 @@ the current working direction until a product decision overrides them.
 - Local runtime config uses `.env.dev.local` for tracked shared defaults, `.env.dev` for generated worktree-specific values, and `.env` for untracked developer secrets.
 - `bun run env:runtime` writes `.env.dev` with worktree-specific `COMPOSE_PROJECT_NAME`, Neon Local port, MinIO ports, `BASE_URL`, and local `DATABASE_URL`. It now also prints the non-secret generated `BASE_URL`, `COMPOSE_PROJECT_NAME`, and `NEON_LOCAL_HOST_PORT`, so Browser and Docker checks can find the current worktree target without ad hoc shell `dotenv` probes.
 - `bun run env:copy-main` provides the guarded version of the missing-secret
-  recovery path that `dev:check` and `docker:check` now recommend directly: it
-  copies only the main checkout's untracked `.env`, defaults to `$HOME/code/<repo>/.env`,
-  accepts `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite the
-  worktree `.env` unless rerun with `--if-missing` to leave it unchanged or
-  `--force` to replace it. Generated `.env.dev` remains worktree-local and is
-  never copied; the main checkout `.npmrc` is also never copied, keeping Font
-  Awesome installs on the public npm registry. Focused helper coverage now
-  exercises the default copy path, explicit checkout override, if-missing
-  no-op, overwrite refusal, forced replacement, missing-source checklist
-  message, and `.env.dev`/`.npmrc` boundaries.
+  recovery path that `dev:check` and `docker:check` now recommend with the safe
+  `--if-missing` argument: it copies only the main checkout's untracked `.env`,
+  defaults to `$HOME/code/<repo>/.env`, accepts
+  `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite the worktree
+  `.env` unless rerun with `--if-missing` to leave it unchanged or `--force` to
+  replace it. Generated `.env.dev` remains worktree-local and is never copied;
+  the main checkout `.npmrc` is also never copied, keeping Font Awesome installs
+  on the public npm registry. Focused helper coverage now exercises the default
+  copy path, explicit checkout override, if-missing no-op, overwrite refusal,
+  forced replacement, missing-source checklist message, and `.env.dev`/`.npmrc`
+  boundaries.
 - `bun run dev:bootstrap` is the fresh-worktree shortcut for that recovery path:
-  it delegates the missing-file decision to `env:copy-main --if-missing`, then
-  runs the normal `dev:check` preflight.
+  missing-secret preflight output now names it directly for fresh dev-server
+  worktrees; it delegates the missing-file decision to
+  `env:copy-main --if-missing`, then runs the normal `dev:check` preflight.
 - Local Playwright package scripts that run `playwright test` now go through
   `helpers/testing/run-playwright.ts`, which refreshes `.env.dev`, pins ignored
   repository-local docs output paths, and invokes

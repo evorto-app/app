@@ -166,12 +166,14 @@ bun run lint
   local, Docker, and CI dependency installs must not require
   `FONT_AWESOME_TOKEN` or a project `.npmrc`. When required variables are
   missing in a Codex worktree, `docker:check` and `dev:check` also look for the
-  sibling main checkout `.env` and point at `bun run env:copy-main` when it
-  exists; `.env.dev` remains generated per worktree and the main checkout
-  `.npmrc` must not be copied. It reads `$HOME/code/<repo>/.env` by default,
-  supports `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite an
-  existing worktree `.env` unless rerun with `--if-missing` to leave it
-  unchanged or `--force` to replace it. `bun run dev:bootstrap` is the
+  sibling main checkout `.env` and point at
+  `bun run env:copy-main -- --if-missing` when it exists; fresh dev-server
+  worktrees also get the simpler `bun run dev:bootstrap` shortcut. `.env.dev`
+  remains generated per worktree and the main checkout `.npmrc` must not be
+  copied. It reads `$HOME/code/<repo>/.env` by default, supports
+  `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite an existing
+  worktree `.env` unless rerun with `--if-missing` to leave it unchanged or
+  `--force` to replace it. `bun run dev:bootstrap` is the
   fresh-worktree shortcut: it delegates copy-only-when-missing behavior to
   `env:copy-main --if-missing`, then runs the normal `dev:check` preflight.
   Codex setup also writes the

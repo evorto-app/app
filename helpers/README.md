@@ -248,8 +248,9 @@ printing their values, so secret availability can be confirmed even when another
 required secret still blocks startup. If required variables are missing in a
 Codex worktree and the sibling main checkout has an untracked `.env`, the
 failed required-variable row and the developer-secrets warning both point at
-`bun run env:copy-main`. It does not copy secrets automatically, and it still
-warns not to copy generated `.env.dev` or the main checkout `.npmrc`. The
+`bun run env:copy-main -- --if-missing`; for a fresh dev-server worktree they
+also name `bun run dev:bootstrap`. It does not copy secrets automatically, and
+it still warns not to copy generated `.env.dev` or the main checkout `.npmrc`. The
 guarded copy path reads `$HOME/code/<repo>/.env` by default, supports
 `MAIN_CHECKOUT_DIR=/path/to/repo` for a different source checkout, and refuses
 to overwrite an existing worktree `.env` unless rerun with `--if-missing` to

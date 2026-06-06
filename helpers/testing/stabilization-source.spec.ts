@@ -3533,16 +3533,22 @@ describe('stabilization source', () => {
       'Missing variables may be recoverable from the main checkout secrets file.',
     );
     expect(runtimePreflight).toContain(
-      'Run `bun run env:copy-main` to copy only `.env` from the default main checkout.',
+      'Run `bun run env:copy-main -- --if-missing` to copy only `.env` from the default main checkout, then retry the original command.',
     );
     expect(runtimePreflight).toContain(
-      'MAIN_CHECKOUT_DIR=/path/to/repo bun run env:copy-main',
+      'MAIN_CHECKOUT_DIR=/path/to/repo bun run env:copy-main -- --if-missing',
+    );
+    expect(runtimePreflight).toContain(
+      'For a fresh dev-server worktree, run `bun run dev:bootstrap`.',
     );
     expect(runtimePreflight).toContain(
       'Found a main-checkout developer secrets file',
     );
     expect(runtimePreflight).toContain(
-      'Copy it into this worktree with: bun run env:copy-main',
+      'Copy it safely with: bun run env:copy-main -- --if-missing',
+    );
+    expect(runtimePreflight).toContain(
+      'For a fresh dev-server worktree, run: bun run dev:bootstrap',
     );
     expect(runtimePreflight).toContain(
       '`Source: ${mainCheckoutEnvironmentPath}`',
@@ -3604,13 +3610,13 @@ describe('stabilization source', () => {
       'Missing variables may be recoverable from the main checkout secrets file.',
     );
     expect(runtimePreflightSpec).toContain(
-      'Run `bun run env:copy-main` to copy only `.env` from the default main checkout.',
+      'Run `bun run env:copy-main -- --if-missing` to copy only `.env` from the default main checkout, then retry the original command.',
     );
     expect(runtimePreflightSpec).toContain(
       'points missing-secret checkouts at the no-secret env checklist when no main env exists',
     );
     expect(helpersReadme).toContain(
-      'failed required-variable row and the developer-secrets warning both point at\n`bun run env:copy-main`',
+      'failed required-variable row and the developer-secrets warning both point at\n`bun run env:copy-main -- --if-missing`',
     );
     expect(testsReadme).toContain('sibling main checkout `.env`');
     expect(inventory).toContain('missing-secret recovery hint');

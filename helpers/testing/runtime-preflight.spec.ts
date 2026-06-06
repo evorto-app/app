@@ -1871,8 +1871,9 @@ describe('evaluateRuntimePreflight', () => {
         expect.objectContaining({
           details: expect.arrayContaining([
             'Missing variables may be recoverable from the main checkout secrets file.',
-            'Run `bun run env:copy-main` to copy only `.env` from the default main checkout.',
-            'For another source checkout, run `MAIN_CHECKOUT_DIR=/path/to/repo bun run env:copy-main`.',
+            'Run `bun run env:copy-main -- --if-missing` to copy only `.env` from the default main checkout, then retry the original command.',
+            'For a fresh dev-server worktree, run `bun run dev:bootstrap`.',
+            'For another source checkout, run `MAIN_CHECKOUT_DIR=/path/to/repo bun run env:copy-main -- --if-missing`.',
           ]),
           label: 'Required docker runtime variables',
           severity: 'failure',
@@ -1880,7 +1881,8 @@ describe('evaluateRuntimePreflight', () => {
         expect.objectContaining({
           details: [
             'Found a main-checkout developer secrets file at /Users/test/code/evorto/.env.',
-            'Copy it into this worktree with: bun run env:copy-main',
+            'Copy it safely with: bun run env:copy-main -- --if-missing',
+            'For a fresh dev-server worktree, run: bun run dev:bootstrap',
             'Source: /Users/test/code/evorto/.env',
             'Do not copy .env.dev or .npmrc; .env.dev is generated per worktree and Font Awesome must stay on the public npm registry.',
           ],
