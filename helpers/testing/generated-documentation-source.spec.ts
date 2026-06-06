@@ -5890,6 +5890,7 @@ describe('generated docs source current behavior', () => {
   });
 
   it('keeps template docs aligned with the simple-mode relaunch surface', () => {
+    const productSource = readSource('PRODUCT.md');
     const source = readSource('tests/docs/templates/templates.doc.ts');
     const formSource = readSource(
       'src/app/templates/shared/template-form/template-form.utilities.ts',
@@ -5904,6 +5905,22 @@ describe('generated docs source current behavior', () => {
     expect(organizerDefaultTitle).toBe('Organizer Registration');
     expect(participantDefaultTitle).toBe('Participant Registration');
 
+    expect(productSource).toContain('Templates preserve organizational memory');
+    expect(productSource).toContain(
+      'Templates should preserve reusable event knowledge so future organizers do not start from scratch.',
+    );
+    expect(productSource).toContain(
+      'Templates should include as much reusable information as practical',
+    );
+    expect(productSource).toContain(
+      'organizer notes or checklist-like internal information',
+    );
+    expect(productSource).toContain(
+      'An event instance is an editable copy of a template.',
+    );
+    expect(productSource).toContain(
+      'Some duplication between templates and event instances is acceptable if it keeps event instances stable and understandable.',
+    );
     expect(source).toContain(
       'Simple mode intentionally keeps exactly one organizer registration block and one participant registration block.',
     );
@@ -5928,6 +5945,10 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Organizer planning tips**: Optional private organizer notes',
     );
+    expect(source).toContain(
+      'Everything you enter for a template will be the starting point for all events created from this template.',
+    );
+    expect(source).toContain('not shown on the public event page');
     expect(source).toContain(
       'When **Enable Payment** is on, the price and tax-rate fields appear for that registration block.',
     );
@@ -6018,6 +6039,12 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('bulk registration options');
     expect(source).not.toContain('multiple participant registration blocks');
     expect(source).not.toContain('public event planning tips');
+    expect(source).not.toMatch(/future organizers start from scratch/i);
+    expect(source).not.toMatch(/template changes update existing events/i);
+    expect(source).not.toMatch(/events stay linked to live template edits/i);
+    expect(source).not.toMatch(
+      /organizer notes shown on the public event page/i,
+    );
     expect(source).not.toContain('roles can be selected more than once');
     expect(source).not.toContain(
       'ESNcard pricing is configured on events only',

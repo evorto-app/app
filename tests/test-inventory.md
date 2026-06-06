@@ -1032,7 +1032,10 @@ provider outcomes without live identifiers.
     Local form coverage and generated-doc source coverage pin that fixed shape
     while docs and specs cover the current extension points: reusable add-ons,
     registration questions, option descriptions, role eligibility, discounts,
-    and organizer planning tips.
+    and organizer planning tips. Generated-doc source coverage now also ties
+    the guide to Product.md's organizational-memory, organizer-note,
+    editable-copy, and stable event instance model, rejecting public
+    organizer-note and live-template-edit wording.
     `specs/templates/templates.test.ts` and `docs/templates/templates.doc.ts`
     now functionally create a template with planning tips, a reusable add-on,
     and a registration question, screenshot the saved template detail page, then

@@ -5899,6 +5899,17 @@ closed, Docker's disposable Alpine start probe timed out, and `/legal/terms`
 could not be reached. No current-head Browser route/layout evidence is claimed
 for this source-only guard; the blocker remains below the app, Playwright,
 Browser, and documentation-source guard changes.
+A fresh June 7, 2026 retry on PR head `190b740e` plus the template
+organizational-memory source guard edits kept the same blocker shape: `bun run
+dev:status` regenerated `.env.dev` for `BASE_URL=http://localhost:4218`,
+confirmed all required dev and Docker variables are present, found no current
+Compose project containers and no other Evorto stack publishing port 4218, and
+returned a clean Neon dry-run (`total=1`, `protected=1`, `active_test=0`,
+`stale_deleted=0`, `ttl=2h`). The database endpoint on `localhost:55618` stayed
+closed, Docker's disposable Alpine start probe timed out, and `/legal/terms`
+could not be reached. No current-head Browser route/layout evidence is claimed
+for this source-only guard; the blocker remains below the app, Playwright,
+Browser, and documentation-source guard changes.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
@@ -6103,7 +6114,10 @@ containing both a category and the Create template action instead of highlightin
 only the standalone create link.
 It also screenshots reusable add-on and registration-question forms through
 field-backed component targets containing their expected labels and state text
-instead of accepting the first matching template form component.
+instead of accepting the first matching template form component. Template
+generated-doc source coverage now also ties the guide to Product.md's
+organizational-memory, organizer-note, editable-copy, and stable event instance
+model, rejecting public organizer-note and live-template-edit wording.
 The finance-overview generated doc now screenshots the permission-scoped
 navigation surface containing the transaction, receipt-approval, and
 receipt-reimbursement links instead of highlighting only one finance card.
