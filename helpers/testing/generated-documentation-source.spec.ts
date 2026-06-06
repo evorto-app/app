@@ -1494,8 +1494,24 @@ describe('generated docs source current behavior', () => {
       },
       {
         files: ['tests/docs/events/register.doc.ts'],
+        productArea: 'manage registrations and cancellations',
+        terms: [
+          'Cancellation queues a registration-cancelled email',
+          'Paid confirmed cancellations are still allowed',
+        ],
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
         productArea: 'transferring a registration',
         terms: ['Transfer an unpaid registration', 'Transfer code'],
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        productArea: 'use waitlists as lightweight demand indicators',
+        terms: [
+          'Full participant options expose a distinct **Join waitlist** action',
+          'Leave waitlist',
+        ],
       },
       {
         files: ['tests/docs/events/event-management.doc.ts'],

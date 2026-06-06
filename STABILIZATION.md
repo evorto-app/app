@@ -5694,11 +5694,11 @@ runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.
 Generated-doc source coverage now also maps the root product docs' important
 documentation areas to generated doc files and concrete source terms, so
-essential flows like browsing events, registering, transfers, create-from-template,
-account-required tenant account creation, event review/publishing, templates,
-roles/capabilities, check-in, receipts, tenant branding/settings, and
-legal/privacy settings cannot silently disappear from the product-facing
-documentation inventory.
+essential flows like browsing events, registering, account-required tenant
+account creation, registration cancellation/refund scope, transfers, waitlists,
+create-from-template, event review/publishing, templates, roles/capabilities,
+check-in, receipts, tenant branding/settings, and legal/privacy settings cannot
+silently disappear from the product-facing documentation inventory.
 It also maps `QUALITY.md` generated-documentation topics to checked-in docs
 sources, including payments and documentation/help, so the product and quality
 root docs cannot drift apart on which user/admin guides are expected.
