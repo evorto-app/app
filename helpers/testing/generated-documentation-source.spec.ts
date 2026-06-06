@@ -256,6 +256,15 @@ const findGenericScreenshotTargets = (
     }
 
     if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isPropertyAccessExpression(node.left) &&
+      isGenericLocatorTarget(node.right)
+    ) {
+      genericTargetPropertyAliases.add(node.left.getText(sourceFile));
+    }
+
+    if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.initializer &&
@@ -444,6 +453,15 @@ const findUnfilteredBroadScreenshotTargets = (
           );
         }
       }
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isPropertyAccessExpression(node.left) &&
+      isUnfilteredBroadLocatorTarget(node.right)
+    ) {
+      broadTargetPropertyAliases.add(node.left.getText(sourceFile));
     }
 
     if (
@@ -709,6 +727,15 @@ const findSingleControlScreenshotTargets = (
     }
 
     if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isPropertyAccessExpression(node.left) &&
+      isSingleControlLocatorTarget(node.right)
+    ) {
+      singleControlPropertyAliases.add(node.left.getText(sourceFile));
+    }
+
+    if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.initializer &&
@@ -926,6 +953,15 @@ const findIconOrMediaScreenshotTargets = (
           );
         }
       }
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isPropertyAccessExpression(node.left) &&
+      isIconOrMediaLocatorTarget(node.right)
+    ) {
+      iconOrMediaPropertyAliases.add(node.left.getText(sourceFile));
     }
 
     if (
@@ -1482,6 +1518,16 @@ describe('generated docs source current behavior', () => {
         shell: page.locator('main'),
       };
     `;
+    const forwardPropertyAssignmentSource = `
+      await takeScreenshot(
+        testInfo,
+        assignedTargets.shell,
+        page,
+        'Forward property assignment target with a descriptive caption',
+      );
+      const assignedTargets = {};
+      assignedTargets.shell = page.locator('main');
+    `;
 
     expect(
       findGenericScreenshotTargets(
@@ -1498,6 +1544,12 @@ describe('generated docs source current behavior', () => {
         forwardPropertyAliasSource,
       ),
     ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/forward-property-assignment.doc.ts',
+        forwardPropertyAssignmentSource,
+      ),
+    ).toEqual(['tests/docs/example/forward-property-assignment.doc.ts:2:13']);
     expect(
       findUnfilteredBroadScreenshotTargets(
         'tests/docs/example/forward-alias-target.doc.ts',
@@ -1517,6 +1569,15 @@ describe('generated docs source current behavior', () => {
       ),
     ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
     expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/forward-property-assignment.doc.ts',
+        forwardPropertyAssignmentSource.replaceAll(
+          "locator('main')",
+          "locator('section')",
+        ),
+      ),
+    ).toEqual(['tests/docs/example/forward-property-assignment.doc.ts:2:13']);
+    expect(
       findSingleControlScreenshotTargets(
         'tests/docs/example/forward-alias-target.doc.ts',
         forwardAliasSource.replaceAll("locator('main')", "locator('button')"),
@@ -1535,6 +1596,15 @@ describe('generated docs source current behavior', () => {
       ),
     ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
     expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/forward-property-assignment.doc.ts',
+        forwardPropertyAssignmentSource.replaceAll(
+          "locator('main')",
+          "locator('button')",
+        ),
+      ),
+    ).toEqual(['tests/docs/example/forward-property-assignment.doc.ts:2:13']);
+    expect(
       findIconOrMediaScreenshotTargets(
         'tests/docs/example/forward-alias-target.doc.ts',
         forwardAliasSource.replaceAll("locator('main')", "locator('img')"),
@@ -1552,6 +1622,15 @@ describe('generated docs source current behavior', () => {
         ),
       ),
     ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/forward-property-assignment.doc.ts',
+        forwardPropertyAssignmentSource.replaceAll(
+          "locator('main')",
+          "locator('img')",
+        ),
+      ),
+    ).toEqual(['tests/docs/example/forward-property-assignment.doc.ts:2:13']);
   });
 
   it('keeps generated documentation pages explanatory and image-backed', () => {
