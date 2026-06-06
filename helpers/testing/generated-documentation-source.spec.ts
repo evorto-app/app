@@ -444,6 +444,127 @@ const findSingleControlScreenshotTargets = (
   return singleControlTargets;
 };
 
+const findIconOrMediaScreenshotTargets = (
+  path: string,
+  source: string,
+): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const iconOrMediaTargets: string[] = [];
+  const iconOrMediaAliases = new Set<string>();
+  const iconOrMediaCssSelectors = new Set([
+    'canvas',
+    'fa-icon',
+    'img',
+    'mat-icon',
+    'picture',
+    'svg',
+    'video',
+  ]);
+  const iconOrMediaCssSelectorPatterns = [
+    /^\.fa(?:\b|-)/u,
+    /^\.mat-icon(?:\b|[_-])/u,
+    /^\[(?:alt|src)(?:\]|[~|^$*]?=)/u,
+  ];
+
+  const describeCall = (node: ts.CallExpression): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.expression.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const isIconOrMediaCssSelector = (selector: string): boolean => {
+    const normalizedSelector = selector.trim().toLowerCase();
+    const selectorHead = normalizedSelector
+      .split(/\s|>|\+|~|:|\.|#|\[/u, 1)[0]
+      ?.trim();
+
+    return (
+      (selectorHead ? iconOrMediaCssSelectors.has(selectorHead) : false) ||
+      iconOrMediaCssSelectorPatterns.some((pattern) =>
+        pattern.test(normalizedSelector),
+      )
+    );
+  };
+
+  const isIconOrMediaLocatorTarget = (node: ts.Expression): boolean => {
+    if (ts.isArrayLiteralExpression(node)) {
+      return node.elements.some((element) =>
+        isIconOrMediaLocatorTarget(element),
+      );
+    }
+
+    if (ts.isIdentifier(node)) {
+      return iconOrMediaAliases.has(node.text);
+    }
+
+    let candidate: ts.Expression = ts.isParenthesizedExpression(node)
+      ? node.expression
+      : node;
+
+    while (
+      ts.isCallExpression(candidate) &&
+      ts.isPropertyAccessExpression(candidate.expression)
+    ) {
+      const methodName = candidate.expression.name.text;
+
+      if (methodName === 'locator') {
+        const selector = candidate.arguments[0];
+        if (
+          selector &&
+          (ts.isStringLiteral(selector) ||
+            ts.isNoSubstitutionTemplateLiteral(selector))
+        ) {
+          return isIconOrMediaCssSelector(selector.text);
+        }
+      }
+
+      if (methodName === 'getByAltText' || methodName === 'getByTitle') {
+        return true;
+      }
+
+      candidate = candidate.expression.expression;
+    }
+
+    return false;
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      isIconOrMediaLocatorTarget(node.initializer)
+    ) {
+      iconOrMediaAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'takeScreenshot'
+    ) {
+      const target = node.arguments[1];
+
+      if (target && isIconOrMediaLocatorTarget(target)) {
+        iconOrMediaTargets.push(describeCall(node));
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return iconOrMediaTargets;
+};
+
 const countTakeScreenshotCalls = (path: string, source: string): number => {
   const sourceFile = ts.createSourceFile(
     path,
@@ -773,6 +894,75 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects icon-only and media-only documentation screenshot targets', () => {
+    const iconOrMediaTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        page.locator('svg'),
+        page,
+        'Single svg icon target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator('img[alt="Tenant logo"]'),
+        page,
+        'Single image target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator('fa-icon'),
+        page,
+        'Single Font Awesome icon target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator('.mat-icon'),
+        page,
+        'Single Material icon target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.getByAltText('Tenant logo'),
+        page,
+        'Single alt text image target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.getByTitle('Search icon'),
+        page,
+        'Single title icon target with a descriptive caption',
+      );
+      const tenantLogoImage = page.locator('[src="/logo.png"]');
+      await takeScreenshot(
+        testInfo,
+        [tenantSettingsSurface, tenantLogoImage],
+        page,
+        'Aliased image target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        tenantSettingsSurface,
+        page,
+        'Settings surface target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/icon-target.doc.ts',
+        iconOrMediaTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/icon-target.doc.ts:2:13',
+      'tests/docs/example/icon-target.doc.ts:8:13',
+      'tests/docs/example/icon-target.doc.ts:14:13',
+      'tests/docs/example/icon-target.doc.ts:20:13',
+      'tests/docs/example/icon-target.doc.ts:26:13',
+      'tests/docs/example/icon-target.doc.ts:32:13',
+      'tests/docs/example/icon-target.doc.ts:39:13',
+    ]);
+  });
+
   it('keeps generated documentation pages explanatory and image-backed', () => {
     const documentFiles = findFiles('tests/docs')
       .filter((path) => path.endsWith('.doc.ts'))
@@ -886,6 +1076,7 @@ describe('generated docs source current behavior', () => {
       expect(findSingleControlScreenshotTargets(path, source), path).toEqual(
         [],
       );
+      expect(findIconOrMediaScreenshotTargets(path, source), path).toEqual([]);
       for (const [caption, locations] of collectScreenshotCaptions(
         path,
         source,

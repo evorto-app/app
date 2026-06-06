@@ -1203,6 +1203,8 @@ describe('stabilization source', () => {
     expect(source).toContain('single-control CSS locator targets');
     expect(source).toContain('ARIA role selectors');
     expect(source).toContain('Material control hosts');
+    expect(source).toContain('icon-only and media-only screenshot targets');
+    expect(source).toContain('direct icon/media screenshot targets');
     expect(source).toContain('target arrays');
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
@@ -1232,6 +1234,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('single-control CSS locator targets');
     expect(inventory).toContain('ARIA role selectors');
     expect(inventory).toContain('Material control hosts/classes');
+    expect(inventory).toContain('direct icon/media targets such as `svg`');
     expect(inventory).toContain('inside screenshot target arrays');
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local screenshot\s+wrappers/u);
@@ -1311,6 +1314,9 @@ describe('stabilization source', () => {
       'findSingleControlScreenshotTargets',
     );
     expect(generatedDocumentationSource).toContain(
+      'findIconOrMediaScreenshotTargets',
+    );
+    expect(generatedDocumentationSource).toContain(
       'findScreenshotHelperBypasses',
     );
     expect(generatedDocumentationSource).toContain(
@@ -1318,6 +1324,9 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'detects single-control documentation screenshot targets',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects icon-only and media-only documentation screenshot targets',
     );
     expect(generatedDocumentationSource).toContain('getByPlaceholder');
     expect(generatedDocumentationSource).toContain(
