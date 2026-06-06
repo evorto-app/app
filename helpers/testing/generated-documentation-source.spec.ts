@@ -1348,6 +1348,7 @@ const findDirectImageAttachmentCalls = (
   );
   const imageAttachments: string[] = [];
   const imageAttachmentNameAliases = new Set<string>();
+  const imageAttachmentPayloadAliases = new Set<string>();
   const attachFunctionAliases = new Set<string>();
 
   const describeCall = (node: ts.CallExpression): string => {
@@ -1382,6 +1383,10 @@ const findDirectImageAttachmentCalls = (
 
   const isImageAttachmentPayload = (node: ts.Expression): boolean => {
     const payload = unwrapExpression(node);
+
+    if (ts.isIdentifier(payload)) {
+      return imageAttachmentPayloadAliases.has(payload.text);
+    }
 
     if (!ts.isObjectLiteralExpression(payload)) {
       return false;
@@ -1457,6 +1462,10 @@ const findDirectImageAttachmentCalls = (
     ) {
       if (getStringLiteralText(node.initializer) === 'image') {
         imageAttachmentNameAliases.add(node.name.text);
+      }
+
+      if (isImageAttachmentPayload(node.initializer)) {
+        imageAttachmentPayloadAliases.add(node.name.text);
       }
 
       if (isAttachFunctionReference(node.initializer)) {
@@ -1691,6 +1700,10 @@ describe('generated docs source current behavior', () => {
       await testInfo['attach']('image', { body: imageBuffer });
       await testInfo.attach('raw evidence', { body: imageBuffer, contentType: 'image/png' });
       await testInfo.attach('raw file evidence', { path: 'raw-evidence.webp' });
+      const rawImagePayload = { body: imageBuffer, contentType: 'image/jpeg' };
+      await testInfo.attach('aliased raw evidence', rawImagePayload);
+      const rawImagePathPayload = { path: 'aliased-raw-evidence.png' };
+      await testInfo.attach('aliased raw file evidence', rawImagePathPayload);
       await testInfo.attach('markdown', { body: markdown });
     `;
 
@@ -1709,6 +1722,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:12:13',
       'tests/docs/example/direct-image.doc.ts:13:13',
       'tests/docs/example/direct-image.doc.ts:14:13',
+      'tests/docs/example/direct-image.doc.ts:16:13',
+      'tests/docs/example/direct-image.doc.ts:18:13',
     ]);
   });
 

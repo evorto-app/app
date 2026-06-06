@@ -1405,6 +1405,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/destructured\s+screenshot-function aliases/u);
     expect(inventory).toMatch(/simple\s+attachment-name/u);
     expect(inventory).toContain('raw image MIME/file-extension payloads');
+    expect(inventory).toContain('aliased raw image payload objects');
     expect(inventory).toContain('destructured attach-function aliases');
     expect(inventory).toContain('dynamic screenshot-helper imports');
     expect(inventory).toContain('self-tests those bypass examples');
@@ -1495,6 +1496,9 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('contentType');
     expect(generatedDocumentationSource).toContain('image/png');
     expect(generatedDocumentationSource).toContain('raw-evidence.webp');
+    expect(generatedDocumentationSource).toContain('rawImagePayload');
+    expect(generatedDocumentationSource).toContain('image/jpeg');
+    expect(generatedDocumentationSource).toContain('aliased-raw-evidence.png');
     expect(generatedDocumentationSource).toContain('attachFunctionAliases');
     expect(generatedDocumentationSource).toContain('addAttachBindingAliases');
     expect(generatedDocumentationSource).toContain(
