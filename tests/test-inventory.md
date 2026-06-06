@@ -184,6 +184,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     the Import selected action, and the full paid registration option tax-rate
     controls, so the generated guide proves selectable inclusive rates instead
     of route-shell presence, a generic dialog crop, or a single combobox crop.
+    Generated-doc source coverage also ties tax-rate metadata to Product.md's
+    Stripe source-of-truth boundary and rejects local/manual tax-rate wording.
   - finance viewport coverage checks the authenticated finance overview,
     transactions, receipt approval list/detail, and reimbursement pages at
     narrow mobile, mobile, and desktop viewports for expected seeded content,

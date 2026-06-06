@@ -1249,7 +1249,10 @@ the current working direction until a product decision overrides them.
 - `src/app/finance/receipt-approval-detail/receipt-approval-detail.component.spec.ts`
   pins the approval/rejection action guard for invalid forms, loading receipt
   details, and mutation-pending review writes.
-- Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
+- Tax-rate docs and specs provide better active coverage for `admin:tax` and
+  inclusive Stripe tax-rate import/selection. Generated-doc source coverage also
+  ties tax-rate metadata to Product.md's Stripe source-of-truth boundary and
+  rejects local/manual tax-rate wording.
 - Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, submitter notification-email fallback, receipt review precondition rejection, mixed-submitter reimbursement rejection, payout-detail validation before reimbursement recording, reimbursement precondition-race rejection, and tax-amount consistency rejection on receipt submit/review.
 - **Addressed in stabilization pass:** receipt submit and finance review now
   share the same client-side amount preflight for deposit/alcohol and tax

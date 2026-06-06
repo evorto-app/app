@@ -160,6 +160,8 @@ The import dialog loads tax rates directly from Stripe:
 - Exclusive or archived rates remain blocked with clear chips.
 - Already-imported rates show the **imported** badge.
 
+Stripe remains the source of truth for tax-rate metadata. Evorto imports compatible rates from Stripe instead of asking admins to type local tax percentages by hand.
+
 Select the rates you need and choose **Import selected** to refresh the compatible list.
 `,
     });

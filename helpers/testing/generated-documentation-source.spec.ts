@@ -5774,8 +5774,15 @@ describe('generated docs source current behavior', () => {
   });
 
   it('keeps inclusive tax-rate docs focused on seeded compatible rows and paid option controls', () => {
+    const productSource = readSource('PRODUCT.md');
     const source = readSource('tests/docs/finance/inclusive-tax-rates.doc.ts');
 
+    expect(productSource).toContain(
+      'Stripe is the source of truth for payment state.',
+    );
+    expect(productSource).toContain(
+      'Evorto may duplicate relevant Stripe data locally for app behavior, reporting, and user experience',
+    );
     expect(source).toContain('taxRateSection');
     expect(source).toContain('taxRateRow');
     expect(source).toContain('importStripeTaxRatesDialogSurface');
@@ -5788,6 +5795,12 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'Import Stripe tax rates dialog with compatible imported VAT rows',
+    );
+    expect(source).toContain(
+      'Stripe remains the source of truth for tax-rate metadata.',
+    );
+    expect(source).toContain(
+      'Evorto imports compatible rates from Stripe instead of asking admins to type local tax percentages by hand.',
     );
     expect(source).toContain("importDialog.locator('mat-checkbox').first()");
     expect(source).toContain("importDialog.getByText('included').first()");
@@ -5805,6 +5818,10 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain(
       "takeScreenshot(\n      testInfo,\n      eventEditTax.first(),\n      page,\n      'Event edit tax rate selector'",
     );
+    expect(source).not.toMatch(/manual tax percentage/i);
+    expect(source).not.toMatch(/type (a|any|the) tax percentage/i);
+    expect(source).not.toMatch(/custom local tax rate/i);
+    expect(source).not.toMatch(/create tax rates? without Stripe/i);
   });
 
   it('keeps finance overview docs aligned with permission-scoped navigation', () => {
