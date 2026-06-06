@@ -75,6 +75,12 @@ const collectDestructuredLocatorAliases = (
   }
 };
 
+const isTakeScreenshotCall = (node: ts.CallExpression): boolean => {
+  const callee = unwrapExpression(node.expression);
+
+  return ts.isIdentifier(callee) && callee.text === 'takeScreenshot';
+};
+
 const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
   const sourceFile = ts.createSourceFile(
     path,
@@ -101,11 +107,7 @@ const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
   };
 
   const visit = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'takeScreenshot'
-    ) {
+    if (ts.isCallExpression(node) && isTakeScreenshotCall(node)) {
       const caption = node.arguments[3];
       const captionText = caption ? getCaptionText(caption) : null;
 
@@ -152,11 +154,7 @@ const collectScreenshotCaptions = (
   };
 
   const visit = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'takeScreenshot'
-    ) {
+    if (ts.isCallExpression(node) && isTakeScreenshotCall(node)) {
       const caption = node.arguments[3];
 
       if (
@@ -353,11 +351,7 @@ const findGenericScreenshotTargets = (
   };
 
   const inspectScreenshotCalls = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'takeScreenshot'
-    ) {
+    if (ts.isCallExpression(node) && isTakeScreenshotCall(node)) {
       const target = node.arguments[1];
 
       if (!target || isGenericLocatorTarget(target)) {
@@ -567,11 +561,7 @@ const findUnfilteredBroadScreenshotTargets = (
   };
 
   const inspectScreenshotCalls = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'takeScreenshot'
-    ) {
+    if (ts.isCallExpression(node) && isTakeScreenshotCall(node)) {
       const target = node.arguments[1];
 
       if (target && isUnfilteredBroadLocatorTarget(target)) {
@@ -850,11 +840,7 @@ const findSingleControlScreenshotTargets = (
   };
 
   const inspectScreenshotCalls = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'takeScreenshot'
-    ) {
+    if (ts.isCallExpression(node) && isTakeScreenshotCall(node)) {
       const target = node.arguments[1];
 
       if (target && isSingleControlLocatorTarget(target)) {
@@ -1091,11 +1077,7 @@ const findIconOrMediaScreenshotTargets = (
   };
 
   const inspectScreenshotCalls = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'takeScreenshot'
-    ) {
+    if (ts.isCallExpression(node) && isTakeScreenshotCall(node)) {
       const target = node.arguments[1];
 
       if (target && isIconOrMediaLocatorTarget(target)) {
@@ -1123,11 +1105,7 @@ const countTakeScreenshotCalls = (path: string, source: string): number => {
   let screenshotCount = 0;
 
   const visit = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'takeScreenshot'
-    ) {
+    if (ts.isCallExpression(node) && isTakeScreenshotCall(node)) {
       screenshotCount += 1;
     }
 
@@ -1643,6 +1621,44 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:5:13',
       'tests/docs/example/direct-screenshot.doc.ts:7:13',
     ]);
+  });
+
+  it('inspects parenthesized documentation screenshot helper calls', () => {
+    const parenthesizedHelperSource = `
+      async function captureEvidence() {
+        await (takeScreenshot)(
+          testInfo,
+          page.locator('main'),
+          page,
+          'Parenthesized generic shell target with a descriptive caption',
+        );
+        await (takeScreenshot)(
+          testInfo,
+          settingsSurface,
+          page,
+          'Too short',
+        );
+      }
+    `;
+
+    expect(
+      countTakeScreenshotCalls(
+        'tests/docs/example/parenthesized-helper.doc.ts',
+        parenthesizedHelperSource,
+      ),
+    ).toBe(2);
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/parenthesized-helper.doc.ts',
+        parenthesizedHelperSource,
+      ),
+    ).toEqual(['tests/docs/example/parenthesized-helper.doc.ts:3:15']);
+    expect(
+      findWeakScreenshotCaptions(
+        'tests/docs/example/parenthesized-helper.doc.ts',
+        parenthesizedHelperSource,
+      ),
+    ).toEqual(['tests/docs/example/parenthesized-helper.doc.ts:9:15']);
   });
 
   it('detects destructured weak documentation screenshot target aliases', () => {
