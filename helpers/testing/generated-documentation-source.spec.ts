@@ -137,6 +137,7 @@ const findGenericScreenshotTargets = (
   );
   const genericTargets: string[] = [];
   const genericTargetAliases = new Set<string>();
+  const genericTargetPropertyAliases = new Set<string>();
   const genericTargetFunctions = new Set<string>();
   const genericSelectors = new Set([
     '*',
@@ -166,6 +167,10 @@ const findGenericScreenshotTargets = (
 
     if (ts.isIdentifier(node)) {
       return genericTargetAliases.has(node.text);
+    }
+
+    if (ts.isPropertyAccessExpression(node)) {
+      return genericTargetPropertyAliases.has(node.getText(sourceFile));
     }
 
     if (
@@ -234,6 +239,26 @@ const findGenericScreenshotTargets = (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.initializer &&
+      ts.isObjectLiteralExpression(node.initializer)
+    ) {
+      for (const property of node.initializer.properties) {
+        if (
+          ts.isPropertyAssignment(property) &&
+          (ts.isIdentifier(property.name) ||
+            ts.isStringLiteral(property.name)) &&
+          isGenericLocatorTarget(property.initializer)
+        ) {
+          genericTargetPropertyAliases.add(
+            `${node.name.text}.${property.name.text}`,
+          );
+        }
+      }
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
       (ts.isArrowFunction(node.initializer) ||
         ts.isFunctionExpression(node.initializer)) &&
       returnsGenericLocator(node.initializer)
@@ -287,6 +312,7 @@ const findUnfilteredBroadScreenshotTargets = (
   );
   const broadTargets: string[] = [];
   const broadTargetAliases = new Set<string>();
+  const broadTargetPropertyAliases = new Set<string>();
   const broadTargetFunctions = new Set<string>();
   const broadSelectors = new Set(['article', 'form', 'section']);
 
@@ -315,6 +341,10 @@ const findUnfilteredBroadScreenshotTargets = (
 
     if (ts.isIdentifier(node)) {
       return broadTargetAliases.has(node.text);
+    }
+
+    if (ts.isPropertyAccessExpression(node)) {
+      return broadTargetPropertyAliases.has(node.getText(sourceFile));
     }
 
     if (
@@ -400,6 +430,26 @@ const findUnfilteredBroadScreenshotTargets = (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.initializer &&
+      ts.isObjectLiteralExpression(node.initializer)
+    ) {
+      for (const property of node.initializer.properties) {
+        if (
+          ts.isPropertyAssignment(property) &&
+          (ts.isIdentifier(property.name) ||
+            ts.isStringLiteral(property.name)) &&
+          isUnfilteredBroadLocatorTarget(property.initializer)
+        ) {
+          broadTargetPropertyAliases.add(
+            `${node.name.text}.${property.name.text}`,
+          );
+        }
+      }
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
       (ts.isArrowFunction(node.initializer) ||
         ts.isFunctionExpression(node.initializer)) &&
       returnsUnfilteredBroadLocator(node.initializer)
@@ -453,6 +503,7 @@ const findSingleControlScreenshotTargets = (
   );
   const singleControlTargets: string[] = [];
   const singleControlAliases = new Set<string>();
+  const singleControlPropertyAliases = new Set<string>();
   const singleControlFunctions = new Set<string>();
   const singleControlCssSelectors = new Set([
     'a',
@@ -532,6 +583,10 @@ const findSingleControlScreenshotTargets = (
 
     if (ts.isIdentifier(node)) {
       return singleControlAliases.has(node.text);
+    }
+
+    if (ts.isPropertyAccessExpression(node)) {
+      return singleControlPropertyAliases.has(node.getText(sourceFile));
     }
 
     if (
@@ -637,6 +692,26 @@ const findSingleControlScreenshotTargets = (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.initializer &&
+      ts.isObjectLiteralExpression(node.initializer)
+    ) {
+      for (const property of node.initializer.properties) {
+        if (
+          ts.isPropertyAssignment(property) &&
+          (ts.isIdentifier(property.name) ||
+            ts.isStringLiteral(property.name)) &&
+          isSingleControlLocatorTarget(property.initializer)
+        ) {
+          singleControlPropertyAliases.add(
+            `${node.name.text}.${property.name.text}`,
+          );
+        }
+      }
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
       (ts.isArrowFunction(node.initializer) ||
         ts.isFunctionExpression(node.initializer)) &&
       returnsSingleControlLocator(node.initializer)
@@ -690,6 +765,7 @@ const findIconOrMediaScreenshotTargets = (
   );
   const iconOrMediaTargets: string[] = [];
   const iconOrMediaAliases = new Set<string>();
+  const iconOrMediaPropertyAliases = new Set<string>();
   const iconOrMediaFunctions = new Set<string>();
   const iconOrMediaCssSelectors = new Set([
     'canvas',
@@ -737,6 +813,10 @@ const findIconOrMediaScreenshotTargets = (
 
     if (ts.isIdentifier(node)) {
       return iconOrMediaAliases.has(node.text);
+    }
+
+    if (ts.isPropertyAccessExpression(node)) {
+      return iconOrMediaPropertyAliases.has(node.getText(sourceFile));
     }
 
     if (
@@ -826,6 +906,26 @@ const findIconOrMediaScreenshotTargets = (
       isIconOrMediaLocatorTarget(node.initializer)
     ) {
       iconOrMediaAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      ts.isObjectLiteralExpression(node.initializer)
+    ) {
+      for (const property of node.initializer.properties) {
+        if (
+          ts.isPropertyAssignment(property) &&
+          (ts.isIdentifier(property.name) ||
+            ts.isStringLiteral(property.name)) &&
+          isIconOrMediaLocatorTarget(property.initializer)
+        ) {
+          iconOrMediaPropertyAliases.add(
+            `${node.name.text}.${property.name.text}`,
+          );
+        }
+      }
     }
 
     if (
@@ -1371,6 +1471,17 @@ describe('generated docs source current behavior', () => {
       const forwardAliasTarget = page.locator('main');
       const forwardHelperTarget = (page) => page.locator('main');
     `;
+    const forwardPropertyAliasSource = `
+      await takeScreenshot(
+        testInfo,
+        forwardTargets.shell,
+        page,
+        'Forward property target with a descriptive caption',
+      );
+      const forwardTargets = {
+        shell: page.locator('main'),
+      };
+    `;
 
     expect(
       findGenericScreenshotTargets(
@@ -1382,6 +1493,12 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/forward-alias-target.doc.ts:8:13',
     ]);
     expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/forward-property-target.doc.ts',
+        forwardPropertyAliasSource,
+      ),
+    ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
+    expect(
       findUnfilteredBroadScreenshotTargets(
         'tests/docs/example/forward-alias-target.doc.ts',
         forwardAliasSource.replaceAll("locator('main')", "locator('section')"),
@@ -1390,6 +1507,15 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/forward-alias-target.doc.ts:2:13',
       'tests/docs/example/forward-alias-target.doc.ts:8:13',
     ]);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/forward-property-target.doc.ts',
+        forwardPropertyAliasSource.replaceAll(
+          "locator('main')",
+          "locator('section')",
+        ),
+      ),
+    ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
     expect(
       findSingleControlScreenshotTargets(
         'tests/docs/example/forward-alias-target.doc.ts',
@@ -1400,6 +1526,15 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/forward-alias-target.doc.ts:8:13',
     ]);
     expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/forward-property-target.doc.ts',
+        forwardPropertyAliasSource.replaceAll(
+          "locator('main')",
+          "locator('button')",
+        ),
+      ),
+    ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
+    expect(
       findIconOrMediaScreenshotTargets(
         'tests/docs/example/forward-alias-target.doc.ts',
         forwardAliasSource.replaceAll("locator('main')", "locator('img')"),
@@ -1408,6 +1543,15 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/forward-alias-target.doc.ts:2:13',
       'tests/docs/example/forward-alias-target.doc.ts:8:13',
     ]);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/forward-property-target.doc.ts',
+        forwardPropertyAliasSource.replaceAll(
+          "locator('main')",
+          "locator('img')",
+        ),
+      ),
+    ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
   });
 
   it('keeps generated documentation pages explanatory and image-backed', () => {

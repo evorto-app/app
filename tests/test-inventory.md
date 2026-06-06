@@ -528,7 +528,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   can regress to button-only, input-only, option-only, cell-only, or icon-only
   images, resolves screenshot target aliases and helper functions before
   inspecting screenshot calls so later declarations cannot bypass those
-  meaningful-target checks, covers
+  meaningful-target checks, includes object-property target aliases so grouped
+  screenshot target objects cannot hide weak locator targets, covers
   the weak-caption,
   missing-highlight, and blank highlighted-image runtime failures in
   reporter-path tests,
