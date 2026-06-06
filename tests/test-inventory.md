@@ -1112,8 +1112,9 @@ provider outcomes without live identifiers.
     keeping direct QR email delivery, separate payment success/failure emails,
     checkout-expiry emails, and transfer-started emails out of relaunch scope.
     Generated-doc source coverage keeps that unavailable-state, transfer scope,
-    notification boundary, and checkout screenshot target aligned with the
-    relaunch behavior.
+    lightweight waitlist boundary, notification boundary, and checkout screenshot
+    target aligned with the relaunch behavior by rejecting strict reservation
+    queue language in the product-facing registration docs.
   - Server unit coverage now pins registration lifecycle email outbox records
     for free confirmation, cancellation, transfer, and waitlist spot-available
     notifications. Paid checkout confirmation is wired through the Stripe

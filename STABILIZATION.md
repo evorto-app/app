@@ -725,6 +725,9 @@ the current working direction until a product decision overrides them.
   participant-facing waitlist affordance for a full first-come-first-served
   option, explicitly reads back the created waitlist registration, and restores
   touched fixture registrations, registration questions, and option counters.
+  Generated-doc source coverage also rejects strict reservation-queue language
+  so waitlist documentation stays aligned with the lightweight demand-indicator
+  product boundary.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, remaining-capacity guest selection helpers, participant registration/write action disabling, and too-early/too-late registration windows without requiring a page-backed browser.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, participant guest quantities, and free-registration confirmation email outbox records.

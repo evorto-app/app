@@ -6082,6 +6082,7 @@ describe('generated docs source current behavior', () => {
   });
 
   it('keeps registration docs aligned with unavailable states and transfer scope', () => {
+    const productSource = readSource('PRODUCT.md');
     const source = readSource('tests/docs/events/register.doc.ts');
 
     expect(source).toContain('Review anonymous registration entry point');
@@ -6102,6 +6103,12 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Waitlisted participants can return to the event page and use **Leave waitlist** before the event starts.',
     );
+    expect(productSource).toContain(
+      'They do not need to behave like a strict reservation queue.',
+    );
+    expect(source).not.toMatch(/strict reservation queue/i);
+    expect(source).not.toMatch(/guaranteed reservation/i);
+    expect(source).not.toMatch(/reserved waitlist spot/i);
     expect(source).toContain(
       'When the registration window is closed, participants can still read the event details, but the registration action is removed.',
     );
