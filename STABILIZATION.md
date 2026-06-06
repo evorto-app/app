@@ -5761,7 +5761,10 @@ functions before it inspects screenshot calls, so generic shell, broad,
 single-control, and icon/media-only targets are still rejected when the alias or
 helper is declared later in the file. Object-property aliases such as
 `targets.shell = page.locator('main')` are covered by the same pass, preventing
-docs from hiding weak screenshot targets behind a grouped target object.
+docs from hiding weak screenshot targets behind a grouped target object. It also
+rejects local aliases and wrapper functions that reference `takeScreenshot`, so
+future docs cannot route screenshots through a differently named helper such as
+`captureDocumentationImage` to bypass direct target and caption inspection.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.

@@ -1340,6 +1340,7 @@ describe('stabilization source', () => {
     expect(source).toContain('target arrays');
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
+    expect(source).toContain('captureDocumentationImage');
     expect(source).toContain('Synthetic failing examples');
     expect(source).toContain('app-root');
     expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
@@ -1391,6 +1392,7 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local screenshot\s+wrappers/u);
+    expect(inventory).toContain('captureDocumentationImage');
     expect(inventory).toContain('self-tests those bypass examples');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('missing-highlight');

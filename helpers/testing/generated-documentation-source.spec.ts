@@ -1094,6 +1094,36 @@ const findScreenshotHelperBypasses = (
   const isScreenshotLikeIdentifier = (name: ts.BindingName): boolean =>
     ts.isIdentifier(name) && /screenshot/iu.test(name.text);
 
+  const expressionReferencesTakeScreenshot = (node: ts.Node): boolean => {
+    if (ts.isIdentifier(node) && node.text === 'takeScreenshot') {
+      return true;
+    }
+
+    let referencesHelper = false;
+
+    ts.forEachChild(node, (child) => {
+      if (expressionReferencesTakeScreenshot(child)) {
+        referencesHelper = true;
+      }
+    });
+
+    return referencesHelper;
+  };
+
+  const functionCallsTakeScreenshot = (
+    node: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression,
+  ): boolean => {
+    let callsHelper = false;
+
+    ts.forEachChild(node.body, (child) => {
+      if (expressionReferencesTakeScreenshot(child)) {
+        callsHelper = true;
+      }
+    });
+
+    return callsHelper;
+  };
+
   const visit = (node: ts.Node): void => {
     if (
       ts.isImportDeclaration(node) &&
@@ -1131,14 +1161,16 @@ const findScreenshotHelperBypasses = (
     if (
       ts.isFunctionDeclaration(node) &&
       node.name &&
-      /screenshot/iu.test(node.name.text)
+      (/screenshot/iu.test(node.name.text) || functionCallsTakeScreenshot(node))
     ) {
       bypasses.push(describeNode(node.name));
     }
 
     if (
       ts.isVariableDeclaration(node) &&
-      isScreenshotLikeIdentifier(node.name)
+      (isScreenshotLikeIdentifier(node.name) ||
+        (node.initializer &&
+          expressionReferencesTakeScreenshot(node.initializer)))
     ) {
       bypasses.push(describeNode(node.name));
     }
@@ -1158,9 +1190,14 @@ describe('generated docs source current behavior', () => {
       import { takeScreenshot } from '../../support/reporters/documentation-reporter/take-screenshot';
 
       const captureScreenshotEvidence = takeScreenshot;
+      const captureDocumentationImage = takeScreenshot;
 
       function localScreenshot() {
         return captureScreenshotEvidence;
+      }
+
+      function captureDocumentationImageLater() {
+        return takeScreenshot;
       }
     `;
 
@@ -1173,7 +1210,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:2:16',
       'tests/docs/example/bypass.doc.ts:3:16',
       'tests/docs/example/bypass.doc.ts:5:13',
-      'tests/docs/example/bypass.doc.ts:7:16',
+      'tests/docs/example/bypass.doc.ts:6:13',
+      'tests/docs/example/bypass.doc.ts:8:16',
+      'tests/docs/example/bypass.doc.ts:12:16',
     ]);
   });
 
