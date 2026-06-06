@@ -1899,6 +1899,16 @@ describe('stabilization source', () => {
       'isTrackedScreenshotFunctionReference',
     );
     expect(generatedDocumentationSource).toContain('testInfo.attach.call');
+    expect(generatedDocumentationSource).toContain('hasSpreadArgument');
+    expect(generatedDocumentationSource).toContain(
+      'detects spread direct image attachment arguments before generated docs can use them',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await testInfo.attach(...imageArgs)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await testInfo.attach.apply(testInfo, markdownArgs)',
+    );
     expect(generatedDocumentationSource).toContain("page['screenshot'].apply");
     expect(generatedDocumentationSource).toContain('genericSelectors');
     expect(generatedDocumentationSource).toContain('genericTargetAliases');
@@ -2005,6 +2015,11 @@ describe('stabilization source', () => {
     expect(reporterPathsSpec).toContain(
       'Documentation screenshots must include the highlighted focus target',
     );
+    expect(source).toContain(
+      'Tracked direct image attachment calls with spread arguments',
+    );
+    expect(inventory).toContain('spread direct attachment arguments');
+    expect(inventory).toContain('opaque\n  attachment `apply(...)` lists');
   });
 
   it('keeps the PR readiness checkpoint current without pinning stale heads', () => {

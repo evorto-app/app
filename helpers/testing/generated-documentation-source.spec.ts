@@ -2095,6 +2095,22 @@ const findDirectImageAttachmentCalls = (
     (isImageAttachmentName(nameArgument) ||
       (!!payloadArgument && isImageAttachmentPayload(payloadArgument)));
 
+  const hasSpreadArgument = (args: ts.NodeArray<ts.Expression>): boolean =>
+    args.some((argument) => ts.isSpreadElement(argument));
+
+  const hasSpreadArrayElement = (
+    elements: ts.NodeArray<ts.Expression>,
+  ): boolean => elements.some((element) => ts.isSpreadElement(element));
+
+  const isTrackedAttachCallCallee = (callee: ts.Expression): boolean =>
+    ((ts.isPropertyAccessExpression(callee) ||
+      ts.isElementAccessExpression(callee)) &&
+      (getStaticPropertyName(callee) === 'attach' ||
+        attachFunctionPropertyAliases.has(
+          getStaticPropertyReference(callee, sourceFile) ?? '',
+        ))) ||
+    (ts.isIdentifier(callee) && attachFunctionAliases.has(callee.text));
+
   const isIndirectImageAttachmentCall = (
     callee: ts.Expression,
     args: ts.NodeArray<ts.Expression>,
@@ -2118,13 +2134,19 @@ const findDirectImageAttachmentCalls = (
     }
 
     if (methodName === 'call') {
-      return hasImageAttachmentArguments(args[1], args[2]);
+      return (
+        hasSpreadArgument(args) || hasImageAttachmentArguments(args[1], args[2])
+      );
     }
 
     const applyArguments = args[1] ? unwrapExpression(args[1]) : null;
 
     if (!applyArguments || !ts.isArrayLiteralExpression(applyArguments)) {
-      return false;
+      return true;
+    }
+
+    if (hasSpreadArrayElement(applyArguments.elements)) {
+      return true;
     }
 
     return hasImageAttachmentArguments(
@@ -2138,15 +2160,12 @@ const findDirectImageAttachmentCalls = (
       const callee = unwrapExpression(node.expression);
 
       if (
-        (hasImageAttachmentArguments(node.arguments[0], node.arguments[1]) &&
-          (((ts.isPropertyAccessExpression(callee) ||
-            ts.isElementAccessExpression(callee)) &&
-            (getStaticPropertyName(callee) === 'attach' ||
-              attachFunctionPropertyAliases.has(
-                getStaticPropertyReference(callee, sourceFile) ?? '',
-              ))) ||
-            (ts.isIdentifier(callee) &&
-              attachFunctionAliases.has(callee.text)))) ||
+        (isTrackedAttachCallCallee(callee) &&
+          (hasSpreadArgument(node.arguments) ||
+            hasImageAttachmentArguments(
+              node.arguments[0],
+              node.arguments[1],
+            ))) ||
         isIndirectImageAttachmentCall(callee, node.arguments)
       ) {
         imageAttachments.push(describeCall(node));
@@ -2648,6 +2667,39 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:95:13',
       'tests/docs/example/direct-image.doc.ts:96:13',
       'tests/docs/example/direct-image.doc.ts:97:13',
+    ]);
+  });
+
+  it('detects spread direct image attachment arguments before generated docs can use them', () => {
+    const spreadDirectImageAttachmentSource = `
+      const imageArgs = ['image', { body: imageBuffer }] as const;
+      const markdownArgs = ['markdown', { body: markdown }] as const;
+      const attachEvidence = testInfo.attach.bind(testInfo);
+      const attachHelpers = { evidence: attachEvidence };
+      await testInfo.attach(...imageArgs);
+      await attachEvidence(...imageArgs);
+      await attachHelpers.evidence(...imageArgs);
+      await testInfo.attach.call(testInfo, ...imageArgs);
+      await testInfo.attach.apply(testInfo, imageArgs);
+      await testInfo.attach.apply(testInfo, [...imageArgs]);
+      await testInfo.attach.apply(testInfo, markdownArgs);
+      await testInfo.attach(...markdownArgs);
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/spread-direct-image.doc.ts',
+        spreadDirectImageAttachmentSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/spread-direct-image.doc.ts:6:13',
+      'tests/docs/example/spread-direct-image.doc.ts:7:13',
+      'tests/docs/example/spread-direct-image.doc.ts:8:13',
+      'tests/docs/example/spread-direct-image.doc.ts:9:13',
+      'tests/docs/example/spread-direct-image.doc.ts:10:13',
+      'tests/docs/example/spread-direct-image.doc.ts:11:13',
+      'tests/docs/example/spread-direct-image.doc.ts:12:13',
+      'tests/docs/example/spread-direct-image.doc.ts:13:13',
     ]);
   });
 

@@ -587,7 +587,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   image attachments through simple or grouped attachment-name aliases, raw image
   MIME/file-extension payloads, aliased raw image payload objects, aliased
   grouped or indexed MIME/path values, object shorthand image payloads,
-  computed raw image payload keys, raw screenshot and image attach call/apply invocations,
+  computed raw image payload keys, spread direct attachment arguments, opaque
+  attachment `apply(...)` lists, raw screenshot and image attach call/apply invocations,
   forward-declared raw aliases, and simple, destructured, nested destructured,
   grouped, shorthand, alias-valued, or direct/alias-valued tuple/array
   attach-function aliases, rejects

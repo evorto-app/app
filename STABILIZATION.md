@@ -5909,6 +5909,10 @@ Raw-image payloads also follow aliased, grouped, indexed, and destructured
 MIME/path string values plus object shorthand properties such as
 `{ contentType }`, keeping direct image attachment guards independent of simple
 local variable extraction.
+Tracked direct image attachment calls with spread arguments or opaque
+`apply(...)` argument lists are rejected too, so `testInfo.attach(...args)` or
+`attachEvidence.apply(testInfo, args)` cannot hide raw image evidence from the
+shared-helper caption and highlight checks.
 Raw-image payload keys are normalized too, so computed properties such as
 `{ ['contentType']: 'image/png' }` and `{ ['path']: 'evidence.png' }` still
 count as direct image evidence that must flow through the shared helper.
