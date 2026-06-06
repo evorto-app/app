@@ -1399,9 +1399,14 @@ describe('stabilization source', () => {
     expect(inventory).toContain('`satisfies` grouped target objects');
     expect(inventory).toContain('`locator.screenshot`');
     expect(inventory).toContain("direct `testInfo.attach('image', ...)`");
-    expect(inventory).toContain('destructured\n  screenshot-function aliases');
+    expect(inventory).toContain("`page['screenshot']`");
+    expect(inventory).toContain("`testInfo['attach']`");
+    expect(inventory).toContain("`documentationReporter['takeScreenshot']`");
+    expect(inventory).toMatch(/destructured\s+screenshot-function aliases/u);
     expect(inventory).toMatch(/simple\s+attachment-name/u);
+    expect(inventory).toContain('raw image MIME/file-extension payloads');
     expect(inventory).toContain('destructured attach-function aliases');
+    expect(inventory).toContain('dynamic screenshot-helper imports');
     expect(inventory).toContain('self-tests those bypass examples');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('missing-highlight');
@@ -1473,6 +1478,7 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'detects direct screenshot calls before generated docs can use them',
     );
+    expect(generatedDocumentationSource).toContain("page['screenshot']");
     expect(generatedDocumentationSource).toContain(
       'addScreenshotBindingAliases',
     );
@@ -1482,6 +1488,13 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'detects direct image attachments before generated docs can use them',
     );
+    expect(generatedDocumentationSource).toContain(
+      "documentationReporter['takeScreenshot']",
+    );
+    expect(generatedDocumentationSource).toContain("testInfo['attach']");
+    expect(generatedDocumentationSource).toContain('contentType');
+    expect(generatedDocumentationSource).toContain('image/png');
+    expect(generatedDocumentationSource).toContain('raw-evidence.webp');
     expect(generatedDocumentationSource).toContain('attachFunctionAliases');
     expect(generatedDocumentationSource).toContain('addAttachBindingAliases');
     expect(generatedDocumentationSource).toContain(

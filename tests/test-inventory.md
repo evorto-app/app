@@ -541,11 +541,14 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   rejects uncaptioned image attachments and orphan image-caption attachments
   before generated markdown is written, rejects raw `page.screenshot`,
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs
-  sources, rejects direct screenshots through simple or destructured
-  screenshot-function aliases, rejects direct image attachments through simple
-  attachment-name plus simple or destructured attach-function aliases, rejects
-  aliased/helper-internal screenshot imports and local screenshot wrappers,
-  self-tests those bypass examples, and keeps the permission
+  sources, treats static bracket-property forms such as `page['screenshot']`,
+  `testInfo['attach']`, and `documentationReporter['takeScreenshot']` the same
+  as dot-property access, rejects direct screenshots through simple or
+  destructured screenshot-function aliases, rejects direct image attachments
+  through simple attachment-name aliases, raw image MIME/file-extension payloads,
+  and simple or destructured attach-function aliases, rejects
+  aliased/helper-internal screenshot imports, dynamic screenshot-helper imports,
+  and local screenshot wrappers, self-tests those bypass examples, and keeps the permission
   reference image-backed with the actual role-form permission/dependency
   surface. Reporter-path coverage verifies those captions become generated
   `{% figure %}` blocks and escapes caption attributes so quotes or ampersands
