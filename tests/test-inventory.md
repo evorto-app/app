@@ -856,9 +856,10 @@ provider outcomes without live identifiers.
     CI cache coverage also keeps the E2E matrix behind a `warm-ci-caches` job
     so Bun package, dependency-tree, Docker Bun cache-mount, and Playwright
     browser cache misses are warmed once before Playwright shards run. The same
-    guard pins Docker Buildx setup, the dependency-only warm build target, and
-    separate BuildKit cache scopes for the dependency, `db-setup`, and `evorto`
-    images; CI also explicitly enables Docker BuildKit before Compose builds.
+    guard pins Docker Buildx setup, the retrying BuildKit image pre-pull before
+    Buildx setup, the dependency-only warm build target, and separate BuildKit
+    cache scopes for the dependency, `db-setup`, and `evorto` images; CI also
+    explicitly enables Docker BuildKit before Compose builds.
     The Dockerfile writes the public Font Awesome npm user config before
     container installs, points npm global config at an empty temp file, locks the
     shared BuildKit Bun cache mount, and derives build plus production

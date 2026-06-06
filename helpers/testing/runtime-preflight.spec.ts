@@ -1157,6 +1157,10 @@ describe('evaluateRuntimePreflight', () => {
       )?.length ?? 0,
     ).toBe(2);
     expect(workflow).toContain('Set up Docker Buildx');
+    expect(workflow).toContain('Pre-pull BuildKit image');
+    expect(workflow).toContain(
+      'run: bash helpers/testing/ci-pull-buildkit-image.sh',
+    );
     expect(workflow).toContain('id: setup-buildx');
     expect(workflow).toContain('uses: docker/setup-buildx-action@v4');
     expect(workflow).toContain('version: latest');
@@ -1190,6 +1194,15 @@ describe('evaluateRuntimePreflight', () => {
       'skip-extraction: ${{ steps.docker-bun-cache-mount.outputs.cache-hit }}',
     );
     expect(workflow).toContain('skip-extraction: true');
+    const buildkitPullHelper = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/ci-pull-buildkit-image.sh'),
+      'utf8',
+    );
+    expect(buildkitPullHelper).toContain('moby/buildkit:buildx-stable-1');
+    expect(buildkitPullHelper).toContain('for attempt in 1 2 3 4');
+    expect(buildkitPullHelper).toContain(
+      'timeout 3m docker pull "${buildkit_image}"',
+    );
     expect(workflow).toContain('Prepare Docker build cache directory');
     expect(workflow).toContain('mkdir -p "${DOCKER_BUILD_CACHE_DIR}"');
     expect(workflow).toContain('Warm Docker build cache');

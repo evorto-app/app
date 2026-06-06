@@ -2118,6 +2118,10 @@ describe('stabilization source', () => {
       'DOCKER_BUILD_CACHE_DIR: /tmp/evorto-docker-build-cache',
     );
     expect(workflow).toContain('Set up Docker Buildx');
+    expect(workflow).toContain('Pre-pull BuildKit image');
+    expect(workflow).toContain(
+      'run: bash helpers/testing/ci-pull-buildkit-image.sh',
+    );
     expect(workflow).toContain('id: setup-buildx');
     expect(workflow).toContain('uses: docker/setup-buildx-action@v4');
     expect(workflow).toContain('version: latest');
@@ -2162,6 +2166,14 @@ describe('stabilization source', () => {
       'skip-extraction: ${{ steps.docker-bun-cache-mount.outputs.cache-hit }}',
     );
     expect(workflow).toContain('skip-extraction: true');
+    const buildkitPullHelper = readSource(
+      'helpers/testing/ci-pull-buildkit-image.sh',
+    );
+    expect(buildkitPullHelper).toContain('moby/buildkit:buildx-stable-1');
+    expect(buildkitPullHelper).toContain('for attempt in 1 2 3 4');
+    expect(buildkitPullHelper).toContain(
+      'timeout 3m docker pull "${buildkit_image}"',
+    );
     expect(workflow).toContain('Prepare Docker build cache directory');
     expect(workflow).toContain('mkdir -p "${DOCKER_BUILD_CACHE_DIR}"');
     expect(workflow).toContain('Warm Docker build cache');
@@ -4532,6 +4544,10 @@ describe('stabilization source', () => {
       'DOCKER_BUILD_CACHE_DIR: /tmp/evorto-docker-build-cache',
     );
     expect(workflow).toContain('Set up Docker Buildx');
+    expect(workflow).toContain('Pre-pull BuildKit image');
+    expect(workflow).toContain(
+      'run: bash helpers/testing/ci-pull-buildkit-image.sh',
+    );
     expect(workflow).toContain('id: setup-buildx');
     expect(workflow).toContain('uses: docker/setup-buildx-action@v4');
     expect(workflow).toContain('version: latest');

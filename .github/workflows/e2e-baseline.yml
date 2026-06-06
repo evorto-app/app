@@ -36,6 +36,9 @@ jobs:
       - name: Prune expired Neon branches before cache installs
         run: bash helpers/testing/ci-prune-neon-local-branches.sh
 
+      - name: Pre-pull BuildKit image
+        run: bash helpers/testing/ci-pull-buildkit-image.sh
+
       - name: Set up Docker Buildx
         id: setup-buildx
         uses: docker/setup-buildx-action@v4
@@ -162,6 +165,9 @@ jobs:
       - name: Set up Bun dependency caches
         id: bun-dependency-caches
         uses: ./.github/actions/setup-bun-dependency-caches
+
+      - name: Pre-pull BuildKit image
+        run: bash helpers/testing/ci-pull-buildkit-image.sh
 
       - name: Set up Docker Buildx
         id: setup-buildx

@@ -4874,8 +4874,9 @@ tried to kill container, but did not receive an exit event`. A follow-up
   `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. The E2E
   workflow still keeps normal workers behind the serial
   `Warm CI dependency caches` job, requires the warmed Docker Bun cache mount
-  before worker Docker builds, and has `if: always()` cleanup finalizers for
-  Docker log collection, the `Stop Docker stack` step, and
+  before worker Docker builds, pre-pulls the BuildKit image with retries before
+  Buildx setup, and has `if: always()` cleanup finalizers for Docker log
+  collection, the `Stop Docker stack` step, and
   `Prune expired Neon branches after E2E`; the hourly and `workflow_run` Neon
   cleanup workflow remains the backstop for hard cancellation or runner loss.
   That keeps the branch-hygiene signal aligned with the intended state: active
