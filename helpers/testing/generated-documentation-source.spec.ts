@@ -4696,7 +4696,13 @@ describe('generated docs source current behavior', () => {
       {
         files: ['tests/docs/events/register.doc.ts'],
         productArea: 'registering for events',
-        terms: ['Register for a free event', 'Successful registration'],
+        terms: [
+          'Register for a free event',
+          'Successful registration',
+          'Your event ticket',
+          'QR code for the registration',
+          'registration-confirmation email',
+        ],
       },
       {
         files: ['tests/docs/users/create-account.doc.ts'],
@@ -4856,6 +4862,15 @@ describe('generated docs source current behavior', () => {
         files: ['tests/docs/events/register.doc.ts'],
         terms: ['Register for a free event', 'Successful registration'],
         topic: 'registrations',
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        terms: [
+          'Your event ticket',
+          'QR code for the registration',
+          'registration-confirmation email',
+        ],
+        topic: 'receiving registration confirmation / QR code',
       },
       {
         files: ['tests/docs/events/register.doc.ts'],

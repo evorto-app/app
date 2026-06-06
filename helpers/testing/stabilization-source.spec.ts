@@ -1522,7 +1522,7 @@ describe('stabilization source', () => {
       /root `QUALITY\.md`\s+generated-documentation topics/u,
     );
     expect(inventory).toMatch(
-      /paid registration,\s+waitlists,\s+registration cancellation,\s+transfer\/resale,\s+payments,\s+email notifications,\s+and documentation\/help/u,
+      /paid registration,\s+waitlists,\s+registration cancellation,\s+transfer\/resale,\s+registration confirmation with QR ticket availability,\s+payments,\s+email notifications,\s+and documentation\/help/u,
     );
     expect(inventory).toContain('quietly drop image-backed states');
     expect(inventory).toContain('shared `takeScreenshot` helper');

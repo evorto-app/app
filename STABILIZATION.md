@@ -5815,6 +5815,15 @@ removed the disposable probe. No current-head Browser route/layout evidence is
 claimed for `612eddd2`; the latest positive General Browser sweep remains the
 `aad2bab1` checkpoint above until Docker can start containers for this worktree
 or a current-head app is otherwise available.
+A fresh June 7, 2026 retry on PR head `ce8b5d07` used isolated runtime
+overrides (`APP_HOST_PORT=4218`, `NEON_LOCAL_HOST_PORT=55618`,
+`MINIO_HOST_PORT=9318`, `MINIO_CONSOLE_HOST_PORT=9319`, and
+`COMPOSE_PROJECT_NAME=evorto-1ee1-browser`) so it would not touch the existing
+`evorto-cc7ef3a9` stack on port 4200. `bun run docker:check` still timed out
+while starting the disposable Alpine preflight container, then reported that
+Docker can inspect local configuration but cannot start containers. No
+current-head Browser route/layout evidence is claimed for `ce8b5d07`; the
+blocker remains below the app and Browser tooling.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
@@ -5994,16 +6003,17 @@ highlight, and content-pixel checks.
 Generated-doc source coverage now also maps the root product docs' important
 documentation areas to generated doc files and concrete source terms, so
 essential flows like browsing events, registering, account-required tenant
-account creation, registration cancellation/refund scope, transfers, waitlists,
+account creation, successful registration confirmation with QR ticket
+availability, registration cancellation/refund scope, transfers, waitlists,
 create-from-template, event review/publishing, templates, roles/capabilities,
 ESN-card discount behavior, check-in, receipts, tenant branding/settings,
 legal/privacy settings, and email notifications cannot silently disappear from
 the product-facing documentation inventory.
 It also maps `QUALITY.md` generated-documentation topics to checked-in docs
 sources, including paid registration, waitlists, registration cancellation,
-transfer/resale, payments, email notifications, and documentation/help, so the
-product and quality root docs cannot drift apart on which user/admin guides are
-expected.
+transfer/resale, registration confirmation with QR ticket availability,
+payments, email notifications, and documentation/help, so the product and
+quality root docs cannot drift apart on which user/admin guides are expected.
 The template generated doc now screenshots the seeded template-list navigation
 containing both a category and the Create template action instead of highlighting
 only the standalone create link.

@@ -517,14 +517,16 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   terse section/list labels do not pass as meaningful evidence,
   maps the root product docs' important documentation areas to the generated
   docs files and concrete source terms for browsing events, registration,
+  successful registration confirmation with QR ticket availability,
   account-required tenant account creation, registration cancellation/refund
   scope, transfers, waitlists, create-from-template, event review/publishing,
   templates, ESN-card discount behavior, roles/capabilities, check-in, receipts,
   tenant branding/settings, legal/privacy settings, and email notifications,
   maps root `QUALITY.md` generated-documentation topics
   including paid registration, waitlists, registration cancellation,
-  transfer/resale, payments, email notifications, and documentation/help to
-  checked-in docs sources,
+  transfer/resale, registration confirmation with QR ticket availability,
+  payments, email notifications, and documentation/help to checked-in docs
+  sources,
   rejects fixed `waitForTimeout` sleeps in generated docs so screenshots stay
   tied to concrete UI state,
   keeps the helper's runtime caption parameter required with the same minimum
