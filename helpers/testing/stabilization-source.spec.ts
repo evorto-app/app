@@ -89,6 +89,101 @@ describe('stabilization source', () => {
     expect(source).toContain('generic fallback legal copy');
   });
 
+  it('keeps app UI color usage on Material and Tailwind tokens', () => {
+    const source = readSource('STABILIZATION.md');
+    const inventory = readSource('tests/test-inventory.md');
+    const designTokenSpec = readSource(
+      'src/app/shared/components/design-token-usage.spec.ts',
+    );
+
+    expect(designTokenSpec).toContain('keeps app UI colors on Material');
+    expect(designTokenSpec).toContain(
+      'keeps app typography stable across viewports',
+    );
+    expect(designTokenSpec).toContain(
+      'keeps app text wrapping instead of clipping on narrow viewports',
+    );
+    expect(designTokenSpec).toContain('hex color literal');
+    expect(designTokenSpec).toContain('rgb color literal');
+    expect(designTokenSpec).toContain('hsl color literal');
+    expect(designTokenSpec).toContain('arbitrary color utility');
+    expect(designTokenSpec).toContain('letter spacing utility');
+    expect(designTokenSpec).toContain('letter-spacing declaration');
+    expect(designTokenSpec).toContain('viewport-scaled text utility');
+    expect(designTokenSpec).toContain('viewport-scaled font-size declaration');
+    expect(designTokenSpec).toContain('nowrap utility');
+    expect(designTokenSpec).toContain('truncate utility');
+    expect(designTokenSpec).toContain('line-clamp utility');
+    expect(designTokenSpec).toContain(
+      'keeps app layouts from forcing viewport-width containers',
+    );
+    expect(designTokenSpec).toContain(
+      'keeps app diagnostics on scoped browser loggers',
+    );
+    expect(designTokenSpec).toContain(
+      'keeps app card surfaces on semantic Material containers',
+    );
+    expect(designTokenSpec).toContain(
+      'keeps app backgrounds on Material surfaces instead of decorative gradients',
+    );
+    expect(designTokenSpec).toContain(
+      'keeps app surfaces from adding ad hoc shadows or elevation',
+    );
+    expect(designTokenSpec).toContain('full viewport width utility');
+    expect(designTokenSpec).toContain('arbitrary viewport width utility');
+    expect(designTokenSpec).toContain('viewport width declaration');
+    expect(designTokenSpec).toContain('direct console usage');
+    expect(designTokenSpec).toContain('debugger statement');
+    expect(designTokenSpec).toContain('Angular Material card element');
+    expect(designTokenSpec).toContain('Angular Material card module import');
+    expect(designTokenSpec).toContain('Angular Material card package import');
+    expect(designTokenSpec).toContain('gradient background utility');
+    expect(designTokenSpec).toContain('CSS gradient declaration');
+    expect(designTokenSpec).toContain('decorative blur utility');
+    expect(designTokenSpec).toContain('decorative orb copy');
+    expect(designTokenSpec).toContain('shadow utility');
+    expect(designTokenSpec).toContain('drop-shadow utility');
+    expect(designTokenSpec).toContain('box-shadow declaration');
+    expect(designTokenSpec).toContain('Angular Material elevation class');
+    expect(designTokenSpec).toContain("entry.name.endsWith('.spec.ts')");
+    expect(source).toContain('app UI color usage is now protected');
+    expect(source).toContain('Material/Tailwind semantic color tokens');
+    expect(source).toContain('responsive typography stable');
+    expect(source).toContain('mobile labels wrap');
+    expect(source).toContain('full viewport-width sizing');
+    expect(source).toContain('scoped `consola/browser` loggers');
+    expect(source).toContain('semantic\n  Material/Tailwind containers');
+    expect(source).toContain('Angular Material card\n  shells');
+    expect(source).toContain('decorative gradient/orb backgrounds');
+    expect(source).toContain('ad hoc shadow/elevation\n  treatments');
+    expect(source).toContain(
+      'June 6, 2026 focused app-source design-token guard run',
+    );
+    expect(source).toContain(
+      'src/app/shared/components/design-token-usage.spec.ts',
+    );
+    expect(source).toMatch(/with 8 tests/u);
+    expect(source).toMatch(/source-level Material\/mobile drift coverage/u);
+    expect(source).toMatch(/not fresh\s+Browser-rendered page evidence/u);
+    expect(source).toMatch(/viewport-scaled typography/u);
+    expect(source).toMatch(/no-wrap\/truncate\/line-clamp text clipping/u);
+    expect(source).toMatch(/viewport-width containers/u);
+    expect(source).toMatch(/large-blur backgrounds/u);
+    expect(source).toMatch(/shadow\/drop-shadow\/box-shadow\/mat-elevation/u);
+    expect(inventory).toContain('direct `console.*` or `debugger` usage');
+    expect(inventory).toContain('Local design-token coverage');
+    expect(inventory).toContain(
+      'hardcoded hex/rgb/hsl color literals or arbitrary color utilities',
+    );
+    expect(inventory).toContain('typography stays stable across viewport');
+    expect(inventory).toContain('mobile labels wrap instead of clipping');
+    expect(inventory).toContain('full viewport-width');
+    expect(inventory).toContain('semantic\n    Material/Tailwind containers');
+    expect(inventory).toContain('Angular Material card\n    shells');
+    expect(inventory).toContain('decorative gradient/orb backgrounds');
+    expect(inventory).toContain('ad hoc shadow/elevation\n    treatments');
+  });
+
   it('keeps ESNcard template pricing behind the tenant provider', () => {
     const source = readSource('STABILIZATION.md');
     const product = readSource('PRODUCT.md');

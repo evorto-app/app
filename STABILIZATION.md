@@ -2070,7 +2070,37 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** `bun run env:runtime` now prints the generated Browser-facing `BASE_URL`, generated `COMPOSE_PROJECT_NAME`, and Neon Local host port after writing `.env.dev`. This makes the current worktree target visible from the supported package script and reduces the need for direct `dotenv` shell probes that can resolve to the wrong executable.
 - **Addressed in stabilization pass:** `tests/test-inventory.md` now names its remaining stabilization list as a coverage watchlist instead of implying all listed items are still missing. It records that the first in-app Browser manual review queue pass has covered the local Docker app and routes ESNcard provider outcomes through deterministic provider test mode.
 - **Addressed in stabilization pass:** `QUALITY.md` now records the Browser-blocked fallback rule used during this PR: continue durable Playwright validation when Browser control is unavailable, but do not treat Playwright, screenshots, or system Chrome as a substitute for a requested in-app Browser walkthrough. Source coverage keeps that distinction explicit.
-- **Addressed in this stabilization pass:** remaining Angular Material icon usage for app action icons was removed from the role, event-review, template-list, and template-category surfaces. App source coverage now keeps Angular app icons on the Font Awesome component path, so premium and brand icon packages continue using the same package/token mechanic instead of a separate Material icon registry path.
+- **Addressed in this stabilization pass:** remaining Angular Material icon usage for app action icons was removed from the role, event-review, template-list, and template-category surfaces. App source coverage now keeps Angular app icons on the shared Font Awesome component path while public package installs avoid any separate Material icon registry or private Font Awesome registry path. The same app source guard now rejects unlabeled `mat-icon-button` controls, so icon-only Material controls must carry `aria-label`, `aria-labelledby`, or `title` labeling.
+- **Addressed in this stabilization pass:** app UI color usage is now protected
+  by local design-token source coverage. App templates/components/styles fail if
+  they introduce hardcoded hex/rgb/hsl color literals or arbitrary color
+  utilities instead of Material/Tailwind semantic color tokens. The same source
+  guard now fails if app UI files introduce letter-spacing utilities,
+  `letter-spacing` declarations, viewport-scaled Tailwind text utilities, or
+  viewport-scaled `font-size` declarations, keeping responsive typography stable
+  while viewport specs cover rendered page layout. It also rejects app UI
+  no-wrap, truncate, and line-clamp utilities so mobile labels wrap instead of
+  disappearing behind clipped text, and rejects full viewport-width sizing so
+  app layouts do not reintroduce `w-screen`-style horizontal overflow on narrow
+  mobile viewports. The same local app-source guard now keeps diagnostics on
+  scoped `consola/browser` loggers instead of direct `console.*` calls or
+  `debugger` statements, and it keeps repeated app card surfaces on semantic
+  Material/Tailwind containers instead of reintroducing Angular Material card
+  shells. It now also rejects decorative gradient/orb backgrounds, CSS gradient
+  declarations, large decorative blur utilities, and ad hoc shadow/elevation
+  treatments (`shadow-*`, `drop-shadow-*`, `box-shadow`, and
+  `mat-elevation-*`) so app surfaces stay on the Material/Tailwind token system
+  instead of accumulating non-Material decoration.
+  A fresh June 6, 2026 focused app-source design-token guard run in this
+  worktree passed
+  `bunx --bun ng test --include src/app/shared/components/design-token-usage.spec.ts`
+  with 8 tests. This is source-level Material/mobile drift coverage, not fresh
+  Browser-rendered page evidence: it keeps app UI files off hardcoded
+  hex/rgb/hsl colors, arbitrary color utilities, viewport-scaled typography,
+  no-wrap/truncate/line-clamp text clipping, viewport-width containers, direct
+  `console.*`/`debugger`, Angular Material card shells, and decorative
+  gradient/orb/large-blur backgrounds plus
+  shadow/drop-shadow/box-shadow/mat-elevation surface treatments.
 - **Addressed in stabilization pass:** `specs/seed/seed-baseline.test.ts` now treats the reset-from-zero seed as a runtime contract: default user/organizer roles, every template seed family, paid/free registration options, paid tax-rate wiring, open/closed/draft/past scenario handles, confirmed registrations, and scanner aggregate data must all exist after seeding.
 - **Addressed in stabilization pass:** `.env.example` is now a checked-in
   no-secret checklist for Docker-required local secrets, and runtime preflight

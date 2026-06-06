@@ -956,8 +956,9 @@ provider outcomes without live identifiers.
     instead of scoped browser loggers, and keeps app card surfaces on semantic
     Material/Tailwind containers instead of reintroducing Angular Material card
     shells. It also rejects decorative gradient/orb backgrounds, CSS gradient
-    declarations, and large decorative blur utilities so app surfaces stay on
-    Material/Tailwind tokens instead of drifting into non-Material decoration.
+    declarations, large decorative blur utilities, and ad hoc shadow/elevation
+    treatments so app surfaces stay on Material/Tailwind tokens instead of
+    drifting into non-Material decoration.
   - Keep server authorization checks on `includesPermission` or
     `RpcAccess.ensurePermission`; local source coverage now fails if RPC/HTTP
     handlers reintroduce raw permission-array includes checks.
