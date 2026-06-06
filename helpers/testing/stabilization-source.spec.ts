@@ -716,8 +716,6 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'Playwright `--list` discovery does not clean or write generated docs output',
     );
-    const localDocumentationOutput =
-      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images';
     for (const scriptName of [
       'test:e2e',
       'test:e2e:ui',
@@ -734,11 +732,28 @@ describe('stabilization source', () => {
       'test:e2e:docs',
     ]) {
       expect(packageJson.scripts[scriptName]).toContain(
-        localDocumentationOutput,
+        'bun helpers/testing/run-playwright.ts',
       );
+      expect(packageJson.scripts[scriptName]).not.toContain('DOCS_OUT_DIR=');
+      expect(packageJson.scripts[scriptName]).not.toContain(
+        'DOCS_IMG_OUT_DIR=',
+      );
+      expect(packageJson.scripts[scriptName]).not.toContain('dotenv -c dev --');
     }
+    expect(readSource('helpers/testing/run-playwright.ts')).toContain(
+      "DOCS_OUT_DIR: 'test-results/docs'",
+    );
+    expect(readSource('helpers/testing/run-playwright.ts')).toContain(
+      "DOCS_IMG_OUT_DIR: 'test-results/docs/images'",
+    );
+    expect(readSource('helpers/testing/run-playwright.ts')).toContain(
+      "'node_modules/.bin/dotenv'",
+    );
+    expect(readSource('helpers/testing/run-playwright.spec.ts')).toContain(
+      'runs Playwright through dotenv with local generated-doc output paths',
+    );
     expect(packageJson.scripts['test:e2e:reporter-paths']).toContain(
-      'NO_WEBSERVER=true',
+      '--no-webserver',
     );
     expect(packageJson.scripts['test:e2e:docs:publish']).toContain(
       'DOCS_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs',
@@ -985,7 +1000,7 @@ describe('stabilization source', () => {
     );
     expect(
       readSource('helpers/testing/generated-documentation-source.spec.ts'),
-    ).toContain('DOCS_OUT_DIR=test-results/docs');
+    ).toContain('helpers/testing/run-playwright.ts');
     expect(
       readSource('helpers/testing/generated-documentation-source.spec.ts'),
     ).toContain(
@@ -3333,10 +3348,10 @@ describe('stabilization source', () => {
       '--project=mcp-browser-planner',
     );
     expect(packageJson.scripts['test:e2e:mcp-browser-planner']).toContain(
-      'NO_WEBSERVER=true',
+      '--no-webserver',
     );
     expect(packageJson.scripts['test:e2e:mcp-browser-planner']).toContain(
-      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images',
+      'bun helpers/testing/run-playwright.ts',
     );
     expect(packageJson.scripts['test:e2e:mcp-browser-planner']).toContain(
       '--no-deps',
@@ -5489,10 +5504,8 @@ describe('stabilization source', () => {
       (sourcePath) =>
         sourcePath !== 'tests/specs/smoke/public-general-viewports.spec.ts',
     );
-    const localDocumentationOutput =
-      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images';
     const authenticatedViewportScript =
-      `bun run env:runtime && ${localDocumentationOutput} dotenv -c dev -- playwright test ` +
+      'bun run env:runtime && bun helpers/testing/run-playwright.ts ' +
       `${authenticatedViewportSpecPaths.join(' ')} --project=local-chrome-baseline --workers=1`;
     const discoveredViewportSpecPaths = listFiles('tests/specs', '.ts')
       .filter((sourcePath) =>
@@ -5714,24 +5727,24 @@ describe('stabilization source', () => {
       authenticatedViewportScript,
     );
     expect(packageJson.scripts['test:e2e:mcp-browser-planner']).toBe(
-      `bun run env:runtime && ${localDocumentationOutput} NO_WEBSERVER=true dotenv -c dev -- playwright test tests/setup/mcp-browser.seed.ts --project=mcp-browser-planner --workers=1 --no-deps`,
+      'bun run env:runtime && bun helpers/testing/run-playwright.ts --no-webserver tests/setup/mcp-browser.seed.ts --project=mcp-browser-planner --workers=1 --no-deps',
     );
     expect(
       packageJson.scripts['test:e2e:mcp-browser-authenticated-planner'],
     ).toBe(
-      `bun run env:runtime && ${localDocumentationOutput} dotenv -c dev -- playwright test tests/setup/mcp-browser-authenticated.seed.ts --project=mcp-browser-authenticated-planner --workers=1`,
+      'bun run env:runtime && bun helpers/testing/run-playwright.ts tests/setup/mcp-browser-authenticated.seed.ts --project=mcp-browser-authenticated-planner --workers=1',
     );
     expect(packageJson.scripts['test:e2e:layout-helper']).toBe(
-      `bun run env:runtime && ${localDocumentationOutput} NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/page-layout-helper.test.ts --project=local-chrome-baseline --no-deps`,
+      'bun run env:runtime && bun helpers/testing/run-playwright.ts --no-webserver tests/specs/smoke/page-layout-helper.test.ts --project=local-chrome-baseline --no-deps',
     );
     expect(packageJson.scripts['test:e2e:public-general-viewports']).toBe(
-      `bun run env:runtime && ${localDocumentationOutput} NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/smoke/public-general-viewports.spec.ts --project=local-chrome-baseline --workers=1 --no-deps`,
+      'bun run env:runtime && bun helpers/testing/run-playwright.ts --no-webserver tests/specs/smoke/public-general-viewports.spec.ts --project=local-chrome-baseline --workers=1 --no-deps',
     );
     expect(packageJson.scripts['test:e2e:reporter-paths']).toBe(
-      `bun run env:runtime && ${localDocumentationOutput} NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/reporting/reporter-paths.test.ts --project=local-chrome-baseline --no-deps`,
+      'bun run env:runtime && bun helpers/testing/run-playwright.ts --no-webserver tests/specs/reporting/reporter-paths.test.ts --project=local-chrome-baseline --no-deps',
     );
     expect(packageJson.scripts['test:e2e:doc-screenshot']).toBe(
-      `bun run env:runtime && ${localDocumentationOutput} NO_WEBSERVER=true dotenv -c dev -- playwright test tests/specs/screenshot/doc-screenshot.test.ts --project=local-chrome-baseline --no-deps`,
+      'bun run env:runtime && bun helpers/testing/run-playwright.ts --no-webserver tests/specs/screenshot/doc-screenshot.test.ts --project=local-chrome-baseline --no-deps',
     );
     expect(testsReadme).toContain('bun run test:e2e:authenticated-viewports');
     expect(testsReadme).toContain('authenticated durable\n  viewport pack');
@@ -5740,14 +5753,14 @@ describe('stabilization source', () => {
     expect(testsReadme).toContain('public MCP Browser\n  planner seed');
     expect(testsReadme).toContain('bun run test:e2e:layout-helper');
     expect(testsReadme).toContain(
-      'Local Playwright package scripts that run `playwright test` pin ignored',
+      'Local Playwright package scripts that run `playwright test` share',
     );
     expect(testsReadme).toContain('bun run test:e2e:public-general-viewports');
     expect(testsReadme).toContain('bun run test:e2e:reporter-paths');
     expect(testsReadme).toContain('bun run test:e2e:doc-screenshot');
-    expect(testsReadme).toContain('NO_WEBSERVER=true');
+    expect(testsReadme).toContain('--no-webserver');
     expect(testsReadme).toContain('--no-deps');
-    expect(testsReadme).toContain('does not start\n  Docker');
+    expect(testsReadme).toContain('does not start Docker');
     expect(source).toContain('local head `bb9431e66`');
     expect(source).toContain('passed all three layout-helper tests');
     expect(source).toContain('pushed-head fix `a9d4544e1`');
@@ -5763,7 +5776,9 @@ describe('stabilization source', () => {
     expect(source).toContain('`tests/support/utils/page-layout.ts`');
     expect(inventory).toContain('specs/smoke/page-layout-helper.test.ts');
     expect(inventory).toContain('test:e2e:layout-helper');
-    expect(inventory).toContain('sets ignored docs/image\n    output paths');
+    expect(inventory).toContain(
+      'uses\n    `helpers/testing/run-playwright.ts` to set ignored docs/image output paths',
+    );
     expect(inventory).toContain('specs/reporting/reporter-paths.test.ts');
     expect(inventory).toContain('specs/screenshot/doc-screenshot.test.ts');
     expect(inventory).toContain('test:e2e:reporter-paths');
@@ -5771,7 +5786,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('highlighted screenshot targets');
     expect(inventory).toContain('static doc-screenshot helper contract');
     expect(inventory).toMatch(/visible page-content\s+detection/u);
-    expect(inventory).toContain('ignored docs output paths');
+    expect(inventory).toContain('ignored docs/image output paths');
     expect(inventory).toContain('support/utils/page-layout.ts');
     expect(inventory).toContain('shared viewport layout guard');
     expect(inventory).toContain('common ARIA/Material\n    interactive roles');
@@ -5855,7 +5870,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('durable logged-in viewport pack');
     expect(inventory).toContain('scanner, and members-hub viewport specs');
     expect(inventory).toContain('test:e2e:public-general-viewports');
-    expect(inventory).toContain('keeps the route matrix on one worker');
+    expect(inventory).toMatch(/keeps the route matrix on\s+one worker/u);
     expect(inventory).toContain('narrow mobile');
     expect(inventory).toContain('no horizontal overflow');
     expect(inventory).toContain(

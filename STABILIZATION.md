@@ -508,7 +508,10 @@ the current working direction until a product decision overrides them.
 - Playwright specs with stabilization-relevant gaps: `tests/specs/events/**`, `tests/specs/templates/**`, `tests/specs/finance/**`, `tests/specs/scanning/scanner.test.ts`, `tests/specs/permissions/**`, `tests/specs/reporting/reporter-paths.test.ts`, `tests/specs/screenshot/doc-screenshot.test.ts`
 - Lightweight Playwright checks: `bun run test:e2e -- --list`, `bun run test:e2e:docs -- --list`, `bun run test:e2e:reporter-paths`, `bun run test:e2e:doc-screenshot`
 - Local runtime/developer workflow: `README.md`, `AGENTS.md`, `tests/README.md`, `helpers/README.md`, `src/server/config/AGENTS.md`, `package.json`, `docker-compose.yml`, `Dockerfile`, `helpers/testing/runtime-environment.ts`, `angular.json`, `tsconfig.spec.json`, `.github/workflows/e2e-baseline.yml`, `.github/workflows/copilot-setup-steps.yml`
-- Local workflow checks: `bun run env:runtime`, `bun --version`, `node --version`, `bunx playwright --version`, `docker compose version`, `node_modules/.bin/dotenv -c dev -- docker compose config --quiet`, `bun run build:app`, `bun run test:unit -- --watch=false`, `bun run test:unit:server`, `DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images bun run test:e2e -- --list`, `DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images bun run test:e2e:docs -- --list`
+- Local workflow checks: `bun run env:runtime`, `bun --version`, `node --version`, `bunx playwright --version`, `docker compose version`, `node_modules/.bin/dotenv -c dev -- docker compose config --quiet`, `bun run build:app`, `bun run test:unit -- --watch=false`, `bun run test:unit:server`, `bun run test:e2e -- --list`, `bun run test:e2e:docs -- --list`
+- Current Browser runtime evidence: Browser plugin Node-backed in-app Browser
+  runtime, generated `.env.dev` `BASE_URL`, `/events` route, `Upcoming Events`
+  tenant feed, and public event-link DOM snapshots.
 
 ## Events
 
@@ -1935,8 +1938,11 @@ the current working direction until a product decision overrides them.
   it delegates the missing-file decision to `env:copy-main --if-missing`, then
   runs the normal `dev:check` preflight.
 - Local Playwright package scripts that run `playwright test`, plus `dev:start`,
-  `db:*`, and `docker:*`, now refresh `.env.dev` before running
-  `dotenv -c dev`, reducing fresh-worktree and wrong-database risk.
+  `db:*`, and `docker:*`, now refresh `.env.dev` before loading local dotenv
+  values, reducing fresh-worktree and wrong-database risk. Local Playwright
+  scripts share `helpers/testing/run-playwright.ts`, which pins ignored
+  repository-local docs output paths before invoking
+  `dotenv -c dev -- playwright test`.
 - Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `db-setup` clears the Docker database `public` schema before Drizzle pushes schema so reset-from-zero startup stays non-interactive even when Neon Local reuses older branch state. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports Bun, Docker Compose, Compose config, the Docker container start path, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
 - SSR app routes respond to lightweight `GET` and `HEAD` probes. This keeps
   browser-facing app pages useful for health checks and local reachability
@@ -2055,9 +2061,9 @@ the current working direction until a product decision overrides them.
 - Root, test, helper, and config docs now agree that local runtime scripts refresh `.env.dev`, use `dotenv -c dev`, and provide a non-mutating Docker preflight.
 - The Angular unit-test target now has explicit app/shared discovery ownership; server/db/helper specs remain covered by Vitest through `test:unit:server`.
 - The generated-docs pass already records stale docs and placeholder Playwright coverage; the workflow pass removed the list-mode docs-output mutation risk.
-- Local package scripts that run `playwright test` now pin
-  `DOCS_OUT_DIR=test-results/docs` and
-  `DOCS_IMG_OUT_DIR=test-results/docs/images` before loading local dotenv
+- Local package scripts that run `playwright test` now share
+  `helpers/testing/run-playwright.ts`, which pins `DOCS_OUT_DIR=test-results/docs`
+  and `DOCS_IMG_OUT_DIR=test-results/docs/images` before loading local dotenv
   secrets, so a developer `.env` that points at the `evorto-pages` publish
   checkout cannot make routine Playwright runs dirty that external repo.
   Publishing generated docs remains explicit through

@@ -915,14 +915,22 @@ describe('generated docs source current behavior', () => {
     for (const scriptName of localDocumentationScripts) {
       const script = scripts[scriptName];
 
-      expect(script, scriptName).toContain('DOCS_OUT_DIR=test-results/docs');
       expect(script, scriptName).toContain(
-        'DOCS_IMG_OUT_DIR=test-results/docs/images',
+        'bun helpers/testing/run-playwright.ts',
       );
+      expect(script, scriptName).not.toContain('DOCS_OUT_DIR=');
+      expect(script, scriptName).not.toContain('DOCS_IMG_OUT_DIR=');
       expect(script, scriptName).not.toContain(
         '/Users/hedde/code/evorto-pages',
       );
     }
+
+    expect(readSource('helpers/testing/run-playwright.ts')).toContain(
+      "DOCS_OUT_DIR: 'test-results/docs'",
+    );
+    expect(readSource('helpers/testing/run-playwright.ts')).toContain(
+      "DOCS_IMG_OUT_DIR: 'test-results/docs/images'",
+    );
 
     expect(scripts['test:e2e:docs:publish']).toContain(
       'DOCS_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs',

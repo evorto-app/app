@@ -1547,11 +1547,8 @@ describe('evaluateRuntimePreflight', () => {
       'test:e2e:docs:publish',
     ]) {
       expect(packageJson.scripts[scriptName]).toContain('bun run env:runtime');
-      expect(packageJson.scripts[scriptName]).toContain('dotenv -c dev --');
     }
 
-    const localDocumentationOutput =
-      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images';
     for (const scriptName of [
       'test:e2e',
       'test:e2e:ui',
@@ -1568,15 +1565,40 @@ describe('evaluateRuntimePreflight', () => {
       'test:e2e:docs',
     ]) {
       expect(packageJson.scripts[scriptName]).toContain(
-        localDocumentationOutput,
+        'bun helpers/testing/run-playwright.ts',
       );
+      expect(packageJson.scripts[scriptName]).not.toContain('DOCS_OUT_DIR=');
+      expect(packageJson.scripts[scriptName]).not.toContain(
+        'DOCS_IMG_OUT_DIR=',
+      );
+      expect(packageJson.scripts[scriptName]).not.toContain('dotenv -c dev --');
     }
+
+    const runPlaywright = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/run-playwright.ts'),
+      'utf8',
+    );
+    const runPlaywrightSpec = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/run-playwright.spec.ts'),
+      'utf8',
+    );
+
+    expect(runPlaywright).toContain("DOCS_OUT_DIR: 'test-results/docs'");
+    expect(runPlaywright).toContain(
+      "DOCS_IMG_OUT_DIR: 'test-results/docs/images'",
+    );
+    expect(runPlaywright).toContain("'node_modules/.bin/dotenv'");
+    expect(runPlaywright).toContain("'playwright', 'test'");
+    expect(runPlaywright).toContain("'NO_WEBSERVER'] = 'true'");
+    expect(runPlaywrightSpec).toContain(
+      'runs Playwright through dotenv with local generated-doc output paths',
+    );
+    expect(runPlaywrightSpec).toContain(
+      'maps the helper no-webserver flag to the Playwright environment',
+    );
 
     expect(packageJson.scripts['test:e2e:integration']).toContain(
       '--project=local-chrome-integration --project=docs-integration',
-    );
-    expect(packageJson.scripts['test:e2e:integration']).toContain(
-      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images',
     );
     expect(packageJson.scripts['test:e2e:create-account']).toContain(
       'tests/specs/profile/create-account.spec.ts',
@@ -1588,13 +1610,10 @@ describe('evaluateRuntimePreflight', () => {
       '--project=local-chrome-integration --project=docs-integration',
     );
     expect(packageJson.scripts['test:e2e:create-account']).toContain(
-      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images',
-    );
-    expect(packageJson.scripts['test:e2e:create-account']).toContain(
       "--grep '@needs-auth0-management'",
     );
     expect(packageJson.scripts['test:e2e:docs']).toContain(
-      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images',
+      '--project=docs-baseline',
     );
     expect(packageJson.scripts['test:e2e:docs:publish']).toContain(
       'DOCS_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs',
@@ -1624,10 +1643,7 @@ describe('evaluateRuntimePreflight', () => {
       packageJson.scripts['test:e2e:mcp-browser-authenticated-planner'],
     ).toContain('--project=mcp-browser-authenticated-planner');
     expect(packageJson.scripts['test:e2e:layout-helper']).toContain(
-      'NO_WEBSERVER=true',
-    );
-    expect(packageJson.scripts['test:e2e:layout-helper']).toContain(
-      'DOCS_OUT_DIR=test-results/docs DOCS_IMG_OUT_DIR=test-results/docs/images',
+      '--no-webserver',
     );
     expect(packageJson.scripts['test:e2e:layout-helper']).toContain(
       'tests/specs/smoke/page-layout-helper.test.ts',
@@ -1636,7 +1652,7 @@ describe('evaluateRuntimePreflight', () => {
       '--no-deps',
     );
     expect(packageJson.scripts['test:e2e:public-general-viewports']).toContain(
-      'NO_WEBSERVER=true',
+      '--no-webserver',
     );
     expect(packageJson.scripts['test:e2e:public-general-viewports']).toContain(
       'tests/specs/smoke/public-general-viewports.spec.ts',

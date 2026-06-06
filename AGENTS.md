@@ -90,10 +90,12 @@ For runtime/test details, read:
 - `src/server/config/AGENTS.md`
 
 Local Playwright package scripts that run `playwright test`, plus `dev:start`,
-`db:*`, and `docker:*`, refresh `.env.dev` before invoking `dotenv -c dev`.
-Use those package scripts instead of bare `dotenv` shell commands. The only
-Playwright package script that writes generated docs outside this repository is
-`test:e2e:docs:publish`.
+`db:*`, and `docker:*`, refresh `.env.dev` before loading local dotenv values.
+Local Playwright scripts use `helpers/testing/run-playwright.ts` to set ignored
+repository-local docs output paths before invoking `dotenv -c dev -- playwright
+test`. Use those package scripts instead of bare `dotenv` shell commands. The
+only Playwright package script that writes generated docs outside this
+repository is `test:e2e:docs:publish`.
 
 ## Type Safety
 

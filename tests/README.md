@@ -132,9 +132,12 @@ bun run lint
   an authenticated local run cannot bind the Auth0-registered `localhost:4200`
   origin. Stop that owning stack manually only after confirming it is not active.
 - Local Playwright package scripts that run `playwright test`, plus
-  `dev:start`, `db:*`, and `docker:*`, refresh `.env.dev` before invoking
-  `dotenv -c dev`, so new worktrees get isolated local app/service ports and
-  database URLs by default. Use `bun run docker:ps` rather than bare
+  `dev:start`, `db:*`, and `docker:*`, refresh `.env.dev` before loading local
+  dotenv values, so new worktrees get isolated local app/service ports and
+  database URLs by default. Local Playwright scripts use
+  `helpers/testing/run-playwright.ts` to set ignored docs output paths and then
+  invoke `dotenv -c dev -- playwright test`. Use `bun run docker:ps` rather
+  than bare
   `docker compose ps` when checking a worktree stack because the generated
   `COMPOSE_PROJECT_NAME` must be loaded from `.env.dev`.
 - `bun run dev:start` runs `bun run dev:check` before Angular starts. If the
@@ -211,8 +214,9 @@ bun run lint
   only for an already initialized stack when you want to bring containers back
   without recreating them.
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
-- Local Playwright package scripts that run `playwright test` pin ignored
-  repository-local docs/image output paths before loading dotenv. Only
+- Local Playwright package scripts that run `playwright test` share
+  `helpers/testing/run-playwright.ts`, which pins ignored repository-local
+  docs/image output paths before loading dotenv. Only
   `bun run test:e2e:docs:publish` targets the sibling documentation checkout.
 - `bun run test:e2e:integration` runs all integration-only Playwright
   projects. It is intended for credential-gated specs and docs such as Auth0
@@ -242,18 +246,20 @@ bun run lint
   with their least-privilege storage states so Browser planning has stable
   authenticated starting points without running the full viewport pack.
 - `bun run test:e2e:layout-helper` runs the shared viewport layout-helper
-  contract with `NO_WEBSERVER=true` and `--no-deps`, so it does not start
-  Docker or require seeded app data. Use it after changing
+  contract with the runner helper's `--no-webserver` mode and Playwright
+  `--no-deps`, so it does not start Docker or require seeded app data. Use it
+  after changing
   `tests/support/utils/page-layout.ts` or the durable viewport no-glitch
   assertions.
 - `bun run test:e2e:reporter-paths` runs the documentation reporter and
-  highlighted screenshot-helper regression tests with `NO_WEBSERVER=true` and
-  `--no-deps` plus ignored repository-local docs output paths, so generated-doc
-  evidence-quality checks do not require a Docker app or sibling docs checkout.
+  highlighted screenshot-helper regression tests with the runner helper's
+  `--no-webserver` mode and Playwright `--no-deps` plus ignored
+  repository-local docs output paths, so generated-doc evidence-quality checks
+  do not require a Docker app or sibling docs checkout.
 - `bun run test:e2e:doc-screenshot` runs the static doc-screenshot helper
-  settling contract with `NO_WEBSERVER=true`, `--no-deps`, and ignored
-  repository-local docs/image output, so helper changes can be checked without
-  a Docker app.
+  settling contract with the runner helper's `--no-webserver` mode, Playwright
+  `--no-deps`, and ignored repository-local docs/image output, so helper
+  changes can be checked without a Docker app.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
 - Playwright list/discovery commands do not clean or write generated docs

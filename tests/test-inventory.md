@@ -208,15 +208,16 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     figure escaping, highlighted screenshot targets, visible page-content
     detection, and zero-box host screenshots without app startup.
     `bun run test:e2e:reporter-paths` is the focused local rerun; it refreshes
-    `.env.dev`, sets ignored docs output paths and `NO_WEBSERVER=true`, and
-    uses `--no-deps`.
+    `.env.dev`, uses `helpers/testing/run-playwright.ts` to set ignored docs
+    output paths and `NO_WEBSERVER=true`, and uses `--no-deps`.
   - `specs/screenshot/doc-screenshot.test.ts`
     checks the static doc-screenshot helper contract for relative image paths,
     loading-text waits, finite transition waits, stable target bounds, transient
     snackbar waits, persistent snackbar tolerance, and image-root resolution
     without app startup. `bun run test:e2e:doc-screenshot` is the focused local
-    rerun; it refreshes `.env.dev`, sets ignored docs/image output paths and
-    `NO_WEBSERVER=true`, and uses `--no-deps`.
+    rerun; it refreshes `.env.dev`, uses `helpers/testing/run-playwright.ts`
+    to set ignored docs/image output paths and `NO_WEBSERVER=true`, and uses
+    `--no-deps`.
   - `specs/seed/seed-baseline.test.ts` proves the seeded tenant has default
     roles, all template families, paid/free registration options, paid tax-rate
     wiring, reusable template add-ons, scenario handles, confirmed
@@ -230,9 +231,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     and vertically clipped fixed readable text with actionable metadata, and
     ignores intentional
     horizontal-scroll containers such as tables. `bun run test:e2e:layout-helper`
-    is the focused local rerun; it refreshes `.env.dev`, sets ignored docs/image
-    output paths for the reporter, keeps `NO_WEBSERVER=true`, and uses
-    `--no-deps`.
+    is the focused local rerun; it refreshes `.env.dev`, uses
+    `helpers/testing/run-playwright.ts` to set ignored docs/image output paths
+    for the reporter, keeps `NO_WEBSERVER=true`, and uses `--no-deps`.
   - `specs/smoke/public-general-viewports.spec.ts` reuses one seeded tenant to
     check the public root redirect, events list, public event detail, hosted
     legal pages, general 403/404/500 pages, and wildcard not-found redirect at
@@ -245,9 +246,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     anonymous public General route manifest before page-backed viewport coverage
     runs, including a failure if a new anonymous General route is added without
     coverage. `bun run test:e2e:public-general-viewports` is the focused local
-    rerun for an already-running Docker app; it refreshes `.env.dev`, sets
-    ignored docs/image output paths and `NO_WEBSERVER=true`, uses `--no-deps`,
-    and keeps the route matrix on one worker. `/create-account` is
+    rerun for an already-running Docker app; it refreshes `.env.dev`, uses
+    `helpers/testing/run-playwright.ts` to set ignored docs/image output paths
+    and `NO_WEBSERVER=true`, uses `--no-deps`, and keeps the route matrix on
+    one worker. `/create-account` is
     intentionally excluded from this anonymous
     General sweep because it is auth-guarded account coverage.
   - `specs/admin/general-settings.spec.ts` also checks authenticated tenant
