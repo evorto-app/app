@@ -3456,16 +3456,31 @@ describe('stabilization source', () => {
     ).toContain('runtimeModifierPattern');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('playwrightModifierAccessPattern');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('test.describe.skip');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain(`test['skip']`);
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('test.describe.only');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain(`test['only']`);
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('test.describe.configure');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain(`test.describe['configure']`);
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('test.slow');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain(`test["slow"]`);
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('collectInteractiveDebugEntries');
@@ -3473,6 +3488,8 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'rejects focused-only `.only` and\n  `test.describe.only`',
     );
+    expect(inventory).toContain('bracket-property spellings');
+    expect(inventory).toContain("test['skip'](...)");
     expect(inventory).toContain('Playwright `forbidOnly` remains enabled');
     expect(inventory).toContain(
       'Runtime-affecting modifiers such as\n  `test.describe.configure(...)` and `test.slow()`',
@@ -3498,6 +3515,8 @@ describe('stabilization source', () => {
       'and `test.slow()` allowlisted with local reasons',
     );
     expect(source).toContain('rejects committed focused-only\n`.only`');
+    expect(source).toContain('Bracket-property\nmodifier spellings');
+    expect(source).toContain("test.describe['fixme'](...)");
     expect(source).toContain('rejects interactive\n`page.pause()`/`debugger`');
     expect(source).toContain('rejects fixed `.waitForTimeout(...)` waits');
     expect(source).toContain('fixed `setTimeout` sleeps');

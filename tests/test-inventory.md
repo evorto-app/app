@@ -472,10 +472,26 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   runtime-preflight reports that lower-network option when bundled Chromium is
   missing but system Chrome is available.
 - `helpers/testing/playwright-skip-inventory.spec.ts` keeps all Playwright
-  `test.skip` and `test.fixme` usage allowlisted with a local reason for each
-  entry, so new fixture-state gaps do not become silent placeholders.
-  It also rejects fixed `.waitForTimeout(...)` waits in specs and generated
-  docs, keeping those flows tied to concrete UI state.
+  `test.skip`, `test.fixme`, and `test.describe.skip` usage allowlisted with a
+  local reason for each entry, so new fixture-state gaps do not become silent
+  placeholders.
+  Each allowlisted credential skip must name the exact environment variables
+  that justify it in nearby source, so vague integration placeholders cannot
+  pass the inventory guard. It also rejects focused-only `.only` and
+  `test.describe.only` test declarations, including bracket-property spellings
+  such as `test['skip'](...)`, `test.describe['fixme'](...)`, and
+  `test['only'](...)`; interactive `page.pause()`/`debugger` hooks; and fixed
+  `.waitForTimeout(...)` waits in specs and generated docs,
+  keeping those flows tied to concrete UI state and preventing accidental
+  partial-suite commits. Playwright `forbidOnly` remains enabled in CI as the
+  runner-level backstop for focused-only tests. Runtime-affecting modifiers such as
+  `test.describe.configure(...)` and `test.slow()` must also be explicitly
+  allowlisted with a local reason. The current runtime-modifier allowlist is
+  limited to `docs/events/register.doc.ts`: the registration documentation flow
+  runs serially because it mutates shared registration state, and the free and
+  paid registration documentation cases are marked slow because they perform
+  Auth0 login, Stripe/webhook work, database readbacks, and generated-doc
+  attachments.
 - `helpers/testing/generated-documentation-source.spec.ts` keeps tenant general-settings
   docs aligned with implemented brand-asset uploads, hosted legal routes, and
   an image-backed operations-policy section that includes participant

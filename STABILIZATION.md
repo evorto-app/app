@@ -6001,7 +6001,11 @@ and `test.slow()` allowlisted with local reasons, rejects committed focused-only
 in specs/docs plus fixed `setTimeout` sleeps in docs screenshot helpers. That
 keeps stabilization runs from silently narrowing to a partial suite, pausing in
 CI, or drifting back to time-based waits. Playwright's own CI `forbidOnly`
-setting remains source-guarded as the runner-level backstop.
+setting remains source-guarded as the runner-level backstop. Bracket-property
+modifier spellings such as `test['skip'](...)`, `test.describe['fixme'](...)`,
+`test['only'](...)`, `test.describe['configure'](...)`, and `test['slow'](...)`
+are matched by the same inventory guard, so tests cannot hide skipped, focused,
+or runtime-altered coverage behind alternate JavaScript property access.
 
 Registration confirmation, cancellation, transfer, and waitlist spot-available
 now record durable email outbox rows with notification-email details, and paid

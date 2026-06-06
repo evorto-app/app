@@ -38,7 +38,7 @@ const allowedPlaywrightRuntimeModifierEntries = [
       'The free registration documentation flow performs Auth0 login, event navigation, database readbacks, and generated-doc attachments.',
   },
   {
-    entry: 'tests/docs/events/register.doc.ts:987:test.slow',
+    entry: 'tests/docs/events/register.doc.ts:1002:test.slow',
     reason:
       'The paid registration documentation flow performs Stripe checkout replay, webhook delivery, database readbacks, and generated-doc attachments.',
   },
@@ -48,7 +48,22 @@ const allowedEntries = new Set(
   allowedPlaywrightSkipEntries.map((entry) => entry.entry),
 );
 
-const skipPattern = /\b(?:test|it|describe)\.(skip|fixme)\b/g;
+const playwrightCallablePattern = /\b(?:test(?:\.describe)?|it|describe)/u;
+const playwrightModifierAccessPattern = (names: string): string =>
+  String.raw`(?:\.(?:${names})\b|\[\s*['"](?:${names})['"]\s*\])`;
+const skipPattern = new RegExp(
+  String.raw`${playwrightCallablePattern.source}${playwrightModifierAccessPattern('skip|fixme')}`,
+  'g',
+);
+const runtimeModifierPattern = new RegExp(
+  String.raw`\b(?:test\.describe${playwrightModifierAccessPattern('configure')}|test${playwrightModifierAccessPattern('slow')})`,
+  'g',
+);
+const focusedOnlyPattern = new RegExp(
+  String.raw`${playwrightCallablePattern.source}${playwrightModifierAccessPattern('only')}`,
+  'g',
+);
+const interactiveDebugPattern = /\bdebugger\b|\bpage\.pause\s*\(/g;
 const placeholderMetadataPattern = /@(track|req|doc)\(/g;
 const fixedWaitPattern = /\.waitForTimeout\s*\(/g;
 const screenshotHelperFixedSleepPattern = /setTimeout\s*\(/g;
@@ -166,6 +181,59 @@ const collectScreenshotHelperFixedSleepEntries = () =>
   });
 
 describe('Playwright skip inventory', () => {
+  it('recognizes direct and describe-level Playwright skip and focus modifiers', () => {
+    expect(
+      [...`test.skip('x')`.matchAll(skipPattern)].map((match) => match[0]),
+    ).toEqual(['test.skip']);
+    expect(
+      [...`test.describe.skip('x')`.matchAll(skipPattern)].map(
+        (match) => match[0],
+      ),
+    ).toEqual(['test.describe.skip']);
+    expect(
+      [...`test['skip']('x')`.matchAll(skipPattern)].map((match) => match[0]),
+    ).toEqual([`test['skip']`]);
+    expect(
+      [...`test.describe["fixme"]('x')`.matchAll(skipPattern)].map(
+        (match) => match[0],
+      ),
+    ).toEqual([`test.describe["fixme"]`]);
+    expect(
+      [...`test.describe.only('x')`.matchAll(focusedOnlyPattern)].map(
+        (match) => match[0],
+      ),
+    ).toEqual(['test.describe.only']);
+    expect(
+      [...`test['only']('x')`.matchAll(focusedOnlyPattern)].map(
+        (match) => match[0],
+      ),
+    ).toEqual([`test['only']`]);
+    expect(
+      [
+        ...`test.describe.configure({ mode: 'serial' })`.matchAll(
+          runtimeModifierPattern,
+        ),
+      ].map((match) => match[0]),
+    ).toEqual(['test.describe.configure']);
+    expect(
+      [
+        ...`test.describe['configure']({ mode: 'serial' })`.matchAll(
+          runtimeModifierPattern,
+        ),
+      ].map((match) => match[0]),
+    ).toEqual([`test.describe['configure']`]);
+    expect(
+      [...`test.slow()`.matchAll(runtimeModifierPattern)].map(
+        (match) => match[0],
+      ),
+    ).toEqual(['test.slow']);
+    expect(
+      [...`test["slow"]()`.matchAll(runtimeModifierPattern)].map(
+        (match) => match[0],
+      ),
+    ).toEqual([`test["slow"]`]);
+  });
+
   it('keeps the active test inventory aligned with Playwright docs and specs on disk', () => {
     expect(collectActiveInventoryFiles().toSorted()).toEqual(
       collectPlaywrightSpecAndDocumentFiles().toSorted(),
