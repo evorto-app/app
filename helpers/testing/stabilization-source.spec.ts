@@ -1443,6 +1443,9 @@ describe('stabilization source', () => {
     expect(source).toContain('raw Markdown image syntax');
     expect(source).toContain('HTML `<img>` tags');
     expect(source).toContain(
+      'bound, destructured, grouped, indexed, or assigned `attach` helpers',
+    );
+    expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
     expect(source).toContain('rebuilt the Docker docs stack');
@@ -2019,6 +2022,24 @@ describe('stabilization source', () => {
       'await testInfo.attach(markdownAttachmentName, shorthandMarkdownPayload)',
     );
     expect(generatedDocumentationSource).toContain(
+      'markdownAttachFunctionAliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'markdownAttachFunctionPropertyAliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'const { attach: destructuredAttachMarkdownEvidence } = testInfo',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await attachHelpers.evidence('markdown', rawMarkdownPayload)",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await attachHelperList[0](markdownAttachmentName, shorthandMarkdownPayload)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await attachHelpers.assignedEvidence('markdown', rawMarkdownPayload)",
+    );
+    expect(generatedDocumentationSource).toContain(
       'Documentation screenshots require a descriptive caption',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2052,6 +2073,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('aliased markdown names');
     expect(inventory).toContain('aliased body variables');
     expect(inventory).toContain('aliased payload objects');
+    expect(inventory).toContain(
+      'bound, destructured, grouped, indexed, or assigned',
+    );
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');
     expect(reporterPathsSpec).toContain(

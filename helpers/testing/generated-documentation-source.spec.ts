@@ -509,6 +509,8 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
   const markdownAttachmentNameAliases = new Set<string>();
   const rawMarkdownBodyAliases = new Set<string>();
   const rawMarkdownPayloadAliases = new Set<string>();
+  const markdownAttachFunctionAliases = new Set<string>();
+  const markdownAttachFunctionPropertyAliases = new Set<string>();
   const rawMarkdownImagePattern = /!\[[^\]]*\]\([^)]+\)|<img(?:\s|>)/iu;
 
   const describeCall = (node: ts.CallExpression): string => {
@@ -577,6 +579,40 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     return body ? hasRawMarkdownImage(body) : false;
   };
 
+  const isAttachFunctionReference = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (
+      (ts.isPropertyAccessExpression(expression) ||
+        ts.isElementAccessExpression(expression)) &&
+      getStaticPropertyName(expression) === 'attach'
+    ) {
+      return true;
+    }
+
+    if (
+      ts.isCallExpression(expression) &&
+      getStaticPropertyName(expression.expression) === 'bind' &&
+      getStaticPropertyName(
+        getStaticPropertyReceiver(expression.expression) ??
+          expression.expression,
+      ) === 'attach'
+    ) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const isTrackedAttachCallCallee = (callee: ts.Expression): boolean =>
+    ((ts.isPropertyAccessExpression(callee) ||
+      ts.isElementAccessExpression(callee)) &&
+      (getStaticPropertyName(callee) === 'attach' ||
+        markdownAttachFunctionPropertyAliases.has(
+          getStaticPropertyReference(callee, sourceFile) ?? '',
+        ))) ||
+    (ts.isIdentifier(callee) && markdownAttachFunctionAliases.has(callee.text));
+
   const collectAliases = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -596,6 +632,89 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       if (hasRawMarkdownPayload(initializer)) {
         rawMarkdownPayloadAliases.add(node.name.text);
       }
+
+      if (isAttachFunctionReference(initializer)) {
+        markdownAttachFunctionAliases.add(node.name.text);
+      }
+
+      if (ts.isObjectLiteralExpression(initializer)) {
+        for (const property of initializer.properties) {
+          const propertyName = getStaticPropertyNameFromName(property.name);
+          const propertyInitializer = ts.isPropertyAssignment(property)
+            ? unwrapExpression(property.initializer)
+            : null;
+
+          if (!propertyName) {
+            continue;
+          }
+
+          if (
+            (propertyInitializer &&
+              (isAttachFunctionReference(propertyInitializer) ||
+                (ts.isIdentifier(propertyInitializer) &&
+                  markdownAttachFunctionAliases.has(
+                    propertyInitializer.text,
+                  )))) ||
+            (ts.isShorthandPropertyAssignment(property) &&
+              markdownAttachFunctionAliases.has(property.name.text))
+          ) {
+            markdownAttachFunctionPropertyAliases.add(
+              `${node.name.text}.${propertyName}`,
+            );
+          }
+        }
+      }
+
+      if (ts.isArrayLiteralExpression(initializer)) {
+        collectIndexedPropertyAliases(
+          node.name.text,
+          initializer.elements,
+          (element) => {
+            const expression = unwrapExpression(element);
+
+            return (
+              isAttachFunctionReference(element) ||
+              (ts.isIdentifier(expression) &&
+                markdownAttachFunctionAliases.has(expression.text))
+            );
+          },
+          markdownAttachFunctionPropertyAliases,
+        );
+      }
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
+      isAttachFunctionReference(node.right)
+    ) {
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+      );
+
+      if (propertyReference) {
+        markdownAttachFunctionPropertyAliases.add(propertyReference);
+      }
+    }
+
+    if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+      collectPropertyBindingAliases(
+        node.name,
+        'attach',
+        markdownAttachFunctionAliases,
+      );
+    }
+
+    if (ts.isVariableDeclaration(node)) {
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachFunctionPropertyAliases,
+        markdownAttachFunctionAliases,
+      );
     }
 
     ts.forEachChild(node, collectAliases);
@@ -609,9 +728,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         : null;
 
       if (
-        (ts.isPropertyAccessExpression(callee) ||
-          ts.isElementAccessExpression(callee)) &&
-        getStaticPropertyName(callee) === 'attach' &&
+        isTrackedAttachCallCallee(callee) &&
         node.arguments[0] &&
         isMarkdownAttachmentName(node.arguments[0]) &&
         payload &&
@@ -3102,6 +3219,19 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach(markdownAttachmentName, { body });
       await testInfo.attach('markdown', rawMarkdownPayload);
       await testInfo.attach(markdownAttachmentName, shorthandMarkdownPayload);
+      const attachMarkdownEvidence = testInfo.attach.bind(testInfo);
+      const { attach: destructuredAttachMarkdownEvidence } = testInfo;
+      const attachHelpers = { evidence: attachMarkdownEvidence };
+      const attachHelperList = [attachMarkdownEvidence];
+      await attachMarkdownEvidence('markdown', rawMarkdownPayload);
+      await destructuredAttachMarkdownEvidence(
+        markdownAttachmentName,
+        shorthandMarkdownPayload,
+      );
+      await attachHelpers.evidence('markdown', rawMarkdownPayload);
+      await attachHelperList[0](markdownAttachmentName, shorthandMarkdownPayload);
+      attachHelpers.assignedEvidence = testInfo.attach.bind(testInfo);
+      await attachHelpers.assignedEvidence('markdown', rawMarkdownPayload);
       await testInfo.attach('markdown', {
         body: \`
           Links to [image guidance](../images) stay valid.
@@ -3120,6 +3250,11 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/raw-markdown-image.doc.ts:24:13',
       'tests/docs/example/raw-markdown-image.doc.ts:25:13',
       'tests/docs/example/raw-markdown-image.doc.ts:26:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:31:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:32:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:36:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:37:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:39:13',
     ]);
   });
 
