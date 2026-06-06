@@ -1371,6 +1371,9 @@ describe('stabilization source', () => {
     expect(source).toContain('uncaptioned raw markdown image');
     expect(source).toContain('misplaced caption');
     expect(source).toContain('escaped caption attributes');
+    expect(source).toContain('raw markdown image syntax');
+    expect(source).toContain('bracketed `attach` call');
+    expect(source).toContain('shorthand `{ body }`');
     expect(documentationScreenshotSpec).toContain(
       'doc-screenshot waits for descriptive loading text before capture',
     );
@@ -1467,7 +1470,7 @@ describe('stabilization source', () => {
     expect(source).toContain('captureDocumentationImage');
     expect(source).toContain('Grouped screenshot target objects wrapped');
     expect(source).toContain('`satisfies`');
-    expect(source).toContain('Synthetic failing examples');
+    expect(source).toMatch(/Synthetic failing\s+examples/u);
     expect(source).toContain('app-root');
     expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
     expect(source).toContain('PERMISSION_GROUPS');
@@ -1970,7 +1973,16 @@ describe('stabilization source', () => {
       '![Unrelated screenshot](../unrelated.png)',
     );
     expect(generatedDocumentationSource).toContain(
+      '![Aliased screenshot](../aliased.png)',
+    );
+    expect(generatedDocumentationSource).toContain(
       '<img src="../unrelated.png" alt="Unrelated screenshot">',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "testInfo['attach'](markdownAttachmentName",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await testInfo.attach(markdownAttachmentName, { body })',
     );
     expect(generatedDocumentationSource).toContain(
       'Documentation screenshots require a descriptive caption',
@@ -2003,6 +2015,8 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain('raw Markdown image syntax');
     expect(inventory).toContain('HTML `<img>` tags');
+    expect(inventory).toContain('aliased markdown names');
+    expect(inventory).toContain('aliased body variables');
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');
     expect(reporterPathsSpec).toContain(

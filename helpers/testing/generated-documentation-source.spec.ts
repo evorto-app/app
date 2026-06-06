@@ -506,6 +506,9 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     ts.ScriptKind.TS,
   );
   const rawImages: string[] = [];
+  const markdownAttachmentNameAliases = new Set<string>();
+  const rawMarkdownBodyAliases = new Set<string>();
+  const rawMarkdownImagePattern = /!\[[^\]]*\]\([^)]+\)|<img(?:\s|>)/iu;
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -525,13 +528,57 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       ) {
         return property.initializer;
       }
+
+      if (
+        ts.isShorthandPropertyAssignment(property) &&
+        property.name.text === propertyName
+      ) {
+        return property.name;
+      }
     }
 
     return null;
   };
 
-  const hasRawMarkdownImage = (node: ts.Expression): boolean =>
-    /!\[[^\]]*\]\([^)]+\)|<img(?:\s|>)/iu.test(node.getText(sourceFile));
+  const hasRawMarkdownImage = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    return (
+      (ts.isIdentifier(expression) &&
+        rawMarkdownBodyAliases.has(expression.text)) ||
+      rawMarkdownImagePattern.test(expression.getText(sourceFile))
+    );
+  };
+
+  const isMarkdownAttachmentName = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    return (
+      getLiteralText(expression) === 'markdown' ||
+      (ts.isIdentifier(expression) &&
+        markdownAttachmentNameAliases.has(expression.text))
+    );
+  };
+
+  const collectAliases = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
+      const initializer = unwrapExpression(node.initializer);
+
+      if (getLiteralText(initializer) === 'markdown') {
+        markdownAttachmentNameAliases.add(node.name.text);
+      }
+
+      if (hasRawMarkdownImage(initializer)) {
+        rawMarkdownBodyAliases.add(node.name.text);
+      }
+    }
+
+    ts.forEachChild(node, collectAliases);
+  };
 
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
@@ -545,7 +592,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
           ts.isElementAccessExpression(callee)) &&
         getStaticPropertyName(callee) === 'attach' &&
         node.arguments[0] &&
-        getLiteralText(node.arguments[0]) === 'markdown' &&
+        isMarkdownAttachmentName(node.arguments[0]) &&
         payload &&
         ts.isObjectLiteralExpression(payload)
       ) {
@@ -560,6 +607,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     ts.forEachChild(node, visit);
   };
 
+  collectAliases(sourceFile);
   visit(sourceFile);
 
   return rawImages;
@@ -3012,18 +3060,25 @@ describe('generated docs source current behavior', () => {
 
   it('detects raw markdown image markup before generated docs can use it', () => {
     const rawMarkdownImageSource = `
+      const markdownAttachmentName = 'markdown';
+      const rawMarkdownBody = \`
+        Introductory aliased copy.
+        ![Aliased screenshot](../aliased.png)
+      \`;
+      const body = \`
+        More aliased copy.
+        <img src="../unrelated.png" alt="Unrelated screenshot">
+      \`;
       await testInfo.attach('markdown', {
         body: \`
           Introductory copy.
           ![Unrelated screenshot](../unrelated.png)
         \`,
       });
-      await testInfo.attach('markdown', {
-        body: \`
-          More copy.
-          <img src="../unrelated.png" alt="Unrelated screenshot">
-        \`,
+      await testInfo['attach'](markdownAttachmentName, {
+        body: rawMarkdownBody,
       });
+      await testInfo.attach(markdownAttachmentName, { body });
       await testInfo.attach('markdown', {
         body: \`
           Links to [image guidance](../images) stay valid.
@@ -3037,8 +3092,9 @@ describe('generated docs source current behavior', () => {
         rawMarkdownImageSource,
       ),
     ).toEqual([
-      'tests/docs/example/raw-markdown-image.doc.ts:2:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:8:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:11:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:17:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:20:13',
     ]);
   });
 

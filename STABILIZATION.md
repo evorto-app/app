@@ -3608,8 +3608,12 @@ fallback rather than a profile discount-card defect.
   aliased `takeScreenshot` imports, direct imports from the helper implementation
   path, and local screenshot wrapper declarations, so docs cannot route around
   the meaningful-image checks while still appearing to use the shared helper.
-  Synthetic failing examples now exercise those bypass patterns directly so the
-  guard is protected even when the current docs remain clean. The permission
+  It also rejects raw markdown image syntax and raw HTML `<img>` bodies even
+  when the markdown attachment name or body is hidden behind a local alias, a
+  bracketed `attach` call, or shorthand `{ body }`, so docs cannot bypass the
+  captioned screenshot helper with unrelated image markup. Synthetic failing
+  examples now exercise those bypass patterns directly so the guard is
+  protected even when the current docs remain clean. The permission
   reference is now image-backed too: `tests/docs/roles/about-permissions.doc.ts`
   still generates its text from `PERMISSION_GROUPS`, but it also screenshots the
   actual role-form permission group/dependency surface so the reference is tied
