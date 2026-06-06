@@ -178,10 +178,20 @@ Tax rates are managed on the separate **Tax Rates** page.
   await expect(
     generalSettings.getByRole('button', { name: 'Upload logo' }),
   ).toBeVisible();
+  await expect(
+    generalSettings.locator(
+      'input[type="file"][accept="image/png,image/jpeg,image/webp,image/gif"]',
+    ),
+  ).toHaveCount(1);
   await expect(generalSettings.getByLabel('Favicon URL')).toBeVisible();
   await expect(
     generalSettings.getByRole('button', { name: 'Upload favicon' }),
   ).toBeVisible();
+  await expect(
+    generalSettings.locator(
+      'input[type="file"][accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,image/vnd.microsoft.icon"]',
+    ),
+  ).toHaveCount(1);
   await expect(generalSettings.getByLabel('SEO title')).toBeVisible();
   await expect(generalSettings.getByLabel('SEO description')).toBeVisible();
   const brandAndSearchSettingsControls = [

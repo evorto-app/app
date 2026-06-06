@@ -1794,9 +1794,15 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       "generalSettings.getByRole('button', { name: 'Upload logo' })",
     );
+    expect(source).toContain(
+      'input[type="file"][accept="image/png,image/jpeg,image/webp,image/gif"]',
+    );
     expect(source).toContain("generalSettings.getByLabel('Favicon URL')");
     expect(source).toContain(
       "generalSettings.getByRole('button', { name: 'Upload favicon' })",
+    );
+    expect(source).toContain(
+      'input[type="file"][accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,image/vnd.microsoft.icon"]',
     );
     expect(source).toContain("generalSettings.getByLabel('SEO title')");
     expect(source).toContain("generalSettings.getByLabel('SEO description')");

@@ -1668,7 +1668,7 @@ the current working direction until a product decision overrides them.
 - `helpers/testing/permission-matrix-source.spec.ts` keeps finance
   route-denial cases aligned with the guarded finance route manifest, including
   the transaction list, receipt approval list/detail, and reimbursement routes.
-- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, pre-data locale/money editability, dependent-data locking, reload behavior for accepted locale/money changes, editable review/Stripe account-management policy fields, participant registration limits, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure. Its generated documentation now includes focused screenshots for the deferred-settings summary, tenant identity, operations-policy settings with participant registration-limit controls, brand/search-preview field group, legal page field group, and finance/discount/save controls so those areas are image-backed instead of described only in prose or represented by heading-only or single-field crops. The doc asserts the deferred custom-domain rows, identity rows, locale/money controls, operations policy controls, registration-limit fields, branding/SEO fields, legal URL/text fields, finance receipt settings, ESNcard discount toggle, and Save action before those screenshots are captured.
+- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary with Stripe account support lookup detail, pre-data locale/money editability, dependent-data locking, reload behavior for accepted locale/money changes, editable review/Stripe account-management policy fields, participant registration limits, uploaded or externally hosted brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure. Its generated documentation now includes focused screenshots for the deferred-settings summary, tenant identity, operations-policy settings with participant registration-limit controls, brand/search-preview field group, legal page field group, and finance/discount/save controls so those areas are image-backed instead of described only in prose or represented by heading-only or single-field crops. The doc asserts the deferred custom-domain rows, identity rows, locale/money controls, operations policy controls, registration-limit fields, branding/SEO fields, logo/favicon file-input accept lists, legal URL/text fields, finance receipt settings, ESNcard discount toggle, and Save action before those screenshots are captured.
 - `tests/specs/admin/general-settings.spec.ts` functionally covers tenant
   general-settings persistence for editable brand asset URLs, SEO copy, hosted
   legal text, external legal URLs, receipt-country settings, and ESNcard
@@ -5750,8 +5750,9 @@ and Create Account action, so the integration guide is not anchored to a generic
 first matching page form.
 The tenant General settings generated doc now screenshots brand asset upload
 buttons together with Logo URL, Favicon URL, SEO title, and SEO description
-fields, so the tenant-branding guide image proves both upload and external URL
-affordances instead of only URL entry fields.
+fields, and it asserts the hidden logo/favicon file-input accept lists, so the
+tenant-branding guide image and upload-format prose stay pinned to the
+implemented UI wiring.
 The global-admin generated doc now uses concrete tenant summary, empty search,
 scope boundary, rejected create-form/error, detail review, and edit-form
 surfaces for its screenshot targets instead of highlighting page headings, card
