@@ -94,7 +94,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     event disappearing from the user event list while a second listed event card
     remains visible, and the same unlisted event opening through its direct
     detail URL with the event's participant registration-option card before
-    restoring the seed state
+    restoring the seed state. Generated-doc source coverage rejects private
+    invite-only wording so unlisted docs stay aligned with the root product
+    boundary that private invite-only events remain out of scope.
   - `specs/events/**`
   - `specs/discounts/esn-discounts.test.ts`
   - app event edit, lifecycle-action, and organizer-action guard coverage in

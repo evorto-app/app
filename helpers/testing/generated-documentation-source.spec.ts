@@ -5434,6 +5434,9 @@ describe('generated docs source current behavior', () => {
       'Direct link opens the unlisted event registration details',
     );
     expect(unlistedUserSource).toContain('set({ unlisted: event.unlisted })');
+    expect(unlistedUserSource).not.toMatch(/private invite[- ]only/i);
+    expect(unlistedUserSource).not.toMatch(/invite[- ]only event/i);
+    expect(unlistedUserSource).not.toMatch(/private event/i);
     expect(unlistedUserSource).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.getByRole('heading', { name: event.title }),\n      page,\n      'Direct link opens the unlisted event detail page'",
     );
