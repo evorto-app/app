@@ -1442,9 +1442,9 @@ describe('stabilization source', () => {
     expect(source).toContain('terse or content-free caption');
     expect(source).toContain('raw Markdown image syntax');
     expect(source).toContain('HTML `<img>` tags');
-    expect(source).toContain(
-      'bound, destructured, grouped, indexed, or assigned `attach` helpers',
-    );
+    expect(source).toContain('bound,\ndestructured, grouped, indexed');
+    expect(source).toContain('assigned `attach` helpers');
+    expect(source).toContain('spread,\n`call`, `apply`, or inline `bind`');
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
@@ -2039,6 +2039,22 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       "await attachHelpers.assignedEvidence('markdown', rawMarkdownPayload)",
     );
+    expect(generatedDocumentationSource).toContain('const rawMarkdownArgs = [');
+    expect(generatedDocumentationSource).toContain(
+      'await testInfo.attach(...rawMarkdownArgs)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await testInfo.attach.call(testInfo, 'markdown', rawMarkdownPayload)",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await testInfo['attach'].apply(testInfo",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await testInfo.attach.bind(testInfo)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await attachHelpers.evidence.bind(testInfo)',
+    );
     expect(generatedDocumentationSource).toContain(
       'Documentation screenshots require a descriptive caption',
     );
@@ -2075,6 +2091,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('aliased payload objects');
     expect(inventory).toContain(
       'bound, destructured, grouped, indexed, or assigned',
+    );
+    expect(inventory).toContain(
+      'spread, `call`, `apply`, or inline `bind` forwarding',
     );
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');

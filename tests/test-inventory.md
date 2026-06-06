@@ -578,7 +578,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   docs markdown attachments, including aliased markdown names, bracketed
   `attach` calls, aliased body variables, aliased payload objects, and
   shorthand `{ body }`, plus bound, destructured, grouped, indexed, or assigned
-  `attach` helpers, so image evidence cannot bypass the shared helper, and
+  `attach` helpers and spread, `call`, `apply`, or inline `bind` forwarding, so
+  image evidence cannot bypass the shared helper, and
   rejects raw `page.screenshot`,
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs
   sources, treats static bracket-property forms such as `page['screenshot']`,

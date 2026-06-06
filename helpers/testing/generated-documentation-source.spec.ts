@@ -604,6 +604,29 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     return false;
   };
 
+  const isTrackedAttachFunctionReference = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (isAttachFunctionReference(expression)) {
+      return true;
+    }
+
+    if (ts.isIdentifier(expression)) {
+      return markdownAttachFunctionAliases.has(expression.text);
+    }
+
+    if (
+      ts.isPropertyAccessExpression(expression) ||
+      ts.isElementAccessExpression(expression)
+    ) {
+      return markdownAttachFunctionPropertyAliases.has(
+        getStaticPropertyReference(expression, sourceFile) ?? '',
+      );
+    }
+
+    return false;
+  };
+
   const isTrackedAttachCallCallee = (callee: ts.Expression): boolean =>
     ((ts.isPropertyAccessExpression(callee) ||
       ts.isElementAccessExpression(callee)) &&
@@ -720,19 +743,110 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     ts.forEachChild(node, collectAliases);
   };
 
+  const hasRawMarkdownAttachmentArguments = (
+    nameArgument: ts.Expression | undefined,
+    payloadArgument: ts.Expression | undefined,
+  ): boolean =>
+    !!nameArgument &&
+    isMarkdownAttachmentName(nameArgument) &&
+    !!payloadArgument &&
+    hasRawMarkdownPayload(payloadArgument);
+
+  const hasSpreadArgument = (args: ts.NodeArray<ts.Expression>): boolean =>
+    args.some((argument) => ts.isSpreadElement(argument));
+
+  const hasSpreadArrayElement = (
+    elements: ts.NodeArray<ts.Expression>,
+  ): boolean => elements.some((element) => ts.isSpreadElement(element));
+
+  const isInlineBoundAttachCall = (callee: ts.Expression): boolean => {
+    const expression = unwrapExpression(callee);
+
+    if (!ts.isCallExpression(expression)) {
+      return false;
+    }
+
+    const bindCallee = unwrapExpression(expression.expression);
+
+    if (
+      !ts.isPropertyAccessExpression(bindCallee) &&
+      !ts.isElementAccessExpression(bindCallee)
+    ) {
+      return false;
+    }
+
+    const receiver = getStaticPropertyReceiver(bindCallee);
+
+    return (
+      getStaticPropertyName(bindCallee) === 'bind' &&
+      !!receiver &&
+      isTrackedAttachFunctionReference(receiver)
+    );
+  };
+
+  const isIndirectRawMarkdownAttachmentCall = (
+    callee: ts.Expression,
+    args: ts.NodeArray<ts.Expression>,
+  ): boolean => {
+    if (
+      !ts.isPropertyAccessExpression(callee) &&
+      !ts.isElementAccessExpression(callee)
+    ) {
+      return false;
+    }
+
+    const methodName = getStaticPropertyName(callee);
+    const receiver = getStaticPropertyReceiver(callee);
+
+    if (
+      !receiver ||
+      (methodName !== 'call' && methodName !== 'apply') ||
+      !isTrackedAttachFunctionReference(receiver)
+    ) {
+      return false;
+    }
+
+    if (methodName === 'call') {
+      return (
+        hasSpreadArgument(args) ||
+        hasRawMarkdownAttachmentArguments(args[1], args[2])
+      );
+    }
+
+    const applyArguments = args[1] ? unwrapExpression(args[1]) : null;
+
+    if (!applyArguments || !ts.isArrayLiteralExpression(applyArguments)) {
+      return true;
+    }
+
+    if (hasSpreadArrayElement(applyArguments.elements)) {
+      return true;
+    }
+
+    return hasRawMarkdownAttachmentArguments(
+      applyArguments.elements[0],
+      applyArguments.elements[1],
+    );
+  };
+
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = unwrapExpression(node.expression);
-      const payload = node.arguments[1]
-        ? unwrapExpression(node.arguments[1])
-        : null;
 
       if (
-        isTrackedAttachCallCallee(callee) &&
-        node.arguments[0] &&
-        isMarkdownAttachmentName(node.arguments[0]) &&
-        payload &&
-        hasRawMarkdownPayload(payload)
+        (isTrackedAttachCallCallee(callee) &&
+          (hasSpreadArgument(node.arguments) ||
+            hasRawMarkdownAttachmentArguments(
+              node.arguments[0],
+              node.arguments[1],
+            ))) ||
+        (isInlineBoundAttachCall(callee) &&
+          (hasSpreadArgument(node.arguments) ||
+            hasRawMarkdownAttachmentArguments(
+              node.arguments[0],
+              node.arguments[1],
+            ))) ||
+        isIndirectRawMarkdownAttachmentCall(callee, node.arguments)
       ) {
         rawImages.push(describeCall(node));
       }
@@ -3232,6 +3346,24 @@ describe('generated docs source current behavior', () => {
       await attachHelperList[0](markdownAttachmentName, shorthandMarkdownPayload);
       attachHelpers.assignedEvidence = testInfo.attach.bind(testInfo);
       await attachHelpers.assignedEvidence('markdown', rawMarkdownPayload);
+      const rawMarkdownArgs = ['markdown', rawMarkdownPayload] as const;
+      await testInfo.attach(...rawMarkdownArgs);
+      await attachMarkdownEvidence(...rawMarkdownArgs);
+      await testInfo.attach.call(testInfo, 'markdown', rawMarkdownPayload);
+      await testInfo['attach'].apply(testInfo, [
+        'markdown',
+        rawMarkdownPayload,
+      ]);
+      await attachMarkdownEvidence.call(
+        testInfo,
+        markdownAttachmentName,
+        shorthandMarkdownPayload,
+      );
+      await testInfo.attach.bind(testInfo)('markdown', rawMarkdownPayload);
+      await attachHelpers.evidence.bind(testInfo)(
+        markdownAttachmentName,
+        shorthandMarkdownPayload,
+      );
       await testInfo.attach('markdown', {
         body: \`
           Links to [image guidance](../images) stay valid.
@@ -3255,6 +3387,13 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/raw-markdown-image.doc.ts:36:13',
       'tests/docs/example/raw-markdown-image.doc.ts:37:13',
       'tests/docs/example/raw-markdown-image.doc.ts:39:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:41:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:42:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:43:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:44:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:48:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:53:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:54:13',
     ]);
   });
 
