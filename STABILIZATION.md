@@ -1929,12 +1929,15 @@ the current working direction until a product decision overrides them.
   defaults to `$HOME/code/<repo>/.env`, accepts
   `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite the worktree
   `.env` unless rerun with `--if-missing` to leave it unchanged or `--force` to
-  replace it. Generated `.env.dev` remains worktree-local and is never copied;
-  the main checkout `.npmrc` is also never copied, keeping Font Awesome installs
-  on the public npm registry. Focused helper coverage now exercises the default
-  copy path, explicit checkout override, if-missing no-op, overwrite refusal,
-  forced replacement, missing-source checklist message, and `.env.dev`/`.npmrc`
-  boundaries.
+  replace it. With `--if-missing`, an existing worktree `.env` no-ops before
+  requiring the sibling checkout source file, so bootstrap remains safe in
+  already-seeded worktrees and main-checkout contexts. Generated `.env.dev`
+  remains worktree-local and is never copied; the main checkout `.npmrc` is also
+  never copied, keeping Font Awesome installs on the public npm registry.
+  Focused helper coverage now exercises the default copy path, explicit checkout
+  override, if-missing no-op with and without a source checkout, overwrite
+  refusal, forced replacement, missing-source checklist message, and
+  `.env.dev`/`.npmrc` boundaries.
 - `bun run dev:bootstrap` is the fresh-worktree shortcut for that recovery path:
   missing-secret preflight output now names it directly for fresh dev-server
   worktrees; it delegates the missing-file decision to

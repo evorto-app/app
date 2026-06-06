@@ -1564,6 +1564,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain('bun run env:copy-main');
     expect(helpersReadme).toContain('bun run dev:bootstrap');
     expect(helpersReadme).toContain('MAIN_CHECKOUT_DIR=/path/to/repo');
+    expect(helpersReadme).toContain(
+      'leave it unchanged before source-checkout lookup',
+    );
     expect(helpersReadme).toContain('unless rerun with `--if-missing`');
     expect(helpersReadme).toContain('`--force` to replace it');
     expect(testsReadme).toContain('bun run env:copy-main');
@@ -1571,7 +1574,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(testsReadme).toContain('MAIN_CHECKOUT_DIR=/path/to/repo');
     expect(stabilization).toContain('`bun run env:copy-main`');
     expect(stabilization).toContain('`bun run dev:bootstrap`');
-    expect(stabilization).toContain('Generated `.env.dev` remains');
+    expect(stabilization).toContain('Generated `.env.dev`');
   });
 
   it('keeps Playwright package scripts on the generated runtime environment path', () => {

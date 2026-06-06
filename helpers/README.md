@@ -254,7 +254,7 @@ it still warns not to copy generated `.env.dev` or the main checkout `.npmrc`. T
 guarded copy path reads `$HOME/code/<repo>/.env` by default, supports
 `MAIN_CHECKOUT_DIR=/path/to/repo` for a different source checkout, and refuses
 to overwrite an existing worktree `.env` unless rerun with `--if-missing` to
-leave it unchanged or `--force` to replace it.
+leave it unchanged before source-checkout lookup or `--force` to replace it.
 Font Awesome icons use public npm packages only; Docker and CI installs must
 not depend on a private Font Awesome registry token or project `.npmrc`. CI
 install retries preserve the restored Bun package cache instead of clearing it

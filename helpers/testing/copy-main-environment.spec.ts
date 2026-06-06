@@ -113,6 +113,33 @@ describe('copyMainEnvironment', () => {
     });
   });
 
+  it('does not require a source checkout when if-missing finds an existing worktree .env', () => {
+    withTemporaryDirectory((root) => {
+      const repositoryRoot = path.join(root, 'worktrees', 'e159', 'evorto');
+      fs.mkdirSync(repositoryRoot, { recursive: true });
+      fs.writeFileSync(path.join(repositoryRoot, '.env'), 'SECRET=worktree\n');
+      const messages: string[] = [];
+
+      copyMainEnvironment({
+        argv: [
+          'bun',
+          'helpers/testing/copy-main-environment.ts',
+          '--if-missing',
+        ],
+        env: { HOME: path.join(root, 'home-without-code-checkout') },
+        log: (message) => messages.push(message),
+        repositoryRoot,
+      });
+
+      expect(fs.readFileSync(path.join(repositoryRoot, '.env'), 'utf8')).toBe(
+        'SECRET=worktree\n',
+      );
+      expect(messages).toEqual([
+        `${path.join(repositoryRoot, '.env')} already exists; leaving it unchanged.`,
+      ]);
+    });
+  });
+
   it('supports an explicit MAIN_CHECKOUT_DIR when the default sibling path is absent', () => {
     withTemporaryDirectory((root) => {
       const repositoryRoot = path.join(root, 'worktrees', 'e159', 'evorto');

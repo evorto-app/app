@@ -41,6 +41,11 @@ export const copyMainEnvironment = (
   const source = path.join(mainCheckout, '.env');
   const destination = path.join(repositoryRoot, '.env');
 
+  if (fileExists(destination) && ifMissing && !force) {
+    log(`${destination} already exists; leaving it unchanged.`);
+    return;
+  }
+
   if (path.resolve(source) === path.resolve(destination)) {
     fail([
       'The main checkout .env path is the current checkout .env path; nothing to copy.',
@@ -52,11 +57,6 @@ export const copyMainEnvironment = (
       `No main-checkout developer secrets file found at ${source}.`,
       `Use ${path.join(repositoryRoot, '.env.example')} as the no-secret checklist, then add missing values to ${destination}.`,
     ]);
-  }
-
-  if (fileExists(destination) && ifMissing && !force) {
-    log(`${destination} already exists; leaving it unchanged.`);
-    return;
   }
 
   if (fileExists(destination) && !force) {

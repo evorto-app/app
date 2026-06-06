@@ -3593,6 +3593,9 @@ describe('stabilization source', () => {
     expect(copyMainEnvironmentSpec).toContain(
       'leaves an existing worktree .env unchanged when if-missing is requested',
     );
+    expect(copyMainEnvironmentSpec).toContain(
+      'does not require a source checkout when if-missing finds an existing worktree .env',
+    );
     expect(copyMainEnvironmentSpec).toContain('MAIN_CHECKOUT_DIR');
     expect(copyMainEnvironmentSpec).toContain(String.raw`env\.example`);
     expect(copyMainEnvironmentSpec).toContain(
@@ -3600,6 +3603,9 @@ describe('stabilization source', () => {
     );
     expect(helpersReadme).toContain('bun run env:copy-main');
     expect(helpersReadme).toContain('bun run dev:bootstrap');
+    expect(helpersReadme).toContain(
+      'leave it unchanged before source-checkout lookup',
+    );
     expect(testsReadme).toContain('bun run env:copy-main');
     expect(testsReadme).toContain('bun run dev:bootstrap');
     expect(source).toContain('`bun run env:copy-main`');
@@ -3624,6 +3630,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('bun run dev:bootstrap');
     expect(inventory).toContain('env:copy-main --if-missing');
     expect(inventory).toContain('package-script shell conditional');
+    expect(inventory).toContain('no-ops before\n  source-checkout lookup');
     expect(inventory).toContain(
       'helpers/testing/copy-main-environment.spec.ts',
     );
