@@ -1,0 +1,28 @@
+/goal Work through the entire [STABILIZATION.md](STABILIZATION.md) Document, keep the root product docs as a reference and verify all changes with the @Browser 
+Make sure that the tests and especially docs tests cover all the functionality with sufficient text and images (and the images are actually meaningful and don't show something unrelated) to judge the entire progress without clicking through the entire app.
+It is important to verify that all General pages also work well on mobile
+And it is important that on any wievport there are no visual glitches, the app follows material design you (3)
+Keep the pr up to date with regular useful pushes, do not always wait for tests in CI, especially when you ran them locally.
+Maybe to a ci check every five hours or so to see if something diverged
+
+---
+
+I was tightening the generated documentation source guards in PR #62.
+
+Just pushed:
+- `c1349114` `Guard generated doc screenshot aliases`
+- It prevents docs tests from bypassing the shared screenshot helper by destructuring `screenshot` or `attach` into local aliases.
+- Verified with focused source tests, format, lint, `git diff --check`, and WebStorm errors-only diagnostics.
+
+Current state:
+- PR head: `c134911406ffbda7f5bc1428c5c9e9209b05296d`
+- Worktree clean and aligned with origin
+- Non-E2E checks green
+- E2E run `27070739168` still running, currently at cache warmer
+- Superseded E2E run was cancelled
+- Neon dry-run clean: only protected `main`
+
+Planned next:
+- Wait/check whether E2E on `c1349114` passes or fails.
+- If it fails, inspect logs and fix.
+- If it keeps running/green, continue the stabilization pass by finding the next concrete evidence gap in `STABILIZATION.md`, especially around docs image quality, viewport/mobile General coverage, and Browser-verifiable UI evidence.
