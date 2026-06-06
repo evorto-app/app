@@ -1407,6 +1407,20 @@ describe('stabilization source', () => {
     expect(source).toContain('actual PNG with highlighted focus-target pixels');
     expect(source).toContain('invalid image attachments');
     expect(source).toContain('context-free highlighted-image');
+    expect(source).toContain(
+      'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
+    );
+    expect(source).toContain('rebuilt the Docker docs stack');
+    expect(source).toContain(
+      'generated callback on the worktree fallback port',
+    );
+    expect(source).toContain('Auth0-registered local port');
+    expect(source).toContain('`evorto-cc7ef3a9`');
+    expect(source).toContain('local callback-port blocker');
+    expect(source).toContain(
+      'rather than a generated-doc image, reporter, or seeded docs-content failure',
+    );
+    expect(source).toContain('protected `main`');
     expect(source).toContain('generic page-root screenshot targets');
     expect(source).toContain('aliased\ngeneric shell locator targets');
     expect(source).toContain(

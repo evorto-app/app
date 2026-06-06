@@ -3633,6 +3633,16 @@ fallback rather than a profile discount-card defect.
   the weak-caption runtime failure, invalid image attachments, the
   missing-highlight runtime failure, and the blank/context-free highlighted-image
   runtime failures without app startup.
+  A June 6, 2026 full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`
+  rebuilt the Docker docs stack, seeded the docs tenant, and then failed in
+  authenticated setup before generated-doc assertions because Auth0 rejected the
+  generated callback on the worktree fallback port. A follow-up
+  `APP_HOST_PORT=4200 bun run docker:check` confirmed the usual
+  Auth0-registered local port was already owned by Compose project
+  `evorto-cc7ef3a9`, so this run is recorded as a local callback-port blocker
+  rather than a generated-doc image, reporter, or seeded docs-content failure.
+  The generated `evorto-91c45a89` stack was stopped with `bun run docker:stop`,
+  and the Neon cleanup summary still reported only protected `main`.
 - Current docs screenshot-stability checkpoint: the focused generated-docs
   screenshot helper now waits for target locator bounds to stabilize before
   capture, matching the full documentation reporter path. The shared stability
@@ -5742,8 +5752,8 @@ dev and Docker secrets loaded from the copied local `.env`, the Neon dry-run
 remains clean with only protected `main`, and the Docker container start path is
 healthy again. The development preflight still reports the generated database
 port as closed until the Docker stack is running, but `bun run docker:start`
-successfully rebuilt and started the generated stack on `BASE_URL`
-`http://localhost:4353`.
+successfully rebuilt and started the generated stack on its generated
+`BASE_URL`.
 A fresh in-app Browser General-route sweep on current pushed head `aad2bab1`
 then opened the running Docker app, checked all 10 anonymous General routes at
 320x740, 390x844, and 1440x900, and found expected content, no loading
