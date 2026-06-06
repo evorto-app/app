@@ -132,6 +132,7 @@ The current general settings page supports:
 - **Event review policy** for choosing reviewer approval or direct organizer publishing when an event is submitted.
 - **Stripe account management** for recording whether connected-account maintenance is platform-managed or tenant-admin-managed.
 - **Email sender name** for tenant email notification display names.
+- **Registration limit** and **Limit window days** for the participant registration policy that limits how many upcoming events one user can join in the configured rolling window.
 - **Logo URL** and **Favicon URL** for tenant brand assets. Admins can upload PNG, JPEG, WebP, or GIF logos; favicons also support ICO files. Externally hosted URLs are still supported. The configured favicon updates the browser tab icon.
 - **SEO title** and **SEO description** for tenant-level page metadata.
 - **Legal pages** for tenant imprint/legal notice, privacy policy, and terms. Admins can use external URLs or hosted text. External URLs appear in the public footer as off-site links; hosted text appears at \`/legal/imprint\`, \`/legal/privacy\`, and \`/legal/terms\`.
@@ -149,6 +150,30 @@ Tax rates are managed on the separate **Tax Rates** page.
     generalSettings.getByLabel('Stripe account management'),
   ).toBeVisible();
   await expect(generalSettings.getByLabel('Email sender name')).toBeVisible();
+  await expect(generalSettings.getByLabel('Registration limit')).toBeVisible();
+  await expect(generalSettings.getByLabel('Limit window days')).toBeVisible();
+  await expect(
+    generalSettings.getByRole('heading', { name: 'Operations policy' }),
+  ).toBeVisible();
+  await expect(
+    generalSettings.getByText('Configure tenant-level operational defaults.'),
+  ).toBeVisible();
+  const operationsPolicySettingsFields = [
+    generalSettingsField(page, 'Event review policy'),
+    generalSettingsField(page, 'Stripe account management'),
+    generalSettingsField(page, 'Email sender name'),
+    generalSettingsField(page, 'Registration limit'),
+    generalSettingsField(page, 'Limit window days'),
+  ];
+  for (const field of operationsPolicySettingsFields) {
+    await expect(field).toBeVisible();
+  }
+  await takeScreenshot(
+    testInfo,
+    operationsPolicySettingsFields,
+    page,
+    'Operations policy settings with participant registration limits',
+  );
   await expect(generalSettings.getByLabel('Logo URL')).toBeVisible();
   await expect(generalSettings.getByLabel('Favicon URL')).toBeVisible();
   await expect(generalSettings.getByLabel('SEO title')).toBeVisible();

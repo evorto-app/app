@@ -466,7 +466,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   It also rejects fixed `.waitForTimeout(...)` waits in specs and generated
   docs, keeping those flows tied to concrete UI state.
 - `helpers/testing/generated-documentation-source.spec.ts` keeps tenant general-settings
-  docs aligned with implemented brand-asset uploads and hosted legal routes,
+  docs aligned with implemented brand-asset uploads, hosted legal routes, and
+  an image-backed operations-policy section that includes participant
+  registration-limit controls,
   keeps global-admin generated docs focused on implemented relaunch tenant
   operations while still rejecting unrelated unlisted-admin docs, and keeps
   profile/account docs aligned with implemented

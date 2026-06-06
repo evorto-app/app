@@ -1342,7 +1342,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/roles/about-permissions.doc.ts',
     ]);
     const expectedScreenshotCounts = new Map([
-      ['tests/docs/admin/general-settings.doc.ts', 5],
+      ['tests/docs/admin/general-settings.doc.ts', 6],
       ['tests/docs/admin/global-admin.doc.ts', 6],
       ['tests/docs/events/event-approval.doc.ts', 6],
       ['tests/docs/events/event-management.doc.ts', 8],
@@ -1728,6 +1728,10 @@ describe('generated docs source current behavior', () => {
       "generalSettings.getByLabel('Stripe account management')",
     );
     expect(source).toContain("generalSettings.getByLabel('Email sender name')");
+    expect(source).toContain(
+      "generalSettings.getByLabel('Registration limit')",
+    );
+    expect(source).toContain("generalSettings.getByLabel('Limit window days')");
     expect(source).toContain("generalSettings.getByLabel('Logo URL')");
     expect(source).toContain("generalSettings.getByLabel('Favicon URL')");
     expect(source).toContain("generalSettings.getByLabel('SEO title')");
@@ -1756,6 +1760,7 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('const deferredSettingsSummary =');
     expect(source).toContain('const tenantIdentitySummary =');
+    expect(source).toContain('const operationsPolicySettingsFields =');
     expect(source).toContain('const brandAndSearchSettingsFields =');
     expect(source).toContain('const legalPageSettingsFields =');
     expect(source).toContain('const financeAndDiscountSettingsSurface =');
@@ -1765,6 +1770,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'await expect(tenantIdentitySummary).toBeVisible()',
+    );
+    expect(source).toContain(
+      'for (const field of operationsPolicySettingsFields)',
     );
     expect(source).toContain(
       'for (const field of brandAndSearchSettingsFields)',
@@ -1794,6 +1802,12 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'Legal page fields for hosted imprint privacy and terms content',
+    );
+    expect(source).toContain(
+      'Operations policy settings with participant registration limits',
+    );
+    expect(source).toContain(
+      'takeScreenshot(\n    testInfo,\n    operationsPolicySettingsFields,',
     );
     expect(source).not.toContain(
       'takeScreenshot(\n    testInfo,\n    emailSenderField,',
@@ -1834,7 +1848,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       '**Email sender name** for tenant email notification display names.',
     );
-    expect(source).toContain('participant registration limits');
+    expect(source).toContain(
+      '**Registration limit** and **Limit window days** for the participant registration policy',
+    );
     expect(source).toContain(
       'hosted text appears at \\`/legal/imprint\\`, \\`/legal/privacy\\`, and \\`/legal/terms\\`',
     );
