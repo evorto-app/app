@@ -529,8 +529,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   screenshot targets such as `*-button`, `*-input`, and `*-icon-button` while
   allowing surface-level test ids, rejects direct icon/media targets such as
   `svg`, `img`, `fa-icon`, `mat-icon`, `getByRole('img')`, `getByAltText`, and
-  `getByTitle`, including direct single-control or icon/media locators inside
-  screenshot target arrays and helper-returned icon/media locators, before docs
+  `getByTitle`, including direct weak locators inside screenshot target arrays,
+  spread screenshot target arrays, and helper-returned icon/media locators, before docs
   can regress to button-only, input-only, option-only, cell-only, or icon-only
   images, resolves screenshot target aliases and helper functions before
   inspecting screenshot calls so later declarations cannot bypass those

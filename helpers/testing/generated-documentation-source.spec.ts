@@ -38,6 +38,11 @@ const unwrapExpression = (node: ts.Expression): ts.Expression => {
   return current;
 };
 
+const unwrapArrayElement = (node: ts.Expression): ts.Expression =>
+  ts.isSpreadElement(node)
+    ? unwrapExpression(node.expression)
+    : unwrapExpression(node);
+
 const collectDestructuredPropertyAliases = (
   node: ts.VariableDeclaration,
   sourceFile: ts.SourceFile,
@@ -441,7 +446,9 @@ const findGenericScreenshotTargets = (
     if (ts.isArrayLiteralExpression(target)) {
       return (
         target.elements.length === 0 ||
-        target.elements.some((element) => isGenericLocatorTarget(element))
+        target.elements.some((element) =>
+          isGenericLocatorTarget(unwrapArrayElement(element)),
+        )
       );
     }
 
@@ -648,7 +655,7 @@ const findUnfilteredBroadScreenshotTargets = (
 
     if (ts.isArrayLiteralExpression(target)) {
       return target.elements.some((element) =>
-        isUnfilteredBroadLocatorTarget(element),
+        isUnfilteredBroadLocatorTarget(unwrapArrayElement(element)),
       );
     }
 
@@ -911,7 +918,7 @@ const findSingleControlScreenshotTargets = (
 
     if (ts.isArrayLiteralExpression(target)) {
       return target.elements.some((element) =>
-        isSingleControlLocatorTarget(element),
+        isSingleControlLocatorTarget(unwrapArrayElement(element)),
       );
     }
 
@@ -1163,7 +1170,7 @@ const findIconOrMediaScreenshotTargets = (
 
     if (ts.isArrayLiteralExpression(target)) {
       return target.elements.some((element) =>
-        isIconOrMediaLocatorTarget(element),
+        isIconOrMediaLocatorTarget(unwrapArrayElement(element)),
       );
     }
 
@@ -2731,6 +2738,65 @@ describe('generated docs source current behavior', () => {
         destructuredTargetSource,
       ),
     ).toEqual(['tests/docs/example/destructured-target.doc.ts:28:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind array spreads', () => {
+    const spreadTargetSource = `
+      const genericTargets = [page.locator('main')];
+      const broadTargets = [page.locator('section')];
+      const singleTargets = [page.getByRole('button', { name: 'Save' })];
+      const iconTargets = [page.locator('svg')];
+
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, ...genericTargets],
+        page,
+        'Spread generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, ...broadTargets],
+        page,
+        'Spread broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, ...singleTargets],
+        page,
+        'Spread single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, ...iconTargets],
+        page,
+        'Spread icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/spread-target.doc.ts',
+        spreadTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/spread-target.doc.ts:7:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/spread-target.doc.ts',
+        spreadTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/spread-target.doc.ts:13:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/spread-target.doc.ts',
+        spreadTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/spread-target.doc.ts:19:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/spread-target.doc.ts',
+        spreadTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/spread-target.doc.ts:25:13']);
   });
 
   it('detects computed weak documentation screenshot target aliases', () => {

@@ -1451,8 +1451,10 @@ describe('stabilization source', () => {
     expect(source).toContain('Material control hosts');
     expect(source).toContain('icon-only and media-only screenshot targets');
     expect(source).toContain("getByRole('img')");
-    expect(source).toContain('direct icon/media screenshot targets');
-    expect(source).toContain('target arrays');
+    expect(source).toContain(
+      'direct generic, broad, single-control, and\nicon/media screenshot targets',
+    );
+    expect(source).toContain('spread target arrays');
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
     expect(source).toContain('captureDocumentationImage');
@@ -1508,9 +1510,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/single-control-looking\s+`getByTestId`/u);
     expect(inventory).toContain("getByRole('img')");
     expect(inventory).toMatch(/icon\/media targets\s+such as\s+`svg`/u);
-    expect(inventory).toMatch(
-      /target arrays\s+and helper-returned icon\/media locators/u,
-    );
+    expect(inventory).toContain('screenshot target arrays');
+    expect(inventory).toContain('spread screenshot target arrays');
+    expect(inventory).toContain('helper-returned icon/media locators');
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local\s+screenshot\s+wrappers/u);
     expect(inventory).toMatch(/assigned helper\s+properties/u);
@@ -1758,6 +1760,14 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'ts.isArrayLiteralExpression(target)',
     );
+    expect(generatedDocumentationSource).toContain('unwrapArrayElement');
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets hidden behind array spreads',
+    );
+    expect(generatedDocumentationSource).toContain('...genericTargets');
+    expect(generatedDocumentationSource).toContain('...broadTargets');
+    expect(generatedDocumentationSource).toContain('...singleTargets');
+    expect(generatedDocumentationSource).toContain('...iconTargets');
     expect(generatedDocumentationSource).toContain(
       'wrappedForwardTargets.shell',
     );
