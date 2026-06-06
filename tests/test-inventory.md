@@ -525,8 +525,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   maps root `QUALITY.md` generated-documentation topics
   including paid registration, waitlists, registration cancellation,
   transfer/resale, registration confirmation with QR ticket availability,
-  payments, email notifications, and documentation/help to checked-in docs
-  sources,
+  payments, direct QR email-delivery boundaries, email notifications, and
+  documentation/help to checked-in docs sources,
   rejects fixed `waitForTimeout` sleeps in generated docs so screenshots stay
   tied to concrete UI state,
   keeps the helper's runtime caption parameter required with the same minimum

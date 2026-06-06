@@ -4819,6 +4819,7 @@ describe('generated docs source current behavior', () => {
         productArea: 'email notifications',
         terms: [
           'registration-confirmation email',
+          'does not send the QR code directly',
           'registration-cancelled email',
           'spot-available email',
           'transfer-completed email',

@@ -6012,8 +6012,9 @@ the product-facing documentation inventory.
 It also maps `QUALITY.md` generated-documentation topics to checked-in docs
 sources, including paid registration, waitlists, registration cancellation,
 transfer/resale, registration confirmation with QR ticket availability,
-payments, email notifications, and documentation/help, so the product and
-quality root docs cannot drift apart on which user/admin guides are expected.
+payments, direct QR email-delivery boundaries, email notifications, and
+documentation/help, so the product and quality root docs cannot drift apart on
+which user/admin guides are expected.
 The template generated doc now screenshots the seeded template-list navigation
 containing both a category and the Create template action instead of highlighting
 only the standalone create link.
