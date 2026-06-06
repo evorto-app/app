@@ -4442,6 +4442,9 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   cache-mount install. That preserves the cache-hit behavior while removing the
   account-backed private registry path when a runner or inherited environment
   contains Font Awesome credentials.
+  Copilot setup now also uses a same-ref concurrency group with cancellation so
+  obsolete setup runs do not keep installing dependencies after a newer PR slice
+  is pushed.
   A follow-up
   simplification keeps the scheduled `Neon Branch Cleanup` workflow out of the
   Font Awesome registry setup path because it does not run dependency

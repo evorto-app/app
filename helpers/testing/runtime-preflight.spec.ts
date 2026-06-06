@@ -1161,6 +1161,10 @@ describe('evaluateRuntimePreflight', () => {
       'uses: ./.github/actions/setup-bun-dependency-caches',
     );
     expect(copilotSetupWorkflow).toContain(
+      'group: copilot-setup-${{ github.ref }}',
+    );
+    expect(copilotSetupWorkflow).toContain('cancel-in-progress: true');
+    expect(copilotSetupWorkflow).toContain(
       'run: bash helpers/testing/install-ci-dependencies.sh',
     );
     expect(copilotSetupWorkflow).toContain(

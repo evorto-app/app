@@ -17,6 +17,10 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
 
+concurrency:
+  group: copilot-setup-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
   copilot-setup-steps:

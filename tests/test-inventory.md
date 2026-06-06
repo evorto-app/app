@@ -866,6 +866,9 @@ provider outcomes without live identifiers.
     E2E matrix jobs and Copilot setup also fail on a missing warmed
     dependency-tree cache instead of running their own registry installs,
     keeping Font Awesome package downloads limited to the serial cache warmer.
+    Copilot setup uses a same-ref concurrency group with cancellation so
+    obsolete setup runs do not keep installing dependencies after a newer PR
+    slice is pushed.
     The serial warmer now also uses a restored primary-key or restore-key Bun
     package cache for an offline dependency-tree rebuild before opening the
     registry install path, so package-cache hits do not spend Font Awesome

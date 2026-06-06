@@ -2081,6 +2081,10 @@ describe('stabilization source', () => {
     expect(copilotSetupWorkflow).toContain(
       'uses: ./.github/actions/setup-bun-dependency-caches',
     );
+    expect(copilotSetupWorkflow).toContain(
+      'group: copilot-setup-${{ github.ref }}',
+    );
+    expect(copilotSetupWorkflow).toContain('cancel-in-progress: true');
     expect(copilotSetupWorkflow).toContain('CI_DEPENDENCY_INSTALL_MODE: warm');
     expect(copilotSetupWorkflow).not.toContain('FONT_AWESOME_TOKEN');
     expect(copilotSetupWorkflow).not.toContain('npm.fontawesome.com');
