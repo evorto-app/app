@@ -3279,48 +3279,31 @@ describe('stabilization source', () => {
       'stable logged-in starting points without running the full viewport pack',
     );
     expect(statusTable).toContain(
-      'Latest PR status refresh for pushed head `d984c9bf`',
+      'Latest PR status refresh for pushed head `83c5f178`',
     );
     expect(statusTable).toContain(
-      'CodeQL, Git Town, Copilot setup, CodeRabbit, and the E2E cache warmer green',
+      'CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` green',
     );
     expect(statusTable).toContain(
-      'serialized Playwright shards are still running or queued',
+      'E2E run `27054906042` completed all three serialized worker shards on pushed head `83c5f178`',
     );
+    expect(statusTable).toContain('warmed Bun, Docker, and Playwright caches');
     expect(statusTable).toContain(
-      '`functional-1` already restoring and requiring the warmed Docker Bun cache mount before Docker startup',
-    );
-    expect(statusTable).toContain(
-      'latest fully green serialized E2E run remains `27051129075` on pushed head `acc6af1e`',
-    );
-    expect(statusTable).toContain(
-      'all three Playwright shards completed with warmed Bun, Docker, and Playwright caches',
-    );
-    expect(statusTable).toContain(
-      'confirmed Neon branch expiration in each worker',
-    );
-    expect(statusTable).toContain(
-      'completed Docker stop plus final Neon prune in each worker',
-    );
-    expect(statusTable).toContain(
-      'E2E run `27053225359` has now proven both functional serialized worker cleanup paths on pushed head `d984c9bf`',
-    );
-    expect(statusTable).toContain(
-      '`functional-1` and `functional-2` restored the warmed caches, started Docker, confirmed Neon branch expiration',
+      'each worker confirmed Neon branch expiration',
     );
     expect(statusTable).toContain('recorded Neon Local metadata');
-    expect(statusTable).toContain('passed their Playwright shards');
+    expect(statusTable).toContain('passed its shard');
     expect(statusTable).toContain('stopped Docker');
     expect(statusTable).toContain('ran the final Neon prune');
     expect(statusTable).toContain(
-      'Post-finalizer local Neon cleanup dry-runs after each functional worker',
+      'Repo-local Neon cleanup dry-runs after functional-1, functional-2, and docs',
     );
     expect(statusTable).toContain('`total=1`');
     expect(statusTable).toContain('`protected=1`');
     expect(statusTable).toContain('`active_test=0`');
     expect(statusTable).toContain('`stale_deleted=0`');
     expect(statusTable).toContain(
-      'only protected `main` remained once each worker released Neon Local',
+      'only protected `main` remained once every worker released Neon Local',
     );
     expect(statusTable).not.toContain(
       'Current PR status refreshes show visible checks green',
@@ -5326,12 +5309,12 @@ describe('stabilization source', () => {
 
     expect(checkpoint).toBeDefined();
     const checkpointText = normalizeWhitespace(checkpoint ?? '');
-    expect(checkpointText).toContain('local head `0700ce96`');
+    expect(checkpointText).toContain('local head `83c5f178`');
     expect(checkpointText).toContain('CodeQL, CodeQL `Analyze (actions)`');
     expect(checkpointText).toContain(
       'Copilot setup, Git Town, CodeRabbit, the serial E2E',
     );
-    expect(checkpointText).toContain('E2E run `27054035702`');
+    expect(checkpointText).toContain('E2E run `27054906042`');
     expect(checkpointText).toContain(
       '`Playwright E2E (functional-1)`, `Playwright E2E (functional-2)`, and `Playwright E2E (docs)` green',
     );
@@ -5352,11 +5335,11 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain('skipped a worker registry install path');
     expect(checkpointText).toContain('confirmed Neon branch expiration');
     expect(checkpointText).toContain('functional-1 temporarily created');
-    expect(checkpointText).toContain('`br-bold-king-a9kab45l`');
+    expect(checkpointText).toContain('`br-proud-violet-a94pni7t`');
     expect(checkpointText).toContain('functional-2 temporarily created');
-    expect(checkpointText).toContain('`br-royal-star-a915h7k3`');
+    expect(checkpointText).toContain('`br-late-bread-a9fb49pw`');
     expect(checkpointText).toContain('docs temporarily created');
-    expect(checkpointText).toContain('`br-steep-cherry-a99ce5v1`');
+    expect(checkpointText).toContain('`br-rapid-sun-a9ue1y2n`');
     expect(checkpointText).toContain('serial `Warm CI dependency caches` job');
     expect(checkpointText).toContain('warmed Docker Bun cache mount');
     expect(checkpointText).toContain('`if: always()` cleanup finalizers');
