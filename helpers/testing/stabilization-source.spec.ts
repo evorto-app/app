@@ -1408,6 +1408,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('aliased raw image payload objects');
     expect(inventory).toContain('aliased MIME/path values');
     expect(inventory).toContain('object shorthand\n  image payloads');
+    expect(inventory).toContain('forward-declared raw aliases');
     expect(inventory).toContain('destructured attach-function aliases');
     expect(inventory).toContain('dynamic screenshot-helper imports');
     expect(inventory).toContain('self-tests those bypass examples');
@@ -1482,6 +1483,7 @@ describe('stabilization source', () => {
       'detects direct screenshot calls before generated docs can use them',
     );
     expect(generatedDocumentationSource).toContain("page['screenshot']");
+    expect(generatedDocumentationSource).toContain('forwardCaptureScreenshot');
     expect(generatedDocumentationSource).toContain(
       'addScreenshotBindingAliases',
     );
@@ -1507,6 +1509,9 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'imageAttachmentPayloadValueAliases',
     );
+    expect(generatedDocumentationSource).toContain('forwardAttachEvidence');
+    expect(generatedDocumentationSource).toContain('forwardAttachmentName');
+    expect(generatedDocumentationSource).toContain('forwardRawImagePayload');
     expect(generatedDocumentationSource).toContain('attachFunctionAliases');
     expect(generatedDocumentationSource).toContain('addAttachBindingAliases');
     expect(generatedDocumentationSource).toContain(

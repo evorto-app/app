@@ -1477,7 +1477,7 @@ const findDirectImageAttachmentCalls = (
     }
   };
 
-  const visit = (node: ts.Node): void => {
+  const collectAliasValuesAndAttachFunctions = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
@@ -1489,10 +1489,6 @@ const findDirectImageAttachmentCalls = (
 
       if (isImageAttachmentPayloadValue(node.initializer)) {
         imageAttachmentPayloadValueAliases.add(node.name.text);
-      }
-
-      if (isImageAttachmentPayload(node.initializer)) {
-        imageAttachmentPayloadAliases.add(node.name.text);
       }
 
       if (isAttachFunctionReference(node.initializer)) {
@@ -1516,6 +1512,23 @@ const findDirectImageAttachmentCalls = (
       }
     }
 
+    ts.forEachChild(node, collectAliasValuesAndAttachFunctions);
+  };
+
+  const collectPayloadAliases = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      isImageAttachmentPayload(node.initializer)
+    ) {
+      imageAttachmentPayloadAliases.add(node.name.text);
+    }
+
+    ts.forEachChild(node, collectPayloadAliases);
+  };
+
+  const inspectImageAttachmentCalls = (node: ts.Node): void => {
     if (
       ts.isCallExpression(node) &&
       node.arguments[0] &&
@@ -1534,10 +1547,12 @@ const findDirectImageAttachmentCalls = (
       }
     }
 
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, inspectImageAttachmentCalls);
   };
 
-  visit(sourceFile);
+  collectAliasValuesAndAttachFunctions(sourceFile);
+  collectPayloadAliases(sourceFile);
+  inspectImageAttachmentCalls(sourceFile);
 
   return imageAttachments;
 };
@@ -1598,7 +1613,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     }
   };
 
-  const visit = (node: ts.Node): void => {
+  const collectAliases = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
@@ -1624,6 +1639,10 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       }
     }
 
+    ts.forEachChild(node, collectAliases);
+  };
+
+  const inspectScreenshotCalls = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = unwrapExpression(node.expression);
 
@@ -1637,10 +1656,11 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       }
     }
 
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, inspectScreenshotCalls);
   };
 
-  visit(sourceFile);
+  collectAliases(sourceFile);
+  inspectScreenshotCalls(sourceFile);
 
   return screenshotCalls;
 };
@@ -1737,7 +1757,14 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach('shorthand mime evidence', { body: imageBuffer, contentType });
       const imagePath = 'aliased-image-path.jpeg';
       await testInfo.attach('aliased path evidence', { path: imagePath });
+      await forwardAttachEvidence('image', { body: imageBuffer });
+      await testInfo.attach(forwardAttachmentName, { body: imageBuffer });
+      await testInfo.attach('forward raw evidence', forwardRawImagePayload);
       await testInfo.attach('markdown', { body: markdown });
+      const forwardAttachEvidence = testInfo.attach.bind(testInfo);
+      const forwardAttachmentName = 'image';
+      const forwardContentType = 'image/avif';
+      const forwardRawImagePayload = { body: imageBuffer, contentType: forwardContentType };
     `;
 
     expect(
@@ -1760,6 +1787,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:20:13',
       'tests/docs/example/direct-image.doc.ts:22:13',
       'tests/docs/example/direct-image.doc.ts:24:13',
+      'tests/docs/example/direct-image.doc.ts:25:13',
+      'tests/docs/example/direct-image.doc.ts:26:13',
+      'tests/docs/example/direct-image.doc.ts:27:13',
     ]);
   });
 
@@ -1774,12 +1804,14 @@ describe('generated docs source current behavior', () => {
       await capturePageByElement({ path: 'page-element-alias.png' });
       const { screenshot: capturePageScreenshot } = page;
       await capturePageScreenshot({ path: 'page-alias.png' });
+      await forwardCaptureScreenshot({ path: 'forward-page-alias.png' });
       await takeScreenshot(
         testInfo,
         settingsSurface,
         page,
         'Shared helper screenshot remains the allowed path',
       );
+      const forwardCaptureScreenshot = page.screenshot.bind(page);
     `;
 
     expect(
@@ -1794,6 +1826,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:6:13',
       'tests/docs/example/direct-screenshot.doc.ts:8:13',
       'tests/docs/example/direct-screenshot.doc.ts:10:13',
+      'tests/docs/example/direct-screenshot.doc.ts:11:13',
     ]);
   });
 

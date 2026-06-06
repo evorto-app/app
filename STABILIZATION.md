@@ -5797,6 +5797,10 @@ or image file path into a variable does not bypass the same helper requirement.
 Raw-image payloads also follow aliased MIME/path string values and object
 shorthand properties such as `{ contentType }`, keeping direct image attachment
 guards independent of simple local variable extraction.
+Direct screenshot, image-attachment name, raw image payload, and attach-function
+aliases are collected before generated-doc calls are inspected, so declaring a
+raw helper or payload after its use does not bypass the shared screenshot helper
+requirement.
 Bracket-property forms such as `testInfo['attach'](...)`,
 `page['screenshot'](...)`, and `documentationReporter['takeScreenshot'](...)`
 are treated the same as dot-property access, so generated-doc source guards do

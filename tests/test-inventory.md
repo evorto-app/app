@@ -547,7 +547,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   destructured screenshot-function aliases, rejects direct image attachments
   through simple attachment-name aliases, raw image MIME/file-extension payloads,
   aliased raw image payload objects, aliased MIME/path values, object shorthand
-  image payloads, and simple or destructured attach-function aliases, rejects
+  image payloads, forward-declared raw aliases, and simple or destructured attach-function aliases, rejects
   aliased/helper-internal screenshot imports, dynamic screenshot-helper imports,
   and local screenshot wrappers, self-tests those bypass examples, and keeps the permission
   reference image-backed with the actual role-form permission/dependency
