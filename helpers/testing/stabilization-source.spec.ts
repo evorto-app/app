@@ -600,6 +600,9 @@ describe('stabilization source', () => {
     const rpcRequestHandlerSpec = readSource(
       'src/server/effect/rpc/app-rpcs.request-handler.spec.ts',
     );
+    const createAccountDocument = readSource(
+      'tests/docs/users/create-account.doc.ts',
+    );
     const usersSchema = readSource('src/db/schema/users.ts');
     const statusTable = readSection(
       source,
@@ -616,6 +619,10 @@ describe('stabilization source', () => {
     expect(profileComponent).toContain('profileHomeTenantWarning');
     expect(profileHomeTenantSpec).toContain(
       'profile warns when browsing outside the user home tenant',
+    );
+    expect(createAccountDocument).toContain('homeTenantId: tenant.id');
+    expect(createAccountDocument).toContain(
+      "Evorto has attached your global login to this tenant, granted the tenant's default roles, and set this tenant as your home tenant for future tenant-mismatch warnings.",
     );
     expect(profileHomeTenantSpec).toContain(".getByRole('status')");
     expect(rpcRequestHandler).toContain(
@@ -640,6 +647,9 @@ describe('stabilization source', () => {
     );
     expect(source).toContain(
       'authenticated in-app Browser pass verified the warning after normal Auth0 login',
+    );
+    expect(source).toMatch(
+      /create-account docs now explain the current-tenant join,\s+default-role\s+assignment, and home-tenant side effects/u,
     );
   });
 

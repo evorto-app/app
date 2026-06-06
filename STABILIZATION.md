@@ -1568,8 +1568,11 @@ the current working direction until a product decision overrides them.
   profile edit payload persistence, ESNcard action labels/errors/payloads,
   profile event labels/actions, and submitted receipt status/amount/server rows;
   generated profile docs now assert notification email plus reimbursement-detail
-  persistence and submitted receipt visibility. The remaining account-creation
-  full-browser path is Auth0-management-gated, not baseline CI coverage.
+  persistence and submitted receipt visibility, and the integration-tagged
+  create-account docs now explain the current-tenant join, default-role
+  assignment, and home-tenant side effects while reading those rows back. The
+  remaining account-creation full-browser path is Auth0-management-gated, not
+  baseline CI coverage.
 
 ## Tenant/Global Admin
 
@@ -2756,6 +2759,11 @@ implement those decisions or explicitly revise them there before changing code.
   account-creation guide read back the persisted global user, tenant
   assignment, and default role assignment, then clean up the generated database
   rows after the docs journey.
+- Create-account tenant-assignment docs pass: made the integration-tagged
+  generated account-creation guide explain the created user's current-tenant
+  join, default-role assignment, and home-tenant warning side effects, then
+  pinned those source claims to the persisted user, tenant assignment, and role
+  assignment readbacks.
 - Profile ESNcard write-guard pass: shared one in-flight guard across save,
   refresh, and remove so profile discount-card writes cannot overlap on slow
   networks, and pinned that guard in local app tests.
