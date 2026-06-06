@@ -1406,6 +1406,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain("`documentationReporter['takeScreenshot']`");
     expect(inventory).toMatch(/destructured\s+screenshot-function aliases/u);
     expect(inventory).toMatch(/grouped screenshot-function\s+properties/u);
+    expect(inventory).toMatch(
+      /shorthand or alias-valued grouped screenshot helpers/u,
+    );
     expect(inventory).toMatch(/tuple\/array screenshot-function\s+entries/u);
     expect(inventory).toMatch(/simple\s+attachment-name/u);
     expect(inventory).toMatch(/raw image\s+MIME\/file-extension payloads/u);
@@ -1417,7 +1420,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/computed\s+object keys/u);
     expect(inventory).toMatch(/bracket property references/u);
     expect(inventory).toMatch(
-      /destructured,\s+grouped,\s+or\s+tuple\/array attach-function aliases/u,
+      /destructured,\s+grouped,\s+shorthand,\s+alias-valued,\s+or\s+tuple\/array attach-function aliases/u,
     );
     expect(inventory).toContain('dynamic screenshot-helper imports');
     expect(inventory).toContain('self-tests those bypass examples');
@@ -1530,6 +1533,12 @@ describe('stabilization source', () => {
       "attachHelpers['computedEvidence']",
     );
     expect(generatedDocumentationSource).toContain(
+      'attachHelpers.attachEvidence',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'attachHelpers.evidenceFromAlias',
+    );
+    expect(generatedDocumentationSource).toContain(
       'destructuredAttachEvidence',
     );
     expect(generatedDocumentationSource).toContain(
@@ -1617,6 +1626,12 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('screenshotHelpers.capture');
     expect(generatedDocumentationSource).toContain(
       "screenshotHelpers['computedCapture']",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'screenshotHelpers.captureElement',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'screenshotHelpers.captureFromAlias',
     );
     expect(generatedDocumentationSource).toContain(
       'destructuredGroupedCapture',
