@@ -5900,6 +5900,10 @@ Raw screenshot and image-attachment invocations through `call(...)` or
 `apply(...)` are rejected as direct raw captures too, so `page.screenshot.call`
 and `testInfo.attach.apply` cannot sidestep the shared-helper screenshot count,
 caption, highlight, and target-quality checks.
+Inline `bind(...)(...)` invocations of raw screenshot and image-attachment
+functions are rejected as well, so generated docs cannot hide direct capture by
+binding `page.screenshot`, `testInfo.attach`, or one of their aliases at the
+call site.
 Raw image attachments with image MIME types or common image file extensions are
 also rejected even when their attachment name is not `image`, so docs cannot
 smuggle screenshot evidence through a differently named `testInfo.attach(...)`

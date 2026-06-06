@@ -2111,6 +2111,31 @@ const findDirectImageAttachmentCalls = (
         ))) ||
     (ts.isIdentifier(callee) && attachFunctionAliases.has(callee.text));
 
+  const isInlineBoundAttachCall = (callee: ts.Expression): boolean => {
+    const expression = unwrapExpression(callee);
+
+    if (!ts.isCallExpression(expression)) {
+      return false;
+    }
+
+    const bindCallee = unwrapExpression(expression.expression);
+
+    if (
+      !ts.isPropertyAccessExpression(bindCallee) &&
+      !ts.isElementAccessExpression(bindCallee)
+    ) {
+      return false;
+    }
+
+    const receiver = getStaticPropertyReceiver(bindCallee);
+
+    return (
+      getStaticPropertyName(bindCallee) === 'bind' &&
+      !!receiver &&
+      isTrackedAttachFunctionReference(receiver)
+    );
+  };
+
   const isIndirectImageAttachmentCall = (
     callee: ts.Expression,
     args: ts.NodeArray<ts.Expression>,
@@ -2161,6 +2186,12 @@ const findDirectImageAttachmentCalls = (
 
       if (
         (isTrackedAttachCallCallee(callee) &&
+          (hasSpreadArgument(node.arguments) ||
+            hasImageAttachmentArguments(
+              node.arguments[0],
+              node.arguments[1],
+            ))) ||
+        (isInlineBoundAttachCall(callee) &&
           (hasSpreadArgument(node.arguments) ||
             hasImageAttachmentArguments(
               node.arguments[0],
@@ -2253,6 +2284,31 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
 
   const addScreenshotBindingAliases = (name: ts.BindingName): void => {
     addBindingIdentifiers(name, screenshotFunctionAliases);
+  };
+
+  const isInlineBoundScreenshotCall = (callee: ts.Expression): boolean => {
+    const expression = unwrapExpression(callee);
+
+    if (!ts.isCallExpression(expression)) {
+      return false;
+    }
+
+    const bindCallee = unwrapExpression(expression.expression);
+
+    if (
+      !ts.isPropertyAccessExpression(bindCallee) &&
+      !ts.isElementAccessExpression(bindCallee)
+    ) {
+      return false;
+    }
+
+    const receiver = getStaticPropertyReceiver(bindCallee);
+
+    return (
+      getStaticPropertyName(bindCallee) === 'bind' &&
+      !!receiver &&
+      isTrackedScreenshotFunctionReference(receiver)
+    );
   };
 
   const collectAliases = (node: ts.Node): void => {
@@ -2383,6 +2439,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
             ))) ||
         (ts.isIdentifier(callee) &&
           screenshotFunctionAliases.has(callee.text)) ||
+        isInlineBoundScreenshotCall(callee) ||
         isIndirectScreenshotCall
       ) {
         screenshotCalls.push(describeCall(node));
@@ -2703,6 +2760,33 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects inline bound image attachments before generated docs can use them', () => {
+    const inlineBoundImageAttachmentSource = `
+      const markdownArgs = ['markdown', { body: markdown }] as const;
+      const attachEvidence = testInfo.attach.bind(testInfo);
+      const attachHelpers = { evidence: attachEvidence };
+      await testInfo.attach.bind(testInfo)('image', { body: imageBuffer });
+      await testInfo['attach'].bind(testInfo)('image', { body: imageBuffer });
+      await attachEvidence.bind(testInfo)('image', { body: imageBuffer });
+      await attachHelpers.evidence.bind(testInfo)('image', { body: imageBuffer });
+      await testInfo.attach.bind(testInfo)(...markdownArgs);
+      await testInfo.attach.bind(testInfo)('markdown', { body: markdown });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/inline-bound-image-attachment.doc.ts',
+        inlineBoundImageAttachmentSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/inline-bound-image-attachment.doc.ts:5:13',
+      'tests/docs/example/inline-bound-image-attachment.doc.ts:6:13',
+      'tests/docs/example/inline-bound-image-attachment.doc.ts:7:13',
+      'tests/docs/example/inline-bound-image-attachment.doc.ts:8:13',
+      'tests/docs/example/inline-bound-image-attachment.doc.ts:9:13',
+    ]);
+  });
+
   it('detects direct screenshot calls before generated docs can use them', () => {
     const directScreenshotSource = `
       await page.screenshot({ path: 'page.png' });
@@ -2788,6 +2872,35 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:44:13',
       'tests/docs/example/direct-screenshot.doc.ts:45:13',
       'tests/docs/example/direct-screenshot.doc.ts:46:13',
+    ]);
+  });
+
+  it('detects inline bound raw screenshot calls before generated docs can use them', () => {
+    const inlineBoundScreenshotSource = `
+      const capturePageScreenshot = page.screenshot.bind(page);
+      const screenshotHelpers = { capture: capturePageScreenshot };
+      await page.screenshot.bind(page)({ path: 'page-bind.png' });
+      await page['screenshot'].bind(page)({ path: 'page-bracket-bind.png' });
+      await capturePageScreenshot.bind(page)({ path: 'page-alias-bind.png' });
+      await screenshotHelpers.capture.bind(page)({ path: 'page-helper-bind.png' });
+      await takeScreenshot(
+        testInfo,
+        settingsSurface,
+        page,
+        'Shared helper screenshot remains the allowed path',
+      );
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/inline-bound-screenshot.doc.ts',
+        inlineBoundScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/inline-bound-screenshot.doc.ts:4:13',
+      'tests/docs/example/inline-bound-screenshot.doc.ts:5:13',
+      'tests/docs/example/inline-bound-screenshot.doc.ts:6:13',
+      'tests/docs/example/inline-bound-screenshot.doc.ts:7:13',
     ]);
   });
 

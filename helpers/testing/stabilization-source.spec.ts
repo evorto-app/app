@@ -1556,8 +1556,8 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/grouped or indexed\s+MIME\/path values/u);
     expect(inventory).toMatch(/object shorthand\s+image payloads/u);
     expect(inventory).toMatch(/computed\s+raw\s+image\s+payload\s+keys/u);
-    expect(inventory).toContain(
-      'raw screenshot and image attach call/apply invocations',
+    expect(inventory).toMatch(
+      /raw screenshot and image attach call\/apply\s+invocations/u,
     );
     expect(inventory).toContain('forward-declared raw aliases');
     expect(inventory).toMatch(/computed\s+object keys/u);
@@ -1910,6 +1910,22 @@ describe('stabilization source', () => {
       'await testInfo.attach.apply(testInfo, markdownArgs)',
     );
     expect(generatedDocumentationSource).toContain("page['screenshot'].apply");
+    expect(generatedDocumentationSource).toContain('isInlineBoundAttachCall');
+    expect(generatedDocumentationSource).toContain(
+      'isInlineBoundScreenshotCall',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects inline bound image attachments before generated docs can use them',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects inline bound raw screenshot calls before generated docs can use them',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await page.screenshot.bind(page)({ path: 'page-bind.png' })",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await testInfo.attach.bind(testInfo)('image', { body: imageBuffer })",
+    );
     expect(generatedDocumentationSource).toContain('genericSelectors');
     expect(generatedDocumentationSource).toContain('genericTargetAliases');
     expect(generatedDocumentationSource).toContain('returnsGenericLocator');
@@ -2018,8 +2034,10 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'Tracked direct image attachment calls with spread arguments',
     );
+    expect(source).toContain('Inline `bind(...)(...)` invocations');
     expect(inventory).toContain('spread direct attachment arguments');
     expect(inventory).toContain('opaque\n  attachment `apply(...)` lists');
+    expect(inventory).toContain('inline bound raw screenshot and image attach');
   });
 
   it('keeps the PR readiness checkpoint current without pinning stale heads', () => {
