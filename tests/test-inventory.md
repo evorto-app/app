@@ -878,6 +878,9 @@ provider outcomes without live identifiers.
     Copilot setup uses a same-ref concurrency group with cancellation so
     obsolete setup runs do not keep installing dependencies after a newer PR
     slice is pushed.
+    Copilot setup also restores the Playwright browser cache with
+    `actions/cache/restore@v4` and installs only Chromium, leaving the serial E2E
+    cache warmer as the browser-cache write path.
     It runs automatically for matching PR changes and manually through
     `workflow_dispatch`, but not on every branch push, so cache-miss refusals do
     not create duplicate failed setup runs outside the PR check.

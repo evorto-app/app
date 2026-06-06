@@ -4522,9 +4522,12 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   independent Font Awesome package-download paths inside BuildKit. Both E2E and
   Copilot setup also set
   `PLAYWRIGHT_BROWSERS_PATH=/home/runner/.cache/ms-playwright` and restore a
-  Playwright browser cache before running `node_modules/.bin/playwright install`,
-  reducing repeated browser downloads from GitHub-hosted runners. The workflows
-  now call `node_modules/.bin/playwright` directly and no longer call `bunx playwright`,
+  Playwright browser cache before running the Chromium-only
+  `node_modules/.bin/playwright install --with-deps chromium`, reducing repeated
+  browser downloads from GitHub-hosted runners. Copilot setup uses
+  `actions/cache/restore@v4` for that browser cache so the serial E2E cache
+  warmer remains the cache writer. The workflows now call
+  `node_modules/.bin/playwright` directly and no longer call `bunx playwright`,
   reducing repeated package-resolution traffic from GitHub-hosted runners. The
   other repeated install surface was the GitHub-hosted Docker
   Compose build, where each E2E matrix job rebuilt the Dockerfile install stages

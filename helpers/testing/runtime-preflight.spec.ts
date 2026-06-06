@@ -1250,12 +1250,13 @@ describe('evaluateRuntimePreflight', () => {
       'Bun dependency tree cache restored; skipping registry install.',
     );
     expect(copilotSetupWorkflow).toContain(
-      'node_modules/.bin/playwright install --with-deps',
+      'node_modules/.bin/playwright install --with-deps chromium',
     );
     expect(copilotSetupWorkflow).toContain(
       'PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright',
     );
     expect(copilotSetupWorkflow).toContain('Restore Playwright browser cache');
+    expect(copilotSetupWorkflow).toContain('uses: actions/cache/restore@v4');
     expect(copilotSetupWorkflow).toContain(
       'key: ${{ runner.os }}-playwright-1.59.1-chromium',
     );

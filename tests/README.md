@@ -300,7 +300,7 @@ Install the browser binaries after dependency installation and whenever the Play
 bun run test:e2e:install
 ```
 
-CI runs `bunx playwright install --with-deps`, but local macOS/Linux development only needs the package script unless the host is missing OS-level browser dependencies.
+CI runs `node_modules/.bin/playwright install --with-deps chromium`, but local macOS/Linux development only needs the package script unless the host is missing OS-level browser dependencies.
 
 Local runs use Playwright's bundled Chromium by default. For exploratory runs
 on a machine that already has Google Chrome installed, set

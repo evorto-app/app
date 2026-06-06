@@ -4596,9 +4596,13 @@ describe('stabilization source', () => {
     );
     expect(copilotWorkflow).toContain('node_modules/.bin/playwright');
     expect(copilotWorkflow).toContain(
+      'node_modules/.bin/playwright install --with-deps chromium',
+    );
+    expect(copilotWorkflow).toContain(
       'PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright',
     );
     expect(copilotWorkflow).toContain('Restore Playwright browser cache');
+    expect(copilotWorkflow).toContain('uses: actions/cache/restore@v4');
     expect(copilotWorkflow).not.toContain('bunx playwright');
     expect(cleanupWorkflow).toContain('name: Neon Branch Cleanup');
     expect(cleanupWorkflow).not.toContain(
