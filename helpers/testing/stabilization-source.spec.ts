@@ -3401,7 +3401,7 @@ describe('stabilization source', () => {
     );
 
     expect(statusTable).toContain('| Local runtime/developer workflow');
-    expect(statusTable).toContain('| Watchpoint | medium');
+    expect(statusTable).toContain('| Stabilized | high');
     expect(statusTable).toContain('Env preflight');
     expect(statusTable).toContain('Neon Local cleanup');
     expect(source).toContain('public Font Awesome install paths');
@@ -3476,14 +3476,12 @@ describe('stabilization source', () => {
     expect(statusTable).toContain(
       'stable logged-in starting points without running the full viewport pack',
     );
-    expect(statusTable).toContain(
-      'Latest completed full PR status refresh before the follow-up evidence slice, for pushed head `17fdcfd5`',
-    );
+    expect(statusTable).toContain('Current PR head `36c6f524` shows');
     expect(statusTable).toContain(
       'CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` green',
     );
     expect(statusTable).toContain(
-      'E2E run `27063722044` completed all three serialized worker shards on pushed head `17fdcfd5`',
+      'E2E run `27065005139` completed all three serialized worker shards on pushed head `36c6f524`',
     );
     expect(statusTable).toContain('warmed Bun, Docker, and Playwright caches');
     expect(statusTable).toContain(
@@ -3601,7 +3599,7 @@ describe('stabilization source', () => {
     expect(playwrightConfig).not.toContain(
       'Effect.provideService(\n      ConfigProvider.ConfigProvider,\n      ConfigProvider.fromEnv(),\n    )',
     );
-    expect(statusTable).not.toContain(
+    expect(statusTable).toContain(
       '| Local runtime/developer workflow                | Stabilized',
     );
     expect(source).toContain(
@@ -5654,12 +5652,12 @@ describe('stabilization source', () => {
 
     expect(checkpoint).toBeDefined();
     const checkpointText = normalizeWhitespace(checkpoint ?? '');
-    expect(checkpointText).toContain('local head `17fdcfd5`');
+    expect(checkpointText).toContain('local head `36c6f524`');
     expect(checkpointText).toContain('CodeQL, CodeQL `Analyze (actions)`');
     expect(checkpointText).toContain(
       'Copilot setup, Git Town, CodeRabbit, the serial E2E',
     );
-    expect(checkpointText).toContain('E2E run `27063722044`');
+    expect(checkpointText).toContain('E2E run `27065005139`');
     expect(checkpointText).toContain(
       '`Playwright E2E (functional-1)`, `Playwright E2E (functional-2)`, and `Playwright E2E (docs)` green',
     );
