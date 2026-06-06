@@ -545,11 +545,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   sources, treats static bracket-property forms such as `page['screenshot']`,
   `testInfo['attach']`, and `documentationReporter['takeScreenshot']` the same
   as dot-property access, rejects direct screenshots through simple or
-  destructured screenshot-function aliases, rejects direct image attachments
-  through simple attachment-name aliases, raw image MIME/file-extension payloads,
-  aliased raw image payload objects, aliased MIME/path values, object shorthand
-  image payloads, computed raw image payload keys, forward-declared raw aliases,
-  and simple or destructured attach-function aliases, rejects
+  destructured screenshot-function aliases and grouped screenshot-function
+  properties, rejects direct image attachments through simple attachment-name
+  aliases, raw image MIME/file-extension payloads, aliased raw image payload
+  objects, aliased MIME/path values, object shorthand image payloads, computed
+  raw image payload keys, forward-declared raw aliases, and simple,
+  destructured, or grouped attach-function aliases, rejects
   aliased/helper-internal screenshot imports, dynamic screenshot-helper imports,
   and local screenshot wrappers, self-tests those bypass examples, and keeps the permission
   reference image-backed with the actual role-form permission/dependency

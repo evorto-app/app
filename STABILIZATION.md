@@ -5792,6 +5792,11 @@ function aliases, destructured screenshot aliases, image attachment aliases,
 direct attach-function aliases, and destructured attach aliases are rejected as
 well. Image evidence has to flow through the shared helper so captions,
 highlights, content pixel checks, and generated figure output stay enforced.
+Grouped screenshot and attach-function aliases are rejected too, including
+object-literal helpers, static bracket-property helpers, assigned helper
+properties, and destructured grouped helper properties. This keeps generated
+docs from hiding raw image capture behind neutral helper names such as
+`helpers.capture(...)` or `helpers.evidence(...)`.
 Raw image attachments with image MIME types or common image file extensions are
 also rejected even when their attachment name is not `image`, so docs cannot
 smuggle screenshot evidence through a differently named `testInfo.attach(...)`

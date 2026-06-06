@@ -1403,16 +1403,19 @@ describe('stabilization source', () => {
     expect(inventory).toContain("`testInfo['attach']`");
     expect(inventory).toContain("`documentationReporter['takeScreenshot']`");
     expect(inventory).toMatch(/destructured\s+screenshot-function aliases/u);
+    expect(inventory).toMatch(/grouped screenshot-function\s+properties/u);
     expect(inventory).toMatch(/simple\s+attachment-name/u);
     expect(inventory).toContain('raw image MIME/file-extension payloads');
-    expect(inventory).toContain('aliased raw image payload objects');
+    expect(inventory).toMatch(/aliased raw image payload\s+objects/u);
     expect(inventory).toContain('aliased MIME/path values');
-    expect(inventory).toContain('object shorthand\n  image payloads');
-    expect(inventory).toContain('computed raw image payload keys');
+    expect(inventory).toMatch(/object shorthand\s+image payloads/u);
+    expect(inventory).toMatch(/computed\s+raw image payload keys/u);
     expect(inventory).toContain('forward-declared raw aliases');
-    expect(inventory).toContain('computed\n  object keys');
-    expect(inventory).toContain('bracket property references');
-    expect(inventory).toContain('destructured attach-function aliases');
+    expect(inventory).toMatch(/computed\s+object keys/u);
+    expect(inventory).toMatch(/bracket property references/u);
+    expect(inventory).toMatch(
+      /destructured,\s+or grouped attach-function aliases/u,
+    );
     expect(inventory).toContain('dynamic screenshot-helper imports');
     expect(inventory).toContain('self-tests those bypass examples');
     expect(inventory).toContain('weak-caption');
@@ -1516,6 +1519,19 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('forwardAttachmentName');
     expect(generatedDocumentationSource).toContain('forwardRawImagePayload');
     expect(generatedDocumentationSource).toContain('attachFunctionAliases');
+    expect(generatedDocumentationSource).toContain(
+      'attachFunctionPropertyAliases',
+    );
+    expect(generatedDocumentationSource).toContain('attachHelpers.evidence');
+    expect(generatedDocumentationSource).toContain(
+      "attachHelpers['computedEvidence']",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'destructuredAttachEvidence',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'attachHelpers.assignedEvidence',
+    );
     expect(generatedDocumentationSource).toContain('addAttachBindingAliases');
     expect(generatedDocumentationSource).toContain(
       'findWeakScreenshotCaptions',
@@ -1584,6 +1600,19 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain("targets['shell']");
     expect(generatedDocumentationSource).toContain("targets['assignedShell']");
     expect(generatedDocumentationSource).toContain('computed-raw-evidence.png');
+    expect(generatedDocumentationSource).toContain(
+      'screenshotFunctionPropertyAliases',
+    );
+    expect(generatedDocumentationSource).toContain('screenshotHelpers.capture');
+    expect(generatedDocumentationSource).toContain(
+      "screenshotHelpers['computedCapture']",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'destructuredGroupedCapture',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'screenshotHelpers.assignedCapture',
+    );
     expect(generatedDocumentationSource).toContain(
       'detects screenshot helper bypass patterns before generated docs can use them',
     );

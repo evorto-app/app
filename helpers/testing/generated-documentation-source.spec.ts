@@ -38,7 +38,7 @@ const unwrapExpression = (node: ts.Expression): ts.Expression => {
   return current;
 };
 
-const collectDestructuredLocatorAliases = (
+const collectDestructuredPropertyAliases = (
   node: ts.VariableDeclaration,
   sourceFile: ts.SourceFile,
   propertyAliases: ReadonlySet<string>,
@@ -412,7 +412,7 @@ const findGenericScreenshotTargets = (
     }
 
     if (ts.isVariableDeclaration(node)) {
-      collectDestructuredLocatorAliases(
+      collectDestructuredPropertyAliases(
         node,
         sourceFile,
         genericTargetPropertyAliases,
@@ -638,7 +638,7 @@ const findUnfilteredBroadScreenshotTargets = (
     }
 
     if (ts.isVariableDeclaration(node)) {
-      collectDestructuredLocatorAliases(
+      collectDestructuredPropertyAliases(
         node,
         sourceFile,
         broadTargetPropertyAliases,
@@ -933,7 +933,7 @@ const findSingleControlScreenshotTargets = (
     }
 
     if (ts.isVariableDeclaration(node)) {
-      collectDestructuredLocatorAliases(
+      collectDestructuredPropertyAliases(
         node,
         sourceFile,
         singleControlPropertyAliases,
@@ -1186,7 +1186,7 @@ const findIconOrMediaScreenshotTargets = (
     }
 
     if (ts.isVariableDeclaration(node)) {
-      collectDestructuredLocatorAliases(
+      collectDestructuredPropertyAliases(
         node,
         sourceFile,
         iconOrMediaPropertyAliases,
@@ -1455,6 +1455,7 @@ const findDirectImageAttachmentCalls = (
   const imageAttachmentPayloadAliases = new Set<string>();
   const imageAttachmentPayloadValueAliases = new Set<string>();
   const attachFunctionAliases = new Set<string>();
+  const attachFunctionPropertyAliases = new Set<string>();
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -1599,6 +1600,42 @@ const findDirectImageAttachmentCalls = (
       if (isAttachFunctionReference(node.initializer)) {
         attachFunctionAliases.add(node.name.text);
       }
+
+      const objectInitializer = unwrapExpression(node.initializer);
+
+      if (ts.isObjectLiteralExpression(objectInitializer)) {
+        for (const property of objectInitializer.properties) {
+          if (
+            ts.isPropertyAssignment(property) &&
+            isAttachFunctionReference(property.initializer)
+          ) {
+            const propertyName = getStaticPropertyNameFromName(property.name);
+
+            if (propertyName) {
+              attachFunctionPropertyAliases.add(
+                `${node.name.text}.${propertyName}`,
+              );
+            }
+          }
+        }
+      }
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
+      isAttachFunctionReference(node.right)
+    ) {
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+      );
+
+      if (propertyReference) {
+        attachFunctionPropertyAliases.add(propertyReference);
+      }
     }
 
     if (
@@ -1607,14 +1644,21 @@ const findDirectImageAttachmentCalls = (
     ) {
       for (const element of node.name.elements) {
         const propertyName = element.propertyName ?? element.name;
+        const staticPropertyName = getStaticPropertyNameFromName(propertyName);
 
-        if (
-          (ts.isIdentifier(propertyName) || ts.isStringLiteral(propertyName)) &&
-          propertyName.text === 'attach'
-        ) {
+        if (staticPropertyName === 'attach') {
           addAttachBindingAliases(element.name);
         }
       }
+    }
+
+    if (ts.isVariableDeclaration(node)) {
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        attachFunctionPropertyAliases,
+        attachFunctionAliases,
+      );
     }
 
     ts.forEachChild(node, collectAliasValuesAndAttachFunctions);
@@ -1645,7 +1689,10 @@ const findDirectImageAttachmentCalls = (
       if (
         ((ts.isPropertyAccessExpression(callee) ||
           ts.isElementAccessExpression(callee)) &&
-          getStaticPropertyName(callee) === 'attach') ||
+          (getStaticPropertyName(callee) === 'attach' ||
+            attachFunctionPropertyAliases.has(
+              getStaticPropertyReference(callee, sourceFile) ?? '',
+            ))) ||
         (ts.isIdentifier(callee) && attachFunctionAliases.has(callee.text))
       ) {
         imageAttachments.push(describeCall(node));
@@ -1672,6 +1719,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
   );
   const screenshotCalls: string[] = [];
   const screenshotFunctionAliases = new Set<string>();
+  const screenshotFunctionPropertyAliases = new Set<string>();
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -1730,18 +1778,67 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
 
     if (
       ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
+      const objectInitializer = unwrapExpression(node.initializer);
+
+      if (ts.isObjectLiteralExpression(objectInitializer)) {
+        for (const property of objectInitializer.properties) {
+          if (
+            ts.isPropertyAssignment(property) &&
+            isScreenshotFunctionReference(property.initializer)
+          ) {
+            const propertyName = getStaticPropertyNameFromName(property.name);
+
+            if (propertyName) {
+              screenshotFunctionPropertyAliases.add(
+                `${node.name.text}.${propertyName}`,
+              );
+            }
+          }
+        }
+      }
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
+      isScreenshotFunctionReference(node.right)
+    ) {
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+      );
+
+      if (propertyReference) {
+        screenshotFunctionPropertyAliases.add(propertyReference);
+      }
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
       ts.isObjectBindingPattern(node.name)
     ) {
       for (const element of node.name.elements) {
         const propertyName = element.propertyName ?? element.name;
+        const staticPropertyName = getStaticPropertyNameFromName(propertyName);
 
-        if (
-          (ts.isIdentifier(propertyName) || ts.isStringLiteral(propertyName)) &&
-          propertyName.text === 'screenshot'
-        ) {
+        if (staticPropertyName === 'screenshot') {
           addScreenshotBindingAliases(element.name);
         }
       }
+    }
+
+    if (ts.isVariableDeclaration(node)) {
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        screenshotFunctionPropertyAliases,
+        screenshotFunctionAliases,
+      );
     }
 
     ts.forEachChild(node, collectAliases);
@@ -1754,7 +1851,10 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       if (
         ((ts.isPropertyAccessExpression(callee) ||
           ts.isElementAccessExpression(callee)) &&
-          getStaticPropertyName(callee) === 'screenshot') ||
+          (getStaticPropertyName(callee) === 'screenshot' ||
+            screenshotFunctionPropertyAliases.has(
+              getStaticPropertyReference(callee, sourceFile) ?? '',
+            ))) ||
         (ts.isIdentifier(callee) && screenshotFunctionAliases.has(callee.text))
       ) {
         screenshotCalls.push(describeCall(node));
@@ -1868,6 +1968,16 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach('computed raw evidence', { body: imageBuffer, ['contentType']: 'image/png' });
       const computedRawPayload = { ['path']: 'computed-raw-evidence.png' };
       await testInfo.attach('computed raw file evidence', computedRawPayload);
+      const attachHelpers = {
+        evidence: testInfo.attach.bind(testInfo),
+        ['computedEvidence']: testInfo.attach.bind(testInfo),
+      };
+      await attachHelpers.evidence('image', { body: imageBuffer });
+      await attachHelpers['computedEvidence']('image', { body: imageBuffer });
+      const { evidence: destructuredAttachEvidence } = attachHelpers;
+      await destructuredAttachEvidence('image', { body: imageBuffer });
+      attachHelpers.assignedEvidence = testInfo.attach.bind(testInfo);
+      await attachHelpers.assignedEvidence('image', { body: imageBuffer });
       await testInfo.attach('markdown', { body: markdown });
       const forwardAttachEvidence = testInfo.attach.bind(testInfo);
       const forwardAttachmentName = 'image';
@@ -1900,6 +2010,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:27:13',
       'tests/docs/example/direct-image.doc.ts:28:13',
       'tests/docs/example/direct-image.doc.ts:30:13',
+      'tests/docs/example/direct-image.doc.ts:35:13',
+      'tests/docs/example/direct-image.doc.ts:36:13',
+      'tests/docs/example/direct-image.doc.ts:38:13',
+      'tests/docs/example/direct-image.doc.ts:40:13',
     ]);
   });
 
@@ -1915,6 +2029,16 @@ describe('generated docs source current behavior', () => {
       const { screenshot: capturePageScreenshot } = page;
       await capturePageScreenshot({ path: 'page-alias.png' });
       await forwardCaptureScreenshot({ path: 'forward-page-alias.png' });
+      const screenshotHelpers = {
+        capture: page.screenshot.bind(page),
+        ['computedCapture']: page.screenshot.bind(page),
+      };
+      await screenshotHelpers.capture({ path: 'grouped-page-alias.png' });
+      await screenshotHelpers['computedCapture']({ path: 'computed-grouped-page-alias.png' });
+      const { capture: destructuredGroupedCapture } = screenshotHelpers;
+      await destructuredGroupedCapture({ path: 'destructured-grouped-page-alias.png' });
+      screenshotHelpers.assignedCapture = page.screenshot.bind(page);
+      await screenshotHelpers.assignedCapture({ path: 'assigned-grouped-page-alias.png' });
       await takeScreenshot(
         testInfo,
         settingsSurface,
@@ -1937,6 +2061,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:8:13',
       'tests/docs/example/direct-screenshot.doc.ts:10:13',
       'tests/docs/example/direct-screenshot.doc.ts:11:13',
+      'tests/docs/example/direct-screenshot.doc.ts:16:13',
+      'tests/docs/example/direct-screenshot.doc.ts:17:13',
+      'tests/docs/example/direct-screenshot.doc.ts:19:13',
+      'tests/docs/example/direct-screenshot.doc.ts:21:13',
     ]);
   });
 
