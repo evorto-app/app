@@ -3633,6 +3633,10 @@ fallback rather than a profile discount-card defect.
   the weak-caption runtime failure, invalid image attachments, the
   missing-highlight runtime failure, and the blank/context-free highlighted-image
   runtime failures without app startup.
+  The documentation reporter output boundary now repeats the descriptive-caption
+  check for paired `image-caption` attachments, so even a valid highlighted PNG
+  cannot be written into generated docs with a terse or content-free caption if
+  a future helper or fixture bypasses the normal screenshot helper path.
   A June 6, 2026 full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`
   rebuilt the Docker docs stack, seeded the docs tenant, and then failed in
   authenticated setup before generated-doc assertions because Auth0 rejected the

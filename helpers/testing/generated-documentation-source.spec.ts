@@ -3325,6 +3325,9 @@ describe('generated docs source current behavior', () => {
     const screenshotHelper = readSource(
       'tests/support/reporters/documentation-reporter/take-screenshot.ts',
     );
+    const reporterAttachments = readSource(
+      'tests/support/reporters/documentation-reporter/attachments.ts',
+    );
     const expectedImageBackedDocuments = documentFiles;
     const screenshotCaptions = new Map<string, string[]>();
 
@@ -3354,6 +3357,14 @@ describe('generated docs source current behavior', () => {
       'Documentation screenshots require a descriptive caption',
     );
     expect(screenshotHelper).toContain('at least 24 characters and four words');
+    expect(reporterAttachments).toContain(
+      'assertDescriptiveDocumentationCaption',
+    );
+    expect(reporterAttachments).toContain('minimumCaptionLength = 24');
+    expect(reporterAttachments).toContain('minimumCaptionWordCount = 4');
+    expect(reporterAttachments).toContain(
+      'Documentation image-caption attachment',
+    );
     expect(
       readSource('helpers/testing/generated-documentation-source.spec.ts'),
     ).toContain('singleControlCssSelectors');
@@ -3368,6 +3379,11 @@ describe('generated docs source current behavior', () => {
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(
       'documentation screenshot helper rejects captures without visible page content',
+    );
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation reporter rejects weak image captions at output time',
     );
 
     for (const path of documentFiles) {

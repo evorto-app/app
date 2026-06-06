@@ -257,6 +257,38 @@ test('documentation reporter rejects orphan image-caption attachments', async ({
   );
 });
 
+test('documentation reporter rejects weak image captions at output time', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-weak-caption');
+  const imgsRoot = testInfo.outputPath('docs-img-weak-caption');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: createDocumentationEvidencePng(),
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from('Too short'),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Weak reporter caption' } as any, result),
+  ).toThrow(
+    'Documentation image-caption attachment in Weak reporter caption must be a descriptive caption of at least 24 characters and four words.',
+  );
+});
+
 test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time', async ({}, testInfo) => {
   const previous = process.env.DOCS_IMG_OUT_DIR;
   const imgsRoot = testInfo.outputPath('docs-img-call-time');

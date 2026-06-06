@@ -9,6 +9,8 @@ export type ResultAttachment = TestResult['attachments'][number];
 const highlightedTargetColor = { b: 153, g: 72, r: 236 };
 const minimumHighlightedPixelCount = 16;
 const minimumVisibleContentPixelCount = 128;
+const minimumCaptionLength = 24;
+const minimumCaptionWordCount = 4;
 
 const readAttachmentBody = (
   attachment: ResultAttachment,
@@ -133,6 +135,23 @@ const assertMeaningfulDocumentationImage = (
   }
 };
 
+const assertDescriptiveDocumentationCaption = (
+  caption: string,
+  testTitle: string,
+): void => {
+  const trimmedCaption = caption.trim();
+  const captionWords = trimmedCaption.split(/\s+/u).filter(Boolean);
+
+  if (
+    trimmedCaption.length < minimumCaptionLength ||
+    captionWords.length < minimumCaptionWordCount
+  ) {
+    throw new Error(
+      `Documentation image-caption attachment in ${testTitle} must be a descriptive caption of at least 24 characters and four words.`,
+    );
+  }
+};
+
 export const buildSectionContent = (
   test: TestCase,
   attachments: ResultAttachment[],
@@ -173,6 +192,7 @@ export const buildSectionContent = (
             `Documentation image-caption attachment in ${test.title} is missing a preceding image attachment.`,
           );
         }
+        assertDescriptiveDocumentationCaption(body.toString(), test.title);
         const imageUrl = last.split('(')[1]?.split(')')[0] ?? '';
         sectionContent[sectionContent.length - 1] =
           `{% figure src="${escapeAttribute(imageUrl)}" caption="${escapeAttribute(body.toString())}" /%}`;

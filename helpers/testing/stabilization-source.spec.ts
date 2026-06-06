@@ -1407,6 +1407,9 @@ describe('stabilization source', () => {
     expect(source).toContain('actual PNG with highlighted focus-target pixels');
     expect(source).toContain('invalid image attachments');
     expect(source).toContain('context-free highlighted-image');
+    expect(source).toContain('reporter output boundary');
+    expect(source).toContain('paired `image-caption` attachments');
+    expect(source).toContain('terse or content-free caption');
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
