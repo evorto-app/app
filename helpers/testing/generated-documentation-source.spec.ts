@@ -305,7 +305,9 @@ const findSingleControlScreenshotTargets = (
     'input',
     'mat-checkbox',
     'mat-form-field',
+    'mat-option',
     'mat-radio-button',
+    'mat-select',
     'mat-slide-toggle',
     'select',
     'textarea',
@@ -323,6 +325,11 @@ const findSingleControlScreenshotTargets = (
     'tab',
     'textbox',
   ]);
+  const singleControlCssSelectorPatterns = [
+    /^\[role=(?:"|')?(?:button|checkbox|combobox|link|menuitem|option|radio|searchbox|switch|tab|textbox)(?:"|')?\]/u,
+    /^\.mat-mdc-(?:button|checkbox|form-field|icon-button|radio-button|select|slide-toggle)(?:\b|[_-])/u,
+    /^\.mdc-(?:button|checkbox|radio|switch|text-field)(?:\b|[_-])/u,
+  ];
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -345,7 +352,12 @@ const findSingleControlScreenshotTargets = (
       .split(/\s|>|\+|~|:|\.|#|\[/u, 1)[0]
       ?.trim();
 
-    return selectorHead ? singleControlCssSelectors.has(selectorHead) : false;
+    return (
+      (selectorHead ? singleControlCssSelectors.has(selectorHead) : false) ||
+      singleControlCssSelectorPatterns.some((pattern) =>
+        pattern.test(normalizedSelector),
+      )
+    );
   };
 
   const isSingleControlLocatorTarget = (node: ts.Expression): boolean => {
@@ -703,6 +715,24 @@ describe('generated docs source current behavior', () => {
         page,
         'Single CSS input target with a descriptive caption',
       );
+      await takeScreenshot(
+        testInfo,
+        page.locator('[role="button"][aria-label="Save"]'),
+        page,
+        'Single ARIA role target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator('.mat-mdc-button-base'),
+        page,
+        'Single Material button class target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator('.mdc-text-field'),
+        page,
+        'Single Material field class target with a descriptive caption',
+      );
       const aliasedErrorMessage = page.getByText('Domain must be a single host name');
       await takeScreenshot(
         testInfo,
@@ -736,7 +766,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/single-control-target.doc.ts:20:13',
       'tests/docs/example/single-control-target.doc.ts:26:13',
       'tests/docs/example/single-control-target.doc.ts:32:13',
-      'tests/docs/example/single-control-target.doc.ts:39:13',
+      'tests/docs/example/single-control-target.doc.ts:38:13',
+      'tests/docs/example/single-control-target.doc.ts:44:13',
+      'tests/docs/example/single-control-target.doc.ts:50:13',
+      'tests/docs/example/single-control-target.doc.ts:57:13',
     ]);
   });
 

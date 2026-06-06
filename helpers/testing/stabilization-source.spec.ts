@@ -1201,6 +1201,7 @@ describe('stabilization source', () => {
     expect(source).toContain('direct single-control `getByRole`');
     expect(source).toContain('`getByPlaceholder` screenshot targets');
     expect(source).toContain('single-control CSS locator targets');
+    expect(source).toContain('ARIA role selectors');
     expect(source).toContain('Material control hosts');
     expect(source).toContain('target arrays');
     expect(source).toContain('aliased `takeScreenshot` imports');
@@ -1229,7 +1230,8 @@ describe('stabilization source', () => {
     );
     expect(inventory).toMatch(/role\/text\/label\/placeholder\s+locators/u);
     expect(inventory).toContain('single-control CSS locator targets');
-    expect(inventory).toContain('Material control hosts');
+    expect(inventory).toContain('ARIA role selectors');
+    expect(inventory).toContain('Material control hosts/classes');
     expect(inventory).toContain('inside screenshot target arrays');
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local screenshot\s+wrappers/u);
