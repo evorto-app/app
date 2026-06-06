@@ -541,7 +541,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   aliases, assigned helper properties, indexed helper entries, and wrapper
   functions that reference `takeScreenshot` even when the helper is named like
   `captureDocumentationImage`, rejects dynamic screenshot-helper imports through
-  both string-literal and no-substitution template-literal specifiers, covers
+  both string-literal and no-substitution template-literal specifiers, rejects
+  indirect call/apply/bind helper invocations that would evade normal
+  screenshot counting and target-quality checks, covers
   the weak-caption,
   missing-highlight, and blank highlighted-image runtime failures in
   reporter-path tests,

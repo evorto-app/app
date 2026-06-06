@@ -1412,6 +1412,26 @@ const findScreenshotHelperBypasses = (
     return callsHelper;
   };
 
+  const isIndirectTakeScreenshotCall = (node: ts.Expression): boolean => {
+    if (
+      !ts.isPropertyAccessExpression(node) &&
+      !ts.isElementAccessExpression(node)
+    ) {
+      return false;
+    }
+
+    const receiver = unwrapExpression(getStaticPropertyReceiver(node) ?? node);
+    const propertyName = getStaticPropertyName(node);
+
+    return (
+      ts.isIdentifier(receiver) &&
+      receiver.text === 'takeScreenshot' &&
+      (propertyName === 'call' ||
+        propertyName === 'apply' ||
+        propertyName === 'bind')
+    );
+  };
+
   const visit = (node: ts.Node): void => {
     if (
       ts.isImportDeclaration(node) &&
@@ -1475,6 +1495,10 @@ const findScreenshotHelperBypasses = (
           ts.isElementAccessExpression(callee)) &&
         getStaticPropertyName(callee) === 'takeScreenshot'
       ) {
+        bypasses.push(describeNode(node.expression));
+      }
+
+      if (isIndirectTakeScreenshotCall(callee)) {
         bypasses.push(describeNode(node.expression));
       }
     }
@@ -2065,6 +2089,26 @@ describe('generated docs source current behavior', () => {
           templateLiteralDirectHelper,
         ];
       }
+
+      await takeScreenshot.call(
+        undefined,
+        testInfo,
+        settingsSurface,
+        page,
+        'Indirect call helper bypass with descriptive caption',
+      );
+      await takeScreenshot['apply'](undefined, [
+        testInfo,
+        settingsSurface,
+        page,
+        'Indirect apply helper bypass with descriptive caption',
+      ]);
+      await takeScreenshot.bind(undefined)(
+        testInfo,
+        settingsSurface,
+        page,
+        'Indirect bind helper bypass with descriptive caption',
+      );
     `;
 
     expect(
@@ -2091,6 +2135,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:45:43',
       'tests/docs/example/bypass.doc.ts:46:47',
       'tests/docs/example/bypass.doc.ts:47:51',
+      'tests/docs/example/bypass.doc.ts:56:13',
+      'tests/docs/example/bypass.doc.ts:63:13',
+      'tests/docs/example/bypass.doc.ts:69:13',
     ]);
   });
 

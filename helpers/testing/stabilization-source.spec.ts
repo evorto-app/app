@@ -1433,6 +1433,7 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain('dynamic screenshot-helper imports');
     expect(inventory).toMatch(/no-substitution template-literal\s+specifiers/u);
+    expect(inventory).toContain('indirect call/apply/bind helper invocations');
     expect(inventory).toContain('self-tests those bypass examples');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('missing-highlight');
@@ -1685,6 +1686,12 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'const moduleSpecifier = getLiteralText(node.arguments[0])',
     );
+    expect(generatedDocumentationSource).toContain(
+      'isIndirectTakeScreenshotCall',
+    );
+    expect(generatedDocumentationSource).toContain('takeScreenshot.call');
+    expect(generatedDocumentationSource).toContain("takeScreenshot['apply']");
+    expect(generatedDocumentationSource).toContain('takeScreenshot.bind');
     expect(generatedDocumentationSource).toContain('genericSelectors');
     expect(generatedDocumentationSource).toContain('genericTargetAliases');
     expect(generatedDocumentationSource).toContain('returnsGenericLocator');

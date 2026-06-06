@@ -5804,6 +5804,10 @@ import path that the source guard can inspect consistently. No-substitution
 template-literal dynamic import specifiers are normalized as well, so
 ``import(`../../support/reporters/documentation-reporter`)`` cannot bypass the
 same helper-import rule.
+Indirect shared-helper invocations through `takeScreenshot.call(...)`,
+`takeScreenshot.apply(...)`, bracket-property `apply`, or inline
+`takeScreenshot.bind(...)` are rejected too, because those calls would otherwise
+evade the normal screenshot count, caption, and target-quality inspections.
 Grouped screenshot target objects wrapped in `as const`, `satisfies`, type
 assertions, or parentheses are unwrapped before alias collection, so TypeScript
 syntax cannot hide a weak `targets.shell` locator from the same meaningful-image
