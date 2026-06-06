@@ -732,7 +732,10 @@ provider outcomes without live identifiers.
     record verified-email gating,
     Auth0-data prefill, notification-email terminology, payload trimming,
     retryable errors, and duplicate-submit guards without requiring Auth0
-    Management credentials.
+    Management credentials. Generated-doc source coverage also ties account
+    creation to Product.md's global-user, current-tenant join, default-role
+    assignment, and home-tenant mismatch-warning model while rejecting
+    duplicate-global-user and tenant-specific-login wording.
     The integration-tagged create-account doc also asserts the editable email
     field is labeled "Notification email" when Auth0 Management credentials are
     available.

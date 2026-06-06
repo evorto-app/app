@@ -5595,8 +5595,18 @@ describe('generated docs source current behavior', () => {
   });
 
   it('keeps account-creation docs aligned with notification-email and retry semantics', () => {
+    const productSource = readSource('PRODUCT.md');
     const source = readSource('tests/docs/users/create-account.doc.ts');
 
+    expect(productSource).toContain(
+      'Users are global and may belong to multiple tenants.',
+    );
+    expect(productSource).toContain(
+      'A user should ideally have a home tenant so the app can warn when they are browsing a tenant that is not where they usually belong.',
+    );
+    expect(productSource).toContain(
+      'Default roles are assigned to users by default in that tenant.',
+    );
     expect(source).toContain(
       'The account form pre-fills first name, last name, and **Notification email** from Auth0 data when available.',
     );
@@ -5657,6 +5667,12 @@ describe('generated docs source current behavior', () => {
       'Expected account creation docs to join current tenant',
     );
     expect(source).toContain('roleAssignments.length).toBeGreaterThan(0)');
+    expect(source).not.toMatch(/one account per tenant/i);
+    expect(source).not.toMatch(/tenant-specific login/i);
+    expect(source).not.toMatch(/create a duplicate global user/i);
+    expect(source).not.toMatch(
+      /home tenant is optional for mismatch warnings/i,
+    );
     expect(source).toContain(
       'If account creation fails, the page shows a retryable server error instead of silently losing the submit attempt.',
     );

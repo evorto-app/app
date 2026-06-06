@@ -6134,7 +6134,10 @@ signals instead of implying QR possession alone is enough.
 The create-account generated doc now screenshots the tenant-account form through
 the `app-create-account` form containing the editable Notification email field
 and Create Account action, so the integration guide is not anchored to a generic
-first matching page form.
+first matching page form. Account-creation generated-doc source coverage is now
+also tied to the Product.md global-user/current-tenant join model, default-role
+assignment, and home-tenant mismatch-warning behavior, rejecting duplicate
+global-user or tenant-specific-login wording.
 The tenant General settings generated doc now screenshots brand asset upload
 buttons together with Logo URL, Favicon URL, SEO title, and SEO description
 fields, and it asserts the hidden logo/favicon file-input accept lists, so the
