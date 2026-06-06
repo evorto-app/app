@@ -918,6 +918,7 @@ describe('generated docs source current behavior', () => {
       expect(script, scriptName).toContain(
         'bun helpers/testing/run-playwright.ts',
       );
+      expect(script, scriptName).not.toContain('bun run env:runtime');
       expect(script, scriptName).not.toContain('DOCS_OUT_DIR=');
       expect(script, scriptName).not.toContain('DOCS_IMG_OUT_DIR=');
       expect(script, scriptName).not.toContain(
@@ -930,6 +931,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(readSource('helpers/testing/run-playwright.ts')).toContain(
       "DOCS_IMG_OUT_DIR: 'test-results/docs/images'",
+    );
+    expect(readSource('helpers/testing/run-playwright.ts')).toContain(
+      "spawn('bun', ['run', 'env:runtime']",
     );
 
     expect(scripts['test:e2e:docs:publish']).toContain(

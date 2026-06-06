@@ -11,38 +11,60 @@ export const localDocumentationEnvironment = {
   DOCS_OUT_DIR: 'test-results/docs',
 } as const;
 
+const getExitStatus = (
+  label: string,
+  result: ReturnType<typeof spawnSync>,
+): number => {
+  if (result.status !== null) {
+    return result.status;
+  }
+
+  if (result.signal) {
+    throw new Error(`${label} exited after signal ${result.signal}`);
+  }
+
+  throw new Error(`${label} exited without a status or signal.`);
+};
+
 export const runPlaywright = (options: RunPlaywrightOptions = {}): number => {
   const argv = [...(options.argv ?? process.argv.slice(2))];
+  const baseEnvironment = options.env ?? process.env;
   const environment = {
-    ...(options.env ?? process.env),
+    ...baseEnvironment,
     ...localDocumentationEnvironment,
   };
   const noWebserverIndex = argv.indexOf('--no-webserver');
+  const spawn = options.spawn ?? spawnSync;
 
   if (noWebserverIndex !== -1) {
     argv.splice(noWebserverIndex, 1);
     environment['NO_WEBSERVER'] = 'true';
   }
 
-  const spawn = options.spawn ?? spawnSync;
-  const result = spawn(
-    'node_modules/.bin/dotenv',
-    ['-c', 'dev', '--', 'playwright', 'test', ...argv],
-    {
-      env: environment,
-      stdio: 'inherit',
-    },
+  const runtimeResult = spawn('bun', ['run', 'env:runtime'], {
+    env: baseEnvironment,
+    stdio: 'inherit',
+  });
+  const runtimeStatus = getExitStatus(
+    'Runtime environment refresh',
+    runtimeResult,
   );
 
-  if (result.status !== null) {
-    return result.status;
+  if (runtimeStatus !== 0) {
+    return runtimeStatus;
   }
 
-  if (result.signal) {
-    throw new Error(`Playwright exited after signal ${result.signal}`);
-  }
-
-  throw new Error('Playwright exited without a status or signal.');
+  return getExitStatus(
+    'Playwright',
+    spawn(
+      'node_modules/.bin/dotenv',
+      ['-c', 'dev', '--', 'playwright', 'test', ...argv],
+      {
+        env: environment,
+        stdio: 'inherit',
+      },
+    ),
+  );
 };
 
 if (import.meta.main) {

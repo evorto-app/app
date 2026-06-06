@@ -1937,12 +1937,12 @@ the current working direction until a product decision overrides them.
 - `bun run dev:bootstrap` is the fresh-worktree shortcut for that recovery path:
   it delegates the missing-file decision to `env:copy-main --if-missing`, then
   runs the normal `dev:check` preflight.
-- Local Playwright package scripts that run `playwright test`, plus `dev:start`,
-  `db:*`, and `docker:*`, now refresh `.env.dev` before loading local dotenv
-  values, reducing fresh-worktree and wrong-database risk. Local Playwright
-  scripts share `helpers/testing/run-playwright.ts`, which pins ignored
-  repository-local docs output paths before invoking
-  `dotenv -c dev -- playwright test`.
+- Local Playwright package scripts that run `playwright test` now go through
+  `helpers/testing/run-playwright.ts`, which refreshes `.env.dev`, pins ignored
+  repository-local docs output paths, and invokes
+  `dotenv -c dev -- playwright test`. Local `dev:start`, `db:*`, and
+  `docker:*` scripts also refresh `.env.dev` before loading local dotenv
+  values, reducing fresh-worktree and wrong-database risk.
 - Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `db-setup` clears the Docker database `public` schema before Drizzle pushes schema so reset-from-zero startup stays non-interactive even when Neon Local reuses older branch state. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports Bun, Docker Compose, Compose config, the Docker container start path, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
 - SSR app routes respond to lightweight `GET` and `HEAD` probes. This keeps
   browser-facing app pages useful for health checks and local reachability
@@ -2062,10 +2062,11 @@ the current working direction until a product decision overrides them.
 - The Angular unit-test target now has explicit app/shared discovery ownership; server/db/helper specs remain covered by Vitest through `test:unit:server`.
 - The generated-docs pass already records stale docs and placeholder Playwright coverage; the workflow pass removed the list-mode docs-output mutation risk.
 - Local package scripts that run `playwright test` now share
-  `helpers/testing/run-playwright.ts`, which pins `DOCS_OUT_DIR=test-results/docs`
-  and `DOCS_IMG_OUT_DIR=test-results/docs/images` before loading local dotenv
-  secrets, so a developer `.env` that points at the `evorto-pages` publish
-  checkout cannot make routine Playwright runs dirty that external repo.
+  `helpers/testing/run-playwright.ts`, which refreshes `.env.dev`, pins
+  `DOCS_OUT_DIR=test-results/docs` and
+  `DOCS_IMG_OUT_DIR=test-results/docs/images`, and loads local dotenv secrets,
+  so a developer `.env` that points at the `evorto-pages` publish checkout
+  cannot make routine Playwright runs dirty that external repo.
   Publishing generated docs remains explicit through
   `bun run test:e2e:docs:publish`.
 - CI and local setup both install or expose Playwright browser installation, and

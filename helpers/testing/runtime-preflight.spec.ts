@@ -1530,24 +1530,9 @@ describe('evaluateRuntimePreflight', () => {
       fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
     ) as { scripts: Record<string, string> };
 
-    for (const scriptName of [
-      'test:e2e',
-      'test:e2e:ui',
-      'test:e2e:integration',
-      'test:e2e:create-account',
-      'test:e2e:esncard-provider',
-      'test:e2e:authenticated-viewports',
-      'test:e2e:mcp-browser-planner',
-      'test:e2e:mcp-browser-authenticated-planner',
-      'test:e2e:layout-helper',
-      'test:e2e:public-general-viewports',
-      'test:e2e:reporter-paths',
-      'test:e2e:doc-screenshot',
-      'test:e2e:docs',
-      'test:e2e:docs:publish',
-    ]) {
-      expect(packageJson.scripts[scriptName]).toContain('bun run env:runtime');
-    }
+    expect(packageJson.scripts['test:e2e:docs:publish']).toContain(
+      'bun run env:runtime',
+    );
 
     for (const scriptName of [
       'test:e2e',
@@ -1566,6 +1551,9 @@ describe('evaluateRuntimePreflight', () => {
     ]) {
       expect(packageJson.scripts[scriptName]).toContain(
         'bun helpers/testing/run-playwright.ts',
+      );
+      expect(packageJson.scripts[scriptName]).not.toContain(
+        'bun run env:runtime',
       );
       expect(packageJson.scripts[scriptName]).not.toContain('DOCS_OUT_DIR=');
       expect(packageJson.scripts[scriptName]).not.toContain(
@@ -1587,6 +1575,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(runPlaywright).toContain(
       "DOCS_IMG_OUT_DIR: 'test-results/docs/images'",
     );
+    expect(runPlaywright).toContain("spawn('bun', ['run', 'env:runtime']");
     expect(runPlaywright).toContain("'node_modules/.bin/dotenv'");
     expect(runPlaywright).toContain("'playwright', 'test'");
     expect(runPlaywright).toContain("'NO_WEBSERVER'] = 'true'");
@@ -1595,6 +1584,9 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(runPlaywrightSpec).toContain(
       'maps the helper no-webserver flag to the Playwright environment',
+    );
+    expect(runPlaywrightSpec).toContain(
+      'does not run Playwright when the runtime environment refresh fails',
     );
 
     expect(packageJson.scripts['test:e2e:integration']).toContain(
