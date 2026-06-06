@@ -2895,6 +2895,18 @@ describe('generated docs source current behavior', () => {
 
   it('keeps template docs aligned with the simple-mode relaunch surface', () => {
     const source = readSource('tests/docs/templates/templates.doc.ts');
+    const formSource = readSource(
+      'src/app/templates/shared/template-form/template-form.utilities.ts',
+    );
+    const organizerDefaultTitle = formSource.match(
+      /organizerRegistration:\s*createTemplateRegistrationFormModel\(\{[\s\S]*?title:\s*'([^']+)'/u,
+    )?.[1];
+    const participantDefaultTitle = formSource.match(
+      /participantRegistration:\s*createTemplateRegistrationFormModel\(\{[\s\S]*?title:\s*'([^']+)'/u,
+    )?.[1];
+
+    expect(organizerDefaultTitle).toBe('Organizer Registration');
+    expect(participantDefaultTitle).toBe('Participant Registration');
 
     expect(source).toContain(
       'Simple mode intentionally keeps exactly one organizer registration block and one participant registration block.',
@@ -2973,6 +2985,8 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       "simpleRegistrationSetup.getByLabel('Registration option name')",
     );
+    expect(source).toContain(`).toHaveValue('${organizerDefaultTitle}')`);
+    expect(source).toContain(`).toHaveValue('${participantDefaultTitle}')`);
     expect(source).toContain(
       'Simple registration setup with organizer and participant defaults',
     );

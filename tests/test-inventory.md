@@ -485,8 +485,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   notification-email semantics, global reimbursement details, event-card
   routing/check-in copy, profile event-page link targets, submitted receipt
   visibility, account-creation retry errors, existing-global-user tenant joins,
-  and template role-picker hard-failure guards before duplicate-hiding docs are
-  emitted. It also requires the current 16 documentation source files to attach
+  template role-picker hard-failure guards before duplicate-hiding docs are
+  emitted, and template simple-mode default-title assertions are aligned with
+  the form model defaults. It also requires the current 16 documentation source files to attach
   at least 120 characters of explanatory markdown, pins the current per-flow
   screenshot counts with a manifest that must include every image-backed docs
   file so docs cannot quietly drop image-backed states, requires UI docs to use

@@ -177,10 +177,10 @@ The registration consists of the following settings:
   ).toHaveCount(2);
   await expect(
     simpleRegistrationSetup.getByLabel('Registration option name').first(),
-  ).toBeVisible();
+  ).toHaveValue('Organizer Registration');
   await expect(
     simpleRegistrationSetup.getByLabel('Registration option name').nth(1),
-  ).toBeVisible();
+  ).toHaveValue('Participant Registration');
   await takeScreenshot(
     testInfo,
     simpleRegistrationSetup,
