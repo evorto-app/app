@@ -1425,6 +1425,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/aliased\s+MIME\/path values/u);
     expect(inventory).toMatch(/object shorthand\s+image payloads/u);
     expect(inventory).toMatch(/computed\s+raw\s+image\s+payload\s+keys/u);
+    expect(inventory).toContain(
+      'raw screenshot and image attach call/apply invocations',
+    );
     expect(inventory).toContain('forward-declared raw aliases');
     expect(inventory).toMatch(/computed\s+object keys/u);
     expect(inventory).toMatch(/bracket property references/u);
@@ -1692,6 +1695,14 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('takeScreenshot.call');
     expect(generatedDocumentationSource).toContain("takeScreenshot['apply']");
     expect(generatedDocumentationSource).toContain('takeScreenshot.bind');
+    expect(generatedDocumentationSource).toContain(
+      'isIndirectImageAttachmentCall',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'isTrackedScreenshotFunctionReference',
+    );
+    expect(generatedDocumentationSource).toContain('testInfo.attach.call');
+    expect(generatedDocumentationSource).toContain("page['screenshot'].apply");
     expect(generatedDocumentationSource).toContain('genericSelectors');
     expect(generatedDocumentationSource).toContain('genericTargetAliases');
     expect(generatedDocumentationSource).toContain('returnsGenericLocator');

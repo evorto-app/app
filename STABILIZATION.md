@@ -5829,6 +5829,10 @@ properties, assigned helper properties, and destructured grouped helper
 properties. This keeps generated docs from hiding raw image capture behind
 neutral helper names such as `helpers.capture(...)`, `helpers.evidence(...)`,
 or `helpers[0](...)`.
+Raw screenshot and image-attachment invocations through `call(...)` or
+`apply(...)` are rejected as direct raw captures too, so `page.screenshot.call`
+and `testInfo.attach.apply` cannot sidestep the shared-helper screenshot count,
+caption, highlight, and target-quality checks.
 Raw image attachments with image MIME types or common image file extensions are
 also rejected even when their attachment name is not `image`, so docs cannot
 smuggle screenshot evidence through a differently named `testInfo.attach(...)`
