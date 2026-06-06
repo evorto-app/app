@@ -5765,6 +5765,19 @@ placeholders, no rendered application-error text, no horizontal overflow or
 visible left/right overflow entries, and no Browser warning/error logs. The
 matching focused `bun run test:e2e:public-general-viewports` run passed against
 the same Docker app.
+A fresh June 6, 2026 current-head runtime refresh at pushed head `612eddd2`
+could not produce new in-app Browser evidence: `bun run dev:status` regenerated
+`.env.dev`, reported `BASE_URL=http://localhost:4200` and
+`DATABASE_URL` target `localhost:55436/appdb`, but the database endpoint was
+closed, Docker's disposable Alpine start probe timed out, and another Evorto
+Compose project `evorto-cc7ef3a9` was already publishing `localhost:4200`. A
+targeted follow-up `docker run --rm --name codex-evorto-start-probe-48724
+alpine:latest true` also hung in `Created`, confirming the blocker sits below
+the app and Browser tooling; `docker rm -f -v codex-evorto-start-probe-48724`
+removed the disposable probe. No current-head Browser route/layout evidence is
+claimed for `612eddd2`; the latest positive General Browser sweep remains the
+`aad2bab1` checkpoint above until Docker can start containers for this worktree
+or a current-head app is otherwise available.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
