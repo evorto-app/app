@@ -6112,7 +6112,9 @@ direct-link documentation is now source-guarded to stay role-based rather than
 drifting into email-domain, invite-code, or scattered special-case flags.
 The registration generated doc now also screenshots the hosted Stripe Checkout
 form through a filtered payment/continue/submit form target instead of accepting
-the first form on the external checkout page.
+the first form on the external checkout page, and the paid registration docs are
+source-guarded to keep Stripe/webhooks as the payment source of truth instead of
+local/manual paid-completion wording.
 The create-account generated doc now screenshots the tenant-account form through
 the `app-create-account` form containing the editable Notification email field
 and Create Account action, so the integration guide is not anchored to a generic

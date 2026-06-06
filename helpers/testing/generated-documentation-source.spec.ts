@@ -6119,6 +6119,12 @@ describe('generated docs source current behavior', () => {
     expect(productSource).toContain(
       'Special cases such as banned users, ESN-card-only access, and participation in another program should be modeled through roles and registration-option eligibility.',
     );
+    expect(productSource).toContain(
+      'Stripe is the source of truth for payment state.',
+    );
+    expect(productSource).toContain(
+      'Users should receive registration confirmation and QR code only after registration is successful. For paid events, that means after successful payment.',
+    );
     expect(source).toContain(
       'Anonymous visitors can browse listed public events, but registration stays account-required.',
     );
@@ -6199,6 +6205,8 @@ describe('generated docs source current behavior', () => {
       'participantRegistrationCard.getByLabel(registrationQuestion.title)',
     );
     expect(source).toContain('replayCheckoutCompletedWebhook');
+    expect(source).toContain('Stripe.webhooks.generateTestHeaderString');
+    expect(source).toContain("request.fetch('/webhooks/stripe'");
     expect(source).toContain(
       'Payment success, payment failure, and checkout expiry do not send separate email notifications in the current relaunch scope.',
     );
@@ -6263,6 +6271,9 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toMatch(/email[- ]domain eligibility/i);
     expect(source).not.toMatch(/invite[- ]code eligibility/i);
     expect(source).not.toMatch(/special[- ]case eligibility flag/i);
+    expect(source).not.toMatch(/mark(s|ed)? .*paid locally/i);
+    expect(source).not.toMatch(/simulate payment success without Stripe/i);
+    expect(source).not.toMatch(/registration succeeds before payment/i);
     expect(source).not.toContain('ticket QR code by email');
   });
 
