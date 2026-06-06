@@ -2050,9 +2050,9 @@ the current working direction until a product decision overrides them.
   them to add missing values to `.env` or the shell environment. A follow-up
   local-worktree simplification now also detects `/Users/.../code/evorto/.env`
   when required runtime variables are missing and puts the guarded
-  `bun run env:copy-main` recovery command directly in the failed required
-  variables row as well as the developer-secrets warning, while keeping
-  generated `.env.dev` explicitly worktree-local.
+  `bun run env:copy-main -- --if-missing` recovery command directly in the
+  failed required variables row as well as the developer-secrets warning, while
+  keeping generated `.env.dev` explicitly worktree-local.
 - **Addressed in stabilization pass:** local workflow guidance now consistently routes developers through `bun run ...` package scripts or `node_modules/.bin/dotenv -c dev -- ...` for direct external-tool calls. The server config guidance no longer treats unsupported `.env.local` as part of the normal local dotenv contract.
 - **Acceptable for now:** keeping core commands visible in `package.json` makes the workflow easier for agents than hiding orchestration in helper wrappers.
 - **Acceptable for now:** `.env.dev` is ignored and generated per worktree, while `.env.dev.local` remains tracked for shared defaults.
