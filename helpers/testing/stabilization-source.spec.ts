@@ -430,7 +430,94 @@ describe('stabilization source', () => {
       /registration path enforces configured tenant participant\s+registration limits/u,
     );
     expect(source).toMatch(
-      /Tenant\/global admin now exposes the relaunch operations\s+policy settings for review\/publishing, registration limits, and Stripe account\s+management as typed tenant configuration/u,
+      /Tenant\/global admin now exposes the relaunch\s+operations[-\s]+policy settings for review\/publishing, registration limits, and\s+Stripe account\s+management as typed tenant configuration/u,
+    );
+    expect(source).toMatch(
+      /custom-domain\s+automation, multi-domain automation, and impersonation remain deferred product\s+scope/u,
+    );
+  });
+
+  it('keeps direct route-denial evidence aligned with the not-allowed page', () => {
+    const source = readSource('STABILIZATION.md');
+    const inventory = readSource('tests/test-inventory.md');
+    const permissionGuardSpec = readSource(
+      'src/app/core/guards/permission.guard.spec.ts',
+    );
+    const adminRoutesSpec = readSource('src/app/admin/admin.routes.spec.ts');
+    const financeRoutesSpec = readSource(
+      'src/app/finance/finance.routes.spec.ts',
+    );
+    const templateRoutesSpec = readSource(
+      'src/app/templates/templates.routes.spec.ts',
+    );
+    const globalAdminRoutesSpec = readSource(
+      'src/app/global-admin/global-admin.routes.spec.ts',
+    );
+    const permissionMatrixSpec = readSource(
+      'tests/specs/permissions/matrix.spec.ts',
+    );
+    const permissionMatrix = readSource('tests/support/permissions/matrix.ts');
+    const globalAdminRouteGuardSpec = readSource(
+      'tests/specs/permissions/global-admin-route-guard.spec.ts',
+    );
+
+    expect(permissionGuardSpec).toContain(
+      'redirects denied child routes to the root not-allowed page',
+    );
+    expect(permissionGuardSpec).toContain('/403?originalPath=%2Fadmin%2Froles');
+    expect(adminRoutesSpec).toContain(
+      'requires at least one admin child permission at the route shell',
+    );
+    expect(financeRoutesSpec).toContain(
+      'requires at least one finance permission at the route shell',
+    );
+    expect(templateRoutesSpec).toContain(
+      'guards $path with its write-route permission',
+    );
+    expect(templateRoutesSpec).toContain(
+      'guards the template shell with template view access',
+    );
+    expect(permissionMatrix).toContain('template overview access');
+    expect(permissionMatrix).toContain("allowedRoute: '/templates'");
+    expect(permissionMatrix).toContain("deniedRoute: '/templates'");
+    expect(globalAdminRoutesSpec).toContain(
+      'requires global tenant-management permission at the route level',
+    );
+    expect(globalAdminRoutesSpec).toContain(
+      'keeps the overview shell plus tenant list, create, detail, and edit routes under the guard',
+    );
+    expect(globalAdminRoutesSpec).toContain(
+      'expect(shellRoute?.loadComponent)',
+    );
+    expect(permissionMatrixSpec).toContain(String.raw`toHaveURL(/\/403/)`);
+    expect(globalAdminRouteGuardSpec).toContain(String.raw`toHaveURL(/\/403/)`);
+    expect(globalAdminRouteGuardSpec).toContain(
+      'allows global tenant admins to open the overview shell',
+    );
+    expect(globalAdminRouteGuardSpec).toContain("page.goto('/global-admin')");
+    expect(globalAdminRouteGuardSpec).toContain("name: 'Global admin'");
+    expect(inventory).toContain(
+      'permission override fixture itself. Do not treat it as mobile layout coverage',
+    );
+    expect(inventory).toContain(
+      'admin, role, global-admin, and members-hub viewport specs cover',
+    );
+    expect(inventory).toContain('narrow mobile, mobile, and desktop sizes');
+    expect(inventory).not.toContain(
+      'no mobile project currently runs this spec',
+    );
+    expect(source).toContain(
+      'Direct admin, finance, template overview/write, and global-admin routes now',
+    );
+    expect(source).toContain('template overview/create/edit/create-event');
+    expect(source).toContain(
+      'denied permission guards now route to the root `/403` page',
+    );
+    expect(source).not.toContain(
+      'Direct admin, finance, template write, and global-admin routes now deny missing capabilities through the root `/403` not-allowed page',
+    );
+    expect(source).not.toContain(
+      'render only the app shell/navigation instead of a clear not-allowed page',
     );
   });
 

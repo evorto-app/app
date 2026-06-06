@@ -4,6 +4,17 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 test.describe('global admin route guard allow path', () => {
   test.use({ storageState: gaStateFile });
 
+  test('allows global tenant admins to open the overview shell @permissions @globalAdmin', async ({
+    page,
+  }) => {
+    await page.goto('/global-admin');
+    await expect(page).toHaveURL(/\/global-admin/);
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Global admin' }),
+    ).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Tenants' })).toBeVisible();
+  });
+
   test('allows global tenant admins to open the tenant list @permissions @globalAdmin', async ({
     page,
   }) => {

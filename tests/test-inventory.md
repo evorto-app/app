@@ -446,7 +446,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - `specs/permissions/override.test.ts` is active desktop coverage for the
   permission override fixture; no mobile project currently runs this spec.
 - `specs/permissions/global-admin-route-guard.spec.ts` covers direct
-  `/global-admin/tenants`, `/global-admin/tenants/create`,
+  `/global-admin`, `/global-admin/tenants`, `/global-admin/tenants/create`,
   `/global-admin/tenants/:tenantId`, and
   `/global-admin/tenants/:tenantId/edit` allow/deny behavior once page-backed
   runtime is available.
