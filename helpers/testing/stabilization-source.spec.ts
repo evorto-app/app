@@ -3477,13 +3477,13 @@ describe('stabilization source', () => {
       'stable logged-in starting points without running the full viewport pack',
     );
     expect(statusTable).toContain(
-      'Latest PR status refresh for pushed head `83c5f178`',
+      'Latest completed full PR status refresh before the follow-up evidence slice, for pushed head `17fdcfd5`',
     );
     expect(statusTable).toContain(
       'CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` green',
     );
     expect(statusTable).toContain(
-      'E2E run `27054906042` completed all three serialized worker shards on pushed head `83c5f178`',
+      'E2E run `27063722044` completed all three serialized worker shards on pushed head `17fdcfd5`',
     );
     expect(statusTable).toContain('warmed Bun, Docker, and Playwright caches');
     expect(statusTable).toContain(
@@ -3494,7 +3494,7 @@ describe('stabilization source', () => {
     expect(statusTable).toContain('stopped Docker');
     expect(statusTable).toContain('ran the final Neon prune');
     expect(statusTable).toContain(
-      'Repo-local Neon cleanup dry-runs after functional-1, functional-2, and docs',
+      'Repo-local Neon cleanup dry-run after the completed current-head finalizers',
     );
     expect(statusTable).toContain('`total=1`');
     expect(statusTable).toContain('`protected=1`');
@@ -3893,7 +3893,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('before `docker:check`');
     expect(inventory).toContain('env:copy-main --if-missing');
     expect(inventory).toContain('package-script shell conditional');
-    expect(inventory).toContain('no-ops before\n  source-checkout lookup');
+    expect(inventory).toContain('no-ops before source-checkout lookup');
     expect(inventory).toContain(
       'helpers/testing/copy-main-environment.spec.ts',
     );
@@ -4133,18 +4133,31 @@ describe('stabilization source', () => {
     expect(workflow).toContain(
       'run: bash helpers/testing/ci-stop-docker-stack.sh',
     );
+    expect(ciStopDockerStackHelper).toContain('with_timeout() {');
+    expect(ciStopDockerStackHelper).toContain(
+      'if command -v timeout >/dev/null 2>&1; then',
+    );
+    expect(ciStopDockerStackHelper).toContain(
+      'elif command -v gtimeout >/dev/null 2>&1; then',
+    );
+    expect(ciStopDockerStackHelper).toContain(
+      'with_timeout 90s node_modules/.bin/dotenv -c dev -- docker compose "$@"',
+    );
+    expect(ciStopDockerStackHelper).toContain(
+      'with_timeout 90s docker compose "$@"',
+    );
     expect(ciStopDockerStackHelper).toContain(
       'compose_timeout rm --force --stop -v || true',
     );
     expect(ciStopDockerStackHelper).toContain('compose_timeout kill || true');
     expect(ciStopDockerStackHelper).toContain(
-      'timeout 30s docker ps -aq --filter "label=com.docker.compose.project=${compose_project_name}"',
+      'with_timeout 30s docker ps -aq --filter "label=com.docker.compose.project=${compose_project_name}"',
     );
     expect(ciStopDockerStackHelper).toContain(
       'for compose_container_id in ${compose_container_ids}; do',
     );
     expect(ciStopDockerStackHelper).toContain(
-      'timeout 45s docker rm -f -v "${compose_container_id}" || true',
+      'with_timeout 45s docker rm -f -v "${compose_container_id}" || true',
     );
     expect(ciStopDockerStackHelper).not.toContain(
       'timeout 90s docker rm -f -v ${compose_container_ids}',
@@ -4160,11 +4173,11 @@ describe('stabilization source', () => {
       'bun helpers/testing/delete-neon-local-branches.ts',
     );
     expect(ciStopDockerStackHelper).toContain(
-      'timeout 5m bash helpers/testing/ci-prune-neon-local-branches.sh || true',
+      'with_timeout 5m bash helpers/testing/ci-prune-neon-local-branches.sh || true',
     );
     expect(
       ciStopDockerStackHelper.indexOf(
-        'timeout 5m bash helpers/testing/ci-prune-neon-local-branches.sh || true',
+        'with_timeout 5m bash helpers/testing/ci-prune-neon-local-branches.sh || true',
       ),
     ).toBeGreaterThan(
       ciStopDockerStackHelper.lastIndexOf('remove_compose_project_containers'),
@@ -5641,12 +5654,12 @@ describe('stabilization source', () => {
 
     expect(checkpoint).toBeDefined();
     const checkpointText = normalizeWhitespace(checkpoint ?? '');
-    expect(checkpointText).toContain('local head `83c5f178`');
+    expect(checkpointText).toContain('local head `17fdcfd5`');
     expect(checkpointText).toContain('CodeQL, CodeQL `Analyze (actions)`');
     expect(checkpointText).toContain(
       'Copilot setup, Git Town, CodeRabbit, the serial E2E',
     );
-    expect(checkpointText).toContain('E2E run `27054906042`');
+    expect(checkpointText).toContain('E2E run `27063722044`');
     expect(checkpointText).toContain(
       '`Playwright E2E (functional-1)`, `Playwright E2E (functional-2)`, and `Playwright E2E (docs)` green',
     );
@@ -5660,18 +5673,15 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain('Docker Bun cache mount');
     expect(checkpointText).toContain('Playwright browser cache');
     expect(checkpointText).toContain(
-      '`Bun dependency tree cache restored; skipping registry install.`',
+      'skipped the registry install and dependency-tree save paths',
     );
     expect(checkpointText).toContain('required the warmed Docker Bun cache');
     expect(checkpointText).toContain('pruned expired Neon branches before E2E');
     expect(checkpointText).toContain('skipped a worker registry install path');
     expect(checkpointText).toContain('confirmed Neon branch expiration');
-    expect(checkpointText).toContain('functional-1 temporarily created');
-    expect(checkpointText).toContain('`br-proud-violet-a94pni7t`');
-    expect(checkpointText).toContain('functional-2 temporarily created');
-    expect(checkpointText).toContain('`br-late-bread-a9fb49pw`');
-    expect(checkpointText).toContain('docs temporarily created');
-    expect(checkpointText).toContain('`br-rapid-sun-a9ue1y2n`');
+    expect(checkpointText).toContain('functional-1, functional-2, and docs');
+    expect(checkpointText).toContain('each completed their final Docker stop');
+    expect(checkpointText).toContain('Neon prune steps');
     expect(checkpointText).toContain('serial `Warm CI dependency caches` job');
     expect(checkpointText).toContain('warmed Docker Bun cache mount');
     expect(checkpointText).toContain('`if: always()` cleanup finalizers');
@@ -5681,9 +5691,12 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain(
       '`total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`',
     );
-    expect(checkpointText).toContain('after the functional-1 finalizers');
-    expect(checkpointText).toContain('after the functional-2 finalizers');
-    expect(checkpointText).toContain('after the completed docs finalizers');
+    expect(checkpointText).toContain(
+      'The observed current-head worker lifecycle stayed bounded',
+    );
+    expect(checkpointText).toContain(
+      'functional-1, functional-2, and docs each completed',
+    );
     expect(checkpointText).toContain(
       'active CI workers may own short-lived branches',
     );

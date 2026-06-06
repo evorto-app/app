@@ -1038,7 +1038,7 @@ provider outcomes without live identifiers.
 
 - `tests/support/fixtures/parallel-test.ts` seeds isolated `test` profile tenants per test.
 - `tests/setup/database.setup.ts` seeds a shared `docs` profile tenant and persists `.e2e-runtime.json`.
-- `tests/setup/mcp-browser.seed.ts` is a no-dependency Playwright-test MCP planner seed for the dedicated `mcp-browser-planner` project. It uses the plain Playwright test API to open `/legal/terms`, so MCP Browser planning can initialize against a public General page without running the database/auth setup projects. `bun run test:e2e:mcp-browser-planner` is the focused local rerun for an already-running app; it refreshes `.env.dev`, sets `NO_WEBSERVER=true`, uses `--no-deps`, and keeps the public planner seed on one worker. The current Browser planner setup path has verified that project/seed pair, resized the seeded Terms page to 320x740, and captured a mobile screenshot with readable legal-page content plus fitting Events/Login bottom navigation.
+- `tests/setup/mcp-browser.seed.ts` is a no-dependency Playwright-test MCP planner seed for the dedicated `mcp-browser-planner` project. It uses the plain Playwright test API to open `/legal/terms`, so MCP Browser planning can initialize against a public General page without running the database/auth setup projects. `bun run test:e2e:mcp-browser-planner` is the focused local rerun for an already-running app; it refreshes `.env.dev`, sets `NO_WEBSERVER=true`, uses `--no-deps`, and keeps the public planner seed on one worker. The current Browser planner setup path has verified that project/seed pair, resized the seeded Terms page to 320x740, and captured a mobile screenshot with readable legal-page content plus fitting Events/Login bottom navigation. A later current-head Browser refresh on pushed head `574e9273` used alternate local ports to avoid an existing 4200 stack, then checked `/legal/terms` and `/events` at 320x740 plus `/404` and `/legal/terms` at 390x844; the screenshots showed readable legal/error text, meaningful seeded event-card icons and times, and no visible bottom-navigation clipping or overlap.
 - `tests/setup/mcp-browser-authenticated.seed.ts` is the authenticated MCP
   Browser planner seed for the dedicated `mcp-browser-authenticated-planner`
   project. It depends on the normal `setup` project, then opens
@@ -1216,7 +1216,8 @@ provider outcomes without live identifiers.
   E2E CI must not set `BRANCH_ID`; it uses `PARENT_BRANCH_ID` or Neon Local's
   documented default project branch so Neon Local creates ephemeral branches,
   while persistent branch modes stay local-only opt-ins that cleanup skips.
-  The latest current-head PR status refresh for pushed head `17fdcfd5` showed
+  The latest completed full PR status refresh before the follow-up evidence
+  slice, for pushed head `17fdcfd5`, showed
   CodeQL, Copilot setup, Git Town, CodeRabbit, the E2E cache warmer,
   `functional-1`, `functional-2`, and `docs` green. The cache warmer restored
   the Bun package cache, dependency-tree cache, Docker build cache, Docker Bun

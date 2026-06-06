@@ -798,12 +798,19 @@ describe('evaluateRuntimePreflight', () => {
       'node_modules/.bin/dotenv -c dev -- docker compose "$@"',
     );
     expect(ciStopDockerStackHelper).toContain('docker compose "$@"');
-    expect(ciStopDockerStackHelper).toContain('compose_timeout() {');
+    expect(ciStopDockerStackHelper).toContain('with_timeout() {');
     expect(ciStopDockerStackHelper).toContain(
-      'timeout 90s node_modules/.bin/dotenv -c dev -- docker compose "$@"',
+      'if command -v timeout >/dev/null 2>&1; then',
     );
     expect(ciStopDockerStackHelper).toContain(
-      'timeout 90s docker compose "$@"',
+      'elif command -v gtimeout >/dev/null 2>&1; then',
+    );
+    expect(ciStopDockerStackHelper).toContain('compose_timeout() {');
+    expect(ciStopDockerStackHelper).toContain(
+      'with_timeout 90s node_modules/.bin/dotenv -c dev -- docker compose "$@"',
+    );
+    expect(ciStopDockerStackHelper).toContain(
+      'with_timeout 90s docker compose "$@"',
     );
     expect(ciPruneHelper).toContain(
       'NEON_LOCAL_METADATA_DIR="${NEON_LOCAL_METADATA_DIR:-/tmp/neon-local-metadata}"',
@@ -840,13 +847,13 @@ describe('evaluateRuntimePreflight', () => {
       'compose_project_name="${COMPOSE_PROJECT_NAME:-evorto-ci}"',
     );
     expect(ciStopDockerStackHelper).toContain(
-      'timeout 30s docker ps -aq --filter "label=com.docker.compose.project=${compose_project_name}"',
+      'with_timeout 30s docker ps -aq --filter "label=com.docker.compose.project=${compose_project_name}"',
     );
     expect(ciStopDockerStackHelper).toContain(
       'for compose_container_id in ${compose_container_ids}; do',
     );
     expect(ciStopDockerStackHelper).toContain(
-      'timeout 45s docker rm -f -v "${compose_container_id}" || true',
+      'with_timeout 45s docker rm -f -v "${compose_container_id}" || true',
     );
     expect(ciStopDockerStackHelper).not.toContain(
       'timeout 90s docker rm -f -v ${compose_container_ids}',

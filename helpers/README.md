@@ -146,6 +146,9 @@ force-removes leftover Compose containers, and invokes the Neon prune helper
 with a 5-minute timeout against the metadata branch that shutdown should have
 released. Local `bun run docker:stop` uses that same helper so normal local
 shutdown also gets bounded container cleanup plus a Neon cleanup pass. The
+helper uses GNU `timeout` when present, Homebrew `gtimeout` when present, and a
+direct command fallback otherwise, so macOS local shutdown still performs the
+Compose and Neon cleanup commands even without coreutils installed. The
 workflow's separate `Prune expired Neon branches after E2E` finalizer still runs
 `helpers/testing/ci-prune-neon-local-branches.sh` so Neon cleanup remains
 visible, dependency-free, and independent if Docker teardown hangs or times out.
