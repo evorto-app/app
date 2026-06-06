@@ -242,7 +242,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     narrow mobile, mobile, and desktop viewports for rendered content, no
     application-error text, no horizontal overflow, no horizontally clipped
     visible controls, and no overflowing visible text or panel elements outside
-    intentional horizontal scroll containers. The source guard pins the exact
+    intentional horizontal scroll containers. It also asserts the anonymous
+    Events/Login navigation remains visible and fixed as bottom navigation on
+    mobile and side navigation on desktop. The source guard pins the exact
     public General route list and route content assertions against
     `src/app/app.routes.ts`; `src/app/app.routes.spec.ts` also enumerates the
     anonymous public General route manifest before page-backed viewport coverage

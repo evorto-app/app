@@ -5886,6 +5886,18 @@ describe('stabilization source', () => {
     ];
 
     expect(discoveredViewportSpecPaths).toEqual(durableViewportSpecPaths);
+    expect(viewportSpec).toContain('expectAnonymousNavigation');
+    expect(viewportSpec).toContain(
+      "navigation.getByRole('link', { name: 'Events' })",
+    );
+    expect(viewportSpec).toContain(
+      "navigation.getByRole('link', { name: 'Login' })",
+    );
+    expect(viewportSpec).toContain("expect(position.position).toBe('fixed')");
+    expect(viewportSpec).toContain('if (viewport.width < 1024)');
+    expect(inventory).toContain(
+      'Events/Login navigation remains visible and fixed as bottom navigation on\n    mobile and side navigation on desktop',
+    );
 
     for (const durableViewportSpecPath of durableViewportSpecPaths) {
       expect(inventory).toContain(

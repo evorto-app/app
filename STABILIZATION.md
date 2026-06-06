@@ -5524,7 +5524,10 @@ app; the sampled pages rendered seeded event cards or expected legal/not-found
 headings, kept document/body widths inside the mobile viewport, and showed no
 horizontal overflow, clipped visible controls, overflowing visible elements, or
 rendered application-error text, while the Events console output contained only
-app info logs. Playwright config now uses the repo runtime config provider
+app info logs. The durable public General viewport spec now also asserts that
+the anonymous Events/Login navigation remains visible and fixed as bottom
+navigation on mobile and side navigation on desktop for every covered General
+route. Playwright config now uses the repo runtime config provider
 instead of `ConfigProvider.fromEnv()` directly, so external config importers can
 read `.env.dev.local`, generated `.env.dev`, and `.env` with real environment
 variables still taking precedence. The verification command
