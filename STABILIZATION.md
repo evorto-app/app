@@ -5862,6 +5862,16 @@ start probe again timed out, and the existing app route probe could not connect
 to `/legal/terms`. No current-head Browser route/layout evidence is claimed for
 `c298c427`; the blocker remains the host Docker container start path below app,
 Playwright, Browser, and Material layout code.
+A fresh June 7, 2026 retry on pushed head `e1ab7c487` after the documentation
+boundary guard pushes reached the same result: `bun run dev:status` regenerated
+`.env.dev` for `BASE_URL=http://localhost:4218`, confirmed all required dev and
+Docker variables are present, found no current Compose project containers and no
+other Evorto stack publishing port 4218, and returned a clean Neon dry-run
+(`total=1`, `protected=1`, `active_test=0`, `stale_deleted=0`, `ttl=2h`). The
+database endpoint on `localhost:55618` stayed closed, Docker's disposable Alpine
+start probe timed out, and `/legal/terms` could not be reached. No current-head
+Browser route/layout evidence is claimed for `e1ab7c487`; the blocker is still
+below the app, Playwright, Browser, and documentation-source guard changes.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
