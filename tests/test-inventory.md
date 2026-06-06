@@ -1297,9 +1297,11 @@ provider outcomes without live identifiers.
   E2E CI must not set `BRANCH_ID`; it uses `PARENT_BRANCH_ID` or Neon Local's
   documented default project branch so Neon Local creates ephemeral branches,
   while persistent branch modes stay local-only opt-ins that cleanup skips.
-  Current PR head `2667494b` shows CodeQL, Copilot setup, Git Town, CodeRabbit,
-  the E2E cache warmer, `functional-1`, `functional-2`, and `docs` green. The
-  cache warmer restored the Bun package cache, dependency-tree cache, Docker
+  The latest fully green PR E2E evidence is pushed head `2667494b`: CodeQL,
+  Copilot setup, Git Town, CodeRabbit, the E2E cache warmer, `functional-1`,
+  `functional-2`, and `docs` were green. Newer source-guard pushes are tracked
+  separately by the live PR checks instead of being claimed as fully green here.
+  The cache warmer restored the Bun package cache, dependency-tree cache, Docker
   build cache, Docker Bun cache mount, and Playwright browser cache, then
   skipped registry install from the restored dependency tree. Each E2E shard
   confirmed Neon branch expiration and completed the Docker stop plus final Neon

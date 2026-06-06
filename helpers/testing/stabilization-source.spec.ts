@@ -4123,9 +4123,14 @@ describe('stabilization source', () => {
     expect(statusTable).toContain(
       'stable logged-in starting points without running the full viewport pack',
     );
-    expect(statusTable).toContain('Current PR head `2667494b` shows');
     expect(statusTable).toContain(
-      'CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` green',
+      'The latest fully green PR E2E evidence is pushed head `2667494b`',
+    );
+    expect(statusTable).toContain(
+      'CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` were green',
+    );
+    expect(statusTable).toContain(
+      'Newer source-guard pushes are tracked separately by the live PR checks',
     );
     expect(statusTable).toContain(
       'E2E run `27068078693` completed all three serialized worker shards on pushed head `2667494b`',
