@@ -1618,8 +1618,10 @@ describe('stabilization source', () => {
     );
     expect(inventory).toMatch(/simple or grouped\s+attachment-name/u);
     expect(inventory).toMatch(/raw image\s+MIME\/file-extension payloads/u);
-    expect(inventory).toMatch(/aliased raw image payload\s+objects/u);
-    expect(inventory).toMatch(/grouped or indexed\s+MIME\/path values/u);
+    expect(inventory).toMatch(
+      /[Aa]liased,\s+grouped,\s+indexed,\s+destructured,\s+and\s+assigned raw image payload\s+objects/u,
+    );
+    expect(inventory).toMatch(/grouped or indexed\s+MIME\/path\s+values/u);
     expect(inventory).toMatch(/object shorthand\s+image payloads/u);
     expect(inventory).toMatch(/computed\s+raw\s+image\s+payload\s+keys/u);
     expect(inventory).toMatch(

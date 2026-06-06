@@ -2177,6 +2177,7 @@ const findDirectImageAttachmentCalls = (
   const imageAttachmentNameAliases = new Set<string>();
   const imageAttachmentNamePropertyAliases = new Set<string>();
   const imageAttachmentPayloadAliases = new Set<string>();
+  const imageAttachmentPayloadPropertyAliases = new Set<string>();
   const imageAttachmentPayloadValueAliases = new Set<string>();
   const imageAttachmentPayloadValuePropertyAliases = new Set<string>();
   const attachFunctionAliases = new Set<string>();
@@ -2256,6 +2257,15 @@ const findDirectImageAttachmentCalls = (
 
     if (ts.isIdentifier(payload)) {
       return imageAttachmentPayloadAliases.has(payload.text);
+    }
+
+    if (
+      ts.isPropertyAccessExpression(payload) ||
+      ts.isElementAccessExpression(payload)
+    ) {
+      return imageAttachmentPayloadPropertyAliases.has(
+        getStaticPropertyReference(payload, sourceFile) ?? '',
+      );
     }
 
     if (!ts.isObjectLiteralExpression(payload)) {
@@ -2559,6 +2569,74 @@ const findDirectImageAttachmentCalls = (
     ts.forEachChild(node, collectPayloadAliases);
   };
 
+  const collectPayloadPropertyAliases = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
+      const objectInitializer = unwrapExpression(node.initializer);
+
+      if (ts.isObjectLiteralExpression(objectInitializer)) {
+        for (const property of objectInitializer.properties) {
+          const propertyName = getStaticPropertyNameFromName(property.name);
+
+          if (!propertyName) {
+            continue;
+          }
+
+          if (
+            (ts.isPropertyAssignment(property) &&
+              isImageAttachmentPayload(property.initializer)) ||
+            (ts.isShorthandPropertyAssignment(property) &&
+              imageAttachmentPayloadAliases.has(property.name.text))
+          ) {
+            imageAttachmentPayloadPropertyAliases.add(
+              `${node.name.text}.${propertyName}`,
+            );
+          }
+        }
+      }
+
+      if (ts.isArrayLiteralExpression(objectInitializer)) {
+        collectIndexedPropertyAliases(
+          node.name.text,
+          objectInitializer.elements,
+          isImageAttachmentPayload,
+          imageAttachmentPayloadPropertyAliases,
+        );
+      }
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
+      isImageAttachmentPayload(node.right)
+    ) {
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+      );
+
+      if (propertyReference) {
+        imageAttachmentPayloadPropertyAliases.add(propertyReference);
+      }
+    }
+
+    if (ts.isVariableDeclaration(node)) {
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        imageAttachmentPayloadPropertyAliases,
+        imageAttachmentPayloadAliases,
+      );
+    }
+
+    ts.forEachChild(node, collectPayloadPropertyAliases);
+  };
+
   const hasImageAttachmentArguments = (
     nameArgument: ts.Expression | undefined,
     payloadArgument: ts.Expression | undefined,
@@ -2709,6 +2787,7 @@ const findDirectImageAttachmentCalls = (
 
   collectAliasValuesAndAttachFunctions(sourceFile);
   collectPayloadAliases(sourceFile);
+  collectPayloadPropertyAliases(sourceFile);
   inspectImageAttachmentCalls(sourceFile);
 
   return imageAttachments;
@@ -3141,6 +3220,21 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach('computed raw evidence', { body: imageBuffer, ['contentType']: 'image/png' });
       const computedRawPayload = { ['path']: 'computed-raw-evidence.png' };
       await testInfo.attach('computed raw file evidence', computedRawPayload);
+      const rawImagePayloads = {
+        evidence: rawImagePayload,
+        ['computedEvidence']: computedRawPayload,
+        rawImagePathPayload,
+      };
+      await testInfo.attach('grouped raw payload evidence', rawImagePayloads.evidence);
+      await testInfo.attach('computed grouped raw payload evidence', rawImagePayloads['computedEvidence']);
+      await testInfo.attach('shorthand grouped raw payload evidence', rawImagePayloads.rawImagePathPayload);
+      const { evidence: groupedRawImagePayload } = rawImagePayloads;
+      await testInfo.attach('destructured grouped raw payload evidence', groupedRawImagePayload);
+      const rawImagePayloadList = [rawImagePayload, computedRawPayload];
+      await testInfo.attach('indexed raw payload evidence', rawImagePayloadList[0]);
+      await testInfo.attach('second indexed raw payload evidence', rawImagePayloadList[1]);
+      rawImagePayloads.assignedEvidence = rawImagePathPayload;
+      await testInfo.attach('assigned grouped raw payload evidence', rawImagePayloads.assignedEvidence);
       const attachHelpers = {
         evidence: testInfo.attach.bind(testInfo),
         ['computedEvidence']: testInfo.attach.bind(testInfo),
@@ -3224,23 +3318,30 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:61:13',
       'tests/docs/example/direct-image.doc.ts:62:13',
       'tests/docs/example/direct-image.doc.ts:64:13',
+      'tests/docs/example/direct-image.doc.ts:70:13',
       'tests/docs/example/direct-image.doc.ts:71:13',
       'tests/docs/example/direct-image.doc.ts:72:13',
-      'tests/docs/example/direct-image.doc.ts:73:13',
       'tests/docs/example/direct-image.doc.ts:74:13',
       'tests/docs/example/direct-image.doc.ts:76:13',
-      'tests/docs/example/direct-image.doc.ts:80:13',
+      'tests/docs/example/direct-image.doc.ts:77:13',
+      'tests/docs/example/direct-image.doc.ts:79:13',
+      'tests/docs/example/direct-image.doc.ts:86:13',
       'tests/docs/example/direct-image.doc.ts:87:13',
       'tests/docs/example/direct-image.doc.ts:88:13',
       'tests/docs/example/direct-image.doc.ts:89:13',
-      'tests/docs/example/direct-image.doc.ts:90:13',
-      'tests/docs/example/direct-image.doc.ts:92:13',
-      'tests/docs/example/direct-image.doc.ts:94:13',
+      'tests/docs/example/direct-image.doc.ts:91:13',
       'tests/docs/example/direct-image.doc.ts:95:13',
-      'tests/docs/example/direct-image.doc.ts:96:13',
-      'tests/docs/example/direct-image.doc.ts:97:13',
-      'tests/docs/example/direct-image.doc.ts:98:13',
-      'tests/docs/example/direct-image.doc.ts:99:13',
+      'tests/docs/example/direct-image.doc.ts:102:13',
+      'tests/docs/example/direct-image.doc.ts:103:13',
+      'tests/docs/example/direct-image.doc.ts:104:13',
+      'tests/docs/example/direct-image.doc.ts:105:13',
+      'tests/docs/example/direct-image.doc.ts:107:13',
+      'tests/docs/example/direct-image.doc.ts:109:13',
+      'tests/docs/example/direct-image.doc.ts:110:13',
+      'tests/docs/example/direct-image.doc.ts:111:13',
+      'tests/docs/example/direct-image.doc.ts:112:13',
+      'tests/docs/example/direct-image.doc.ts:113:13',
+      'tests/docs/example/direct-image.doc.ts:114:13',
     ]);
   });
 
