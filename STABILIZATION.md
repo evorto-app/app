@@ -5765,6 +5765,10 @@ docs from hiding weak screenshot targets behind a grouped target object. It also
 rejects local aliases and wrapper functions that reference `takeScreenshot`, so
 future docs cannot route screenshots through a differently named helper such as
 `captureDocumentationImage` to bypass direct target and caption inspection.
+Grouped screenshot target objects wrapped in `as const`, `satisfies`, type
+assertions, or parentheses are unwrapped before alias collection, so TypeScript
+syntax cannot hide a weak `targets.shell` locator from the same meaningful-image
+rules.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.

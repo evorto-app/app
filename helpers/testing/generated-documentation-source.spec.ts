@@ -23,6 +23,21 @@ const findFiles = (path: string): string[] => {
   });
 };
 
+const unwrapExpression = (node: ts.Expression): ts.Expression => {
+  let current = node;
+
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isTypeAssertionExpression(current)
+  ) {
+    current = current.expression;
+  }
+
+  return current;
+};
+
 const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
   const sourceFile = ts.createSourceFile(
     path,
@@ -158,35 +173,37 @@ const findGenericScreenshotTargets = (
   };
 
   const isGenericLocatorTarget = (node: ts.Expression): boolean => {
-    if (ts.isArrayLiteralExpression(node)) {
+    const target = unwrapExpression(node);
+
+    if (ts.isArrayLiteralExpression(target)) {
       return (
-        node.elements.length === 0 ||
-        node.elements.some((element) => isGenericLocatorTarget(element))
+        target.elements.length === 0 ||
+        target.elements.some((element) => isGenericLocatorTarget(element))
       );
     }
 
-    if (ts.isIdentifier(node)) {
-      return genericTargetAliases.has(node.text);
+    if (ts.isIdentifier(target)) {
+      return genericTargetAliases.has(target.text);
     }
 
-    if (ts.isPropertyAccessExpression(node)) {
-      return genericTargetPropertyAliases.has(node.getText(sourceFile));
+    if (ts.isPropertyAccessExpression(target)) {
+      return genericTargetPropertyAliases.has(target.getText(sourceFile));
     }
 
     if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      genericTargetFunctions.has(node.expression.text)
+      ts.isCallExpression(target) &&
+      ts.isIdentifier(target.expression) &&
+      genericTargetFunctions.has(target.expression.text)
     ) {
       return true;
     }
 
     if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === 'locator'
+      ts.isCallExpression(target) &&
+      ts.isPropertyAccessExpression(target.expression) &&
+      target.expression.name.text === 'locator'
     ) {
-      const selector = node.arguments[0];
+      const selector = target.arguments[0];
       if (ts.isStringLiteral(selector)) {
         return genericSelectors.has(selector.text.trim().toLowerCase());
       }
@@ -230,7 +247,7 @@ const findGenericScreenshotTargets = (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.initializer &&
-      isGenericLocatorTarget(node.initializer)
+      isGenericLocatorTarget(unwrapExpression(node.initializer))
     ) {
       genericTargetAliases.add(node.name.text);
     }
@@ -238,19 +255,22 @@ const findGenericScreenshotTargets = (
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
-      node.initializer &&
-      ts.isObjectLiteralExpression(node.initializer)
+      node.initializer
     ) {
-      for (const property of node.initializer.properties) {
-        if (
-          ts.isPropertyAssignment(property) &&
-          (ts.isIdentifier(property.name) ||
-            ts.isStringLiteral(property.name)) &&
-          isGenericLocatorTarget(property.initializer)
-        ) {
-          genericTargetPropertyAliases.add(
-            `${node.name.text}.${property.name.text}`,
-          );
+      const objectInitializer = unwrapExpression(node.initializer);
+
+      if (ts.isObjectLiteralExpression(objectInitializer)) {
+        for (const property of objectInitializer.properties) {
+          if (
+            ts.isPropertyAssignment(property) &&
+            (ts.isIdentifier(property.name) ||
+              ts.isStringLiteral(property.name)) &&
+            isGenericLocatorTarget(unwrapExpression(property.initializer))
+          ) {
+            genericTargetPropertyAliases.add(
+              `${node.name.text}.${property.name.text}`,
+            );
+          }
         }
       }
     }
@@ -259,7 +279,7 @@ const findGenericScreenshotTargets = (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
       ts.isPropertyAccessExpression(node.left) &&
-      isGenericLocatorTarget(node.right)
+      isGenericLocatorTarget(unwrapExpression(node.right))
     ) {
       genericTargetPropertyAliases.add(node.left.getText(sourceFile));
     }
@@ -342,31 +362,31 @@ const findUnfilteredBroadScreenshotTargets = (
   };
 
   const isUnfilteredBroadLocatorTarget = (node: ts.Expression): boolean => {
-    if (ts.isArrayLiteralExpression(node)) {
-      return node.elements.some((element) =>
+    const target = unwrapExpression(node);
+
+    if (ts.isArrayLiteralExpression(target)) {
+      return target.elements.some((element) =>
         isUnfilteredBroadLocatorTarget(element),
       );
     }
 
-    if (ts.isIdentifier(node)) {
-      return broadTargetAliases.has(node.text);
+    if (ts.isIdentifier(target)) {
+      return broadTargetAliases.has(target.text);
     }
 
-    if (ts.isPropertyAccessExpression(node)) {
-      return broadTargetPropertyAliases.has(node.getText(sourceFile));
+    if (ts.isPropertyAccessExpression(target)) {
+      return broadTargetPropertyAliases.has(target.getText(sourceFile));
     }
 
     if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      broadTargetFunctions.has(node.expression.text)
+      ts.isCallExpression(target) &&
+      ts.isIdentifier(target.expression) &&
+      broadTargetFunctions.has(target.expression.text)
     ) {
       return true;
     }
 
-    let candidate: ts.Expression = ts.isParenthesizedExpression(node)
-      ? node.expression
-      : node;
+    let candidate: ts.Expression = target;
     let hasFilteringStep = false;
 
     while (
@@ -430,7 +450,7 @@ const findUnfilteredBroadScreenshotTargets = (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.initializer &&
-      isUnfilteredBroadLocatorTarget(node.initializer)
+      isUnfilteredBroadLocatorTarget(unwrapExpression(node.initializer))
     ) {
       broadTargetAliases.add(node.name.text);
     }
@@ -438,19 +458,24 @@ const findUnfilteredBroadScreenshotTargets = (
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
-      node.initializer &&
-      ts.isObjectLiteralExpression(node.initializer)
+      node.initializer
     ) {
-      for (const property of node.initializer.properties) {
-        if (
-          ts.isPropertyAssignment(property) &&
-          (ts.isIdentifier(property.name) ||
-            ts.isStringLiteral(property.name)) &&
-          isUnfilteredBroadLocatorTarget(property.initializer)
-        ) {
-          broadTargetPropertyAliases.add(
-            `${node.name.text}.${property.name.text}`,
-          );
+      const objectInitializer = unwrapExpression(node.initializer);
+
+      if (ts.isObjectLiteralExpression(objectInitializer)) {
+        for (const property of objectInitializer.properties) {
+          if (
+            ts.isPropertyAssignment(property) &&
+            (ts.isIdentifier(property.name) ||
+              ts.isStringLiteral(property.name)) &&
+            isUnfilteredBroadLocatorTarget(
+              unwrapExpression(property.initializer),
+            )
+          ) {
+            broadTargetPropertyAliases.add(
+              `${node.name.text}.${property.name.text}`,
+            );
+          }
         }
       }
     }
@@ -459,7 +484,7 @@ const findUnfilteredBroadScreenshotTargets = (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
       ts.isPropertyAccessExpression(node.left) &&
-      isUnfilteredBroadLocatorTarget(node.right)
+      isUnfilteredBroadLocatorTarget(unwrapExpression(node.right))
     ) {
       broadTargetPropertyAliases.add(node.left.getText(sourceFile));
     }
@@ -593,31 +618,31 @@ const findSingleControlScreenshotTargets = (
   };
 
   const isSingleControlLocatorTarget = (node: ts.Expression): boolean => {
-    if (ts.isArrayLiteralExpression(node)) {
-      return node.elements.some((element) =>
+    const target = unwrapExpression(node);
+
+    if (ts.isArrayLiteralExpression(target)) {
+      return target.elements.some((element) =>
         isSingleControlLocatorTarget(element),
       );
     }
 
-    if (ts.isIdentifier(node)) {
-      return singleControlAliases.has(node.text);
+    if (ts.isIdentifier(target)) {
+      return singleControlAliases.has(target.text);
     }
 
-    if (ts.isPropertyAccessExpression(node)) {
-      return singleControlPropertyAliases.has(node.getText(sourceFile));
+    if (ts.isPropertyAccessExpression(target)) {
+      return singleControlPropertyAliases.has(target.getText(sourceFile));
     }
 
     if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      singleControlFunctions.has(node.expression.text)
+      ts.isCallExpression(target) &&
+      ts.isIdentifier(target.expression) &&
+      singleControlFunctions.has(target.expression.text)
     ) {
       return true;
     }
 
-    let candidate: ts.Expression = ts.isParenthesizedExpression(node)
-      ? node.expression
-      : node;
+    let candidate: ts.Expression = target;
 
     while (
       ts.isCallExpression(candidate) &&
@@ -701,7 +726,7 @@ const findSingleControlScreenshotTargets = (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.initializer &&
-      isSingleControlLocatorTarget(node.initializer)
+      isSingleControlLocatorTarget(unwrapExpression(node.initializer))
     ) {
       singleControlAliases.add(node.name.text);
     }
@@ -709,19 +734,22 @@ const findSingleControlScreenshotTargets = (
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
-      node.initializer &&
-      ts.isObjectLiteralExpression(node.initializer)
+      node.initializer
     ) {
-      for (const property of node.initializer.properties) {
-        if (
-          ts.isPropertyAssignment(property) &&
-          (ts.isIdentifier(property.name) ||
-            ts.isStringLiteral(property.name)) &&
-          isSingleControlLocatorTarget(property.initializer)
-        ) {
-          singleControlPropertyAliases.add(
-            `${node.name.text}.${property.name.text}`,
-          );
+      const objectInitializer = unwrapExpression(node.initializer);
+
+      if (ts.isObjectLiteralExpression(objectInitializer)) {
+        for (const property of objectInitializer.properties) {
+          if (
+            ts.isPropertyAssignment(property) &&
+            (ts.isIdentifier(property.name) ||
+              ts.isStringLiteral(property.name)) &&
+            isSingleControlLocatorTarget(unwrapExpression(property.initializer))
+          ) {
+            singleControlPropertyAliases.add(
+              `${node.name.text}.${property.name.text}`,
+            );
+          }
         }
       }
     }
@@ -730,7 +758,7 @@ const findSingleControlScreenshotTargets = (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
       ts.isPropertyAccessExpression(node.left) &&
-      isSingleControlLocatorTarget(node.right)
+      isSingleControlLocatorTarget(unwrapExpression(node.right))
     ) {
       singleControlPropertyAliases.add(node.left.getText(sourceFile));
     }
@@ -832,31 +860,31 @@ const findIconOrMediaScreenshotTargets = (
   };
 
   const isIconOrMediaLocatorTarget = (node: ts.Expression): boolean => {
-    if (ts.isArrayLiteralExpression(node)) {
-      return node.elements.some((element) =>
+    const target = unwrapExpression(node);
+
+    if (ts.isArrayLiteralExpression(target)) {
+      return target.elements.some((element) =>
         isIconOrMediaLocatorTarget(element),
       );
     }
 
-    if (ts.isIdentifier(node)) {
-      return iconOrMediaAliases.has(node.text);
+    if (ts.isIdentifier(target)) {
+      return iconOrMediaAliases.has(target.text);
     }
 
-    if (ts.isPropertyAccessExpression(node)) {
-      return iconOrMediaPropertyAliases.has(node.getText(sourceFile));
+    if (ts.isPropertyAccessExpression(target)) {
+      return iconOrMediaPropertyAliases.has(target.getText(sourceFile));
     }
 
     if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      iconOrMediaFunctions.has(node.expression.text)
+      ts.isCallExpression(target) &&
+      ts.isIdentifier(target.expression) &&
+      iconOrMediaFunctions.has(target.expression.text)
     ) {
       return true;
     }
 
-    let candidate: ts.Expression = ts.isParenthesizedExpression(node)
-      ? node.expression
-      : node;
+    let candidate: ts.Expression = target;
 
     while (
       ts.isCallExpression(candidate) &&
@@ -930,7 +958,7 @@ const findIconOrMediaScreenshotTargets = (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.initializer &&
-      isIconOrMediaLocatorTarget(node.initializer)
+      isIconOrMediaLocatorTarget(unwrapExpression(node.initializer))
     ) {
       iconOrMediaAliases.add(node.name.text);
     }
@@ -938,19 +966,22 @@ const findIconOrMediaScreenshotTargets = (
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
-      node.initializer &&
-      ts.isObjectLiteralExpression(node.initializer)
+      node.initializer
     ) {
-      for (const property of node.initializer.properties) {
-        if (
-          ts.isPropertyAssignment(property) &&
-          (ts.isIdentifier(property.name) ||
-            ts.isStringLiteral(property.name)) &&
-          isIconOrMediaLocatorTarget(property.initializer)
-        ) {
-          iconOrMediaPropertyAliases.add(
-            `${node.name.text}.${property.name.text}`,
-          );
+      const objectInitializer = unwrapExpression(node.initializer);
+
+      if (ts.isObjectLiteralExpression(objectInitializer)) {
+        for (const property of objectInitializer.properties) {
+          if (
+            ts.isPropertyAssignment(property) &&
+            (ts.isIdentifier(property.name) ||
+              ts.isStringLiteral(property.name)) &&
+            isIconOrMediaLocatorTarget(unwrapExpression(property.initializer))
+          ) {
+            iconOrMediaPropertyAliases.add(
+              `${node.name.text}.${property.name.text}`,
+            );
+          }
         }
       }
     }
@@ -959,7 +990,7 @@ const findIconOrMediaScreenshotTargets = (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
       ts.isPropertyAccessExpression(node.left) &&
-      isIconOrMediaLocatorTarget(node.right)
+      isIconOrMediaLocatorTarget(unwrapExpression(node.right))
     ) {
       iconOrMediaPropertyAliases.add(node.left.getText(sourceFile));
     }
@@ -1570,6 +1601,17 @@ describe('generated docs source current behavior', () => {
         shell: page.locator('main'),
       };
     `;
+    const wrappedForwardPropertyAliasSource = `
+      await takeScreenshot(
+        testInfo,
+        wrappedForwardTargets.shell,
+        page,
+        'Wrapped forward property target with a descriptive caption',
+      );
+      const wrappedForwardTargets = ({
+        shell: page.locator('main'),
+      } as const) satisfies Record<string, unknown>;
+    `;
     const forwardPropertyAssignmentSource = `
       await takeScreenshot(
         testInfo,
@@ -1598,6 +1640,14 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
     expect(
       findGenericScreenshotTargets(
+        'tests/docs/example/wrapped-forward-property-target.doc.ts',
+        wrappedForwardPropertyAliasSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/wrapped-forward-property-target.doc.ts:2:13',
+    ]);
+    expect(
+      findGenericScreenshotTargets(
         'tests/docs/example/forward-property-assignment.doc.ts',
         forwardPropertyAssignmentSource,
       ),
@@ -1620,6 +1670,17 @@ describe('generated docs source current behavior', () => {
         ),
       ),
     ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/wrapped-forward-property-target.doc.ts',
+        wrappedForwardPropertyAliasSource.replaceAll(
+          "locator('main')",
+          "locator('section')",
+        ),
+      ),
+    ).toEqual([
+      'tests/docs/example/wrapped-forward-property-target.doc.ts:2:13',
+    ]);
     expect(
       findUnfilteredBroadScreenshotTargets(
         'tests/docs/example/forward-property-assignment.doc.ts',
@@ -1649,6 +1710,17 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
     expect(
       findSingleControlScreenshotTargets(
+        'tests/docs/example/wrapped-forward-property-target.doc.ts',
+        wrappedForwardPropertyAliasSource.replaceAll(
+          "locator('main')",
+          "locator('button')",
+        ),
+      ),
+    ).toEqual([
+      'tests/docs/example/wrapped-forward-property-target.doc.ts:2:13',
+    ]);
+    expect(
+      findSingleControlScreenshotTargets(
         'tests/docs/example/forward-property-assignment.doc.ts',
         forwardPropertyAssignmentSource.replaceAll(
           "locator('main')",
@@ -1674,6 +1746,17 @@ describe('generated docs source current behavior', () => {
         ),
       ),
     ).toEqual(['tests/docs/example/forward-property-target.doc.ts:2:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/wrapped-forward-property-target.doc.ts',
+        wrappedForwardPropertyAliasSource.replaceAll(
+          "locator('main')",
+          "locator('img')",
+        ),
+      ),
+    ).toEqual([
+      'tests/docs/example/wrapped-forward-property-target.doc.ts:2:13',
+    ]);
     expect(
       findIconOrMediaScreenshotTargets(
         'tests/docs/example/forward-property-assignment.doc.ts',

@@ -531,7 +531,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   images, resolves screenshot target aliases and helper functions before
   inspecting screenshot calls so later declarations cannot bypass those
   meaningful-target checks, includes object-property target aliases so grouped
-  screenshot target objects cannot hide weak locator targets, rejects local
+  screenshot target objects cannot hide weak locator targets, unwraps `as const`
+  and `satisfies` grouped target objects before alias collection, rejects local
   aliases and wrapper functions that reference `takeScreenshot` even when the
   helper is named like `captureDocumentationImage`, covers
   the weak-caption,

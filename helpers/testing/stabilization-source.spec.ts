@@ -1341,6 +1341,8 @@ describe('stabilization source', () => {
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
     expect(source).toContain('captureDocumentationImage');
+    expect(source).toContain('Grouped screenshot target objects wrapped');
+    expect(source).toContain('`satisfies`');
     expect(source).toContain('Synthetic failing examples');
     expect(source).toContain('app-root');
     expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
@@ -1393,6 +1395,8 @@ describe('stabilization source', () => {
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local screenshot\s+wrappers/u);
     expect(inventory).toContain('captureDocumentationImage');
+    expect(inventory).toContain('unwraps `as const`');
+    expect(inventory).toContain('`satisfies` grouped target objects');
     expect(inventory).toContain('self-tests those bypass examples');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('missing-highlight');
@@ -1508,7 +1512,13 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain('getByPlaceholder');
     expect(generatedDocumentationSource).toContain(
-      'ts.isArrayLiteralExpression(node)',
+      'const target = unwrapExpression(node)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'ts.isArrayLiteralExpression(target)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'wrappedForwardTargets.shell',
     );
     expect(generatedDocumentationSource).toContain(
       'detects screenshot helper bypass patterns before generated docs can use them',
