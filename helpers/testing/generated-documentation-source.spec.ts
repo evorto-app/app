@@ -6101,6 +6101,12 @@ describe('generated docs source current behavior', () => {
     expect(productSource).toContain(
       '- anonymous or guest registration without an account',
     );
+    expect(productSource).toContain(
+      "Guest spots are allowed as extra quantity attached to one logged-in buyer's registration.",
+    );
+    expect(productSource).toContain(
+      'Guest spots do not need separate accounts or contact information in the first version.',
+    );
     expect(source).toContain(
       'Anonymous visitors can browse listed public events, but registration stays account-required.',
     );
@@ -6232,6 +6238,9 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toMatch(/anonymous (visitors|users) can register/i);
     expect(source).not.toMatch(/register without an account/i);
     expect(source).not.toMatch(/guest registration without an account/i);
+    expect(source).not.toMatch(/guest (email|contact)/i);
+    expect(source).not.toMatch(/separate guest account/i);
+    expect(source).not.toMatch(/guest.*must create an account/i);
     expect(source).not.toContain('ticket QR code by email');
   });
 
