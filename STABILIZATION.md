@@ -5748,6 +5748,10 @@ The create-account generated doc now screenshots the tenant-account form through
 the `app-create-account` form containing the editable Notification email field
 and Create Account action, so the integration guide is not anchored to a generic
 first matching page form.
+The tenant General settings generated doc now screenshots brand asset upload
+buttons together with Logo URL, Favicon URL, SEO title, and SEO description
+fields, so the tenant-branding guide image proves both upload and external URL
+affordances instead of only URL entry fields.
 The global-admin generated doc now uses concrete tenant summary, empty search,
 scope boundary, rejected create-form/error, detail review, and edit-form
 surfaces for its screenshot targets instead of highlighting page headings, card

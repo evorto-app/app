@@ -175,23 +175,40 @@ Tax rates are managed on the separate **Tax Rates** page.
     'Operations policy settings with participant registration limits',
   );
   await expect(generalSettings.getByLabel('Logo URL')).toBeVisible();
+  await expect(
+    generalSettings.getByRole('button', { name: 'Upload logo' }),
+  ).toBeVisible();
   await expect(generalSettings.getByLabel('Favicon URL')).toBeVisible();
+  await expect(
+    generalSettings.getByRole('button', { name: 'Upload favicon' }),
+  ).toBeVisible();
   await expect(generalSettings.getByLabel('SEO title')).toBeVisible();
   await expect(generalSettings.getByLabel('SEO description')).toBeVisible();
-  const brandAndSearchSettingsFields = [
+  const brandAndSearchSettingsControls = [
     generalSettingsField(page, 'Logo URL'),
+    generalSettings.getByRole('button', { name: 'Upload logo' }),
     generalSettingsField(page, 'Favicon URL'),
+    generalSettings.getByRole('button', { name: 'Upload favicon' }),
     generalSettingsField(page, 'SEO title'),
     generalSettingsField(page, 'SEO description'),
   ];
-  for (const field of brandAndSearchSettingsFields) {
-    await expect(field).toBeVisible();
+  for (const control of brandAndSearchSettingsControls) {
+    await expect(control).toBeVisible();
   }
+  const brandAndSearchSettingsSurface = generalSettings
+    .locator('form')
+    .filter({ hasText: 'Brand assets' })
+    .filter({ hasText: 'Upload logo' })
+    .filter({ hasText: 'Upload favicon' })
+    .filter({ hasText: 'Search preview' })
+    .filter({ hasText: 'SEO title' })
+    .first();
+  await expect(brandAndSearchSettingsSurface).toBeVisible();
   await takeScreenshot(
     testInfo,
-    brandAndSearchSettingsFields,
+    brandAndSearchSettingsSurface,
     page,
-    'Brand asset and search preview settings for tenant public pages',
+    'Brand asset upload and search preview settings for tenant public pages',
   );
   await expect(
     generalSettings.getByLabel('Imprint / legal notice URL'),

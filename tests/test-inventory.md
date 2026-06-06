@@ -145,13 +145,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Tenant/global admin:
   - `docs/admin/general-settings.doc.ts` covers the tenant general-settings
     docs flow with focused screenshots for the deferred-settings summary,
-    tenant identity, brand/search-preview field group, hosted legal field group,
-    and finance/discount/save controls instead of heading-only or single-field
-    crops.
+    tenant identity, brand asset upload/search-preview control group, hosted
+    legal field group, and finance/discount/save controls instead of
+    heading-only or single-field crops.
     The doc asserts the deferred custom-domain rows, identity rows, locale/money
-    controls, operations policy controls, branding/SEO fields, legal URL/text
-    fields, finance receipt settings, ESNcard discount toggle, and Save action
-    before taking those screenshots.
+    controls, operations policy controls, branding upload buttons, branding/SEO
+    fields, legal URL/text fields, finance receipt settings, ESNcard discount
+    toggle, and Save action before taking those screenshots.
   - `docs/admin/global-admin.doc.ts` covers the global tenant-administration
     docs flow with concrete screenshot targets for tenant search/list rows,
     empty search results, the relaunch-scoped create form, the rejected

@@ -1568,7 +1568,12 @@ describe('generated docs source current behavior', () => {
       {
         files: ['tests/docs/admin/general-settings.doc.ts'],
         productArea: 'tenant branding/settings',
-        terms: ['Brand asset and search preview settings', 'General settings'],
+        terms: [
+          'Brand asset upload and search preview settings',
+          'General settings',
+          'Upload logo',
+          'Upload favicon',
+        ],
       },
       {
         files: ['tests/docs/admin/general-settings.doc.ts'],
@@ -1786,7 +1791,13 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain("generalSettings.getByLabel('Limit window days')");
     expect(source).toContain("generalSettings.getByLabel('Logo URL')");
+    expect(source).toContain(
+      "generalSettings.getByRole('button', { name: 'Upload logo' })",
+    );
     expect(source).toContain("generalSettings.getByLabel('Favicon URL')");
+    expect(source).toContain(
+      "generalSettings.getByRole('button', { name: 'Upload favicon' })",
+    );
     expect(source).toContain("generalSettings.getByLabel('SEO title')");
     expect(source).toContain("generalSettings.getByLabel('SEO description')");
     expect(source).toContain(
@@ -1814,7 +1825,8 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('const deferredSettingsSummary =');
     expect(source).toContain('const tenantIdentitySummary =');
     expect(source).toContain('const operationsPolicySettingsFields =');
-    expect(source).toContain('const brandAndSearchSettingsFields =');
+    expect(source).toContain('const brandAndSearchSettingsControls =');
+    expect(source).toContain('const brandAndSearchSettingsSurface =');
     expect(source).toContain('const legalPageSettingsFields =');
     expect(source).toContain('const financeAndDiscountSettingsSurface =');
     expect(source).toContain('const financeAndDiscountSettingsControls =');
@@ -1828,7 +1840,10 @@ describe('generated docs source current behavior', () => {
       'for (const field of operationsPolicySettingsFields)',
     );
     expect(source).toContain(
-      'for (const field of brandAndSearchSettingsFields)',
+      'for (const control of brandAndSearchSettingsControls)',
+    );
+    expect(source).toContain(
+      'await expect(brandAndSearchSettingsSurface).toBeVisible()',
     );
     expect(source).toContain('for (const field of legalPageSettingsFields)');
     expect(source).toContain(
@@ -1851,7 +1866,7 @@ describe('generated docs source current behavior', () => {
       'Tenant identity summary showing primary domain and Stripe status',
     );
     expect(source).toContain(
-      'Brand asset and search preview settings for tenant public pages',
+      'Brand asset upload and search preview settings for tenant public pages',
     );
     expect(source).toContain(
       'Legal page fields for hosted imprint privacy and terms content',
@@ -1861,6 +1876,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'takeScreenshot(\n    testInfo,\n    operationsPolicySettingsFields,',
+    );
+    expect(source).toContain(
+      'takeScreenshot(\n    testInfo,\n    brandAndSearchSettingsSurface,',
     );
     expect(source).not.toContain(
       'takeScreenshot(\n    testInfo,\n    emailSenderField,',
