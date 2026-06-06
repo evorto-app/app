@@ -877,6 +877,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(localRuntimeStatusHelper).toContain('runtime-preflight.ts');
     expect(localRuntimeStatusHelper).toContain("'dev'");
     expect(localRuntimeStatusHelper).toContain("'docker'");
+    expect(localRuntimeStatusHelper).toContain('local-app-route-probe.ts');
     expect(localRuntimeStatusHelper).toContain('delete-neon-local-branches.ts');
     expect(localRuntimeStatusHelper).toContain("'--dry-run'");
     expect(localRuntimeStatusHelper).toContain('failedLabels');
@@ -901,6 +902,13 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain('combined non-mutating local runtime');
     expect(inventory).toContain('bun run dev:status');
     expect(inventory).toContain('combined non-mutating local runtime status');
+    expect(inventory).toContain(
+      'probes the configured public app route when an app is already\n  listening',
+    );
+    expect(inventory).toContain('HTTP 500 for a\n  public page');
+    expect(helpersReadme).toContain(
+      'probes the configured\npublic app route if something is already serving `BASE_URL`',
+    );
     expect(inventory).toContain(
       'different running Evorto Compose\n  project already publishes the selected `APP_HOST_PORT`',
     );

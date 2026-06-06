@@ -3465,6 +3465,12 @@ describe('stabilization source', () => {
     const localRuntimeStatusSpec = readSource(
       'helpers/testing/local-runtime-status.spec.ts',
     );
+    const localAppRouteProbe = readSource(
+      'helpers/testing/local-app-route-probe.ts',
+    );
+    const localAppRouteProbeSpec = readSource(
+      'helpers/testing/local-app-route-probe.spec.ts',
+    );
     const copyMainEnvironmentSpec = readSource(
       'helpers/testing/copy-main-environment.spec.ts',
     );
@@ -3479,6 +3485,10 @@ describe('stabilization source', () => {
     expect(source).toContain('localhost:55443');
     expect(source).toContain('older\n  Docker app on port 4200');
     expect(source).toContain('not current-branch Browser evidence');
+    expect(source).toContain('probes the configured public app route');
+    expect(source).toContain(
+      'stale or broken port-4200 stack cannot be mistaken for current Browser evidence',
+    );
     expect(source).toContain('runs `dev:check` before Angular starts');
     expect(source).toContain('binds the dev server to `0.0.0.0`');
     expect(source).toContain('covered-control detection');
@@ -3499,6 +3509,20 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['dev:start']).toContain('--host 0.0.0.0');
     expect(helpersReadme).toContain(
       'a generated `.env.dev` that points at a closed\nNeon Local port fails before the dev server starts returning SSR HTTP 500 pages',
+    );
+    expect(helpersReadme).toContain('Use `bun run dev:status`');
+    expect(helpersReadme).toContain('A closed port is\nreported as a skip');
+    expect(localRuntimeStatus).toContain('local-app-route-probe.ts');
+    expect(localAppRouteProbe).toContain(
+      "const defaultRoutePath = '/legal/terms'",
+    );
+    expect(localAppRouteProbe).toContain('No app currently serves');
+    expect(localAppRouteProbe).toContain('returned HTTP ${response.status}');
+    expect(localAppRouteProbeSpec).toContain(
+      'does not fail when no app is currently listening',
+    );
+    expect(localAppRouteProbeSpec).toContain(
+      'fails when an already-running local app returns an HTTP error',
     );
     expect(testsReadme).toContain(
       'If the\n  generated local `DATABASE_URL` points at a closed Neon Local port',

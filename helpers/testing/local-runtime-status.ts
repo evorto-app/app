@@ -74,6 +74,17 @@ export const statusCommands: readonly StatusCommand[] = [
       'dev',
       '--',
       'bun',
+      'helpers/testing/local-app-route-probe.ts',
+    ],
+    label: 'Existing app route probe',
+  },
+  {
+    args: [
+      'node_modules/.bin/dotenv',
+      '-c',
+      'dev',
+      '--',
+      'bun',
       'helpers/testing/delete-neon-local-branches.ts',
       '--dry-run',
     ],

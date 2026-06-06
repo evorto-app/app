@@ -197,6 +197,12 @@ Once `.env.dev` has been generated, later package-script preflights preserve the
 recorded local ports unless an explicit override such as `APP_HOST_PORT=4200` is
 provided again. This keeps `BASE_URL` aligned with a running stack when you use
 non-mutating commands such as `bun run docker:ps`.
+Use `bun run dev:status` when you need the full non-mutating local diagnosis. In
+addition to the development and Docker preflights, it probes the configured
+public app route if something is already serving `BASE_URL`. A closed port is
+reported as a skip because the app may simply be stopped; an HTTP error from an
+already-running app fails the status command so stale or broken port-4200 stacks
+do not get mistaken for current Browser evidence.
 
 Local global-admin e2e coverage can use `E2E_GLOBAL_ADMIN_AUTH0_IDS` as a
 no-secret fallback when the Auth0 tenant user has app metadata but the

@@ -1090,12 +1090,18 @@ provider outcomes without live identifiers.
   stopped automatically.
 - `bun run dev:status` is the combined non-mutating local runtime status path.
   It refreshes `.env.dev`, runs the development preflight, runs the Docker
-  preflight, and still runs the Neon Local cleanup dry-run before returning a
-  combined failed-check summary.
+  preflight, probes the configured public app route when an app is already
+  listening, and still runs the Neon Local cleanup dry-run before returning a
+  combined failed-check summary. The app route probe skips a closed `BASE_URL`
+  port but fails loudly when an already-running local app returns HTTP 500 for a
+  public page, making stale or broken port-4200 stacks visible before Browser
+  planner runs are treated as current worktree evidence.
   `helpers/testing/local-runtime-status.spec.ts` exercises the status runner
   directly so the command list stays complete, failures do not stop later
   checks from running, startup errors are reported, and failed labels stay
-  grouped together for operators.
+  grouped together for operators. `helpers/testing/local-app-route-probe.spec.ts`
+  covers successful public-route probes, closed-port skips, HTTP-error failures,
+  and missing `BASE_URL` skips.
 - `helpers/testing/remove-stale-compose-containers.spec.ts` guards generated
   Compose cleanup target detection for unhealthy Compose JSON health, unhealthy
   Docker `ps` status text fallback, stale created/dead states, healthy running

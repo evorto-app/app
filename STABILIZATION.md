@@ -5571,14 +5571,18 @@ The static doc-screenshot helper settling contract is also package-scripted as
 reruns.
 Local runtime diagnosis is now package-scripted as `bun run dev:status`: it
 regenerates `.env.dev`, runs the development preflight, runs the Docker
-preflight, and still runs the Neon Local cleanup dry-run before returning a
+preflight, probes the configured public app route when an app is already
+listening, and still runs the Neon Local cleanup dry-run before returning a
 combined failed-check summary. Focused helper coverage now verifies that the
 status runner keeps executing later non-mutating checks after earlier failures,
 reports command startup errors, and groups failed labels in one operator-facing
-summary. A current local run failed on the expected closed
-database port and Docker container-start path while still reporting the Neon
-summary as one protected branch, no active-test branches, no stale deletions,
-and a two-hour TTL.
+summary. The route probe skips a closed `BASE_URL` port but fails when an
+already-running local app returns an HTTP error for the public Terms route, so a
+stale or broken port-4200 stack cannot be mistaken for current Browser evidence.
+A current local run failed on the expected closed database port and Docker
+container-start path, reported the existing port-4200 app's HTTP 500 on
+`/legal/terms`, and still reported the Neon summary as one protected branch, no
+active-test branches, no stale deletions, and a two-hour TTL.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
