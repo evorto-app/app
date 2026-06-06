@@ -508,6 +508,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
   const rawImages: string[] = [];
   const markdownAttachmentNameAliases = new Set<string>();
   const rawMarkdownBodyAliases = new Set<string>();
+  const rawMarkdownPayloadAliases = new Set<string>();
   const rawMarkdownImagePattern = /!\[[^\]]*\]\([^)]+\)|<img(?:\s|>)/iu;
 
   const describeCall = (node: ts.CallExpression): string => {
@@ -560,6 +561,22 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     );
   };
 
+  const hasRawMarkdownPayload = (node: ts.Expression): boolean => {
+    const payload = unwrapExpression(node);
+
+    if (ts.isIdentifier(payload)) {
+      return rawMarkdownPayloadAliases.has(payload.text);
+    }
+
+    if (!ts.isObjectLiteralExpression(payload)) {
+      return false;
+    }
+
+    const body = getObjectPropertyValue(payload, 'body');
+
+    return body ? hasRawMarkdownImage(body) : false;
+  };
+
   const collectAliases = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -574,6 +591,10 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
 
       if (hasRawMarkdownImage(initializer)) {
         rawMarkdownBodyAliases.add(node.name.text);
+      }
+
+      if (hasRawMarkdownPayload(initializer)) {
+        rawMarkdownPayloadAliases.add(node.name.text);
       }
     }
 
@@ -594,13 +615,9 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         node.arguments[0] &&
         isMarkdownAttachmentName(node.arguments[0]) &&
         payload &&
-        ts.isObjectLiteralExpression(payload)
+        hasRawMarkdownPayload(payload)
       ) {
-        const body = getObjectPropertyValue(payload, 'body');
-
-        if (body && hasRawMarkdownImage(body)) {
-          rawImages.push(describeCall(node));
-        }
+        rawImages.push(describeCall(node));
       }
     }
 
@@ -3069,6 +3086,10 @@ describe('generated docs source current behavior', () => {
         More aliased copy.
         <img src="../unrelated.png" alt="Unrelated screenshot">
       \`;
+      const rawMarkdownPayload = {
+        body: rawMarkdownBody,
+      };
+      const shorthandMarkdownPayload = { body };
       await testInfo.attach('markdown', {
         body: \`
           Introductory copy.
@@ -3079,6 +3100,8 @@ describe('generated docs source current behavior', () => {
         body: rawMarkdownBody,
       });
       await testInfo.attach(markdownAttachmentName, { body });
+      await testInfo.attach('markdown', rawMarkdownPayload);
+      await testInfo.attach(markdownAttachmentName, shorthandMarkdownPayload);
       await testInfo.attach('markdown', {
         body: \`
           Links to [image guidance](../images) stay valid.
@@ -3092,9 +3115,11 @@ describe('generated docs source current behavior', () => {
         rawMarkdownImageSource,
       ),
     ).toEqual([
-      'tests/docs/example/raw-markdown-image.doc.ts:11:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:17:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:20:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:15:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:21:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:24:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:25:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:26:13',
     ]);
   });
 

@@ -3610,10 +3610,11 @@ fallback rather than a profile discount-card defect.
   the meaningful-image checks while still appearing to use the shared helper.
   It also rejects raw markdown image syntax and raw HTML `<img>` bodies even
   when the markdown attachment name or body is hidden behind a local alias, a
-  bracketed `attach` call, or shorthand `{ body }`, so docs cannot bypass the
-  captioned screenshot helper with unrelated image markup. Synthetic failing
-  examples now exercise those bypass patterns directly so the guard is
-  protected even when the current docs remain clean. The permission
+  bracketed `attach` call, an aliased payload object, or shorthand `{ body }`,
+  so docs cannot bypass the captioned screenshot helper with unrelated image
+  markup. Synthetic failing examples now exercise those bypass patterns
+  directly so the guard is protected even when the current docs remain clean.
+  The permission
   reference is now image-backed too: `tests/docs/roles/about-permissions.doc.ts`
   still generates its text from `PERMISSION_GROUPS`, but it also screenshots the
   actual role-form permission group/dependency surface so the reference is tied
@@ -5949,9 +5950,10 @@ Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.
 Generated-doc markdown attachments also reject raw Markdown image syntax and
-HTML `<img>` tags, so product docs cannot add unrelated or unhighlighted images
-outside the shared screenshot helper, caption, highlight, and content-pixel
-checks.
+HTML `<img>` tags, including aliased markdown names, bracketed `attach` calls,
+aliased body variables, aliased payload objects, and shorthand `{ body }`, so
+product docs cannot add unrelated or unhighlighted images outside the shared
+screenshot helper, caption, highlight, and content-pixel checks.
 Generated-doc source coverage now also maps the root product docs' important
 documentation areas to generated doc files and concrete source terms, so
 essential flows like browsing events, registering, account-required tenant

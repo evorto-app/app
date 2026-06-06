@@ -1373,6 +1373,7 @@ describe('stabilization source', () => {
     expect(source).toContain('escaped caption attributes');
     expect(source).toContain('raw markdown image syntax');
     expect(source).toContain('bracketed `attach` call');
+    expect(source).toContain('aliased payload object');
     expect(source).toContain('shorthand `{ body }`');
     expect(documentationScreenshotSpec).toContain(
       'doc-screenshot waits for descriptive loading text before capture',
@@ -1984,6 +1985,13 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'await testInfo.attach(markdownAttachmentName, { body })',
     );
+    expect(generatedDocumentationSource).toContain('rawMarkdownPayloadAliases');
+    expect(generatedDocumentationSource).toContain(
+      "await testInfo.attach('markdown', rawMarkdownPayload)",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await testInfo.attach(markdownAttachmentName, shorthandMarkdownPayload)',
+    );
     expect(generatedDocumentationSource).toContain(
       'Documentation screenshots require a descriptive caption',
     );
@@ -2017,6 +2025,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('HTML `<img>` tags');
     expect(inventory).toContain('aliased markdown names');
     expect(inventory).toContain('aliased body variables');
+    expect(inventory).toContain('aliased payload objects');
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');
     expect(reporterPathsSpec).toContain(
