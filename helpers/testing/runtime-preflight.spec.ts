@@ -1726,7 +1726,8 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(runPlaywright).toContain("spawn('bun', ['run', 'env:runtime']");
     expect(runPlaywright).toContain("'node_modules/.bin/dotenv'");
-    expect(runPlaywright).toContain("'playwright', 'test'");
+    expect(runPlaywright).toContain("'node_modules/.bin/playwright'");
+    expect(runPlaywright).toContain("'test'");
     expect(runPlaywright).toContain("'NO_WEBSERVER'] = 'true'");
     expect(runPlaywrightSpec).toContain(
       'runs Playwright through dotenv with local generated-doc output paths',

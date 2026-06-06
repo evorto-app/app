@@ -1962,9 +1962,9 @@ the current working direction until a product decision overrides them.
 - Local Playwright package scripts that run `playwright test` now go through
   `helpers/testing/run-playwright.ts`, which refreshes `.env.dev`, pins ignored
   repository-local docs output paths, and invokes
-  `dotenv -c dev -- playwright test`. Local `dev:start`, `db:*`, and
-  `docker:*` scripts also refresh `.env.dev` before loading local dotenv
-  values, reducing fresh-worktree and wrong-database risk.
+  `dotenv -c dev -- node_modules/.bin/playwright test`. Local `dev:start`,
+  `db:*`, and `docker:*` scripts also refresh `.env.dev` before loading local
+  dotenv values, reducing fresh-worktree and wrong-database risk.
 - Docker Compose uses Neon Local, MinIO, Stripe CLI, a one-shot `db-setup` service, and an `evorto` app container. `db-setup` clears the Docker database `public` schema before Drizzle pushes schema so reset-from-zero startup stays non-interactive even when Neon Local reuses older branch state. `bun run docker:check` verifies required local secrets before any Docker start command tears down or starts containers, and now also reports Bun, Docker Compose, Compose config, the Docker container start path, Playwright CLI, `.env.dev`, and Playwright browser-cache readiness.
 - SSR app routes respond to lightweight `GET` and `HEAD` probes. This keeps
   browser-facing app pages useful for health checks and local reachability
@@ -2086,9 +2086,10 @@ the current working direction until a product decision overrides them.
 - Local package scripts that run `playwright test` now share
   `helpers/testing/run-playwright.ts`, which refreshes `.env.dev`, pins
   `DOCS_OUT_DIR=test-results/docs` and
-  `DOCS_IMG_OUT_DIR=test-results/docs/images`, and loads local dotenv secrets,
-  so a developer `.env` that points at the `evorto-pages` publish checkout
-  cannot make routine Playwright runs dirty that external repo.
+  `DOCS_IMG_OUT_DIR=test-results/docs/images`, loads local dotenv secrets, and
+  invokes the local `node_modules/.bin/playwright` binary, so a developer `.env`
+  that points at the `evorto-pages` publish checkout cannot make routine
+  Playwright runs dirty that external repo.
   Publishing generated docs remains explicit through
   `bun run test:e2e:docs:publish`.
 - CI and local setup both install or expose Playwright browser installation, and

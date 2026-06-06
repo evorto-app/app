@@ -1746,6 +1746,9 @@ describe('generated docs source current behavior', () => {
     expect(readSource('helpers/testing/run-playwright.ts')).toContain(
       "spawn('bun', ['run', 'env:runtime']",
     );
+    expect(readSource('helpers/testing/run-playwright.ts')).toContain(
+      "'node_modules/.bin/playwright'",
+    );
 
     expect(scripts['test:e2e:docs:publish']).toContain(
       'DOCS_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/src/app/docs',

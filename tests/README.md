@@ -144,8 +144,9 @@ bun run lint
   origin. Stop that owning stack manually only after confirming it is not active.
 - Local Playwright package scripts that run `playwright test` go through
   `helpers/testing/run-playwright.ts`, which refreshes `.env.dev`, sets ignored
-  docs output paths, and invokes `dotenv -c dev -- playwright test`, so new
-  worktrees get isolated local app/service ports and database URLs by default.
+  docs output paths, and invokes
+  `dotenv -c dev -- node_modules/.bin/playwright test`, so new worktrees get
+  isolated local app/service ports and database URLs by default.
   Local `dev:start`, `db:*`, and `docker:*` scripts also refresh `.env.dev`
   before loading local dotenv values. Use `bun run docker:ps` rather than bare
   `docker compose ps` when checking a worktree stack because the generated
@@ -231,8 +232,9 @@ bun run lint
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
 - Local Playwright package scripts that run `playwright test` share
   `helpers/testing/run-playwright.ts`, which refreshes `.env.dev`, pins ignored
-  repository-local docs/image output paths, and loads dotenv. Only
-  `bun run test:e2e:docs:publish` targets the sibling documentation checkout.
+  repository-local docs/image output paths, loads dotenv, and invokes the local
+  `node_modules/.bin/playwright` binary. Only `bun run test:e2e:docs:publish`
+  targets the sibling documentation checkout.
 - `bun run test:e2e:integration` runs all integration-only Playwright
   projects. It is intended for credential-gated specs and docs such as Auth0
   Management account creation.

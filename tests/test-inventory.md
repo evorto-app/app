@@ -1234,5 +1234,6 @@ provider outcomes without live identifiers.
 - Playwright `--list` discovery does not clean or write generated docs output,
   and baseline fixture imports do not require Auth0 Management credentials.
   Local package scripts that run `playwright test` are source-guarded to write
-  generated docs into ignored `test-results/docs` paths, while only
-  `test:e2e:docs:publish` may target the sibling `evorto-pages` checkout.
+  generated docs into ignored `test-results/docs` paths and invoke the local
+  `node_modules/.bin/playwright` binary, while only `test:e2e:docs:publish` may
+  target the sibling `evorto-pages` checkout.

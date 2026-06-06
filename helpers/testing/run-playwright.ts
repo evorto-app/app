@@ -11,6 +11,8 @@ export const localDocumentationEnvironment = {
   DOCS_OUT_DIR: 'test-results/docs',
 } as const;
 
+const localPlaywrightBinary = 'node_modules/.bin/playwright';
+
 const getExitStatus = (
   label: string,
   result: ReturnType<typeof spawnSync>,
@@ -58,7 +60,7 @@ export const runPlaywright = (options: RunPlaywrightOptions = {}): number => {
     'Playwright',
     spawn(
       'node_modules/.bin/dotenv',
-      ['-c', 'dev', '--', 'playwright', 'test', ...argv],
+      ['-c', 'dev', '--', localPlaywrightBinary, 'test', ...argv],
       {
         env: environment,
         stdio: 'inherit',

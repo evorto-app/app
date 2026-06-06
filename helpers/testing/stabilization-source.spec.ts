@@ -858,6 +858,18 @@ describe('stabilization source', () => {
     expect(readSource('helpers/testing/run-playwright.ts')).toContain(
       "'node_modules/.bin/dotenv'",
     );
+    expect(readSource('helpers/testing/run-playwright.ts')).toContain(
+      "'node_modules/.bin/playwright'",
+    );
+    expect(testsReadme).toContain(
+      '`dotenv -c dev -- node_modules/.bin/playwright test`',
+    );
+    expect(testsReadme).toContain('local\n  `node_modules/.bin/playwright`');
+    expect(source).toContain(
+      '`dotenv -c dev -- node_modules/.bin/playwright test`',
+    );
+    expect(source).toContain('local `node_modules/.bin/playwright` binary');
+    expect(inventory).toContain('local\n  `node_modules/.bin/playwright`');
     expect(readSource('helpers/testing/run-playwright.spec.ts')).toContain(
       'runs Playwright through dotenv with local generated-doc output paths',
     );
