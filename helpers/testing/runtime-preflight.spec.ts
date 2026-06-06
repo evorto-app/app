@@ -575,6 +575,13 @@ describe('evaluateRuntimePreflight', () => {
       ),
       'utf8',
     );
+    const ciRecordMetadataSpec = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        'helpers/testing/ci-record-neon-local-metadata.spec.ts',
+      ),
+      'utf8',
+    );
     const ciRuntimeValidationHelper = fs.readFileSync(
       path.join(process.cwd(), 'helpers/testing/validate-ci-runtime-env.sh'),
       'utf8',
@@ -704,6 +711,13 @@ describe('evaluateRuntimePreflight', () => {
     expect(ciRecordMetadataHelper).toContain('cp "${metadata_path}"');
     expect(ciRecordMetadataHelper).toContain('Branch ids:');
     expect(ciRecordMetadataHelper).toContain('GITHUB_STEP_SUMMARY');
+    expect(ciRecordMetadataSpec).toContain("spawnSync('bash', [helperPath]");
+    expect(ciRecordMetadataSpec).toContain(
+      'Branch ids: br-test-123, br-test-456',
+    );
+    expect(ciRecordMetadataSpec).toContain(
+      'No Neon Local branch metadata found',
+    );
     expect(workflow).toContain('Prune expired Neon branches before E2E');
     expect(workflow).toContain(
       'bun helpers/testing/delete-neon-local-branches.ts',

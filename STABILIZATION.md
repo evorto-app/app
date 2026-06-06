@@ -5600,6 +5600,10 @@ expiration is confirmed, E2E now records the Neon Local metadata branch ids into
 captured in `test-results/neon-local/final-prune.log` inside the normal
 Playwright shard artifact. This keeps cleanup evidence tied to the shard that
 created the short-lived branch before any manual force-delete decision is made.
+Focused helper coverage now executes the metadata recorder against temporary
+Neon Local metadata, checking unique branch-id summary output, GitHub
+step-summary writing, artifact creation, and the no-metadata success path
+without requiring Docker or Neon credentials.
 Generated-doc source coverage also rejects generic page-shell screenshot focus
 targets such as `locator('main')`; screenshot evidence must focus a meaningful
 product control, form, component, row, or state while still capturing visible

@@ -1118,7 +1118,10 @@ provider outcomes without live identifiers.
   pruning behavior. The same guards keep the shard-level Neon Local metadata
   artifact and final prune log wired into `test-results/neon-local/`, so a CI
   run records which short-lived branch it created before cleanup evidence is
-  inspected. Runtime
+  inspected. `helpers/testing/ci-record-neon-local-metadata.spec.ts` runs the
+  artifact helper against temporary metadata, asserting unique branch-id summary
+  output, GitHub step-summary writing, artifact creation, and missing-metadata
+  success without Docker or Neon credentials. Runtime
   preflight reuses the same
   stale/unhealthy Compose container parser and target predicate as
   `bun run docker:clean-stale`, so diagnostics and cleanup cannot drift on
