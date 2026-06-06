@@ -535,7 +535,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   regress to button-only, input-only, option-only, cell-only, or icon-only
   images. It also rejects conditional, nullish-coalesced, and logical target
   expressions when either branch hides a weak screenshot target, resolves
-  screenshot target aliases and helper functions before
+  non-null assertion wrappers before screenshot counting and direct image or
+  screenshot-helper inspection, resolves screenshot target aliases and helper
+  functions before
   inspecting screenshot calls so later declarations cannot bypass those
   meaningful-target checks, includes object-property target aliases so grouped
   screenshot target objects cannot hide weak locator targets, including computed

@@ -29,6 +29,7 @@ const unwrapExpression = (node: ts.Expression): ts.Expression => {
   while (
     ts.isParenthesizedExpression(current) ||
     ts.isAsExpression(current) ||
+    ts.isNonNullExpression(current) ||
     ts.isSatisfiesExpression(current) ||
     ts.isTypeAssertionExpression(current)
   ) {
@@ -3007,6 +3008,80 @@ describe('generated docs source current behavior', () => {
         branchingTargetSource,
       ),
     ).toEqual(['tests/docs/example/branching-target.doc.ts:24:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind non-null assertions', () => {
+    const nonNullAssertionSource = `
+      await takeScreenshot!(
+        testInfo,
+        page.locator('main')!,
+        page,
+        'Non-null generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator('section')!,
+        page,
+        'Non-null broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.getByRole('button', { name: 'Save' })!,
+        page,
+        'Non-null single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator('svg')!,
+        page,
+        'Non-null icon target with a descriptive caption',
+      );
+      await testInfo.attach!('image', { body: imageBuffer });
+      await page.screenshot!({ path: 'page.png' });
+    `;
+
+    expect(
+      countTakeScreenshotCalls(
+        'tests/docs/example/non-null-target.doc.ts',
+        nonNullAssertionSource,
+      ),
+    ).toBe(4);
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/non-null-target.doc.ts',
+        nonNullAssertionSource,
+      ),
+    ).toEqual(['tests/docs/example/non-null-target.doc.ts:2:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/non-null-target.doc.ts',
+        nonNullAssertionSource,
+      ),
+    ).toEqual(['tests/docs/example/non-null-target.doc.ts:8:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/non-null-target.doc.ts',
+        nonNullAssertionSource,
+      ),
+    ).toEqual(['tests/docs/example/non-null-target.doc.ts:14:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/non-null-target.doc.ts',
+        nonNullAssertionSource,
+      ),
+    ).toEqual(['tests/docs/example/non-null-target.doc.ts:20:13']);
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/non-null-target.doc.ts',
+        nonNullAssertionSource,
+      ),
+    ).toEqual(['tests/docs/example/non-null-target.doc.ts:26:13']);
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/non-null-target.doc.ts',
+        nonNullAssertionSource,
+      ),
+    ).toEqual(['tests/docs/example/non-null-target.doc.ts:27:13']);
   });
 
   it('detects computed weak documentation screenshot target aliases', () => {

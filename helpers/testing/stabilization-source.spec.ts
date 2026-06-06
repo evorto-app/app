@@ -1459,6 +1459,7 @@ describe('stabilization source', () => {
     expect(source).toMatch(
       /Conditional, nullish-coalesced, and logical target expressions/u,
     );
+    expect(source).toMatch(/Non-null\s+assertion wrappers/u);
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
     expect(source).toContain('captureDocumentationImage');
@@ -1522,6 +1523,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'conditional, nullish-coalesced, and logical target\n  expressions',
     );
+    expect(inventory).toMatch(/non-null assertion wrappers/u);
     expect(inventory).toContain('helper-returned icon/media locators');
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local\s+screenshot\s+wrappers/u);
@@ -1771,6 +1773,7 @@ describe('stabilization source', () => {
       'ts.isArrayLiteralExpression(target)',
     );
     expect(generatedDocumentationSource).toContain('unwrapArrayElement');
+    expect(generatedDocumentationSource).toContain('ts.isNonNullExpression');
     expect(generatedDocumentationSource).toContain('isTrackedArrayTarget');
     expect(generatedDocumentationSource).toContain('isTrackedBranchingTarget');
     expect(generatedDocumentationSource).toContain(
@@ -1781,6 +1784,9 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind branching expressions',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets hidden behind non-null assertions',
     );
     expect(generatedDocumentationSource).toContain('...genericTargets');
     expect(generatedDocumentationSource).toContain('...broadTargets');
@@ -1801,6 +1807,12 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       "maybeIconTarget && page.locator('svg')",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "page.getByRole('button', { name: 'Save' })!",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await testInfo.attach!('image', { body: imageBuffer })",
     );
     expect(generatedDocumentationSource).toContain(
       'wrappedForwardTargets.shell',
