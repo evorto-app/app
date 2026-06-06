@@ -1341,6 +1341,12 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(cleanupHelper).toContain('deleteExplicitBranchIds');
     expect(cleanupHelper).toContain('forceDeleteBranchIds');
+    expect(
+      cleanupHelper.indexOf('await deleteExplicitBranchIds();'),
+    ).toBeLessThan(cleanupHelper.indexOf('if (existingBranchId)'));
+    expect(
+      cleanupHelper.indexOf('await deleteExplicitBranchIds();'),
+    ).toBeLessThan(cleanupHelper.indexOf("if (deleteBranch === 'false')"));
     expect(cleanupHelper).toContain(
       'Refusing to force-delete protected Neon branch',
     );
@@ -1394,6 +1400,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain(
       'default CI and local cleanup remain TTL-conservative',
     );
+    expect(helpersReadme).toContain(
+      'processed before\nthe normal `BRANCH_ID` and `DELETE_BRANCH=false` persistent-branch skips',
+    );
     expect(testsReadme).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
     expect(testsReadme).toContain(
       'NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id> bun run neon:cleanup',
@@ -1415,6 +1424,9 @@ describe('evaluateRuntimePreflight', () => {
       'exact force-delete cleanup can use\n  `bun run neon:cleanup`',
     );
     expect(inventory).toContain('default CI path TTL-conservative');
+    expect(inventory).toContain(
+      'runs before the normal `BRANCH_ID` and\n  `DELETE_BRANCH=false` persistent-branch skips',
+    );
   });
 
   it('keeps generated runtime ports stable for non-mutating Docker checks', () => {

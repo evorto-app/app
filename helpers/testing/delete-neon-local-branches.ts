@@ -314,6 +314,8 @@ const deleteExplicitBranchIds = async (): Promise<void> => {
 };
 
 const main = async (): Promise<void> => {
+  await deleteExplicitBranchIds();
+
   if (existingBranchId) {
     console.log(
       `BRANCH_ID=${existingBranchId} connects Neon Local to an existing branch; skipping cleanup.`,
@@ -327,8 +329,6 @@ const main = async (): Promise<void> => {
     );
     return;
   }
-
-  await deleteExplicitBranchIds();
 
   if (!existsSync(metadataPath)) {
     console.log(

@@ -1166,7 +1166,10 @@ provider outcomes without live identifiers.
   The cleanup helper also supports
   `NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id>` for the exact confirmed
   inactive branch reported by the cleanup summary, while still refusing
-  protected branches and leaving the default CI path TTL-conservative. Local
+  protected branches and leaving the default CI path TTL-conservative. That
+  explicit force-delete list runs before the normal `BRANCH_ID` and
+  `DELETE_BRANCH=false` persistent-branch skips, so confirmed cleanup can still
+  run from a persistent-branch local shell without editing `.env`. Local
   branch audits can use the non-mutating `bun run neon:cleanup:dry-run`;
   confirmed local cleanup and exact force-delete cleanup can use
   `bun run neon:cleanup`, keeping the dotenv/runtime cascade behind a short

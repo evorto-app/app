@@ -3887,6 +3887,9 @@ describe('stabilization source', () => {
     const ciStopDockerStackHelper = readSource(
       'helpers/testing/ci-stop-docker-stack.sh',
     );
+    const cleanupHelper = readSource(
+      'helpers/testing/delete-neon-local-branches.ts',
+    );
     const helpersReadme = readSource('helpers/README.md');
     const testsReadme = readSource('tests/README.md');
     const inventory = readSource('tests/test-inventory.md');
@@ -3910,6 +3913,8 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain('through `bun run neon:cleanup`');
     expect(checkpoint).toContain('refusing protected branches');
     expect(checkpoint).toContain('default CI cleanup TTL-conservative');
+    expect(checkpoint).toContain('persistent-branch local shell');
+    expect(checkpoint).toContain('without editing `.env`');
     expect(checkpoint).toContain('CI must not set `BRANCH_ID`');
     expect(checkpoint).toContain(
       "Neon Local's documented default project branch",
@@ -3920,6 +3925,18 @@ describe('stabilization source', () => {
     expect(checkpoint).toMatch(/GitHub\s+E2E mechanism/u);
     expect(checkpoint).toContain('delete_timeline');
     expect(checkpoint).toContain('status/log/debug/stop/down/kill/remove');
+    expect(
+      cleanupHelper.indexOf('await deleteExplicitBranchIds();'),
+    ).toBeLessThan(cleanupHelper.indexOf('if (existingBranchId)'));
+    expect(
+      cleanupHelper.indexOf('await deleteExplicitBranchIds();'),
+    ).toBeLessThan(cleanupHelper.indexOf("if (deleteBranch === 'false')"));
+    expect(helpersReadme).toContain(
+      'processed before\nthe normal `BRANCH_ID` and `DELETE_BRANCH=false` persistent-branch skips',
+    );
+    expect(inventory).toContain(
+      'runs before the normal `BRANCH_ID` and\n  `DELETE_BRANCH=false` persistent-branch skips',
+    );
     expect(checkpoint).toMatch(
       /timeout-bound Docker\s+log\/status collection and server-log copy/u,
     );

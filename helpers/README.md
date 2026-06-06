@@ -123,7 +123,10 @@ reports a specific young active-test branch inside the TTL, pass the exact id as
 `NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id>` to `bun run
 neon:cleanup`. That explicit path is intended for confirmed-inactive branches
 only; default CI and local cleanup remain TTL-conservative and the helper
-refuses protected branches.
+refuses protected branches. The explicit force-delete list is processed before
+the normal `BRANCH_ID` and `DELETE_BRANCH=false` persistent-branch skips, so a
+local persistent-branch shell can still delete a confirmed inactive branch id
+without temporarily editing `.env`.
 `helpers/testing/ci-start-docker-stack.sh` owns the E2E Docker startup path. It
 bounds the runtime preflight, bounds Compose image pre-pull attempts, builds the
 app images with the CI BuildKit cache overlay, starts the already-built stack,

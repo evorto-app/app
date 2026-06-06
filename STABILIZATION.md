@@ -4218,7 +4218,10 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   `NEON_LOCAL_FORCE_DELETE_BRANCH_IDS=<branch-id>` for deleting an exact
   confirmed-inactive young branch after its owning Docker stack or GitHub run
   has stopped through `bun run neon:cleanup`, while refusing protected branches
-  and keeping default CI cleanup TTL-conservative. The runtime source guard now
+  and keeping default CI cleanup TTL-conservative. That exact branch-id list now
+  runs before the normal `BRANCH_ID` and `DELETE_BRANCH=false`
+  persistent-branch skips, so a persistent-branch local shell can clean up a
+  confirmed inactive branch without editing `.env`. The runtime source guard now
   also pins the Neon Local
   lifecycle contract from the attached docs: CI must not set `BRANCH_ID`; E2E
   uses `PARENT_BRANCH_ID` or Neon Local's documented default project branch so
