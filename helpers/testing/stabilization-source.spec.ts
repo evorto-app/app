@@ -1209,6 +1209,7 @@ describe('stabilization source', () => {
     expect(source).toContain('direct single-control `getByRole`');
     expect(source).toContain('`getByPlaceholder` screenshot targets');
     expect(source).toContain('single-control CSS locator targets');
+    expect(source).toContain('Single-option ARIA targets');
     expect(source).toContain(
       'single-control-looking test-id screenshot targets',
     );
@@ -1217,7 +1218,8 @@ describe('stabilization source', () => {
     expect(source).toContain('ARIA role selectors');
     expect(source).toContain('Material control hosts');
     expect(source).toContain('icon-only and media-only screenshot targets');
-    expect(source).toContain('direct icon/media\nscreenshot targets');
+    expect(source).toContain("getByRole('img')");
+    expect(source).toContain('direct icon/media screenshot targets');
     expect(source).toContain('target arrays');
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
@@ -1252,12 +1254,14 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/role\/text\/label\/placeholder\s+locators/u);
     expect(inventory).toContain('single-control CSS locator targets');
     expect(inventory).toContain('helper-returned single-control locators');
+    expect(inventory).toContain('single-option ARIA targets');
     expect(inventory).toContain('ARIA role selectors');
     expect(inventory).toContain('Material control hosts/classes');
-    expect(inventory).toContain('single-control-looking\n  `getByTestId`');
+    expect(inventory).toMatch(/single-control-looking\s+`getByTestId`/u);
+    expect(inventory).toContain("getByRole('img')");
     expect(inventory).toMatch(/icon\/media targets such as `svg`/u);
-    expect(inventory).toContain(
-      'target arrays and helper-returned icon/media locators',
+    expect(inventory).toMatch(
+      /target arrays\s+and helper-returned icon\/media locators/u,
     );
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local screenshot\s+wrappers/u);

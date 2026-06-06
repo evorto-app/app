@@ -464,8 +464,10 @@ const findSingleControlScreenshotTargets = (
     'heading',
     'link',
     'menuitem',
+    'option',
     'radio',
     'searchbox',
+    'spinbutton',
     'switch',
     'tab',
     'textbox',
@@ -684,6 +686,7 @@ const findIconOrMediaScreenshotTargets = (
     /^\.mat-icon(?:\b|[_-])/u,
     /^\[(?:alt|src)(?:\]|[~|^$*]?=)/u,
   ];
+  const iconOrMediaRoles = new Set(['img']);
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -743,6 +746,16 @@ const findIconOrMediaScreenshotTargets = (
             ts.isNoSubstitutionTemplateLiteral(selector))
         ) {
           return isIconOrMediaCssSelector(selector.text);
+        }
+      }
+
+      if (methodName === 'getByRole') {
+        const role = candidate.arguments[0];
+        if (
+          role &&
+          (ts.isStringLiteral(role) || ts.isNoSubstitutionTemplateLiteral(role))
+        ) {
+          return iconOrMediaRoles.has(role.text.trim().toLowerCase());
         }
       }
 
@@ -1112,6 +1125,12 @@ describe('generated docs source current behavior', () => {
       );
       await takeScreenshot(
         testInfo,
+        page.getByRole('option', { name: 'Standard ticket' }),
+        page,
+        'Single option target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
         page.getByText('Registration opens next week'),
         page,
         'Single text target with a descriptive caption',
@@ -1214,8 +1233,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/single-control-target.doc.ts:44:13',
       'tests/docs/example/single-control-target.doc.ts:50:13',
       'tests/docs/example/single-control-target.doc.ts:56:13',
-      'tests/docs/example/single-control-target.doc.ts:63:13',
-      'tests/docs/example/single-control-target.doc.ts:70:13',
+      'tests/docs/example/single-control-target.doc.ts:62:13',
+      'tests/docs/example/single-control-target.doc.ts:69:13',
+      'tests/docs/example/single-control-target.doc.ts:76:13',
     ]);
   });
 
@@ -1250,6 +1270,12 @@ describe('generated docs source current behavior', () => {
         page.getByAltText('Tenant logo'),
         page,
         'Single alt text image target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.getByRole('img', { name: 'Tenant logo' }),
+        page,
+        'Single image role target with a descriptive caption',
       );
       await takeScreenshot(
         testInfo,
@@ -1291,8 +1317,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/icon-target.doc.ts:20:13',
       'tests/docs/example/icon-target.doc.ts:26:13',
       'tests/docs/example/icon-target.doc.ts:32:13',
-      'tests/docs/example/icon-target.doc.ts:39:13',
-      'tests/docs/example/icon-target.doc.ts:46:13',
+      'tests/docs/example/icon-target.doc.ts:38:13',
+      'tests/docs/example/icon-target.doc.ts:45:13',
+      'tests/docs/example/icon-target.doc.ts:52:13',
     ]);
   });
 

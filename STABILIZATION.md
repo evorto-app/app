@@ -5662,16 +5662,18 @@ It also rejects direct single-control CSS locator targets such as `button`,
 `input`, ARIA role selectors, and Material control hosts/classes when they are
 passed to generated-doc screenshots, so docs cannot bypass the role/label guard
 with selector syntax while still cropping to one control.
+Single-option ARIA targets are covered by the same guard, so docs cannot use a
+single dropdown option as evidence for a full selection workflow.
 It now also rejects direct single-control-looking test-id screenshot targets
 such as `*-button`, `*-input`, `*-field`, and `*-icon-button`, while still
 allowing surface-level test ids, so future docs cannot hide a button-only crop
 behind `getByTestId(...)`.
 It now rejects icon-only and media-only screenshot targets such as `svg`, `img`,
-`fa-icon`, `mat-icon`, `getByAltText`, and `getByTitle` when they are passed to
-generated-doc screenshots, so docs cannot crop to a lone icon or uploaded media
-asset instead of the surrounding workflow surface. The guard also inspects
-screenshot target arrays and helper-returned targets for direct icon/media
-screenshot targets.
+`fa-icon`, `mat-icon`, `getByRole('img')`, `getByAltText`, and `getByTitle`
+when they are passed to generated-doc screenshots, so docs cannot crop to a lone
+icon or uploaded media asset instead of the surrounding workflow surface. The
+guard also inspects screenshot target arrays and helper-returned targets for
+direct icon/media screenshot targets.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.
