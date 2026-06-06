@@ -1343,6 +1343,37 @@ const findDirectImageAttachmentCalls = (
     return getStringLiteralText(expression) === 'image';
   };
 
+  const isImageAttachmentPayload = (node: ts.Expression): boolean => {
+    const payload = unwrapExpression(node);
+
+    if (!ts.isObjectLiteralExpression(payload)) {
+      return false;
+    }
+
+    return payload.properties.some((property) => {
+      if (
+        !ts.isPropertyAssignment(property) ||
+        (!ts.isIdentifier(property.name) &&
+          !ts.isStringLiteral(property.name)) ||
+        (property.name.text !== 'contentType' && property.name.text !== 'path')
+      ) {
+        return false;
+      }
+
+      const propertyValue = getStringLiteralText(property.initializer);
+
+      if (!propertyValue) {
+        return false;
+      }
+
+      if (property.name.text === 'contentType') {
+        return propertyValue.trim().toLowerCase().startsWith('image/');
+      }
+
+      return /\.(?:avif|gif|jpe?g|png|webp)$/iu.test(propertyValue.trim());
+    });
+  };
+
   const isAttachFunctionReference = (node: ts.Expression): boolean => {
     const expression = unwrapExpression(node);
 
@@ -1410,7 +1441,8 @@ const findDirectImageAttachmentCalls = (
     if (
       ts.isCallExpression(node) &&
       node.arguments[0] &&
-      isImageAttachmentName(node.arguments[0])
+      (isImageAttachmentName(node.arguments[0]) ||
+        (node.arguments[1] && isImageAttachmentPayload(node.arguments[1])))
     ) {
       const callee = unwrapExpression(node.expression);
 
@@ -1598,6 +1630,8 @@ describe('generated docs source current behavior', () => {
       await attachEvidence('image', { body: imageBuffer });
       const { attach: attachImageDirectly } = testInfo;
       await attachImageDirectly('image', { body: imageBuffer });
+      await testInfo.attach('raw evidence', { body: imageBuffer, contentType: 'image/png' });
+      await testInfo.attach('raw file evidence', { path: 'raw-evidence.webp' });
       await testInfo.attach('markdown', { body: markdown });
     `;
 
@@ -1612,6 +1646,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:5:13',
       'tests/docs/example/direct-image.doc.ts:7:13',
       'tests/docs/example/direct-image.doc.ts:9:13',
+      'tests/docs/example/direct-image.doc.ts:10:13',
+      'tests/docs/example/direct-image.doc.ts:11:13',
     ]);
   });
 
