@@ -468,15 +468,18 @@ describe('stabilization source', () => {
     expect(adminRoutesSpec).toContain(
       'requires at least one admin child permission at the route shell',
     );
+    expect(adminRoutesSpec).toContain('expect(shellRoute?.loadComponent)');
     expect(financeRoutesSpec).toContain(
       'requires at least one finance permission at the route shell',
     );
+    expect(financeRoutesSpec).toContain('expect(shellRoute?.loadComponent)');
     expect(templateRoutesSpec).toContain(
       'guards $path with its write-route permission',
     );
     expect(templateRoutesSpec).toContain(
       'guards the template shell with template view access',
     );
+    expect(templateRoutesSpec).toContain('expect(shellRoute?.loadComponent)');
     expect(permissionMatrix).toContain('template overview access');
     expect(permissionMatrix).toContain("allowedRoute: '/templates'");
     expect(permissionMatrix).toContain("deniedRoute: '/templates'");
@@ -501,6 +504,9 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain(
       'admin, role, global-admin, and members-hub viewport specs cover',
+    );
+    expect(inventory).toContain(
+      'admin, finance, template, and global-admin\n  shells guarded and backed by their lazy shell components',
     );
     expect(inventory).toContain('narrow mobile, mobile, and desktop sizes');
     expect(inventory).not.toContain(

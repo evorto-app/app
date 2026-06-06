@@ -8,6 +8,7 @@ describe('FINANCE_ROUTES', () => {
 
   it('requires at least one finance permission at the route shell', () => {
     expect(shellRoute?.canActivate).toContain(permissionGuard);
+    expect(shellRoute?.loadComponent).toBeDefined();
     expect(shellRoute?.data).toEqual({
       anyPermissions: [
         'finance:viewTransactions',

@@ -443,8 +443,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `STRIPE_WEBHOOK_SECRET_FILE`. The suite also pins checkout completion
   mapping when the webhook event arrives before the payment-intent reference is
   persisted locally, using the stored `stripeCheckoutSessionId` as the fallback.
-- `specs/permissions/override.test.ts` is active desktop coverage for the
-  permission override fixture; no mobile project currently runs this spec.
+- `specs/permissions/override.test.ts` is active desktop smoke coverage for the
+  permission override fixture itself. Do not treat it as mobile layout coverage;
+  the admin, role, global-admin, and members-hub viewport specs cover the
+  related permission-gated surfaces at narrow mobile, mobile, and desktop sizes.
+- Route-manifest unit specs keep the admin, finance, template, and global-admin
+  shells guarded and backed by their lazy shell components before page-backed
+  route-denial coverage runs.
 - `specs/permissions/global-admin-route-guard.spec.ts` covers direct
   `/global-admin`, `/global-admin/tenants`, `/global-admin/tenants/create`,
   `/global-admin/tenants/:tenantId`, and

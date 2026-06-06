@@ -6,6 +6,12 @@ import { TEMPLATE_ROUTES } from './templates.routes';
 describe('TEMPLATE_ROUTES', () => {
   const shellRoute = TEMPLATE_ROUTES.find((route) => route.path === '');
 
+  it('guards the template shell with template view access', () => {
+    expect(shellRoute?.canActivate).toContain(permissionGuard);
+    expect(shellRoute?.loadComponent).toBeDefined();
+    expect(shellRoute?.data).toEqual({ permissions: ['templates:view'] });
+  });
+
   it.each([
     {
       path: 'create',

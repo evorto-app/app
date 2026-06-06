@@ -8,6 +8,7 @@ describe('ADMIN_ROUTES', () => {
 
   it('requires at least one admin child permission at the route shell', () => {
     expect(shellRoute?.canActivate).toContain(permissionGuard);
+    expect(shellRoute?.loadComponent).toBeDefined();
     expect(shellRoute?.data).toEqual({
       anyPermissions: [
         'admin:manageRoles',
