@@ -3632,6 +3632,13 @@ fallback rather than a profile discount-card defect.
   itself covered for overflow, covered controls/text, clipped controls/text,
   and intentional horizontal-scroll containers without claiming a fresh rendered
   General-route sweep.
+  The source-level Material/mobile and General-route guard refresh also passed
+  through Angular's focused `bun run test:unit -- --include ... --watch=false`
+  app runner for `src/app/shared/components/design-token-usage.spec.ts` and
+  `src/app/app.routes.spec.ts`; it built the app test bundle and returned
+  `2 passed (2)` files with `21 passed (21)` tests. This verifies the
+  design-token/mobile drift guard and anonymous public General route manifest
+  without claiming fresh Browser-rendered route evidence.
 - Current generated-docs runtime caption checkpoint:
   `tests/support/reporters/documentation-reporter/take-screenshot.ts` now makes
   the caption parameter required and fails fast when the caption is shorter than

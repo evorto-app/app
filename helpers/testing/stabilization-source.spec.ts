@@ -1388,6 +1388,19 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'without claiming a fresh rendered\n  General-route sweep',
     );
+    expect(source).toContain(
+      'bun run test:unit -- --include ... --watch=false',
+    );
+    expect(source).toContain(
+      'src/app/shared/components/design-token-usage.spec.ts',
+    );
+    expect(source).toContain('src/app/app.routes.spec.ts');
+    expect(source).toContain('--watch=false');
+    expect(source).toContain('2 passed (2)');
+    expect(source).toContain('21 passed (21)');
+    expect(source).toContain('design-token/mobile drift guard');
+    expect(source).toContain('anonymous public General route manifest');
+    expect(source).toContain('without claiming fresh Browser-rendered route');
     expect(documentationScreenshotSpec).toContain(
       'doc-screenshot waits for descriptive loading text before capture',
     );
