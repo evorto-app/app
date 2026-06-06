@@ -3860,7 +3860,11 @@ describe('stabilization source', () => {
     expect(workflow).toContain('Prune expired Neon branches after E2E');
     expect(workflow).toContain('timeout-minutes: 5');
     expect(workflow).toContain(
-      'run: bash helpers/testing/ci-prune-neon-local-branches.sh',
+      'bash helpers/testing/ci-prune-neon-local-branches.sh 2>&1 | tee test-results/neon-local/final-prune.log',
+    );
+    expect(workflow).toContain('Record Neon Local branch metadata');
+    expect(workflow).toContain(
+      'run: bash helpers/testing/ci-record-neon-local-metadata.sh',
     );
     expect(workflow.indexOf('Stop Docker stack')).toBeLessThan(
       workflow.indexOf('Prune expired Neon branches after E2E'),

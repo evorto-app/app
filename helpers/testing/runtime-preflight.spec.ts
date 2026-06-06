@@ -568,6 +568,13 @@ describe('evaluateRuntimePreflight', () => {
       ),
       'utf8',
     );
+    const ciRecordMetadataHelper = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        'helpers/testing/ci-record-neon-local-metadata.sh',
+      ),
+      'utf8',
+    );
     const ciRuntimeValidationHelper = fs.readFileSync(
       path.join(process.cwd(), 'helpers/testing/validate-ci-runtime-env.sh'),
       'utf8',
@@ -678,6 +685,25 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).toContain(
       'bun helpers/testing/set-neon-local-branch-expiration.ts',
     );
+    expect(workflow).toContain('Record Neon Local branch metadata');
+    expect(workflow).toContain(
+      'run: bash helpers/testing/ci-record-neon-local-metadata.sh',
+    );
+    expect(workflow.indexOf('Confirm Neon branch expiration')).toBeLessThan(
+      workflow.indexOf('Record Neon Local branch metadata'),
+    );
+    expect(workflow.indexOf('Record Neon Local branch metadata')).toBeLessThan(
+      workflow.indexOf('Wait for application'),
+    );
+    expect(ciRecordMetadataHelper).toContain(
+      'metadata_directory="${NEON_LOCAL_METADATA_DIR:-/tmp/neon-local-metadata}"',
+    );
+    expect(ciRecordMetadataHelper).toContain(
+      'output_directory="${NEON_LOCAL_METADATA_ARTIFACT_DIR:-test-results/neon-local}"',
+    );
+    expect(ciRecordMetadataHelper).toContain('cp "${metadata_path}"');
+    expect(ciRecordMetadataHelper).toContain('Branch ids:');
+    expect(ciRecordMetadataHelper).toContain('GITHUB_STEP_SUMMARY');
     expect(workflow).toContain('Prune expired Neon branches before E2E');
     expect(workflow).toContain(
       'bun helpers/testing/delete-neon-local-branches.ts',
@@ -784,8 +810,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).toContain('Prune expired Neon branches after E2E');
     expect(workflow).toContain('timeout-minutes: 5');
     expect(workflow).toContain(
-      'run: bash helpers/testing/ci-prune-neon-local-branches.sh',
+      'bash helpers/testing/ci-prune-neon-local-branches.sh 2>&1 | tee test-results/neon-local/final-prune.log',
     );
+    expect(workflow).toContain('mkdir -p test-results/neon-local');
     expect(workflow.indexOf('Stop Docker stack')).toBeLessThan(
       workflow.indexOf('Prune expired Neon branches after E2E'),
     );

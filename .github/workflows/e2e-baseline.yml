@@ -258,6 +258,10 @@ jobs:
         continue-on-error: true
         run: bun helpers/testing/set-neon-local-branch-expiration.ts
 
+      - name: Record Neon Local branch metadata
+        if: always()
+        run: bash helpers/testing/ci-record-neon-local-metadata.sh
+
       - name: Wait for application
         run: |
           ready_url="${BASE_URL}${APP_READY_PATH}"
@@ -329,7 +333,9 @@ jobs:
       - name: Prune expired Neon branches after E2E
         if: always()
         timeout-minutes: 5
-        run: bash helpers/testing/ci-prune-neon-local-branches.sh
+        run: |
+          mkdir -p test-results/neon-local
+          bash helpers/testing/ci-prune-neon-local-branches.sh 2>&1 | tee test-results/neon-local/final-prune.log
 
       - name: Upload Playwright test results
         if: always()

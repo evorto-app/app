@@ -94,7 +94,10 @@ bun run lint
   image pre-pull, build, and startup, `helpers/testing/ci-stop-docker-stack.sh`
   for Docker teardown plus a timeout-bound metadata prune, and
   `helpers/testing/ci-prune-neon-local-branches.sh` for the dependency-free
-  final prune.
+  final prune. After branch expiration, each E2E shard writes
+  `test-results/neon-local/branches.json` with the Neon Local metadata branch
+  ids, and the final prune log is saved at
+  `test-results/neon-local/final-prune.log` in the normal Playwright artifact.
   CI must not set `BRANCH_ID`; the E2E workflow either uses the configured
   `PARENT_BRANCH_ID` secret or relies on Neon Local's documented default project
   branch so Neon Local creates an ephemeral branch. Persistent Neon branches

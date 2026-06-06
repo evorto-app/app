@@ -5594,6 +5594,12 @@ The E2E cache-warmer now also runs TTL-conservative Neon Local branch cleanup
 before dependency installs when Neon credentials are available, so stale branch
 recovery does not depend on Playwright shards reaching Docker startup or
 shutdown and remains separate from the Font Awesome bandwidth mitigation path.
+Current CI branch-lifecycle observability checkpoint: after Neon branch
+expiration is confirmed, E2E now records the Neon Local metadata branch ids into
+`test-results/neon-local/branches.json`, and the final post-E2E prune output is
+captured in `test-results/neon-local/final-prune.log` inside the normal
+Playwright shard artifact. This keeps cleanup evidence tied to the shard that
+created the short-lived branch before any manual force-delete decision is made.
 Generated-doc source coverage also rejects generic page-shell screenshot focus
 targets such as `locator('main')`; screenshot evidence must focus a meaningful
 product control, form, component, row, or state while still capturing visible

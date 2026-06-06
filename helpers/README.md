@@ -130,6 +130,11 @@ against the metadata branch that shutdown should have released. The workflow's s
 `Prune expired Neon branches after E2E` finalizer still runs
 `helpers/testing/ci-prune-neon-local-branches.sh` so Neon cleanup remains
 visible, dependency-free, and independent if Docker teardown hangs or times out.
+After branch expiration is confirmed, E2E also records the Neon Local metadata
+branch ids into `test-results/neon-local/branches.json`, and the final prune
+output is saved as `test-results/neon-local/final-prune.log` in the normal
+Playwright artifact. Use those files to match a shard to the short-lived branch
+it created before force-deleting a confirmed inactive branch.
 CI Compose status, logs, debug streaming, shutdown, and container-removal
 commands use the generated `.env.dev` dotenv cascade after dependencies exist,
 while final branch deletion runs directly against the already-exported workflow

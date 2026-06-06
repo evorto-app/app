@@ -1115,7 +1115,10 @@ provider outcomes without live identifiers.
   checking the bounded Docker preflight, bounded Compose image pre-pull,
   bounded Compose shutdown, per-container force removal, teardown-owned metadata
   branch pruning with a five-minute helper timeout, and two-hour active-test TTL
-  pruning behavior. Runtime
+  pruning behavior. The same guards keep the shard-level Neon Local metadata
+  artifact and final prune log wired into `test-results/neon-local/`, so a CI
+  run records which short-lived branch it created before cleanup evidence is
+  inspected. Runtime
   preflight reuses the same
   stale/unhealthy Compose container parser and target predicate as
   `bun run docker:clean-stale`, so diagnostics and cleanup cannot drift on
