@@ -9,8 +9,8 @@ for attempt in 1 2 3 4; do
   fi
 
   if [ "${attempt}" = "4" ]; then
-    echo "::error::Failed to pull ${buildkit_image} after ${attempt} attempts."
-    exit 1
+    echo "::warning::Failed to pre-pull ${buildkit_image} after ${attempt} attempts. Continuing so docker/setup-buildx-action can perform the authoritative BuildKit setup."
+    exit 0
   fi
 
   delay_seconds=$((attempt * 15))

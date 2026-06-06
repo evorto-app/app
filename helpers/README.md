@@ -322,10 +322,10 @@ persists that `bun-install-cache` mount as a separate `buildkit-bun-cache`
 Actions cache and injects it back into the BuildKit builder before a
 dependency-only warm build and the later Docker Compose builds, because
 BuildKit layer caches alone do not carry `RUN --mount=type=cache` contents
-between GitHub-hosted runners. The E2E workflow pre-pulls the BuildKit image
-with retries before `docker/setup-buildx-action`, so a transient Docker Hub
-timeout while booting the builder does not immediately fail a shard before the
-normal Docker startup retry path can run. Codex setup also ignores copied
+between GitHub-hosted runners. The E2E workflow best-effort pre-pulls the
+BuildKit image with retries before `docker/setup-buildx-action`, then leaves
+Buildx setup as the authoritative builder gate if Docker Hub still times out.
+Codex setup also ignores copied
 `.npmrc` files, writes the same
 temporary public Font Awesome npm user config, and installs through the Bun
 package cache instead of requiring `FONT_AWESOME_TOKEN`. `.dockerignore` also

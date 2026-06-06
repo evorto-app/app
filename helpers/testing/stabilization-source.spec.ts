@@ -2750,6 +2750,13 @@ describe('stabilization source', () => {
     expect(buildkitPullHelper).toContain(
       'timeout 3m docker pull "${buildkit_image}"',
     );
+    expect(buildkitPullHelper).toContain(
+      '::warning::Failed to pre-pull ${buildkit_image} after ${attempt} attempts. Continuing so docker/setup-buildx-action can perform the authoritative BuildKit setup.',
+    );
+    expect(buildkitPullHelper).not.toContain(
+      '::error::Failed to pull ${buildkit_image} after ${attempt} attempts.',
+    );
+    expect(buildkitPullHelper).toContain('exit 0');
     expect(workflow).toContain('Prepare Docker build cache directory');
     expect(workflow).toContain('mkdir -p "${DOCKER_BUILD_CACHE_DIR}"');
     expect(workflow).toContain('Warm Docker build cache');
@@ -6340,6 +6347,17 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain('each completed their final Docker stop');
     expect(checkpointText).toContain('Neon prune steps');
     expect(checkpointText).toContain('serial `Warm CI dependency caches` job');
+    expect(checkpointText).toContain('E2E run `27074932077`');
+    expect(checkpointText).toContain('head `9777bdfd`');
+    expect(checkpointText).toContain(
+      'failed in the serial warm-cache job before the Playwright matrix',
+    );
+    expect(checkpointText).toContain('`moby/buildkit:buildx-stable-1`');
+    expect(checkpointText).toContain('Docker Hub registry timeouts');
+    expect(checkpointText).toContain('best-effort retries before Buildx setup');
+    expect(checkpointText).toContain(
+      'authoritative BuildKit setup gate when Docker Hub times out',
+    );
     expect(checkpointText).toContain('warmed Docker Bun cache mount');
     expect(checkpointText).toContain('`if: always()` cleanup finalizers');
     expect(checkpointText).toContain('`Stop Docker stack`');

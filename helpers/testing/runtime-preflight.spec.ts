@@ -1203,6 +1203,13 @@ describe('evaluateRuntimePreflight', () => {
     expect(buildkitPullHelper).toContain(
       'timeout 3m docker pull "${buildkit_image}"',
     );
+    expect(buildkitPullHelper).toContain(
+      '::warning::Failed to pre-pull ${buildkit_image} after ${attempt} attempts. Continuing so docker/setup-buildx-action can perform the authoritative BuildKit setup.',
+    );
+    expect(buildkitPullHelper).not.toContain(
+      '::error::Failed to pull ${buildkit_image} after ${attempt} attempts.',
+    );
+    expect(buildkitPullHelper).toContain('exit 0');
     expect(workflow).toContain('Prepare Docker build cache directory');
     expect(workflow).toContain('mkdir -p "${DOCKER_BUILD_CACHE_DIR}"');
     expect(workflow).toContain('Warm Docker build cache');

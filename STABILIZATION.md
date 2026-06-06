@@ -4959,12 +4959,17 @@ tried to kill container, but did not receive an exit event`. A follow-up
   lifecycle stayed bounded: functional-1, functional-2, and docs each completed
   their final Docker stop and Neon prune steps; a live repo-local Neon cleanup
   dry-run after the completed current-head finalizers returned to
-  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. The E2E
-  workflow still keeps normal workers behind the serial
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`. A later
+  active-head E2E run `27074932077` on head `9777bdfd` failed in the serial
+  warm-cache job before the Playwright matrix because all four
+  `moby/buildkit:buildx-stable-1` pre-pull attempts hit Docker Hub registry
+  timeouts. The E2E workflow still keeps normal workers behind the serial
   `Warm CI dependency caches` job, requires the warmed Docker Bun cache mount
-  before worker Docker builds, pre-pulls the BuildKit image with retries before
-  Buildx setup, and has `if: always()` cleanup finalizers for Docker log
-  collection, the `Stop Docker stack` step, and
+  before worker Docker builds, pre-pulls the BuildKit image with best-effort
+  retries before Buildx setup, leaves `docker/setup-buildx-action` as the
+  authoritative BuildKit setup gate when Docker Hub times out, and has
+  `if: always()` cleanup finalizers for Docker log collection, the
+  `Stop Docker stack` step, and
   `Prune expired Neon branches after E2E`; the hourly and `workflow_run` Neon
   cleanup workflow remains the backstop for hard cancellation or runner loss.
   That keeps the branch-hygiene signal aligned with the intended state: active
