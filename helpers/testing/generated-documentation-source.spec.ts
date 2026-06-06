@@ -6095,6 +6095,12 @@ describe('generated docs source current behavior', () => {
     const source = readSource('tests/docs/events/register.doc.ts');
 
     expect(source).toContain('Review anonymous registration entry point');
+    expect(productSource).toContain(
+      'anonymous users may browse eligible listed events, but registration requires an account.',
+    );
+    expect(productSource).toContain(
+      '- anonymous or guest registration without an account',
+    );
     expect(source).toContain(
       'Anonymous visitors can browse listed public events, but registration stays account-required.',
     );
@@ -6223,6 +6229,9 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain(
       'Resale listing workflows are not available yet.',
     );
+    expect(source).not.toMatch(/anonymous (visitors|users) can register/i);
+    expect(source).not.toMatch(/register without an account/i);
+    expect(source).not.toMatch(/guest registration without an account/i);
     expect(source).not.toContain('ticket QR code by email');
   });
 

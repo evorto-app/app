@@ -1110,7 +1110,9 @@ provider outcomes without live identifiers.
     role-ineligible direct links, and unpaid registration transfer scope, in
     addition to free and paid registration walkthroughs. The anonymous
     walkthrough screenshots the full registration option card containing the
-    login-required copy and return-to-event login action.
+    login-required copy and return-to-event login action. Generated-doc source
+    coverage ties that narrative to the root account-required registration
+    invariant and rejects anonymous/guest registration-without-account wording.
     The paid walkthrough screenshots the hosted Stripe Checkout form through a
     filtered payment/continue/submit form target instead of the first external
     checkout form. The generated narrative also documents queued confirmation,

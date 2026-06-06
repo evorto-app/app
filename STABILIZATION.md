@@ -6101,7 +6101,10 @@ It also screenshots the Auth0 login form containing the Email address, Password,
 and Continue controls instead of highlighting only the email input.
 The registration generated doc now uses concrete registration option and active
 registration card targets for free, ineligible, paid, and post-payment states
-instead of highlighting section headings or a single action button.
+instead of highlighting section headings or a single action button. Source
+coverage now also ties the anonymous registration entry point to the root
+account-required registration invariant and rejects anonymous/guest
+registration-without-account wording.
 The registration generated doc now also screenshots the hosted Stripe Checkout
 form through a filtered payment/continue/submit form target instead of accepting
 the first form on the external checkout page.
