@@ -497,8 +497,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   direct single-control screenshot targets such as role/text/label/placeholder
   locators plus direct single-control CSS locator targets such as `button`,
   `input`, ARIA role selectors, and Material control hosts/classes, including
-  helper-returned single-control locators, rejects direct icon/media targets such
-  as `svg`, `img`, `fa-icon`, `mat-icon`, `getByAltText`, and `getByTitle`,
+  helper-returned single-control locators, rejects direct single-control-looking
+  `getByTestId` screenshot targets such as `*-button`, `*-input`, and
+  `*-icon-button` while allowing surface-level test ids, rejects direct
+  icon/media targets such as `svg`, `img`, `fa-icon`, `mat-icon`, `getByAltText`, and `getByTitle`,
   including direct single-control or icon/media locators inside screenshot
   target arrays and helper-returned icon/media locators, before docs can regress
   to button-only, input-only, or icon-only images, covers

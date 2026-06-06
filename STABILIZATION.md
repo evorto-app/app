@@ -5662,6 +5662,10 @@ It also rejects direct single-control CSS locator targets such as `button`,
 `input`, ARIA role selectors, and Material control hosts/classes when they are
 passed to generated-doc screenshots, so docs cannot bypass the role/label guard
 with selector syntax while still cropping to one control.
+It now also rejects direct single-control-looking test-id screenshot targets
+such as `*-button`, `*-input`, `*-field`, and `*-icon-button`, while still
+allowing surface-level test ids, so future docs cannot hide a button-only crop
+behind `getByTestId(...)`.
 It now rejects icon-only and media-only screenshot targets such as `svg`, `img`,
 `fa-icon`, `mat-icon`, `getByAltText`, and `getByTitle` when they are passed to
 generated-doc screenshots, so docs cannot crop to a lone icon or uploaded media

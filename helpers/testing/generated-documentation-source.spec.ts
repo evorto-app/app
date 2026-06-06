@@ -475,6 +475,8 @@ const findSingleControlScreenshotTargets = (
     /^\.mat-mdc-(?:button|checkbox|form-field|icon-button|radio-button|select|slide-toggle)(?:\b|[_-])/u,
     /^\.mdc-(?:button|checkbox|radio|switch|text-field)(?:\b|[_-])/u,
   ];
+  const singleControlTestIdPattern =
+    /(?:^|[-_])(?:action|button|checkbox|combobox|field|icon-button|input|link|menuitem|option|radio|searchbox|select|submit|switch|tab|textarea|textbox)(?:$|[-_])/u;
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -559,6 +561,14 @@ const findSingleControlScreenshotTargets = (
         methodName === 'getByPlaceholder'
       ) {
         return true;
+      }
+
+      if (methodName === 'getByTestId') {
+        const testId = candidate.arguments[0]
+          ? getStringLiteralText(candidate.arguments[0])
+          : null;
+
+        return testId ? singleControlTestIdPattern.test(testId) : false;
       }
 
       candidate = candidate.expression.expression;
@@ -1148,6 +1158,12 @@ describe('generated docs source current behavior', () => {
         page,
         'Single Material field class target with a descriptive caption',
       );
+      await takeScreenshot(
+        testInfo,
+        page.getByTestId('hosted-payment-submit-button'),
+        page,
+        'Single test id button target with a descriptive caption',
+      );
       const aliasedErrorMessage = page.getByText('Domain must be a single host name');
       await takeScreenshot(
         testInfo,
@@ -1174,6 +1190,12 @@ describe('generated docs source current behavior', () => {
         page,
         'Multi-target form screenshot with a descriptive caption',
       );
+      await takeScreenshot(
+        testInfo,
+        page.getByTestId('tenant-settings-surface'),
+        page,
+        'Surface test id target with a descriptive caption',
+      );
     `;
 
     expect(
@@ -1191,8 +1213,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/single-control-target.doc.ts:38:13',
       'tests/docs/example/single-control-target.doc.ts:44:13',
       'tests/docs/example/single-control-target.doc.ts:50:13',
-      'tests/docs/example/single-control-target.doc.ts:57:13',
-      'tests/docs/example/single-control-target.doc.ts:64:13',
+      'tests/docs/example/single-control-target.doc.ts:56:13',
+      'tests/docs/example/single-control-target.doc.ts:63:13',
+      'tests/docs/example/single-control-target.doc.ts:70:13',
     ]);
   });
 
