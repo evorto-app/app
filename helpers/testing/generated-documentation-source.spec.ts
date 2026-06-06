@@ -371,6 +371,7 @@ const findSingleControlScreenshotTargets = (
   );
   const singleControlTargets: string[] = [];
   const singleControlAliases = new Set<string>();
+  const singleControlFunctions = new Set<string>();
   const singleControlCssSelectors = new Set([
     'a',
     'button',
@@ -443,6 +444,14 @@ const findSingleControlScreenshotTargets = (
       return singleControlAliases.has(node.text);
     }
 
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      singleControlFunctions.has(node.expression.text)
+    ) {
+      return true;
+    }
+
     let candidate: ts.Expression = ts.isParenthesizedExpression(node)
       ? node.expression
       : node;
@@ -486,6 +495,36 @@ const findSingleControlScreenshotTargets = (
     return false;
   };
 
+  const returnsSingleControlLocator = (
+    node: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression,
+  ): boolean => {
+    if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+      return isSingleControlLocatorTarget(node.body);
+    }
+
+    if (!ts.isBlock(node.body)) {
+      return false;
+    }
+
+    let returnsSingleControl = false;
+
+    const visitReturn = (child: ts.Node): void => {
+      if (
+        ts.isReturnStatement(child) &&
+        child.expression &&
+        isSingleControlLocatorTarget(child.expression)
+      ) {
+        returnsSingleControl = true;
+      }
+
+      ts.forEachChild(child, visitReturn);
+    };
+
+    visitReturn(node.body);
+
+    return returnsSingleControl;
+  };
+
   const visit = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -494,6 +533,25 @@ const findSingleControlScreenshotTargets = (
       isSingleControlLocatorTarget(node.initializer)
     ) {
       singleControlAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      (ts.isArrowFunction(node.initializer) ||
+        ts.isFunctionExpression(node.initializer)) &&
+      returnsSingleControlLocator(node.initializer)
+    ) {
+      singleControlFunctions.add(node.name.text);
+    }
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      returnsSingleControlLocator(node)
+    ) {
+      singleControlFunctions.add(node.name.text);
     }
 
     if (
@@ -529,6 +587,7 @@ const findIconOrMediaScreenshotTargets = (
   );
   const iconOrMediaTargets: string[] = [];
   const iconOrMediaAliases = new Set<string>();
+  const iconOrMediaFunctions = new Set<string>();
   const iconOrMediaCssSelectors = new Set([
     'canvas',
     'fa-icon',
@@ -576,6 +635,14 @@ const findIconOrMediaScreenshotTargets = (
       return iconOrMediaAliases.has(node.text);
     }
 
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      iconOrMediaFunctions.has(node.expression.text)
+    ) {
+      return true;
+    }
+
     let candidate: ts.Expression = ts.isParenthesizedExpression(node)
       ? node.expression
       : node;
@@ -607,6 +674,36 @@ const findIconOrMediaScreenshotTargets = (
     return false;
   };
 
+  const returnsIconOrMediaLocator = (
+    node: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression,
+  ): boolean => {
+    if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+      return isIconOrMediaLocatorTarget(node.body);
+    }
+
+    if (!ts.isBlock(node.body)) {
+      return false;
+    }
+
+    let returnsIconOrMedia = false;
+
+    const visitReturn = (child: ts.Node): void => {
+      if (
+        ts.isReturnStatement(child) &&
+        child.expression &&
+        isIconOrMediaLocatorTarget(child.expression)
+      ) {
+        returnsIconOrMedia = true;
+      }
+
+      ts.forEachChild(child, visitReturn);
+    };
+
+    visitReturn(node.body);
+
+    return returnsIconOrMedia;
+  };
+
   const visit = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -615,6 +712,25 @@ const findIconOrMediaScreenshotTargets = (
       isIconOrMediaLocatorTarget(node.initializer)
     ) {
       iconOrMediaAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      (ts.isArrowFunction(node.initializer) ||
+        ts.isFunctionExpression(node.initializer)) &&
+      returnsIconOrMediaLocator(node.initializer)
+    ) {
+      iconOrMediaFunctions.add(node.name.text);
+    }
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      returnsIconOrMediaLocator(node)
+    ) {
+      iconOrMediaFunctions.add(node.name.text);
     }
 
     if (
@@ -949,6 +1065,13 @@ describe('generated docs source current behavior', () => {
         page,
         'Aliased single text target with a descriptive caption',
       );
+      const saveButtonSurface = (page) => page.getByRole('button', { name: 'Save' });
+      await takeScreenshot(
+        testInfo,
+        saveButtonSurface(page),
+        page,
+        'Helper-returned single button target with a descriptive caption',
+      );
       await takeScreenshot(
         testInfo,
         profileSummarySurface,
@@ -979,6 +1102,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/single-control-target.doc.ts:44:13',
       'tests/docs/example/single-control-target.doc.ts:50:13',
       'tests/docs/example/single-control-target.doc.ts:57:13',
+      'tests/docs/example/single-control-target.doc.ts:64:13',
     ]);
   });
 
@@ -1027,6 +1151,13 @@ describe('generated docs source current behavior', () => {
         page,
         'Aliased image target with a descriptive caption',
       );
+      const tenantLogoSurface = (page) => page.locator('img[alt="Tenant logo"]');
+      await takeScreenshot(
+        testInfo,
+        tenantLogoSurface(page),
+        page,
+        'Helper-returned image target with a descriptive caption',
+      );
       await takeScreenshot(
         testInfo,
         tenantSettingsSurface,
@@ -1048,6 +1179,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/icon-target.doc.ts:26:13',
       'tests/docs/example/icon-target.doc.ts:32:13',
       'tests/docs/example/icon-target.doc.ts:39:13',
+      'tests/docs/example/icon-target.doc.ts:46:13',
     ]);
   });
 

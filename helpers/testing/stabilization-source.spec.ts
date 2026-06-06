@@ -1205,10 +1205,11 @@ describe('stabilization source', () => {
     expect(source).toContain('direct single-control `getByRole`');
     expect(source).toContain('`getByPlaceholder` screenshot targets');
     expect(source).toContain('single-control CSS locator targets');
+    expect(source).toContain('helper-returned targets');
     expect(source).toContain('ARIA role selectors');
     expect(source).toContain('Material control hosts');
     expect(source).toContain('icon-only and media-only screenshot targets');
-    expect(source).toContain('direct icon/media screenshot targets');
+    expect(source).toContain('direct icon/media\nscreenshot targets');
     expect(source).toContain('target arrays');
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
@@ -1239,10 +1240,13 @@ describe('stabilization source', () => {
     );
     expect(inventory).toMatch(/role\/text\/label\/placeholder\s+locators/u);
     expect(inventory).toContain('single-control CSS locator targets');
+    expect(inventory).toContain('helper-returned single-control locators');
     expect(inventory).toContain('ARIA role selectors');
     expect(inventory).toContain('Material control hosts/classes');
-    expect(inventory).toContain('direct icon/media targets such as `svg`');
-    expect(inventory).toContain('inside screenshot target arrays');
+    expect(inventory).toMatch(/direct icon\/media targets such\s+as `svg`/u);
+    expect(inventory).toContain(
+      'target arrays and helper-returned icon/media locators',
+    );
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local screenshot\s+wrappers/u);
     expect(inventory).toContain('self-tests those bypass examples');
@@ -1327,9 +1331,17 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'findSingleControlScreenshotTargets',
     );
+    expect(generatedDocumentationSource).toContain('singleControlFunctions');
+    expect(generatedDocumentationSource).toContain(
+      'returnsSingleControlLocator',
+    );
+    expect(generatedDocumentationSource).toContain('saveButtonSurface');
     expect(generatedDocumentationSource).toContain(
       'findIconOrMediaScreenshotTargets',
     );
+    expect(generatedDocumentationSource).toContain('iconOrMediaFunctions');
+    expect(generatedDocumentationSource).toContain('returnsIconOrMediaLocator');
+    expect(generatedDocumentationSource).toContain('tenantLogoSurface');
     expect(generatedDocumentationSource).toContain(
       'findScreenshotHelperBypasses',
     );

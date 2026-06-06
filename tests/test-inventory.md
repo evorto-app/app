@@ -495,10 +495,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   arguments and arrays, rejects direct single-control screenshot targets such as
   role/text/label/placeholder
   locators plus direct single-control CSS locator targets such as `button`,
-  `input`, ARIA role selectors, and Material control hosts/classes, rejects
-  direct icon/media targets such as `svg`, `img`, `fa-icon`, `mat-icon`,
-  `getByAltText`, and `getByTitle`, including direct single-control or
-  icon/media locators inside screenshot target arrays, before docs can regress
+  `input`, ARIA role selectors, and Material control hosts/classes, including
+  helper-returned single-control locators, rejects direct icon/media targets such
+  as `svg`, `img`, `fa-icon`, `mat-icon`, `getByAltText`, and `getByTitle`,
+  including direct single-control or icon/media locators inside screenshot
+  target arrays and helper-returned icon/media locators, before docs can regress
   to button-only, input-only, or icon-only images, covers
   the weak-caption,
   missing-highlight, and blank highlighted-image runtime failures in

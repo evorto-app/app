@@ -5645,8 +5645,9 @@ It now rejects direct single-control `getByRole`, `getByText`, `getByLabel`,
 and `getByPlaceholder` screenshot targets as well, so generated docs cannot
 drift back to button-only, input-only, heading-only, or text-only images when a
 broader form/component surface is available. The guard also inspects screenshot
-target arrays, so a single-control locator cannot bypass the rule by being
-wrapped in a multi-target argument.
+target arrays and helper-returned targets, so a single-control locator cannot
+bypass the rule by being wrapped in a multi-target argument or returned from a
+surface helper.
 It also rejects direct single-control CSS locator targets such as `button`,
 `input`, ARIA role selectors, and Material control hosts/classes when they are
 passed to generated-doc screenshots, so docs cannot bypass the role/label guard
@@ -5655,7 +5656,8 @@ It now rejects icon-only and media-only screenshot targets such as `svg`, `img`,
 `fa-icon`, `mat-icon`, `getByAltText`, and `getByTitle` when they are passed to
 generated-doc screenshots, so docs cannot crop to a lone icon or uploaded media
 asset instead of the surrounding workflow surface. The guard also inspects
-screenshot target arrays for direct icon/media screenshot targets.
+screenshot target arrays and helper-returned targets for direct icon/media
+screenshot targets.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.
