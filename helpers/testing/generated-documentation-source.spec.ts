@@ -209,6 +209,7 @@ const findUnfilteredBroadScreenshotTargets = (
     ts.ScriptKind.TS,
   );
   const broadTargets: string[] = [];
+  const broadTargetAliases = new Set<string>();
   const broadSelectors = new Set(['article', 'form', 'section']);
 
   const isBroadSelector = (selector: string): boolean => {
@@ -232,6 +233,10 @@ const findUnfilteredBroadScreenshotTargets = (
       return node.elements.some((element) =>
         isUnfilteredBroadLocatorTarget(element),
       );
+    }
+
+    if (ts.isIdentifier(node)) {
+      return broadTargetAliases.has(node.text);
     }
 
     let candidate: ts.Expression = ts.isParenthesizedExpression(node)
@@ -266,6 +271,15 @@ const findUnfilteredBroadScreenshotTargets = (
   };
 
   const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      isUnfilteredBroadLocatorTarget(node.initializer)
+    ) {
+      broadTargetAliases.add(node.name.text);
+    }
+
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
@@ -772,6 +786,13 @@ describe('generated docs source current behavior', () => {
         page,
         'Broad component host target with a descriptive caption',
       );
+      const aliasedBroadSection = page.locator('section');
+      await takeScreenshot(
+        testInfo,
+        [tenantSettingsSurface, aliasedBroadSection],
+        page,
+        'Aliased broad section target with a descriptive caption',
+      );
       await takeScreenshot(
         testInfo,
         page.locator('section').filter({ hasText: 'Registration' }),
@@ -795,6 +816,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/broad-target.doc.ts:2:13',
       'tests/docs/example/broad-target.doc.ts:8:13',
       'tests/docs/example/broad-target.doc.ts:14:13',
+      'tests/docs/example/broad-target.doc.ts:21:13',
     ]);
   });
 

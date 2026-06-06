@@ -5636,7 +5636,10 @@ page content outside the highlighted target.
 It also rejects unfiltered broad `section`, `article`, `form`, and `app-*`
 component-host screenshot targets, so docs must focus a filtered semantic
 region, a concrete form state, or a concrete component/control instead of
-highlighting a whole repeated page area by accident.
+highlighting a whole repeated page area by accident. The guard now also follows
+aliased broad locator targets into screenshot arguments and arrays, so storing
+`page.locator('section')` or another unfiltered broad locator in a variable
+cannot bypass the evidence-quality rule.
 It now rejects direct single-control `getByRole`, `getByText`, `getByLabel`,
 and `getByPlaceholder` screenshot targets as well, so generated docs cannot
 drift back to button-only, input-only, heading-only, or text-only images when a

@@ -490,8 +490,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   screenshots include the highlighted focus target and visible non-highlight
   page content before attachment, rejects generic page-root screenshot targets
   such as `body`, `html`, or `app-root`, rejects unfiltered broad `section`,
-  `article`, `form`, and `app-*` component-host screenshot targets, rejects
-  direct single-control screenshot targets such as role/text/label/placeholder
+  `article`, `form`, and `app-*` component-host screenshot targets, including
+  aliased broad locators inside screenshot arguments and arrays, rejects direct
+  single-control screenshot targets such as role/text/label/placeholder
   locators plus direct single-control CSS locator targets such as `button`,
   `input`, ARIA role selectors, and Material control hosts/classes, rejects
   direct icon/media targets such as `svg`, `img`, `fa-icon`, `mat-icon`,

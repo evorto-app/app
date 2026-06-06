@@ -203,7 +203,18 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
   await expect(page.getByLabel('Tax rate').first()).toBeVisible();
   const organizerRegistrationForm = page
     .locator('app-template-registration-option-form')
+    .filter({
+      has: page.getByRole('textbox', {
+        name: 'Registration option name',
+      }),
+    })
+    .filter({ has: page.getByPlaceholder('Add Role...') })
     .first();
+  await expect(
+    organizerRegistrationForm.getByRole('textbox', {
+      name: 'Registration option name',
+    }),
+  ).toHaveValue('Organizer');
   await takeScreenshot(
     testInfo,
     organizerRegistrationForm,
