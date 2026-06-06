@@ -1129,7 +1129,10 @@ provider outcomes without live identifiers.
     lightweight waitlist boundary, notification boundary, and checkout screenshot
     target aligned with the relaunch behavior by rejecting strict reservation
     queue language, local/manual paid-registration completion wording, and
-    source-of-truth drift in the product-facing registration docs.
+    source-of-truth drift in the product-facing registration docs. It also
+    ties QR ticket wording back to the Product.md paper-ticket model while
+    rejecting language that would imply QR possession bypasses registration
+    status validation or attendee identity checks during check-in.
   - Server unit coverage now pins registration lifecycle email outbox records
     for free confirmation, cancellation, transfer, and waitlist spot-available
     notifications. Paid checkout confirmation is wired through the signed Stripe

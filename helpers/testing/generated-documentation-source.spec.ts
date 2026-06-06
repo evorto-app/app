@@ -6125,6 +6125,12 @@ describe('generated docs source current behavior', () => {
     expect(productSource).toContain(
       'Users should receive registration confirmation and QR code only after registration is successful. For paid events, that means after successful payment.',
     );
+    expect(productSource).toContain(
+      'QR links behave like paper tickets: possession of the unguessable ticket URL is enough to render the QR image so it can be included in email.',
+    );
+    expect(productSource).toContain(
+      'Check-in must validate registration status and show enough attendee identity for organizers to confirm the right person is presenting the ticket.',
+    );
     expect(source).toContain(
       'Anonymous visitors can browse listed public events, but registration stays account-required.',
     );
@@ -6274,6 +6280,9 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toMatch(/mark(s|ed)? .*paid locally/i);
     expect(source).not.toMatch(/simulate payment success without Stripe/i);
     expect(source).not.toMatch(/registration succeeds before payment/i);
+    expect(source).not.toMatch(/QR code alone (is|is enough)/i);
+    expect(source).not.toMatch(/check[- ]?in without validating/i);
+    expect(source).not.toMatch(/check[- ]?in without attendee identity/i);
     expect(source).not.toContain('ticket QR code by email');
   });
 
@@ -6347,8 +6356,15 @@ describe('generated docs source current behavior', () => {
   });
 
   it('keeps event-management docs aligned with scanner and organizer scope', () => {
+    const productSource = readSource('PRODUCT.md');
     const source = readSource('tests/docs/events/event-management.doc.ts');
 
+    expect(productSource).toContain(
+      'QR links behave like paper tickets: possession of the unguessable ticket URL is enough to render the QR image so it can be included in email.',
+    );
+    expect(productSource).toContain(
+      'Check-in must validate registration status and show enough attendee identity for organizers to confirm the right person is presenting the ticket.',
+    );
     expect(source).toContain(
       'The event management feature allows you to create and edit events, configure registration options, review listing state, inspect the organizer participant overview, and handle event receipts.',
     );
@@ -6374,6 +6390,12 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.',
     );
+    expect(source).toContain('Attendees open their ticket QR code');
+    expect(source).toContain('after a confirmed registration');
+    expect(source).toContain('shows the attendee, event, registration option');
+    expect(source).toContain('warnings for self-scan');
+    expect(source).toContain('non-confirmed registrations');
+    expect(source).toContain('already checked-in tickets');
     expect(source).toContain(
       'Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview.',
     );
@@ -6495,6 +6517,11 @@ describe('generated docs source current behavior', () => {
       "takeScreenshot(\n      testInfo,\n      page.locator('app-handle-registration'),",
     );
     expect(source).not.toContain('manual check-in from the organizer overview');
+    expect(source).not.toMatch(/QR code alone (is|is enough)/i);
+    expect(source).not.toMatch(/check[- ]?in without validating/i);
+    expect(source).not.toMatch(/check[- ]?in without attendee identity/i);
+    expect(source).not.toMatch(/skip(s|ped)? registration status/i);
+    expect(source).not.toMatch(/anonymous QR check[- ]?in/i);
     expect(source).not.toContain('managing attendees');
     expect(source).not.toContain('automatic refund controls are available');
     expect(source).not.toContain('paid registration transfer is available');

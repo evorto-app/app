@@ -5888,6 +5888,17 @@ database endpoint on `localhost:55618` stayed closed, Docker's disposable Alpine
 start probe timed out, and `/legal/terms` could not be reached. No current-head
 Browser route/layout evidence is claimed for `7354e1ae`; the blocker remains
 below the app, Playwright, Browser, and documentation-source guard changes.
+A fresh June 7, 2026 retry on PR head `594bd601` plus the QR/check-in
+documentation-source guard edits kept the same blocker shape: `bun run
+dev:status` regenerated `.env.dev` for `BASE_URL=http://localhost:4218`,
+confirmed all required dev and Docker variables are present, found no current
+Compose project containers and no other Evorto stack publishing port 4218, and
+returned a clean Neon dry-run (`total=1`, `protected=1`, `active_test=0`,
+`stale_deleted=0`, `ttl=2h`). The database endpoint on `localhost:55618` stayed
+closed, Docker's disposable Alpine start probe timed out, and `/legal/terms`
+could not be reached. No current-head Browser route/layout evidence is claimed
+for this source-only guard; the blocker remains below the app, Playwright,
+Browser, and documentation-source guard changes.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
@@ -6115,6 +6126,11 @@ form through a filtered payment/continue/submit form target instead of accepting
 the first form on the external checkout page, and the paid registration docs are
 source-guarded to keep Stripe/webhooks as the payment source of truth instead of
 local/manual paid-completion wording.
+The registration and event-management generated docs are now also source-guarded
+against QR/check-in drift: QR ticket wording stays tied to confirmed
+registration and the Product.md paper-ticket model, while check-in docs must
+continue to describe registration-status validation and attendee identity
+signals instead of implying QR possession alone is enough.
 The create-account generated doc now screenshots the tenant-account form through
 the `app-create-account` form containing the editable Notification email field
 and Create Account action, so the integration guide is not anchored to a generic
