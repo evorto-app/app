@@ -6007,7 +6007,10 @@ modifier spellings such as `test['skip'](...)`, `test.describe['fixme'](...)`,
 are matched by the same inventory guard, even when the modifier access is split
 across lines, so tests cannot hide skipped, focused, or runtime-altered
 coverage behind alternate JavaScript property access or formatter-resistant
-line wrapping.
+line wrapping. Interactive debug hooks and fixed waits use the same whole-file
+source scan, so `page['pause'](...)`, split `.waitForTimeout(...)`, and split
+`setTimeout(...)` calls in docs screenshot helpers are rejected instead of
+depending on single-line formatting.
 
 Registration confirmation, cancellation, transfer, and waitlist spot-available
 now record durable email outbox rows with notification-email details, and paid

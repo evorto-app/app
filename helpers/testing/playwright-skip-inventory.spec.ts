@@ -67,10 +67,20 @@ const focusedOnlyPattern = new RegExp(
   String.raw`${playwrightCallablePattern.source}${playwrightModifierAccessPattern('only')}`,
   'g',
 );
-const interactiveDebugPattern = /\bdebugger\b|\bpage\.pause\s*\(/g;
+const callStartPattern = String.raw`\s*\(`;
+const interactiveDebugPattern = new RegExp(
+  String.raw`\bdebugger\b|\bpage${playwrightModifierAccessPattern('pause')}${callStartPattern}`,
+  'g',
+);
 const placeholderMetadataPattern = /@(track|req|doc)\(/g;
-const fixedWaitPattern = /\.waitForTimeout\s*\(/g;
-const screenshotHelperFixedSleepPattern = /setTimeout\s*\(/g;
+const fixedWaitPattern = new RegExp(
+  String.raw`${playwrightModifierAccessPattern('waitForTimeout')}${callStartPattern}`,
+  'g',
+);
+const screenshotHelperFixedSleepPattern = new RegExp(
+  String.raw`\bsetTimeout${callStartPattern}`,
+  'g',
+);
 const screenshotHelperPaths = [
   'tests/support/reporters/documentation-reporter/take-screenshot.ts',
   'tests/support/utils/doc-screenshot.ts',
@@ -157,19 +167,7 @@ const collectFocusedOnlyEntries = () =>
   collectPatternEntries(focusedOnlyPattern);
 
 const collectInteractiveDebugEntries = () =>
-  collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
-    const source = readFileSync(filePath, 'utf8');
-    const lines = source.split('\n');
-    const relativePath = path
-      .relative(repositoryRoot, filePath)
-      .replaceAll('\\', '/');
-
-    return lines.flatMap((line, index) =>
-      [...line.matchAll(interactiveDebugPattern)].map(
-        (match) => `${relativePath}:${index + 1}:${match[0]}`,
-      ),
-    );
-  });
+  collectPatternEntries(interactiveDebugPattern);
 
 const sourceContextForEntry = (entry: string): string => {
   const [relativePath, lineNumber] = entry.split(':');
@@ -218,20 +216,7 @@ const collectPlaceholderMetadataEntries = () =>
     );
   });
 
-const collectFixedWaitEntries = () =>
-  collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
-    const source = readFileSync(filePath, 'utf8');
-    const lines = source.split('\n');
-    const relativePath = path
-      .relative(repositoryRoot, filePath)
-      .replaceAll('\\', '/');
-
-    return lines.flatMap((line, index) =>
-      [...line.matchAll(fixedWaitPattern)].map(
-        (match) => `${relativePath}:${index + 1}:${match[0]}`,
-      ),
-    );
-  });
+const collectFixedWaitEntries = () => collectPatternEntries(fixedWaitPattern);
 
 const collectScreenshotHelperFixedSleepEntries = () =>
   screenshotHelperPaths.flatMap((relativePath) => {
@@ -239,12 +224,11 @@ const collectScreenshotHelperFixedSleepEntries = () =>
       path.join(repositoryRoot, relativePath),
       'utf8',
     );
-    const lines = source.split('\n');
 
-    return lines.flatMap((line, index) =>
-      [...line.matchAll(screenshotHelperFixedSleepPattern)].map(
-        (match) => `${relativePath}:${index + 1}:${match[0]}`,
-      ),
+    return collectPatternEntriesForSource(
+      relativePath,
+      source,
+      screenshotHelperFixedSleepPattern,
     );
   });
 
@@ -349,6 +333,37 @@ test['describe']
       "tests/specs/example/split-modifiers.spec.ts:3:test.describe ['only']",
       "tests/specs/example/split-modifiers.spec.ts:5:test['describe'] .configure",
     ]);
+    expect(
+      collectPatternEntriesForSource(
+        'tests/specs/example/split-debug.spec.ts',
+        `await page
+          .pause();
+await page['pause']();
+await page
+          .waitForTimeout(100);
+await page
+          ['waitForTimeout'](100);
+debugger;`,
+        new RegExp(
+          String.raw`${interactiveDebugPattern.source}|${fixedWaitPattern.source}`,
+          'g',
+        ),
+      ),
+    ).toEqual([
+      'tests/specs/example/split-debug.spec.ts:1:page .pause(',
+      "tests/specs/example/split-debug.spec.ts:3:page['pause'](",
+      'tests/specs/example/split-debug.spec.ts:4:.waitForTimeout(',
+      "tests/specs/example/split-debug.spec.ts:6:['waitForTimeout'](",
+      'tests/specs/example/split-debug.spec.ts:8:debugger',
+    ]);
+    expect(
+      collectPatternEntriesForSource(
+        'tests/support/utils/doc-screenshot.ts',
+        `await new Promise((resolve) => setTimeout
+          (resolve, 100));`,
+        screenshotHelperFixedSleepPattern,
+      ),
+    ).toEqual(['tests/support/utils/doc-screenshot.ts:1:setTimeout (']);
   });
 
   it('keeps the active test inventory aligned with Playwright docs and specs on disk', () => {
