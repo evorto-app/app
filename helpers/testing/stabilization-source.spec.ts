@@ -1536,10 +1536,10 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /direct or alias-valued tuple\/array screenshot-function\s+entries/u,
     );
-    expect(inventory).toMatch(/simple\s+attachment-name/u);
+    expect(inventory).toMatch(/simple or grouped\s+attachment-name/u);
     expect(inventory).toMatch(/raw image\s+MIME\/file-extension payloads/u);
     expect(inventory).toMatch(/aliased raw image payload\s+objects/u);
-    expect(inventory).toMatch(/aliased\s+MIME\/path values/u);
+    expect(inventory).toMatch(/grouped or indexed\s+MIME\/path values/u);
     expect(inventory).toMatch(/object shorthand\s+image payloads/u);
     expect(inventory).toMatch(/computed\s+raw\s+image\s+payload\s+keys/u);
     expect(inventory).toContain(
@@ -1656,8 +1656,20 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('image/gif');
     expect(generatedDocumentationSource).toContain('aliased-image-path.jpeg');
     expect(generatedDocumentationSource).toContain(
+      'imageAttachmentNamePropertyAliases',
+    );
+    expect(generatedDocumentationSource).toContain(
       'imageAttachmentPayloadValueAliases',
     );
+    expect(generatedDocumentationSource).toContain(
+      'imageAttachmentPayloadValuePropertyAliases',
+    );
+    expect(generatedDocumentationSource).toContain('attachmentNames.evidence');
+    expect(generatedDocumentationSource).toContain('groupedAttachmentName');
+    expect(generatedDocumentationSource).toContain('attachmentNameList[0]');
+    expect(generatedDocumentationSource).toContain('rawImageValues.mime');
+    expect(generatedDocumentationSource).toContain('groupedImageMime');
+    expect(generatedDocumentationSource).toContain('rawImageValueList[0]');
     expect(generatedDocumentationSource).toContain('forwardAttachEvidence');
     expect(generatedDocumentationSource).toContain('forwardAttachmentName');
     expect(generatedDocumentationSource).toContain('forwardRawImagePayload');

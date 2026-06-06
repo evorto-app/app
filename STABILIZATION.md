@@ -5897,16 +5897,17 @@ also rejected even when their attachment name is not `image`, so docs cannot
 smuggle screenshot evidence through a differently named `testInfo.attach(...)`
 call. Aliased raw image payload objects are covered too, so moving the MIME type
 or image file path into a variable does not bypass the same helper requirement.
-Raw-image payloads also follow aliased MIME/path string values and object
-shorthand properties such as `{ contentType }`, keeping direct image attachment
-guards independent of simple local variable extraction.
+Raw-image payloads also follow aliased, grouped, indexed, and destructured
+MIME/path string values plus object shorthand properties such as
+`{ contentType }`, keeping direct image attachment guards independent of simple
+local variable extraction.
 Raw-image payload keys are normalized too, so computed properties such as
 `{ ['contentType']: 'image/png' }` and `{ ['path']: 'evidence.png' }` still
 count as direct image evidence that must flow through the shared helper.
-Direct screenshot, image-attachment name, raw image payload, and attach-function
-aliases are collected before generated-doc calls are inspected, so declaring a
-raw helper or payload after its use does not bypass the shared screenshot helper
-requirement.
+Direct screenshot, image-attachment name, grouped image-attachment name, raw
+image payload, grouped raw payload value, and attach-function aliases are
+collected before generated-doc calls are inspected, so declaring a raw helper or
+payload after its use does not bypass the shared screenshot helper requirement.
 Bracket-property forms such as `testInfo['attach'](...)`,
 `page['screenshot'](...)`, and `documentationReporter['takeScreenshot'](...)`
 are treated the same as dot-property access, so generated-doc source guards do
