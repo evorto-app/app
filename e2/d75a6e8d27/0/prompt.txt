@@ -1,12 +1,3 @@
-/goal Work through the entire [STABILIZATION.md](STABILIZATION.md) Document, keep the root product docs as a reference and verify all changes with the @Browser 
-Make sure that the tests and especially docs tests cover all the functionality with sufficient text and images (and the images are actually meaningful and don't show something unrelated) to judge the entire progress without clicking through the entire app.
-It is important to verify that all General pages also work well on mobile
-And it is important that on any wievport there are no visual glitches, the app follows material design you (3)
-Keep the pr up to date with regular useful pushes, do not always wait for tests in CI, especially when you ran them locally.
-Maybe to a ci check every five hours or so to see if something diverged
-
----
-
 I was tightening the generated documentation source guards in PR #62.
 
 Just pushed:
