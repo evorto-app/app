@@ -1114,7 +1114,8 @@ provider outcomes without live identifiers.
     coverage ties that narrative to the root account-required registration
     invariant and rejects anonymous/guest registration-without-account wording.
     The same source guard keeps guest spots documented as buyer-attached
-    quantity instead of separate guest accounts or contact collection.
+    quantity instead of separate guest accounts or contact collection, and keeps
+    participant versus organizer/helper registration options mutually exclusive.
     The paid walkthrough screenshots the hosted Stripe Checkout form through a
     filtered payment/continue/submit form target instead of the first external
     checkout form. The generated narrative also documents queued confirmation,

@@ -6106,7 +6106,8 @@ coverage now also ties the anonymous registration entry point to the root
 account-required registration invariant and rejects anonymous/guest
 registration-without-account wording. It also keeps guest spots aligned with the
 buyer-attached quantity model by rejecting separate guest account or contact
-collection wording.
+collection wording, and keeps participant versus organizer/helper registration
+options aligned with the root mutual-exclusivity invariant.
 The registration generated doc now also screenshots the hosted Stripe Checkout
 form through a filtered payment/continue/submit form target instead of accepting
 the first form on the external checkout page.

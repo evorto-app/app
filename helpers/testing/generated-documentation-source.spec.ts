@@ -6107,6 +6107,12 @@ describe('generated docs source current behavior', () => {
     expect(productSource).toContain(
       'Guest spots do not need separate accounts or contact information in the first version.',
     );
+    expect(productSource).toContain(
+      'Registration options are mutually exclusive per event.',
+    );
+    expect(productSource).toContain(
+      'A user cannot be both an organizer/helper and a participant for the same event.',
+    );
     expect(source).toContain(
       'Anonymous visitors can browse listed public events, but registration stays account-required.',
     );
@@ -6241,6 +6247,13 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toMatch(/guest (email|contact)/i);
     expect(source).not.toMatch(/separate guest account/i);
     expect(source).not.toMatch(/guest.*must create an account/i);
+    expect(source).not.toMatch(
+      /register as (both|a) participant and organizer/i,
+    );
+    expect(source).not.toMatch(/sign up as (both|a) participant and helper/i);
+    expect(source).not.toMatch(
+      /join the same event as participant and organizer/i,
+    );
     expect(source).not.toContain('ticket QR code by email');
   });
 
