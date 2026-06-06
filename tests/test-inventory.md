@@ -603,10 +603,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   grouped screenshot-function properties, shorthand or alias-valued grouped
   screenshot helpers, and
   direct or alias-valued tuple/array screenshot-function entries, rejects direct
-  image attachments through simple or grouped attachment-name aliases, raw image
+  image attachments through simple or grouped attachment-name aliases, wrapped
+  attachment-name forwarding through calls, template interpolation, conditionals,
+  nullish/logical expressions, and static concatenation, raw image
   MIME/file-extension payloads, aliased, grouped, indexed, destructured, and
-  assigned raw image payload objects, aliased grouped or indexed MIME/path
-  values, simple MIME/path forwarding through calls, template interpolation,
+  assigned raw image payload objects, aliased grouped or indexed MIME/path values,
+  simple MIME/path forwarding through calls, template interpolation,
   conditionals, nullish/logical expressions, and concatenation, object shorthand
   image payloads, computed raw image payload keys, spread direct attachment arguments, opaque
   attachment `apply(...)` lists, raw screenshot and image attach call/apply

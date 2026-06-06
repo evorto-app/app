@@ -1623,6 +1623,8 @@ describe('stabilization source', () => {
       /direct or alias-valued tuple\/array screenshot-function\s+entries/u,
     );
     expect(inventory).toMatch(/simple or grouped\s+attachment-name/u);
+    expect(inventory).toMatch(/wrapped\s+attachment-name forwarding/u);
+    expect(inventory).toContain('static concatenation');
     expect(inventory).toMatch(/raw image\s+MIME\/file-extension payloads/u);
     expect(inventory).toMatch(
       /[Aa]liased,\s+grouped,\s+indexed,\s+destructured,\s+and\s+assigned raw image payload\s+objects/u,
@@ -1742,6 +1744,22 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('contentType');
     expect(generatedDocumentationSource).toContain('image/png');
     expect(generatedDocumentationSource).toContain('raw-evidence.webp');
+    expect(generatedDocumentationSource).toContain('String(attachmentName)');
+    expect(generatedDocumentationSource).toContain(
+      'const interpolatedAttachmentName = \\`\\${attachmentName}\\`',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const conditionalAttachmentName = useImageName ? attachmentName : 'trace'",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'const nullishAttachmentName = fallbackAttachmentName ?? attachmentName',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'const logicalAttachmentName = fallbackAttachmentName || attachmentName',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const concatenatedAttachmentName = 'im' + 'age'",
+    );
     expect(generatedDocumentationSource).toContain('rawImagePayload');
     expect(generatedDocumentationSource).toContain('image/jpeg');
     expect(generatedDocumentationSource).toContain('aliased-raw-evidence.png');

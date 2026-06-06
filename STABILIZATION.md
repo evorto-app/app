@@ -6065,15 +6065,17 @@ call site.
 Raw image attachments with image MIME types or common image file extensions are
 also rejected even when their attachment name is not `image`, so docs cannot
 smuggle screenshot evidence through a differently named `testInfo.attach(...)`
-call. Aliased, grouped, indexed, destructured, and assigned raw image payload
-objects are covered too, so moving the MIME type or image file path into a
-variable, object property, or tuple entry does not bypass the same helper
-requirement. Raw-image payloads also follow aliased, grouped, indexed, and
-destructured MIME/path string values plus object shorthand properties such as
-`{ contentType }`; simple MIME/path forwarding through calls, template
-interpolation, conditionals, nullish/logical expressions, and concatenation is
-covered too, keeping direct image attachment guards independent of simple local
-variable extraction.
+call. Simple `image` attachment-name forwarding through calls, template
+interpolation, conditionals, nullish/logical expressions, and static
+concatenation is covered too. Aliased, grouped, indexed, destructured, and
+assigned raw image payload objects are covered as well, so moving the MIME type
+or image file path into a variable, object property, or tuple entry does not
+bypass the same helper requirement. Raw-image payloads also follow aliased,
+grouped, indexed, and destructured MIME/path string values plus object shorthand
+properties such as `{ contentType }`; simple MIME/path forwarding through calls,
+template interpolation, conditionals, nullish/logical expressions, and
+concatenation is covered too, keeping direct image attachment guards independent
+of simple local variable extraction.
 Tracked direct image attachment calls with spread arguments or opaque
 `apply(...)` argument lists are rejected too, so `testInfo.attach(...args)` or
 `attachEvidence.apply(testInfo, args)` cannot hide raw image evidence from the
