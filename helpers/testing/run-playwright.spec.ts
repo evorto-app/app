@@ -41,9 +41,9 @@ describe('runPlaywright', () => {
     });
 
     expect(status).toBe(0);
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
     expect(calls[0]).toEqual({
-      args: ['run', 'env:copy-main', '--', '--if-missing'],
+      args: ['run', 'env:bootstrap'],
       command: 'bun',
       options: {
         env: {
@@ -53,19 +53,8 @@ describe('runPlaywright', () => {
         stdio: 'inherit',
       },
     });
-    expect(calls[1]).toEqual({
-      args: ['run', 'env:runtime'],
-      command: 'bun',
-      options: {
-        env: {
-          DOCS_OUT_DIR: '/outside/docs',
-          EXISTING: 'kept',
-        },
-        stdio: 'inherit',
-      },
-    });
-    expect(calls[2].command).toBe('node_modules/.bin/dotenv');
-    expect(calls[2].args).toEqual([
+    expect(calls[1].command).toBe('node_modules/.bin/dotenv');
+    expect(calls[1].args).toEqual([
       '-c',
       'dev',
       '--',
@@ -74,7 +63,7 @@ describe('runPlaywright', () => {
       'tests/specs/smoke/page-layout-helper.test.ts',
       '--no-deps',
     ]);
-    expect(calls[2].options).toEqual({
+    expect(calls[1].options).toEqual({
       env: {
         DOCS_IMG_OUT_DIR: localDocumentationEnvironment.DOCS_IMG_OUT_DIR,
         DOCS_OUT_DIR: localDocumentationEnvironment.DOCS_OUT_DIR,
@@ -84,7 +73,7 @@ describe('runPlaywright', () => {
     });
   });
 
-  it('does not refresh runtime environment when the guarded .env copy fails', () => {
+  it('does not run Playwright when the runtime environment bootstrap fails', () => {
     const calls: SpawnCall[] = [];
     const status = runPlaywright({
       argv: ['--list'],
@@ -95,14 +84,41 @@ describe('runPlaywright', () => {
     expect(status).toBe(1);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
-      args: ['run', 'env:copy-main', '--', '--if-missing'],
+      args: ['run', 'env:bootstrap'],
       command: 'bun',
     });
   });
 
-  it('does not run Playwright when the runtime environment refresh fails', () => {
+  it('maps the helper no-webserver flag to the Playwright environment', () => {
     const calls: SpawnCall[] = [];
-    const createRuntimeFailureSpawn = (): typeof spawnSync =>
+
+    runPlaywright({
+      argv: [
+        '--no-webserver',
+        'tests/setup/mcp-browser.seed.ts',
+        '--project=mcp-browser-planner',
+      ],
+      env: {},
+      spawn: createSpawn(calls),
+    });
+
+    expect(calls[1].args).toEqual([
+      '-c',
+      'dev',
+      '--',
+      'node_modules/.bin/playwright',
+      'test',
+      'tests/setup/mcp-browser.seed.ts',
+      '--project=mcp-browser-planner',
+    ]);
+    expect(calls[1].options?.env).toMatchObject({
+      NO_WEBSERVER: 'true',
+    });
+  });
+
+  it('returns the Playwright process status', () => {
+    const calls: SpawnCall[] = [];
+    const createStatusSpawn = (): typeof spawnSync =>
       ((command, arguments_, options) => {
         calls.push({
           args: arguments_ ?? [],
@@ -122,70 +138,10 @@ describe('runPlaywright', () => {
     const status = runPlaywright({
       argv: ['--list'],
       env: {},
-      spawn: createRuntimeFailureSpawn(),
-    });
-
-    expect(status).toBe(1);
-    expect(calls).toHaveLength(2);
-    expect(calls[1]).toMatchObject({
-      args: ['run', 'env:runtime'],
-      command: 'bun',
-    });
-  });
-
-  it('maps the helper no-webserver flag to the Playwright environment', () => {
-    const calls: SpawnCall[] = [];
-
-    runPlaywright({
-      argv: [
-        '--no-webserver',
-        'tests/setup/mcp-browser.seed.ts',
-        '--project=mcp-browser-planner',
-      ],
-      env: {},
-      spawn: createSpawn(calls),
-    });
-
-    expect(calls[2].args).toEqual([
-      '-c',
-      'dev',
-      '--',
-      'node_modules/.bin/playwright',
-      'test',
-      'tests/setup/mcp-browser.seed.ts',
-      '--project=mcp-browser-planner',
-    ]);
-    expect(calls[2].options?.env).toMatchObject({
-      NO_WEBSERVER: 'true',
-    });
-  });
-
-  it('returns the Playwright process status', () => {
-    const calls: SpawnCall[] = [];
-    const createStatusSpawn = (): typeof spawnSync =>
-      ((command, arguments_, options) => {
-        calls.push({
-          args: arguments_ ?? [],
-          command,
-          options,
-        });
-
-        return {
-          output: [],
-          pid: 1,
-          signal: null,
-          status: calls.length === 3 ? 1 : 0,
-          stderr: Buffer.from(''),
-          stdout: Buffer.from(''),
-        };
-      }) as typeof spawnSync;
-    const status = runPlaywright({
-      argv: ['--list'],
-      env: {},
       spawn: createStatusSpawn(),
     });
 
     expect(status).toBe(1);
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
   });
 });

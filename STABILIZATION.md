@@ -1943,22 +1943,22 @@ the current working direction until a product decision overrides them.
   override, if-missing no-op with and without a source checkout, overwrite
   refusal, forced replacement, missing-source checklist message,
   Font Awesome token omission, and `.env.dev`/`.npmrc` boundaries.
-- `bun run dev:bootstrap` is the fresh-worktree shortcut for that recovery path:
-  missing-secret preflight output now names it directly for fresh dev-server
-  worktrees; it delegates the missing-file decision to
-  `env:copy-main --if-missing`, then runs the normal `dev:check` preflight.
-  `bun run dev:start` now uses `dev:bootstrap` before starting Angular, so a
-  fresh worktree does not need a separate bootstrap command before the first
-  dev-server run.
-- Local Playwright package scripts now use the same guarded
-  `env:copy-main --if-missing` path before refreshing `.env.dev`, so focused
-  local E2E reruns inherit the main checkout developer secrets only when the
-  current worktree has no `.env`; CI still bypasses that local wrapper and reads
-  GitHub Actions `env`, `vars`, and `secrets` directly.
+- `bun run env:bootstrap` is the shared fresh-worktree prelude for that recovery
+  path: it delegates the missing-file decision to `env:copy-main --if-missing`,
+  then refreshes the generated `.env.dev`. Missing-secret preflight output still
+  names `bun run dev:bootstrap` directly for fresh dev-server worktrees, and
+  `bun run dev:start` uses that shortcut before starting Angular, so a fresh
+  worktree does not need a separate bootstrap command before the first dev-server
+  run.
+- Local Playwright package scripts now use `env:bootstrap`, so focused local E2E
+  reruns inherit the main checkout developer secrets only when the current
+  worktree has no `.env`, then refresh `.env.dev` through the same package
+  script used by dev and Docker bootstrap; CI still bypasses that local wrapper
+  and reads GitHub Actions `env`, `vars`, and `secrets` directly.
 - `bun run docker:bootstrap` is the matching fresh-Docker-worktree shortcut for
-  the same recovery path: it copies the main checkout `.env` only when missing
-  and then runs `docker:check`, so Docker preflight setup stays one command
-  without making `docker:check` overwrite or create `.env` files by itself.
+  the same recovery path: it runs `env:bootstrap` and then runs `docker:check`,
+  so Docker preflight setup stays one command without making `docker:check`
+  overwrite or create `.env` files by itself.
 - `bun run docker:stop` now uses the same bounded Docker shutdown helper as E2E
   CI instead of a raw `docker compose down`. Local stop gives Neon Local's `db`
   container a graceful stop window, force-removes leftover generated Compose

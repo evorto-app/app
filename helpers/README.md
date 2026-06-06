@@ -85,16 +85,17 @@ Use `bun run dev:status` for a combined non-mutating local runtime report. It
 refreshes `.env.dev`, runs the development preflight, runs the Docker preflight,
 and runs the Neon Local cleanup dry-run in one pass so Docker failures do not
 hide branch-cleanup status or missing development variables.
-Use `bun run dev:bootstrap` in a fresh worktree to copy the main checkout `.env`
-only when this worktree does not already have one, then run the normal
-`dev:check` preflight. Local Playwright package scripts use the same guarded
-copy-if-missing step before refreshing `.env.dev`, so fresh worktrees do not
-need a separate manual secret-copy command before focused E2E reruns. The
-missing-file decision lives in `env:copy-main --if-missing`, so package scripts
-do not need shell conditionals.
-Use `bun run docker:bootstrap` for the same guarded copy-if-missing step before
-the Docker preflight, without making `docker:check` overwrite or create
-worktree `.env` files by itself.
+Use `bun run env:bootstrap` to run the shared local bootstrap prelude: copy the
+main checkout `.env` only when this worktree does not already have one, then
+refresh the generated `.env.dev`. `bun run dev:bootstrap`,
+`bun run docker:bootstrap`, and local Playwright package scripts all reuse that
+same prelude, so fresh worktrees do not need a separate manual secret-copy
+command before dev-server, Docker, or focused E2E reruns. The missing-file
+decision lives in `env:copy-main --if-missing`, so package scripts do not need
+shell conditionals.
+Use `bun run docker:bootstrap` for the same guarded bootstrap prelude before the
+Docker preflight, without making `docker:check` overwrite or create worktree
+`.env` files by itself.
 
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
@@ -283,9 +284,12 @@ Codex worktree and the sibling main checkout has an untracked `.env`, the
 failed required-variable row and the developer-secrets warning both point at
 `bun run env:copy-main -- --if-missing`; for a fresh dev-server worktree they
 also name `bun run dev:bootstrap`, and fresh Docker worktrees can run
-`bun run docker:bootstrap`. It does not copy secrets automatically, and it still
-warns not to copy generated `.env.dev` or the main checkout `.npmrc`. The guarded
-copy path reads `$HOME/code/<repo>/.env` by default, supports
+`bun run docker:bootstrap`. Those shortcuts reuse `bun run env:bootstrap`, so
+the guarded copy and `.env.dev` refresh sequence stays in one package script.
+It does not copy secrets automatically during bare `dev:check` or
+`docker:check`, and it still warns not to copy generated `.env.dev` or the main
+checkout `.npmrc`. The guarded copy path reads `$HOME/code/<repo>/.env` by
+default, supports
 `MAIN_CHECKOUT_DIR=/path/to/repo` for a different source checkout, and refuses
 to overwrite an existing worktree `.env` unless rerun with `--if-missing` to
 leave it unchanged before source-checkout lookup or `--force` to replace it.

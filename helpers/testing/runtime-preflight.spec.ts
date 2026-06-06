@@ -368,7 +368,7 @@ describe('evaluateRuntimePreflight', () => {
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
     );
     expect(packageJson.scripts['dev:bootstrap']).toBe(
-      'bun run env:copy-main -- --if-missing && bun run dev:check',
+      'bun run env:bootstrap && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
     );
     expect(packageJson.scripts['dev:start']).toBe(
       'bun run dev:bootstrap && dotenv -c dev -- sh -c \'bunx --bun ng serve --host 0.0.0.0 --port "$APP_HOST_PORT"\'',
@@ -1591,7 +1591,7 @@ describe('evaluateRuntimePreflight', () => {
     );
 
     const visibleScriptGroups = [
-      ['env:runtime', 'env:copy-main'],
+      ['env:runtime', 'env:copy-main', 'env:bootstrap'],
       ['build:app', 'build:watch', 'dev:start'],
       ['test:unit', 'test:unit:server'],
       ['test:e2e', 'test:e2e:docs', 'test:e2e:docs:publish'],
@@ -1626,6 +1626,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['env:copy-main']).toBe(
       'bun helpers/testing/copy-main-environment.ts',
     );
+    expect(packageJson.scripts['env:bootstrap']).toBe(
+      'bun run env:copy-main -- --if-missing && bun run env:runtime',
+    );
   });
 
   it('keeps the main-checkout env copy helper guarded', () => {
@@ -1652,8 +1655,11 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['env:copy-main']).toBe(
       'bun helpers/testing/copy-main-environment.ts',
     );
+    expect(packageJson.scripts['env:bootstrap']).toBe(
+      'bun run env:copy-main -- --if-missing && bun run env:runtime',
+    );
     expect(packageJson.scripts['dev:bootstrap']).toBe(
-      'bun run env:copy-main -- --if-missing && bun run dev:check',
+      'bun run env:bootstrap && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
     );
     expect(helper).toContain('env?: NodeJS.ProcessEnv');
     expect(helper).toContain('const environment = options.env ?? process.env');
@@ -1745,10 +1751,8 @@ describe('evaluateRuntimePreflight', () => {
     expect(runPlaywright).toContain(
       "DOCS_IMG_OUT_DIR: 'test-results/docs/images'",
     );
-    expect(runPlaywright).toContain(
-      "['run', 'env:copy-main', '--', '--if-missing']",
-    );
-    expect(runPlaywright).toContain("spawn('bun', ['run', 'env:runtime']");
+    expect(runPlaywright).toContain("spawn('bun', ['run', 'env:bootstrap']");
+    expect(runPlaywright).toContain('Runtime environment bootstrap');
     expect(runPlaywright).toContain("'node_modules/.bin/dotenv'");
     expect(runPlaywright).toContain("'node_modules/.bin/playwright'");
     expect(runPlaywright).toContain("'test'");
@@ -1760,10 +1764,7 @@ describe('evaluateRuntimePreflight', () => {
       'maps the helper no-webserver flag to the Playwright environment',
     );
     expect(runPlaywrightSpec).toContain(
-      'does not refresh runtime environment when the guarded .env copy fails',
-    );
-    expect(runPlaywrightSpec).toContain(
-      'does not run Playwright when the runtime environment refresh fails',
+      'does not run Playwright when the runtime environment bootstrap fails',
     );
 
     expect(packageJson.scripts['test:e2e:integration']).toContain(

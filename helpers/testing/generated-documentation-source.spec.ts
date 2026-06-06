@@ -2044,7 +2044,7 @@ describe('generated docs source current behavior', () => {
       "DOCS_IMG_OUT_DIR: 'test-results/docs/images'",
     );
     expect(readSource('helpers/testing/run-playwright.ts')).toContain(
-      "spawn('bun', ['run', 'env:runtime']",
+      "spawn('bun', ['run', 'env:bootstrap']",
     );
     expect(readSource('helpers/testing/run-playwright.ts')).toContain(
       "'node_modules/.bin/playwright'",

@@ -853,7 +853,7 @@ describe('stabilization source', () => {
       "DOCS_IMG_OUT_DIR: 'test-results/docs/images'",
     );
     expect(readSource('helpers/testing/run-playwright.ts')).toContain(
-      "spawn('bun', ['run', 'env:runtime']",
+      "spawn('bun', ['run', 'env:bootstrap']",
     );
     expect(readSource('helpers/testing/run-playwright.ts')).toContain(
       "'node_modules/.bin/dotenv'",
@@ -874,7 +874,7 @@ describe('stabilization source', () => {
       'runs Playwright through dotenv with local generated-doc output paths',
     );
     expect(readSource('helpers/testing/run-playwright.spec.ts')).toContain(
-      'does not run Playwright when the runtime environment refresh fails',
+      'does not run Playwright when the runtime environment bootstrap fails',
     );
     expect(packageJson.scripts['test:e2e:reporter-paths']).toContain(
       '--no-webserver',
@@ -3723,11 +3723,14 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['dev:check']).toBe(
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
     );
+    expect(packageJson.scripts['env:bootstrap']).toBe(
+      'bun run env:copy-main -- --if-missing && bun run env:runtime',
+    );
     expect(packageJson.scripts['dev:bootstrap']).toBe(
-      'bun run env:copy-main -- --if-missing && bun run dev:check',
+      'bun run env:bootstrap && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
     );
     expect(packageJson.scripts['docker:bootstrap']).toBe(
-      'bun run env:copy-main -- --if-missing && bun run docker:check',
+      'bun run env:bootstrap && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker',
     );
     expect(packageJson.scripts['dev:start']).toContain('bun run dev:bootstrap');
     expect(packageJson.scripts['dev:start']).toContain('--host 0.0.0.0');
@@ -3818,8 +3821,11 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['env:copy-main']).toBe(
       'bun helpers/testing/copy-main-environment.ts',
     );
+    expect(packageJson.scripts['env:bootstrap']).toBe(
+      'bun run env:copy-main -- --if-missing && bun run env:runtime',
+    );
     expect(packageJson.scripts['docker:bootstrap']).toBe(
-      'bun run env:copy-main -- --if-missing && bun run docker:check',
+      'bun run env:bootstrap && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker',
     );
     expect(copyMainEnvironment).toContain('env?: NodeJS.ProcessEnv');
     expect(copyMainEnvironment).toContain(
@@ -3900,9 +3906,11 @@ describe('stabilization source', () => {
     expect(inventory).toContain('missing-secret recovery hint');
     expect(inventory).toContain('bun run dev:bootstrap');
     expect(inventory).toContain('bun run docker:bootstrap');
-    expect(inventory).toContain('before `docker:check`');
+    expect(inventory).toContain('before their normal preflight');
     expect(inventory).toContain('env:copy-main --if-missing');
-    expect(inventory).toContain('package-script shell conditional');
+    expect(inventory).toContain(
+      'copy-if-missing plus runtime-env generation in one\n  visible package script',
+    );
     expect(inventory).toContain('no-ops before source-checkout lookup');
     expect(inventory).toContain(
       'helpers/testing/copy-main-environment.spec.ts',

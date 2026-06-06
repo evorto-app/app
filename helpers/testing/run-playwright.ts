@@ -43,34 +43,17 @@ export const runPlaywright = (options: RunPlaywrightOptions = {}): number => {
     environment['NO_WEBSERVER'] = 'true';
   }
 
-  const copyMainEnvironmentResult = spawn(
-    'bun',
-    ['run', 'env:copy-main', '--', '--if-missing'],
-    {
-      env: baseEnvironment,
-      stdio: 'inherit',
-    },
-  );
-  const copyMainEnvironmentStatus = getExitStatus(
-    'Main checkout environment copy',
-    copyMainEnvironmentResult,
-  );
-
-  if (copyMainEnvironmentStatus !== 0) {
-    return copyMainEnvironmentStatus;
-  }
-
-  const runtimeResult = spawn('bun', ['run', 'env:runtime'], {
+  const bootstrapResult = spawn('bun', ['run', 'env:bootstrap'], {
     env: baseEnvironment,
     stdio: 'inherit',
   });
-  const runtimeStatus = getExitStatus(
-    'Runtime environment refresh',
-    runtimeResult,
+  const bootstrapStatus = getExitStatus(
+    'Runtime environment bootstrap',
+    bootstrapResult,
   );
 
-  if (runtimeStatus !== 0) {
-    return runtimeStatus;
+  if (bootstrapStatus !== 0) {
+    return bootstrapStatus;
   }
 
   return getExitStatus(

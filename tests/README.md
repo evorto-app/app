@@ -180,15 +180,18 @@ bun run lint
   sibling main checkout `.env` and point at
   `bun run env:copy-main -- --if-missing` when it exists; fresh dev-server
   worktrees also get the simpler `bun run dev:bootstrap` shortcut, and fresh
-  Docker worktrees can use `bun run docker:bootstrap` for the same guarded copy
-  before Docker preflight. `.env.dev` remains generated per worktree and the
-  main checkout `.npmrc` must not be
+  Docker worktrees can use `bun run docker:bootstrap`. Both shortcuts reuse
+  `bun run env:bootstrap`, which keeps the guarded copy-if-missing step and
+  generated `.env.dev` refresh together before their preflight. `.env.dev`
+  remains generated per worktree and the main checkout `.npmrc` must not be
   copied. It reads `$HOME/code/<repo>/.env` by default, supports
   `MAIN_CHECKOUT_DIR=/path/to/repo`, and refuses to overwrite an existing
   worktree `.env` unless rerun with `--if-missing` to leave it unchanged or
-  `--force` to replace it. `bun run dev:bootstrap` is the
-  fresh-worktree shortcut: it delegates copy-only-when-missing behavior to
-  `env:copy-main --if-missing`, then runs the normal `dev:check` preflight.
+  `--force` to replace it. `bun run env:bootstrap` is the shared
+  fresh-worktree prelude: it delegates copy-only-when-missing behavior to
+  `env:copy-main --if-missing`, then refreshes `.env.dev`.
+  `bun run dev:bootstrap` and `bun run docker:bootstrap` reuse that prelude
+  before their normal preflight.
   Codex setup also writes the
   temporary public Font Awesome npm user config before `bun install` and reuses
   the Bun package cache. CI dependency-install workflows call
