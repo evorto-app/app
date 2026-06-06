@@ -1485,6 +1485,14 @@ describe('generated docs source current behavior', () => {
         terms: ['Register for a free event', 'Successful registration'],
       },
       {
+        files: ['tests/docs/users/create-account.doc.ts'],
+        productArea: 'Registration requires an account.',
+        terms: [
+          'Tenant Account Creation',
+          'Creating the account joins the current tenant',
+        ],
+      },
+      {
         files: ['tests/docs/events/register.doc.ts'],
         productArea: 'transferring a registration',
         terms: ['Transfer an unpaid registration', 'Transfer code'],

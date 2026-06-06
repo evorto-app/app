@@ -1340,8 +1340,8 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'manifest that must include every image-backed docs',
     );
-    expect(inventory).toContain(
-      'root `QUALITY.md` generated-documentation topics',
+    expect(inventory).toMatch(
+      /root `QUALITY\.md`\s+generated-documentation topics/u,
     );
     expect(inventory).toContain('payments and documentation/help');
     expect(inventory).toContain('quietly drop image-backed states');
