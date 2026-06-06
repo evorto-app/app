@@ -45,7 +45,6 @@ const collectDestructuredPropertyAliases = (
   aliases: Set<string>,
 ): void => {
   if (
-    !ts.isObjectBindingPattern(node.name) ||
     !node.initializer ||
     !ts.isIdentifier(unwrapExpression(node.initializer))
   ) {
@@ -58,22 +57,51 @@ const collectDestructuredPropertyAliases = (
     return;
   }
 
-  for (const element of node.name.elements) {
-    if (!ts.isIdentifier(element.name)) {
-      continue;
+  if (ts.isObjectBindingPattern(node.name)) {
+    for (const element of node.name.elements) {
+      if (!ts.isIdentifier(element.name)) {
+        continue;
+      }
+
+      const propertyName = element.propertyName ?? element.name;
+
+      const staticPropertyName = getStaticPropertyNameFromName(propertyName);
+
+      if (
+        staticPropertyName &&
+        propertyAliases.has(`${sourceObject.text}.${staticPropertyName}`)
+      ) {
+        aliases.add(element.name.text);
+      }
     }
 
-    const propertyName = element.propertyName ?? element.name;
-
-    const staticPropertyName = getStaticPropertyNameFromName(propertyName);
-
-    if (
-      staticPropertyName &&
-      propertyAliases.has(`${sourceObject.text}.${staticPropertyName}`)
-    ) {
-      aliases.add(element.name.text);
-    }
+    return;
   }
+
+  if (ts.isArrayBindingPattern(node.name)) {
+    node.name.elements.forEach((element, index) => {
+      if (ts.isOmittedExpression(element) || !ts.isIdentifier(element.name)) {
+        return;
+      }
+
+      if (propertyAliases.has(`${sourceObject.text}.${index}`)) {
+        aliases.add(element.name.text);
+      }
+    });
+  }
+};
+
+const collectIndexedPropertyAliases = (
+  ownerName: string,
+  elements: ts.NodeArray<ts.Expression>,
+  isTrackedReference: (node: ts.Expression) => boolean,
+  propertyAliases: Set<string>,
+): void => {
+  elements.forEach((element, index) => {
+    if (isTrackedReference(element)) {
+      propertyAliases.add(`${ownerName}.${index}`);
+    }
+  });
 };
 
 const isTakeScreenshotCall = (node: ts.CallExpression): boolean => {
@@ -96,6 +124,10 @@ const getStaticPropertyName = (node: ts.Expression): null | string => {
       ts.isStringLiteral(argument) ||
       ts.isNoSubstitutionTemplateLiteral(argument)
     ) {
+      return argument.text;
+    }
+
+    if (ts.isNumericLiteral(argument)) {
       return argument.text;
     }
   }
@@ -1619,6 +1651,15 @@ const findDirectImageAttachmentCalls = (
           }
         }
       }
+
+      if (ts.isArrayLiteralExpression(objectInitializer)) {
+        collectIndexedPropertyAliases(
+          node.name.text,
+          objectInitializer.elements,
+          isAttachFunctionReference,
+          attachFunctionPropertyAliases,
+        );
+      }
     }
 
     if (
@@ -1799,6 +1840,15 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
           }
         }
       }
+
+      if (ts.isArrayLiteralExpression(objectInitializer)) {
+        collectIndexedPropertyAliases(
+          node.name.text,
+          objectInitializer.elements,
+          isScreenshotFunctionReference,
+          screenshotFunctionPropertyAliases,
+        );
+      }
     }
 
     if (
@@ -1978,6 +2028,16 @@ describe('generated docs source current behavior', () => {
       await destructuredAttachEvidence('image', { body: imageBuffer });
       attachHelpers.assignedEvidence = testInfo.attach.bind(testInfo);
       await attachHelpers.assignedEvidence('image', { body: imageBuffer });
+      const attachHelperList = [
+        testInfo.attach.bind(testInfo),
+        testInfo['attach'].bind(testInfo),
+      ];
+      await attachHelperList[0]('image', { body: imageBuffer });
+      await attachHelperList[1]('image', { body: imageBuffer });
+      const [listedAttachEvidence] = attachHelperList;
+      await listedAttachEvidence('image', { body: imageBuffer });
+      attachHelperList[2] = testInfo.attach.bind(testInfo);
+      await attachHelperList[2]('image', { body: imageBuffer });
       await testInfo.attach('markdown', { body: markdown });
       const forwardAttachEvidence = testInfo.attach.bind(testInfo);
       const forwardAttachmentName = 'image';
@@ -2014,6 +2074,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:36:13',
       'tests/docs/example/direct-image.doc.ts:38:13',
       'tests/docs/example/direct-image.doc.ts:40:13',
+      'tests/docs/example/direct-image.doc.ts:45:13',
+      'tests/docs/example/direct-image.doc.ts:46:13',
+      'tests/docs/example/direct-image.doc.ts:48:13',
+      'tests/docs/example/direct-image.doc.ts:50:13',
     ]);
   });
 
@@ -2039,6 +2103,16 @@ describe('generated docs source current behavior', () => {
       await destructuredGroupedCapture({ path: 'destructured-grouped-page-alias.png' });
       screenshotHelpers.assignedCapture = page.screenshot.bind(page);
       await screenshotHelpers.assignedCapture({ path: 'assigned-grouped-page-alias.png' });
+      const screenshotHelperList = [
+        page.screenshot.bind(page),
+        page['screenshot'].bind(page),
+      ];
+      await screenshotHelperList[0]({ path: 'listed-page-alias.png' });
+      await screenshotHelperList[1]({ path: 'listed-bracket-page-alias.png' });
+      const [listedCaptureScreenshot] = screenshotHelperList;
+      await listedCaptureScreenshot({ path: 'destructured-listed-page-alias.png' });
+      screenshotHelperList[2] = page.screenshot.bind(page);
+      await screenshotHelperList[2]({ path: 'assigned-listed-page-alias.png' });
       await takeScreenshot(
         testInfo,
         settingsSurface,
@@ -2065,6 +2139,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:17:13',
       'tests/docs/example/direct-screenshot.doc.ts:19:13',
       'tests/docs/example/direct-screenshot.doc.ts:21:13',
+      'tests/docs/example/direct-screenshot.doc.ts:26:13',
+      'tests/docs/example/direct-screenshot.doc.ts:27:13',
+      'tests/docs/example/direct-screenshot.doc.ts:29:13',
+      'tests/docs/example/direct-screenshot.doc.ts:31:13',
     ]);
   });
 
