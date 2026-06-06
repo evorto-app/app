@@ -1199,6 +1199,9 @@ describe('stabilization source', () => {
       'unfiltered broad `section`, `article`, `form`, and `app-*`',
     );
     expect(source).toContain('aliased broad locator targets');
+    expect(source).toContain(
+      'Helper functions returning unfiltered\nbroad locators are rejected',
+    );
     expect(source).toContain('direct single-control `getByRole`');
     expect(source).toContain('`getByPlaceholder` screenshot targets');
     expect(source).toContain('single-control CSS locator targets');
@@ -1232,7 +1235,7 @@ describe('stabilization source', () => {
       'unfiltered broad `section`,\n  `article`, `form`, and `app-*` component-host screenshot targets',
     );
     expect(inventory).toContain(
-      'aliased broad locators inside screenshot arguments and arrays',
+      'aliased broad locators and helper-returned broad locators inside screenshot\n  arguments and arrays',
     );
     expect(inventory).toMatch(/role\/text\/label\/placeholder\s+locators/u);
     expect(inventory).toContain('single-control CSS locator targets');
@@ -1315,6 +1318,11 @@ describe('stabilization source', () => {
       'findUnfilteredBroadScreenshotTargets',
     );
     expect(generatedDocumentationSource).toContain('broadTargetAliases');
+    expect(generatedDocumentationSource).toContain('broadTargetFunctions');
+    expect(generatedDocumentationSource).toContain(
+      'returnsUnfilteredBroadLocator',
+    );
+    expect(generatedDocumentationSource).toContain('broadFormSurface');
     expect(generatedDocumentationSource).toContain('aliasedBroadSection');
     expect(generatedDocumentationSource).toContain(
       'findSingleControlScreenshotTargets',

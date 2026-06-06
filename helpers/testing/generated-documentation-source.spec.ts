@@ -210,6 +210,7 @@ const findUnfilteredBroadScreenshotTargets = (
   );
   const broadTargets: string[] = [];
   const broadTargetAliases = new Set<string>();
+  const broadTargetFunctions = new Set<string>();
   const broadSelectors = new Set(['article', 'form', 'section']);
 
   const isBroadSelector = (selector: string): boolean => {
@@ -237,6 +238,14 @@ const findUnfilteredBroadScreenshotTargets = (
 
     if (ts.isIdentifier(node)) {
       return broadTargetAliases.has(node.text);
+    }
+
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      broadTargetFunctions.has(node.expression.text)
+    ) {
+      return true;
     }
 
     let candidate: ts.Expression = ts.isParenthesizedExpression(node)
@@ -270,6 +279,36 @@ const findUnfilteredBroadScreenshotTargets = (
     return false;
   };
 
+  const returnsUnfilteredBroadLocator = (
+    node: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression,
+  ): boolean => {
+    if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+      return isUnfilteredBroadLocatorTarget(node.body);
+    }
+
+    if (!ts.isBlock(node.body)) {
+      return false;
+    }
+
+    let returnsBroadLocator = false;
+
+    const visitReturn = (child: ts.Node): void => {
+      if (
+        ts.isReturnStatement(child) &&
+        child.expression &&
+        isUnfilteredBroadLocatorTarget(child.expression)
+      ) {
+        returnsBroadLocator = true;
+      }
+
+      ts.forEachChild(child, visitReturn);
+    };
+
+    visitReturn(node.body);
+
+    return returnsBroadLocator;
+  };
+
   const visit = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -278,6 +317,25 @@ const findUnfilteredBroadScreenshotTargets = (
       isUnfilteredBroadLocatorTarget(node.initializer)
     ) {
       broadTargetAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      (ts.isArrowFunction(node.initializer) ||
+        ts.isFunctionExpression(node.initializer)) &&
+      returnsUnfilteredBroadLocator(node.initializer)
+    ) {
+      broadTargetFunctions.add(node.name.text);
+    }
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      returnsUnfilteredBroadLocator(node)
+    ) {
+      broadTargetFunctions.add(node.name.text);
     }
 
     if (
@@ -793,6 +851,13 @@ describe('generated docs source current behavior', () => {
         page,
         'Aliased broad section target with a descriptive caption',
       );
+      const broadFormSurface = (page) => page.locator('form');
+      await takeScreenshot(
+        testInfo,
+        broadFormSurface(page),
+        page,
+        'Helper-returned broad form target with a descriptive caption',
+      );
       await takeScreenshot(
         testInfo,
         page.locator('section').filter({ hasText: 'Registration' }),
@@ -817,6 +882,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/broad-target.doc.ts:8:13',
       'tests/docs/example/broad-target.doc.ts:14:13',
       'tests/docs/example/broad-target.doc.ts:21:13',
+      'tests/docs/example/broad-target.doc.ts:28:13',
     ]);
   });
 
