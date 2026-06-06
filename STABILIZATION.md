@@ -4444,7 +4444,10 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   contains Font Awesome credentials.
   Copilot setup now also uses a same-ref concurrency group with cancellation so
   obsolete setup runs do not keep installing dependencies after a newer PR slice
-  is pushed.
+  is pushed. It runs automatically for matching PR changes and manually through
+  `workflow_dispatch`, but no longer runs on every branch push; cache-miss
+  refusals therefore do not create duplicate failed setup runs outside the PR
+  check.
   A follow-up
   simplification keeps the scheduled `Neon Branch Cleanup` workflow out of the
   Font Awesome registry setup path because it does not run dependency

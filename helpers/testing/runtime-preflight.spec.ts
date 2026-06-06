@@ -983,6 +983,8 @@ describe('evaluateRuntimePreflight', () => {
       'uses: ./.github/actions/setup-bun-dependency-caches',
     );
     expect(copilotSetupWorkflow).toContain('Set up Bun dependency caches');
+    expect(copilotSetupWorkflow).toContain('workflow_dispatch:');
+    expect(copilotSetupWorkflow).not.toContain('\n  push:');
     expect(copilotSetupWorkflow).toContain(
       'uses: ./.github/actions/setup-bun-dependency-caches',
     );

@@ -869,6 +869,9 @@ provider outcomes without live identifiers.
     Copilot setup uses a same-ref concurrency group with cancellation so
     obsolete setup runs do not keep installing dependencies after a newer PR
     slice is pushed.
+    It runs automatically for matching PR changes and manually through
+    `workflow_dispatch`, but not on every branch push, so cache-miss refusals do
+    not create duplicate failed setup runs outside the PR check.
     The serial warmer now also uses a restored primary-key or restore-key Bun
     package cache for an offline dependency-tree rebuild before opening the
     registry install path, so package-cache hits do not spend Font Awesome

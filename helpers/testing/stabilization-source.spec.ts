@@ -2078,6 +2078,8 @@ describe('stabilization source', () => {
       'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
     );
     expect(copilotSetupWorkflow).toContain('Set up Bun dependency caches');
+    expect(copilotSetupWorkflow).toContain('workflow_dispatch:');
+    expect(copilotSetupWorkflow).not.toContain('\n  push:');
     expect(copilotSetupWorkflow).toContain(
       'uses: ./.github/actions/setup-bun-dependency-caches',
     );
