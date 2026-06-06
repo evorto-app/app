@@ -2259,6 +2259,40 @@ const findDirectImageAttachmentCalls = (
   const isImageAttachmentPayloadValue = (node: ts.Expression): boolean => {
     const value = unwrapExpression(node);
 
+    if (ts.isCallExpression(value)) {
+      return value.arguments.some((argument) =>
+        isImageAttachmentPayloadValue(argument),
+      );
+    }
+
+    if (ts.isTemplateExpression(value)) {
+      return value.templateSpans.some((span) =>
+        isImageAttachmentPayloadValue(span.expression),
+      );
+    }
+
+    if (ts.isConditionalExpression(value)) {
+      return (
+        isImageAttachmentPayloadValue(value.whenTrue) ||
+        isImageAttachmentPayloadValue(value.whenFalse)
+      );
+    }
+
+    if (
+      ts.isBinaryExpression(value) &&
+      [
+        ts.SyntaxKind.BarBarToken,
+        ts.SyntaxKind.AmpersandAmpersandToken,
+        ts.SyntaxKind.QuestionQuestionToken,
+        ts.SyntaxKind.PlusToken,
+      ].includes(value.operatorToken.kind)
+    ) {
+      return (
+        isImageAttachmentPayloadValue(value.left) ||
+        isImageAttachmentPayloadValue(value.right)
+      );
+    }
+
     if (ts.isIdentifier(value)) {
       return imageAttachmentPayloadValueAliases.has(value.text);
     }
@@ -3231,6 +3265,42 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach('shorthand mime evidence', { body: imageBuffer, contentType });
       const imagePath = 'aliased-image-path.jpeg';
       await testInfo.attach('aliased path evidence', { path: imagePath });
+      const stringWrappedMimePayload = { body: imageBuffer, contentType: String(imageMime) };
+      const interpolatedPathPayload = { path: \`\${imagePath}\` };
+      const conditionalMimePayload = {
+        body: imageBuffer,
+        contentType: useImageMime ? imageMime : 'text/plain',
+      };
+      const nullishPathPayload = { path: fallbackImagePath ?? imagePath };
+      const logicalMimePayload = { body: imageBuffer, contentType: fallbackMime || imageMime };
+      const concatenatedPathPayload = { path: 'evidence-' + imagePath };
+      await testInfo.attach('string wrapped mime evidence', {
+        body: imageBuffer,
+        contentType: String(imageMime),
+      });
+      await testInfo.attach('interpolated path evidence', {
+        path: \`\${imagePath}\`,
+      });
+      await testInfo.attach('conditional mime evidence', {
+        body: imageBuffer,
+        contentType: useImageMime ? imageMime : 'text/plain',
+      });
+      await testInfo.attach('nullish path evidence', {
+        path: fallbackImagePath ?? imagePath,
+      });
+      await testInfo.attach('logical mime evidence', {
+        body: imageBuffer,
+        contentType: fallbackMime || imageMime,
+      });
+      await testInfo.attach('concatenated path evidence', {
+        path: 'evidence-' + imagePath,
+      });
+      await testInfo.attach('string wrapped payload evidence', stringWrappedMimePayload);
+      await testInfo.attach('interpolated path payload evidence', interpolatedPathPayload);
+      await testInfo.attach('conditional mime payload evidence', conditionalMimePayload);
+      await testInfo.attach('nullish path payload evidence', nullishPathPayload);
+      await testInfo.attach('logical mime payload evidence', logicalMimePayload);
+      await testInfo.attach('concatenated path payload evidence', concatenatedPathPayload);
       const rawImageValues = {
         mime: 'image/avif',
         ['computedMime']: 'image/png',
@@ -3339,43 +3409,55 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:37:13',
       'tests/docs/example/direct-image.doc.ts:39:13',
       'tests/docs/example/direct-image.doc.ts:41:13',
-      'tests/docs/example/direct-image.doc.ts:48:13',
-      'tests/docs/example/direct-image.doc.ts:49:13',
-      'tests/docs/example/direct-image.doc.ts:50:13',
       'tests/docs/example/direct-image.doc.ts:51:13',
-      'tests/docs/example/direct-image.doc.ts:53:13',
       'tests/docs/example/direct-image.doc.ts:55:13',
-      'tests/docs/example/direct-image.doc.ts:56:13',
       'tests/docs/example/direct-image.doc.ts:58:13',
-      'tests/docs/example/direct-image.doc.ts:59:13',
-      'tests/docs/example/direct-image.doc.ts:60:13',
-      'tests/docs/example/direct-image.doc.ts:61:13',
       'tests/docs/example/direct-image.doc.ts:62:13',
-      'tests/docs/example/direct-image.doc.ts:64:13',
-      'tests/docs/example/direct-image.doc.ts:70:13',
-      'tests/docs/example/direct-image.doc.ts:71:13',
+      'tests/docs/example/direct-image.doc.ts:65:13',
+      'tests/docs/example/direct-image.doc.ts:69:13',
       'tests/docs/example/direct-image.doc.ts:72:13',
+      'tests/docs/example/direct-image.doc.ts:73:13',
       'tests/docs/example/direct-image.doc.ts:74:13',
+      'tests/docs/example/direct-image.doc.ts:75:13',
       'tests/docs/example/direct-image.doc.ts:76:13',
       'tests/docs/example/direct-image.doc.ts:77:13',
-      'tests/docs/example/direct-image.doc.ts:79:13',
+      'tests/docs/example/direct-image.doc.ts:84:13',
+      'tests/docs/example/direct-image.doc.ts:85:13',
       'tests/docs/example/direct-image.doc.ts:86:13',
       'tests/docs/example/direct-image.doc.ts:87:13',
-      'tests/docs/example/direct-image.doc.ts:88:13',
       'tests/docs/example/direct-image.doc.ts:89:13',
       'tests/docs/example/direct-image.doc.ts:91:13',
+      'tests/docs/example/direct-image.doc.ts:92:13',
+      'tests/docs/example/direct-image.doc.ts:94:13',
       'tests/docs/example/direct-image.doc.ts:95:13',
-      'tests/docs/example/direct-image.doc.ts:102:13',
-      'tests/docs/example/direct-image.doc.ts:103:13',
-      'tests/docs/example/direct-image.doc.ts:104:13',
-      'tests/docs/example/direct-image.doc.ts:105:13',
+      'tests/docs/example/direct-image.doc.ts:96:13',
+      'tests/docs/example/direct-image.doc.ts:97:13',
+      'tests/docs/example/direct-image.doc.ts:98:13',
+      'tests/docs/example/direct-image.doc.ts:100:13',
+      'tests/docs/example/direct-image.doc.ts:106:13',
       'tests/docs/example/direct-image.doc.ts:107:13',
-      'tests/docs/example/direct-image.doc.ts:109:13',
+      'tests/docs/example/direct-image.doc.ts:108:13',
       'tests/docs/example/direct-image.doc.ts:110:13',
-      'tests/docs/example/direct-image.doc.ts:111:13',
       'tests/docs/example/direct-image.doc.ts:112:13',
       'tests/docs/example/direct-image.doc.ts:113:13',
-      'tests/docs/example/direct-image.doc.ts:114:13',
+      'tests/docs/example/direct-image.doc.ts:115:13',
+      'tests/docs/example/direct-image.doc.ts:122:13',
+      'tests/docs/example/direct-image.doc.ts:123:13',
+      'tests/docs/example/direct-image.doc.ts:124:13',
+      'tests/docs/example/direct-image.doc.ts:125:13',
+      'tests/docs/example/direct-image.doc.ts:127:13',
+      'tests/docs/example/direct-image.doc.ts:131:13',
+      'tests/docs/example/direct-image.doc.ts:138:13',
+      'tests/docs/example/direct-image.doc.ts:139:13',
+      'tests/docs/example/direct-image.doc.ts:140:13',
+      'tests/docs/example/direct-image.doc.ts:141:13',
+      'tests/docs/example/direct-image.doc.ts:143:13',
+      'tests/docs/example/direct-image.doc.ts:145:13',
+      'tests/docs/example/direct-image.doc.ts:146:13',
+      'tests/docs/example/direct-image.doc.ts:147:13',
+      'tests/docs/example/direct-image.doc.ts:148:13',
+      'tests/docs/example/direct-image.doc.ts:149:13',
+      'tests/docs/example/direct-image.doc.ts:150:13',
     ]);
   });
 

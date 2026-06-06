@@ -606,8 +606,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   image attachments through simple or grouped attachment-name aliases, raw image
   MIME/file-extension payloads, aliased, grouped, indexed, destructured, and
   assigned raw image payload objects, aliased grouped or indexed MIME/path
-  values, object shorthand image payloads, computed raw image payload keys,
-  spread direct attachment arguments, opaque
+  values, simple MIME/path forwarding through calls, template interpolation,
+  conditionals, nullish/logical expressions, and concatenation, object shorthand
+  image payloads, computed raw image payload keys, spread direct attachment arguments, opaque
   attachment `apply(...)` lists, raw screenshot and image attach call/apply
   invocations, `Reflect.apply(...)` raw screenshot and image attach invocations,
   inline bound raw screenshot and image attach invocations,

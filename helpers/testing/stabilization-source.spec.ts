@@ -1465,6 +1465,8 @@ describe('stabilization source', () => {
     expect(source).toContain('reporter output boundary');
     expect(source).toContain('paired `image-caption` attachments');
     expect(source).toContain('terse or content-free caption');
+    expect(source).toContain('simple MIME/path forwarding');
+    expect(source).toContain('concatenation');
     expect(source).toContain('raw Markdown image syntax');
     expect(source).toContain('HTML `<img>` tags');
     expect(source).toMatch(
@@ -1626,6 +1628,10 @@ describe('stabilization source', () => {
       /[Aa]liased,\s+grouped,\s+indexed,\s+destructured,\s+and\s+assigned raw image payload\s+objects/u,
     );
     expect(inventory).toMatch(/grouped or indexed\s+MIME\/path\s+values/u);
+    expect(inventory).toContain('simple MIME/path forwarding');
+    expect(inventory).toContain('template interpolation');
+    expect(inventory).toContain('nullish/logical expressions');
+    expect(inventory).toContain('concatenation');
     expect(inventory).toMatch(/object shorthand\s+image payloads/u);
     expect(inventory).toMatch(/computed\s+raw\s+image\s+payload\s+keys/u);
     expect(inventory).toMatch(
@@ -1742,6 +1748,22 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('image/webp');
     expect(generatedDocumentationSource).toContain('image/gif');
     expect(generatedDocumentationSource).toContain('aliased-image-path.jpeg');
+    expect(generatedDocumentationSource).toContain('String(imageMime)');
+    expect(generatedDocumentationSource).toContain(
+      'path: \\`\\${imagePath}\\`',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "contentType: useImageMime ? imageMime : 'text/plain'",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'path: fallbackImagePath ?? imagePath',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'contentType: fallbackMime || imageMime',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "path: 'evidence-' + imagePath",
+    );
     expect(generatedDocumentationSource).toContain(
       'imageAttachmentNamePropertyAliases',
     );
