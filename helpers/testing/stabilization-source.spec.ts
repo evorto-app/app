@@ -1432,6 +1432,7 @@ describe('stabilization source', () => {
       /destructured,\s+grouped,\s+shorthand,\s+alias-valued,\s+or\s+direct\/alias-valued tuple\/array attach-function\s+aliases/u,
     );
     expect(inventory).toContain('dynamic screenshot-helper imports');
+    expect(inventory).toMatch(/no-substitution template-literal\s+specifiers/u);
     expect(inventory).toContain('self-tests those bypass examples');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('missing-highlight');
@@ -1676,6 +1677,13 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('localScreenshot');
     expect(generatedDocumentationSource).toContain(
       'documentation-reporter/take-screenshot',
+    );
+    expect(generatedDocumentationSource).toContain('templateLiteralReporter');
+    expect(generatedDocumentationSource).toContain(
+      'templateLiteralDirectHelper',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'const moduleSpecifier = getLiteralText(node.arguments[0])',
     );
     expect(generatedDocumentationSource).toContain('genericSelectors');
     expect(generatedDocumentationSource).toContain('genericTargetAliases');

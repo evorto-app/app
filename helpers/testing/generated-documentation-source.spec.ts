@@ -1458,17 +1458,16 @@ const findScreenshotHelperBypasses = (
     if (ts.isCallExpression(node)) {
       const callee = unwrapExpression(node.expression);
 
-      if (
-        callee.kind === ts.SyntaxKind.ImportKeyword &&
-        node.arguments[0] &&
-        ts.isStringLiteral(node.arguments[0]) &&
-        (node.arguments[0].text ===
-          '../../support/reporters/documentation-reporter' ||
-          node.arguments[0].text.includes(
-            'documentation-reporter/take-screenshot',
-          ))
-      ) {
-        bypasses.push(describeNode(node.expression));
+      if (callee.kind === ts.SyntaxKind.ImportKeyword && node.arguments[0]) {
+        const moduleSpecifier = getLiteralText(node.arguments[0]);
+
+        if (
+          moduleSpecifier ===
+            '../../support/reporters/documentation-reporter' ||
+          moduleSpecifier?.includes('documentation-reporter/take-screenshot')
+        ) {
+          bypasses.push(describeNode(node.expression));
+        }
       }
 
       if (
@@ -2057,7 +2056,14 @@ describe('generated docs source current behavior', () => {
       async function dynamicImportBypass() {
         const dynamicReporter = await import('../../support/reporters/documentation-reporter');
         const dynamicDirectHelper = await import('../../support/reporters/documentation-reporter/take-screenshot');
-        return [dynamicReporter, dynamicDirectHelper];
+        const templateLiteralReporter = await import(\`../../support/reporters/documentation-reporter\`);
+        const templateLiteralDirectHelper = await import(\`../../support/reporters/documentation-reporter/take-screenshot\`);
+        return [
+          dynamicReporter,
+          dynamicDirectHelper,
+          templateLiteralReporter,
+          templateLiteralDirectHelper,
+        ];
       }
     `;
 
@@ -2083,6 +2089,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:41:7',
       'tests/docs/example/bypass.doc.ts:44:39',
       'tests/docs/example/bypass.doc.ts:45:43',
+      'tests/docs/example/bypass.doc.ts:46:47',
+      'tests/docs/example/bypass.doc.ts:47:51',
     ]);
   });
 

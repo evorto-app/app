@@ -540,7 +540,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `satisfies` grouped target objects before alias collection, rejects local
   aliases, assigned helper properties, indexed helper entries, and wrapper
   functions that reference `takeScreenshot` even when the helper is named like
-  `captureDocumentationImage`, covers
+  `captureDocumentationImage`, rejects dynamic screenshot-helper imports through
+  both string-literal and no-substitution template-literal specifiers, covers
   the weak-caption,
   missing-highlight, and blank highlighted-image runtime failures in
   reporter-path tests,
