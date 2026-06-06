@@ -6107,7 +6107,9 @@ account-required registration invariant and rejects anonymous/guest
 registration-without-account wording. It also keeps guest spots aligned with the
 buyer-attached quantity model by rejecting separate guest account or contact
 collection wording, and keeps participant versus organizer/helper registration
-options aligned with the root mutual-exclusivity invariant.
+options aligned with the root mutual-exclusivity invariant. The role-ineligible
+direct-link documentation is now source-guarded to stay role-based rather than
+drifting into email-domain, invite-code, or scattered special-case flags.
 The registration generated doc now also screenshots the hosted Stripe Checkout
 form through a filtered payment/continue/submit form target instead of accepting
 the first form on the external checkout page.

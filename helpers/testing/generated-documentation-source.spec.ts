@@ -6113,6 +6113,12 @@ describe('generated docs source current behavior', () => {
     expect(productSource).toContain(
       'A user cannot be both an organizer/helper and a participant for the same event.',
     );
+    expect(productSource).toContain(
+      'Registration options define role-based eligibility.',
+    );
+    expect(productSource).toContain(
+      'Special cases such as banned users, ESN-card-only access, and participation in another program should be modeled through roles and registration-option eligibility.',
+    );
     expect(source).toContain(
       'Anonymous visitors can browse listed public events, but registration stays account-required.',
     );
@@ -6254,6 +6260,9 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toMatch(
       /join the same event as participant and organizer/i,
     );
+    expect(source).not.toMatch(/email[- ]domain eligibility/i);
+    expect(source).not.toMatch(/invite[- ]code eligibility/i);
+    expect(source).not.toMatch(/special[- ]case eligibility flag/i);
     expect(source).not.toContain('ticket QR code by email');
   });
 

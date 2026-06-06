@@ -1116,6 +1116,8 @@ provider outcomes without live identifiers.
     The same source guard keeps guest spots documented as buyer-attached
     quantity instead of separate guest accounts or contact collection, and keeps
     participant versus organizer/helper registration options mutually exclusive.
+    It also ties the role-ineligible direct-link docs to role-based eligibility
+    instead of email-domain, invite-code, or scattered special-case flags.
     The paid walkthrough screenshots the hosted Stripe Checkout form through a
     filtered payment/continue/submit form target instead of the first external
     checkout form. The generated narrative also documents queued confirmation,
