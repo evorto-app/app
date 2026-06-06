@@ -1467,10 +1467,14 @@ describe('stabilization source', () => {
     expect(source).toContain('terse or content-free caption');
     expect(source).toContain('raw Markdown image syntax');
     expect(source).toContain('HTML `<img>` tags');
-    expect(source).toContain('bound,\ndestructured, grouped, indexed');
+    expect(source).toContain(
+      'grouped/indexed/destructured or\nassigned payload objects',
+    );
+    expect(source).toContain('shorthand `{ body }`, bound');
+    expect(source).toContain('destructured, grouped,\nindexed');
     expect(source).toContain('assigned `attach` helpers');
     expect(source).toContain(
-      'spread,\n`call`, `apply`, `Reflect.apply`, or inline `bind`',
+      'and spread, `call`, `apply`,\n`Reflect.apply`, or inline `bind`',
     );
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',

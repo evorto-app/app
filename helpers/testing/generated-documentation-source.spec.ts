@@ -530,6 +530,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
   const markdownAttachmentNameAliases = new Set<string>();
   const rawMarkdownBodyAliases = new Set<string>();
   const rawMarkdownPayloadAliases = new Set<string>();
+  const rawMarkdownPayloadPropertyAliases = new Set<string>();
   const markdownAttachFunctionAliases = new Set<string>();
   const markdownAttachFunctionPropertyAliases = new Set<string>();
   const rawMarkdownImagePattern = /!\[[^\]]*\]\([^)]+\)|<img(?:\s|>)/iu;
@@ -589,6 +590,15 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
 
     if (ts.isIdentifier(payload)) {
       return rawMarkdownPayloadAliases.has(payload.text);
+    }
+
+    if (
+      ts.isPropertyAccessExpression(payload) ||
+      ts.isElementAccessExpression(payload)
+    ) {
+      return rawMarkdownPayloadPropertyAliases.has(
+        getStaticPropertyReference(payload, sourceFile) ?? '',
+      );
     }
 
     if (!ts.isObjectLiteralExpression(payload)) {
@@ -706,6 +716,17 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
               `${node.name.text}.${propertyName}`,
             );
           }
+
+          if (
+            (propertyInitializer &&
+              hasRawMarkdownPayload(propertyInitializer)) ||
+            (ts.isShorthandPropertyAssignment(property) &&
+              rawMarkdownPayloadAliases.has(property.name.text))
+          ) {
+            rawMarkdownPayloadPropertyAliases.add(
+              `${node.name.text}.${propertyName}`,
+            );
+          }
         }
       }
 
@@ -723,6 +744,12 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
             );
           },
           markdownAttachFunctionPropertyAliases,
+        );
+        collectIndexedPropertyAliases(
+          node.name.text,
+          initializer.elements,
+          hasRawMarkdownPayload,
+          rawMarkdownPayloadPropertyAliases,
         );
       }
     }
@@ -744,6 +771,23 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       }
     }
 
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
+      hasRawMarkdownPayload(node.right)
+    ) {
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+      );
+
+      if (propertyReference) {
+        rawMarkdownPayloadPropertyAliases.add(propertyReference);
+      }
+    }
+
     if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
       collectPropertyBindingAliases(
         node.name,
@@ -758,6 +802,12 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         sourceFile,
         markdownAttachFunctionPropertyAliases,
         markdownAttachFunctionAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        rawMarkdownPayloadPropertyAliases,
+        rawMarkdownPayloadAliases,
       );
     }
 
@@ -3440,6 +3490,24 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach(markdownAttachmentName, { body });
       await testInfo.attach('markdown', rawMarkdownPayload);
       await testInfo.attach(markdownAttachmentName, shorthandMarkdownPayload);
+      const rawMarkdownPayloads = {
+        evidence: rawMarkdownPayload,
+        shorthandMarkdownPayload,
+      };
+      const rawMarkdownPayloadList = [
+        rawMarkdownPayload,
+        shorthandMarkdownPayload,
+      ];
+      await testInfo.attach('markdown', rawMarkdownPayloads.evidence);
+      await testInfo.attach(
+        markdownAttachmentName,
+        rawMarkdownPayloads.shorthandMarkdownPayload,
+      );
+      await testInfo.attach('markdown', rawMarkdownPayloadList[0]);
+      const { evidence: groupedRawMarkdownPayload } = rawMarkdownPayloads;
+      await testInfo.attach('markdown', groupedRawMarkdownPayload);
+      rawMarkdownPayloads.assignedEvidence = rawMarkdownPayload;
+      await testInfo.attach('markdown', rawMarkdownPayloads.assignedEvidence);
       const attachMarkdownEvidence = testInfo.attach.bind(testInfo);
       const { attach: destructuredAttachMarkdownEvidence } = testInfo;
       const attachHelpers = { evidence: attachMarkdownEvidence };
@@ -3497,20 +3565,25 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/raw-markdown-image.doc.ts:24:13',
       'tests/docs/example/raw-markdown-image.doc.ts:25:13',
       'tests/docs/example/raw-markdown-image.doc.ts:26:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:31:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:32:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:35:13',
       'tests/docs/example/raw-markdown-image.doc.ts:36:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:37:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:39:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:41:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:40:13',
       'tests/docs/example/raw-markdown-image.doc.ts:42:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:43:13',
       'tests/docs/example/raw-markdown-image.doc.ts:44:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:48:13',
-      'tests/docs/example/raw-markdown-image.doc.ts:53:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:49:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:50:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:54:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:55:13',
       'tests/docs/example/raw-markdown-image.doc.ts:57:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:59:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:60:13',
       'tests/docs/example/raw-markdown-image.doc.ts:61:13',
       'tests/docs/example/raw-markdown-image.doc.ts:62:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:66:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:71:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:75:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:79:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:80:13',
     ]);
   });
 
