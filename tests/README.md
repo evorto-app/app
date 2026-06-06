@@ -127,6 +127,10 @@ bun run lint
   Authentication setup fails fast on the Auth0 `Callback URL mismatch.` page and
   reports the evaluated `BASE_URL` and `APP_HOST_PORT` instead of timing out
   while waiting for the login form.
+  `bun run docker:check` also warns when a different running Evorto Compose
+  project already owns the selected `APP_HOST_PORT`, which usually explains why
+  an authenticated local run cannot bind the Auth0-registered `localhost:4200`
+  origin. Stop that owning stack manually only after confirming it is not active.
 - Local Playwright package scripts that run `playwright test`, plus
   `dev:start`, `db:*`, and `docker:*`, refresh `.env.dev` before invoking
   `dotenv -c dev`, so new worktrees get isolated local app/service ports and

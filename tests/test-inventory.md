@@ -1079,6 +1079,11 @@ provider outcomes without live identifiers.
   coverage keeps Prettier's Tailwind plugin config and dev dependency aligned,
   so local `format:write` runs stay warning-free without installing inactive
   formatter plugins.
+  The Docker preflight now also warns when a different running Evorto Compose
+  project already publishes the selected `APP_HOST_PORT`, prints the manual
+  `COMPOSE_PROJECT_NAME=<project> docker compose down` pattern, and ignores
+  unrelated non-Evorto Compose projects so active work in another checkout is not
+  stopped automatically.
 - `bun run dev:status` is the combined non-mutating local runtime status path.
   It refreshes `.env.dev`, runs the development preflight, runs the Docker
   preflight, and still runs the Neon Local cleanup dry-run before returning a

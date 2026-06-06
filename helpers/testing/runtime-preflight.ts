@@ -257,6 +257,113 @@ const dockerComposeProjectContainerCheck = (
   };
 };
 
+const publishedPortExpression =
+  /(?:^|[,\s])(?:0\.0\.0\.0|\[::\]|127\.0\.0\.1|\[::1\]|\*)?:(\d+)->/gu;
+
+const extractPublishedHostPorts = (ports: unknown): readonly string[] => {
+  if (typeof ports !== 'string') {
+    return [];
+  }
+
+  return [...ports.matchAll(publishedPortExpression)].map((match) => match[1]);
+};
+
+const auth0RegisteredPortConflictCheck = (
+  environment: NodeJS.ProcessEnv,
+  runCommand: (
+    command: string,
+    commandArguments: readonly string[],
+  ) => CommandResult,
+): RuntimeCheck => {
+  const appHostPort = environment['APP_HOST_PORT']?.trim();
+  const composeProjectName = environment['COMPOSE_PROJECT_NAME']?.trim();
+  const label = 'Auth0 registered app port';
+
+  if (!appHostPort) {
+    return {
+      details: ['APP_HOST_PORT is missing; skipping cross-project port check.'],
+      label,
+      severity: 'ok',
+    };
+  }
+
+  const result = runCommand('docker', [
+    'ps',
+    '--format',
+    '{{json .}}',
+    '--filter',
+    'label=com.docker.compose.project',
+  ]);
+
+  if (result.status !== 0) {
+    return {
+      details: [
+        firstLine(result.stderr) ??
+          firstLine(result.stdout) ??
+          result.errorMessage ??
+          'Unable to inspect running Docker Compose containers.',
+        `If Auth0 login fails locally, check whether another Evorto stack is already publishing localhost:${appHostPort}.`,
+      ],
+      label,
+      severity: 'warning',
+    };
+  }
+
+  const conflicts = result.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .flatMap((line) => {
+      try {
+        const parsed = JSON.parse(line) as {
+          Labels?: unknown;
+          Names?: unknown;
+          Ports?: unknown;
+        };
+        const labels = String(parsed.Labels ?? '');
+        const project = /(?:^|,)com\.docker\.compose\.project=([^,]+)/u.exec(
+          labels,
+        )?.[1];
+        if (
+          !project ||
+          project === composeProjectName ||
+          !project.startsWith('evorto-')
+        ) {
+          return [];
+        }
+
+        if (!extractPublishedHostPorts(parsed.Ports).includes(appHostPort)) {
+          return [];
+        }
+
+        const name = String(parsed.Names ?? '').trim() || '<unnamed>';
+        return [`${name} from Compose project ${project}`];
+      } catch {
+        return [];
+      }
+    });
+
+  if (conflicts.length === 0) {
+    return {
+      details: [
+        `No other Evorto Compose project is publishing ${appHostPort}.`,
+      ],
+      label,
+      severity: 'ok',
+    };
+  }
+
+  return {
+    details: [
+      ...conflicts,
+      `Another Evorto stack is already publishing localhost:${appHostPort}. Auth0 callbacks are usually registered for this port, so generated fallback ports can fail authenticated Browser and Playwright verification.`,
+      'Stop the owning stack if it is not active: COMPOSE_PROJECT_NAME=<project> docker compose down',
+    ],
+    label,
+    severity: 'warning',
+  };
+};
+
 const dockerContainerStartCheck = (
   runCommand: (
     command: string,
@@ -733,6 +840,7 @@ export const evaluateRuntimePreflight = (
           ),
           dockerContainerStartCheck(runCommand),
           dockerComposeProjectContainerCheck(runCommand),
+          auth0RegisteredPortConflictCheck(environment, runCommand),
           commandCheck(
             'Playwright CLI',
             'bunx',

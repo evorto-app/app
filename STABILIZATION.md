@@ -5571,6 +5571,13 @@ summary. A current local run failed on the expected closed
 database port and Docker container-start path while still reporting the Neon
 summary as one protected branch, no active-test branches, no stale deletions,
 and a two-hour TTL.
+Docker preflight now also surfaces the Auth0 callback-port footgun directly:
+when a different running Evorto Compose project already publishes the selected
+`APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
+and the manual `COMPOSE_PROJECT_NAME=<project> docker compose down` pattern.
+The check ignores the current generated Compose project and unrelated non-Evorto
+Compose projects, so it explains `localhost:4200` conflicts without stopping
+another active checkout automatically.
 The E2E cache-warmer now also runs TTL-conservative Neon Local branch cleanup
 before dependency installs when Neon credentials are available, so stale branch
 recovery does not depend on Playwright shards reaching Docker startup or

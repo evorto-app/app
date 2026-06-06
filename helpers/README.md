@@ -187,6 +187,10 @@ may generate a non-4200 app port for worktree isolation, but authenticated local
 Browser or Playwright runs only work when that exact callback URL is registered
 in Auth0. If the generated port is not registered, free port 4200 and start the
 stack with `APP_HOST_PORT=4200 bun run docker:start`.
+`bun run docker:check` warns when another running Evorto Compose project is
+already publishing the selected `APP_HOST_PORT`, then prints the owning
+`COMPOSE_PROJECT_NAME` pattern to stop manually. It does not stop other stacks
+automatically, so active work in another checkout is not disrupted.
 Once `.env.dev` has been generated, later package-script preflights preserve the
 recorded local ports unless an explicit override such as `APP_HOST_PORT=4200` is
 provided again. This keeps `BASE_URL` aligned with a running stack when you use

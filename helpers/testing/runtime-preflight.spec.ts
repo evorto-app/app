@@ -47,6 +47,38 @@ const successfulCommand = (
     };
   }
 
+  if (joined === 'docker compose ps --all --format json') {
+    return {
+      status: 0,
+      stderr: '',
+      stdout: '[]\n',
+    };
+  }
+
+  if (
+    command === 'docker' &&
+    commandArguments.join(' ') ===
+      'ps --format {{json .}} --filter label=com.docker.compose.project'
+  ) {
+    return {
+      status: 0,
+      stderr: '',
+      stdout: '',
+    };
+  }
+
+  if (
+    command === 'sh' &&
+    commandArguments[0] === '-c' &&
+    commandArguments[1]?.includes('docker run --name "$container_name"')
+  ) {
+    return {
+      status: 0,
+      stderr: '',
+      stdout: '',
+    };
+  }
+
   if (joined === 'bunx playwright --version') {
     return {
       status: 0,
@@ -343,6 +375,12 @@ describe('evaluateRuntimePreflight', () => {
     expect(testsReadme).toMatch(/times\s+out Docker inspect\/remove/u);
     expect(testsReadme).toContain('restart Docker Desktop');
     expect(testsReadme).toMatch(/blocked below\s+the app tooling layer/u);
+    expect(testsReadme).toContain(
+      'different running Evorto Compose\n  project already owns the selected `APP_HOST_PORT`',
+    );
+    expect(testsReadme).toContain(
+      'Stop that owning stack manually only after confirming it is not active.',
+    );
 
     const helpersReadme = fs.readFileSync(
       path.join(process.cwd(), 'helpers/README.md'),
@@ -373,6 +411,15 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain('bounded cleanup cannot stop an unhealthy');
     expect(helpersReadme).toMatch(/restart\s+Docker Desktop/u);
     expect(helpersReadme).toMatch(/blocked below the app tooling layer/u);
+    expect(helpersReadme).toContain(
+      'already publishing the selected `APP_HOST_PORT`',
+    );
+    expect(helpersReadme).toContain(
+      '`COMPOSE_PROJECT_NAME` pattern to stop manually',
+    );
+    expect(helpersReadme).toContain(
+      'It does not stop other stacks\nautomatically',
+    );
     expect(helpersReadme).toContain('Docker container start path');
     expect(helpersReadme).toContain('disposable Alpine container');
 
@@ -441,6 +488,15 @@ describe('evaluateRuntimePreflight', () => {
     expect(runtimePreflight).toContain('commandTimeoutMs * 2');
     expect(runtimePreflight).toContain(
       'Docker can inspect local configuration but cannot start containers',
+    );
+    expect(runtimePreflight).toContain('Auth0 registered app port');
+    expect(runtimePreflight).toContain("'label=com.docker.compose.project'");
+    expect(runtimePreflight).toContain("!project.startsWith('evorto-')");
+    expect(runtimePreflight).toContain(
+      'Another Evorto stack is already publishing localhost:${appHostPort}',
+    );
+    expect(runtimePreflight).toContain(
+      'COMPOSE_PROJECT_NAME=<project> docker compose down',
     );
   });
 
@@ -845,6 +901,12 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain('combined non-mutating local runtime');
     expect(inventory).toContain('bun run dev:status');
     expect(inventory).toContain('combined non-mutating local runtime status');
+    expect(inventory).toContain(
+      'different running Evorto Compose\n  project already publishes the selected `APP_HOST_PORT`',
+    );
+    expect(inventory).toContain(
+      'COMPOSE_PROJECT_NAME=<project> docker compose down',
+    );
 
     expect(workflow).toContain(
       'run: bash helpers/testing/install-ci-dependencies.sh',
@@ -2004,6 +2066,114 @@ describe('evaluateRuntimePreflight', () => {
           ]),
           label: 'Docker Compose project containers',
           severity: 'failure',
+        }),
+      ]),
+    );
+  });
+
+  it('warns when another Evorto Compose project owns the Auth0 callback port', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: {
+        ...requiredDockerEnvironment,
+        APP_HOST_PORT: '4200',
+        COMPOSE_PROJECT_NAME: 'evorto-4dddca18',
+        E2E_BROWSER_CHANNEL: 'chrome',
+      },
+      fileExists: (filePath) =>
+        filePath === '/repo/.env.dev' ||
+        filePath === '/Applications/Google Chrome.app',
+      runCommand: (command, commandArguments) => {
+        if (
+          command === 'docker' &&
+          commandArguments.join(' ') ===
+            'ps --format {{json .}} --filter label=com.docker.compose.project'
+        ) {
+          return {
+            status: 0,
+            stderr: '',
+            stdout: `${JSON.stringify({
+              Labels: 'com.docker.compose.project=evorto-cc7ef3a9',
+              Names: 'evorto-cc7ef3a9-evorto-1',
+              Ports: '0.0.0.0:4200->4200/tcp, [::]:4200->4200/tcp',
+            })}\n${JSON.stringify({
+              Labels: 'com.docker.compose.project=evorto-4dddca18',
+              Names: 'evorto-4dddca18-evorto-1',
+              Ports: '0.0.0.0:4200->4200/tcp',
+            })}\n${JSON.stringify({
+              Labels: 'com.docker.compose.project=storybook-local',
+              Names: 'storybook-local-1',
+              Ports: '0.0.0.0:4200->4200/tcp',
+            })}\n`,
+          };
+        }
+
+        return successfulCommand(command, commandArguments);
+      },
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.warned).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'evorto-cc7ef3a9-evorto-1 from Compose project evorto-cc7ef3a9',
+            'Another Evorto stack is already publishing localhost:4200. Auth0 callbacks are usually registered for this port, so generated fallback ports can fail authenticated Browser and Playwright verification.',
+            'Stop the owning stack if it is not active: COMPOSE_PROJECT_NAME=<project> docker compose down',
+          ],
+          label: 'Auth0 registered app port',
+          severity: 'warning',
+        }),
+      ]),
+    );
+  });
+
+  it('passes the Auth0 callback port check when only the generated project owns it', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: {
+        ...requiredDockerEnvironment,
+        APP_HOST_PORT: '4200',
+        COMPOSE_PROJECT_NAME: 'evorto-4dddca18',
+        E2E_BROWSER_CHANNEL: 'chrome',
+      },
+      fileExists: (filePath) =>
+        filePath === '/repo/.env.dev' ||
+        filePath === '/Applications/Google Chrome.app',
+      runCommand: (command, commandArguments) => {
+        if (
+          command === 'docker' &&
+          commandArguments.join(' ') ===
+            'ps --format {{json .}} --filter label=com.docker.compose.project'
+        ) {
+          return {
+            status: 0,
+            stderr: '',
+            stdout: `${JSON.stringify({
+              Labels: 'com.docker.compose.project=evorto-4dddca18',
+              Names: 'evorto-4dddca18-evorto-1',
+              Ports: '0.0.0.0:4200->4200/tcp',
+            })}\n${JSON.stringify({
+              Labels: 'com.docker.compose.project=storybook-local',
+              Names: 'storybook-local-1',
+              Ports: '0.0.0.0:4200->4200/tcp',
+            })}\n`,
+          };
+        }
+
+        return successfulCommand(command, commandArguments);
+      },
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.warned).toBe(false);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: ['No other Evorto Compose project is publishing 4200.'],
+          label: 'Auth0 registered app port',
+          severity: 'ok',
         }),
       ]),
     );
