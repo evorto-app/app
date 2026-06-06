@@ -5793,6 +5793,10 @@ Raw image attachments with image MIME types or common image file extensions are
 also rejected even when their attachment name is not `image`, so docs cannot
 smuggle screenshot evidence through a differently named `testInfo.attach(...)`
 call.
+Bracket-property forms such as `testInfo['attach'](...)`,
+`page['screenshot'](...)`, and `documentationReporter['takeScreenshot'](...)`
+are treated the same as dot-property access, so generated-doc source guards do
+not depend on one JavaScript property-access spelling.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.

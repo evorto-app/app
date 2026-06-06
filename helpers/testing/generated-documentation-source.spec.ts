@@ -81,6 +81,42 @@ const isTakeScreenshotCall = (node: ts.CallExpression): boolean => {
   return ts.isIdentifier(callee) && callee.text === 'takeScreenshot';
 };
 
+const getStaticPropertyName = (node: ts.Expression): null | string => {
+  const expression = unwrapExpression(node);
+
+  if (ts.isPropertyAccessExpression(expression)) {
+    return expression.name.text;
+  }
+
+  if (ts.isElementAccessExpression(expression)) {
+    const argument = unwrapExpression(expression.argumentExpression);
+
+    if (
+      ts.isStringLiteral(argument) ||
+      ts.isNoSubstitutionTemplateLiteral(argument)
+    ) {
+      return argument.text;
+    }
+  }
+
+  return null;
+};
+
+const getStaticPropertyReceiver = (
+  node: ts.Expression,
+): null | ts.Expression => {
+  const expression = unwrapExpression(node);
+
+  if (
+    ts.isPropertyAccessExpression(expression) ||
+    ts.isElementAccessExpression(expression)
+  ) {
+    return expression.expression;
+  }
+
+  return null;
+};
+
 const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
   const sourceFile = ts.createSourceFile(
     path,
@@ -1266,8 +1302,9 @@ const findScreenshotHelperBypasses = (
       }
 
       if (
-        ts.isPropertyAccessExpression(callee) &&
-        callee.name.text === 'takeScreenshot'
+        (ts.isPropertyAccessExpression(callee) ||
+          ts.isElementAccessExpression(callee)) &&
+        getStaticPropertyName(callee) === 'takeScreenshot'
       ) {
         bypasses.push(describeNode(node.expression));
       }
@@ -1377,16 +1414,21 @@ const findDirectImageAttachmentCalls = (
   const isAttachFunctionReference = (node: ts.Expression): boolean => {
     const expression = unwrapExpression(node);
 
-    if (ts.isPropertyAccessExpression(expression)) {
-      return expression.name.text === 'attach';
+    if (
+      (ts.isPropertyAccessExpression(expression) ||
+        ts.isElementAccessExpression(expression)) &&
+      getStaticPropertyName(expression) === 'attach'
+    ) {
+      return true;
     }
 
     if (
       ts.isCallExpression(expression) &&
-      ts.isPropertyAccessExpression(expression.expression) &&
-      expression.expression.name.text === 'bind' &&
-      ts.isPropertyAccessExpression(expression.expression.expression) &&
-      expression.expression.expression.name.text === 'attach'
+      getStaticPropertyName(expression.expression) === 'bind' &&
+      getStaticPropertyName(
+        getStaticPropertyReceiver(expression.expression) ??
+          expression.expression,
+      ) === 'attach'
     ) {
       return true;
     }
@@ -1447,8 +1489,9 @@ const findDirectImageAttachmentCalls = (
       const callee = unwrapExpression(node.expression);
 
       if (
-        (ts.isPropertyAccessExpression(callee) &&
-          callee.name.text === 'attach') ||
+        ((ts.isPropertyAccessExpression(callee) ||
+          ts.isElementAccessExpression(callee)) &&
+          getStaticPropertyName(callee) === 'attach') ||
         (ts.isIdentifier(callee) && attachFunctionAliases.has(callee.text))
       ) {
         imageAttachments.push(describeCall(node));
@@ -1484,16 +1527,21 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
   const isScreenshotFunctionReference = (node: ts.Expression): boolean => {
     const expression = unwrapExpression(node);
 
-    if (ts.isPropertyAccessExpression(expression)) {
-      return expression.name.text === 'screenshot';
+    if (
+      (ts.isPropertyAccessExpression(expression) ||
+        ts.isElementAccessExpression(expression)) &&
+      getStaticPropertyName(expression) === 'screenshot'
+    ) {
+      return true;
     }
 
     if (
       ts.isCallExpression(expression) &&
-      ts.isPropertyAccessExpression(expression.expression) &&
-      expression.expression.name.text === 'bind' &&
-      ts.isPropertyAccessExpression(expression.expression.expression) &&
-      expression.expression.expression.name.text === 'screenshot'
+      getStaticPropertyName(expression.expression) === 'bind' &&
+      getStaticPropertyName(
+        getStaticPropertyReceiver(expression.expression) ??
+          expression.expression,
+      ) === 'screenshot'
     ) {
       return true;
     }
@@ -1544,8 +1592,9 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       const callee = unwrapExpression(node.expression);
 
       if (
-        (ts.isPropertyAccessExpression(callee) &&
-          callee.name.text === 'screenshot') ||
+        ((ts.isPropertyAccessExpression(callee) ||
+          ts.isElementAccessExpression(callee)) &&
+          getStaticPropertyName(callee) === 'screenshot') ||
         (ts.isIdentifier(callee) && screenshotFunctionAliases.has(callee.text))
       ) {
         screenshotCalls.push(describeCall(node));
@@ -1591,6 +1640,12 @@ describe('generated docs source current behavior', () => {
         page,
         'Direct namespace helper call with descriptive caption',
       );
+      await documentationReporter['takeScreenshot'](
+        testInfo,
+        settingsSurface,
+        page,
+        'Bracket namespace helper call with descriptive caption',
+      );
 
       async function dynamicImportBypass() {
         const dynamicReporter = await import('../../support/reporters/documentation-reporter');
@@ -1615,8 +1670,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:14:16',
       'tests/docs/example/bypass.doc.ts:18:13',
       'tests/docs/example/bypass.doc.ts:24:13',
-      'tests/docs/example/bypass.doc.ts:32:39',
-      'tests/docs/example/bypass.doc.ts:33:43',
+      'tests/docs/example/bypass.doc.ts:30:13',
+      'tests/docs/example/bypass.doc.ts:38:39',
+      'tests/docs/example/bypass.doc.ts:39:43',
     ]);
   });
 
@@ -1628,8 +1684,11 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach(attachmentName, { body: imageBuffer });
       const attachEvidence = testInfo.attach.bind(testInfo);
       await attachEvidence('image', { body: imageBuffer });
+      const attachEvidenceByElement = testInfo['attach'].bind(testInfo);
+      await attachEvidenceByElement('image', { body: imageBuffer });
       const { attach: attachImageDirectly } = testInfo;
       await attachImageDirectly('image', { body: imageBuffer });
+      await testInfo['attach']('image', { body: imageBuffer });
       await testInfo.attach('raw evidence', { body: imageBuffer, contentType: 'image/png' });
       await testInfo.attach('raw file evidence', { path: 'raw-evidence.webp' });
       await testInfo.attach('markdown', { body: markdown });
@@ -1646,17 +1705,22 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:5:13',
       'tests/docs/example/direct-image.doc.ts:7:13',
       'tests/docs/example/direct-image.doc.ts:9:13',
-      'tests/docs/example/direct-image.doc.ts:10:13',
       'tests/docs/example/direct-image.doc.ts:11:13',
+      'tests/docs/example/direct-image.doc.ts:12:13',
+      'tests/docs/example/direct-image.doc.ts:13:13',
+      'tests/docs/example/direct-image.doc.ts:14:13',
     ]);
   });
 
   it('detects direct screenshot calls before generated docs can use them', () => {
     const directScreenshotSource = `
       await page.screenshot({ path: 'page.png' });
+      await page['screenshot']({ path: 'page-bracket.png' });
       await page.locator('main').screenshot();
       const captureElement = page.locator('section').screenshot.bind(page.locator('section'));
       await captureElement({ path: 'section.png' });
+      const capturePageByElement = page['screenshot'].bind(page);
+      await capturePageByElement({ path: 'page-element-alias.png' });
       const { screenshot: capturePageScreenshot } = page;
       await capturePageScreenshot({ path: 'page-alias.png' });
       await takeScreenshot(
@@ -1675,8 +1739,10 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/direct-screenshot.doc.ts:2:13',
       'tests/docs/example/direct-screenshot.doc.ts:3:13',
-      'tests/docs/example/direct-screenshot.doc.ts:5:13',
-      'tests/docs/example/direct-screenshot.doc.ts:7:13',
+      'tests/docs/example/direct-screenshot.doc.ts:4:13',
+      'tests/docs/example/direct-screenshot.doc.ts:6:13',
+      'tests/docs/example/direct-screenshot.doc.ts:8:13',
+      'tests/docs/example/direct-screenshot.doc.ts:10:13',
     ]);
   });
 
