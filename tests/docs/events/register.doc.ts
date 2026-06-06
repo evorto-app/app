@@ -365,9 +365,22 @@ test.describe('Register for events', () => {
   You can cancel a pending or confirmed registration from this event page before the event starts. Cancellation queues a registration-cancelled email to your notification email address. Confirmed cancellation releases your selected spots, including guests when attached. If the registration was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.`,
     });
 
+    const freeConfirmedRegistrationCard = activeRegistrationCard(
+      page,
+      'Your event ticket',
+    );
+    await expect(freeConfirmedRegistrationCard).toBeVisible();
+    await expect(
+      freeConfirmedRegistrationCard.getByAltText(
+        'QR code for the registration',
+      ),
+    ).toBeVisible();
+    await expect(
+      freeConfirmedRegistrationCard.getByText('2 x Snack voucher'),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
-      activeRegistrationCard(page, 'Your event ticket'),
+      freeConfirmedRegistrationCard,
       page,
       'Confirmed registration card with selected add-ons and QR ticket',
     );
@@ -1282,9 +1295,19 @@ test.describe('Register for events', () => {
   After successful payment, you are redirected back to the event page and shown your registration confirmation.
   Your ticket details and QR code are now available.`,
     });
+    const paidConfirmedRegistrationCard = activeRegistrationCard(
+      page,
+      'Your event ticket',
+    );
+    await expect(paidConfirmedRegistrationCard).toBeVisible();
+    await expect(
+      paidConfirmedRegistrationCard.getByAltText(
+        'QR code for the registration',
+      ),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
-      activeRegistrationCard(page, 'Your event ticket'),
+      paidConfirmedRegistrationCard,
       page,
       'Event details after successful paid registration',
     );

@@ -86,6 +86,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 
 - Events and registrations:
   - `docs/events/**`
+  - `docs/events/register.doc.ts` asserts the successful free and paid
+    registration ticket cards contain the visible QR image before screenshotting
+    them; the free registration screenshot also proves the selected add-on state
+    remains visible with the ticket.
   - `docs/events/unlisted-user.doc.ts` screenshots both the seeded unlisted
     event disappearing from the user event list while a second listed event card
     remains visible, and the same unlisted event opening through its direct

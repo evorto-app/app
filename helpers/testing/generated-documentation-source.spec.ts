@@ -2790,6 +2790,14 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'The email tells you to open Evorto for the ticket and event details; it does not send the QR code directly.',
     );
+    expect(source).toContain('freeConfirmedRegistrationCard');
+    expect(source).toContain('paidConfirmedRegistrationCard');
+    expect(source).toContain(
+      "getByAltText(\n        'QR code for the registration'",
+    );
+    expect(source).toContain(
+      "freeConfirmedRegistrationCard.getByText('2 x Snack voucher')",
+    );
     expect(source).toContain(
       'Cancellation queues a registration-cancelled email to your notification email address.',
     );
