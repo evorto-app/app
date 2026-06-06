@@ -194,6 +194,19 @@ const getStaticPropertyName = (node: ts.Expression): null | string => {
   return null;
 };
 
+const getLiteralText = (node: ts.Expression): null | string => {
+  const expression = unwrapExpression(node);
+
+  if (
+    ts.isStringLiteral(expression) ||
+    ts.isNoSubstitutionTemplateLiteral(expression)
+  ) {
+    return expression.text;
+  }
+
+  return null;
+};
+
 const getStaticPropertyNameFromName = (
   node: ts.PropertyName,
 ): null | string => {
@@ -416,8 +429,10 @@ const findGenericScreenshotTargets = (
 
       if (methodName === 'locator') {
         const selector = candidate.arguments[0];
-        if (ts.isStringLiteral(selector)) {
-          return genericSelectors.has(selector.text.trim().toLowerCase());
+        const selectorText = selector ? getLiteralText(selector) : null;
+
+        if (selectorText) {
+          return genericSelectors.has(selectorText.trim().toLowerCase());
         }
       }
 
@@ -626,12 +641,11 @@ const findUnfilteredBroadScreenshotTargets = (
 
       if (methodName === 'locator') {
         const selector = candidate.arguments[0];
+        const selectorText = selector ? getLiteralText(selector) : null;
 
-        return (
-          !hasFilteringStep &&
-          ts.isStringLiteral(selector) &&
-          isBroadSelector(selector.text)
-        );
+        return !hasFilteringStep && selectorText !== null
+          ? isBroadSelector(selectorText)
+          : false;
       }
 
       candidate = candidate.expression.expression;
@@ -2562,6 +2576,36 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/chained-generic-target.doc.ts:8:13',
       'tests/docs/example/chained-generic-target.doc.ts:15:13',
     ]);
+  });
+
+  it('detects template-literal weak documentation screenshot targets', () => {
+    const templateLiteralTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        page.locator(\`main\`),
+        page,
+        'Template literal generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page.locator(\`app-admin-overview\`),
+        page,
+        'Template literal broad host target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/template-literal-target.doc.ts',
+        templateLiteralTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/template-literal-target.doc.ts:2:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/template-literal-target.doc.ts',
+        templateLiteralTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/template-literal-target.doc.ts:8:13']);
   });
 
   it('detects generic documentation screenshot targets', () => {

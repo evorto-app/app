@@ -1372,12 +1372,15 @@ describe('stabilization source', () => {
       'aliased generic locators and\n  helper-returned generic locators inside screenshot arguments and arrays',
     );
     expect(inventory).toMatch(/chained generic page-shell locators/u);
+    expect(inventory).toMatch(/template-literal generic shell selectors/u);
     expect(inventory).toContain(
       'unfiltered broad `section`, `article`, `div`, `form`, and `app-*`\n  component-host screenshot targets',
     );
-    expect(inventory).toContain(
-      'aliased broad locators and\n  helper-returned broad locators inside screenshot arguments and arrays',
+    expect(inventory).toMatch(
+      /no-substitution template-literal\s+broad selectors/u,
     );
+    expect(inventory).toMatch(/aliased broad locators/u);
+    expect(inventory).toMatch(/helper-returned broad locators/u);
     expect(inventory).toMatch(/role\/text\/label\/placeholder\s+locators/u);
     expect(inventory).toContain('single-control CSS locator targets');
     expect(inventory).toMatch(/helper-returned\s+single-control locators/u);
@@ -1686,6 +1689,17 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       "page.locator('body').filter",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects template-literal weak documentation screenshot targets',
+    );
+    expect(generatedDocumentationSource).toContain('getLiteralText');
+    expect(generatedDocumentationSource).toContain(
+      'isNoSubstitutionTemplateLiteral',
+    );
+    expect(generatedDocumentationSource).toContain('page.locator(\\`main\\`)');
+    expect(generatedDocumentationSource).toContain(
+      'page.locator(\\`app-admin-overview\\`)',
     );
     expect(generatedDocumentationSource).toContain(
       "'../../support/reporters/documentation-reporter'",

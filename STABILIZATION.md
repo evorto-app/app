@@ -5702,6 +5702,11 @@ the copied local `.env`, the Neon dry-run remains clean with only protected
 `main`, and Browser verification is still blocked below the app layer by the
 closed generated database port plus Docker timing out while starting a
 disposable Alpine preflight container.
+A fresh in-app Browser route probe against `http://localhost:4353/legal/terms`
+also failed before app content rendered, with the Browser reporting the local
+URL as blocked/unreachable. This confirms the current lack of Browser route
+evidence is still a runtime reachability problem, not a passed General-page
+visual check.
 Docker preflight now also surfaces the Auth0 callback-port footgun directly:
 when a different running Evorto Compose project already publishes the selected
 `APP_HOST_PORT`, `bun run docker:check` warns with the owning container/project
@@ -5734,6 +5739,10 @@ It now walks locator call chains too, so `page.locator('main').first()` and
 `page.locator('body').filter(...)` still count as generic page-shell targets
 instead of bypassing the meaningful-surface rule through harmless-looking
 Playwright chaining.
+Template-literal selectors without substitutions are normalized the same way as
+string literals now, so ``page.locator(`main`)`` and
+``page.locator(`app-admin-overview`)`` cannot hide generic shell or broad
+component-host screenshot targets.
 It also rejects unfiltered broad `section`, `article`, `div`, `form`, and `app-*`
 component-host screenshot targets, so docs must focus a filtered semantic
 region, a concrete form state, or a concrete component/control instead of
