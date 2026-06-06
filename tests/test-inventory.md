@@ -154,7 +154,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     controls, operations policy controls, branding upload buttons, branding/SEO
     fields, logo/favicon file-input accept lists, legal URL/text fields,
     finance receipt settings, ESNcard discount toggle, and Save action before
-    taking those screenshots.
+    taking those screenshots. Generated-doc source coverage also rejects fake or
+    generic legal fallback wording so tenant legal docs stay aligned with the
+    root product boundary that tenant obligations need tenant-provided content.
   - `docs/admin/global-admin.doc.ts` covers the global tenant-administration
     docs flow with concrete screenshot targets for tenant search/list rows,
     empty search results, the relaunch-scoped create form, the rejected

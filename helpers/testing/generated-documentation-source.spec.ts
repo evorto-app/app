@@ -5032,6 +5032,7 @@ describe('generated docs source current behavior', () => {
   });
 
   it('keeps tenant general-settings docs aligned with implemented branding and legal routes', () => {
+    const productSource = readSource('PRODUCT.md');
     const source = readSource('tests/docs/admin/general-settings.doc.ts');
 
     expect(source).not.toContain(
@@ -5215,6 +5216,12 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'hosted text appears at \\`/legal/imprint\\`, \\`/legal/privacy\\`, and \\`/legal/terms\\`',
     );
+    expect(productSource).toContain(
+      "Evorto should not provide fake fallback legal pages that pretend to cover a tenant's legal obligations.",
+    );
+    expect(source).not.toMatch(/fake fallback legal/i);
+    expect(source).not.toMatch(/generic legal fallback/i);
+    expect(source).not.toMatch(/production-ready legal/i);
     expect(source).toContain(
       '**Allowed receipt countries** and **Allow other** for receipt submission.',
     );
