@@ -5769,6 +5769,10 @@ Grouped screenshot target objects wrapped in `as const`, `satisfies`, type
 assertions, or parentheses are unwrapped before alias collection, so TypeScript
 syntax cannot hide a weak `targets.shell` locator from the same meaningful-image
 rules.
+Destructured weak target-object properties are now covered too, so
+`const { shell } = targets` cannot hide a previously detected generic shell,
+broad, single-control, or icon/media-only screenshot target before passing it to
+the shared docs screenshot helper.
 Generated-doc sources must also avoid direct `page.screenshot`,
 `locator.screenshot`, and raw `testInfo.attach('image', ...)` calls; screenshot
 function aliases, destructured screenshot aliases, image attachment aliases,

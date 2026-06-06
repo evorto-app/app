@@ -38,6 +38,43 @@ const unwrapExpression = (node: ts.Expression): ts.Expression => {
   return current;
 };
 
+const collectDestructuredLocatorAliases = (
+  node: ts.VariableDeclaration,
+  sourceFile: ts.SourceFile,
+  propertyAliases: ReadonlySet<string>,
+  aliases: Set<string>,
+): void => {
+  if (
+    !ts.isObjectBindingPattern(node.name) ||
+    !node.initializer ||
+    !ts.isIdentifier(unwrapExpression(node.initializer))
+  ) {
+    return;
+  }
+
+  const sourceObject = unwrapExpression(node.initializer);
+
+  if (!ts.isIdentifier(sourceObject)) {
+    return;
+  }
+
+  for (const element of node.name.elements) {
+    if (!ts.isIdentifier(element.name)) {
+      continue;
+    }
+
+    const propertyName = element.propertyName ?? element.name;
+
+    if (!ts.isIdentifier(propertyName) && !ts.isStringLiteral(propertyName)) {
+      continue;
+    }
+
+    if (propertyAliases.has(`${sourceObject.text}.${propertyName.text}`)) {
+      aliases.add(element.name.text);
+    }
+  }
+};
+
 const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
   const sourceFile = ts.createSourceFile(
     path,
@@ -284,6 +321,15 @@ const findGenericScreenshotTargets = (
       genericTargetPropertyAliases.add(node.left.getText(sourceFile));
     }
 
+    if (ts.isVariableDeclaration(node)) {
+      collectDestructuredLocatorAliases(
+        node,
+        sourceFile,
+        genericTargetPropertyAliases,
+        genericTargetAliases,
+      );
+    }
+
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
@@ -487,6 +533,15 @@ const findUnfilteredBroadScreenshotTargets = (
       isUnfilteredBroadLocatorTarget(unwrapExpression(node.right))
     ) {
       broadTargetPropertyAliases.add(node.left.getText(sourceFile));
+    }
+
+    if (ts.isVariableDeclaration(node)) {
+      collectDestructuredLocatorAliases(
+        node,
+        sourceFile,
+        broadTargetPropertyAliases,
+        broadTargetAliases,
+      );
     }
 
     if (
@@ -763,6 +818,15 @@ const findSingleControlScreenshotTargets = (
       singleControlPropertyAliases.add(node.left.getText(sourceFile));
     }
 
+    if (ts.isVariableDeclaration(node)) {
+      collectDestructuredLocatorAliases(
+        node,
+        sourceFile,
+        singleControlPropertyAliases,
+        singleControlAliases,
+      );
+    }
+
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
@@ -993,6 +1057,15 @@ const findIconOrMediaScreenshotTargets = (
       isIconOrMediaLocatorTarget(unwrapExpression(node.right))
     ) {
       iconOrMediaPropertyAliases.add(node.left.getText(sourceFile));
+    }
+
+    if (ts.isVariableDeclaration(node)) {
+      collectDestructuredLocatorAliases(
+        node,
+        sourceFile,
+        iconOrMediaPropertyAliases,
+        iconOrMediaAliases,
+      );
     }
 
     if (
@@ -1531,6 +1604,68 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:5:13',
       'tests/docs/example/direct-screenshot.doc.ts:7:13',
     ]);
+  });
+
+  it('detects destructured weak documentation screenshot target aliases', () => {
+    const destructuredTargetSource = `
+      const targets = {
+        shell: page.locator('main'),
+        broad: page.locator('section'),
+        single: page.getByRole('button', { name: 'Save' }),
+        icon: page.locator('svg'),
+      };
+      const { shell, broad, single, icon } = targets;
+
+      await takeScreenshot(
+        testInfo,
+        shell,
+        page,
+        'Destructured generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        broad,
+        page,
+        'Destructured broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        single,
+        page,
+        'Destructured single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        icon,
+        page,
+        'Destructured icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/destructured-target.doc.ts',
+        destructuredTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/destructured-target.doc.ts:10:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/destructured-target.doc.ts',
+        destructuredTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/destructured-target.doc.ts:16:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/destructured-target.doc.ts',
+        destructuredTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/destructured-target.doc.ts:22:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/destructured-target.doc.ts',
+        destructuredTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/destructured-target.doc.ts:28:13']);
   });
 
   it('detects generic documentation screenshot targets', () => {
