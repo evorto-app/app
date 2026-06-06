@@ -1680,7 +1680,15 @@ const findDirectImageAttachmentCalls = (
         collectIndexedPropertyAliases(
           node.name.text,
           objectInitializer.elements,
-          isAttachFunctionReference,
+          (element) => {
+            const expression = unwrapExpression(element);
+
+            return (
+              isAttachFunctionReference(element) ||
+              (ts.isIdentifier(expression) &&
+                attachFunctionAliases.has(expression.text))
+            );
+          },
           attachFunctionPropertyAliases,
         );
       }
@@ -1885,7 +1893,15 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
         collectIndexedPropertyAliases(
           node.name.text,
           objectInitializer.elements,
-          isScreenshotFunctionReference,
+          (element) => {
+            const expression = unwrapExpression(element);
+
+            return (
+              isScreenshotFunctionReference(element) ||
+              (ts.isIdentifier(expression) &&
+                screenshotFunctionAliases.has(expression.text))
+            );
+          },
           screenshotFunctionPropertyAliases,
         );
       }
@@ -2084,13 +2100,17 @@ describe('generated docs source current behavior', () => {
       const attachHelperList = [
         testInfo.attach.bind(testInfo),
         testInfo['attach'].bind(testInfo),
+        attachEvidence,
+        attachEvidenceByElement,
       ];
       await attachHelperList[0]('image', { body: imageBuffer });
       await attachHelperList[1]('image', { body: imageBuffer });
+      await attachHelperList[2]('image', { body: imageBuffer });
+      await attachHelperList[3]('image', { body: imageBuffer });
       const [listedAttachEvidence] = attachHelperList;
       await listedAttachEvidence('image', { body: imageBuffer });
-      attachHelperList[2] = testInfo.attach.bind(testInfo);
-      await attachHelperList[2]('image', { body: imageBuffer });
+      attachHelperList[4] = testInfo.attach.bind(testInfo);
+      await attachHelperList[4]('image', { body: imageBuffer });
       await testInfo.attach('markdown', { body: markdown });
       const forwardAttachEvidence = testInfo.attach.bind(testInfo);
       const forwardAttachmentName = 'image';
@@ -2129,10 +2149,12 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:40:13',
       'tests/docs/example/direct-image.doc.ts:42:13',
       'tests/docs/example/direct-image.doc.ts:44:13',
-      'tests/docs/example/direct-image.doc.ts:49:13',
-      'tests/docs/example/direct-image.doc.ts:50:13',
+      'tests/docs/example/direct-image.doc.ts:51:13',
       'tests/docs/example/direct-image.doc.ts:52:13',
+      'tests/docs/example/direct-image.doc.ts:53:13',
       'tests/docs/example/direct-image.doc.ts:54:13',
+      'tests/docs/example/direct-image.doc.ts:56:13',
+      'tests/docs/example/direct-image.doc.ts:58:13',
     ]);
   });
 
@@ -2165,13 +2187,17 @@ describe('generated docs source current behavior', () => {
       const screenshotHelperList = [
         page.screenshot.bind(page),
         page['screenshot'].bind(page),
+        captureElement,
+        capturePageByElement,
       ];
       await screenshotHelperList[0]({ path: 'listed-page-alias.png' });
       await screenshotHelperList[1]({ path: 'listed-bracket-page-alias.png' });
+      await screenshotHelperList[2]({ path: 'listed-shorthand-element-alias.png' });
+      await screenshotHelperList[3]({ path: 'listed-property-page-alias.png' });
       const [listedCaptureScreenshot] = screenshotHelperList;
       await listedCaptureScreenshot({ path: 'destructured-listed-page-alias.png' });
-      screenshotHelperList[2] = page.screenshot.bind(page);
-      await screenshotHelperList[2]({ path: 'assigned-listed-page-alias.png' });
+      screenshotHelperList[4] = page.screenshot.bind(page);
+      await screenshotHelperList[4]({ path: 'assigned-listed-page-alias.png' });
       await takeScreenshot(
         testInfo,
         settingsSurface,
@@ -2200,10 +2226,12 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:21:13',
       'tests/docs/example/direct-screenshot.doc.ts:23:13',
       'tests/docs/example/direct-screenshot.doc.ts:25:13',
-      'tests/docs/example/direct-screenshot.doc.ts:30:13',
-      'tests/docs/example/direct-screenshot.doc.ts:31:13',
+      'tests/docs/example/direct-screenshot.doc.ts:32:13',
       'tests/docs/example/direct-screenshot.doc.ts:33:13',
+      'tests/docs/example/direct-screenshot.doc.ts:34:13',
       'tests/docs/example/direct-screenshot.doc.ts:35:13',
+      'tests/docs/example/direct-screenshot.doc.ts:37:13',
+      'tests/docs/example/direct-screenshot.doc.ts:39:13',
     ]);
   });
 

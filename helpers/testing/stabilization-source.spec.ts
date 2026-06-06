@@ -1409,7 +1409,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /shorthand or alias-valued grouped screenshot helpers/u,
     );
-    expect(inventory).toMatch(/tuple\/array screenshot-function\s+entries/u);
+    expect(inventory).toMatch(
+      /direct or alias-valued tuple\/array screenshot-function\s+entries/u,
+    );
     expect(inventory).toMatch(/simple\s+attachment-name/u);
     expect(inventory).toMatch(/raw image\s+MIME\/file-extension payloads/u);
     expect(inventory).toMatch(/aliased raw image payload\s+objects/u);
@@ -1420,7 +1422,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/computed\s+object keys/u);
     expect(inventory).toMatch(/bracket property references/u);
     expect(inventory).toMatch(
-      /destructured,\s+grouped,\s+shorthand,\s+alias-valued,\s+or\s+tuple\/array attach-function aliases/u,
+      /destructured,\s+grouped,\s+shorthand,\s+alias-valued,\s+or\s+direct\/alias-valued tuple\/array attach-function\s+aliases/u,
     );
     expect(inventory).toContain('dynamic screenshot-helper imports');
     expect(inventory).toContain('self-tests those bypass examples');
@@ -1545,8 +1547,9 @@ describe('stabilization source', () => {
       'attachHelpers.assignedEvidence',
     );
     expect(generatedDocumentationSource).toContain('attachHelperList[0]');
+    expect(generatedDocumentationSource).toContain('attachHelperList[3]');
     expect(generatedDocumentationSource).toContain('listedAttachEvidence');
-    expect(generatedDocumentationSource).toContain('attachHelperList[2]');
+    expect(generatedDocumentationSource).toContain('attachHelperList[4]');
     expect(generatedDocumentationSource).toContain('addAttachBindingAliases');
     expect(generatedDocumentationSource).toContain(
       'findWeakScreenshotCaptions',
@@ -1640,8 +1643,9 @@ describe('stabilization source', () => {
       'screenshotHelpers.assignedCapture',
     );
     expect(generatedDocumentationSource).toContain('screenshotHelperList[0]');
+    expect(generatedDocumentationSource).toContain('screenshotHelperList[3]');
     expect(generatedDocumentationSource).toContain('listedCaptureScreenshot');
-    expect(generatedDocumentationSource).toContain('screenshotHelperList[2]');
+    expect(generatedDocumentationSource).toContain('screenshotHelperList[4]');
     expect(generatedDocumentationSource).toContain(
       'detects screenshot helper bypass patterns before generated docs can use them',
     );
