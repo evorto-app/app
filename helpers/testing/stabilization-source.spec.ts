@@ -1394,6 +1394,8 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local\s+screenshot\s+wrappers/u);
+    expect(inventory).toMatch(/assigned helper\s+properties/u);
+    expect(inventory).toMatch(/indexed helper\s+entries/u);
     expect(inventory).toContain('captureDocumentationImage');
     expect(inventory).toContain('unwraps `as const`');
     expect(inventory).toContain('`satisfies` grouped target objects');
@@ -1573,6 +1575,11 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'findScreenshotHelperBypasses',
     );
+    expect(generatedDocumentationSource).toContain('helperAssignments.capture');
+    expect(generatedDocumentationSource).toContain(
+      "helperAssignments['computedCapture']",
+    );
+    expect(generatedDocumentationSource).toContain('helperList[0]');
     expect(generatedDocumentationSource).toContain(
       'detects unfiltered broad documentation screenshot targets',
     );

@@ -1463,6 +1463,14 @@ const findScreenshotHelperBypasses = (
       bypasses.push(describeNode(node.name));
     }
 
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      expressionReferencesTakeScreenshot(node.right)
+    ) {
+      bypasses.push(describeNode(node.left));
+    }
+
     ts.forEachChild(node, visit);
   };
 
@@ -1958,6 +1966,12 @@ describe('generated docs source current behavior', () => {
         'Bracket namespace helper call with descriptive caption',
       );
 
+      const helperAssignments = {};
+      helperAssignments.capture = takeScreenshot;
+      helperAssignments['computedCapture'] = takeScreenshot;
+      const helperList = [];
+      helperList[0] = takeScreenshot;
+
       async function dynamicImportBypass() {
         const dynamicReporter = await import('../../support/reporters/documentation-reporter');
         const dynamicDirectHelper = await import('../../support/reporters/documentation-reporter/take-screenshot');
@@ -1982,8 +1996,11 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:18:13',
       'tests/docs/example/bypass.doc.ts:24:13',
       'tests/docs/example/bypass.doc.ts:30:13',
-      'tests/docs/example/bypass.doc.ts:38:39',
-      'tests/docs/example/bypass.doc.ts:39:43',
+      'tests/docs/example/bypass.doc.ts:38:7',
+      'tests/docs/example/bypass.doc.ts:39:7',
+      'tests/docs/example/bypass.doc.ts:41:7',
+      'tests/docs/example/bypass.doc.ts:44:39',
+      'tests/docs/example/bypass.doc.ts:45:43',
     ]);
   });
 

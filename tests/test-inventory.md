@@ -534,8 +534,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   screenshot target objects cannot hide weak locator targets, including computed
   object keys and bracket property references, unwraps `as const` and
   `satisfies` grouped target objects before alias collection, rejects local
-  aliases and wrapper functions that reference `takeScreenshot` even when the
-  helper is named like `captureDocumentationImage`, covers
+  aliases, assigned helper properties, indexed helper entries, and wrapper
+  functions that reference `takeScreenshot` even when the helper is named like
+  `captureDocumentationImage`, covers
   the weak-caption,
   missing-highlight, and blank highlighted-image runtime failures in
   reporter-path tests,

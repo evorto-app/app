@@ -5765,8 +5765,9 @@ docs from hiding weak screenshot targets behind a grouped target object. The gua
 normalizes static computed keys such as `targets['shell']` and
 `{ ['shell']: page.locator('main') }`, so bracketed grouped targets do not
 bypass meaningful-image enforcement. It also
-rejects local aliases and wrapper functions that reference `takeScreenshot`, so
-future docs cannot route screenshots through a differently named helper such as
+rejects local aliases, assigned helper properties, indexed helper entries, and
+wrapper functions that reference `takeScreenshot`, so future docs cannot route
+screenshots through a differently named helper such as
 `captureDocumentationImage` to bypass direct target and caption inspection.
 Namespace imports and property-access calls such as
 `documentationReporter.takeScreenshot(...)` are rejected too, so generated docs
