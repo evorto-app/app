@@ -1467,14 +1467,16 @@ describe('stabilization source', () => {
     expect(source).toContain('terse or content-free caption');
     expect(source).toContain('raw Markdown image syntax');
     expect(source).toContain('HTML `<img>` tags');
-    expect(source).toContain(
-      'grouped/indexed/destructured or\nassigned payload objects',
+    expect(source).toMatch(
+      /grouped\/indexed\/destructured or\s+assigned payload objects/u,
     );
-    expect(source).toContain('shorthand `{ body }`, bound');
-    expect(source).toContain('destructured, grouped,\nindexed');
+    expect(source).toContain('simple body forwarding');
+    expect(source).toContain('`Buffer.from(...)`');
+    expect(source).toMatch(/shorthand\s+`\{ body \}`,\s+bound/u);
+    expect(source).toMatch(/destructured,\s+grouped,\s+indexed/u);
     expect(source).toContain('assigned `attach` helpers');
-    expect(source).toContain(
-      'and spread, `call`, `apply`,\n`Reflect.apply`, or inline `bind`',
+    expect(source).toMatch(
+      /and spread,\s+`call`,\s+`apply`,\s+`Reflect\.apply`,\s+or inline `bind`/u,
     );
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
@@ -2048,6 +2050,13 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'await testInfo.attach(markdownAttachmentName, { body })',
     );
+    expect(generatedDocumentationSource).toContain(
+      'body: Buffer.from(rawMarkdownBody)',
+    );
+    expect(generatedDocumentationSource).toContain('body: String(body)');
+    expect(generatedDocumentationSource).toContain(
+      'body: \\`\\${rawMarkdownBody}\\`',
+    );
     expect(generatedDocumentationSource).toContain('rawMarkdownPayloadAliases');
     expect(generatedDocumentationSource).toContain(
       "await testInfo.attach('markdown', rawMarkdownPayload)",
@@ -2122,12 +2131,15 @@ describe('stabilization source', () => {
     expect(inventory).toContain('HTML `<img>` tags');
     expect(inventory).toContain('aliased markdown names');
     expect(inventory).toContain('aliased body variables');
-    expect(inventory).toContain('aliased payload objects');
-    expect(inventory).toContain(
-      'bound, destructured, grouped, indexed, or assigned',
+    expect(inventory).toContain('simple forwarding through');
+    expect(inventory).toContain('`Buffer.from(...)`');
+    expect(inventory).toContain('template interpolation');
+    expect(inventory).toMatch(/aliased payload\s+objects/u);
+    expect(inventory).toMatch(
+      /bound,\s+destructured,\s+grouped,\s+indexed,\s+or assigned/u,
     );
-    expect(inventory).toContain(
-      'spread, `call`, `apply`, or inline `bind` forwarding',
+    expect(inventory).toMatch(
+      /spread,\s+`call`,\s+`apply`,\s+or inline `bind`\s+forwarding/u,
     );
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');

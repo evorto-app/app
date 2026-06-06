@@ -588,10 +588,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   screenshots with highlighted focus-target pixels and visible surrounding page
   content, rejects raw Markdown image syntax and HTML `<img>` tags in generated
   docs markdown attachments, including aliased markdown names, bracketed
-  `attach` calls, aliased body variables, aliased payload objects, and
-  shorthand `{ body }`, plus bound, destructured, grouped, indexed, or assigned
-  `attach` helpers and spread, `call`, `apply`, or inline `bind` forwarding, so
-  image evidence cannot bypass the shared helper, and
+  `attach` calls, aliased body variables including simple forwarding through
+  `Buffer.from(...)`, `String(...)`, or template interpolation, aliased payload
+  objects, and shorthand `{ body }`, plus bound, destructured, grouped, indexed,
+  or assigned `attach` helpers and spread, `call`, `apply`, or inline `bind`
+  forwarding, so image evidence cannot bypass the shared helper, and
   rejects raw `page.screenshot`,
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs
   sources, treats static bracket-property forms such as `page['screenshot']`,
