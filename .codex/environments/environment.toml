@@ -40,19 +40,33 @@ fi
 
 echo "[setup] Copying environment files"
 if [ "$(pwd -P)" != "$SOURCE_ROOT" ]; then
-  for file in .env .env.dev.local .npmrc; do
+  for file in .env .env.dev.local; do
     if [ -f "$SOURCE_ROOT/$file" ]; then
       cp "$SOURCE_ROOT/$file" .
     fi
   done
 fi
-if [ -z "${FONT_AWESOME_TOKEN:-}" ]; then
-  echo "[setup] FONT_AWESOME_TOKEN is not set; cannot install private @fortawesome packages."
+if [ -f .npmrc ]; then
+  echo "[setup] Repository .npmrc is not supported; @fortawesome must install from public npm packages."
   exit 1
 fi
+npm_config_userconfig="${RUNNER_TEMP:-/tmp}/npmrc-public-fontawesome"
+npm_config_globalconfig="${RUNNER_TEMP:-/tmp}/npmrc-empty-global"
+printf '%s\n' '@fortawesome:registry=https://registry.npmjs.org/' > "${npm_config_userconfig}"
+: > "${npm_config_globalconfig}"
+export NPM_CONFIG_USERCONFIG="${npm_config_userconfig}"
+export npm_config_userconfig="${npm_config_userconfig}"
+export NPM_CONFIG_GLOBALCONFIG="${npm_config_globalconfig}"
+export npm_config_globalconfig="${npm_config_globalconfig}"
+unset FONT_AWESOME_TOKEN
+unset FONTAWESOME_TOKEN
+unset FONTAWESOME_NPM_AUTH_TOKEN
+unset FONTAWESOME_PACKAGE_TOKEN
+bun_cache_dir="${HOME}/.bun/install/cache"
+mkdir -p "${bun_cache_dir}"
 
 echo "[setup] Installing dependencies (bun install)"
-perl -e 'alarm shift; exec @ARGV' 240 bun install --frozen-lockfile --verbose --network-concurrency 12
+perl -e 'alarm shift; exec @ARGV' 240 bun install --frozen-lockfile --verbose --network-concurrency 12 --cache-dir "${bun_cache_dir}"
 
 echo "[setup] Generating runtime environment"
 bun run env:runtime

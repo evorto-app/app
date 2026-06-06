@@ -894,8 +894,9 @@ provider outcomes without live identifiers.
     so CI logs make Font Awesome bandwidth regressions traceable to cache misses
     or unexpected install paths. The Codex setup environment no longer copies a
     main-checkout `.npmrc`, no longer requires `FONT_AWESOME_TOKEN`, writes the
-    same temporary public Font Awesome npm user config before `bun install`, and
-    installs through `~/.bun/install/cache`.
+    same temporary public Font Awesome npm user config before `bun install`,
+    writes an empty temporary npm global config, clears common Font Awesome
+    token environment variables, and installs through `~/.bun/install/cache`.
     `helpers/testing/install-ci-dependencies.sh` now owns the shared GitHub
     Actions cache/offline install decision: the serial E2E cache warmer may use
     registry fallback in `warm` mode, while E2E workers and Copilot setup run

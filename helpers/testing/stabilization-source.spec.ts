@@ -4629,7 +4629,6 @@ describe('stabilization source', () => {
     );
     expect(dockerfile).not.toContain('FONT_AWESOME_TOKEN');
     expect(dockerfile).not.toContain('npm.fontawesome.com');
-    expect(codexEnvironment).not.toContain('FONT_AWESOME_TOKEN');
     expect(codexEnvironment).not.toContain(
       'for file in .env .env.dev.local .npmrc',
     );
@@ -4645,6 +4644,20 @@ describe('stabilization source', () => {
     expect(codexEnvironment).toContain(
       'export npm_config_userconfig="${npm_config_userconfig}"',
     );
+    expect(codexEnvironment).toContain(
+      'npm_config_globalconfig="${RUNNER_TEMP:-/tmp}/npmrc-empty-global"',
+    );
+    expect(codexEnvironment).toContain(': > "${npm_config_globalconfig}"');
+    expect(codexEnvironment).toContain(
+      'export NPM_CONFIG_GLOBALCONFIG="${npm_config_globalconfig}"',
+    );
+    expect(codexEnvironment).toContain(
+      'export npm_config_globalconfig="${npm_config_globalconfig}"',
+    );
+    expect(codexEnvironment).toContain('unset FONT_AWESOME_TOKEN');
+    expect(codexEnvironment).toContain('unset FONTAWESOME_TOKEN');
+    expect(codexEnvironment).toContain('unset FONTAWESOME_NPM_AUTH_TOKEN');
+    expect(codexEnvironment).toContain('unset FONTAWESOME_PACKAGE_TOKEN');
     expect(codexEnvironment).toContain(
       'bun_cache_dir="${HOME}/.bun/install/cache"',
     );

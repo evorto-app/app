@@ -228,6 +228,40 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(bunfig).toContain('[install.scopes]');
     expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');
+    expect(runtimePreflight).not.toContain('fontAwesomeRegistryAuthCheck');
+    expect(codexEnvironment).not.toContain(
+      'for file in .env .env.dev.local .npmrc',
+    );
+    expect(codexEnvironment).toContain(
+      'Repository .npmrc is not supported; @fortawesome must install from public npm packages.',
+    );
+    expect(codexEnvironment).toContain(
+      "printf '%s\\n' '@fortawesome:registry=https://registry.npmjs.org/' > \"${npm_config_userconfig}\"",
+    );
+    expect(codexEnvironment).toContain(
+      'export NPM_CONFIG_USERCONFIG="${npm_config_userconfig}"',
+    );
+    expect(codexEnvironment).toContain(
+      'export npm_config_userconfig="${npm_config_userconfig}"',
+    );
+    expect(codexEnvironment).toContain(
+      'npm_config_globalconfig="${RUNNER_TEMP:-/tmp}/npmrc-empty-global"',
+    );
+    expect(codexEnvironment).toContain(': > "${npm_config_globalconfig}"');
+    expect(codexEnvironment).toContain(
+      'export NPM_CONFIG_GLOBALCONFIG="${npm_config_globalconfig}"',
+    );
+    expect(codexEnvironment).toContain(
+      'export npm_config_globalconfig="${npm_config_globalconfig}"',
+    );
+    expect(codexEnvironment).toContain('unset FONT_AWESOME_TOKEN');
+    expect(codexEnvironment).toContain('unset FONTAWESOME_TOKEN');
+    expect(codexEnvironment).toContain('unset FONTAWESOME_NPM_AUTH_TOKEN');
+    expect(codexEnvironment).toContain('unset FONTAWESOME_PACKAGE_TOKEN');
+    expect(codexEnvironment).toContain(
+      'bun_cache_dir="${HOME}/.bun/install/cache"',
+    );
+    expect(codexEnvironment).toContain('--cache-dir "${bun_cache_dir}"');
   });
 
   it('keeps Prettier Tailwind plugin config and dependency aligned', () => {

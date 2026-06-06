@@ -4434,7 +4434,9 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   The Codex setup environment now matches that public-registry path: it no
   longer copies `.npmrc` from the main checkout, no longer requires
   `FONT_AWESOME_TOKEN`, writes a temporary `@fortawesome` public npm user
-  config before `bun install`, and installs through `~/.bun/install/cache`.
+  config before `bun install`, writes an empty temporary npm global config,
+  clears common Font Awesome token environment variables, and installs through
+  `~/.bun/install/cache`.
   A fresh CI bandwidth hardening pass centralizes the GitHub Actions public
   registry setup in `helpers/testing/prepare-public-fontawesome-ci.sh`: the E2E
   and Copilot setup dependency-install workflows call it to write a runner-temp
