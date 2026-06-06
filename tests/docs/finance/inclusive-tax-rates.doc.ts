@@ -79,10 +79,10 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
     await expect(compatibleTaxRates).toBeVisible();
     await expect(
       taxRateRow(compatibleTaxRates, 'txr_1S6a7sPPcz51fqyK4AVB8NSS'),
-    ).toContainText(['VAT', '19%', 'Compatible']);
+    ).toContainText(/VAT\s+19%\s+Global\s+Compatible/u);
     await expect(
       taxRateRow(compatibleTaxRates, 'txr_1S6a8LPPcz51fqyK4CPonBgy'),
-    ).toContainText(['VAT', 'Tax Free', 'Compatible']);
+    ).toContainText(/VAT\s+Tax Free\s+Global\s+Compatible/u);
     await takeScreenshot(
       testInfo,
       compatibleTaxRates,

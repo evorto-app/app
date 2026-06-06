@@ -180,6 +180,21 @@ test.skip('approve and record receipt reimbursements in finance', async ({
   await pendingReceipt.click();
   await page.getByRole('button', { name: 'Approve' }).click();
   await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
+  await expect
+    .poll(async () => {
+      const approvedReceipt = await database.query.financeReceipts.findFirst({
+        columns: {
+          status: true,
+        },
+        where: {
+          id: receiptId,
+          tenantId: tenant.id,
+        },
+      });
+
+      return approvedReceipt?.status;
+    })
+    .toBe('approved');
 
   await page.goto('/finance/receipts-refunds');
   await expect(
@@ -198,8 +213,8 @@ test.skip('approve and record receipt reimbursements in finance', async ({
 
   await expect(refundSection.locator('table[mat-table]')).toBeVisible();
   await refundSection
-    .locator('tr.mat-mdc-row input[type="checkbox"]')
-    .first()
+    .locator('tr.mat-mdc-row', { hasText: receiptFileName })
+    .locator('input[type="checkbox"]')
     .check();
 
   const issueRefundButton = refundSection.getByRole('button', {
@@ -207,6 +222,20 @@ test.skip('approve and record receipt reimbursements in finance', async ({
   });
   await expect(issueRefundButton).toBeEnabled();
   await issueRefundButton.click();
+
+  await expect
+    .poll(async () => {
+      return database.query.financeReceipts.findFirst({
+        where: {
+          id: receiptId,
+          tenantId: tenant.id,
+        },
+      });
+    })
+    .toMatchObject({
+      refundTransactionId: expect.any(String),
+      status: 'refunded',
+    });
 
   await expect(page.getByText('Selected total: 0.00 €').first()).toBeVisible();
 
@@ -219,12 +248,6 @@ test.skip('approve and record receipt reimbursements in finance', async ({
   if (!refundedReceipt) {
     throw new Error('Expected seeded receipt after reimbursement recording');
   }
-  expect(refundedReceipt).toEqual(
-    expect.objectContaining({
-      refundTransactionId: expect.any(String),
-      status: 'refunded',
-    }),
-  );
 });
 
 test.skip('receipt dialog shows Other option when tenant allows it', async ({
