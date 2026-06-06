@@ -1382,6 +1382,12 @@ describe('stabilization source', () => {
     expect(source).toContain('6 passed (7.1s)');
     expect(source).toContain('NO_WEBSERVER=true');
     expect(source).toContain('without claiming fresh\n  current-head Browser');
+    expect(source).toContain('bun run test:e2e:layout-helper');
+    expect(source).toContain('5 passed (1.9s)');
+    expect(source).toContain('mobile layout-glitch detector');
+    expect(source).toContain(
+      'without claiming a fresh rendered\n  General-route sweep',
+    );
     expect(documentationScreenshotSpec).toContain(
       'doc-screenshot waits for descriptive loading text before capture',
     );

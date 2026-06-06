@@ -3626,6 +3626,12 @@ fallback rather than a profile discount-card defect.
   pairing, highlighted focus-target validation, visible page-content validation,
   and screenshot settling contracts were rechecked without claiming fresh
   current-head Browser route evidence.
+  The same current local helper-verification pass also ran
+  `bun run test:e2e:layout-helper`, which returned `5 passed (1.9s)` with
+  `NO_WEBSERVER=true`; this keeps the shared mobile layout-glitch detector
+  itself covered for overflow, covered controls/text, clipped controls/text,
+  and intentional horizontal-scroll containers without claiming a fresh rendered
+  General-route sweep.
 - Current generated-docs runtime caption checkpoint:
   `tests/support/reporters/documentation-reporter/take-screenshot.ts` now makes
   the caption parameter required and fails fast when the caption is shorter than
