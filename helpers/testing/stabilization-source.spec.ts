@@ -3156,7 +3156,7 @@ describe('stabilization source', () => {
   it('keeps the Playwright inventory clear about watchlist versus blockers', () => {
     const source = readSource('tests/test-inventory.md');
 
-    expect(source).toContain('Updated: 2026-06-05');
+    expect(source).toContain('Updated: 2026-06-06');
     expect(source).toContain('## Stabilization Coverage Watchlist');
     expect(source).not.toContain('## Stabilization Coverage Still Needed');
     expect(source).toContain(
@@ -3426,7 +3426,7 @@ describe('stabilization source', () => {
     expect(source).toContain('rejects fixed `.waitForTimeout(...)` waits');
     expect(source).toContain('fixed `setTimeout` sleeps');
     expect(source).toContain('time-based waits');
-    expect(inventory).toContain('Updated: 2026-06-05');
+    expect(inventory).toContain('Updated: 2026-06-06');
     expect(inventory).toContain(
       'in-app Browser\n    profile refresh also verified the seeded submitted receipt card',
     );
@@ -4070,6 +4070,8 @@ describe('stabilization source', () => {
       'HTTP-error route-probe message now points operators at `bun run docker:check`',
     );
     expect(source).toContain('current pushed head `aad2bab1`');
+    expect(inventory).toContain('app at its generated `BASE_URL`');
+    expect(inventory).not.toMatch(/http:\/\/localhost:4353/u);
     expect(source).toContain('320x740, 390x844, and 1440x900');
     expect(source).toContain('all 10 anonymous General routes');
     expect(source).toContain('no loading\nplaceholders');
