@@ -6330,13 +6330,38 @@ describe('generated docs source current behavior', () => {
   });
 
   it('keeps event approval docs backed by deterministic lifecycle persistence checks', () => {
+    const productSource = readSource('PRODUCT.md');
     const source = readSource('tests/docs/events/event-approval.doc.ts');
 
+    expect(productSource).toContain('## Event Lifecycle');
+    expect(productSource).toContain('- `draft`');
+    expect(productSource).toContain('- `pending review`');
+    expect(productSource).toContain('- `published`');
+    expect(productSource).toContain(
+      'When an event is submitted for review, material fields should be locked.',
+    );
+    expect(productSource).toContain(
+      'Publishing is the approval act. There is no separate "approved but not published" state for now.',
+    );
+    expect(productSource).toContain(
+      'material changes should require returning the event to draft',
+    );
     expect(source).toContain('Approval Flow ${seedDate.getTime()}');
     expect(source).toContain('Expected generated approval docs event to exist');
     expect(source).toContain('const eventStatusSurface =');
     expect(source).toContain('const submitForReviewDialogSurface =');
     expect(source).toContain('const rejectEventDialogSurface =');
+    expect(source).toContain('The user-facing event publishing lifecycle is:');
+    expect(source).toContain('Publishing is the approval act.');
+    expect(source).toContain(
+      'There is no separate approved-but-unpublished state in the relaunch workflow.',
+    );
+    expect(source).toContain(
+      'Pending review locks material event editing until the event is approved or rejected.',
+    );
+    expect(source).toContain(
+      'Reviewers use the review action surface to approve or reject with feedback; they do not edit material event fields from that review action.',
+    );
     expect(source).toContain(
       "has: page.getByRole('heading', { name: 'Submit Event for Review' })",
     );
@@ -6375,6 +6400,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("eventStatusSurface(page, 'Published')");
     expect(source).toContain('final **Published** state');
     expect(source).toContain('Published event status');
+    expect(source).toContain(
+      'Approving publishes the event and stores the final status as **APPROVED**.',
+    );
     expect(source).not.toContain(
       'takeScreenshot(\n      testInfo,\n      page.getByText(rejectionComment).first(),',
     );
@@ -6391,6 +6419,13 @@ describe('generated docs source current behavior', () => {
       "page\n      .locator('mat-dialog-container')\n      .first()\n      .getByRole('button', { name: 'Submit for Review' })",
     );
     expect(source).not.toContain('final published state');
+    expect(source).not.toMatch(/approved but not published/i);
+    expect(source).not.toMatch(/approved but not yet published/i);
+    expect(source).not.toMatch(/approved separately before publishing/i);
+    expect(source).not.toMatch(/manual publishing after approval/i);
+    expect(source).not.toMatch(/approved state before publishing/i);
+    expect(source).not.toMatch(/reviewers? can edit (pending|material)/i);
+    expect(source).not.toMatch(/edit material event fields during review/i);
     expect(source).toContain('.delete(schema.eventRegistrationOptions)');
     expect(source).toContain('.delete(schema.eventInstances)');
     expect(source).not.toContain(

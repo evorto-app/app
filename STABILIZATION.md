@@ -755,7 +755,10 @@ the current working direction until a product decision overrides them.
   status/action surface, submit confirmation dialog, review action surface,
   reject-comment dialog, rejected-status surface, and published state instead
   of only isolated status/comment text, and cleans up generated event rows
-  after the documentation journey.
+  after the documentation journey. Generated-doc source coverage also ties the
+  guide to Product.md's draft, pending-review, and published lifecycle, keeping
+  approval as the publishing act while rejecting approved-but-unpublished or
+  reviewer material-edit wording.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces. It now screenshots the receipt submission dialog with amount, country, and file controls so submitting receipts is image-backed instead of prose-only.
 - `tests/docs/events/unlisted-user.doc.ts` covers the participant-facing
   direct-link explanation for unlisted event details by hiding a deterministic

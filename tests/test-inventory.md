@@ -357,7 +357,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   persisted pending/rejected/approved lifecycle states and rejection feedback,
   screenshot the draft submit action surface, submit confirmation dialog,
   review action surface, reject-comment dialog, rejected status, and published
-  status surfaces, and clean up the generated event rows.
+  status surfaces, and clean up the generated event rows. Generated-doc source
+  coverage also ties the guide to Product.md's draft, pending-review, and
+  published lifecycle, keeping approval as the publishing act while rejecting
+  approved-but-unpublished or reviewer material-edit wording.
 - Event registration option component coverage pins participant registration and
   waitlist action disabling while a register or waitlist mutation is pending.
 - `specs/events/free-registration.test.ts` covers the seeded free-registration
