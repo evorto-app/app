@@ -65,11 +65,12 @@ const collectDestructuredLocatorAliases = (
 
     const propertyName = element.propertyName ?? element.name;
 
-    if (!ts.isIdentifier(propertyName) && !ts.isStringLiteral(propertyName)) {
-      continue;
-    }
+    const staticPropertyName = getStaticPropertyNameFromName(propertyName);
 
-    if (propertyAliases.has(`${sourceObject.text}.${propertyName.text}`)) {
+    if (
+      staticPropertyName &&
+      propertyAliases.has(`${sourceObject.text}.${staticPropertyName}`)
+    ) {
       aliases.add(element.name.text);
     }
   }
@@ -102,6 +103,31 @@ const getStaticPropertyName = (node: ts.Expression): null | string => {
   return null;
 };
 
+const getStaticPropertyNameFromName = (
+  node: ts.PropertyName,
+): null | string => {
+  if (
+    ts.isIdentifier(node) ||
+    ts.isStringLiteral(node) ||
+    ts.isNoSubstitutionTemplateLiteral(node)
+  ) {
+    return node.text;
+  }
+
+  if (ts.isComputedPropertyName(node)) {
+    const expression = unwrapExpression(node.expression);
+
+    if (
+      ts.isStringLiteral(expression) ||
+      ts.isNoSubstitutionTemplateLiteral(expression)
+    ) {
+      return expression.text;
+    }
+  }
+
+  return null;
+};
+
 const getStaticPropertyReceiver = (
   node: ts.Expression,
 ): null | ts.Expression => {
@@ -115,6 +141,20 @@ const getStaticPropertyReceiver = (
   }
 
   return null;
+};
+
+const getStaticPropertyReference = (
+  node: ts.Expression,
+  sourceFile: ts.SourceFile,
+): null | string => {
+  const propertyName = getStaticPropertyName(node);
+  const receiver = getStaticPropertyReceiver(node);
+
+  if (!propertyName || !receiver) {
+    return null;
+  }
+
+  return `${unwrapExpression(receiver).getText(sourceFile)}.${propertyName}`;
 };
 
 const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
@@ -257,8 +297,14 @@ const findGenericScreenshotTargets = (
       return genericTargetAliases.has(target.text);
     }
 
-    if (ts.isPropertyAccessExpression(target)) {
-      return genericTargetPropertyAliases.has(target.getText(sourceFile));
+    if (
+      ts.isPropertyAccessExpression(target) ||
+      ts.isElementAccessExpression(target)
+    ) {
+      const propertyReference = getStaticPropertyReference(target, sourceFile);
+      return propertyReference
+        ? genericTargetPropertyAliases.has(propertyReference)
+        : false;
     }
 
     if (
@@ -334,13 +380,15 @@ const findGenericScreenshotTargets = (
         for (const property of objectInitializer.properties) {
           if (
             ts.isPropertyAssignment(property) &&
-            (ts.isIdentifier(property.name) ||
-              ts.isStringLiteral(property.name)) &&
             isGenericLocatorTarget(unwrapExpression(property.initializer))
           ) {
-            genericTargetPropertyAliases.add(
-              `${node.name.text}.${property.name.text}`,
-            );
+            const propertyName = getStaticPropertyNameFromName(property.name);
+
+            if (propertyName) {
+              genericTargetPropertyAliases.add(
+                `${node.name.text}.${propertyName}`,
+              );
+            }
           }
         }
       }
@@ -349,10 +397,18 @@ const findGenericScreenshotTargets = (
     if (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-      ts.isPropertyAccessExpression(node.left) &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
       isGenericLocatorTarget(unwrapExpression(node.right))
     ) {
-      genericTargetPropertyAliases.add(node.left.getText(sourceFile));
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+      );
+
+      if (propertyReference) {
+        genericTargetPropertyAliases.add(propertyReference);
+      }
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -450,8 +506,14 @@ const findUnfilteredBroadScreenshotTargets = (
       return broadTargetAliases.has(target.text);
     }
 
-    if (ts.isPropertyAccessExpression(target)) {
-      return broadTargetPropertyAliases.has(target.getText(sourceFile));
+    if (
+      ts.isPropertyAccessExpression(target) ||
+      ts.isElementAccessExpression(target)
+    ) {
+      const propertyReference = getStaticPropertyReference(target, sourceFile);
+      return propertyReference
+        ? broadTargetPropertyAliases.has(propertyReference)
+        : false;
     }
 
     if (
@@ -542,15 +604,17 @@ const findUnfilteredBroadScreenshotTargets = (
         for (const property of objectInitializer.properties) {
           if (
             ts.isPropertyAssignment(property) &&
-            (ts.isIdentifier(property.name) ||
-              ts.isStringLiteral(property.name)) &&
             isUnfilteredBroadLocatorTarget(
               unwrapExpression(property.initializer),
             )
           ) {
-            broadTargetPropertyAliases.add(
-              `${node.name.text}.${property.name.text}`,
-            );
+            const propertyName = getStaticPropertyNameFromName(property.name);
+
+            if (propertyName) {
+              broadTargetPropertyAliases.add(
+                `${node.name.text}.${propertyName}`,
+              );
+            }
           }
         }
       }
@@ -559,10 +623,18 @@ const findUnfilteredBroadScreenshotTargets = (
     if (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-      ts.isPropertyAccessExpression(node.left) &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
       isUnfilteredBroadLocatorTarget(unwrapExpression(node.right))
     ) {
-      broadTargetPropertyAliases.add(node.left.getText(sourceFile));
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+      );
+
+      if (propertyReference) {
+        broadTargetPropertyAliases.add(propertyReference);
+      }
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -711,8 +783,14 @@ const findSingleControlScreenshotTargets = (
       return singleControlAliases.has(target.text);
     }
 
-    if (ts.isPropertyAccessExpression(target)) {
-      return singleControlPropertyAliases.has(target.getText(sourceFile));
+    if (
+      ts.isPropertyAccessExpression(target) ||
+      ts.isElementAccessExpression(target)
+    ) {
+      const propertyReference = getStaticPropertyReference(target, sourceFile);
+      return propertyReference
+        ? singleControlPropertyAliases.has(propertyReference)
+        : false;
     }
 
     if (
@@ -823,13 +901,15 @@ const findSingleControlScreenshotTargets = (
         for (const property of objectInitializer.properties) {
           if (
             ts.isPropertyAssignment(property) &&
-            (ts.isIdentifier(property.name) ||
-              ts.isStringLiteral(property.name)) &&
             isSingleControlLocatorTarget(unwrapExpression(property.initializer))
           ) {
-            singleControlPropertyAliases.add(
-              `${node.name.text}.${property.name.text}`,
-            );
+            const propertyName = getStaticPropertyNameFromName(property.name);
+
+            if (propertyName) {
+              singleControlPropertyAliases.add(
+                `${node.name.text}.${propertyName}`,
+              );
+            }
           }
         }
       }
@@ -838,10 +918,18 @@ const findSingleControlScreenshotTargets = (
     if (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-      ts.isPropertyAccessExpression(node.left) &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
       isSingleControlLocatorTarget(unwrapExpression(node.right))
     ) {
-      singleControlPropertyAliases.add(node.left.getText(sourceFile));
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+      );
+
+      if (propertyReference) {
+        singleControlPropertyAliases.add(propertyReference);
+      }
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -958,8 +1046,14 @@ const findIconOrMediaScreenshotTargets = (
       return iconOrMediaAliases.has(target.text);
     }
 
-    if (ts.isPropertyAccessExpression(target)) {
-      return iconOrMediaPropertyAliases.has(target.getText(sourceFile));
+    if (
+      ts.isPropertyAccessExpression(target) ||
+      ts.isElementAccessExpression(target)
+    ) {
+      const propertyReference = getStaticPropertyReference(target, sourceFile);
+      return propertyReference
+        ? iconOrMediaPropertyAliases.has(propertyReference)
+        : false;
     }
 
     if (
@@ -1060,13 +1154,15 @@ const findIconOrMediaScreenshotTargets = (
         for (const property of objectInitializer.properties) {
           if (
             ts.isPropertyAssignment(property) &&
-            (ts.isIdentifier(property.name) ||
-              ts.isStringLiteral(property.name)) &&
             isIconOrMediaLocatorTarget(unwrapExpression(property.initializer))
           ) {
-            iconOrMediaPropertyAliases.add(
-              `${node.name.text}.${property.name.text}`,
-            );
+            const propertyName = getStaticPropertyNameFromName(property.name);
+
+            if (propertyName) {
+              iconOrMediaPropertyAliases.add(
+                `${node.name.text}.${propertyName}`,
+              );
+            }
           }
         }
       }
@@ -1075,10 +1171,18 @@ const findIconOrMediaScreenshotTargets = (
     if (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-      ts.isPropertyAccessExpression(node.left) &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
       isIconOrMediaLocatorTarget(unwrapExpression(node.right))
     ) {
-      iconOrMediaPropertyAliases.add(node.left.getText(sourceFile));
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+      );
+
+      if (propertyReference) {
+        iconOrMediaPropertyAliases.add(propertyReference);
+      }
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -1422,12 +1526,13 @@ const findDirectImageAttachmentCalls = (
         return imageAttachmentPayloadValueAliases.has(property.name.text);
       }
 
-      if (
-        !ts.isPropertyAssignment(property) ||
-        (!ts.isIdentifier(property.name) &&
-          !ts.isStringLiteral(property.name)) ||
-        (property.name.text !== 'contentType' && property.name.text !== 'path')
-      ) {
+      if (!ts.isPropertyAssignment(property)) {
+        return false;
+      }
+
+      const propertyName = getStaticPropertyNameFromName(property.name);
+
+      if (propertyName !== 'contentType' && propertyName !== 'path') {
         return false;
       }
 
@@ -1760,6 +1865,9 @@ describe('generated docs source current behavior', () => {
       await forwardAttachEvidence('image', { body: imageBuffer });
       await testInfo.attach(forwardAttachmentName, { body: imageBuffer });
       await testInfo.attach('forward raw evidence', forwardRawImagePayload);
+      await testInfo.attach('computed raw evidence', { body: imageBuffer, ['contentType']: 'image/png' });
+      const computedRawPayload = { ['path']: 'computed-raw-evidence.png' };
+      await testInfo.attach('computed raw file evidence', computedRawPayload);
       await testInfo.attach('markdown', { body: markdown });
       const forwardAttachEvidence = testInfo.attach.bind(testInfo);
       const forwardAttachmentName = 'image';
@@ -1790,6 +1898,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:25:13',
       'tests/docs/example/direct-image.doc.ts:26:13',
       'tests/docs/example/direct-image.doc.ts:27:13',
+      'tests/docs/example/direct-image.doc.ts:28:13',
+      'tests/docs/example/direct-image.doc.ts:30:13',
     ]);
   });
 
@@ -1928,6 +2038,78 @@ describe('generated docs source current behavior', () => {
         destructuredTargetSource,
       ),
     ).toEqual(['tests/docs/example/destructured-target.doc.ts:28:13']);
+  });
+
+  it('detects computed weak documentation screenshot target aliases', () => {
+    const computedTargetSource = `
+      const targets = {
+        ['shell']: page.locator('main'),
+        ['broad']: page.locator('section'),
+        ['single']: page.getByRole('button', { name: 'Save' }),
+        ['icon']: page.locator('svg'),
+      };
+      targets['assignedShell'] = page.locator('main');
+      const { ['broad']: broadTarget } = targets;
+
+      await takeScreenshot(
+        testInfo,
+        targets['shell'],
+        page,
+        'Computed generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        broadTarget,
+        page,
+        'Computed broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        targets['single'],
+        page,
+        'Computed single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        targets['icon'],
+        page,
+        'Computed icon target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        targets.assignedShell,
+        page,
+        'Computed assigned shell target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/computed-target.doc.ts',
+        computedTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/computed-target.doc.ts:11:13',
+      'tests/docs/example/computed-target.doc.ts:35:13',
+    ]);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/computed-target.doc.ts',
+        computedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/computed-target.doc.ts:17:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/computed-target.doc.ts',
+        computedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/computed-target.doc.ts:23:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/computed-target.doc.ts',
+        computedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/computed-target.doc.ts:29:13']);
   });
 
   it('detects generic documentation screenshot targets', () => {

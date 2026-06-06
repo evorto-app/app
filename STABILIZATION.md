@@ -5761,7 +5761,10 @@ functions before it inspects screenshot calls, so generic shell, broad,
 single-control, and icon/media-only targets are still rejected when the alias or
 helper is declared later in the file. Object-property aliases such as
 `targets.shell = page.locator('main')` are covered by the same pass, preventing
-docs from hiding weak screenshot targets behind a grouped target object. It also
+docs from hiding weak screenshot targets behind a grouped target object. The guard
+normalizes static computed keys such as `targets['shell']` and
+`{ ['shell']: page.locator('main') }`, so bracketed grouped targets do not
+bypass meaningful-image enforcement. It also
 rejects local aliases and wrapper functions that reference `takeScreenshot`, so
 future docs cannot route screenshots through a differently named helper such as
 `captureDocumentationImage` to bypass direct target and caption inspection.
@@ -5797,6 +5800,9 @@ or image file path into a variable does not bypass the same helper requirement.
 Raw-image payloads also follow aliased MIME/path string values and object
 shorthand properties such as `{ contentType }`, keeping direct image attachment
 guards independent of simple local variable extraction.
+Raw-image payload keys are normalized too, so computed properties such as
+`{ ['contentType']: 'image/png' }` and `{ ['path']: 'evidence.png' }` still
+count as direct image evidence that must flow through the shared helper.
 Direct screenshot, image-attachment name, raw image payload, and attach-function
 aliases are collected before generated-doc calls are inspected, so declaring a
 raw helper or payload after its use does not bypass the shared screenshot helper

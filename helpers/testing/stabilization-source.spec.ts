@@ -1408,7 +1408,10 @@ describe('stabilization source', () => {
     expect(inventory).toContain('aliased raw image payload objects');
     expect(inventory).toContain('aliased MIME/path values');
     expect(inventory).toContain('object shorthand\n  image payloads');
+    expect(inventory).toContain('computed raw image payload keys');
     expect(inventory).toContain('forward-declared raw aliases');
+    expect(inventory).toContain('computed\n  object keys');
+    expect(inventory).toContain('bracket property references');
     expect(inventory).toContain('destructured attach-function aliases');
     expect(inventory).toContain('dynamic screenshot-helper imports');
     expect(inventory).toContain('self-tests those bypass examples');
@@ -1569,6 +1572,18 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'wrappedForwardTargets.shell',
     );
+    expect(generatedDocumentationSource).toContain(
+      'getStaticPropertyNameFromName',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'getStaticPropertyReference',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects computed weak documentation screenshot target aliases',
+    );
+    expect(generatedDocumentationSource).toContain("targets['shell']");
+    expect(generatedDocumentationSource).toContain("targets['assignedShell']");
+    expect(generatedDocumentationSource).toContain('computed-raw-evidence.png');
     expect(generatedDocumentationSource).toContain(
       'detects screenshot helper bypass patterns before generated docs can use them',
     );

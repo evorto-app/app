@@ -531,8 +531,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   images, resolves screenshot target aliases and helper functions before
   inspecting screenshot calls so later declarations cannot bypass those
   meaningful-target checks, includes object-property target aliases so grouped
-  screenshot target objects cannot hide weak locator targets, unwraps `as const`
-  and `satisfies` grouped target objects before alias collection, rejects local
+  screenshot target objects cannot hide weak locator targets, including computed
+  object keys and bracket property references, unwraps `as const` and
+  `satisfies` grouped target objects before alias collection, rejects local
   aliases and wrapper functions that reference `takeScreenshot` even when the
   helper is named like `captureDocumentationImage`, covers
   the weak-caption,
@@ -547,7 +548,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   destructured screenshot-function aliases, rejects direct image attachments
   through simple attachment-name aliases, raw image MIME/file-extension payloads,
   aliased raw image payload objects, aliased MIME/path values, object shorthand
-  image payloads, forward-declared raw aliases, and simple or destructured attach-function aliases, rejects
+  image payloads, computed raw image payload keys, forward-declared raw aliases,
+  and simple or destructured attach-function aliases, rejects
   aliased/helper-internal screenshot imports, dynamic screenshot-helper imports,
   and local screenshot wrappers, self-tests those bypass examples, and keeps the permission
   reference image-backed with the actual role-form permission/dependency
