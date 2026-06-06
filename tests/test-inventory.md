@@ -1103,7 +1103,9 @@ provider outcomes without live identifiers.
   combined failed-check summary. The app route probe skips a closed `BASE_URL`
   port but fails loudly when an already-running local app returns HTTP 500 for a
   public page, making stale or broken port-4200 stacks visible before Browser
-  planner runs are treated as current worktree evidence.
+  planner runs are treated as current worktree evidence. That HTTP-error
+  message points at `bun run docker:check` so operators can identify a different
+  Evorto Compose project on the selected port without stopping it.
   `helpers/testing/local-runtime-status.spec.ts` exercises the status runner
   directly so the command list stays complete, failures do not stop later
   checks from running, startup errors are reported, and failed labels stay

@@ -3503,6 +3503,9 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'stale or broken port-4200 stack cannot be mistaken for current Browser evidence',
     );
+    expect(source).toContain(
+      'HTTP-error route-probe message now points operators at `bun run docker:check`',
+    );
     expect(source).toContain('runs `dev:check` before Angular starts');
     expect(source).toContain('binds the dev server to `0.0.0.0`');
     expect(source).toContain('covered-control detection');
@@ -3526,17 +3529,26 @@ describe('stabilization source', () => {
     );
     expect(helpersReadme).toContain('Use `bun run dev:status`');
     expect(helpersReadme).toContain('A closed port is\nreported as a skip');
+    expect(helpersReadme).toContain(
+      'identify whether another Evorto Compose\nproject owns the selected port',
+    );
     expect(localRuntimeStatus).toContain('local-app-route-probe.ts');
     expect(localAppRouteProbe).toContain(
       "const defaultRoutePath = '/legal/terms'",
     );
     expect(localAppRouteProbe).toContain('No app currently serves');
     expect(localAppRouteProbe).toContain('returned HTTP ${response.status}');
+    expect(localAppRouteProbe).toContain(
+      'Run bun run docker:check to confirm whether another Evorto stack owns the selected port',
+    );
     expect(localAppRouteProbeSpec).toContain(
       'does not fail when no app is currently listening',
     );
     expect(localAppRouteProbeSpec).toContain(
       'fails when an already-running local app returns an HTTP error',
+    );
+    expect(localAppRouteProbeSpec).toContain(
+      'before using this app for Browser evidence',
     );
     expect(testsReadme).toContain(
       'If the\n  generated local `DATABASE_URL` points at a closed Neon Local port',

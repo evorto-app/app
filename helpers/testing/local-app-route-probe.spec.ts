@@ -76,7 +76,7 @@ describe('runLocalAppRouteProbe', () => {
 
     expect(passed).toBe(false);
     expect(errors).toContain(
-      'App route probe failed: http://localhost:4200/events returned HTTP 500.',
+      'App route probe failed: http://localhost:4200/events returned HTTP 500. Run bun run docker:check to confirm whether another Evorto stack owns the selected port before using this app for Browser evidence.',
     );
     restoreEnvironment();
   });

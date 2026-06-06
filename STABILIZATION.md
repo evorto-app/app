@@ -5600,6 +5600,9 @@ reports command startup errors, and groups failed labels in one operator-facing
 summary. The route probe skips a closed `BASE_URL` port but fails when an
 already-running local app returns an HTTP error for the public Terms route, so a
 stale or broken port-4200 stack cannot be mistaken for current Browser evidence.
+The HTTP-error route-probe message now points operators at `bun run docker:check`
+to identify a different Evorto Compose project on the selected port before
+trusting that route for Browser evidence.
 A current local run failed on the expected closed database port and Docker
 container-start path, reported the existing port-4200 app's HTTP 500 on
 `/legal/terms`, and still reported the Neon summary as one protected branch, no

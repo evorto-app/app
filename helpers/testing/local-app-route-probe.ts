@@ -62,7 +62,7 @@ export const runLocalAppRouteProbe = async (
     }
 
     writeError(
-      `App route probe failed: ${probeUrl.toString()} returned HTTP ${response.status}.`,
+      `App route probe failed: ${probeUrl.toString()} returned HTTP ${response.status}. Run bun run docker:check to confirm whether another Evorto stack owns the selected port before using this app for Browser evidence.`,
     );
     return false;
   } catch (error) {

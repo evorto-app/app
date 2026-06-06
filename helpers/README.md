@@ -211,7 +211,9 @@ addition to the development and Docker preflights, it probes the configured
 public app route if something is already serving `BASE_URL`. A closed port is
 reported as a skip because the app may simply be stopped; an HTTP error from an
 already-running app fails the status command so stale or broken port-4200 stacks
-do not get mistaken for current Browser evidence.
+do not get mistaken for current Browser evidence. The HTTP-error message points
+at `bun run docker:check` so you can identify whether another Evorto Compose
+project owns the selected port before trusting that route for Browser evidence.
 
 Local global-admin e2e coverage can use `E2E_GLOBAL_ADMIN_AUTH0_IDS` as a
 no-secret fallback when the Auth0 tenant user has app metadata but the
