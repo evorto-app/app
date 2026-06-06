@@ -781,6 +781,9 @@ provider outcomes without live identifiers.
     notification email with login email fallback. Generated-doc source coverage
     also pins that receipt submission itself does not send a receipt-submitted
     email; the queued notification boundary starts when finance review is saved.
+    It also rejects sophisticated budgeting, receipt-category, and
+    payout-provider integration wording so product-facing finance docs stay
+    inside the root product boundary for the first version.
     Server handler coverage also pins that reimbursement recording rejects a
     selected receipt set with mixed submitters before a transaction can be
     recorded, rejects missing or changed payout details, and rejects the

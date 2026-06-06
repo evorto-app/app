@@ -5670,6 +5670,7 @@ describe('generated docs source current behavior', () => {
   });
 
   it('keeps finance receipt docs aligned with queued notification and manual reimbursement scope', () => {
+    const productSource = readSource('PRODUCT.md');
     const overviewSource = readSource(
       'tests/docs/finance/finance-overview.doc.ts',
     );
@@ -5694,6 +5695,12 @@ describe('generated docs source current behavior', () => {
     expect(combinedSource).toContain(
       'actual money movement remains a manual finance operation',
     );
+    expect(productSource).toContain(
+      '- sophisticated budgeting and receipt-category planning',
+    );
+    expect(combinedSource).not.toMatch(/sophisticated budget/i);
+    expect(combinedSource).not.toMatch(/receipt categor(y|ies)/i);
+    expect(combinedSource).not.toMatch(/payout[- ]provider/i);
     expect(combinedSource).toContain('queues the submitter email for delivery');
     expect(receiptSource).toContain(
       'Expected generated receipt review docs receipt',

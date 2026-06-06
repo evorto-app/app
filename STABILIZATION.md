@@ -1236,6 +1236,10 @@ the current working direction until a product decision overrides them.
   transaction-specific pagination label.
 - **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the exact seeded receipt through the approval queue, approval detail page, queued submitter-email caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording, then screenshots the exact approval queue receipt group, review decision card, reimbursement group, and post-recording reimbursement state, reads back the final receipt state, and restores the seeded row.
 - `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, payout-detail gating, payout-detail labels, selected-total math, and reimbursement record disabled guard. The receipt reimbursement doc/spec assert the manual-money notice on the page.
+- Generated-doc source coverage rejects sophisticated budgeting,
+  receipt-category planning, and payout-provider integration wording in finance
+  receipt docs so product-facing reimbursement guidance stays inside the first
+  version's manual ledger scope.
 - `src/app/finance/receipt-approval-detail/receipt-approval-detail.component.spec.ts`
   pins the approval/rejection action guard for invalid forms, loading receipt
   details, and mutation-pending review writes.
