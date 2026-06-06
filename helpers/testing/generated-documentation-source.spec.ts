@@ -1279,6 +1279,19 @@ const findDirectImageAttachmentCalls = (
     return false;
   };
 
+  const addAttachBindingAliases = (name: ts.BindingName): void => {
+    if (ts.isIdentifier(name)) {
+      attachFunctionAliases.add(name.text);
+      return;
+    }
+
+    for (const element of name.elements) {
+      if (ts.isIdentifier(element.name)) {
+        attachFunctionAliases.add(element.name.text);
+      }
+    }
+  };
+
   const visit = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -1291,6 +1304,22 @@ const findDirectImageAttachmentCalls = (
 
       if (isAttachFunctionReference(node.initializer)) {
         attachFunctionAliases.add(node.name.text);
+      }
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isObjectBindingPattern(node.name)
+    ) {
+      for (const element of node.name.elements) {
+        const propertyName = element.propertyName ?? element.name;
+
+        if (
+          (ts.isIdentifier(propertyName) || ts.isStringLiteral(propertyName)) &&
+          propertyName.text === 'attach'
+        ) {
+          addAttachBindingAliases(element.name);
+        }
       }
     }
 
@@ -1356,6 +1385,19 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     return false;
   };
 
+  const addScreenshotBindingAliases = (name: ts.BindingName): void => {
+    if (ts.isIdentifier(name)) {
+      screenshotFunctionAliases.add(name.text);
+      return;
+    }
+
+    for (const element of name.elements) {
+      if (ts.isIdentifier(element.name)) {
+        screenshotFunctionAliases.add(element.name.text);
+      }
+    }
+  };
+
   const visit = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -1364,6 +1406,22 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       isScreenshotFunctionReference(node.initializer)
     ) {
       screenshotFunctionAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isObjectBindingPattern(node.name)
+    ) {
+      for (const element of node.name.elements) {
+        const propertyName = element.propertyName ?? element.name;
+
+        if (
+          (ts.isIdentifier(propertyName) || ts.isStringLiteral(propertyName)) &&
+          propertyName.text === 'screenshot'
+        ) {
+          addScreenshotBindingAliases(element.name);
+        }
+      }
     }
 
     if (ts.isCallExpression(node)) {
@@ -1427,6 +1485,8 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach(attachmentName, { body: imageBuffer });
       const attachEvidence = testInfo.attach.bind(testInfo);
       await attachEvidence('image', { body: imageBuffer });
+      const { attach: attachImageDirectly } = testInfo;
+      await attachImageDirectly('image', { body: imageBuffer });
       await testInfo.attach('markdown', { body: markdown });
     `;
 
@@ -1440,6 +1500,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:3:13',
       'tests/docs/example/direct-image.doc.ts:5:13',
       'tests/docs/example/direct-image.doc.ts:7:13',
+      'tests/docs/example/direct-image.doc.ts:9:13',
     ]);
   });
 
@@ -1449,6 +1510,8 @@ describe('generated docs source current behavior', () => {
       await page.locator('main').screenshot();
       const captureElement = page.locator('section').screenshot.bind(page.locator('section'));
       await captureElement({ path: 'section.png' });
+      const { screenshot: capturePageScreenshot } = page;
+      await capturePageScreenshot({ path: 'page-alias.png' });
       await takeScreenshot(
         testInfo,
         settingsSurface,
@@ -1466,6 +1529,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:2:13',
       'tests/docs/example/direct-screenshot.doc.ts:3:13',
       'tests/docs/example/direct-screenshot.doc.ts:5:13',
+      'tests/docs/example/direct-screenshot.doc.ts:7:13',
     ]);
   });
 

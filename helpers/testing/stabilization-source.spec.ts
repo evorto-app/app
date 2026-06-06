@@ -1399,9 +1399,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('`satisfies` grouped target objects');
     expect(inventory).toContain('`locator.screenshot`');
     expect(inventory).toContain("direct `testInfo.attach('image', ...)`");
-    expect(inventory).toContain('screenshot-function aliases');
-    expect(inventory).toContain('simple attachment-name');
-    expect(inventory).toContain('attach-function aliases');
+    expect(inventory).toContain('destructured\n  screenshot-function aliases');
+    expect(inventory).toMatch(/simple\s+attachment-name/u);
+    expect(inventory).toContain('destructured attach-function aliases');
     expect(inventory).toContain('self-tests those bypass examples');
     expect(inventory).toContain('weak-caption');
     expect(inventory).toContain('missing-highlight');
@@ -1474,12 +1474,16 @@ describe('stabilization source', () => {
       'detects direct screenshot calls before generated docs can use them',
     );
     expect(generatedDocumentationSource).toContain(
+      'addScreenshotBindingAliases',
+    );
+    expect(generatedDocumentationSource).toContain(
       'findDirectImageAttachmentCalls',
     );
     expect(generatedDocumentationSource).toContain(
       'detects direct image attachments before generated docs can use them',
     );
     expect(generatedDocumentationSource).toContain('attachFunctionAliases');
+    expect(generatedDocumentationSource).toContain('addAttachBindingAliases');
     expect(generatedDocumentationSource).toContain(
       'findWeakScreenshotCaptions',
     );

@@ -5771,10 +5771,10 @@ syntax cannot hide a weak `targets.shell` locator from the same meaningful-image
 rules.
 Generated-doc sources must also avoid direct `page.screenshot`,
 `locator.screenshot`, and raw `testInfo.attach('image', ...)` calls; screenshot
-function aliases, image attachment aliases, and direct attach-function aliases
-are rejected as well. Image evidence has to flow through the shared helper so
-captions, highlights, content pixel checks, and generated figure output stay
-enforced.
+function aliases, destructured screenshot aliases, image attachment aliases,
+direct attach-function aliases, and destructured attach aliases are rejected as
+well. Image evidence has to flow through the shared helper so captions,
+highlights, content pixel checks, and generated figure output stay enforced.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.
