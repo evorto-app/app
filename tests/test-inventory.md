@@ -498,8 +498,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   docs files and concrete source terms for browsing events, registration,
   account-required tenant account creation, registration cancellation/refund
   scope, transfers, waitlists, create-from-template, event review/publishing,
-  templates, roles/capabilities, check-in, receipts, tenant branding/settings,
-  and legal/privacy settings, maps root `QUALITY.md` generated-documentation topics
+  templates, ESN-card discount behavior, roles/capabilities, check-in, receipts,
+  tenant branding/settings, and legal/privacy settings, maps root `QUALITY.md`
+  generated-documentation topics
   including paid registration, waitlists, registration cancellation,
   transfer/resale, payments, and documentation/help to checked-in docs sources,
   rejects fixed `waitForTimeout` sleeps in generated docs so screenshots stay

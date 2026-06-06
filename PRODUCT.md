@@ -310,6 +310,7 @@ Important documentation areas include:
 - submitting an event for review
 - publishing an event
 - managing templates
+- ESN-card discount behavior
 - configuring roles and capabilities
 - checking in participants
 - submitting receipts

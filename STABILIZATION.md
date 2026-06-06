@@ -5722,8 +5722,9 @@ documentation areas to generated doc files and concrete source terms, so
 essential flows like browsing events, registering, account-required tenant
 account creation, registration cancellation/refund scope, transfers, waitlists,
 create-from-template, event review/publishing, templates, roles/capabilities,
-check-in, receipts, tenant branding/settings, and legal/privacy settings cannot
-silently disappear from the product-facing documentation inventory.
+ESN-card discount behavior, check-in, receipts, tenant branding/settings, and
+legal/privacy settings cannot silently disappear from the product-facing
+documentation inventory.
 It also maps `QUALITY.md` generated-documentation topics to checked-in docs
 sources, including paid registration, waitlists, registration cancellation,
 transfer/resale, payments, and documentation/help, so the product and quality

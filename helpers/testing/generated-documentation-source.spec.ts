@@ -1538,6 +1538,17 @@ describe('generated docs source current behavior', () => {
       },
       {
         files: [
+          'tests/docs/admin/general-settings.doc.ts',
+          'tests/docs/profile/discounts.doc.ts',
+        ],
+        productArea: 'ESN-card discount behavior',
+        terms: [
+          'ESN Card discounts',
+          'Add your ESN card to receive discounted prices on eligible events.',
+        ],
+      },
+      {
+        files: [
           'tests/docs/roles/about-permissions.doc.ts',
           'tests/docs/roles/roles.doc.ts',
         ],
