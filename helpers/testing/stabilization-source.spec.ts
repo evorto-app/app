@@ -1401,10 +1401,10 @@ describe('stabilization source', () => {
     expect(inventory).toContain('rejects');
     expect(inventory).toContain('raw');
     expect(inventory).toContain('`page.screenshot` calls');
-    expect(inventory).toContain('generated `{% figure %}` blocks');
+    expect(inventory).toContain('generated\n  `{% figure %}` blocks');
     expect(inventory).toContain('escapes caption attributes');
     expect(inventory).toContain(
-      'only text-only\n  permission-reference exception',
+      'permission\n  reference image-backed with the actual role-form permission/dependency\n  surface',
     );
     expect(generatedDocumentationSource).toContain(
       'keeps generated documentation pages explanatory and image-backed',
@@ -1452,7 +1452,7 @@ describe('stabilization source', () => {
       "['tests/docs/templates/templates.doc.ts', 8]",
     );
     expect(generatedDocumentationSource).toContain(
-      'textOnlyReferenceDocuments',
+      "['tests/docs/roles/about-permissions.doc.ts', 1]",
     );
     expect(generatedDocumentationSource).toContain(
       'tests/docs/roles/about-permissions.doc.ts',

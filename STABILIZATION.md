@@ -3579,9 +3579,11 @@ fallback rather than a profile discount-card defect.
   path, and local screenshot wrapper declarations, so docs cannot route around
   the meaningful-image checks while still appearing to use the shared helper.
   Synthetic failing examples now exercise those bypass patterns directly so the
-  guard is protected even when the current docs remain clean. The only text-only exception is
-  `tests/docs/roles/about-permissions.doc.ts`, because it is a permission
-  reference generated from `PERMISSION_GROUPS` rather than an app screen.
+  guard is protected even when the current docs remain clean. The permission
+  reference is now image-backed too: `tests/docs/roles/about-permissions.doc.ts`
+  still generates its text from `PERMISSION_GROUPS`, but it also screenshots the
+  actual role-form permission group/dependency surface so the reference is tied
+  to the UI labels admins see.
 - Current generated-docs runtime caption checkpoint:
   `tests/support/reporters/documentation-reporter/take-screenshot.ts` now makes
   the caption parameter required and fails fast when the caption is shorter than
@@ -4949,15 +4951,15 @@ E2E` long enough to be treated as stale; it was cancelled, and GitHub still
   remains blocked by the local Docker start path, but the focused docs
   `--list` check and source-guard tests pass.
 - Current generated-doc screenshot-count checkpoint: generated-doc source
-  coverage now pins the current screenshot count for every image-backed docs
-  flow, including 13 screenshots for `tests/docs/events/register.doc.ts` and
-  eight screenshots for `tests/docs/templates/templates.doc.ts`, while keeping
-  `tests/docs/roles/about-permissions.doc.ts` as the only text-only reference
-  exception. The same source guard now requires screenshot captions to stay
-  unique across generated docs, so one generic caption cannot describe unrelated
-  product states while still passing the minimum-caption rule. It also rejects
-  fixed `waitForTimeout` sleeps in generated docs so screenshot timing remains
-  tied to concrete UI state instead of arbitrary delays. This closes an
+  coverage now pins the current screenshot count for every docs flow, including
+  13 screenshots for `tests/docs/events/register.doc.ts`, eight screenshots for
+  `tests/docs/templates/templates.doc.ts`, and one permission-reference
+  screenshot for `tests/docs/roles/about-permissions.doc.ts`. The same source
+  guard now requires screenshot captions to stay unique across generated docs,
+  so one generic caption cannot describe unrelated product states while still
+  passing the minimum-caption rule. It also rejects fixed `waitForTimeout`
+  sleeps in generated docs so screenshot timing remains tied to concrete UI
+  state instead of arbitrary delays. This closes an
   evidence-drift gap where docs could have kept one valid highlighted screenshot
   and explanatory markdown while quietly dropping
   other image-backed states that are needed to judge flow progress from the

@@ -3,7 +3,22 @@ import {
   PERMISSION_GROUPS,
   permissionLabel,
 } from '../../../src/shared/permissions/permissions';
+import type { Locator, Page } from '@playwright/test';
+
+import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+
+test.use({ storageState: adminStateFile });
+
+const permissionGroupReferenceSurface = (page: Page): Locator =>
+  page
+    .locator('app-role-form div')
+    .filter({
+      has: page.getByRole('checkbox', { exact: true, name: 'Events' }),
+    })
+    .filter({ hasText: 'Includes: View templates' })
+    .first();
 
 const permissionLines = () =>
   PERMISSION_GROUPS.flatMap((group) => [
@@ -26,7 +41,7 @@ const permissionLines = () =>
     }),
   ]);
 
-test('About permissions', async ({}, testInfo) => {
+test('About permissions', async ({ page }, testInfo) => {
   expect(PERMISSION_GROUPS.length).toBeGreaterThan(0);
 
   await testInfo.attach('markdown', {
@@ -40,4 +55,26 @@ Wildcard permissions such as \`events:*\` grant the permissions in that group. S
 ${permissionLines().join('\n')}
 `,
   });
+
+  await page.goto('/admin/roles/create');
+  await expect(
+    page.getByRole('heading', { name: 'Create role' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('checkbox', { exact: true, name: 'Events' }),
+  ).toBeVisible();
+  await page.getByRole('checkbox', { exact: true, name: 'Events' }).click();
+  await expect(page.getByText('Includes: View templates')).toBeVisible();
+  await expect(
+    page.getByRole('checkbox', { name: 'View templates' }),
+  ).toBeChecked();
+
+  const permissionGroupReference = permissionGroupReferenceSurface(page);
+  await expect(permissionGroupReference).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    permissionGroupReference,
+    page,
+    'Permission group reference with dependent permissions visible',
+  );
 });

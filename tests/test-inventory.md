@@ -537,11 +537,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   rejects uncaptioned image attachments and orphan image-caption attachments
   before generated markdown is written, rejects raw `page.screenshot` calls,
   rejects aliased/helper-internal screenshot imports and local screenshot
-  wrappers, self-tests those bypass examples, and keeps
-  `tests/docs/roles/about-permissions.doc.ts` as the only text-only
-  permission-reference exception. Reporter-path coverage verifies those captions
-  become generated `{% figure %}` blocks and escapes caption attributes so
-  quotes or ampersands in descriptive captions cannot break the generated docs.
+  wrappers, self-tests those bypass examples, and keeps the permission
+  reference image-backed with the actual role-form permission/dependency
+  surface. Reporter-path coverage verifies those captions become generated
+  `{% figure %}` blocks and escapes caption attributes so quotes or ampersands
+  in descriptive captions cannot break the generated docs.
 - `helpers/testing/authorization-source.spec.ts` keeps server permission checks
   routed through the shared evaluator path and keeps role lookup contracts free
   of permission-bearing admin role fields.
@@ -989,10 +989,11 @@ provider outcomes without live identifiers.
     permission reference. Generated-doc source coverage keeps the role guide
     linked to that permission reference and keeps the reference aligned with
     tenant-scoped roles, wildcard permissions, dependent permissions, separate
-    global-admin semantics, the filtered read-only admin user-list screenshot,
-    the role-list create-action screenshot, and the saved role detail screenshot
-    after role creation. The role-list screenshot targets the surface containing
-    the User roles heading and Create role action instead of the isolated link.
+    global-admin semantics, the permission-reference role-form screenshot, the
+    filtered read-only admin user-list screenshot, the role-list create-action
+    screenshot, and the saved role detail screenshot after role creation. The
+    role-list screenshot targets the surface containing the User roles heading
+    and Create role action instead of the isolated link.
   - Keep role create/edit submit guards aligned with the write lifecycle. Local
     app coverage now pins that invalid, submitting, and mutation-pending role
     forms stay disabled, and the component submit path shares the same guard.

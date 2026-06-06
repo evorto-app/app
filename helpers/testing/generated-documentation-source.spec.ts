@@ -1650,9 +1650,6 @@ describe('generated docs source current behavior', () => {
     const documentFiles = findFiles('tests/docs')
       .filter((path) => path.endsWith('.doc.ts'))
       .toSorted();
-    const textOnlyReferenceDocuments = new Set([
-      'tests/docs/roles/about-permissions.doc.ts',
-    ]);
     const expectedScreenshotCounts = new Map([
       ['tests/docs/admin/general-settings.doc.ts', 6],
       ['tests/docs/admin/global-admin.doc.ts', 6],
@@ -1665,6 +1662,7 @@ describe('generated docs source current behavior', () => {
       ['tests/docs/finance/receipt-review-reimbursement.doc.ts', 4],
       ['tests/docs/profile/discounts.doc.ts', 3],
       ['tests/docs/profile/user-profile.doc.ts', 8],
+      ['tests/docs/roles/about-permissions.doc.ts', 1],
       ['tests/docs/roles/roles.doc.ts', 4],
       ['tests/docs/template-categories/categories.doc.ts', 5],
       ['tests/docs/templates/templates.doc.ts', 8],
@@ -1673,9 +1671,7 @@ describe('generated docs source current behavior', () => {
     const screenshotHelper = readSource(
       'tests/support/reporters/documentation-reporter/take-screenshot.ts',
     );
-    const expectedImageBackedDocuments = documentFiles.filter(
-      (path) => !textOnlyReferenceDocuments.has(path),
-    );
+    const expectedImageBackedDocuments = documentFiles;
     const screenshotCaptions = new Map<string, string[]>();
 
     expect(documentFiles.length).toBe(16);
@@ -1737,14 +1733,6 @@ describe('generated docs source current behavior', () => {
       expect(markdownTextLength, path).toBeGreaterThanOrEqual(120);
       expect(source, path).not.toContain('waitForTimeout(');
       expect(source, path).not.toContain('.waitForTimeout(');
-
-      if (textOnlyReferenceDocuments.has(path)) {
-        expect(source, path).toContain('PERMISSION_GROUPS');
-        expect(source, path).toContain('permissionLines');
-        expect(source, path).not.toContain('takeScreenshot(');
-        expect(expectedScreenshotCounts.has(path), path).toBe(false);
-        continue;
-      }
 
       expect(source, path).toContain('takeScreenshot(');
       expect(countTakeScreenshotCalls(path, source), path).toBe(
@@ -3524,6 +3512,17 @@ describe('generated docs source current behavior', () => {
     );
     expect(permissionsSource).toContain('PERMISSION_GROUPS');
     expect(permissionsSource).toContain('PERMISSION_DEPENDENCIES');
+    expect(permissionsSource).toContain(
+      'const permissionGroupReferenceSurface =',
+    );
+    expect(permissionsSource).toContain("locator('app-role-form div')");
+    expect(permissionsSource).toContain(
+      "getByRole('checkbox', { exact: true, name: 'Events' })",
+    );
+    expect(permissionsSource).toContain('Includes: View templates');
+    expect(permissionsSource).toContain(
+      'Permission group reference with dependent permissions visible',
+    );
     expect(permissionsSource).not.toMatch(/global-admin|global admin/i);
     expect(permissionsSource).not.toContain('Global admin access is a role');
     expect(permissionsSource).not.toContain('tenant roles grant global admin');
