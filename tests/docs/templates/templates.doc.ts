@@ -214,7 +214,7 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
     organizerRegistrationForm.getByRole('textbox', {
       name: 'Registration option name',
     }),
-  ).toHaveValue('Organizer');
+  ).toHaveValue('Organizer Registration');
   await takeScreenshot(
     testInfo,
     organizerRegistrationForm,
