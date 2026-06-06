@@ -5326,12 +5326,12 @@ describe('stabilization source', () => {
 
     expect(checkpoint).toBeDefined();
     const checkpointText = normalizeWhitespace(checkpoint ?? '');
-    expect(checkpointText).toContain('local head `92194859`');
+    expect(checkpointText).toContain('local head `0700ce96`');
     expect(checkpointText).toContain('CodeQL, CodeQL `Analyze (actions)`');
     expect(checkpointText).toContain(
       'Copilot setup, Git Town, CodeRabbit, the serial E2E',
     );
-    expect(checkpointText).toContain('E2E run `27050227993`');
+    expect(checkpointText).toContain('E2E run `27054035702`');
     expect(checkpointText).toContain(
       '`Playwright E2E (functional-1)`, `Playwright E2E (functional-2)`, and `Playwright E2E (docs)` green',
     );
@@ -5351,10 +5351,12 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain('pruned expired Neon branches before E2E');
     expect(checkpointText).toContain('skipped a worker registry install path');
     expect(checkpointText).toContain('confirmed Neon branch expiration');
-    expect(checkpointText).toContain('E2E run `27050099887`');
-    expect(checkpointText).toContain('was cancelled by the next push');
-    expect(checkpointText).toContain('Docker log collection');
-    expect(checkpointText).toContain('both cleanup finalizer steps succeeded');
+    expect(checkpointText).toContain('functional-1 temporarily created');
+    expect(checkpointText).toContain('`br-bold-king-a9kab45l`');
+    expect(checkpointText).toContain('functional-2 temporarily created');
+    expect(checkpointText).toContain('`br-royal-star-a915h7k3`');
+    expect(checkpointText).toContain('docs temporarily created');
+    expect(checkpointText).toContain('`br-steep-cherry-a99ce5v1`');
     expect(checkpointText).toContain('serial `Warm CI dependency caches` job');
     expect(checkpointText).toContain('warmed Docker Bun cache mount');
     expect(checkpointText).toContain('`if: always()` cleanup finalizers');
@@ -5362,13 +5364,11 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain('`Prune expired Neon branches after E2E`');
     expect(checkpointText).toContain('hourly and `workflow_run` Neon');
     expect(checkpointText).toContain(
-      'once that new workflow file exists on the default branch',
-    );
-    expect(checkpointText).toContain(
       '`total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`',
     );
-    expect(checkpointText).toContain('green current-head E2E run');
-    expect(checkpointText).toContain('only protected `main` remained');
+    expect(checkpointText).toContain('after the functional-1 finalizers');
+    expect(checkpointText).toContain('after the functional-2 finalizers');
+    expect(checkpointText).toContain('after the completed docs finalizers');
     expect(checkpointText).toContain(
       'active CI workers may own short-lived branches',
     );

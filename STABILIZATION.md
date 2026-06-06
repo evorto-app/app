@@ -4791,11 +4791,11 @@ tried to kill container, but did not receive an exit event`. A follow-up
   `(unhealthy)`, stale `created`/`dead` states, healthy running-container
   exclusion, and duplicate target de-duplication.
 - Observed PR #62 active-head CI cleanup checkpoint: after pushing local head
-  `92194859`, the current PR rollup shows CodeQL, CodeQL `Analyze (actions)`,
+  `0700ce96`, the current PR rollup shows CodeQL, CodeQL `Analyze (actions)`,
   Copilot setup, Git Town, CodeRabbit, the serial E2E
   `Warm CI dependency caches` job, `Playwright E2E (functional-1)`,
   `Playwright E2E (functional-2)`, and `Playwright E2E (docs)` green on the
-  pushed head. E2E run `27050227993` completed all three serialized worker
+  pushed head. E2E run `27054035702` completed all three serialized worker
   shards on that head. The warm-cache job ran the public Font Awesome registry
   guard, restored the Bun package cache, dependency-tree cache, Docker build
   cache, Docker Bun cache mount, and Playwright browser cache, then reported
@@ -4805,24 +4805,23 @@ tried to kill container, but did not receive an exit event`. A follow-up
   before E2E, skipped a worker registry install path, installed Playwright
   browsers from cache, started Docker, confirmed Neon branch expiration, waited
   for the app, ran its shard, collected Docker logs, stopped the Docker stack,
-  and ran `Prune expired Neon branches after E2E`. The previous pushed-head E2E
-  run `27050099887` was cancelled by the next push only after Actions reached
-  Docker log collection, `Stop Docker stack`, and
-  `Prune expired Neon branches after E2E`; both cleanup finalizer steps
-  succeeded. The E2E workflow still keeps normal workers behind the serial
-  `Warm CI dependency caches` job, requires the warmed Docker Bun cache mount
-  before worker Docker builds, and has `if: always()` cleanup finalizers for
-  Docker log collection, the `Stop Docker stack` step, and
+  and ran `Prune expired Neon branches after E2E`. The observed current-head
+  worker lifecycle stayed bounded: functional-1 temporarily created
+  `br-bold-king-a9kab45l`, functional-2 temporarily created
+  `br-royal-star-a915h7k3`, and docs temporarily created
+  `br-steep-cherry-a99ce5v1`; live repo-local Neon cleanup dry-runs returned to
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h` after the
+  functional-1 finalizers, after the functional-2 finalizers, and after the
+  completed docs finalizers. The E2E workflow still keeps normal workers behind
+  the serial `Warm CI dependency caches` job, requires the warmed Docker Bun
+  cache mount before worker Docker builds, and has `if: always()` cleanup
+  finalizers for Docker log collection, the `Stop Docker stack` step, and
   `Prune expired Neon branches after E2E`; the hourly and `workflow_run` Neon
-  cleanup workflow remains the backstop for hard cancellation or runner loss
-  once that new workflow file exists on the default branch. A live repo-local
-  cleanup run after the green current-head E2E run reported
-  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`, so only
-  protected `main` remained at this checkpoint. That keeps the branch-hygiene
-  signal aligned with the intended state: active CI workers may own short-lived
-  branches for up to the two-hour TTL, but stale branches are pruned and
-  completed or cancelled E2E workers run the cleanup finalizer when Actions
-  reaches teardown.
+  cleanup workflow remains the backstop for hard cancellation or runner loss.
+  That keeps the branch-hygiene signal aligned with the intended state: active
+  CI workers may own short-lived branches for up to the two-hour TTL, but stale
+  branches are pruned and completed or cancelled E2E workers run the cleanup
+  finalizer when Actions reaches teardown.
   A fresh June 5, 2026 local `bun run neon:cleanup:dry-run` checkpoint after
   pushing head `6520e1540` regenerated `.env.dev`, used the short Neon cleanup
   alias instead of the helper path, found no Neon Local branch ids in
