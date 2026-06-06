@@ -1451,10 +1451,11 @@ describe('stabilization source', () => {
     expect(source).toContain('Material control hosts');
     expect(source).toContain('icon-only and media-only screenshot targets');
     expect(source).toContain("getByRole('img')");
-    expect(source).toContain(
-      'direct generic, broad, single-control, and\nicon/media screenshot targets',
+    expect(source).toMatch(
+      /targets for direct generic, broad, single-control, and icon\/media screenshot\s+targets/u,
     );
     expect(source).toContain('spread target arrays');
+    expect(source).toContain('array\nhelper calls');
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
     expect(source).toContain('captureDocumentationImage');
@@ -1512,6 +1513,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/icon\/media targets\s+such as\s+`svg`/u);
     expect(inventory).toContain('screenshot target arrays');
     expect(inventory).toContain('spread screenshot target arrays');
+    expect(inventory).toContain('array helper calls');
+    expect(inventory).toContain('Array.of(...)');
+    expect(inventory).toContain('.concat(...)');
     expect(inventory).toContain('helper-returned icon/media locators');
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local\s+screenshot\s+wrappers/u);
@@ -1761,13 +1765,24 @@ describe('stabilization source', () => {
       'ts.isArrayLiteralExpression(target)',
     );
     expect(generatedDocumentationSource).toContain('unwrapArrayElement');
+    expect(generatedDocumentationSource).toContain('isTrackedArrayTarget');
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind array spreads',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets hidden behind array helper calls',
     );
     expect(generatedDocumentationSource).toContain('...genericTargets');
     expect(generatedDocumentationSource).toContain('...broadTargets');
     expect(generatedDocumentationSource).toContain('...singleTargets');
     expect(generatedDocumentationSource).toContain('...iconTargets');
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('main')].filter(Boolean)",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface].concat(page.locator('section'))",
+    );
+    expect(generatedDocumentationSource).toContain('Array.of(settingsSurface');
     expect(generatedDocumentationSource).toContain(
       'wrappedForwardTargets.shell',
     );

@@ -43,6 +43,71 @@ const unwrapArrayElement = (node: ts.Expression): ts.Expression =>
     ? unwrapExpression(node.expression)
     : unwrapExpression(node);
 
+const isTrackedArrayTarget = (
+  node: ts.Expression,
+  isTrackedTarget: (node: ts.Expression) => boolean,
+  options: { emptyArrayIsTracked?: boolean } = {},
+): boolean => {
+  const target = unwrapExpression(node);
+
+  if (ts.isArrayLiteralExpression(target)) {
+    return (
+      (options.emptyArrayIsTracked === true && target.elements.length === 0) ||
+      target.elements.some((element) =>
+        isTrackedTarget(unwrapArrayElement(element)),
+      )
+    );
+  }
+
+  if (!ts.isCallExpression(target)) {
+    return false;
+  }
+
+  const callee = unwrapExpression(target.expression);
+
+  if (
+    ts.isPropertyAccessExpression(callee) ||
+    ts.isElementAccessExpression(callee)
+  ) {
+    const methodName = getStaticPropertyName(callee);
+    const receiver = getStaticPropertyReceiver(callee);
+    const unwrappedReceiver = receiver ? unwrapExpression(receiver) : null;
+
+    if (
+      methodName === 'of' &&
+      unwrappedReceiver &&
+      ts.isIdentifier(unwrappedReceiver) &&
+      unwrappedReceiver.text === 'Array'
+    ) {
+      return (
+        (options.emptyArrayIsTracked === true &&
+          target.arguments.length === 0) ||
+        target.arguments.some((argument) => isTrackedTarget(argument))
+      );
+    }
+
+    if (
+      methodName === 'filter' ||
+      methodName === 'slice' ||
+      methodName === 'toReversed' ||
+      methodName === 'toSorted'
+    ) {
+      return receiver
+        ? isTrackedArrayTarget(receiver, isTrackedTarget, options)
+        : false;
+    }
+
+    if (methodName === 'concat') {
+      return (
+        (receiver ? isTrackedTarget(receiver) : false) ||
+        target.arguments.some((argument) => isTrackedTarget(argument))
+      );
+    }
+  }
+
+  return false;
+};
+
 const collectDestructuredPropertyAliases = (
   node: ts.VariableDeclaration,
   sourceFile: ts.SourceFile,
@@ -443,13 +508,12 @@ const findGenericScreenshotTargets = (
   const isGenericLocatorTarget = (node: ts.Expression): boolean => {
     const target = unwrapExpression(node);
 
-    if (ts.isArrayLiteralExpression(target)) {
-      return (
-        target.elements.length === 0 ||
-        target.elements.some((element) =>
-          isGenericLocatorTarget(unwrapArrayElement(element)),
-        )
-      );
+    if (
+      isTrackedArrayTarget(target, isGenericLocatorTarget, {
+        emptyArrayIsTracked: true,
+      })
+    ) {
+      return true;
     }
 
     if (ts.isIdentifier(target)) {
@@ -653,10 +717,8 @@ const findUnfilteredBroadScreenshotTargets = (
   const isUnfilteredBroadLocatorTarget = (node: ts.Expression): boolean => {
     const target = unwrapExpression(node);
 
-    if (ts.isArrayLiteralExpression(target)) {
-      return target.elements.some((element) =>
-        isUnfilteredBroadLocatorTarget(unwrapArrayElement(element)),
-      );
+    if (isTrackedArrayTarget(target, isUnfilteredBroadLocatorTarget)) {
+      return true;
     }
 
     if (ts.isIdentifier(target)) {
@@ -916,10 +978,8 @@ const findSingleControlScreenshotTargets = (
   const isSingleControlLocatorTarget = (node: ts.Expression): boolean => {
     const target = unwrapExpression(node);
 
-    if (ts.isArrayLiteralExpression(target)) {
-      return target.elements.some((element) =>
-        isSingleControlLocatorTarget(unwrapArrayElement(element)),
-      );
+    if (isTrackedArrayTarget(target, isSingleControlLocatorTarget)) {
+      return true;
     }
 
     if (ts.isIdentifier(target)) {
@@ -1168,10 +1228,8 @@ const findIconOrMediaScreenshotTargets = (
   const isIconOrMediaLocatorTarget = (node: ts.Expression): boolean => {
     const target = unwrapExpression(node);
 
-    if (ts.isArrayLiteralExpression(target)) {
-      return target.elements.some((element) =>
-        isIconOrMediaLocatorTarget(unwrapArrayElement(element)),
-      );
+    if (isTrackedArrayTarget(target, isIconOrMediaLocatorTarget)) {
+      return true;
     }
 
     if (ts.isIdentifier(target)) {
@@ -2797,6 +2855,60 @@ describe('generated docs source current behavior', () => {
         spreadTargetSource,
       ),
     ).toEqual(['tests/docs/example/spread-target.doc.ts:25:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind array helper calls', () => {
+    const arrayHelperTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('main')].filter(Boolean),
+        page,
+        'Filtered generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].concat(page.locator('section')),
+        page,
+        'Concatenated broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        Array.of(settingsSurface, page.getByRole('button', { name: 'Save' })),
+        page,
+        'Array helper single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].concat(page.locator('svg')),
+        page,
+        'Concatenated icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/array-helper-target.doc.ts',
+        arrayHelperTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-helper-target.doc.ts:2:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/array-helper-target.doc.ts',
+        arrayHelperTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-helper-target.doc.ts:8:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/array-helper-target.doc.ts',
+        arrayHelperTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-helper-target.doc.ts:14:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/array-helper-target.doc.ts',
+        arrayHelperTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-helper-target.doc.ts:20:13']);
   });
 
   it('detects computed weak documentation screenshot target aliases', () => {

@@ -530,8 +530,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   allowing surface-level test ids, rejects direct icon/media targets such as
   `svg`, `img`, `fa-icon`, `mat-icon`, `getByRole('img')`, `getByAltText`, and
   `getByTitle`, including direct weak locators inside screenshot target arrays,
-  spread screenshot target arrays, and helper-returned icon/media locators, before docs
-  can regress to button-only, input-only, option-only, cell-only, or icon-only
+  spread screenshot target arrays, array helper calls such as `Array.of(...)`
+  and `.concat(...)`, and helper-returned icon/media locators, before docs can
+  regress to button-only, input-only, option-only, cell-only, or icon-only
   images, resolves screenshot target aliases and helper functions before
   inspecting screenshot calls so later declarations cannot bypass those
   meaningful-target checks, includes object-property target aliases so grouped
