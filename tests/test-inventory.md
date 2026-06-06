@@ -783,7 +783,8 @@ provider outcomes without live identifiers.
     email; the queued notification boundary starts when finance review is saved.
     It also rejects sophisticated budgeting, receipt-category, and
     payout-provider integration wording so product-facing finance docs stay
-    inside the root product boundary for the first version.
+    inside the root product boundary for the first version, and it rejects
+    push-notification promises in receipt notification docs.
     Server handler coverage also pins that reimbursement recording rejects a
     selected receipt set with mixed submitters before a transaction can be
     recorded, rejects missing or changed payout details, and rejects the
@@ -1110,7 +1111,8 @@ provider outcomes without live identifiers.
     checkout form. The generated narrative also documents queued confirmation,
     cancellation, transfer-completed, and waitlist spot-available emails while
     keeping direct QR email delivery, separate payment success/failure emails,
-    checkout-expiry emails, and transfer-started emails out of relaunch scope.
+    checkout-expiry emails, transfer-started emails, and push-notification
+    promises out of relaunch scope.
     Generated-doc source coverage keeps that unavailable-state, transfer scope,
     lightweight waitlist boundary, notification boundary, and checkout screenshot
     target aligned with the relaunch behavior by rejecting strict reservation

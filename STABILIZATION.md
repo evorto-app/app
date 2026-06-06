@@ -6055,8 +6055,8 @@ documentation/help, so the product and quality root docs cannot drift apart on
 which user/admin guides are expected.
 The email-notification docs/source guards now also pin product-level absent
 email promises: no separate payment success/failure emails, checkout-expiry
-emails, transfer-started emails, or receipt-submitted emails in the current
-relaunch scope.
+emails, transfer-started emails, receipt-submitted emails, or push-notification
+promises in the current relaunch scope.
 The template generated doc now screenshots the seeded template-list navigation
 containing both a category and the Create template action instead of highlighting
 only the standalone create link.

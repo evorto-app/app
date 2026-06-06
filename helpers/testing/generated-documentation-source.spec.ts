@@ -5698,9 +5698,11 @@ describe('generated docs source current behavior', () => {
     expect(productSource).toContain(
       '- sophisticated budgeting and receipt-category planning',
     );
+    expect(productSource).toContain('- push notifications');
     expect(combinedSource).not.toMatch(/sophisticated budget/i);
     expect(combinedSource).not.toMatch(/receipt categor(y|ies)/i);
     expect(combinedSource).not.toMatch(/payout[- ]provider/i);
+    expect(combinedSource).not.toMatch(/push notification/i);
     expect(combinedSource).toContain('queues the submitter email for delivery');
     expect(receiptSource).toContain(
       'Expected generated receipt review docs receipt',
@@ -6203,6 +6205,8 @@ describe('generated docs source current behavior', () => {
       'Creating the transfer link does not send a transfer-started email; only a completed unpaid transfer queues a transfer-completed email.',
     );
     expect(source).toContain('fullOptionAfterLeaving.waitlistSpots');
+    expect(productSource).toContain('- push notifications');
+    expect(source).not.toMatch(/push notification/i);
     expect(source).not.toContain('Register button stays available');
     expect(source).not.toContain('paid transfers are automatic');
     expect(source).not.toContain('resale is automatic');
