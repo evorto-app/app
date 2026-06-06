@@ -60,6 +60,8 @@ bun run lint
   dotenv probes just to find the current worktree target.
 - Check whether required local Docker secrets are available:
   `bun run docker:check`
+- In a fresh Docker worktree, copy the sibling main checkout `.env` only when
+  missing and then run Docker preflight: `bun run docker:bootstrap`
 - Show the generated worktree Compose project status: `bun run docker:ps`
 - Attempt bounded cleanup when generated Compose project containers are stuck
   in `created`, `dead`, `removing`, or unhealthy state:

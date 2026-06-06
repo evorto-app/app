@@ -3872,8 +3872,13 @@ describe('stabilization source', () => {
       'failed required-variable row and the developer-secrets warning both point at\n`bun run env:copy-main -- --if-missing`',
     );
     expect(testsReadme).toContain('sibling main checkout `.env`');
+    expect(testsReadme).toContain(
+      'fresh Docker worktree, copy the sibling main checkout `.env` only when\n  missing and then run Docker preflight',
+    );
     expect(inventory).toContain('missing-secret recovery hint');
     expect(inventory).toContain('bun run dev:bootstrap');
+    expect(inventory).toContain('bun run docker:bootstrap');
+    expect(inventory).toContain('before `docker:check`');
     expect(inventory).toContain('env:copy-main --if-missing');
     expect(inventory).toContain('package-script shell conditional');
     expect(inventory).toContain('no-ops before\n  source-checkout lookup');
