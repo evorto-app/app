@@ -5834,7 +5834,9 @@ icon or uploaded media asset instead of the surrounding workflow surface. The
 guard also inspects screenshot target arrays, spread target arrays, array
 helper calls such as `Array.of(...)` and `.concat(...)`, and helper-returned
 targets for direct generic, broad, single-control, and icon/media screenshot
-targets.
+targets. Conditional, nullish-coalesced, and logical target expressions are
+checked too, so selecting between a good surface and a weak fallback cannot hide
+generic, broad, single-control, or icon/media screenshot evidence.
 The generated-doc source guard now collects screenshot target aliases and helper
 functions before it inspects screenshot calls, so generic shell, broad,
 single-control, and icon/media-only targets are still rejected when the alias or

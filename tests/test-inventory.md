@@ -533,7 +533,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   spread screenshot target arrays, array helper calls such as `Array.of(...)`
   and `.concat(...)`, and helper-returned icon/media locators, before docs can
   regress to button-only, input-only, option-only, cell-only, or icon-only
-  images, resolves screenshot target aliases and helper functions before
+  images. It also rejects conditional, nullish-coalesced, and logical target
+  expressions when either branch hides a weak screenshot target, resolves
+  screenshot target aliases and helper functions before
   inspecting screenshot calls so later declarations cannot bypass those
   meaningful-target checks, includes object-property target aliases so grouped
   screenshot target objects cannot hide weak locator targets, including computed

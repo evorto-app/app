@@ -108,6 +108,30 @@ const isTrackedArrayTarget = (
   return false;
 };
 
+const isTrackedBranchingTarget = (
+  node: ts.Expression,
+  isTrackedTarget: (node: ts.Expression) => boolean,
+): boolean => {
+  const target = unwrapExpression(node);
+
+  if (ts.isConditionalExpression(target)) {
+    return (
+      isTrackedTarget(target.whenTrue) || isTrackedTarget(target.whenFalse)
+    );
+  }
+
+  if (
+    ts.isBinaryExpression(target) &&
+    (target.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+      target.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+      target.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
+  ) {
+    return isTrackedTarget(target.left) || isTrackedTarget(target.right);
+  }
+
+  return false;
+};
+
 const collectDestructuredPropertyAliases = (
   node: ts.VariableDeclaration,
   sourceFile: ts.SourceFile,
@@ -516,6 +540,10 @@ const findGenericScreenshotTargets = (
       return true;
     }
 
+    if (isTrackedBranchingTarget(target, isGenericLocatorTarget)) {
+      return true;
+    }
+
     if (ts.isIdentifier(target)) {
       return genericTargetAliases.has(target.text);
     }
@@ -718,6 +746,10 @@ const findUnfilteredBroadScreenshotTargets = (
     const target = unwrapExpression(node);
 
     if (isTrackedArrayTarget(target, isUnfilteredBroadLocatorTarget)) {
+      return true;
+    }
+
+    if (isTrackedBranchingTarget(target, isUnfilteredBroadLocatorTarget)) {
       return true;
     }
 
@@ -982,6 +1014,10 @@ const findSingleControlScreenshotTargets = (
       return true;
     }
 
+    if (isTrackedBranchingTarget(target, isSingleControlLocatorTarget)) {
+      return true;
+    }
+
     if (ts.isIdentifier(target)) {
       return singleControlAliases.has(target.text);
     }
@@ -1229,6 +1265,10 @@ const findIconOrMediaScreenshotTargets = (
     const target = unwrapExpression(node);
 
     if (isTrackedArrayTarget(target, isIconOrMediaLocatorTarget)) {
+      return true;
+    }
+
+    if (isTrackedBranchingTarget(target, isIconOrMediaLocatorTarget)) {
       return true;
     }
 
@@ -2909,6 +2949,64 @@ describe('generated docs source current behavior', () => {
         arrayHelperTargetSource,
       ),
     ).toEqual(['tests/docs/example/array-helper-target.doc.ts:20:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind branching expressions', () => {
+    const branchingTargetSource = `
+      const useFallback = true;
+      const maybeSingleTarget = settingsSurface;
+      const maybeIconTarget = settingsSurface;
+
+      await takeScreenshot(
+        testInfo,
+        useFallback ? page.locator('main') : settingsSurface,
+        page,
+        'Conditional generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        settingsSurface ?? page.locator('section'),
+        page,
+        'Nullish broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        maybeSingleTarget || page.getByRole('button', { name: 'Save' }),
+        page,
+        'Logical single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        maybeIconTarget && page.locator('svg'),
+        page,
+        'Logical icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/branching-target.doc.ts',
+        branchingTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/branching-target.doc.ts:6:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/branching-target.doc.ts',
+        branchingTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/branching-target.doc.ts:12:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/branching-target.doc.ts',
+        branchingTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/branching-target.doc.ts:18:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/branching-target.doc.ts',
+        branchingTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/branching-target.doc.ts:24:13']);
   });
 
   it('detects computed weak documentation screenshot target aliases', () => {

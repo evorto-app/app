@@ -1456,6 +1456,9 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('spread target arrays');
     expect(source).toContain('array\nhelper calls');
+    expect(source).toMatch(
+      /Conditional, nullish-coalesced, and logical target expressions/u,
+    );
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
     expect(source).toContain('captureDocumentationImage');
@@ -1516,6 +1519,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('array helper calls');
     expect(inventory).toContain('Array.of(...)');
     expect(inventory).toContain('.concat(...)');
+    expect(inventory).toContain(
+      'conditional, nullish-coalesced, and logical target\n  expressions',
+    );
     expect(inventory).toContain('helper-returned icon/media locators');
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local\s+screenshot\s+wrappers/u);
@@ -1766,11 +1772,15 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain('unwrapArrayElement');
     expect(generatedDocumentationSource).toContain('isTrackedArrayTarget');
+    expect(generatedDocumentationSource).toContain('isTrackedBranchingTarget');
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind array spreads',
     );
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind array helper calls',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets hidden behind branching expressions',
     );
     expect(generatedDocumentationSource).toContain('...genericTargets');
     expect(generatedDocumentationSource).toContain('...broadTargets');
@@ -1783,6 +1793,15 @@ describe('stabilization source', () => {
       "[settingsSurface].concat(page.locator('section'))",
     );
     expect(generatedDocumentationSource).toContain('Array.of(settingsSurface');
+    expect(generatedDocumentationSource).toContain(
+      "useFallback ? page.locator('main') : settingsSurface",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "settingsSurface ?? page.locator('section')",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "maybeIconTarget && page.locator('svg')",
+    );
     expect(generatedDocumentationSource).toContain(
       'wrappedForwardTargets.shell',
     );
