@@ -298,6 +298,7 @@ const findSingleControlScreenshotTargets = (
     ts.ScriptKind.TS,
   );
   const singleControlTargets: string[] = [];
+  const singleControlAliases = new Set<string>();
   const singleControlRoles = new Set([
     'button',
     'checkbox',
@@ -334,6 +335,10 @@ const findSingleControlScreenshotTargets = (
       );
     }
 
+    if (ts.isIdentifier(node)) {
+      return singleControlAliases.has(node.text);
+    }
+
     let candidate: ts.Expression = ts.isParenthesizedExpression(node)
       ? node.expression
       : node;
@@ -367,6 +372,15 @@ const findSingleControlScreenshotTargets = (
   };
 
   const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      isSingleControlLocatorTarget(node.initializer)
+    ) {
+      singleControlAliases.add(node.name.text);
+    }
+
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
@@ -646,6 +660,13 @@ describe('generated docs source current behavior', () => {
         page,
         'Single placeholder target with a descriptive caption',
       );
+      const aliasedErrorMessage = page.getByText('Domain must be a single host name');
+      await takeScreenshot(
+        testInfo,
+        [tenantCreateForm, aliasedErrorMessage],
+        page,
+        'Aliased single text target with a descriptive caption',
+      );
       await takeScreenshot(
         testInfo,
         profileSummarySurface,
@@ -670,6 +691,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/single-control-target.doc.ts:8:13',
       'tests/docs/example/single-control-target.doc.ts:14:13',
       'tests/docs/example/single-control-target.doc.ts:20:13',
+      'tests/docs/example/single-control-target.doc.ts:27:13',
     ]);
   });
 
@@ -1016,6 +1038,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('const tenantIdentitySummary =');
     expect(source).toContain('const brandAndSearchSettingsFields =');
     expect(source).toContain('const legalPageSettingsFields =');
+    expect(source).toContain('const financeAndDiscountSettingsSurface =');
     expect(source).toContain('const financeAndDiscountSettingsControls =');
     expect(source).toContain(
       'await expect(deferredSettingsSummary).toBeVisible()',
@@ -1029,6 +1052,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('for (const field of legalPageSettingsFields)');
     expect(source).toContain(
       'for (const control of financeAndDiscountSettingsControls)',
+    );
+    expect(source).toContain(
+      'await expect(financeAndDiscountSettingsSurface).toBeVisible()',
     );
     expect(source).toContain(
       "generalSettingsField(page, 'Allowed receipt countries')",
@@ -1058,8 +1084,14 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Receipt and ESN card discount settings near the save action',
     );
+    expect(source).toContain(
+      'takeScreenshot(\n    testInfo,\n    financeAndDiscountSettingsSurface,',
+    );
     expect(source).not.toContain(
       "const esnDiscountToggle = generalSettingsToggle(page, 'ESN Card discounts');",
+    );
+    expect(source).not.toContain(
+      'takeScreenshot(\n    testInfo,\n    financeAndDiscountSettingsControls,',
     );
     expect(source).not.toContain(
       'takeScreenshot(\n    testInfo,\n    esnDiscountToggle,',
@@ -1171,9 +1203,12 @@ describe('generated docs source current behavior', () => {
       'const rejectedDomainForm = tenantCreateForm(tenantCreate);',
     );
     expect(globalAdminSource).toContain(
+      'takeScreenshot(\n    testInfo,\n    rejectedDomainForm,',
+    );
+    expect(globalAdminSource).not.toContain(
       'const rejectedDomainMessage = page.getByText(',
     );
-    expect(globalAdminSource).toContain(
+    expect(globalAdminSource).not.toContain(
       '[rejectedDomainForm, rejectedDomainMessage]',
     );
     expect(globalAdminSource).not.toContain(

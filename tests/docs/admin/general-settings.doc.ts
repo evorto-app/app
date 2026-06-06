@@ -205,6 +205,15 @@ Tax rates are managed on the separate **Tax Rates** page.
   await expect(
     generalSettings.getByRole('button', { name: 'Save' }),
   ).toBeVisible();
+  const financeAndDiscountSettingsSurface = generalSettings
+    .locator('form')
+    .filter({ hasText: 'Finance settings' })
+    .filter({ hasText: 'Allowed receipt countries' })
+    .filter({ hasText: 'Discount providers' })
+    .filter({ hasText: 'ESN Card discounts' })
+    .filter({ hasText: 'Save' })
+    .first();
+  await expect(financeAndDiscountSettingsSurface).toBeVisible();
   const financeAndDiscountSettingsControls = [
     generalSettingsField(page, 'Allowed receipt countries'),
     generalSettingsCheckbox(page, 'Allow other'),
@@ -216,7 +225,7 @@ Tax rates are managed on the separate **Tax Rates** page.
   }
   await takeScreenshot(
     testInfo,
-    financeAndDiscountSettingsControls,
+    financeAndDiscountSettingsSurface,
     page,
     'Receipt and ESN card discount settings near the save action',
   );

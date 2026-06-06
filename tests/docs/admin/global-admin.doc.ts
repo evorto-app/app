@@ -178,9 +178,6 @@ The create form intentionally supports one active primary domain per tenant. Cus
     page.getByText('Domain must be a single host name'),
   ).toBeVisible();
   const rejectedDomainForm = tenantCreateForm(tenantCreate);
-  const rejectedDomainMessage = page.getByText(
-    'Domain must be a single host name',
-  );
   await expect(rejectedDomainForm).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
   await expect(tenantCreate.getByLabel('Primary domain')).toHaveValue(
@@ -188,7 +185,7 @@ The create form intentionally supports one active primary domain per tenant. Cus
   );
   await takeScreenshot(
     testInfo,
-    [rejectedDomainForm, rejectedDomainMessage],
+    rejectedDomainForm,
     page,
     'Create tenant form preserving URL-shaped domain input after rejection',
   );
