@@ -1330,6 +1330,10 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'manifest that must include every image-backed docs',
     );
+    expect(inventory).toContain(
+      'root `QUALITY.md` generated-documentation topics',
+    );
+    expect(inventory).toContain('payments and documentation/help');
     expect(inventory).toContain('quietly drop image-backed states');
     expect(inventory).toContain('shared `takeScreenshot` helper');
     expect(inventory).toMatch(/documentation\s+reporter\s+barrel/u);
@@ -1385,11 +1389,19 @@ describe('stabilization source', () => {
       'keeps product-important documentation areas represented by generated docs',
     );
     expect(generatedDocumentationSource).toContain(
+      'keeps quality documentation topics represented by generated docs',
+    );
+    expect(generatedDocumentationSource).toContain(
       'imageBackedDocumentationAreas',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'generatedDocumentationTopics',
     );
     expect(generatedDocumentationSource).toContain(
       'creating an event from a template',
     );
+    expect(generatedDocumentationSource).toContain('documentation/help');
+    expect(generatedDocumentationSource).toContain('Stripe Checkout');
     expect(generatedDocumentationSource).toContain(
       'configuring roles and capabilities',
     );
@@ -3777,6 +3789,11 @@ describe('stabilization source', () => {
     expect(copyMainEnvironment).toContain(
       'already exists; leaving it unchanged',
     );
+    expect(copyMainEnvironment).toContain('omittedFontAwesomeTokenNames');
+    expect(copyMainEnvironment).toContain('omitFontAwesomePackageTokens');
+    expect(copyMainEnvironment).toContain(
+      'Omitted Font Awesome package-token variables',
+    );
     expect(copyMainEnvironment).toContain('Do not copy .env.dev or .npmrc');
     expect(copyMainEnvironment).not.toContain("'.env.dev'");
     expect(copyMainEnvironment).toContain('export const copyMainEnvironment');
@@ -3837,6 +3854,8 @@ describe('stabilization source', () => {
       'helpers/testing/copy-main-environment.spec.ts',
     );
     expect(inventory).toContain('overwrite refusal unless `--force`');
+    expect(inventory).toContain('Font Awesome package-token variables');
+    expect(inventory).toContain('unrelated developer\n  secrets');
     expect(localRuntimeStatus).toContain('export const statusCommands');
     expect(localRuntimeStatus).toContain('export const runLocalRuntimeStatus');
     expect(localRuntimeStatus).toContain('if (import.meta.main)');

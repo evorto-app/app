@@ -1566,6 +1566,83 @@ describe('generated docs source current behavior', () => {
     }
   });
 
+  it('keeps quality documentation topics represented by generated docs', () => {
+    const qualitySource = readSource('QUALITY.md');
+    const generatedDocumentationTopics = [
+      {
+        files: [
+          'tests/docs/events/event-approval.doc.ts',
+          'tests/docs/events/event-management.doc.ts',
+          'tests/docs/events/register.doc.ts',
+          'tests/docs/events/unlisted-user.doc.ts',
+        ],
+        terms: ['Events', 'Published', 'Unlisted Events'],
+        topic: 'events',
+      },
+      {
+        files: ['tests/docs/templates/templates.doc.ts'],
+        terms: ['Templates are the base', 'Saved template detail page'],
+        topic: 'templates',
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        terms: ['Register for a free event', 'Successful registration'],
+        topic: 'registrations',
+      },
+      {
+        files: [
+          'tests/docs/events/register.doc.ts',
+          'tests/docs/finance/inclusive-tax-rates.doc.ts',
+        ],
+        terms: ['Stripe Checkout', 'Inclusive (VAT-style) tax rates'],
+        topic: 'payments',
+      },
+      {
+        files: ['tests/docs/events/event-management.doc.ts'],
+        terms: ['Guests to check in now', 'Scanned registration'],
+        topic: 'check-in',
+      },
+      {
+        files: [
+          'tests/docs/roles/about-permissions.doc.ts',
+          'tests/docs/roles/roles.doc.ts',
+        ],
+        terms: ['About permissions', 'Role form with permission groups'],
+        topic: 'roles and permissions',
+      },
+      {
+        files: ['tests/docs/admin/general-settings.doc.ts'],
+        terms: ['General settings', 'Legal page fields'],
+        topic: 'tenant settings',
+      },
+      {
+        files: [
+          'tests/docs/finance/finance-overview.doc.ts',
+          'tests/docs/finance/receipt-review-reimbursement.doc.ts',
+        ],
+        terms: ['Receipt approval queue', 'Receipt review detail'],
+        topic: 'receipts',
+      },
+      {
+        files: ['tests/docs/roles/about-permissions.doc.ts'],
+        terms: ['About permissions', 'tenant-scoped capabilities'],
+        topic: 'documentation/help',
+      },
+    ] as const;
+
+    for (const documentationTopic of generatedDocumentationTopics) {
+      expect(qualitySource).toContain(`- ${documentationTopic.topic}`);
+
+      const combinedSource = documentationTopic.files
+        .map((file) => readSource(file))
+        .join('\n');
+
+      for (const term of documentationTopic.terms) {
+        expect(combinedSource, documentationTopic.topic).toContain(term);
+      }
+    }
+  });
+
   it('keeps generated documentation publishing explicit in package scripts', () => {
     const packageJson = JSON.parse(readSource('package.json')) as {
       scripts?: Record<string, string>;

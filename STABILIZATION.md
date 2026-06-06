@@ -1933,11 +1933,13 @@ the current working direction until a product decision overrides them.
   requiring the sibling checkout source file, so bootstrap remains safe in
   already-seeded worktrees and main-checkout contexts. Generated `.env.dev`
   remains worktree-local and is never copied; the main checkout `.npmrc` is also
-  never copied, keeping Font Awesome installs on the public npm registry.
+  never copied, and common Font Awesome package-token variables are omitted from
+  copied worktree `.env` files, keeping Font Awesome installs on the public npm
+  registry.
   Focused helper coverage now exercises the default copy path, explicit checkout
   override, if-missing no-op with and without a source checkout, overwrite
-  refusal, forced replacement, missing-source checklist message, and
-  `.env.dev`/`.npmrc` boundaries.
+  refusal, forced replacement, missing-source checklist message,
+  Font Awesome token omission, and `.env.dev`/`.npmrc` boundaries.
 - `bun run dev:bootstrap` is the fresh-worktree shortcut for that recovery path:
   missing-secret preflight output now names it directly for fresh dev-server
   worktrees; it delegates the missing-file decision to
@@ -5685,6 +5687,9 @@ essential flows like browsing events, registering, transfers, create-from-templa
 event review/publishing, templates, roles/capabilities, check-in, receipts,
 tenant branding/settings, and legal/privacy settings cannot silently disappear
 from the product-facing documentation inventory.
+It also maps `QUALITY.md` generated-documentation topics to checked-in docs
+sources, including payments and documentation/help, so the product and quality
+root docs cannot drift apart on which user/admin guides are expected.
 The template generated doc now screenshots the seeded template-list navigation
 containing both a category and the Create template action instead of highlighting
 only the standalone create link.

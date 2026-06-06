@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 const fail = (messages: readonly string[]): never => {
@@ -7,12 +7,40 @@ const fail = (messages: readonly string[]): never => {
 
 interface CopyMainEnvironmentOptions {
   argv?: readonly string[];
-  copyFile?: (source: string, destination: string) => void;
   env?: NodeJS.ProcessEnv;
   fileExists?: (filePath: string) => boolean;
   log?: (message: string) => void;
+  readFile?: (filePath: string) => string;
   repositoryRoot?: string;
+  writeFile?: (filePath: string, contents: string) => void;
 }
+
+const omittedFontAwesomeTokenNames = new Set([
+  'FONT_AWESOME_TOKEN',
+  'FONTAWESOME_NPM_AUTH_TOKEN',
+  'FONTAWESOME_PACKAGE_TOKEN',
+  'FONTAWESOME_TOKEN',
+]);
+
+const omitFontAwesomePackageTokens = (source: string): string =>
+  source
+    .split('\n')
+    .filter((line) => {
+      const trimmedLine = line.trimStart();
+      if (!trimmedLine || trimmedLine.startsWith('#')) {
+        return true;
+      }
+
+      const separatorIndex = trimmedLine.indexOf('=');
+      if (separatorIndex === -1) {
+        return true;
+      }
+
+      return !omittedFontAwesomeTokenNames.has(
+        trimmedLine.slice(0, separatorIndex).trim(),
+      );
+    })
+    .join('\n');
 
 export const copyMainEnvironment = (
   options: CopyMainEnvironmentOptions = {},
@@ -22,7 +50,11 @@ export const copyMainEnvironment = (
   const environment = options.env ?? process.env;
   const argv = options.argv ?? process.argv;
   const fileExists = options.fileExists ?? existsSync;
-  const copyFile = options.copyFile ?? copyFileSync;
+  const readFile =
+    options.readFile ?? ((filePath: string) => readFileSync(filePath, 'utf8'));
+  const writeFile =
+    options.writeFile ??
+    ((filePath: string, contents: string) => writeFileSync(filePath, contents));
   const log = options.log ?? console.log;
   const homeDirectory = environment['HOME']?.trim();
   const explicitMainCheckout = environment['MAIN_CHECKOUT_DIR']?.trim();
@@ -66,8 +98,11 @@ export const copyMainEnvironment = (
     ]);
   }
 
-  copyFile(source, destination);
+  writeFile(destination, omitFontAwesomePackageTokens(readFile(source)));
   log(`Copied developer secrets from ${source} to ${destination}.`);
+  log(
+    'Omitted Font Awesome package-token variables; Evorto uses the public npm Font Awesome packages.',
+  );
   log(
     'Do not copy .env.dev or .npmrc; .env.dev is generated per worktree and Font Awesome must stay on the public npm registry.',
   );

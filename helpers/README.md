@@ -275,6 +275,9 @@ guarded copy path reads `$HOME/code/<repo>/.env` by default, supports
 `MAIN_CHECKOUT_DIR=/path/to/repo` for a different source checkout, and refuses
 to overwrite an existing worktree `.env` unless rerun with `--if-missing` to
 leave it unchanged before source-checkout lookup or `--force` to replace it.
+The copy also omits common Font Awesome package-token variables because Evorto
+uses the free public npm Font Awesome packages and worktree installs should not
+accidentally spend private Font Awesome account bandwidth.
 Font Awesome icons use public npm packages only; Docker and CI installs must
 not depend on a private Font Awesome registry token or project `.npmrc`. CI
 install retries preserve the restored Bun package cache instead of clearing it

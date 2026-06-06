@@ -487,7 +487,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   docs files and concrete source terms for browsing events, registration,
   transfers, create-from-template, event review/publishing, templates,
   roles/capabilities, check-in, receipts, tenant branding/settings, and
-  legal/privacy settings,
+  legal/privacy settings, maps root `QUALITY.md` generated-documentation topics
+  including payments and documentation/help to checked-in docs sources,
   rejects fixed `waitForTimeout` sleeps in generated docs so screenshots stay
   tied to concrete UI state,
   keeps the helper's runtime caption parameter required with the same minimum
@@ -1100,7 +1101,9 @@ provider outcomes without live identifiers.
   directly: default sibling-checkout copy, explicit `MAIN_CHECKOUT_DIR`,
   overwrite refusal unless `--force`, if-missing no-op with and without a source
   checkout, missing-source checklist copy, and the boundary that `.env.dev` and
-  `.npmrc` are never copied. The same source
+  `.npmrc` are never copied. It also proves copied worktree `.env` files omit
+  Font Awesome package-token variables while preserving unrelated developer
+  secrets. The same source
   coverage keeps Prettier's Tailwind plugin config and dev dependency aligned,
   so local `format:write` runs stay warning-free without installing inactive
   formatter plugins.

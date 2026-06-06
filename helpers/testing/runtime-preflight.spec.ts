@@ -1581,6 +1581,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(helper).toContain('already exists');
     expect(helper).toContain('nothing to copy');
     expect(helper).toContain('No main-checkout developer secrets file found');
+    expect(helper).toContain('omittedFontAwesomeTokenNames');
+    expect(helper).toContain('omitFontAwesomePackageTokens');
+    expect(helper).toContain('Omitted Font Awesome package-token variables');
     expect(helper).toContain('Do not copy .env.dev or .npmrc');
     expect(helper).not.toContain("'.env.dev'");
     expect(helpersReadme).toContain('bun run env:copy-main');
@@ -1597,6 +1600,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(stabilization).toContain('`bun run env:copy-main`');
     expect(stabilization).toContain('`bun run dev:bootstrap`');
     expect(stabilization).toContain('Generated `.env.dev`');
+    expect(stabilization).toContain('Font Awesome token omission');
   });
 
   it('keeps Playwright package scripts on the generated runtime environment path', () => {
