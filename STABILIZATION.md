@@ -3624,9 +3624,15 @@ fallback rather than a profile discount-card defect.
   pixels, then also rejects captures without enough visible non-white,
   non-highlight page content. A generated-doc attachment therefore cannot pass
   as a blank page with only the highlight outline or as an unrelated page image
-  after the target locator is selected. `tests/specs/reporting/reporter-paths.test.ts`
-  covers the weak-caption runtime failure, the missing-highlight runtime
-  failure, and the blank highlighted-image runtime failure without app startup.
+  after the target locator is selected. The documentation reporter now repeats
+  the image-evidence gate before writing generated markdown: every `image`
+  attachment must be an actual PNG with highlighted focus-target pixels and
+  visible surrounding page content, so invalid, unhighlighted, or context-free
+  images cannot become `{% figure %}` output even if a future helper bypass
+  reaches the reporter. `tests/specs/reporting/reporter-paths.test.ts` covers
+  the weak-caption runtime failure, invalid image attachments, the
+  missing-highlight runtime failure, and the blank/context-free highlighted-image
+  runtime failures without app startup.
 - Current docs screenshot-stability checkpoint: the focused generated-docs
   screenshot helper now waits for target locator bounds to stabilize before
   capture, matching the full documentation reporter path. The shared stability

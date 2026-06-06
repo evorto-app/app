@@ -545,10 +545,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   indirect call/apply/bind helper invocations that would evade normal
   screenshot counting and target-quality checks, covers
   the weak-caption,
-  missing-highlight, and blank highlighted-image runtime failures in
-  reporter-path tests,
-  rejects uncaptioned image attachments and orphan image-caption attachments
-  before generated markdown is written, rejects raw `page.screenshot`,
+  invalid-image, missing-highlight, and blank/context-free highlighted-image
+  runtime failures in reporter-path tests, rejects uncaptioned image attachments
+  and orphan image-caption attachments before generated markdown is written,
+  requires reporter-written image attachments to be valid PNG screenshots with
+  highlighted focus-target pixels and visible surrounding page content, rejects
+  raw `page.screenshot`,
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs
   sources, treats static bracket-property forms such as `page['screenshot']`,
   `testInfo['attach']`, and `documentationReporter['takeScreenshot']` the same

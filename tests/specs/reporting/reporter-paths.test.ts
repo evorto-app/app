@@ -11,6 +11,43 @@ import {
 } from '../../support/reporters/documentation-reporter/take-screenshot';
 import { resolveDocsImageOutputDirectory } from '../../support/utils/doc-screenshot';
 
+const createDocumentationEvidencePng = ({
+  includeContent = true,
+  includeHighlight = true,
+}: {
+  includeContent?: boolean;
+  includeHighlight?: boolean;
+} = {}): Buffer => {
+  const png = new PNG({ height: 64, width: 64 });
+  png.data.fill(255);
+
+  if (includeContent) {
+    for (let y = 24; y < 40; y += 1) {
+      for (let x = 24; x < 40; x += 1) {
+        const offset = (y * png.width + x) * 4;
+        png.data[offset] = 30;
+        png.data[offset + 1] = 64;
+        png.data[offset + 2] = 175;
+        png.data[offset + 3] = 255;
+      }
+    }
+  }
+
+  if (includeHighlight) {
+    for (let y = 8; y < 16; y += 1) {
+      for (let x = 8; x < 16; x += 1) {
+        const offset = (y * png.width + x) * 4;
+        png.data[offset] = 236;
+        png.data[offset + 1] = 72;
+        png.data[offset + 2] = 153;
+        png.data[offset + 3] = 255;
+      }
+    }
+  }
+
+  return PNG.sync.write(png);
+};
+
 test('documentation reporter respects DOCS_* env and writes files', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out');
   const imgsRoot = testInfo.outputPath('docs-img');
@@ -26,7 +63,7 @@ test('documentation reporter respects DOCS_* env and writes files', async ({}, t
   const title =
     'Sample Journey: Discounts @finance @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-01)';
   const slug = 'sample-journey-discounts';
-  const png = Buffer.from([137, 80, 78, 71]); // not a valid PNG, but enough for file write
+  const png = createDocumentationEvidencePng();
   const result = {
     attachments: [
       {
@@ -81,7 +118,7 @@ test('documentation reporter rejects uncaptioned image attachments', async ({}, 
       {
         name: 'image',
         contentType: 'image/png',
-        body: Buffer.from([137, 80, 78, 71]),
+        body: createDocumentationEvidencePng(),
       },
     ],
   } as any;
@@ -90,6 +127,106 @@ test('documentation reporter rejects uncaptioned image attachments', async ({}, 
     reporter.onTestEnd({ title: 'Uncaptioned image' } as any, result),
   ).toThrow(
     'Documentation image attachment in Uncaptioned image is missing a paired image-caption attachment.',
+  );
+});
+
+test('documentation reporter rejects invalid image attachments', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-invalid-image');
+  const imgsRoot = testInfo.outputPath('docs-img-invalid-image');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: Buffer.from([137, 80, 78, 71]),
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from('Invalid image should fail before markdown output'),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Invalid image' } as any, result),
+  ).toThrow(
+    'Documentation image attachment in Invalid image must be a valid PNG screenshot.',
+  );
+});
+
+test('documentation reporter rejects images without a highlighted target', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-missing-highlight');
+  const imgsRoot = testInfo.outputPath('docs-img-missing-highlight');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: createDocumentationEvidencePng({ includeHighlight: false }),
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from(
+          'Unhighlighted image should fail documentation evidence',
+        ),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Missing highlighted target' } as any, result),
+  ).toThrow(
+    'Documentation image attachment in Missing highlighted target must include the highlighted focus target.',
+  );
+});
+
+test('documentation reporter rejects images without surrounding page content', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-missing-content');
+  const imgsRoot = testInfo.outputPath('docs-img-missing-content');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: createDocumentationEvidencePng({ includeContent: false }),
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from(
+          'Context-free image should fail documentation evidence',
+        ),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Missing page context' } as any, result),
+  ).toThrow(
+    'Documentation image attachment in Missing page context must include visible page content outside the highlighted focus target.',
   );
 });
 

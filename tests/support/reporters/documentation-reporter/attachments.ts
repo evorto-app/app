@@ -1,10 +1,14 @@
 import type { TestCase, TestResult } from '@playwright/test/reporter';
 import * as crypto from 'node:crypto';
 import path from 'node:path';
+import { PNG } from 'pngjs';
 
 import { writeFile } from './shared';
 
 export type ResultAttachment = TestResult['attachments'][number];
+const highlightedTargetColor = { b: 153, g: 72, r: 236 };
+const minimumHighlightedPixelCount = 16;
+const minimumVisibleContentPixelCount = 128;
 
 const readAttachmentBody = (
   attachment: ResultAttachment,
@@ -72,6 +76,63 @@ const escapeAttribute = (value: string): string =>
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
 
+const assertMeaningfulDocumentationImage = (
+  attachment: ResultAttachment,
+  body: Buffer,
+  testTitle: string,
+): void => {
+  if (attachment.contentType !== 'image/png') {
+    throw new Error(
+      `Documentation image attachment in ${testTitle} must be image/png so generated docs can verify screenshot evidence quality.`,
+    );
+  }
+
+  let png: PNG;
+
+  try {
+    png = PNG.sync.read(body);
+  } catch {
+    throw new Error(
+      `Documentation image attachment in ${testTitle} must be a valid PNG screenshot.`,
+    );
+  }
+
+  let highlightedPixels = 0;
+  let contentPixels = 0;
+
+  for (let offset = 0; offset < png.data.length; offset += 4) {
+    const r = png.data[offset];
+    const g = png.data[offset + 1];
+    const b = png.data[offset + 2];
+    const a = png.data[offset + 3];
+    const isHighlight =
+      r === highlightedTargetColor.r &&
+      g === highlightedTargetColor.g &&
+      b === highlightedTargetColor.b;
+    const isNearWhite = r >= 248 && g >= 248 && b >= 248;
+
+    if (a > 0 && isHighlight) {
+      highlightedPixels += 1;
+    }
+
+    if (a > 0 && !isHighlight && !isNearWhite) {
+      contentPixels += 1;
+    }
+  }
+
+  if (highlightedPixels < minimumHighlightedPixelCount) {
+    throw new Error(
+      `Documentation image attachment in ${testTitle} must include the highlighted focus target.`,
+    );
+  }
+
+  if (contentPixels < minimumVisibleContentPixelCount) {
+    throw new Error(
+      `Documentation image attachment in ${testTitle} must include visible page content outside the highlighted focus target.`,
+    );
+  }
+};
+
 export const buildSectionContent = (
   test: TestCase,
   attachments: ResultAttachment[],
@@ -86,6 +147,7 @@ export const buildSectionContent = (
       case 'image': {
         const body = readAttachmentBody(attachment, test.title, 'image');
         if (!body) continue;
+        assertMeaningfulDocumentationImage(attachment, body, test.title);
 
         const hash = crypto.createHash('sha256').update(body).digest('hex');
         const id = hash.slice(0, 16);

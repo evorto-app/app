@@ -1404,6 +1404,9 @@ describe('stabilization source', () => {
     expect(source).toContain('captured image');
     expect(source).toContain('highlighted focus-target\n  pixels');
     expect(source).toContain('proves');
+    expect(source).toContain('actual PNG with highlighted focus-target pixels');
+    expect(source).toContain('invalid image attachments');
+    expect(source).toContain('context-free highlighted-image');
     expect(source).toContain('generic page-root screenshot targets');
     expect(source).toContain('aliased\ngeneric shell locator targets');
     expect(source).toContain(
@@ -1534,9 +1537,15 @@ describe('stabilization source', () => {
     expect(inventory).toContain('indirect call/apply/bind helper invocations');
     expect(inventory).toContain('self-tests those bypass examples');
     expect(inventory).toContain('weak-caption');
+    expect(inventory).toContain('invalid-image');
     expect(inventory).toContain('missing-highlight');
+    expect(inventory).toContain('blank/context-free highlighted-image');
     expect(inventory).toContain('uncaptioned image attachments');
     expect(inventory).toContain('orphan image-caption attachments');
+    expect(inventory).toContain('valid PNG screenshots');
+    expect(inventory).toContain(
+      'highlighted focus-target pixels and visible surrounding page content',
+    );
     expect(inventory).toContain('runtime');
     expect(inventory).toContain('failure');
     expect(inventory).toContain('rejects');
@@ -1847,10 +1856,25 @@ describe('stabilization source', () => {
     expect(reporterAttachmentsSource).toContain(
       'Documentation image-caption attachment in ${test.title} is missing a preceding image attachment.',
     );
+    expect(reporterAttachmentsSource).toContain(
+      'must be a valid PNG screenshot',
+    );
+    expect(reporterAttachmentsSource).toContain(
+      'must include visible page content outside the highlighted focus target',
+    );
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');
     expect(reporterPathsSpec).toContain(
       'documentation reporter rejects uncaptioned image attachments',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects invalid image attachments',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects images without a highlighted target',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects images without surrounding page content',
     );
     expect(reporterPathsSpec).toContain(
       'documentation reporter rejects orphan image-caption attachments',
