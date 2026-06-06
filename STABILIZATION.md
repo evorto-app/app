@@ -6062,7 +6062,9 @@ availability, registration cancellation/refund scope, transfers, waitlists,
 create-from-template, event review/publishing, templates, roles/capabilities,
 ESN-card discount behavior, check-in, receipts, tenant branding/settings,
 legal/privacy settings, and email notifications cannot silently disappear from
-the product-facing documentation inventory.
+the product-facing documentation inventory. Role documentation source coverage
+also rejects existing-user role-assignment instructions and action selectors
+while the relaunch user-list surface remains read-only.
 It also maps `QUALITY.md` generated-documentation topics to checked-in docs
 sources, including paid registration, waitlists, registration cancellation,
 transfer/resale, registration confirmation with QR ticket availability,

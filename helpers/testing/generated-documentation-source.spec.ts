@@ -6454,11 +6454,13 @@ describe('generated docs source current behavior', () => {
   });
 
   it('keeps role docs aligned with generated permission reference semantics', () => {
+    const productSource = readSource('PRODUCT.md');
     const rolesSource = readSource('tests/docs/roles/roles.doc.ts');
     const permissionsSource = readSource(
       'tests/docs/roles/about-permissions.doc.ts',
     );
 
+    expect(productSource).toContain('- manage roles');
     expect(rolesSource).toContain(
       'Learn more at [about permissions](/docs/about-permissions).',
     );
@@ -6470,6 +6472,9 @@ describe('generated docs source current behavior', () => {
     expect(rolesSource).toContain("locator('app-user-list')");
     expect(rolesSource).toContain(
       'Existing-user role assignment is deferred for relaunch.',
+    );
+    expect(rolesSource).toContain(
+      'Assigning roles to existing users is explicitly deferred for relaunch.',
     );
     expect(rolesSource).toContain(
       "getByRole('cell', {\n        exact: true,\n        name: 'admin@evorto.app',",
@@ -6513,6 +6518,14 @@ describe('generated docs source current behavior', () => {
     );
     expect(rolesSource).not.toContain(
       "takeScreenshot(\n      testInfo,\n      page.getByRole('link', { name: 'Create role' })",
+    );
+    expect(rolesSource).not.toMatch(/can assign roles to existing users/i);
+    expect(rolesSource).not.toMatch(/assign roles from the all users page/i);
+    expect(rolesSource).not.toContain(
+      "getByRole('button', { name: 'Assign roles' })",
+    );
+    expect(rolesSource).not.toContain(
+      "getByRole('button', { name: 'Edit roles' })",
     );
     expect(rolesSource).toContain(
       "throw new Error('Expected generated roles doc to persist the role')",

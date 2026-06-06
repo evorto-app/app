@@ -1091,9 +1091,11 @@ provider outcomes without live identifiers.
     review page.
   - User-list/role-assignment coverage once the role-assignment path exists.
     Source coverage now pins the current read-only UI shape and generated roles
-    docs while server coverage proves the current read-only user list pages
-    tenant users before joining tenant-scoped role rows and applies search
-    before pagination, so multi-role users do not collapse page size.
+    docs, including explicit rejection of existing-user role-assignment
+    instructions and action selectors while the relaunch workflow is deferred.
+    Server coverage proves the current read-only user list pages tenant users
+    before joining tenant-scoped role rows and applies search before pagination,
+    so multi-role users do not collapse page size.
 - Registrations:
   - `specs/events/negative-registration-states.spec.ts` adds active
     page-backed coverage for closed registration windows, role-ineligible direct
