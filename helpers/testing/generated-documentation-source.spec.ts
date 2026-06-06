@@ -497,6 +497,74 @@ const collectScreenshotCaptions = (
   return captions;
 };
 
+const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const rawImages: string[] = [];
+
+  const describeCall = (node: ts.CallExpression): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.expression.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const getObjectPropertyValue = (
+    objectLiteral: ts.ObjectLiteralExpression,
+    propertyName: string,
+  ): null | ts.Expression => {
+    for (const property of objectLiteral.properties) {
+      if (
+        ts.isPropertyAssignment(property) &&
+        getStaticPropertyNameFromName(property.name) === propertyName
+      ) {
+        return property.initializer;
+      }
+    }
+
+    return null;
+  };
+
+  const hasRawMarkdownImage = (node: ts.Expression): boolean =>
+    /!\[[^\]]*\]\([^)]+\)|<img(?:\s|>)/iu.test(node.getText(sourceFile));
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const callee = unwrapExpression(node.expression);
+      const payload = node.arguments[1]
+        ? unwrapExpression(node.arguments[1])
+        : null;
+
+      if (
+        (ts.isPropertyAccessExpression(callee) ||
+          ts.isElementAccessExpression(callee)) &&
+        getStaticPropertyName(callee) === 'attach' &&
+        node.arguments[0] &&
+        getLiteralText(node.arguments[0]) === 'markdown' &&
+        payload &&
+        ts.isObjectLiteralExpression(payload)
+      ) {
+        const body = getObjectPropertyValue(payload, 'body');
+
+        if (body && hasRawMarkdownImage(body)) {
+          rawImages.push(describeCall(node));
+        }
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return rawImages;
+};
+
 const findGenericScreenshotTargets = (
   path: string,
   source: string,
@@ -2942,6 +3010,38 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/parenthesized-helper.doc.ts:9:15']);
   });
 
+  it('detects raw markdown image markup before generated docs can use it', () => {
+    const rawMarkdownImageSource = `
+      await testInfo.attach('markdown', {
+        body: \`
+          Introductory copy.
+          ![Unrelated screenshot](../unrelated.png)
+        \`,
+      });
+      await testInfo.attach('markdown', {
+        body: \`
+          More copy.
+          <img src="../unrelated.png" alt="Unrelated screenshot">
+        \`,
+      });
+      await testInfo.attach('markdown', {
+        body: \`
+          Links to [image guidance](../images) stay valid.
+        \`,
+      });
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/raw-markdown-image.doc.ts',
+        rawMarkdownImageSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/raw-markdown-image.doc.ts:2:13',
+      'tests/docs/example/raw-markdown-image.doc.ts:8:13',
+    ]);
+  });
+
   it('detects destructured weak documentation screenshot target aliases', () => {
     const destructuredTargetSource = `
       const targets = {
@@ -4121,6 +4221,7 @@ describe('generated docs source current behavior', () => {
       expect(findDirectScreenshotCalls(path, source), path).toEqual([]);
       expect(findDirectImageAttachmentCalls(path, source), path).toEqual([]);
       expect(findWeakScreenshotCaptions(path, source), path).toEqual([]);
+      expect(findRawMarkdownImageMarkup(path, source), path).toEqual([]);
       expect(findUnfilteredBroadScreenshotTargets(path, source), path).toEqual(
         [],
       );

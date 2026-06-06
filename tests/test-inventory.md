@@ -574,8 +574,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   and orphan or weak image-caption attachments before generated markdown is
   written, requires reporter-written image attachments to be valid PNG
   screenshots with highlighted focus-target pixels and visible surrounding page
-  content, rejects
-  raw `page.screenshot`,
+  content, rejects raw Markdown image syntax and HTML `<img>` tags in generated
+  docs markdown attachments so image evidence cannot bypass the shared helper,
+  and rejects raw `page.screenshot`,
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs
   sources, treats static bracket-property forms such as `page['screenshot']`,
   `testInfo['attach']`, and `documentationReporter['takeScreenshot']` the same

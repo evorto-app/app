@@ -1410,6 +1410,8 @@ describe('stabilization source', () => {
     expect(source).toContain('reporter output boundary');
     expect(source).toContain('paired `image-caption` attachments');
     expect(source).toContain('terse or content-free caption');
+    expect(source).toContain('raw Markdown image syntax');
+    expect(source).toContain('HTML `<img>` tags');
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
@@ -1959,6 +1961,18 @@ describe('stabilization source', () => {
       'caption.trim().length < 24',
     );
     expect(generatedDocumentationSource).toContain(
+      'findRawMarkdownImageMarkup',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects raw markdown image markup before generated docs can use it',
+    );
+    expect(generatedDocumentationSource).toContain(
+      '![Unrelated screenshot](../unrelated.png)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      '<img src="../unrelated.png" alt="Unrelated screenshot">',
+    );
+    expect(generatedDocumentationSource).toContain(
       'Documentation screenshots require a descriptive caption',
     );
     expect(generatedDocumentationSource).toContain(
@@ -1987,6 +2001,8 @@ describe('stabilization source', () => {
     expect(reporterAttachmentsSource).toContain(
       'must include visible page content outside the highlighted focus target',
     );
+    expect(inventory).toContain('raw Markdown image syntax');
+    expect(inventory).toContain('HTML `<img>` tags');
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');
     expect(reporterPathsSpec).toContain(
