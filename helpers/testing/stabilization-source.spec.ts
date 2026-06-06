@@ -5739,7 +5739,21 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain('pushing head `6520e1540`');
     expect(checkpointText).toContain('used the short Neon cleanup alias');
     expect(checkpointText).toContain('only protected `main`');
+    expect(checkpointText).toContain('head `b8d7b938`');
+    expect(checkpointText).toContain('E2E run `27069641542`');
+    expect(checkpointText).toContain('previous head `98eab2d8`');
+    expect(checkpointText).toContain('Playwright E2E (functional-1)');
+    expect(checkpointText).toContain('GitHub Actions 1000003927');
+    expect(checkpointText).toContain('new-head E2E run `27069809675`');
+    expect(checkpointText).toContain('`gh run cancel 27069641542`');
+    expect(checkpointText).toContain('`2026-06-06T18:03:51Z`');
+    expect(checkpointText).toContain('workflow-level `concurrency` group');
+    expect(checkpointText).toContain('`cancel-in-progress: true`');
+    expect(checkpointText).toContain('previous-head in-progress shard');
     expect(workflow).toContain('name: Warm CI dependency caches');
+    expect(workflow).toContain('concurrency:');
+    expect(workflow).toContain('group: e2e-${{ github.ref }}');
+    expect(workflow).toContain('cancel-in-progress: true');
     expect(workflow).toContain('DELETE_BRANCH: true');
     expect(workflow).toContain('NEON_LOCAL_BRANCH_TTL_HOURS: 2');
     expect(workflow).toContain(

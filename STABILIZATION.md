@@ -4907,6 +4907,22 @@ tried to kill container, but did not receive an exit event`. A follow-up
   `helpers/testing/delete-neon-local-branches.ts`, so the short audit alias
   reports would-delete branches without issuing Neon DELETE requests; confirmed
   local cleanup remains the explicit `bun run neon:cleanup` path.
+  A later PR #62 push to head `b8d7b938` confirmed the same cancellation
+  behavior under the current workflow shape: the superseded E2E run
+  `27069641542` on previous head `98eab2d8` had already cancelled its docs and
+  functional-2 shards, while `Playwright E2E (functional-1)` stayed
+  `in_progress` on hosted runner `GitHub Actions 1000003927` long enough to
+  keep the new-head E2E run `27069809675` pending. A manual
+  `gh run cancel 27069641542` request completed that stale shard at
+  `2026-06-06T18:03:51Z`; the new-head E2E run then started its serial
+  `Warm CI dependency caches` job. That keeps the operational rule concrete:
+  the workflow-level `concurrency` group with `cancel-in-progress: true`
+  prevents stale same-ref E2E runs from multiplying work, but a running hosted
+  shard can lag before it releases the slot, so watch PR checks for a
+  previous-head in-progress shard before trusting a current-head pending E2E as
+  real coverage. The final repo-local `bun run neon:cleanup:dry-run` after that
+  cancellation again returned
+  `total=1, protected=1, active_test=0, stale_deleted=0, ttl=2h`.
 - Current CI Docker-start hardening checkpoint: after PR head `b5bb9c286`, the
   visible checks stayed green except the E2E matrix. The serial
   `Warm CI dependency caches` job completed successfully and showed the desired

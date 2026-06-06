@@ -874,6 +874,11 @@ provider outcomes without live identifiers.
     The E2E cache warmer also runs TTL-conservative Neon branch cleanup before
     dependency installs when Neon credentials are available, keeping stale-branch
     recovery separate from Font Awesome bandwidth mitigation.
+    The E2E workflow keeps a same-ref concurrency group with
+    `cancel-in-progress: true`; the stabilization source guard ties that setting
+    to observed PR #62 cancellation behavior where a previous-head hosted
+    `functional-1` shard briefly held the E2E slot before `gh run cancel`
+    released the current-head cache warmer.
     Source coverage now fails if a new GitHub workflow adds `bun install`
     without the same public Font Awesome registry override and Bun cache
     protections, or if a workflow runs a Docker Compose build without the CI
