@@ -331,7 +331,7 @@ describe('evaluateRuntimePreflight', () => {
       'bun run env:copy-main -- --if-missing && bun run dev:check',
     );
     expect(packageJson.scripts['dev:start']).toBe(
-      'bun run dev:check && dotenv -c dev -- sh -c \'bunx --bun ng serve --host 0.0.0.0 --port "$APP_HOST_PORT"\'',
+      'bun run dev:bootstrap && dotenv -c dev -- sh -c \'bunx --bun ng serve --host 0.0.0.0 --port "$APP_HOST_PORT"\'',
     );
 
     const playwrightConfig = fs.readFileSync(

@@ -8,7 +8,7 @@
     "dev:check": "bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev",
     "dev:bootstrap": "bun run env:copy-main -- --if-missing && bun run dev:check",
     "dev:status": "bun helpers/testing/local-runtime-status.ts",
-    "dev:start": "bun run dev:check && dotenv -c dev -- sh -c 'bunx --bun ng serve --host 0.0.0.0 --port \"$APP_HOST_PORT\"'",
+    "dev:start": "bun run dev:bootstrap && dotenv -c dev -- sh -c 'bunx --bun ng serve --host 0.0.0.0 --port \"$APP_HOST_PORT\"'",
     "build:app": "NG_BUILD_PARTIAL_SSR=1 bunx --bun ng build",
     "build:watch": "NG_BUILD_PARTIAL_SSR=1 bunx --bun ng build --watch --configuration development",
     "test:unit": "bunx --bun ng test",

@@ -1942,6 +1942,9 @@ the current working direction until a product decision overrides them.
   missing-secret preflight output now names it directly for fresh dev-server
   worktrees; it delegates the missing-file decision to
   `env:copy-main --if-missing`, then runs the normal `dev:check` preflight.
+  `bun run dev:start` now uses `dev:bootstrap` before starting Angular, so a
+  fresh worktree does not need a separate bootstrap command before the first
+  dev-server run.
 - Local Playwright package scripts that run `playwright test` now go through
   `helpers/testing/run-playwright.ts`, which refreshes `.env.dev`, pins ignored
   repository-local docs output paths, and invokes

@@ -93,6 +93,15 @@ conditional.
 
 The Neon Local container does not emit every proxied query in its default logging configuration, so `docker logs` staying quiet during `db:reset` does not mean the reset missed Docker.
 
+`bun run dev:start` now runs `dev:bootstrap` before Angular starts, so a fresh
+worktree can copy the main checkout `.env` only when missing and then run the
+normal dev preflight. That preflight checks required SSR/auth variables and
+probes local `DATABASE_URL` endpoints, so a generated `.env.dev` that points at
+a closed Neon Local port fails before the dev server starts returning SSR HTTP
+500 pages. The dev server binds to `0.0.0.0` so both `localhost` and IPv4
+loopback Browser checks can reach the same generated `BASE_URL` once the
+database runtime is actually available.
+
 Docker Compose now also runs one-shot `db-expiration` and `db-setup`
 containers before `evorto` starts. `bun run docker:start`,
 `bun run docker:start:foreground`, and `bun run docker:start:watch` run

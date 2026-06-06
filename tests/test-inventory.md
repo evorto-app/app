@@ -1083,7 +1083,8 @@ provider outcomes without live identifiers.
   `.env.dev` worktree-local and the main checkout `.npmrc` out of the worktree.
   `bun run dev:bootstrap` is covered as the fresh-worktree shortcut that asks
   `env:copy-main --if-missing` to copy `.env` only when missing before running
-  `dev:check`, keeping the missing-file decision inside the tested Bun helper
+  `dev:check`, and `bun run dev:start` now uses that shortcut before starting
+  Angular. This keeps the missing-file decision inside the tested Bun helper
   instead of a package-script shell conditional. The helper also no-ops before
   source-checkout lookup when `--if-missing` finds an existing worktree `.env`.
   `helpers/testing/copy-main-environment.spec.ts` exercises the helper behavior

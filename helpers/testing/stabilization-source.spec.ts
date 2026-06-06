@@ -3567,10 +3567,10 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['dev:bootstrap']).toBe(
       'bun run env:copy-main -- --if-missing && bun run dev:check',
     );
-    expect(packageJson.scripts['dev:start']).toContain('bun run dev:check');
+    expect(packageJson.scripts['dev:start']).toContain('bun run dev:bootstrap');
     expect(packageJson.scripts['dev:start']).toContain('--host 0.0.0.0');
     expect(helpersReadme).toContain(
-      'a generated `.env.dev` that points at a closed\nNeon Local port fails before the dev server starts returning SSR HTTP 500 pages',
+      'a generated `.env.dev` that points at\na closed Neon Local port fails before the dev server starts returning SSR HTTP\n500 pages',
     );
     expect(helpersReadme).toContain('Use `bun run dev:status`');
     expect(helpersReadme).toContain('A closed port is\nreported as a skip');
@@ -3621,7 +3621,7 @@ describe('stabilization source', () => {
       'before using this app for Browser evidence',
     );
     expect(testsReadme).toContain(
-      'If the\n  generated local `DATABASE_URL` points at a closed Neon Local port',
+      'If the generated local `DATABASE_URL`\n  points at a closed Neon Local port',
     );
     expect(runtimePreflight).toContain('developerSecretsFileCheck');
     expect(runtimePreflight).toContain('missingRequiredVariableDetails');

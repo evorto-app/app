@@ -145,12 +145,13 @@ bun run lint
   before loading local dotenv values. Use `bun run docker:ps` rather than bare
   `docker compose ps` when checking a worktree stack because the generated
   `COMPOSE_PROJECT_NAME` must be loaded from `.env.dev`.
-- `bun run dev:start` runs `bun run dev:check` before Angular starts. If the
-  generated local `DATABASE_URL` points at a closed Neon Local port, the
-  preflight fails instead of starting a dev server that returns SSR HTTP 500
-  pages during Browser review. The dev server binds to `0.0.0.0` so localhost
-  and IPv4 loopback checks reach the same generated `BASE_URL` once the database
-  runtime is available.
+- `bun run dev:start` runs `bun run dev:bootstrap` before Angular starts, so a
+  fresh worktree can copy the sibling main checkout `.env` only when missing and
+  then run the normal dev preflight. If the generated local `DATABASE_URL`
+  points at a closed Neon Local port, the preflight fails instead of starting a
+  dev server that returns SSR HTTP 500 pages during Browser review. The dev
+  server binds to `0.0.0.0` so localhost and IPv4 loopback checks reach the same
+  generated `BASE_URL` once the database runtime is available.
 - `bun run docker:check` fails before Docker Compose mutates local app
   containers when required local runtime variables are missing. The check covers
   Neon Local, Auth0, Stripe, and the application session secret. It also reports
