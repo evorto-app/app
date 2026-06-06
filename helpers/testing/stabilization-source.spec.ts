@@ -3279,13 +3279,22 @@ describe('stabilization source', () => {
       'stable logged-in starting points without running the full viewport pack',
     );
     expect(statusTable).toContain(
-      'Latest pre-edit PR status refresh for pushed head `50dfd37e`',
+      'Latest PR status refresh for pushed head `acc6af1e`',
     );
     expect(statusTable).toContain(
-      'CodeQL, Git Town, Copilot setup, CodeRabbit, and the E2E cache warmer green',
+      'CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` green',
     );
     expect(statusTable).toContain(
-      '`functional-1` E2E shard was in progress while `functional-2` and `docs` were queued',
+      'E2E run `27051129075` completed all three serialized Playwright shards with warmed Bun, Docker, and Playwright caches',
+    );
+    expect(statusTable).toContain(
+      'confirmed Neon branch expiration in each worker',
+    );
+    expect(statusTable).toContain(
+      'completed Docker stop plus final Neon prune in each worker',
+    );
+    expect(statusTable).toContain(
+      'The previous full current-head E2E run `27050227993` on pushed head `92194859` also completed all three serialized Playwright shards green',
     );
     expect(statusTable).toContain('latest local Neon cleanup dry-run reported');
     expect(statusTable).toContain('`total=1`');
