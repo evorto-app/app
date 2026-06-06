@@ -130,6 +130,10 @@ against the metadata branch that shutdown should have released. The workflow's s
 `Prune expired Neon branches after E2E` finalizer still runs
 `helpers/testing/ci-prune-neon-local-branches.sh` so Neon cleanup remains
 visible, dependency-free, and independent if Docker teardown hangs or times out.
+The E2E cache warmer, E2E pre-run prune, post-teardown prune, and standalone
+`Neon Branch Cleanup` workflow all call that same wrapper; it emits a notice and
+exits cleanly when Neon credentials are absent, while workflows that require
+cleanup still run `helpers/testing/validate-ci-runtime-env.sh` first.
 After branch expiration is confirmed, E2E also records the Neon Local metadata
 branch ids into `test-results/neon-local/branches.json`, and the final prune
 output is saved as `test-results/neon-local/final-prune.log` in the normal

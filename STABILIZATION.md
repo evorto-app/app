@@ -4249,6 +4249,12 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   source-guarded in one place instead of duplicated inline in the workflow. That
   keeps a stuck Docker client, stuck leftover container, or stuck Neon API prune
   from consuming the rest of the E2E job while branch cleanup remains ambiguous.
+  A follow-up local-dev simplification now routes the cache-warmer prune,
+  pre-E2E prune, post-teardown prune, and scheduled `Neon Branch Cleanup`
+  workflow through the same `ci-prune-neon-local-branches.sh` wrapper. The
+  wrapper exits with a notice when Neon credentials are absent, while
+  credential-required workflows still run the shared validation helper before
+  invoking it.
   Required GitHub Actions environment validation is now also delegated to
   `helpers/testing/validate-ci-runtime-env.sh`, so the E2E and standalone Neon
   cleanup workflows share the same Neon credential checks while E2E keeps the

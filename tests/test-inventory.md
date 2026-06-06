@@ -1121,10 +1121,14 @@ provider outcomes without live identifiers.
   checking the bounded Docker preflight, bounded Compose image pre-pull,
   bounded Compose shutdown, per-container force removal, teardown-owned metadata
   branch pruning with a five-minute helper timeout, and two-hour active-test TTL
-  pruning behavior. The same guards keep the shard-level Neon Local metadata
-  artifact and final prune log wired into `test-results/neon-local/`, so a CI
-  run records which short-lived branch it created before cleanup evidence is
-  inspected. `helpers/testing/ci-record-neon-local-metadata.spec.ts` runs the
+  pruning. The shared prune wrapper now owns cache-warmer, pre-run, final, and
+  standalone-workflow Neon cleanup entrypoints, including the missing-credential
+  notice used by optional cleanup paths, so raw workflow cleanup commands do not
+  drift from teardown behavior. The same guards keep the shard-level Neon Local
+  metadata artifact and final prune log wired into `test-results/neon-local/`,
+  so a CI run records which short-lived branch it created before cleanup
+  evidence is inspected. `helpers/testing/ci-record-neon-local-metadata.spec.ts`
+  runs the
   artifact helper against temporary metadata, asserting unique branch-id summary
   output, GitHub step-summary writing, artifact creation, and missing-metadata
   success without Docker or Neon credentials. Runtime

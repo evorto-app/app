@@ -1933,7 +1933,7 @@ describe('stabilization source', () => {
       'Prune expired Neon branches before cache installs',
     );
     expect(workflow).toContain(
-      'Skipping pre-cache Neon cleanup because NEON_API_KEY or NEON_PROJECT_ID is not configured.',
+      'run: bash helpers/testing/ci-prune-neon-local-branches.sh',
     );
     expect(workflow).toContain('needs: warm-ci-caches');
     expect(workflow).toContain('max-parallel: 1');
@@ -3670,6 +3670,9 @@ describe('stabilization source', () => {
     const ciStopDockerStackHelper = readSource(
       'helpers/testing/ci-stop-docker-stack.sh',
     );
+    const helpersReadme = readSource('helpers/README.md');
+    const testsReadme = readSource('tests/README.md');
+    const inventory = readSource('tests/test-inventory.md');
     const checkpoint = source.match(
       /Current Neon active-test branch cleanup checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
     )?.[0];
@@ -3768,6 +3771,11 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain('helpers/testing/validate-ci-runtime-env.sh');
     expect(checkpoint).toMatch(/same Neon credential checks/u);
     expect(checkpoint).toMatch(/additional Auth0 and Stripe checks/u);
+    expect(checkpoint).toContain('cache-warmer prune');
+    expect(checkpoint).toContain('scheduled `Neon Branch Cleanup`');
+    expect(checkpoint).toContain(
+      'wrapper exits with a notice when Neon credentials are absent',
+    );
     expect(checkpoint).not.toContain('four-hour');
     expect(checkpoint).not.toContain('fourteen branches remain');
 
@@ -3862,7 +3870,10 @@ describe('stabilization source', () => {
     expect(ciPruneHelper).toContain(
       'NEON_LOCAL_METADATA_DIR="${NEON_LOCAL_METADATA_DIR:-/tmp/neon-local-metadata}"',
     );
-    expect(ciPruneHelper).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID}"');
+    expect(ciPruneHelper).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID:-}"');
+    expect(ciPruneHelper).toContain(
+      'Skipping Neon cleanup because NEON_API_KEY or NEON_PROJECT_ID is not configured.',
+    );
     expect(ciPruneHelper).toContain(
       'bun helpers/testing/delete-neon-local-branches.ts',
     );
@@ -3920,8 +3931,18 @@ describe('stabilization source', () => {
       'Prune branches outside the active-test TTL',
     );
     expect(cleanupWorkflow).toContain(
-      'run: bun helpers/testing/delete-neon-local-branches.ts',
+      'run: bash helpers/testing/ci-prune-neon-local-branches.sh',
     );
+    expect(helpersReadme).toContain(
+      'cache warmer, E2E pre-run prune, post-teardown prune',
+    );
+    expect(helpersReadme).toContain(
+      'exits cleanly when Neon credentials are absent',
+    );
+    expect(testsReadme).toContain(
+      'cache-warmer, pre-run, final, and standalone-workflow prune paths',
+    );
+    expect(inventory).toContain('missing-credential\n  notice');
   });
 
   it('keeps the latest template-extra post-push CI checkpoint honest', () => {
@@ -5391,7 +5412,7 @@ describe('stabilization source', () => {
       'Prune expired Neon branches before cache installs',
     );
     expect(workflow).toContain(
-      'Skipping pre-cache Neon cleanup because NEON_API_KEY or NEON_PROJECT_ID is not configured.',
+      'run: bash helpers/testing/ci-prune-neon-local-branches.sh',
     );
     expect(ciDependencyCacheAction).toContain(
       'Prepare public Font Awesome registry',

@@ -720,13 +720,10 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(workflow).toContain('Prune expired Neon branches before E2E');
     expect(workflow).toContain(
-      'bun helpers/testing/delete-neon-local-branches.ts',
+      'run: bash helpers/testing/ci-prune-neon-local-branches.sh',
     );
     expect(workflow).toContain(
       'Prune expired Neon branches before cache installs',
-    );
-    expect(workflow).toContain(
-      'Skipping pre-cache Neon cleanup because NEON_API_KEY or NEON_PROJECT_ID is not configured.',
     );
     const preCachePruneIndex = workflow.indexOf(
       'Prune expired Neon branches before cache installs',
@@ -764,7 +761,10 @@ describe('evaluateRuntimePreflight', () => {
     expect(ciPruneHelper).toContain(
       'NEON_LOCAL_METADATA_DIR="${NEON_LOCAL_METADATA_DIR:-/tmp/neon-local-metadata}"',
     );
-    expect(ciPruneHelper).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID}"');
+    expect(ciPruneHelper).toContain('NEON_PROJECT_ID="${NEON_PROJECT_ID:-}"');
+    expect(ciPruneHelper).toContain(
+      'Skipping Neon cleanup because NEON_API_KEY or NEON_PROJECT_ID is not configured.',
+    );
     expect(ciPruneHelper).toContain(
       'bun helpers/testing/delete-neon-local-branches.ts',
     );
@@ -860,7 +860,7 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(cleanupWorkflow).not.toContain('if [ -z "${NEON_API_KEY}" ]');
     expect(cleanupWorkflow).toContain(
-      'run: bun helpers/testing/delete-neon-local-branches.ts',
+      'run: bash helpers/testing/ci-prune-neon-local-branches.sh',
     );
     expect(cleanupWorkflow).not.toContain(
       'Prepare public Font Awesome registry',

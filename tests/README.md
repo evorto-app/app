@@ -94,7 +94,10 @@ bun run lint
   image pre-pull, build, and startup, `helpers/testing/ci-stop-docker-stack.sh`
   for Docker teardown plus a timeout-bound metadata prune, and
   `helpers/testing/ci-prune-neon-local-branches.sh` for the dependency-free
-  final prune. After branch expiration, each E2E shard writes
+  cache-warmer, pre-run, final, and standalone-workflow prune paths. The prune
+  wrapper exits with a notice when Neon credentials are unavailable, but
+  credential-required workflows still run the shared validation helper first.
+  After branch expiration, each E2E shard writes
   `test-results/neon-local/branches.json` with the Neon Local metadata branch
   ids, and the final prune log is saved at
   `test-results/neon-local/final-prune.log` in the normal Playwright artifact.

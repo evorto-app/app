@@ -40,4 +40,4 @@ jobs:
         run: bash helpers/testing/validate-ci-runtime-env.sh neon-cleanup
 
       - name: Prune branches outside the active-test TTL
-        run: bun helpers/testing/delete-neon-local-branches.ts
+        run: bash helpers/testing/ci-prune-neon-local-branches.sh

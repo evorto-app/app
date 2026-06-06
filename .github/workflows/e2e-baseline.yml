@@ -34,12 +34,7 @@ jobs:
         uses: ./.github/actions/setup-bun-dependency-caches
 
       - name: Prune expired Neon branches before cache installs
-        run: |
-          if [ -z "${NEON_API_KEY}" ] || [ -z "${NEON_PROJECT_ID}" ]; then
-            echo "::notice::Skipping pre-cache Neon cleanup because NEON_API_KEY or NEON_PROJECT_ID is not configured."
-            exit 0
-          fi
-          bun helpers/testing/delete-neon-local-branches.ts
+        run: bash helpers/testing/ci-prune-neon-local-branches.sh
 
       - name: Set up Docker Buildx
         id: setup-buildx
@@ -225,6 +220,9 @@ jobs:
 
       - name: Validate required configuration
         run: bash helpers/testing/validate-ci-runtime-env.sh e2e
+
+      - name: Prune expired Neon branches before E2E
+        run: bash helpers/testing/ci-prune-neon-local-branches.sh
 
       - name: Install dependencies
         env:
