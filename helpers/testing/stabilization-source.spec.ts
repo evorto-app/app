@@ -3929,6 +3929,10 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain('NEON_LOCAL_FORCE_DELETE_BRANCH_IDS');
     expect(checkpoint).toContain('confirmed-inactive young branch');
     expect(checkpoint).toContain('through `bun run neon:cleanup`');
+    expect(checkpoint).toContain('`bun run docker:stop`');
+    expect(checkpoint).toMatch(
+      /same bounded Docker shutdown helper\s+as E2E\s+CI/u,
+    );
     expect(checkpoint).toContain('refusing protected branches');
     expect(checkpoint).toContain('default CI cleanup TTL-conservative');
     expect(checkpoint).toContain('persistent-branch local shell');

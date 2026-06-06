@@ -75,7 +75,8 @@ bun run lint
 - Start the local runtime stack in foreground from a reset state:
   `bun run docker:start:foreground`
 - Start the local runtime stack in watch mode: `bun run docker:start:watch`
-- Stop the local runtime stack: `bun run docker:stop`
+- Stop the local runtime stack with bounded Compose teardown plus the Neon Local
+  cleanup pass: `bun run docker:stop`
 - Local Docker runs use Neon Local instead of a plain Postgres container.
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts. It first drops and recreates the Docker database `public` schema so Drizzle does not require interactive confirmation inside the container.
 - CI and local Docker runs set a two-hour Neon Local branch TTL. CI prunes stale
@@ -85,9 +86,11 @@ bun run lint
   containers one at a time, deletes remaining branch ids from Neon Local
   metadata after shutdown, and prunes non-main Neon branches whose `expires_at`
   has passed or whose missing expiration metadata has aged beyond the
-  active-test TTL. The stale sweep also runs when metadata is absent or exists
-  without branch ids, so cancelled or failed E2E jobs do not leave long-lived
-  database branches behind. E2E CI calls
+  active-test TTL. Local `bun run docker:stop` uses that same bounded shutdown
+  and prune helper, so the normal local stop path does not require a separate
+  remembered `neon:cleanup` command. The stale sweep also runs when metadata is
+  absent or exists without branch ids, so cancelled or failed E2E jobs do not
+  leave long-lived database branches behind. E2E CI calls
   `helpers/testing/validate-ci-runtime-env.sh` for shared required Neon, Auth0,
   and Stripe environment validation,
   `helpers/testing/ci-start-docker-stack.sh` for bounded Docker preflight,

@@ -39,7 +39,7 @@
     "neon:cleanup:dry-run": "bun run db:cleanup:neon-local -- --dry-run",
     "docker:check": "bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker",
     "docker:ps": "bun run env:runtime && dotenv -c dev -- docker compose ps",
-    "docker:stop": "bun run env:runtime && dotenv -c dev -- docker compose down",
+    "docker:stop": "bun run env:runtime && dotenv -c dev -- bash helpers/testing/ci-stop-docker-stack.sh",
     "docker:reset": "bun run docker:check && dotenv -c dev -- docker compose down",
     "docker:resume": "bun run docker:check && dotenv -c dev -- docker compose up --no-recreate -d",
     "docker:start": "bun run docker:reset && dotenv -c dev -- docker compose up --build -d",

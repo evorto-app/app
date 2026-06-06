@@ -1950,6 +1950,11 @@ the current working direction until a product decision overrides them.
   `bun run dev:start` now uses `dev:bootstrap` before starting Angular, so a
   fresh worktree does not need a separate bootstrap command before the first
   dev-server run.
+- `bun run docker:stop` now uses the same bounded Docker shutdown helper as E2E
+  CI instead of a raw `docker compose down`. Local stop gives Neon Local's `db`
+  container a graceful stop window, force-removes leftover generated Compose
+  containers, and runs the metadata-backed Neon cleanup pass, so normal local
+  shutdown no longer requires remembering a separate `neon:cleanup` command.
 - Local Playwright package scripts that run `playwright test` now go through
   `helpers/testing/run-playwright.ts`, which refreshes `.env.dev`, pins ignored
   repository-local docs output paths, and invokes
@@ -4272,6 +4277,11 @@ Pass` section no longer starts with the stale audit-only "None" note now that
   wrapper exits with a notice when Neon credentials are absent, while
   credential-required workflows still run the shared validation helper before
   invoking it.
+  Local `bun run docker:stop` now reuses the same bounded Docker shutdown helper
+  as E2E CI, so normal local shutdown also gives Neon Local a graceful database
+  stop window, force-removes leftover generated Compose containers, and runs the
+  metadata-backed prune pass without requiring a separate remembered
+  `neon:cleanup` command.
   Required GitHub Actions environment validation is now also delegated to
   `helpers/testing/validate-ci-runtime-env.sh`, so the E2E and standalone Neon
   cleanup workflows share the same Neon credential checks while E2E keeps the

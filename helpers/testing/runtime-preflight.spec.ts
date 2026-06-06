@@ -828,6 +828,9 @@ describe('evaluateRuntimePreflight', () => {
     ).toBeGreaterThan(
       ciStopDockerStackHelper.lastIndexOf('remove_compose_project_containers'),
     );
+    expect(packageJson.scripts['docker:stop']).toBe(
+      'bun run env:runtime && dotenv -c dev -- bash helpers/testing/ci-stop-docker-stack.sh',
+    );
     expect(workflow).toContain('Prune expired Neon branches after E2E');
     expect(workflow).toContain('timeout-minutes: 5');
     expect(workflow).toContain(
@@ -888,8 +891,14 @@ describe('evaluateRuntimePreflight', () => {
     expect(helpersReadme).toContain('two-hour active-test TTL');
     expect(helpersReadme).toContain('bun run neon:cleanup:dry-run');
     expect(helpersReadme).toContain('bun run neon:cleanup');
+    expect(helpersReadme).toContain(
+      'Local `bun run docker:stop` uses that same helper',
+    );
     expect(testsReadme).toContain('bun run neon:cleanup:dry-run');
     expect(testsReadme).toContain('bun run neon:cleanup');
+    expect(testsReadme).toContain(
+      'Local `bun run docker:stop` uses that same bounded shutdown',
+    );
     expect(testsReadme).toContain('CI must not set `BRANCH_ID`');
     expect(helpersReadme).toContain('non-canceling `neon-branch-cleanup`');
     expect(helpersReadme).toMatch(/10-minute job\s+timeout/u);

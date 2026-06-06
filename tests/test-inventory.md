@@ -1189,7 +1189,9 @@ provider outcomes without live identifiers.
   branch audits can use the non-mutating `bun run neon:cleanup:dry-run`;
   confirmed local cleanup and exact force-delete cleanup can use
   `bun run neon:cleanup`, keeping the dotenv/runtime cascade behind a short
-  Neon-specific package script.
+  Neon-specific package script. The normal local `bun run docker:stop` path also
+  reuses the bounded shutdown helper and metadata-backed prune pass, so local
+  shutdown does not depend on remembering a second cleanup command.
   The cache-warmer cleanup checkpoint runs before dependency installs, so
   branch-count recovery does not depend on Playwright shards reaching Docker
   startup or shutdown.

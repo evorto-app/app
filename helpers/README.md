@@ -134,12 +134,14 @@ and keeps the existing one-prune retry before surfacing startup failure.
 `helpers/testing/validate-ci-runtime-env.sh` owns the shared GitHub Actions
 required-variable checks for the E2E and Neon cleanup workflows, so Neon,
 Auth0, and Stripe validation does not drift across inline workflow YAML.
-`helpers/testing/ci-stop-docker-stack.sh` owns the E2E Docker shutdown path: it
-first gives the Neon Local `db` container a 60-second stop window inside a
-bounded 90-second command, then runs bounded Compose down, force-removes leftover
-Compose containers, and invokes the Neon prune helper with a 5-minute timeout
-against the metadata branch that shutdown should have released. The workflow's separate
-`Prune expired Neon branches after E2E` finalizer still runs
+`helpers/testing/ci-stop-docker-stack.sh` owns the shared local and E2E Docker
+shutdown path: it first gives the Neon Local `db` container a 60-second stop
+window inside a bounded 90-second command, then runs bounded Compose down,
+force-removes leftover Compose containers, and invokes the Neon prune helper
+with a 5-minute timeout against the metadata branch that shutdown should have
+released. Local `bun run docker:stop` uses that same helper so normal local
+shutdown also gets bounded container cleanup plus a Neon cleanup pass. The
+workflow's separate `Prune expired Neon branches after E2E` finalizer still runs
 `helpers/testing/ci-prune-neon-local-branches.sh` so Neon cleanup remains
 visible, dependency-free, and independent if Docker teardown hangs or times out.
 The E2E cache warmer, E2E pre-run prune, post-teardown prune, and standalone
