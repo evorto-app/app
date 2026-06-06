@@ -1216,7 +1216,7 @@ provider outcomes without live identifiers.
   E2E CI must not set `BRANCH_ID`; it uses `PARENT_BRANCH_ID` or Neon Local's
   documented default project branch so Neon Local creates ephemeral branches,
   while persistent branch modes stay local-only opt-ins that cleanup skips.
-  The current PR head `36c6f524` shows
+  The latest completed full PR head before the follow-up evidence-only slice, `36c6f524`, showed
   CodeQL, Copilot setup, Git Town, CodeRabbit, the E2E cache warmer,
   `functional-1`, `functional-2`, and `docs` green. The cache warmer restored
   the Bun package cache, dependency-tree cache, Docker build cache, Docker Bun

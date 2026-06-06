@@ -3476,7 +3476,9 @@ describe('stabilization source', () => {
     expect(statusTable).toContain(
       'stable logged-in starting points without running the full viewport pack',
     );
-    expect(statusTable).toContain('Current PR head `36c6f524` shows');
+    expect(statusTable).toContain(
+      'Latest completed full PR head before the follow-up evidence-only slice, `36c6f524`, showed',
+    );
     expect(statusTable).toContain(
       'CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` green',
     );
