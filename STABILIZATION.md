@@ -3758,7 +3758,10 @@ fallback rather than a profile discount-card defect.
   application-error text, horizontal overflow, and horizontally clipped visible
   controls. It now also reports and rejects any overflowing visible text or
   panel elements outside intentional horizontal scroll containers, while
-  allowing the long settings form to scroll vertically on mobile. A fresh June
+  allowing the long settings form to scroll vertically on mobile. The viewport
+  spec now also fails on browser console warning/error logs while the General
+  settings route is opened at each viewport, matching the public General route
+  sweep's browser-log guard. A fresh June
   4, 2026 authenticated in-app Browser pass at current local head `5062964dc`
   opened `/admin/settings` on the running Docker app at the generated `BASE_URL`
   with explicit 320x740, 390x844, and 1440x900 viewport checks. The route

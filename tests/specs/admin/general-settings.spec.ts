@@ -3,10 +3,54 @@ import { eq } from 'drizzle-orm';
 
 import { adminStateFile } from '../../../helpers/user-data';
 import { test } from '../../support/fixtures/base-test';
+import {
+  collectBrowserLogFailures,
+  expectStablePageLayout,
+} from '../../support/utils/page-layout';
 
 test.setTimeout(120_000);
 
 test.use({ storageState: adminStateFile });
+
+const viewportSizes = [
+  { height: 740, label: 'narrow mobile', width: 320 },
+  { height: 844, label: 'mobile', width: 390 },
+  { height: 900, label: 'desktop', width: 1440 },
+] as const;
+
+test('tenant admin general settings has stable layouts across viewports @admin', async ({
+  page,
+  tenantDomain,
+}) => {
+  const browserLogFailures = collectBrowserLogFailures(page);
+  const currentTenantDomain = tenantDomain ?? 'localhost';
+
+  for (const viewport of viewportSizes) {
+    await test.step(`${viewport.label} viewport`, async () => {
+      browserLogFailures.length = 0;
+      await page.setViewportSize(viewport);
+      await page.goto('/admin/settings');
+
+      const generalSettings = page.locator('app-general-settings');
+      await expect(
+        generalSettings.getByRole('heading', { name: 'General settings' }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Deferred settings' }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Tenant identity' }),
+      ).toBeVisible();
+      await expect(page.getByText(currentTenantDomain)).toBeVisible();
+
+      await expectStablePageLayout(page);
+      expect(
+        browserLogFailures,
+        `${viewport.label} tenant General settings should not emit browser warning/error logs`,
+      ).toEqual([]);
+    });
+  }
+});
 
 test('tenant admin updates relaunch general settings @admin', async ({
   database,

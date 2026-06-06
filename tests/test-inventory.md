@@ -268,7 +268,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     expected settings content, no application-error text, no horizontal
     overflow, no horizontally clipped visible controls, and no overflowing
     visible text or panel elements outside intentional horizontal scroll
-    containers.
+    containers. It also fails on browser console warning/error logs while the
+    General settings route is opened at each viewport.
   - `support/utils/page-layout.ts` provides the shared viewport layout guard for
     these specs. It rejects application-error text, page-level horizontal
     overflow with real visible overflow, horizontally clipped visible controls

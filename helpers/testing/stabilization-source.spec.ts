@@ -6672,6 +6672,17 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'Events/Login navigation remains visible and fixed as bottom navigation on\n    mobile and side navigation on desktop',
     );
+    expect(adminSettingsSpec).toContain(
+      'const collectBrowserLogFailures = (page: Page): string[]',
+    );
+    expect(adminSettingsSpec).toContain('blockedConsoleTypes');
+    expect(adminSettingsSpec).toContain('browserLogFailures.length = 0');
+    expect(adminSettingsSpec).toContain(
+      'tenant General settings should not emit browser warning/error logs',
+    );
+    expect(inventory).toContain(
+      'fails on browser console warning/error logs while the\n    General settings route is opened at each viewport',
+    );
 
     for (const durableViewportSpecPath of durableViewportSpecPaths) {
       expect(inventory).toContain(
