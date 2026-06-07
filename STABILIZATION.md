@@ -7451,3 +7451,23 @@ images show readable Terms fallback copy and real seeded Events cards with
 Material surfaces/icons/times, fixed Events/Login bottom navigation, no loading
 or application-error text, no clipped visible controls on the Terms route, and
 zero warning/error Browser logs.
+
+Object-rest copied returned explanatory Markdown helper groups are now covered
+by the same weak-body and screenshot-density source guards. That closes the
+follow-up prose/evidence bypass where a returned `testInfo.attach` helper could
+be copied with `const { ignored, ...restAttachHelpers } = attachHelpers` and
+then used to attach thin Markdown or reset the nearby-screenshot counter. The
+source detector now propagates grouped Markdown attachment names and attach
+helper aliases through object-rest destructuring, the generated-doc source tests
+exercise both weak-body and screenshot-density object-rest cases, and the test
+inventory records object-rest copied returned attach-helper groups in both
+explanatory Markdown descriptions.
+Validation for this slice passed `bun run format:write`, `bun run lint`, the
+focused generated-documentation/stabilization source suite with 194 passing
+tests, and `git diff --check`. Browser verification at 390x844 captured
+`/tmp/evorto-object-rest-explanatory-markdown-terms-390x844.png` and
+`/tmp/evorto-object-rest-explanatory-markdown-events-390x844.png`; the images
+show readable Terms fallback copy and real seeded Events cards with Material
+surfaces/icons/times, fixed Events/Login bottom navigation, no loading or
+application-error text, no clipped visible controls on the Terms route, and
+zero warning/error Browser logs.

@@ -1786,7 +1786,6 @@ const findWeakMarkdownBodyAttachments = (
         markdownAttachFunctionPropertyAliases,
         staticStringAliases,
       );
-
       if (ts.isArrayLiteralExpression(initializer)) {
         collectIndexedPropertyAliases(
           node.name.text,
@@ -1801,6 +1800,17 @@ const findWeakMarkdownBodyAttachments = (
           markdownAttachFunctionPropertyAliases,
         );
       }
+    }
+
+    if (ts.isVariableDeclaration(node)) {
+      collectObjectRestPropertyAliases(
+        node,
+        markdownAttachmentNamePropertyAliases,
+      );
+      collectObjectRestPropertyAliases(
+        node,
+        markdownAttachFunctionPropertyAliases,
+      );
     }
 
     if (
@@ -2182,7 +2192,6 @@ const findDenseScreenshotRunsBetweenMarkdown = (
         markdownAttachFunctionPropertyAliases,
         staticStringAliases,
       );
-
       if (ts.isArrayLiteralExpression(initializer)) {
         collectIndexedPropertyAliases(
           node.name.text,
@@ -2197,6 +2206,17 @@ const findDenseScreenshotRunsBetweenMarkdown = (
           markdownAttachFunctionPropertyAliases,
         );
       }
+    }
+
+    if (ts.isVariableDeclaration(node)) {
+      collectObjectRestPropertyAliases(
+        node,
+        markdownAttachmentNamePropertyAliases,
+      );
+      collectObjectRestPropertyAliases(
+        node,
+        markdownAttachFunctionPropertyAliases,
+      );
     }
 
     if (
@@ -8047,6 +8067,8 @@ describe('generated docs source current behavior', () => {
       const assignedAttachHelpers = Object.assign({}, attachHelpers);
       await spreadAttachHelpers.attachMarkdownEvidence('markdown', { body: 'Too short.' });
       await assignedAttachHelpers.attachMarkdownEvidence('markdown', { body: 'Brief.' });
+      const { attachMarkdownEvidence: ignoredAttachMarkdown, ...restAttachHelpers } = attachHelpers;
+      await restAttachHelpers.attachMarkdownEvidence('markdown', { body: 'Thin.' });
     `;
 
     expect(
@@ -8057,6 +8079,7 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/copied-returned-markdown-body.doc.ts:8:13',
       'tests/docs/example/copied-returned-markdown-body.doc.ts:9:13',
+      'tests/docs/example/copied-returned-markdown-body.doc.ts:11:13',
     ]);
   });
 
@@ -8457,6 +8480,30 @@ describe('generated docs source current behavior', () => {
         page,
         'Third assigned copied returned-helper markdown cluster screenshot should require text',
       );
+      const { attachMarkdownEvidence: ignoredAttachMarkdown, ...restAttachHelpers } = attachHelpers;
+      await restAttachHelpers.attachMarkdownEvidence('markdown', {
+        body: \`
+          This object-rest copied returned helper section explains the next screenshot pair with enough product context.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        restCopiedReturnedFirstSurface,
+        page,
+        'First object-rest copied returned-helper markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        restCopiedReturnedSecondSurface,
+        page,
+        'Second object-rest copied returned-helper markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        restCopiedReturnedOverflowSurface,
+        page,
+        'Third object-rest copied returned-helper markdown cluster screenshot should require text',
+      );
     `;
 
     expect(
@@ -8467,6 +8514,7 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/copied-returned-dense-screenshot-run.doc.ts:25:13',
       'tests/docs/example/copied-returned-dense-screenshot-run.doc.ts:48:13',
+      'tests/docs/example/copied-returned-dense-screenshot-run.doc.ts:72:13',
     ]);
   });
 

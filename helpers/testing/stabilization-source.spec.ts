@@ -2793,6 +2793,10 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'keeps screenshots close to copied returned explanatory markdown helper groups',
     );
+    expect(generatedDocumentationSource).toContain('...restAttachHelpers');
+    expect(generatedDocumentationSource).toMatch(
+      /collectObjectRestPropertyAliases\(\s*node,\s*markdownAttachFunctionPropertyAliases/u,
+    );
     expect(generatedDocumentationSource).toContain('resolveAttachMarkdown');
     expect(generatedDocumentationSource).toContain(
       "await attachHelpers.assignedEvidence('markdown', rawMarkdownPayload)",
@@ -2990,6 +2994,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('assigned local aliases');
     expect(inventory).toContain('returned attach-helper factories');
     expect(inventory).toContain('copied returned attach-helper groups');
+    expect(inventory).toContain('including object-rest copies');
     expect(inventory).toContain('copied returned helper\n  groups');
     expect(inventory).toMatch(/simple body\s+forwarding/u);
     expect(inventory).toContain('`Buffer.from(...)`');
