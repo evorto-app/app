@@ -4186,6 +4186,73 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/parenthesized-helper.doc.ts:9:15']);
   });
 
+  it('inspects optional documentation screenshot and raw image calls', () => {
+    const optionalCallSource = `
+      async function captureEvidence() {
+        await takeScreenshot?.(
+          testInfo,
+          page.locator('main'),
+          page,
+          'Optional helper generic shell target with a descriptive caption',
+        );
+        await takeScreenshot?.(
+          testInfo,
+          settingsSurface,
+          page,
+          'Too short',
+        );
+        await page.screenshot?.({ path: 'page.png' });
+        await page['screenshot']?.({ path: 'page-bracket.png' });
+        await testInfo.attach?.('image', { body: imageBuffer });
+        await testInfo['attach']?.('raw evidence', { contentType: 'image/png' });
+        await testInfo.attach?.('markdown', { body: '![raw](raw.png)' });
+      }
+    `;
+
+    expect(
+      countTakeScreenshotCalls(
+        'tests/docs/example/optional-call-image-capture.doc.ts',
+        optionalCallSource,
+      ),
+    ).toBe(2);
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/optional-call-image-capture.doc.ts',
+        optionalCallSource,
+      ),
+    ).toEqual(['tests/docs/example/optional-call-image-capture.doc.ts:3:15']);
+    expect(
+      findWeakScreenshotCaptions(
+        'tests/docs/example/optional-call-image-capture.doc.ts',
+        optionalCallSource,
+      ),
+    ).toEqual(['tests/docs/example/optional-call-image-capture.doc.ts:9:15']);
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/optional-call-image-capture.doc.ts',
+        optionalCallSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/optional-call-image-capture.doc.ts:15:15',
+      'tests/docs/example/optional-call-image-capture.doc.ts:16:15',
+    ]);
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/optional-call-image-capture.doc.ts',
+        optionalCallSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/optional-call-image-capture.doc.ts:17:15',
+      'tests/docs/example/optional-call-image-capture.doc.ts:18:15',
+    ]);
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/optional-call-image-capture.doc.ts',
+        optionalCallSource,
+      ),
+    ).toEqual(['tests/docs/example/optional-call-image-capture.doc.ts:19:15']);
+  });
+
   it('detects raw markdown image markup before generated docs can use it', () => {
     const rawMarkdownImageSource = `
       const markdownAttachmentName = 'markdown';

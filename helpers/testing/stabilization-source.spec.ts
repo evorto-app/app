@@ -1485,11 +1485,15 @@ describe('stabilization source', () => {
     expect(source).toContain('Comma-expression invocations');
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);
+    expect(source).toContain('Optional-call invocations');
     expect(inventory).toContain(
       'comma-expression raw screenshot and image attach invocations',
     );
     expect(inventory).toContain(
       'conditional,\n  logical, and nested raw screenshot and image attach callees',
+    );
+    expect(inventory).toContain(
+      'optional-call screenshot-helper, raw screenshot, and image attach invocations',
     );
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
@@ -1948,6 +1952,9 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind nested branching expressions',
     );
+    expect(generatedDocumentationSource).toContain(
+      'inspects optional documentation screenshot and raw image calls',
+    );
     expect(source).toContain(
       'Conditional, nullish-coalesced, and logical target expressions are checked\nrecursively',
     );
@@ -2356,12 +2363,16 @@ describe('stabilization source', () => {
     expect(source).toContain('`Reflect.apply(...)` invocations');
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);
+    expect(source).toContain('Optional-call invocations');
     expect(inventory).toMatch(/spread direct attachment\s+arguments/u);
     expect(inventory).toMatch(/opaque attachment `apply\(\.\.\.\)` lists/u);
     expect(inventory).toContain('`Reflect.apply(...)` raw screenshot');
     expect(inventory).toContain('inline bound raw screenshot and image attach');
     expect(inventory).toContain(
       'conditional,\n  logical, and nested raw screenshot and image attach callees',
+    );
+    expect(inventory).toContain(
+      'optional-call screenshot-helper, raw screenshot, and image attach invocations',
     );
   });
 

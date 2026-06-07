@@ -6125,6 +6125,11 @@ docs cannot hide raw evidence behind fallback function selection. Nested
 branching callees are inspected the same way, so raw screenshot or attachment
 functions cannot be buried inside a second conditional, logical, or nullish
 fallback expression.
+Optional-call invocations such as `takeScreenshot?.(...)`,
+`page.screenshot?.(...)`, `testInfo.attach?.(...)`, and static bracket-property
+optional calls are inspected too, so generated docs cannot bypass either the
+shared helper quality checks or the raw-capture guards by making the callee
+nullable.
 Raw image attachments with image MIME types or common image file extensions are
 also rejected even when their attachment name is not `image`, so docs cannot
 smuggle screenshot evidence through a differently named `testInfo.attach(...)`
