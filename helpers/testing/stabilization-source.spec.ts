@@ -7518,6 +7518,20 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'Events/Login navigation remains visible and fixed as bottom navigation on\n    mobile and side navigation on desktop',
     );
+    expect(inventory).toContain(
+      'current pushed-head Browser spot check at `cab7f1fe`',
+    );
+    expect(inventory).toContain(
+      'checked `/events`, `/legal/terms`, and\n  `/404` at 320x740 and 390x844',
+    );
+    expect(inventory).toContain('zero Browser warning/error logs');
+    expect(inventory).toContain(
+      '/tmp/evorto-browser-ccbe793d-events-320x740.png',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-browser-ccbe793d-legal-terms-390x844.png',
+    );
+    expect(inventory).toContain('/tmp/evorto-browser-ccbe793d-404-390x844.png');
     expect(inventory).toContain('Browser refresh on pushed head `aef3ccdc`');
     expect(inventory).toContain(
       'same anonymous\n  General route set at 320x740 and 390x844',

@@ -1265,6 +1265,16 @@ provider outcomes without live identifiers.
 - `tests/support/fixtures/parallel-test.ts` seeds isolated `test` profile tenants per test.
 - `tests/setup/database.setup.ts` seeds a shared `docs` profile tenant and persists `.e2e-runtime.json`.
 - `tests/setup/mcp-browser.seed.ts` is a no-dependency Playwright-test MCP planner seed for the dedicated `mcp-browser-planner` project. It uses the plain Playwright test API to open `/legal/terms`, so MCP Browser planning can initialize against a public General page without running the database/auth setup projects. `bun run test:e2e:mcp-browser-planner` is the focused local rerun for an already-running app; it refreshes `.env.dev`, sets `NO_WEBSERVER=true`, uses `--no-deps`, and keeps the public planner seed on one worker. The current Browser planner setup path has verified that project/seed pair, resized the seeded Terms page to 320x740, and captured a mobile screenshot with readable legal-page content plus fitting Events/Login bottom navigation. A later current-head Browser refresh on pushed head `574e9273` used alternate local ports to avoid an existing 4200 stack, then checked `/legal/terms` and `/events` at 320x740 plus `/404` and `/legal/terms` at 390x844; the screenshots showed readable legal/error text, meaningful seeded event-card icons and times, and no visible bottom-navigation clipping or overlap.
+  The current pushed-head Browser spot check at `cab7f1fe` reused the generated
+  Docker app at its generated `BASE_URL`, checked `/events`, `/legal/terms`, and
+  `/404` at 320x740 and 390x844, and found expected route content, no loading
+  or application-error text, no horizontal overflow, no top/side clipped visible
+  controls, and zero Browser warning/error logs. The inspected screenshots
+  `/tmp/evorto-browser-ccbe793d-events-320x740.png`,
+  `/tmp/evorto-browser-ccbe793d-legal-terms-390x844.png`, and
+  `/tmp/evorto-browser-ccbe793d-404-390x844.png` show seeded Material event
+  cards, the Terms fallback legal page, and the not-found page with fixed
+  Events/Login bottom navigation.
   A fresh pushed-head Browser refresh on `aad2bab1` used the generated Docker
   app at its generated `BASE_URL`, derived the `Soccer Match 1` event detail
   link from `/events`, and checked all anonymous General routes at 320x740,
