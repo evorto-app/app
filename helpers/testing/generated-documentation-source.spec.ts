@@ -15426,6 +15426,18 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Payment success, payment failure, and checkout expiry do not send separate email notifications in the current relaunch scope.',
     );
+    expect(
+      source.match(/registrationOptionCard\(page, 'Pay'\)/gu),
+    ).toHaveLength(1);
+    expect(source).toContain(
+      "const pendingCheckoutRegistrationCard = activeRegistrationCard(\n      page,\n      'Pay now',\n    );",
+    );
+    expect(source).toContain(
+      "pendingCheckoutRegistrationCard.getByText(\n        'To finalize your registration you have to pay the registration fee.',",
+    );
+    expect(source).toContain(
+      'Paid registration card before the pending checkout recovery state',
+    );
     expect(source).toContain(
       'Timed out waiting for replayed Stripe checkout webhook to be mirrored in the application database',
     );

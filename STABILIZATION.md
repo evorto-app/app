@@ -8400,3 +8400,15 @@ verification against the local Docker app opened
 Match detail with registration and login-required paid-option copy, no
 persistent loading text, no application-error text, no horizontal overflow, and
 zero Browser warning/error logs.
+
+Generated Register-for-events source coverage now also guards the distinct paid
+registration recovery evidence directly. The generated-doc source test requires
+exactly one `registrationOptionCard(page, 'Pay')` screenshot target in the
+Register docs, requires the pending recovery evidence to use
+`activeRegistrationCard(page, 'Pay now')`, and pins the pending-checkout
+recovery caption so future docs edits cannot silently replace the recovery card
+with a duplicate pre-checkout paid option. Focused validation for this source
+guard passed `bun run format:write`, `bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 210 tests, and `git diff --check`. WebStorm errors-only diagnostics remain
+blocked because this worktree is not one of the IDE's open projects.
