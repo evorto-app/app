@@ -48,15 +48,17 @@ const allowedEntries = new Set(
   allowedPlaywrightSkipEntries.map((entry) => entry.entry),
 );
 
-const playwrightDescribeAccessPattern = String.raw`(?:\s*\.\s*describe|\s*\[\s*['"]describe['"]\s*\])`;
+const playwrightDescribeAccessPattern = String.raw`(?:\s*\??\.\s*describe|\s*(?:\?\.)?\[\s*['"]describe['"]\s*\])`;
 const playwrightCallablePattern = new RegExp(
   String.raw`\b(?:test(?:${playwrightDescribeAccessPattern})?|it|describe)`,
   'u',
 );
 const playwrightModifierAccessPattern = (names: string): string =>
-  String.raw`(?:\s*\.\s*(?:${names})\b|\s*\[\s*['"](?:${names})['"]\s*\])`;
+  String.raw`(?:\s*\??\.\s*(?:${names})\b|\s*(?:\?\.)?\[\s*['"](?:${names})['"]\s*\])`;
 const playwrightModifierAccessCapturePattern = (names: string): string =>
-  String.raw`(?:\s*\.\s*(?<dotModifier>${names})\b|\s*\[\s*['"](?<bracketModifier>${names})['"]\s*\])`;
+  String.raw`(?:\s*\??\.\s*(?<dotModifier>${names})\b|\s*(?:\?\.)?\[\s*['"](?<bracketModifier>${names})['"]\s*\])`;
+const callStartPattern = String.raw`\s*(?:\?\.)?\(`;
+const helperInvocationPattern = String.raw`(?:${callStartPattern}|\s*\??\.\s*(?:call|apply|bind)\b|\s*(?:\?\.)?\[\s*['"](?:call|apply|bind)['"]\s*\])`;
 const identifierPattern = String.raw`[A-Za-z_$][\w$]*`;
 const staticStringAssignmentPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*(?<expression>[^;\n]+)`,
@@ -84,7 +86,7 @@ const pageStaticPropertyMethodAliasPattern = new RegExp(
 );
 const pageMethodIndirectInvocationPattern = (names: string): RegExp =>
   new RegExp(
-    String.raw`\bpage${playwrightModifierAccessPattern(names)}\s*(?:\.\s*(?:call|apply|bind)\b|\[\s*['"](?:call|apply|bind)['"]\s*\])`,
+    String.raw`\bpage${playwrightModifierAccessPattern(names)}\s*(?:\??\.\s*(?:call|apply|bind)\b|(?:\?\.)?\[\s*['"](?:call|apply|bind)['"]\s*\])`,
     'g',
   );
 const playwrightDestructuredModifierAliasPattern = new RegExp(
@@ -135,7 +137,6 @@ const focusedOnlyPattern = new RegExp(
   String.raw`${playwrightCallablePattern.source}${playwrightModifierAccessPattern('only')}`,
   'g',
 );
-const callStartPattern = String.raw`\s*\(`;
 const interactiveDebugPattern = new RegExp(
   String.raw`\bdebugger\b|\bpage${playwrightModifierAccessPattern('pause')}${callStartPattern}`,
   'g',
@@ -430,7 +431,7 @@ const collectStaticPropertyEntriesForSource = (
   const aliases = collectStaticStringAliases(source);
   const allowedNames = new Set(names);
   const staticPropertyPattern = new RegExp(
-    String.raw`${ownerPattern}\s*\[\s*(?<propertyAlias>${identifierPattern})\s*\]\s*(?:\(|\.\s*(?:call|apply|bind)\b|\[\s*['"](?:call|apply|bind)['"]\s*\])`,
+    String.raw`${ownerPattern}\s*(?:\?\.)?\[\s*(?<propertyAlias>${identifierPattern})\s*\]${helperInvocationPattern}`,
     'g',
   );
 
@@ -470,7 +471,7 @@ const collectReflectPropertyEntriesForSource = (
   const reflectApplyAccessPattern = String.raw`${reflectOwnerPattern}\s*(?:\.\s*apply\b|\[\s*['"]apply['"]\s*\])`;
   const reflectedPropertyExpressionPattern = String.raw`(?<property>(?:'[^']*'|"[^"]*"|${identifierPattern}(?:\s*\+\s*(?:'[^']*'|"[^"]*"|${identifierPattern}))*))`;
   const directReflectGetPattern = new RegExp(
-    String.raw`\b${reflectGetAccessPattern}\s*\(\s*${ownerPattern}\s*,\s*${reflectedPropertyExpressionPattern}\s*\)\s*(?:\(|\.\s*(?:call|apply|bind)\b|\[\s*['"](?:call|apply|bind)['"]\s*\])`,
+    String.raw`\b${reflectGetAccessPattern}\s*\(\s*${ownerPattern}\s*,\s*${reflectedPropertyExpressionPattern}\s*\)${helperInvocationPattern}`,
     'g',
   );
   const reflectGetAliasPattern = new RegExp(
@@ -548,7 +549,7 @@ const collectReflectPropertyEntriesForSource = (
   const aliasEntries = [...reflectedAliases.entries()].flatMap(
     ([alias, propertyName]) => {
       const aliasCallPattern = new RegExp(
-        String.raw`\b${escapeRegExp(alias)}\s*\(`,
+        String.raw`\b${escapeRegExp(alias)}${callStartPattern}`,
         'g',
       );
 
@@ -584,11 +585,11 @@ const collectObjectRestPropertyEntriesForSource = (
   const allowedNames = new Set(names);
   const staticStringAliases = collectStaticStringAliases(source);
   const directPropertyPattern = new RegExp(
-    String.raw`\b${escapeRegExp(ownerAlias)}\s*(?:\.\s*(?<dotProperty>${names
+    String.raw`\b${escapeRegExp(ownerAlias)}\s*(?:\??\.\s*(?<dotProperty>${names
       .map(escapeRegExp)
       .join(
         '|',
-      )})\b|\[\s*(?<bracketProperty>(?:'[^']*'|"[^"]*"|${identifierPattern}))\s*\])\s*(?:\(|\.\s*(?:call|apply|bind)\b|\[\s*['"](?:call|apply|bind)['"]\s*\])`,
+      )})\b|(?:\?\.)?\[\s*(?<bracketProperty>(?:'[^']*'|"[^"]*"|${identifierPattern}))\s*\])${helperInvocationPattern}`,
     'g',
   );
 
@@ -711,7 +712,7 @@ const collectAliasedModifierEntriesForSource = (
 
   const aliasEntries = [...aliases.entries()].flatMap(([alias, modifier]) => {
     const aliasCallPattern = new RegExp(
-      String.raw`\b${escapeRegExp(alias)}\s*\(`,
+      String.raw`\b${escapeRegExp(alias)}${callStartPattern}`,
       'g',
     );
 
@@ -855,7 +856,7 @@ const collectAliasedPageMethodEntriesForSource = (
 
   const aliasEntries = [...aliases.entries()].flatMap(([alias, method]) => {
     const aliasCallPattern = new RegExp(
-      String.raw`\b${escapeRegExp(alias)}\s*\(`,
+      String.raw`\b${escapeRegExp(alias)}${callStartPattern}`,
       'g',
     );
 
@@ -1338,6 +1339,143 @@ await page[arrayWaitKey].apply(page, [100]);`;
       'tests/specs/example/static-properties.spec.ts:15:page[waitKey].call (waitForTimeout property alias)',
       'tests/specs/example/static-properties.spec.ts:23:page[arrayWaitKey]( (waitForTimeout property alias)',
       'tests/specs/example/static-properties.spec.ts:24:page[arrayWaitKey].apply (waitForTimeout property alias)',
+    ]);
+  });
+
+  it('recognizes optional Playwright modifier and page helper calls before inventory checks run', () => {
+    const optionalCallSource = `const skipKey = 'skip';
+test.skip?.('hidden optional skip', () => {});
+test?.fixme('hidden optional fixme', () => {});
+test[skipKey]?.('hidden static optional skip', () => {});
+const onlyKey = 'only';
+test.describe.only?.('hidden optional focus', () => {});
+test.describe?.[onlyKey]?.('hidden static optional focus', () => {});
+const configureKey = 'configure';
+test.describe[configureKey]?.({ mode: 'serial' });
+test.slow?.();
+const hiddenSlow = test.slow;
+hiddenSlow?.();
+const pauseKey = 'pause';
+await page.pause?.();
+await page?.[pauseKey]?.();
+const waitKey = 'waitForTimeout';
+await page.waitForTimeout?.(100);
+await page[waitKey]?.(100);
+const waitByAlias = page.waitForTimeout;
+await waitByAlias?.(100);`;
+
+    expect(
+      collectPatternEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        skipPattern,
+      ),
+    ).toEqual([
+      'tests/specs/example/optional-calls.spec.ts:2:test.skip',
+      'tests/specs/example/optional-calls.spec.ts:3:test?.fixme',
+    ]);
+    expect(
+      collectStaticPropertyEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        playwrightCallablePattern.source,
+        ['skip', 'fixme'],
+      ),
+    ).toEqual([
+      'tests/specs/example/optional-calls.spec.ts:4:test[skipKey]?.( (skip property alias)',
+    ]);
+    expect(
+      collectPatternEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        focusedOnlyPattern,
+      ),
+    ).toEqual([
+      'tests/specs/example/optional-calls.spec.ts:6:test.describe.only',
+    ]);
+    expect(
+      collectStaticPropertyEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        playwrightCallablePattern.source,
+        ['only'],
+      ),
+    ).toEqual([
+      'tests/specs/example/optional-calls.spec.ts:7:test.describe?.[onlyKey]?.( (only property alias)',
+    ]);
+    expect(
+      collectPatternEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        runtimeModifierPattern,
+      ),
+    ).toEqual([
+      'tests/specs/example/optional-calls.spec.ts:10:test.slow',
+      'tests/specs/example/optional-calls.spec.ts:11:test.slow',
+    ]);
+    expect(
+      collectStaticPropertyEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        String.raw`\b(?:test${playwrightDescribeAccessPattern}|test)`,
+        ['slow', 'configure'],
+      ),
+    ).toEqual([
+      'tests/specs/example/optional-calls.spec.ts:9:test.describe[configureKey]?.( (configure property alias)',
+    ]);
+    expect(
+      collectAliasedModifierEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        ['slow', 'configure'],
+      ),
+    ).toEqual([
+      'tests/specs/example/optional-calls.spec.ts:12:hiddenSlow?.( (slow alias)',
+    ]);
+    expect(
+      collectPatternEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        interactiveDebugPattern,
+      ),
+    ).toEqual(['tests/specs/example/optional-calls.spec.ts:14:page.pause?.(']);
+    expect(
+      collectStaticPropertyEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        String.raw`\bpage`,
+        ['pause'],
+      ),
+    ).toEqual([
+      'tests/specs/example/optional-calls.spec.ts:15:page?.[pauseKey]?.( (pause property alias)',
+    ]);
+    expect(
+      collectPatternEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        fixedWaitPattern,
+      ),
+    ).toEqual([
+      'tests/specs/example/optional-calls.spec.ts:17:.waitForTimeout?.(',
+    ]);
+    expect(
+      collectStaticPropertyEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        String.raw`\bpage`,
+        ['waitForTimeout'],
+      ),
+    ).toEqual([
+      'tests/specs/example/optional-calls.spec.ts:18:page[waitKey]?.( (waitForTimeout property alias)',
+    ]);
+    expect(
+      collectAliasedPageMethodEntriesForSource(
+        'tests/specs/example/optional-calls.spec.ts',
+        optionalCallSource,
+        ['waitForTimeout'],
+      ),
+    ).toEqual([
+      'tests/specs/example/optional-calls.spec.ts:20:waitByAlias?.( (page.waitForTimeout alias)',
     ]);
   });
 

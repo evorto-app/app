@@ -544,6 +544,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   debug, or fixed-wait coverage changes; array-built keys such as
   `['sk', 'ip'].join('')`, `['on'].concat(['ly']).join('')`, and
   `['waitFor'].concat(['Timeout']).join('')` are resolved the same way.
+  Optional-call spellings such as `test.skip?.(...)`,
+  `test.describe?.[onlyKey]?.(...)`, `page.pause?.(...)`,
+  `page[waitForTimeoutKey]?.(...)`, and `waitByAlias?.(...)` are normalized
+  before the same inventory comparison, so optional chaining cannot hide
+  skipped, focused, runtime-altered, debug, or fixed-wait coverage changes.
   Reflection-based modifier access
   through `Reflect.get(...)`, `Reflect.apply(...)`, and local `Reflect` aliases
   is covered for `test.skip`/`fixme`/`only`/`slow`,

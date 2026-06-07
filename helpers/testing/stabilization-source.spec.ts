@@ -5036,6 +5036,23 @@ describe('stabilization source', () => {
     ).toContain('page[waitKey]');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain(
+      'recognizes optional Playwright modifier and page helper calls before inventory checks run',
+    );
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('test.skip?.');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('test.describe?.[onlyKey]?.');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('page.waitForTimeout?.');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('waitByAlias?.');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('reflected-modifiers.spec.ts');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
@@ -5129,6 +5146,13 @@ describe('stabilization source', () => {
     expect(inventory).toContain('test.describe[configureKey](...)');
     expect(inventory).toContain('page[pauseKey](...)');
     expect(inventory).toContain('page[waitForTimeoutKey](...)');
+    expect(inventory).toContain(
+      'Optional-call spellings such as `test.skip?.(...)`',
+    );
+    expect(inventory).toContain('`test.describe?.[onlyKey]?.(...)`');
+    expect(inventory).toContain('`page.pause?.(...)`');
+    expect(inventory).toContain('`page[waitForTimeoutKey]?.(...)`');
+    expect(inventory).toContain('`waitByAlias?.(...)`');
     expect(inventory).toContain('Reflection-based modifier access');
     expect(inventory).toContain('Reflect.get(...)');
     expect(inventory).toContain('Reflect.apply(...)');
@@ -5699,27 +5723,28 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toContain(
-      'object-spread and `Object.assign` copied Playwright\nmodifier/page helper objects',
+      'optional-call Playwright modifier/page helper\ninvocations',
     );
     expect(source).toContain(
-      'classified beside object-rest copied\nhelpers before the skip/focus/runtime/debug/fixed-wait inventory',
+      'normalized before the skip/focus/runtime/debug/fixed-wait\ninventory',
     );
-    expect(source).toContain('const spreadTest = { ...test }');
+    expect(source).toContain('test.skip?.(...)');
+    expect(source).toContain('test?.fixme(...)');
+    expect(source).toContain('test.describe?.[onlyKey]?.(...)');
+    expect(source).toContain('test.slow?.()');
+    expect(source).toContain('hiddenSlow?.()');
+    expect(source).toContain('page.pause?.(...)');
+    expect(source).toContain('page?.[pauseKey]?.()');
+    expect(source).toContain('page.waitForTimeout?.(...)');
+    expect(source).toContain('page[waitKey]?.(...)');
+    expect(source).toContain('waitByAlias?.(...)');
     expect(source).toContain(
-      'const assignedDescribe = Object.assign({}, test.describe)',
-    );
-    expect(source).toContain('const spreadPage = { ...page }');
-    expect(source).toContain('const assignedPage = Object.assign({}, page)');
-    expect(source).toContain('spreadTest[skipKey](...)');
-    expect(source).toContain('assignedDescribe[configureKey](...)');
-    expect(source).toContain('assignedPage[waitKey].apply(...)');
-    expect(source).toContain(
-      'copying the helper object\nthrough spread or `Object.assign`',
+      'using optional chaining on direct helpers, constant-backed\nproperties, or local aliases',
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/playwright-skip-inventory.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 90 tests');
+    expect(source).toContain('with 91 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5745,7 +5770,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=copied-object-skip-inventory-source-guard',
+      '/legal/terms?stabilizationEvidence=optional-call-skip-inventory-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');
