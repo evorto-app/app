@@ -9005,6 +9005,23 @@ describe('generated docs source current behavior', () => {
     ).toBe(2);
   });
 
+  it('counts optional-call generated documentation markdown attachments for the manifest guard', () => {
+    const optionalCallMarkdownCountSource = `
+      const markdownName = 'markdown';
+      const attachMarkdown = testInfo.attach.bind(testInfo);
+      await testInfo.attach?.(markdownName, { body: 'Optional direct section body.' });
+      await attachMarkdown?.(markdownName, { body: 'Optional helper section body.' });
+      await recordDocumentationNote?.(markdownName, { body: 'Not a Playwright docs section.' });
+    `;
+
+    expect(
+      countGeneratedMarkdownAttachments(
+        'tests/docs/example/optional-call-markdown-count.doc.ts',
+        optionalCallMarkdownCountSource,
+      ),
+    ).toBe(2);
+  });
+
   it('requires indirect documentation markdown attachments to include explanatory body text', () => {
     const indirectMarkdownBodySource = `
       const markdownName = 'markdown';
