@@ -1827,6 +1827,10 @@ describe('stabilization source', () => {
       "`ARCHITECTURE.md`'s Playwright documentation evidence boundary",
     );
     expect(inventory).toContain('highlighted/content-checked PNG evidence');
+    expect(inventory).toContain(
+      'derives the allowed generated-doc feature folders',
+    );
+    expect(generatedDocumentationSource).toContain('qualityFeatureAreaFolders');
     expect(generatedDocumentationSource).toContain(
       '[...expectedScreenshotCounts.keys()].toSorted()',
     );

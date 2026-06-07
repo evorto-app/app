@@ -6345,9 +6345,11 @@ keeps the product and quality root docs from drifting apart on which user/admin
 guides are expected.
 It also maps `ARCHITECTURE.md`'s Playwright documentation evidence boundary to
 checked-in docs files, `test:e2e:docs`, markdown attachments, shared screenshot
-helper calls, paired captions, and highlighted/content-checked PNG evidence, so
-the system architecture's durable-docs expectation stays connected to the
-generated documentation source guard.
+helper calls, paired captions, and highlighted/content-checked PNG evidence,
+and it derives the allowed generated-doc feature folders from the root
+`QUALITY.md` feature-area list. The system architecture's durable-docs
+expectation therefore stays connected to the generated documentation source
+guard.
 It also keeps `PRODUCT.md` and `ARCHITECTURE.md` documentation-organization
 rules connected to the checked-in docs tree: generated docs must stay
 product-facing, grouped under feature-area folders, and free of internal

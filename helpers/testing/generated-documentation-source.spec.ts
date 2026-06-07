@@ -7417,6 +7417,7 @@ describe('generated docs source current behavior', () => {
 
   it('keeps documentation architecture represented by Playwright docs evidence', () => {
     const productSource = readSource('PRODUCT.md');
+    const qualitySource = readSource('QUALITY.md');
     const architectureSource = readSource('ARCHITECTURE.md');
     const packageSource = readSource('package.json');
     const reporterSource = readSource(
@@ -7429,16 +7430,29 @@ describe('generated docs source current behavior', () => {
       .filter((path) => path.endsWith('.doc.ts'))
       .toSorted();
     const docsSource = docsFiles.map((file) => readSource(file)).join('\n');
+    const qualityFeatureAreaFolders = new Map([
+      ['events', ['events']],
+      ['templates', ['template-categories', 'templates']],
+      ['registrations', ['events', 'users']],
+      ['payments', ['events', 'finance', 'profile']],
+      ['check-in', ['events']],
+      ['roles and permissions', ['roles']],
+      ['tenant settings', ['admin']],
+      ['receipts', ['events', 'finance', 'profile']],
+      ['email notifications', ['events', 'finance']],
+      ['documentation/help', ['roles']],
+    ]);
+    const qualityDocumentationFeatureAreas = extractMarkdownListAfter(
+      qualitySource,
+      'Organize generated docs by feature area, such as:',
+    );
     const expectedFeatureAreas = [
-      'admin',
-      'events',
-      'finance',
-      'profile',
-      'roles',
-      'template-categories',
-      'templates',
-      'users',
-    ];
+      ...new Set(
+        qualityDocumentationFeatureAreas.flatMap(
+          (featureArea) => qualityFeatureAreaFolders.get(featureArea) ?? [],
+        ),
+      ),
+    ].toSorted();
     const featureAreas = [
       ...new Set(
         docsFiles.map((file) => file.split('/').at(2)).filter(Boolean),
@@ -7463,6 +7477,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(packageSource).toContain('"test:e2e:docs"');
     expect(docsFiles.length).toBeGreaterThanOrEqual(16);
+    expect([...qualityFeatureAreaFolders.keys()]).toEqual(
+      qualityDocumentationFeatureAreas,
+    );
     expect(featureAreas).toEqual(expectedFeatureAreas);
     expect(
       docsFiles.filter((file) =>

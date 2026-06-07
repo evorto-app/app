@@ -557,6 +557,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   maps `ARCHITECTURE.md`'s Playwright documentation evidence boundary to
   checked-in docs files, `test:e2e:docs`, markdown attachments, shared screenshot
   helper calls, paired captions, and highlighted/content-checked PNG evidence,
+  and derives the allowed generated-doc feature folders from the root
+  `QUALITY.md` feature-area list,
   keeps the root product/architecture rule that generated docs stay grouped
   under product feature-area folders and out of internal example/fixture docs,
   rejects fixed `waitForTimeout` sleeps in generated docs so screenshots stay
