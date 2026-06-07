@@ -5873,57 +5873,60 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toMatch(
-      /public General viewport coverage now checks the\s+desktop-only Scanner navigation label/u,
+      /current-head local runtime and Browser evidence are\s+positive again after resetting the stale Docker stack/u,
     );
-    expect(source).toContain('painted Material surfaces');
-    expect(source).toContain('same shared contrast helper as Events and Login');
-    expect(source).toContain('desktop branch where Scanner is visible');
-    expect(source).toContain('mobile branch asserting Scanner is hidden');
+    expect(source).toContain('`bun run docker:start`');
+    expect(source).toContain('`BASE_URL=http://localhost:4218`');
+    expect(source).toContain('`bun run dev:status` then\npassed');
+    expect(source).toContain('healthy database validation query');
+    expect(source).toContain('passing `/legal/terms` route\nprobe');
+    expect(source).toContain('fresh active-test Neon branch');
+    expect(source).toContain(
+      '`bun run test:e2e:public-general-viewports -- --no-deps`',
+    );
+    expect(source).toContain('passed both General\nviewport tests');
     expect(source).toMatch(
-      /General pages cannot pass mobile navigation coverage while the\s+desktop side navigation keeps a low-contrast Scanner entry/u,
+      /in-app Browser checked the full\s+anonymous General route set at 320x740, 390x844, and 1440x900/u,
+    );
+    expect(source).toContain('root redirect, events list, seeded event detail');
+    expect(source).toContain('hosted legal pages,\n403, 500, explicit 404');
+    expect(source).toContain('wildcard 404');
+    expect(source).toContain('no visible clipped controls');
+    expect(source).toContain('no persistent loading labels');
+    expect(source).toContain('no\napplication-error text');
+    expect(source).toContain('fixed Events/Login mobile navigation');
+    expect(source).toContain('fixed\nEvents/Scanner/Login desktop navigation');
+    expect(source).toContain('zero warning/error Browser logs');
+    expect(source).toContain(
+      '/tmp/evorto-current-general-browser-evidence/events-320x740.png',
     );
     expect(source).toContain(
-      '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
-    );
-    expect(source).toContain('with 210 tests');
-    expect(source).toContain(
-      '`bun run test:e2e:public-general-viewports -- --list`',
-    );
-    expect(source).toContain('git diff --check');
-    expect(source).toContain(
-      'WebStorm errors-only diagnostics remain\nblocked',
+      '/tmp/evorto-current-general-browser-evidence/terms-390x844.png',
     );
     expect(source).toContain(
-      "this worktree is not one of the IDE's open projects",
+      '/tmp/evorto-current-general-browser-evidence/events-1440x900.png',
     );
     expect(source).toContain(
-      'Browser\nverification was attempted, but no positive visual evidence is claimed',
+      '/tmp/evorto-current-general-browser-evidence/event-detail-1440x900.png',
     );
-    expect(source).toContain('source/spec\nslice');
-    expect(source).toContain('`bun run dev:status`');
+    expect(source).toMatch(
+      /show seeded event cards, legal fallback copy, desktop side\s+navigation, and the\s+selected event detail registration surface/u,
+    );
+    expect(source).toContain('rather than unrelated or heading-only\nimages');
+    expect(source).toContain('documentElement scroll-width reading');
+    expect(source).toContain('browser scrollbar gutter');
     expect(source).toContain(
-      'generated database endpoint\naccepting TCP connections',
+      '`body.scrollWidth` equal to the rendered document width',
     );
-    expect(source).toContain('`Connection terminated unexpectedly`');
-    expect(source).toContain(
-      "Docker's disposable start-path preflight\npassed",
-    );
-    expect(source).toContain(
-      'existing app route probe still could not connect to\n`/legal/terms`',
-    );
-    expect(source).toContain('in-app Browser probe at 390x844');
-    expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=general-scanner-contrast-source-guard',
-    );
-    expect(source).toContain('failed before rendering the page');
-    expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');
+    expect(source).toContain('no visible\noffending element');
+    expect(source).toContain('green Playwright layout result');
     expect(source).not.toContain(
       '`evorto-object-rest-skip-inventory-terms-390x844.png`',
     );
     expect(source).not.toContain(
       '`evorto-object-rest-skip-inventory-events-390x844.png`',
     );
-    expect(source).toMatch(/live\s+PR checks are tracked\s+separately/u);
+    expect(source).toMatch(/live\s+PR\s+checks are tracked\s+separately/u);
     expect(source).toMatch(/latest\s+fully\s+green\s+E2E/u);
     expect(source).toMatch(/older\s+completed\s+pushed\s+head/u);
     expect(source).toContain('actual Material overlay panel');
