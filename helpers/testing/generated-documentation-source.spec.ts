@@ -3487,6 +3487,7 @@ const findGenericScreenshotTargets = (
         isGenericLocatorTarget,
         genericTargetAliases,
         genericTargetPropertyAliases,
+        staticStringAliases,
       );
     }
 
@@ -3500,6 +3501,7 @@ const findGenericScreenshotTargets = (
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -3767,6 +3769,7 @@ const findUnfilteredBroadScreenshotTargets = (
         isUnfilteredBroadLocatorTarget,
         broadTargetAliases,
         broadTargetPropertyAliases,
+        staticStringAliases,
       );
     }
 
@@ -3780,6 +3783,7 @@ const findUnfilteredBroadScreenshotTargets = (
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -4114,6 +4118,7 @@ const findSingleControlScreenshotTargets = (
         isSingleControlLocatorTarget,
         singleControlAliases,
         singleControlPropertyAliases,
+        staticStringAliases,
       );
     }
 
@@ -4127,6 +4132,7 @@ const findSingleControlScreenshotTargets = (
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -4422,6 +4428,7 @@ const findIconOrMediaScreenshotTargets = (
         isIconOrMediaLocatorTarget,
         iconOrMediaAliases,
         iconOrMediaPropertyAliases,
+        staticStringAliases,
       );
     }
 
@@ -4435,6 +4442,7 @@ const findIconOrMediaScreenshotTargets = (
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -11783,6 +11791,74 @@ describe('generated docs source current behavior', () => {
         spreadGroupedTargetSource,
       ),
     ).toEqual(['tests/docs/example/spread-grouped-target.doc.ts:29:13']);
+  });
+
+  it('detects computed-property weak documentation screenshot target groups', () => {
+    const computedGroupedTargetSource = `
+      const shellKey = 'shell';
+      const broadKey = 'broad';
+      const singleKey = 'single';
+      const iconKey = 'icon';
+      const groupedTargets = {
+        [shellKey]: page.locator('main'),
+        [broadKey]: page.locator('section'),
+        [singleKey]: page.getByRole('button', { name: 'Save' }),
+        [iconKey]: page.locator('svg'),
+      };
+
+      await takeScreenshot(
+        testInfo,
+        groupedTargets[shellKey],
+        page,
+        'Computed property generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        groupedTargets[broadKey],
+        page,
+        'Computed property broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        groupedTargets[singleKey],
+        page,
+        'Computed property single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        groupedTargets[iconKey],
+        page,
+        'Computed property icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/computed-grouped-target.doc.ts',
+        computedGroupedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/computed-grouped-target.doc.ts:13:13']);
+
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/computed-grouped-target.doc.ts',
+        computedGroupedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/computed-grouped-target.doc.ts:19:13']);
+
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/computed-grouped-target.doc.ts',
+        computedGroupedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/computed-grouped-target.doc.ts:25:13']);
+
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/computed-grouped-target.doc.ts',
+        computedGroupedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/computed-grouped-target.doc.ts:31:13']);
   });
 
   it('detects copied helper-returned weak documentation screenshot target groups', () => {

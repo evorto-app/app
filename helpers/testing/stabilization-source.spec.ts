@@ -1723,16 +1723,16 @@ describe('stabilization source', () => {
     expect(source).toContain('array\nhelper calls');
     expect(source).toContain('`targetList.at(0)`');
     expect(source).toContain('`targetList.at(-1)`');
-    expect(source).toContain('`Reflect.get(...)` reads\nof grouped generic');
-    expect(source).toContain('reflected weak\ntarget lookups');
+    expect(source).toContain('`Reflect.get(...)` reads of grouped generic');
+    expect(source).toContain('reflected weak target lookups');
     expect(inventory).toContain(
       'reflected grouped weak target\n  properties read through `Reflect.get(...)`',
     );
-    expect(source).toContain('Constant-backed\nselector, role, and test-id');
+    expect(source).toMatch(/Constant-backed\s+selector, role, and test-id/u);
     expect(source).toContain('page.locator(shellSelector)');
     expect(source).toContain('page.getByRole(buttonRole)');
     expect(source).toContain('page.getByTestId(actionTestId)');
-    expect(source).toContain('Constant-backed\nPlaywright method names');
+    expect(source).toMatch(/Constant-backed\s+Playwright method names/u);
     expect(source).toContain('page[locatorMethod](shellSelector)');
     expect(source).toContain('page[roleMethod](buttonRole)');
     expect(source).toContain('page[testIdMethod](actionTestId)');
@@ -1766,6 +1766,17 @@ describe('stabilization source', () => {
     expect(source).toContain('Object.assign(...)');
     expect(source).toContain('{ ...baseTargets }');
     expect(source).toContain('Object.assign({}, baseTargets)');
+    expect(generatedDocumentationSource).toContain(
+      'detects computed-property weak documentation screenshot target groups',
+    );
+    expect(generatedDocumentationSource).toContain('const shellKey =');
+    expect(generatedDocumentationSource).toContain('[shellKey]: page.locator');
+    expect(generatedDocumentationSource).toContain('groupedTargets[shellKey]');
+    expect(generatedDocumentationSource).toContain(
+      'computed-grouped-target.doc.ts',
+    );
+    expect(source).toContain('constant-backed computed keys');
+    expect(source).toContain('{ [shellKey]: page.locator');
     expect(source).toContain(
       'stabilizationEvidence=spread-grouped-target-source-guard',
     );
@@ -1893,6 +1904,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('unwraps `as const`');
     expect(inventory).toContain('`satisfies` grouped target');
     expect(inventory).toMatch(/objects before alias\s+collection/u);
+    expect(inventory).toContain(
+      'constant-backed computed object keys and bracket references',
+    );
     expect(inventory).toContain('shorthand properties');
     expect(inventory).toContain('alias-valued\n  properties');
     expect(inventory).toContain(
@@ -1970,7 +1984,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('forward-declared raw aliases');
     expect(inventory).toContain('binding-pattern default raw function aliases');
     expect(inventory).toMatch(/computed\s+object keys/u);
-    expect(inventory).toMatch(/bracket property references/u);
+    expect(inventory).toMatch(/bracket references/u);
     expect(inventory).toMatch(
       /destructured,\s+nested destructured,\s+grouped,\s+shorthand,\s+alias-valued,\s+or\s+direct\/alias-valued tuple\/array\s+attach-function aliases/u,
     );
@@ -5723,28 +5737,21 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toContain(
-      'optional-call Playwright modifier/page helper\ninvocations',
+      'generated-doc weak screenshot target detection now\nresolves constant-backed computed grouped target keys',
+    );
+    expect(source).toContain('before target-quality\nchecks run');
+    expect(source).toContain('{ [shellKey]: page.locator');
+    expect(source).toContain('groupedTargets[shellKey]');
+    expect(source).toContain('groupedTargets[broadKey]');
+    expect(source).toContain('groupedTargets[singleKey]');
+    expect(source).toContain('groupedTargets[iconKey]');
+    expect(source).toContain(
+      'generic page shells, broad sections, single controls, or icon-only\ntargets',
     );
     expect(source).toContain(
-      'normalized before the skip/focus/runtime/debug/fixed-wait\ninventory',
+      '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('test.skip?.(...)');
-    expect(source).toContain('test?.fixme(...)');
-    expect(source).toContain('test.describe?.[onlyKey]?.(...)');
-    expect(source).toContain('test.slow?.()');
-    expect(source).toContain('hiddenSlow?.()');
-    expect(source).toContain('page.pause?.(...)');
-    expect(source).toContain('page?.[pauseKey]?.()');
-    expect(source).toContain('page.waitForTimeout?.(...)');
-    expect(source).toContain('page[waitKey]?.(...)');
-    expect(source).toContain('waitByAlias?.(...)');
-    expect(source).toContain(
-      'using optional chaining on direct helpers, constant-backed\nproperties, or local aliases',
-    );
-    expect(source).toContain(
-      '`bunx vitest run helpers/testing/playwright-skip-inventory.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
-    );
-    expect(source).toContain('with 91 tests');
+    expect(source).toContain('with 200 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5761,16 +5768,15 @@ describe('stabilization source', () => {
       'generated database endpoint\naccepting TCP connections',
     );
     expect(source).toContain('`Connection terminated unexpectedly`');
-    expect(source).toMatch(
-      /Docker's\s+disposable start-path preflight timed out/u,
-    );
-    expect(source).toContain('project-scoped `db` container was unhealthy');
     expect(source).toContain(
-      'existing\napp route probe could not connect to `/legal/terms`',
+      "Docker's disposable start-path preflight\npassed",
+    );
+    expect(source).toContain(
+      'existing app route probe still could not connect to\n`/legal/terms`',
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=optional-call-skip-inventory-source-guard',
+      '/legal/terms?stabilizationEvidence=computed-grouped-target-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');
