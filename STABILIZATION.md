@@ -6515,6 +6515,17 @@ rendered application-error text, no loading placeholder after settle, and zero
 Browser warning/error logs. The matching focused
 `bun run test:e2e:public-general-viewports` sweep passed against the same
 running Docker app.
+After pushing the cross-document image-hash guard at head `e3bc251e`, the
+in-app Browser planner reopened the seeded public General `/legal/terms` page
+on the same local app and resized it to 320x740, showing the Terms heading,
+tenant-missing legal-text fallback, Back to events link, and fixed
+Events/Scanner/Login mobile navigation. The full local
+`bun run test:e2e:public-general-viewports` sweep then reran against
+`BASE_URL=http://localhost:4218` with `NO_WEBSERVER=true` and returned
+`2 passed (21.0s)`, rechecking all 10 anonymous General routes at 320x740,
+390x844, and 1440x900 for expected content, fixed anonymous navigation,
+stable layout metrics, and zero browser warning/error logs on the current
+pushed head.
 Generated-doc markdown attachments also reject raw Markdown image syntax and
 HTML `<img>` tags, including aliased markdown names, bracketed `attach` calls,
 binding-default and parameter-default markdown names,

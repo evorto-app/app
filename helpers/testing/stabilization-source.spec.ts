@@ -1426,6 +1426,19 @@ describe('stabilization source', () => {
     expect(source).toContain('pushed head `dfcd0cce`');
     expect(source).toContain('bun run test:e2e:reporter-paths');
     expect(source).toContain('27 passed (3.6s)');
+    expect(source).toContain('cross-document image-hash guard');
+    expect(source).toContain('head `e3bc251e`');
+    expect(source).toContain(
+      'in-app Browser planner reopened the seeded public General `/legal/terms` page',
+    );
+    expect(source).toContain('resized it to 320x740');
+    expect(source).toContain('Events/Scanner/Login mobile navigation');
+    expect(source).toContain(
+      '`bun run test:e2e:public-general-viewports` sweep then reran',
+    );
+    expect(source).toContain('`2 passed (21.0s)`');
+    expect(source).toContain('all 10 anonymous General routes');
+    expect(source).toContain('zero browser warning/error logs');
     expect(source).toContain('bun run test:e2e:doc-screenshot');
     expect(source).toContain('6 passed (7.1s)');
     expect(source).toContain('NO_WEBSERVER=true');
