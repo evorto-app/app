@@ -3874,11 +3874,50 @@ describe('stabilization source', () => {
       'Terms fallback page and fixed bottom navigation',
     );
     expect(normalizedCheckpoint).toContain(
+      'Browser refresh on pushed PR head `a6bafd20`',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'reseeded the generated Docker app with `bun run docker:start`',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'reachable database, reachable `/legal/terms`',
+    );
+    expect(normalizedCheckpoint).toContain('/events/cc139a736e819c574cf3');
+    expect(normalizedCheckpoint).toContain(
+      'full anonymous General route set at 320x740, 390x844, and 1440x900',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'actual seeded `Small Event Example 1` card title',
+    );
+    expect(normalizedCheckpoint).toContain('All 30 route/viewport checks');
+    expect(normalizedCheckpoint).toContain(
+      'no horizontal overflow, visible left/right overflow entries',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'persistent loading placeholders, rendered application-error text',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'fixed Events/Login navigation fit the mobile and desktop viewports',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-public-general-a6bafd20-events-320x740.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'seeded Material event cards with icons, times, and fixed bottom navigation',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-public-general-a6bafd20-privacy-390x844.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'Privacy policy fallback page and fixed Events/Login bottom navigation',
+    );
+    expect(normalizedCheckpoint).toContain(
       'Browser viewport override was reset',
     );
     expect(normalizedCheckpoint).toContain(
       'bun run test:e2e:public-general-viewports',
     );
+    expect(normalizedCheckpoint).toContain('2 passed (18.0s)');
     expect(checkpointText).not.toContain('system Chrome');
     expect(checkpointText).not.toContain('Browser review was blocked');
     expect(checkpointText).not.toMatch(/http:\/\/localhost:\d+/u);

@@ -4178,6 +4178,28 @@ fallback rather than a profile discount-card defect.
   seeded Material event cards with icons, times, and fixed Events/Login bottom
   navigation, and `/tmp/evorto-general-current-689d5a78-terms-390x844.png`,
   showing the Terms fallback page and fixed bottom navigation.
+  A current June 7, 2026 Browser refresh on pushed PR head `a6bafd20` rebuilt
+  and reseeded the generated Docker app with `bun run docker:start`, then
+  `bun run dev:status` passed with reachable database, reachable
+  `/legal/terms`, seven inspectable Compose project containers, and only
+  protected `main` plus one active Neon Local branch inside the two-hour TTL.
+  The in-app Browser derived `/events/cc139a736e819c574cf3` from the current
+  `/events` list, rechecked the full anonymous General route set at 320x740,
+  390x844, and 1440x900, and then reran the selected event detail at all three
+  viewports using the actual seeded `Small Event Example 1` card title. All 30
+  route/viewport checks rendered expected content or fallback copy, reported no
+  horizontal overflow, visible left/right overflow entries, top/side clipped
+  visible controls, persistent loading placeholders, rendered application-error
+  text, or Browser warning/error logs, and confirmed the fixed Events/Login
+  navigation fit the mobile and desktop viewports. Representative Browser
+  screenshots were visually inspected and saved as
+  `/tmp/evorto-public-general-a6bafd20-events-320x740.png`, showing seeded
+  Material event cards with icons, times, and fixed bottom navigation, and
+  `/tmp/evorto-public-general-a6bafd20-privacy-390x844.png`, showing the
+  Privacy policy fallback page and fixed Events/Login bottom navigation. The
+  Browser viewport override was reset, and the matching durable
+  `bun run test:e2e:public-general-viewports` run passed against the same
+  running Docker app with `2 passed (18.0s)`.
 - Current live Browser route refresh checkpoint: the Docker stack stayed healthy
   on the generated `BASE_URL`, the in-app Browser opened `/events`, found the
   seeded `Soccer Match 1` event link, and loaded that event detail page. The

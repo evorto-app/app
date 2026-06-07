@@ -1248,6 +1248,16 @@ provider outcomes without live identifiers.
   `/tmp/evorto-general-current-689d5a78-terms-390x844.png` show seeded Material
   event cards and the Terms fallback page with fixed Events/Login bottom
   navigation.
+  A pushed-head Browser refresh at `a6bafd20` then rebuilt and reseeded the
+  generated Docker app, checked all anonymous General routes at 320x740,
+  390x844, and 1440x900, and reran the selected public event detail at all
+  three viewport sizes. The inspected screenshots
+  `/tmp/evorto-public-general-a6bafd20-events-320x740.png` and
+  `/tmp/evorto-public-general-a6bafd20-privacy-390x844.png` show seeded
+  Material event cards and the Privacy policy fallback page with fixed
+  Events/Login bottom navigation. The matching focused
+  `bun run test:e2e:public-general-viewports` run passed against the same
+  running Docker app.
 - `tests/setup/mcp-browser-authenticated.seed.ts` is the authenticated MCP
   Browser planner seed for the dedicated `mcp-browser-authenticated-planner`
   project. It depends on the normal `setup` project, then opens
