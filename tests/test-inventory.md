@@ -640,7 +640,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   rejects weak Markdown body text so generated docs keep explanatory body text
   before generated markdown is written,
   including aliased markdown names, bracketed `attach` calls,
-  binding-default markdown names,
+  binding-default and parameter-default markdown names,
   grouped/indexed/destructured/assigned markdown names including `.at(...)`
   indexed lists, simple markdown-name forwarding through calls, template
   interpolation, conditionals, nullish/logical expressions, and static
@@ -649,10 +649,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   indexed lists, simple body forwarding through `Buffer.from(...)`,
   `String(...)`, template interpolation, conditionals, or nullish/logical
   expressions, aliased payload objects, grouped, indexed, destructured,
-  assigned, or binding-default body/payload aliases including `.at(...)` indexed
-  payload lists, shorthand `{ body }`, plus bound, destructured, grouped,
-  indexed, assigned, or binding-default `attach` helpers including `.at(...)`
-  indexed helper lists and spread, `call`, `apply`, or inline `bind` forwarding,
+  assigned, binding-default, or parameter-default body/payload aliases including
+  `.at(...)` indexed payload lists, shorthand `{ body }`, plus bound,
+  destructured, grouped, indexed, assigned, binding-default, or
+  parameter-default `attach` helpers including `.at(...)` indexed helper lists
+  and spread, `call`, `apply`, or inline `bind` forwarding,
   so image evidence cannot bypass the shared helper, and
   rejects raw `page.screenshot`,
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs
@@ -665,7 +666,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `testInfo[attachKey]`, `documentationReporter[helperKey]`, and
   `import(reporterPath)`, rejects direct screenshots through simple,
   destructured, or nested destructured screenshot-function aliases,
-  binding-default screenshot-function aliases,
+  binding-default and parameter-default screenshot-function aliases,
   grouped screenshot-function properties, shorthand or alias-valued grouped
   screenshot helpers, and
   direct or alias-valued tuple/array screenshot-function entries including
@@ -677,7 +678,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   grouped, indexed, destructured, and assigned raw image payload objects
   including `.at(...)` indexed payload lists, aliased grouped or indexed
   MIME/path values including `.at(...)` indexed MIME/path lists, binding-default
-  attachment names, MIME/path values, and raw image payload objects, simple
+  and parameter-default attachment names, MIME/path values, raw image payload
+  objects, and attach-function aliases, simple
   MIME/path forwarding through calls, template interpolation, conditionals,
   nullish/logical expressions, and concatenation, object shorthand image
   payloads, computed raw image payload keys, spread raw image payload objects,

@@ -515,6 +515,38 @@ const collectBindingInitializerAliases = (
   }
 };
 
+const collectParameterInitializerAliases = (
+  node: ts.ParameterDeclaration,
+  isTrackedReference: (node: ts.Expression) => boolean,
+  aliases: Set<string>,
+): void => {
+  if (node.initializer && isTrackedReference(node.initializer)) {
+    addBindingIdentifiers(node.name, aliases);
+  }
+
+  collectBindingInitializerAliases(node.name, isTrackedReference, aliases);
+};
+
+const collectParameterObjectRestAliases = (
+  node: ts.ParameterDeclaration,
+  isTrackedReference: (node: ts.Expression) => boolean,
+  aliases: Set<string>,
+): void => {
+  if (
+    !node.initializer ||
+    !ts.isObjectBindingPattern(node.name) ||
+    !isTrackedReference(node.initializer)
+  ) {
+    return;
+  }
+
+  for (const element of node.name.elements) {
+    if (element.dotDotDotToken) {
+      addBindingIdentifiers(element.name, aliases);
+    }
+  }
+};
+
 const collectObjectRestBindingAliases = (
   node: ts.VariableDeclaration,
   isTrackedReference: (node: ts.Expression) => boolean,
@@ -1516,6 +1548,40 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         markdownAttachFunctionPropertyAliases,
       );
       collectObjectRestPropertyAliases(node, rawMarkdownPayloadPropertyAliases);
+    }
+
+    if (ts.isParameter(node)) {
+      collectParameterInitializerAliases(
+        node,
+        isMarkdownAttachmentName,
+        markdownAttachmentNameAliases,
+      );
+      collectParameterInitializerAliases(
+        node,
+        hasRawMarkdownImage,
+        rawMarkdownBodyAliases,
+      );
+      collectParameterInitializerAliases(
+        node,
+        hasRawMarkdownPayload,
+        rawMarkdownPayloadAliases,
+      );
+      collectParameterObjectRestAliases(
+        node,
+        hasRawMarkdownPayload,
+        rawMarkdownPayloadAliases,
+      );
+      collectParameterInitializerAliases(
+        node,
+        isTrackedAttachFunctionReference,
+        markdownAttachFunctionAliases,
+      );
+      collectPropertyBindingAliases(
+        node.name,
+        'attach',
+        markdownAttachFunctionAliases,
+        staticStringAliases,
+      );
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -3565,6 +3631,35 @@ const findDirectImageAttachmentCalls = (
       collectObjectRestPropertyAliases(node, attachFunctionPropertyAliases);
     }
 
+    if (ts.isParameter(node)) {
+      collectParameterInitializerAliases(
+        node,
+        isImageAttachmentName,
+        imageAttachmentNameAliases,
+      );
+      collectParameterInitializerAliases(
+        node,
+        isImageAttachmentPayloadValue,
+        imageAttachmentPayloadValueAliases,
+      );
+      collectParameterInitializerAliases(
+        node,
+        isImageAttachmentPayload,
+        imageAttachmentPayloadAliases,
+      );
+      collectParameterInitializerAliases(
+        node,
+        isTrackedAttachFunctionReference,
+        attachFunctionAliases,
+      );
+      collectPropertyBindingAliases(
+        node.name,
+        'attach',
+        attachFunctionAliases,
+        staticStringAliases,
+      );
+    }
+
     if (ts.isVariableDeclaration(node)) {
       collectDestructuredPropertyAliases(
         node,
@@ -3604,6 +3699,22 @@ const findDirectImageAttachmentCalls = (
 
     if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
       collectObjectRestBindingAliases(
+        node,
+        isImageAttachmentPayload,
+        imageAttachmentPayloadAliases,
+      );
+    }
+
+    if (ts.isParameter(node)) {
+      if (
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        isImageAttachmentPayload(node.initializer)
+      ) {
+        imageAttachmentPayloadAliases.add(node.name.text);
+      }
+
+      collectParameterObjectRestAliases(
         node,
         isImageAttachmentPayload,
         imageAttachmentPayloadAliases,
@@ -4056,6 +4167,20 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
       collectBindingInitializerAliases(
         node.name,
+        isTrackedScreenshotFunctionReference,
+        screenshotFunctionAliases,
+      );
+      collectPropertyBindingAliases(
+        node.name,
+        'screenshot',
+        screenshotFunctionAliases,
+        staticStringAliases,
+      );
+    }
+
+    if (ts.isParameter(node)) {
+      collectParameterInitializerAliases(
+        node,
         isTrackedScreenshotFunctionReference,
         screenshotFunctionAliases,
       );
@@ -4694,6 +4819,45 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects direct image attachments hidden behind parameter default aliases', () => {
+    const parameterDefaultImageAttachmentSource = `
+      async function attachParameter(capture = testInfo.attach.bind(testInfo)) {
+        await capture('image', { body: imageBuffer });
+      }
+      async function groupedAttachParameter({ capture = testInfo.attach.bind(testInfo) } = {}) {
+        await capture('image', { body: imageBuffer });
+      }
+      async function imageNameParameter(attachmentName = 'image') {
+        await testInfo.attach(attachmentName, { body: imageBuffer });
+      }
+      async function imageMimeParameter(imageMime = 'image/png') {
+        await testInfo.attach('raw mime parameter evidence', { contentType: imageMime });
+      }
+      async function rawPayloadParameter(rawImagePayload = { body: imageBuffer, contentType: 'image/webp' }) {
+        await testInfo.attach('raw payload parameter evidence', rawImagePayload);
+      }
+      async function restPayloadParameter(
+        { ...rawImagePayload } = { body: imageBuffer, contentType: 'image/png' },
+      ) {
+        await testInfo.attach('raw rest payload parameter evidence', rawImagePayload);
+      }
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/parameter-default-image-attachment.doc.ts',
+        parameterDefaultImageAttachmentSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-default-image-attachment.doc.ts:3:15',
+      'tests/docs/example/parameter-default-image-attachment.doc.ts:6:15',
+      'tests/docs/example/parameter-default-image-attachment.doc.ts:9:15',
+      'tests/docs/example/parameter-default-image-attachment.doc.ts:12:15',
+      'tests/docs/example/parameter-default-image-attachment.doc.ts:15:15',
+      'tests/docs/example/parameter-default-image-attachment.doc.ts:20:15',
+    ]);
+  });
+
   it('detects at-indexed direct image attachment aliases', () => {
     const atIndexedImageAttachmentSource = `
       const imageAttachmentName = 'image';
@@ -4858,6 +5022,31 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/binding-default-screenshot.doc.ts:3:13',
       'tests/docs/example/binding-default-screenshot.doc.ts:5:13',
+    ]);
+  });
+
+  it('detects direct screenshots hidden behind parameter default aliases', () => {
+    const parameterDefaultScreenshotSource = `
+      async function pageParameter(capture = page.screenshot.bind(page)) {
+        await capture({ path: 'parameter-page.png' });
+      }
+      async function elementParameter(capture = page.locator('main').screenshot.bind(page.locator('main'))) {
+        await capture({ path: 'parameter-element.png' });
+      }
+      async function groupedScreenshotParameter({ screenshot = page.screenshot.bind(page) } = {}) {
+        await screenshot({ path: 'parameter-grouped-page.png' });
+      }
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/parameter-default-screenshot.doc.ts',
+        parameterDefaultScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-default-screenshot.doc.ts:3:15',
+      'tests/docs/example/parameter-default-screenshot.doc.ts:6:15',
+      'tests/docs/example/parameter-default-screenshot.doc.ts:9:15',
     ]);
   });
 
@@ -5490,6 +5679,32 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects raw markdown images hidden behind parameter default attach aliases', () => {
+    const parameterDefaultMarkdownImageSource = `
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      async function markdownAttachParameter(capture = testInfo.attach.bind(testInfo)) {
+        await capture('markdown', rawMarkdownPayload);
+      }
+      async function groupedMarkdownAttachParameter({ capture = testInfo.attach.bind(testInfo) } = {}) {
+        await capture('markdown', rawMarkdownPayload);
+      }
+      async function markdownNameParameter(markdownAttachmentName = 'markdown') {
+        await testInfo.attach(markdownAttachmentName, rawMarkdownPayload);
+      }
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/parameter-default-markdown-image.doc.ts',
+        parameterDefaultMarkdownImageSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-default-markdown-image.doc.ts:4:15',
+      'tests/docs/example/parameter-default-markdown-image.doc.ts:7:15',
+      'tests/docs/example/parameter-default-markdown-image.doc.ts:10:15',
+    ]);
+  });
+
   it('detects raw markdown images hidden behind binding default body and payload aliases', () => {
     const bindingDefaultMarkdownBodySource = `
       const { rawMarkdownBody = '![raw](raw.png)' } = {};
@@ -5506,6 +5721,33 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/binding-default-markdown-body.doc.ts:3:13',
       'tests/docs/example/binding-default-markdown-body.doc.ts:5:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind parameter default body and payload aliases', () => {
+    const parameterDefaultMarkdownBodySource = `
+      async function markdownBodyParameter(rawMarkdownBody = '![raw](raw.png)') {
+        await testInfo.attach('markdown', { body: rawMarkdownBody });
+      }
+      async function markdownPayloadParameter(rawMarkdownPayload = { body: '<img src="../raw.png" alt="Raw">' }) {
+        await testInfo.attach('markdown', rawMarkdownPayload);
+      }
+      async function restPayloadParameter(
+        { ...rawMarkdownPayload } = { body: '![raw](rest-raw.png)' },
+      ) {
+        await testInfo.attach('markdown', rawMarkdownPayload);
+      }
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/parameter-default-markdown-body.doc.ts',
+        parameterDefaultMarkdownBodySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-default-markdown-body.doc.ts:3:15',
+      'tests/docs/example/parameter-default-markdown-body.doc.ts:6:15',
+      'tests/docs/example/parameter-default-markdown-body.doc.ts:11:15',
     ]);
   });
 

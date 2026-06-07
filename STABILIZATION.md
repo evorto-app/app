@@ -6271,11 +6271,11 @@ the shared docs screenshot helper.
 Generated-doc sources must also avoid direct `page.screenshot`,
 `locator.screenshot`, and raw `testInfo.attach('image', ...)` calls; screenshot
 function aliases, destructured and nested destructured screenshot aliases,
-binding-default screenshot aliases, image attachment aliases, direct
-attach-function aliases, and destructured, nested destructured, or
-binding-default attach aliases are rejected as well. Image evidence has to flow
-through the shared helper so captions, highlights, content pixel checks, and
-generated figure output stay enforced.
+binding-default and parameter-default screenshot aliases, image attachment
+aliases, direct attach-function aliases, and destructured, nested destructured,
+binding-default, or parameter-default attach aliases are rejected as well. Image
+evidence has to flow through the shared helper so captions, highlights, content
+pixel checks, and generated figure output stay enforced.
 Grouped screenshot and attach-function aliases are rejected too, including
 object-literal helpers, static bracket-property helpers, tuple/array helper
 entries including alias-valued entries, shorthand or alias-valued grouped helper
@@ -6410,18 +6410,20 @@ Browser warning/error logs. The matching focused
 running Docker app.
 Generated-doc markdown attachments also reject raw Markdown image syntax and
 HTML `<img>` tags, including aliased markdown names, bracketed `attach` calls,
-binding-default markdown names, grouped/indexed/destructured/assigned markdown
-names including `.at(...)` indexed lists, simple markdown-name forwarding through
-calls, template interpolation, conditionals, nullish/logical expressions, and
-static concatenation, aliased body variables,
+binding-default and parameter-default markdown names,
+grouped/indexed/destructured/assigned markdown names including `.at(...)`
+indexed lists, simple markdown-name forwarding through calls, template
+interpolation, conditionals, nullish/logical expressions, and static
+concatenation, aliased body variables,
 grouped/indexed/destructured/assigned body variables including `.at(...)`
 indexed lists, body variables wrapped directly or through simple body forwarding
 such as `Buffer.from(...)`, `String(...)`, template interpolation,
 conditionals, or nullish/logical expressions, aliased payload objects,
-grouped/indexed/destructured, assigned, or binding-default body/payload aliases,
-including `.at(...)` indexed payload lists, shorthand `{ body }`, bound,
-destructured, grouped, indexed, assigned, or binding-default `attach` helpers,
-including `.at(...)` indexed helper lists, and spread, `call`, `apply`,
+grouped/indexed/destructured, assigned, binding-default, or parameter-default
+body/payload aliases, including `.at(...)` indexed payload lists, shorthand
+`{ body }`, bound, destructured, grouped, indexed, assigned, binding-default, or
+parameter-default `attach` helpers, including `.at(...)` indexed helper lists,
+and spread, `call`, `apply`,
 `Reflect.apply`, or inline `bind` forwarding, so product docs cannot add
 unrelated or unhighlighted images outside the shared screenshot helper, caption,
 highlight, and content-pixel checks.

@@ -1492,20 +1492,22 @@ describe('stabilization source', () => {
     expect(source).toContain('concatenation');
     expect(source).toContain('raw Markdown image syntax');
     expect(source).toContain('HTML `<img>` tags');
-    expect(source).toContain('binding-default markdown names');
+    expect(source).toContain(
+      'binding-default and parameter-default markdown names',
+    );
     expect(source).toMatch(
       /grouped\/indexed\/destructured\/assigned markdown\s+names/u,
     );
-    expect(source).toContain('`.at(...)` indexed lists');
+    expect(source).toMatch(/`\.at\(\.\.\.\)`\s+indexed lists/u);
     expect(source).toContain('simple markdown-name forwarding');
-    expect(source).toContain('static concatenation');
+    expect(source).toMatch(/static\s+concatenation/u);
     expect(source).toContain(
       'grouped/indexed/destructured/assigned body variables',
     );
     expect(source).toContain('`.at(...)` indexed payload lists');
     expect(source).toContain('`.at(...)` indexed helper lists');
     expect(source).toMatch(
-      /grouped\/indexed\/destructured,\s+assigned,\s+or binding-default body\/payload aliases/u,
+      /grouped\/indexed\/destructured,\s+assigned,\s+binding-default,\s+or parameter-default\s+body\/payload aliases/u,
     );
     expect(source).toContain('simple body forwarding');
     expect(source).toContain('`Buffer.from(...)`');
@@ -1513,7 +1515,7 @@ describe('stabilization source', () => {
     expect(source).toContain('nullish/logical expressions');
     expect(source).toMatch(/shorthand\s+`\{ body \}`,\s+bound/u);
     expect(source).toMatch(/destructured,\s+grouped,\s+indexed/u);
-    expect(source).toContain('binding-default `attach`');
+    expect(source).toContain('parameter-default `attach`');
     expect(source).toMatch(
       /and spread,\s+`call`,\s+`apply`,\s+`Reflect\.apply`,\s+or inline `bind`/u,
     );
@@ -1701,7 +1703,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /nested destructured\s+screenshot-function aliases/u,
     );
-    expect(inventory).toContain('binding-default screenshot-function aliases');
+    expect(inventory).toContain(
+      'binding-default and parameter-default screenshot-function aliases',
+    );
     expect(inventory).toMatch(/grouped screenshot-function\s+properties/u);
     expect(inventory).toMatch(
       /shorthand or alias-valued grouped\s+screenshot helpers/u,
@@ -1721,8 +1725,12 @@ describe('stabilization source', () => {
     expect(inventory).toContain('indexed payload lists');
     expect(inventory).toMatch(/grouped or indexed\s+MIME\/path\s+values/u);
     expect(inventory).toContain('indexed MIME/path lists');
-    expect(inventory).toMatch(/binding-default\s+attachment names/u);
-    expect(inventory).toMatch(/MIME\/path values,\s+and raw image payload/u);
+    expect(inventory).toMatch(
+      /binding-default\s+and parameter-default\s+attachment names/u,
+    );
+    expect(inventory).toMatch(
+      /MIME\/path values,\s+raw image payload\s+objects,\s+and attach-function aliases/u,
+    );
     expect(inventory).toMatch(/simple\s+MIME\/path forwarding/u);
     expect(inventory).toContain('template interpolation');
     expect(inventory).toContain('nullish/logical expressions');
@@ -1884,6 +1892,12 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('String(attachmentName)');
     expect(generatedDocumentationSource).toContain(
       'detects direct image attachments hidden behind binding default aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects direct image attachments hidden behind parameter default aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'async function rawPayloadParameter(rawImagePayload = { body: imageBuffer',
     );
     expect(generatedDocumentationSource).toContain(
       'detects at-indexed raw screenshot aliases',
@@ -2379,10 +2393,16 @@ describe('stabilization source', () => {
       'detects direct screenshots hidden behind binding default aliases',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects direct screenshots hidden behind parameter default aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
       'const { capture = page.screenshot.bind(page) } = {}',
     );
     expect(generatedDocumentationSource).toContain(
       "const [captureElement = page.locator('main').screenshot.bind(page.locator('main'))] = []",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'async function groupedScreenshotParameter({ screenshot = page.screenshot.bind(page) } = {})',
     );
     expect(generatedDocumentationSource).toContain(
       "await page.screenshot.bind(page)({ path: 'page-bind.png' })",
@@ -2488,6 +2508,9 @@ describe('stabilization source', () => {
       'detects raw markdown images hidden behind binding default attach aliases',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind parameter default attach aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
       'const { capture = testInfo.attach.bind(testInfo) } = {}',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2498,6 +2521,9 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'await capture(markdownAttachmentName, rawMarkdownPayload)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "async function markdownNameParameter(markdownAttachmentName = 'markdown')",
     );
     expect(generatedDocumentationSource).toContain(
       'detects raw markdown images hidden behind grouped markdown names',
@@ -2551,10 +2577,16 @@ describe('stabilization source', () => {
       'detects raw markdown images hidden behind binding default body and payload aliases',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind parameter default body and payload aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
       "const { rawMarkdownBody = '![raw](raw.png)' } = {}",
     );
     expect(generatedDocumentationSource).toContain(
       'const [rawMarkdownPayload = { body: \'<img src="../raw.png" alt="Raw">\' }] = []',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "async function markdownBodyParameter(rawMarkdownBody = '![raw](raw.png)')",
     );
     expect(generatedDocumentationSource).toContain('const rawMarkdownArgs = [');
     expect(generatedDocumentationSource).toContain(
@@ -2613,7 +2645,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('raw Markdown image syntax');
     expect(inventory).toContain('HTML `<img>` tags');
     expect(inventory).toContain('aliased markdown names');
-    expect(inventory).toContain('binding-default markdown names');
+    expect(inventory).toContain(
+      'binding-default and parameter-default markdown names',
+    );
     expect(inventory).toContain(
       'grouped/indexed/destructured/assigned markdown names',
     );
@@ -2632,9 +2666,11 @@ describe('stabilization source', () => {
     expect(inventory).toContain('conditionals');
     expect(inventory).toContain('nullish/logical expressions');
     expect(inventory).toMatch(/aliased\s+payload\s+objects/u);
-    expect(inventory).toMatch(/binding-default\s+body\/payload aliases/u);
     expect(inventory).toMatch(
-      /bound,\s+destructured,\s+grouped,\s+indexed,\s+assigned,\s+or\s+binding-default/u,
+      /binding-default,\s+or parameter-default body\/payload aliases/u,
+    );
+    expect(inventory).toMatch(
+      /bound,\s+destructured,\s+grouped,\s+indexed,\s+assigned,\s+binding-default,\s+or\s+parameter-default/u,
     );
     expect(inventory).toMatch(
       /spread,\s+`call`,\s+`apply`,\s+or inline `bind`\s+forwarding/u,
