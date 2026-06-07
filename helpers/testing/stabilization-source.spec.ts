@@ -5457,20 +5457,29 @@ describe('stabilization source', () => {
       'without changing the fully green E2E baseline',
     );
     expect(source).toContain(
-      'Latest pushed-head checkpoint: PR head `d4ea11a9`',
+      'Latest pushed-head checkpoint: PR head `19268950`',
     );
     expect(source).toContain(
-      'object-rest copied grouped screenshot-helper aliases',
+      'template\npaid-registration empty compatible-tax-rate coverage gap',
     );
     expect(source).toContain(
-      'records Browser evidence from `/legal/terms` plus `/events` at 390x844',
+      'Material overlay screenshot\nof the visible "No active inclusive tax rates available" selector feedback',
+    );
+    expect(source).toContain(
+      '`bun run test:e2e:docs -- --list tests/docs/finance/inclusive-tax-rates.doc.ts`',
     );
     expect(source).toContain('the focused generated-doc');
     expect(source).toContain(
       'source and stabilization source suites with 194 tests',
     );
-    expect(source).toContain('not yet');
-    expect(source).toContain('claimed as fully green E2E evidence');
+    expect(source).toContain(
+      'unregistered generated Auth0 callback port `localhost:4218`',
+    );
+    expect(source).toContain(
+      'registered `localhost:4200` port is occupied by a different Compose project',
+    );
+    expect(source).toContain('latest fully green E2E');
+    expect(source).toContain('older completed pushed head');
     expect(statusTable).toContain(
       'Playwright config now uses the repo runtime config provider',
     );
