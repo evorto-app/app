@@ -2100,6 +2100,9 @@ describe('stabilization source', () => {
       'requires parameter-destructured documentation markdown attachments to include explanatory body text',
     );
     expect(generatedDocumentationSource).toContain(
+      'requires optional-call documentation markdown attachments to include explanatory body text',
+    );
+    expect(generatedDocumentationSource).toContain(
       'keeps screenshots close to parameter-computed explanatory markdown attachments',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2122,6 +2125,9 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'parameter-destructured-markdown-body.doc.ts',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'optional-call-markdown-body.doc.ts',
     );
     expect(generatedDocumentationSource).toContain(
       'parameter-computed-dense-screenshot-run.doc.ts',
@@ -5852,21 +5858,21 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toMatch(
-      /generated-doc screenshot-density source coverage now\s+explicitly pins optional-call Markdown attachment syntax/u,
+      /generated-doc weak Markdown body source coverage\s+now explicitly pins optional-call Markdown attachment syntax/u,
     );
     expect(source).toContain('`testInfo.attach?.(markdownName, ...)`');
     expect(source).toContain('`attachMarkdown?.(markdownName, ...)`');
-    expect(source).toContain('two-screenshots-per-explanatory-section limit');
+    expect(source).toContain('120-character explanatory body minimum');
     expect(source).toMatch(
-      /rejects the third screenshots at lines\s+21 and 44/u,
+      /rejects the optional-call short\s+bodies at lines\s+4 and 5/u,
     );
     expect(source).toMatch(
-      /Generated docs cannot hide screenshot clusters without nearby\s+explanatory prose by switching explanatory Markdown calls to optional-call\s+syntax/u,
+      /Generated docs cannot hide thin\s+explanatory prose by switching Markdown\s+attachments to optional-call syntax/u,
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 207 tests');
+    expect(source).toContain('with 208 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5891,7 +5897,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=optional-call-density-source-guard',
+      '/legal/terms?stabilizationEvidence=optional-call-markdown-body-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');

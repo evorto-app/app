@@ -8907,6 +8907,26 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('requires optional-call documentation markdown attachments to include explanatory body text', () => {
+    const optionalCallMarkdownBodySource = `
+      const markdownName = 'markdown';
+      const attachMarkdown = testInfo.attach.bind(testInfo);
+      await testInfo.attach?.(markdownName, { body: 'Too short.' });
+      await attachMarkdown?.(markdownName, { body: 'Also short.' });
+      await recordDocumentationNote?.(markdownName, { body: 'Short, but not a generated-doc markdown attachment.' });
+    `;
+
+    expect(
+      findWeakMarkdownBodyAttachments(
+        'tests/docs/example/optional-call-markdown-body.doc.ts',
+        optionalCallMarkdownBodySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/optional-call-markdown-body.doc.ts:4:13',
+      'tests/docs/example/optional-call-markdown-body.doc.ts:5:13',
+    ]);
+  });
+
   it('counts aliased generated documentation markdown attachments for the manifest guard', () => {
     const aliasedMarkdownCountSource = `
       const markdownName = 'mark' + 'down';

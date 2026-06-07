@@ -728,7 +728,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   with constant-backed computed keys for the weak-body, markdown-count, and
   screenshot-density guards, assigned local aliases, returned attach-helper
   factories, copied returned attach-helper groups including object-rest copies,
-  `call(...)`, `apply(...)`, inline `bind(...)(...)`, and
+  `call(...)`, `apply(...)`, inline `bind(...)(...)`, optional-call syntax, and
   `Reflect.apply(...)`, and rejects per-section source bodies shorter than 120
   static characters so one long section cannot mask a thin generated-doc
   section in the same file. It also rejects screenshots
