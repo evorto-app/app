@@ -6,7 +6,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   template: `
     <div class="mx-auto max-w-screen-md p-8 text-center">
       <h1 class="headline-large mb-2">Something went wrong</h1>
-      <p class="body-large text-outline">Please try again later.</p>
+      <p class="body-large text-on-surface-variant">Please try again later.</p>
     </div>
   `,
 })

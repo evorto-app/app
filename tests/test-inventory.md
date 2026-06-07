@@ -258,9 +258,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     intentional horizontal scroll containers, and no browser console
     warning/error logs while each route is opened. It also asserts the anonymous
     Events/Login navigation remains visible and fixed as bottom navigation on
-    mobile and side navigation on desktop, and it checks the hosted legal page
-    under dark-preference mobile rendering so legal text stays readable on a
-    painted Material surface instead of inheriting an unpainted browser canvas.
+    mobile and side navigation on desktop, and it checks the hosted legal,
+    not-allowed, server-error, and not-found pages under light and dark mobile
+    rendering so headings and supporting copy stay readable on painted Material
+    surfaces instead of inheriting low-contrast fallback styling.
     The source guard pins the exact
     public General route list and route content assertions against
     `src/app/app.routes.ts`; `src/app/app.routes.spec.ts` also enumerates the

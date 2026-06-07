@@ -115,7 +115,7 @@ const expectReadableTextOnPaintedSurface = async (
   ).toBeDefined();
   expect(
     contrastReport.contrast,
-    `${selector} should stay readable in the mobile legal page`,
+    `${selector} should stay readable in the mobile General page`,
   ).toBeGreaterThanOrEqual(4.5);
 };
 
@@ -260,20 +260,64 @@ test('public General pages have stable layouts across viewports', async ({
   }
 });
 
-test('public legal page remains readable in dark-preference mobile Browser rendering', async ({
+test('public simple General pages remain readable in mobile Browser rendering', async ({
   page,
 }) => {
-  await page.emulateMedia({ colorScheme: 'dark' });
   await page.setViewportSize({ height: 844, width: 390 });
-  await page.goto('/legal/terms');
 
-  await expect(page.getByRole('heading', { name: 'Terms' })).toBeVisible();
-  await expect(
-    page.getByText(
-      'No tenant-provided legal text is configured for this page.',
-    ),
-  ).toBeVisible();
-  await expectReadableTextOnPaintedSurface(page, 'app-legal-page h1');
-  await expectReadableTextOnPaintedSurface(page, 'app-legal-page p');
-  await expect(readPageLayout(page)).resolves.toEqual(expectedStablePageLayout);
+  const simpleGeneralRoutes = [
+    {
+      extraText: 'No tenant-provided legal text is configured for this page.',
+      heading: 'Terms',
+      paragraphSelector: 'app-legal-page p',
+      path: '/legal/terms',
+      titleSelector: 'app-legal-page h1',
+    },
+    {
+      extraText: 'Your account does not have permission to open this page.',
+      heading: 'Access not allowed',
+      paragraphSelector: 'app-not-allowed p',
+      path: '/403',
+      titleSelector: 'app-not-allowed h1',
+    },
+    {
+      extraText: 'Please try again later.',
+      heading: 'Something went wrong',
+      paragraphSelector: 'app-error p',
+      path: '/500',
+      titleSelector: 'app-error h1',
+    },
+    {
+      extraText: 'The page you are looking for doesn’t exist.',
+      heading: 'Page not found',
+      paragraphSelector: 'app-not-found p',
+      path: '/404',
+      titleSelector: 'app-not-found h1',
+    },
+  ] as const;
+
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await test.step(`${colorScheme} color scheme`, async () => {
+      await page.emulateMedia({ colorScheme });
+
+      for (const route of simpleGeneralRoutes) {
+        await test.step(route.path, async () => {
+          await page.goto(route.path);
+
+          await expect(
+            page.getByRole('heading', { name: route.heading }),
+          ).toBeVisible();
+          await expect(page.getByText(route.extraText)).toBeVisible();
+          await expectReadableTextOnPaintedSurface(page, route.titleSelector);
+          await expectReadableTextOnPaintedSurface(
+            page,
+            route.paragraphSelector,
+          );
+          await expect(readPageLayout(page)).resolves.toEqual(
+            expectedStablePageLayout,
+          );
+        });
+      }
+    });
+  }
 });
