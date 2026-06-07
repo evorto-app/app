@@ -3788,6 +3788,32 @@ describe('stabilization source', () => {
       'Privacy policy fallback text and bottom Events/Login navigation',
     );
     expect(normalizedCheckpoint).toContain(
+      'Browser refresh on pushed PR head `896d57e9`',
+    );
+    expect(normalizedCheckpoint).toContain('`bun run docker:resume`');
+    expect(normalizedCheckpoint).toContain(
+      'observed `/events` stuck on `Loading…`',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'seeded `bun run docker:start` path',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'reachable database, reachable `/legal/terms`',
+    );
+    expect(normalizedCheckpoint).toContain('/events/ad1acb749ca46c65c291');
+    expect(normalizedCheckpoint).toContain(
+      'same anonymous General route set at 320x740 and 390x844',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'no loading state, horizontal overflow, top/side clipped visible controls',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-general-events-list-320x740-896d57e9.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-general-privacy-legal-page-390x844-896d57e9.png',
+    );
+    expect(normalizedCheckpoint).toContain(
       'Browser viewport override was reset',
     );
     expect(normalizedCheckpoint).toContain(

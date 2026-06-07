@@ -4130,6 +4130,24 @@ fallback rather than a profile discount-card defect.
   seeded Material event cards with icons, dates, times, and bottom navigation,
   and `/tmp/evorto-public-general-aef3ccdc-mobile-legal-privacy.jpg`, showing
   the Privacy policy fallback text and bottom Events/Login navigation.
+  A fresh June 7, 2026 Browser refresh on pushed PR head `896d57e9` first used
+  `bun run docker:resume` to recover the generated stack, observed `/events`
+  stuck on `Loading…`, then used the normal seeded `bun run docker:start` path to
+  rebuild/reset the worktree Docker app. `bun run dev:status` passed afterward
+  with reachable database, reachable `/legal/terms`, seven inspectable Compose
+  project containers, and only protected `main` plus one active Neon Local branch
+  inside the two-hour TTL. The in-app Browser then derived the seeded public
+  event detail link `/events/ad1acb749ca46c65c291` from `/events` and rechecked
+  the same anonymous General route set at 320x740 and 390x844. All 20
+  route/viewport checks rendered expected route and fallback text, reported no
+  loading state, horizontal overflow, top/side clipped visible controls, rendered
+  application-error text, or Browser warning/error logs. Representative Browser
+  screenshots were visually inspected and saved as
+  `/tmp/evorto-general-events-list-320x740-896d57e9.png`, showing seeded
+  Material event cards with icons, dates, times, and fixed Events/Login bottom
+  navigation, and
+  `/tmp/evorto-general-privacy-legal-page-390x844-896d57e9.png`, showing the
+  Privacy policy fallback text and fixed bottom navigation.
 - Current live Browser route refresh checkpoint: the Docker stack stayed healthy
   on the generated `BASE_URL`, the in-app Browser opened `/events`, found the
   seeded `Soccer Match 1` event link, and loaded that event detail page. The
