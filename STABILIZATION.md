@@ -6006,9 +6006,27 @@ applicable. That keeps Browser and Docker diagnostics simpler when the current
 host Docker engine can inspect configuration but cannot start containers. The
 next stabilization work should continue with small cleanup
 commits around evidence drift, relaunch-scope watchpoints, and richer
-authenticated Browser evidence as those surfaces change. ESNcard provider
-add/refresh/remove outcomes now use deterministic ESNcard provider test mode.
-Event archival data-model support now exists as a tenant-scoped
+authenticated Browser evidence as those surfaces change.
+A June 7, 2026 current-head Browser refresh at `40d059fe` recovered the
+generated Docker stack on `BASE_URL=http://localhost:4218`, confirmed
+`bun run dev:status` passed after the reset, and used the in-app Browser to
+check `/`, `/events`, `/legal/imprint`, `/legal/privacy`, `/legal/terms`,
+`/403`, `/500`, `/404`, and a wildcard not-found route at 320x740 and 390x844.
+All 18 route/viewport checks found expected route content, no horizontal
+overflow, no rendered application-error text, no persistent loading state, no
+clipped fixed controls, and zero Browser warning/error logs. The inspected
+screenshots `/tmp/evorto-browser-40d059fe-events-320x740.png`,
+`/tmp/evorto-browser-40d059fe-legal-terms-390x844.png`, and
+`/tmp/evorto-browser-40d059fe-404-390x844.png` show seeded Material event cards
+with meaningful icons/times, the hosted Terms fallback copy, and the not-found
+fallback with fixed Events/Login bottom navigation. The matching durable
+`NO_WEBSERVER=true bun run test:e2e:public-general-viewports -- --no-deps` run
+passed with 2 tests against the same running app. This refresh is public
+General/mobile evidence only; authenticated Browser coverage remains gated by
+the registered Auth0 callback-port constraint described above.
+ESNcard provider add/refresh/remove outcomes now use deterministic ESNcard
+provider test mode. Event archival
+data-model support now exists as a tenant-scoped
 non-personal snapshot model; automatic archival remains out of scope without an
 explicit product decision. Automated custom-domain
 verification, multi-domain onboarding, and tenant impersonation are intentionally

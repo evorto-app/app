@@ -1381,6 +1381,21 @@ provider outcomes without live identifiers.
   Material event cards, the Terms legal fallback page, and the desktop event
   detail/registration state without the transient list-loading overlay from the
   first Browser attempt.
+  A June 7, 2026 current-head Browser refresh at `40d059fe` reset and reused
+  the generated Docker app at `BASE_URL=http://localhost:4218`, confirmed
+  `bun run dev:status` passed, and checked `/`, `/events`, `/legal/imprint`,
+  `/legal/privacy`, `/legal/terms`, `/403`, `/500`, `/404`, and a wildcard
+  not-found route at 320x740 and 390x844. All 18 checks found expected route
+  content, no horizontal overflow, no rendered application-error text, no
+  persistent loading state, no clipped fixed controls, and zero Browser
+  warning/error logs. The inspected screenshots
+  `/tmp/evorto-browser-40d059fe-events-320x740.png`,
+  `/tmp/evorto-browser-40d059fe-legal-terms-390x844.png`, and
+  `/tmp/evorto-browser-40d059fe-404-390x844.png` show actual seeded Material
+  event cards with icons/times, the hosted Terms fallback copy, and the
+  not-found fallback with fixed Events/Login bottom navigation. The matching
+  focused `NO_WEBSERVER=true bun run test:e2e:public-general-viewports --
+--no-deps` run passed against the same running app with 2 tests.
   An earlier PR-head Browser refresh at `449108fc` reused the generated Docker
   app on `http://localhost:4218`, derived the seeded public event detail link
   from `/events`, and rechecked the same 10 anonymous General routes at
