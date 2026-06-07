@@ -1069,6 +1069,11 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
       collectBindingInitializerAliases(
         node.name,
+        isMarkdownAttachmentName,
+        markdownAttachmentNameAliases,
+      );
+      collectBindingInitializerAliases(
+        node.name,
         hasRawMarkdownImage,
         rawMarkdownBodyAliases,
       );
@@ -4564,6 +4569,8 @@ describe('generated docs source current behavior', () => {
       await capture('markdown', rawMarkdownPayload);
       const [attachEvidence = testInfo['attach'].bind(testInfo)] = [];
       await attachEvidence('markdown', rawMarkdownPayload);
+      const { markdownAttachmentName = 'markdown' } = {};
+      await capture(markdownAttachmentName, rawMarkdownPayload);
     `;
 
     expect(
@@ -4574,6 +4581,7 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/binding-default-markdown-image.doc.ts:4:13',
       'tests/docs/example/binding-default-markdown-image.doc.ts:6:13',
+      'tests/docs/example/binding-default-markdown-image.doc.ts:8:13',
     ]);
   });
 

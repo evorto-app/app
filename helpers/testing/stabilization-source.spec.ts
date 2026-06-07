@@ -1469,6 +1469,7 @@ describe('stabilization source', () => {
     expect(source).toContain('concatenation');
     expect(source).toContain('raw Markdown image syntax');
     expect(source).toContain('HTML `<img>` tags');
+    expect(source).toContain('binding-default markdown names');
     expect(source).toMatch(
       /grouped\/indexed\/destructured,\s+assigned,\s+or binding-default body\/payload aliases/u,
     );
@@ -2361,6 +2362,12 @@ describe('stabilization source', () => {
       "const [attachEvidence = testInfo['attach'].bind(testInfo)] = []",
     );
     expect(generatedDocumentationSource).toContain(
+      "const { markdownAttachmentName = 'markdown' } = {}",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await capture(markdownAttachmentName, rawMarkdownPayload)',
+    );
+    expect(generatedDocumentationSource).toContain(
       'detects raw markdown images hidden behind binding default body and payload aliases',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2417,13 +2424,14 @@ describe('stabilization source', () => {
     expect(inventory).toContain('raw Markdown image syntax');
     expect(inventory).toContain('HTML `<img>` tags');
     expect(inventory).toContain('aliased markdown names');
+    expect(inventory).toContain('binding-default markdown names');
     expect(inventory).toContain('aliased body variables');
     expect(inventory).toContain('simple forwarding through');
     expect(inventory).toContain('`Buffer.from(...)`');
     expect(inventory).toContain('template interpolation');
     expect(inventory).toContain('conditionals');
     expect(inventory).toContain('nullish/logical expressions');
-    expect(inventory).toMatch(/aliased payload\s+objects/u);
+    expect(inventory).toMatch(/aliased\s+payload\s+objects/u);
     expect(inventory).toMatch(/binding-default\s+body\/payload aliases/u);
     expect(inventory).toMatch(
       /bound,\s+destructured,\s+grouped,\s+indexed,\s+assigned,\s+or\s+binding-default/u,
