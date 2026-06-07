@@ -289,6 +289,64 @@ test('documentation reporter rejects weak image captions at output time', async 
   );
 });
 
+test('documentation reporter rejects raw markdown image syntax', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-raw-markdown-image');
+  const imgsRoot = testInfo.outputPath('docs-img-raw-markdown-image');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from(
+          'This product guide must not embed ![unrelated evidence](../raw.png).',
+        ),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Raw markdown image' } as any, result),
+  ).toThrow(
+    'Documentation markdown attachment in Raw markdown image must not include raw Markdown image syntax or HTML <img> tags.',
+  );
+});
+
+test('documentation reporter rejects raw HTML image tags', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-raw-html-image');
+  const imgsRoot = testInfo.outputPath('docs-img-raw-html-image');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from(
+          'This product guide must not embed <img src="../raw.png" alt="Unrelated evidence">.',
+        ),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Raw HTML image' } as any, result),
+  ).toThrow(
+    'Documentation markdown attachment in Raw HTML image must not include raw Markdown image syntax or HTML <img> tags.',
+  );
+});
+
 test('documentation reporter rejects duplicate figure image sources', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out-duplicate-image-source');
   const imgsRoot = testInfo.outputPath('docs-img-duplicate-image-source');

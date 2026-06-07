@@ -6274,9 +6274,12 @@ grouped/indexed/destructured, assigned, or binding-default body/payload aliases,
 including `.at(...)` indexed payload lists, shorthand `{ body }`, bound,
 destructured, grouped, indexed, assigned, or binding-default `attach` helpers,
 including `.at(...)` indexed helper lists, and spread, `call`, `apply`,
-`Reflect.apply`, or inline `bind` forwarding, so product docs cannot add unrelated or
-unhighlighted images outside the shared screenshot helper, caption, highlight,
-and content-pixel checks.
+`Reflect.apply`, or inline `bind` forwarding, so product docs cannot add
+unrelated or unhighlighted images outside the shared screenshot helper, caption,
+highlight, and content-pixel checks.
+The reporter now enforces the same raw Markdown/HTML image boundary at runtime
+for the final markdown attachment body too, so a missed source pattern still
+fails before generated pages are written.
 Generated-doc source coverage now also maps the root product docs' important
 documentation areas to generated doc files and concrete source terms, so
 essential flows like browsing events, registering, account-required tenant

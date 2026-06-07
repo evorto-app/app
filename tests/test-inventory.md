@@ -616,8 +616,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   pages, requires reporter-written image attachments to be valid PNG
   screenshots with highlighted focus-target pixels and visible surrounding page
   content, rejects raw Markdown image syntax and HTML `<img>` tags in generated
-  docs markdown attachments, including aliased markdown names, bracketed
-  `attach` calls, binding-default markdown names,
+  docs markdown attachments at reporter runtime and in source coverage,
+  including aliased markdown names, bracketed `attach` calls,
+  binding-default markdown names,
   grouped/indexed/destructured/assigned markdown names including `.at(...)`
   indexed lists, simple markdown-name forwarding through calls, template
   interpolation, conditionals, nullish/logical expressions, and static

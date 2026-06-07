@@ -11,6 +11,7 @@ const minimumHighlightedPixelCount = 16;
 const minimumVisibleContentPixelCount = 128;
 const minimumCaptionLength = 24;
 const minimumCaptionWordCount = 4;
+const rawMarkdownImagePattern = /!\[[^\]]*\]\([^)]+\)|<img(?:\s|>)/iu;
 
 const readAttachmentBody = (
   attachment: ResultAttachment,
@@ -152,6 +153,17 @@ const assertDescriptiveDocumentationCaption = (
   }
 };
 
+const assertNoRawMarkdownImages = (
+  markdown: string,
+  testTitle: string,
+): void => {
+  if (rawMarkdownImagePattern.test(markdown)) {
+    throw new Error(
+      `Documentation markdown attachment in ${testTitle} must not include raw Markdown image syntax or HTML <img> tags. Use the shared screenshot helper so captions, highlights, and content checks stay enforced.`,
+    );
+  }
+};
+
 export const buildSectionContent = (
   test: TestCase,
   attachments: ResultAttachment[],
@@ -202,7 +214,9 @@ export const buildSectionContent = (
         const body = readAttachmentBody(attachment, test.title, 'markdown');
         if (!body) continue;
 
-        const parsedMarkdown = parseMarkdownAttachment(body.toString());
+        const markdown = body.toString();
+        assertNoRawMarkdownImages(markdown, test.title);
+        const parsedMarkdown = parseMarkdownAttachment(markdown);
         permissionsLines.push(...parsedMarkdown.frontMatterPermissions);
         appendPermissionsCallout(sectionContent, permissionsLines);
         sectionContent.push(parsedMarkdown.body.trim());
