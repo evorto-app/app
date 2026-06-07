@@ -647,6 +647,39 @@ test('documentation screenshot helper captures the highlighted target', async ({
   ).toBeGreaterThanOrEqual(128);
 });
 
+test('documentation screenshot helper waits for all visible loading text', async ({
+  page,
+}, testInfo) => {
+  await page.setContent(`
+    <main>
+      <h1 style="display: none">Loading hidden stale state...</h1>
+      <h2>Loading generated documentation...</h2>
+      <section id="target" style="margin: 48px; padding: 24px;">
+        Documented UI state after loading settles
+      </section>
+      <script>
+        setTimeout(() => {
+          document.querySelector('h2').remove();
+        }, 500);
+      </script>
+    </main>
+  `);
+
+  const startedAt = Date.now();
+  await takeScreenshot(
+    testInfo,
+    page.locator('#target'),
+    page,
+    'Settled documentation target after loading indicator clears',
+  );
+
+  expect(Date.now() - startedAt).toBeGreaterThanOrEqual(400);
+  await expect(
+    page.getByText('Loading generated documentation...'),
+  ).toHaveCount(0);
+  await expect(page.getByText('Loading hidden stale state...')).toHaveCount(1);
+});
+
 test('documentation screenshot helper highlights a visible child for zero-box hosts', async ({
   page,
 }, testInfo) => {

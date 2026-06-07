@@ -108,14 +108,68 @@ const assertVisibleContentCaptured = (image: Buffer): void => {
   }
 };
 
+const hasVisibleLoadingIndicator = async (page: Page): Promise<boolean> =>
+  page.locator('body').evaluate((body) => {
+    const isVisible = (element: Element): boolean => {
+      const bounds = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+
+      return (
+        bounds.width > 0 &&
+        bounds.height > 0 &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        style.opacity !== '0'
+      );
+    };
+
+    return [...body.querySelectorAll('*')].some((element) => {
+      const text = [...element.childNodes]
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent ?? '')
+        .join(' ')
+        .trim()
+        .replace(/\s+/gu, ' ');
+
+      return /^Loading\b.*$/u.test(text) && isVisible(element);
+    });
+  });
+
 const waitForLoadingIndicators = async (page: Page): Promise<void> => {
-  const loadingIndicator = page.getByText(/^Loading\b.*$/).first();
-  const isLoading = await loadingIndicator
-    .isVisible({ timeout: 250 })
-    .catch(ignoreTimeout(false));
+  const isLoading = await hasVisibleLoadingIndicator(page).catch(
+    ignoreTimeout(false),
+  );
 
   if (isLoading) {
-    await loadingIndicator.waitFor({ state: 'hidden', timeout: 15_000 });
+    await page.waitForFunction(
+      () => {
+        const isVisible = (element: Element): boolean => {
+          const bounds = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+
+          return (
+            bounds.width > 0 &&
+            bounds.height > 0 &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.opacity !== '0'
+          );
+        };
+
+        return ![...document.body.querySelectorAll('*')].some((element) => {
+          const text = [...element.childNodes]
+            .filter((node) => node.nodeType === Node.TEXT_NODE)
+            .map((node) => node.textContent ?? '')
+            .join(' ')
+            .trim()
+            .replace(/\s+/gu, ' ');
+
+          return /^Loading\b.*$/u.test(text) && isVisible(element);
+        });
+      },
+      undefined,
+      { timeout: 15_000 },
+    );
   }
 };
 

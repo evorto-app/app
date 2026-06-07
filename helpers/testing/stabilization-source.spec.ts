@@ -1451,6 +1451,7 @@ describe('stabilization source', () => {
     expect(documentationScreenshotSpec).toContain(
       'doc-screenshot waits for descriptive loading text before capture',
     );
+    expect(documentationScreenshotSpec).toContain('Loading hidden stale state');
     expect(documentationScreenshotSpec).toContain(
       'doc-screenshot waits for finite transitions before capture',
     );
@@ -2634,6 +2635,9 @@ describe('stabilization source', () => {
     );
     expect(reporterPathsSpec).toContain(
       'documentation screenshot helper captures the highlighted target',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation screenshot helper waits for all visible loading text',
     );
     expect(reporterPathsSpec).toContain(
       'documentation screenshot helper rejects captures without the highlighted target',

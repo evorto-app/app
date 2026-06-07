@@ -46,11 +46,12 @@ test('doc-screenshot waits for descriptive loading text before capture', async (
 
   await page.setContent(`
     <main>
-      <h1>Loading tax rates...</h1>
+      <h1 style="display: none">Loading hidden stale state...</h1>
+      <h2>Loading tax rates...</h2>
       <section id="target">Ready content</section>
       <script>
         setTimeout(() => {
-          document.querySelector('h1').remove();
+          document.querySelector('h2').remove();
         }, 500);
       </script>
     </main>
@@ -66,6 +67,7 @@ test('doc-screenshot waits for descriptive loading text before capture', async (
 
   expect(Date.now() - startedAt).toBeGreaterThanOrEqual(400);
   expect(await page.getByText('Loading tax rates...').count()).toBe(0);
+  expect(await page.getByText('Loading hidden stale state...').count()).toBe(1);
   expect(fs.existsSync(path.join(imgRoot, relPath))).toBe(true);
 });
 

@@ -3282,10 +3282,13 @@ implement those decisions or explicitly revise them there before changing code.
   exit status, so future startup failures preserve useful evidence in the
   failed step. The docs pass also covers the generated
   screenshot stabilization that waits for loading states, finite animations,
-  and target geometry before capture. The PR has no unresolved review threads
-  at this checkpoint. It remains draft while final stabilization cleanup and
-  Browser evidence continue; formal bot review is expected only after the PR is
-  marked ready.
+  and target geometry before capture. The documentation screenshot helpers now
+  wait until all visible `Loading...` text has cleared instead of checking only
+  the first matching text node, so hidden stale loading labels cannot mask a
+  still-visible loading placeholder before generated screenshots are captured.
+  The PR has no unresolved review threads at this checkpoint. It remains draft
+  while final stabilization cleanup and Browser evidence continue; formal bot
+  review is expected only after the PR is marked ready.
 - Post-main-sync checkpoint: the branch was rebased onto `origin/main` at
   `35ebb9a2` after the Neon branch-expiration cleanup landed. The E2E workflow
   now uses the regular Compose graph in CI with

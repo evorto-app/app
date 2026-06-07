@@ -231,9 +231,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     output paths, set `NO_WEBSERVER=true`, and pass `--no-deps`.
   - `specs/screenshot/doc-screenshot.test.ts`
     checks the static doc-screenshot helper contract for relative image paths,
-    loading-text waits, finite transition waits, stable target bounds, transient
-    snackbar waits, persistent snackbar tolerance, and image-root resolution
-    without app startup. `bun run test:e2e:doc-screenshot` is the focused local
+    loading-text waits including hidden stale loading labels before visible
+    loading placeholders, finite transition waits, stable target bounds,
+    transient snackbar waits, persistent snackbar tolerance, and image-root
+    resolution without app startup. `bun run test:e2e:doc-screenshot` is the focused local
     rerun; it uses `helpers/testing/run-playwright.ts` to refresh `.env.dev`,
     set ignored docs/image output paths, set `NO_WEBSERVER=true`, and pass
     `--no-deps`.

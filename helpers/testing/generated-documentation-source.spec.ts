@@ -6941,6 +6941,10 @@ describe('generated docs source current behavior', () => {
     expect(screenshotHelper).toContain('caption: string');
     expect(screenshotHelper).toContain('caption.trim().length < 24');
     expect(screenshotHelper).toContain('captionWords.length < 4');
+    expect(screenshotHelper).toContain('hasVisibleLoadingIndicator');
+    expect(screenshotHelper).toContain(
+      'return ![...document.body.querySelectorAll',
+    );
     expect(screenshotHelper).toContain(
       'Documentation screenshots require a descriptive caption',
     );
@@ -6979,6 +6983,11 @@ describe('generated docs source current behavior', () => {
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(
       'documentation screenshot helper rejects captures without visible page content',
+    );
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation screenshot helper waits for all visible loading text',
     );
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
