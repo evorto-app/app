@@ -1657,6 +1657,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /nested destructured\s+screenshot-function aliases/u,
     );
+    expect(inventory).toContain('binding-default screenshot-function aliases');
     expect(inventory).toMatch(/grouped screenshot-function\s+properties/u);
     expect(inventory).toMatch(
       /shorthand or alias-valued grouped\s+screenshot helpers/u,
@@ -1683,6 +1684,7 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain('`Reflect.apply(...)` raw screenshot');
     expect(inventory).toContain('forward-declared raw aliases');
+    expect(inventory).toContain('binding-pattern default raw function aliases');
     expect(inventory).toMatch(/computed\s+object keys/u);
     expect(inventory).toMatch(/bracket property references/u);
     expect(inventory).toMatch(
@@ -1774,6 +1776,9 @@ describe('stabilization source', () => {
       'addScreenshotBindingAliases',
     );
     expect(generatedDocumentationSource).toContain(
+      'collectBindingInitializerAliases',
+    );
+    expect(generatedDocumentationSource).toContain(
       'findDirectImageAttachmentCalls',
     );
     expect(generatedDocumentationSource).toContain(
@@ -1787,6 +1792,15 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('image/png');
     expect(generatedDocumentationSource).toContain('raw-evidence.webp');
     expect(generatedDocumentationSource).toContain('String(attachmentName)');
+    expect(generatedDocumentationSource).toContain(
+      'detects direct image attachments hidden behind binding default aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'const { capture = testInfo.attach.bind(testInfo) } = {}',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const [attachEvidence = testInfo['attach'].bind(testInfo)] = []",
+    );
     expect(generatedDocumentationSource).toContain(
       'const interpolatedAttachmentName = \\`\\${attachmentName}\\`',
     );
@@ -2216,6 +2230,15 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'detects inline bound raw screenshot calls before generated docs can use them',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects direct screenshots hidden behind binding default aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'const { capture = page.screenshot.bind(page) } = {}',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const [captureElement = page.locator('main').screenshot.bind(page.locator('main'))] = []",
     );
     expect(generatedDocumentationSource).toContain(
       "await page.screenshot.bind(page)({ path: 'page-bind.png' })",

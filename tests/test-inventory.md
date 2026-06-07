@@ -617,6 +617,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `testInfo['attach']`, and `documentationReporter['takeScreenshot']` the same
   as dot-property access, rejects direct screenshots through simple,
   destructured, or nested destructured screenshot-function aliases,
+  binding-default screenshot-function aliases,
   grouped screenshot-function properties, shorthand or alias-valued grouped
   screenshot helpers, and
   direct or alias-valued tuple/array screenshot-function entries, rejects direct
@@ -634,8 +635,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   comma-expression raw screenshot and image attach invocations, conditional,
   logical, and nested raw screenshot and image attach callees,
   optional-call screenshot-helper, raw screenshot, and image attach invocations,
-  forward-declared raw aliases, and simple, destructured, nested destructured,
-  grouped, shorthand, alias-valued, or direct/alias-valued tuple/array
+  forward-declared raw aliases, binding-pattern default raw function aliases,
+  and simple, destructured, nested destructured, grouped, shorthand,
+  alias-valued, or direct/alias-valued tuple/array
   attach-function aliases, rejects
   aliased/helper-internal screenshot imports, dynamic screenshot-helper imports,
   and local screenshot wrappers, self-tests those bypass examples, and keeps the permission

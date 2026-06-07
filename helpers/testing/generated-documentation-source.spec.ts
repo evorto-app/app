@@ -439,6 +439,28 @@ const collectPropertyBindingAliases = (
   }
 };
 
+const collectBindingInitializerAliases = (
+  name: ts.BindingName,
+  isTrackedReference: (node: ts.Expression) => boolean,
+  aliases: Set<string>,
+): void => {
+  if (ts.isIdentifier(name)) {
+    return;
+  }
+
+  for (const element of name.elements) {
+    if (ts.isOmittedExpression(element)) {
+      continue;
+    }
+
+    if (element.initializer && isTrackedReference(element.initializer)) {
+      addBindingIdentifiers(element.name, aliases);
+    }
+
+    collectBindingInitializerAliases(element.name, isTrackedReference, aliases);
+  }
+};
+
 const isTrackedReferenceOrAlias = (
   node: ts.Expression,
   isTrackedReference: (node: ts.Expression) => boolean,
@@ -2983,6 +3005,11 @@ const findDirectImageAttachmentCalls = (
     }
 
     if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+      collectBindingInitializerAliases(
+        node.name,
+        isTrackedAttachFunctionReference,
+        attachFunctionAliases,
+      );
       collectPropertyBindingAliases(node.name, 'attach', attachFunctionAliases);
     }
 
@@ -3430,6 +3457,11 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     }
 
     if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+      collectBindingInitializerAliases(
+        node.name,
+        isTrackedScreenshotFunctionReference,
+        screenshotFunctionAliases,
+      );
       collectPropertyBindingAliases(
         node.name,
         'screenshot',
@@ -3884,6 +3916,25 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects direct image attachments hidden behind binding default aliases', () => {
+    const bindingDefaultImageAttachmentSource = `
+      const { capture = testInfo.attach.bind(testInfo) } = {};
+      await capture('image', { body: imageBuffer });
+      const [attachEvidence = testInfo['attach'].bind(testInfo)] = [];
+      await attachEvidence('raw evidence', { contentType: 'image/png' });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/binding-default-image-attachment.doc.ts',
+        bindingDefaultImageAttachmentSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/binding-default-image-attachment.doc.ts:3:13',
+      'tests/docs/example/binding-default-image-attachment.doc.ts:5:13',
+    ]);
+  });
+
   it('detects inline bound image attachments before generated docs can use them', () => {
     const inlineBoundImageAttachmentSource = `
       const markdownArgs = ['markdown', { body: markdown }] as const;
@@ -4000,6 +4051,25 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:46:13',
       'tests/docs/example/direct-screenshot.doc.ts:47:13',
       'tests/docs/example/direct-screenshot.doc.ts:48:13',
+    ]);
+  });
+
+  it('detects direct screenshots hidden behind binding default aliases', () => {
+    const bindingDefaultScreenshotSource = `
+      const { capture = page.screenshot.bind(page) } = {};
+      await capture({ path: 'default-object-page.png' });
+      const [captureElement = page.locator('main').screenshot.bind(page.locator('main'))] = [];
+      await captureElement({ path: 'default-array-element.png' });
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/binding-default-screenshot.doc.ts',
+        bindingDefaultScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/binding-default-screenshot.doc.ts:3:13',
+      'tests/docs/example/binding-default-screenshot.doc.ts:5:13',
     ]);
   });
 

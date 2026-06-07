@@ -6096,11 +6096,12 @@ broad, single-control, or icon/media-only screenshot target before passing it to
 the shared docs screenshot helper.
 Generated-doc sources must also avoid direct `page.screenshot`,
 `locator.screenshot`, and raw `testInfo.attach('image', ...)` calls; screenshot
-function aliases, destructured and nested destructured screenshot aliases, image
-attachment aliases, direct attach-function aliases, and destructured or nested
-destructured attach aliases are rejected as well. Image evidence has to flow
-through the shared helper so captions,
-highlights, content pixel checks, and generated figure output stay enforced.
+function aliases, destructured and nested destructured screenshot aliases,
+binding-default screenshot aliases, image attachment aliases, direct
+attach-function aliases, and destructured, nested destructured, or
+binding-default attach aliases are rejected as well. Image evidence has to flow
+through the shared helper so captions, highlights, content pixel checks, and
+generated figure output stay enforced.
 Grouped screenshot and attach-function aliases are rejected too, including
 object-literal helpers, static bracket-property helpers, tuple/array helper
 entries including alias-valued entries, shorthand or alias-valued grouped helper
@@ -6162,6 +6163,10 @@ Direct screenshot, image-attachment name, grouped image-attachment name, raw
 image payload, grouped raw payload value, and attach-function aliases are
 collected before generated-doc calls are inspected, so declaring a raw helper or
 payload after its use does not bypass the shared screenshot helper requirement.
+Binding-pattern default initializers are collected for raw screenshot and
+attach-function aliases too, so `const { capture = page.screenshot } = ...` or
+`const [attachEvidence = testInfo.attach] = ...` cannot hide direct image
+capture behind a neutral binding name.
 Bracket-property forms such as `testInfo['attach'](...)`,
 `page['screenshot'](...)`, and `documentationReporter['takeScreenshot'](...)`
 are treated the same as dot-property access, so generated-doc source guards do
