@@ -1514,9 +1514,18 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'after adding the account-required\n  registration docs step',
     );
+    expect(source).toContain(
+      '`bun run test:e2e -- --list` discovers 168 baseline tests across 46 files',
+    );
+    expect(source).toContain(
+      '`bun run test:e2e:docs -- --list` discovers 32 baseline docs/setup tests\n  across 18 files',
+    );
+    expect(source).toContain(
+      '`bun run test:e2e:integration -- --list` discovers 9 setup/integration tests\n  across 4 files',
+    );
     expect(source).toContain('bun run test:e2e:docs -- --list');
     expect(source).toContain('docs-baseline');
-    expect(source).toContain('`31 tests`');
+    expect(source).toContain('`32 tests`');
     expect(source).toContain('`18 files`');
     expect(source).toContain('without claiming fresh generated screenshots');
     expect(documentationScreenshotSpec).toContain(
