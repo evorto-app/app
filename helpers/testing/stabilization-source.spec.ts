@@ -1649,6 +1649,15 @@ describe('stabilization source', () => {
       "`attachMarkdown(markdownName, { body: 'Too short.' })`",
     );
     expect(source).toContain(
+      'The cluster guard now follows the same aliased Markdown attachment helpers',
+    );
+    expect(source).toContain(
+      'still rejecting a third screenshot after that section',
+    );
+    expect(source).toContain(
+      'still only treats real Playwright `testInfo.attach`-backed',
+    );
+    expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
     expect(source).toContain('rebuilt the Docker docs stack');
@@ -1959,6 +1968,12 @@ describe('stabilization source', () => {
     expect(inventory).toContain('explanatory body text');
     expect(inventory).toContain(
       'tracks aliased Markdown attachment\n  helpers and names through copied groups and indexed lists',
+    );
+    expect(inventory).toContain(
+      'follows aliased Markdown attachment helpers and names for\n  that screenshot-density reset',
+    );
+    expect(inventory).toContain(
+      'only real Playwright `testInfo.attach`-backed\n  Markdown calls count as explanatory generated-doc sections',
     );
     expect(inventory).toContain('tiny valid PNGs');
     expect(inventory).toMatch(/valid\s+PNG\s+screenshots/u);

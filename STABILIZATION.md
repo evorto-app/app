@@ -6994,11 +6994,15 @@ Generated-doc source coverage now also keeps screenshot clusters close to their
 explanatory Markdown. A docs file cannot place a `takeScreenshot(...)` before
 the first Markdown attachment, or place more than two `takeScreenshot(...)`
 calls after one Markdown attachment before adding another explanatory section.
+The cluster guard now follows the same aliased Markdown attachment helpers and
+names as the weak-body guard, including copied helper/name groups and indexed
+lists, so `attachMarkdown(markdownName, ...)` counts as real product-facing
+explanatory text while still rejecting a third screenshot after that section.
 The tenant General settings guide now splits brand assets/search metadata,
 hosted/external legal pages, and finance/discount settings into separate
 text-backed screenshot clusters.
-The same guard now only treats real `testInfo.attach('markdown', ...)`
-attachments as explanatory Markdown, so helper/logging calls such as
+The same guard still only treats real Playwright `testInfo.attach`-backed
+Markdown attachments as explanatory Markdown, so helper/logging calls such as
 `recordDocumentationNote('markdown', ...)` cannot reset screenshot density or
 pretend that a generated-doc section has product-facing explanatory text.
 A same-slice in-app Browser mobile spot check opened `/legal/terms` at 390x844
