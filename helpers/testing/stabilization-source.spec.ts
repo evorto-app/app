@@ -3914,6 +3914,43 @@ describe('stabilization source', () => {
     expect(normalizedCheckpoint).toContain(
       'evorto-browser-ccbe793d-404-390x844.png',
     );
+    expect(normalizedCheckpoint).toContain(
+      'Browser sweep on PR head `abacca1b`',
+    );
+    expect(normalizedCheckpoint).toContain(
+      "`bun run dev:status` proved `/legal/terms` reachable while still reporting Docker's disposable Alpine start-path timeout",
+    );
+    expect(normalizedCheckpoint).toContain(
+      'public event detail link `/events/cc139a736e819c574cf3`',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'root redirect, events list, public event detail, imprint, privacy, terms, 403, 500, 404, and wildcard not-found redirect at 320x740 and 390x844',
+    );
+    expect(normalizedCheckpoint).toContain('All 20 route/viewport checks');
+    expect(normalizedCheckpoint).toContain(
+      'settled past transient loading, reported no horizontal overflow, no top/side clipped visible controls',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-browser-abacca1b-events-list-320x740.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-browser-abacca1b-event-detail-320x740.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-browser-abacca1b-terms-legal-page-390x844.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-browser-abacca1b-not-found-page-390x844.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      '`bun run test:e2e:public-general-viewports -- --no-deps` run passed',
+    );
+    expect(normalizedCheckpoint).toContain(
+      '`total=2`, `protected=1`, `active_test=1`, `stale_deleted=0`',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'not proof that Docker can start new containers on this host',
+    );
     expect(normalizedCheckpoint).toContain('PR head `71c08ed9`');
     expect(normalizedCheckpoint).toContain('`bun run docker:start` rebuilt');
     expect(normalizedCheckpoint).toContain('generated `BASE_URL`');
@@ -7563,6 +7600,34 @@ describe('stabilization source', () => {
       '/tmp/evorto-browser-ccbe793d-legal-terms-390x844.png',
     );
     expect(inventory).toContain('/tmp/evorto-browser-ccbe793d-404-390x844.png');
+    expect(inventory).toContain('current PR-head Browser sweep at `abacca1b`');
+    expect(inventory).toContain(
+      "proved\n  `/legal/terms` reachable but still reported Docker's disposable Alpine\n  start-path timeout",
+    );
+    expect(inventory).toContain(
+      'checked the root redirect, events list, public event\n  detail, imprint, privacy, terms, 403, 500, 404, and wildcard not-found\n  redirect at 320x740 and 390x844',
+    );
+    expect(inventory).toContain(
+      'no persistent\n  loading or application-error text, no horizontal overflow, no top/side clipped\n  visible controls',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-browser-abacca1b-events-list-320x740.png',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-browser-abacca1b-event-detail-320x740.png',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-browser-abacca1b-terms-legal-page-390x844.png',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-browser-abacca1b-not-found-page-390x844.png',
+    );
+    expect(inventory).toContain(
+      '`bun run test:e2e:public-general-viewports -- --no-deps` run passed',
+    );
+    expect(inventory).toContain(
+      'not proof that Docker can start new containers\n  on this host',
+    );
     expect(inventory).toContain('Browser refresh on pushed head `aef3ccdc`');
     expect(inventory).toContain(
       'same anonymous\n  General route set at 320x740 and 390x844',

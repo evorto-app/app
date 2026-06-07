@@ -1275,6 +1275,27 @@ provider outcomes without live identifiers.
   `/tmp/evorto-browser-ccbe793d-404-390x844.png` show seeded Material event
   cards, the Terms fallback legal page, and the not-found page with fixed
   Events/Login bottom navigation.
+  The current PR-head Browser sweep at `abacca1b` reused the existing generated
+  app at its generated `BASE_URL` after `bun run dev:status` proved
+  `/legal/terms` reachable but still reported Docker's disposable Alpine
+  start-path timeout. Browser derived the public event detail link from the
+  settled `/events` list, checked the root redirect, events list, public event
+  detail, imprint, privacy, terms, 403, 500, 404, and wildcard not-found
+  redirect at 320x740 and 390x844, and found expected content, no persistent
+  loading or application-error text, no horizontal overflow, no top/side clipped
+  visible controls, and zero Browser warning/error logs. The inspected
+  screenshots `/tmp/evorto-browser-abacca1b-events-list-320x740.png`,
+  `/tmp/evorto-browser-abacca1b-event-detail-320x740.png`,
+  `/tmp/evorto-browser-abacca1b-terms-legal-page-390x844.png`, and
+  `/tmp/evorto-browser-abacca1b-not-found-page-390x844.png` show seeded
+  Material event cards, the event-detail registration surface, readable Terms
+  fallback copy, and the not-found fallback with fixed Events/Login bottom
+  navigation. The matching focused
+  `bun run test:e2e:public-general-viewports -- --no-deps` run passed against
+  the same running app with 2 tests. The accompanying Neon dry-run still had one
+  active test branch inside the two-hour TTL, so this is current Browser/layout
+  evidence for the running app, not proof that Docker can start new containers
+  on this host.
   A fresh pushed-head Browser refresh on `aad2bab1` used the generated Docker
   app at its generated `BASE_URL`, derived the `Soccer Match 1` event detail
   link from `/events`, and checked all anonymous General routes at 320x740,

@@ -4141,7 +4141,32 @@ fallback rather than a profile discount-card defect.
   the Terms fallback legal page and fixed bottom navigation; and
   `/tmp/evorto-browser-ccbe793d-404-390x844.png`, showing the not-found page and
   fixed bottom navigation. The temporary Browser viewport override was reset
-  after the pass. Earlier, after pushing PR head
+  after the pass. A fresh June 7, 2026 in-app Browser sweep on PR head
+  `abacca1b` reused the existing generated app at the generated `BASE_URL` after
+  `bun run dev:status` proved `/legal/terms` reachable while still reporting
+  Docker's disposable Alpine start-path timeout. Browser derived the public
+  event detail link `/events/cc139a736e819c574cf3` from the settled `/events`
+  list, then checked the root redirect, events list, public event detail,
+  imprint, privacy, terms, 403, 500, 404, and wildcard not-found redirect at
+  320x740 and 390x844. All 20 route/viewport checks rendered expected content,
+  settled past transient loading, reported no horizontal overflow, no top/side
+  clipped visible controls, no rendered application-error text, and zero Browser
+  warning/error logs. Representative screenshots were visually inspected and
+  saved as `/tmp/evorto-browser-abacca1b-events-list-320x740.png`, showing
+  seeded Material event cards with meaningful icons, dates, times, and fixed
+  Events/Login bottom navigation; `/tmp/evorto-browser-abacca1b-event-detail-320x740.png`,
+  showing the Material event detail and registration surface fitting above the
+  fixed mobile bottom navigation; `/tmp/evorto-browser-abacca1b-terms-legal-page-390x844.png`,
+  showing readable Terms fallback copy on a painted Material surface; and
+  `/tmp/evorto-browser-abacca1b-not-found-page-390x844.png`, showing the
+  not-found fallback and fixed bottom navigation. The temporary Browser viewport
+  override was reset after the pass. The matching focused
+  `bun run test:e2e:public-general-viewports -- --no-deps` run passed against
+  the same running app with 2 tests. The same `dev:status` run reported a clean
+  route probe and an active Neon Local branch still inside the two-hour TTL
+  (`total=2`, `protected=1`, `active_test=1`, `stale_deleted=0`), so this is
+  current Browser/layout evidence for the running app, not proof that Docker can
+  start new containers on this host. Earlier, after pushing PR head
   `71c08ed9`, `bun run docker:start` rebuilt the Docker app on the generated
   `BASE_URL` and seeded the local Docker database. `bun run dev:status` then
   passed, including reachable database and
