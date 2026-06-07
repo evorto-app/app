@@ -243,9 +243,20 @@ Tax rates are managed on the separate **Tax Rates** page.
   for (const field of legalPageSettingsFields) {
     await expect(field).toBeVisible();
   }
+  const legalPageSettingsSurface = generalSettings
+    .locator('form')
+    .filter({ hasText: 'Legal pages' })
+    .filter({ hasText: 'Imprint / legal notice URL' })
+    .filter({ hasText: 'Hosted imprint / legal notice text' })
+    .filter({ hasText: 'Privacy policy URL' })
+    .filter({ hasText: 'Hosted privacy policy text' })
+    .filter({ hasText: 'Terms URL' })
+    .filter({ hasText: 'Hosted terms text' })
+    .first();
+  await expect(legalPageSettingsSurface).toBeVisible();
   await takeScreenshot(
     testInfo,
-    legalPageSettingsFields,
+    legalPageSettingsSurface,
     page,
     'Legal page fields for hosted imprint privacy and terms content',
   );

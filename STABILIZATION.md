@@ -6295,6 +6295,19 @@ buttons together with Logo URL, Favicon URL, SEO title, and SEO description
 fields, and it asserts the hidden logo/favicon file-input accept lists, so the
 tenant-branding guide image and upload-format prose stay pinned to the
 implemented UI wiring.
+It now also screenshots the tenant legal-pages surface containing the external
+URL and hosted-text fields for imprint, privacy, and terms instead of passing
+only the individual field locators, so the generated image keeps the legal page
+heading and surrounding settings context needed to judge that it is not an
+unrelated form crop.
+Local verification for this focused docs-source slice passed format, lint,
+`helpers/testing/generated-documentation-source.spec.ts`,
+`helpers/testing/stabilization-source.spec.ts`, and `git diff --check`. The
+targeted `docs-baseline` run for `tests/docs/admin/general-settings.doc.ts` was
+attempted against the running Docker app but did not reach the docs scenario:
+the normal dependency run stopped at the Auth0 callback-port guard for generated
+`BASE_URL=http://localhost:4218`, and the `--no-deps` retry stopped because
+`tests/.auth/admin-user.json` was not present in this worktree.
 The global-admin generated doc now uses concrete tenant summary, empty search,
 scope boundary, rejected create-form/error, detail review, and edit-form
 surfaces for its screenshot targets instead of highlighting page headings, card

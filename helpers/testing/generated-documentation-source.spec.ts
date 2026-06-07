@@ -7501,6 +7501,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('const brandAndSearchSettingsControls =');
     expect(source).toContain('const brandAndSearchSettingsSurface =');
     expect(source).toContain('const legalPageSettingsFields =');
+    expect(source).toContain('const legalPageSettingsSurface =');
     expect(source).toContain('const financeAndDiscountSettingsSurface =');
     expect(source).toContain('const financeAndDiscountSettingsControls =');
     expect(source).toContain(
@@ -7519,6 +7520,9 @@ describe('generated docs source current behavior', () => {
       'await expect(brandAndSearchSettingsSurface).toBeVisible()',
     );
     expect(source).toContain('for (const field of legalPageSettingsFields)');
+    expect(source).toContain(
+      'await expect(legalPageSettingsSurface).toBeVisible()',
+    );
     expect(source).toContain(
       'for (const control of financeAndDiscountSettingsControls)',
     );
@@ -7553,11 +7557,22 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'takeScreenshot(\n    testInfo,\n    brandAndSearchSettingsSurface,',
     );
+    expect(source).toContain(
+      'takeScreenshot(\n    testInfo,\n    legalPageSettingsSurface,',
+    );
+    expect(source).toContain(".filter({ hasText: 'Legal pages' })");
+    expect(source).toContain(
+      ".filter({ hasText: 'Hosted privacy policy text' })",
+    );
+    expect(source).toContain(".filter({ hasText: 'Hosted terms text' })");
     expect(source).not.toContain(
       'takeScreenshot(\n    testInfo,\n    emailSenderField,',
     );
     expect(source).not.toContain(
       'takeScreenshot(\n    testInfo,\n    hostedTermsField,',
+    );
+    expect(source).not.toContain(
+      'takeScreenshot(\n    testInfo,\n    legalPageSettingsFields,',
     );
     expect(source).toContain(
       'Receipt and ESN card discount settings near the save action',
