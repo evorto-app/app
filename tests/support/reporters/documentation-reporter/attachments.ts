@@ -41,10 +41,11 @@ const readAttachmentBody = (
   attachment: ResultAttachment,
   testTitle: string,
   label: string,
-): Buffer | undefined => {
+): Buffer => {
   if (!attachment.body) {
-    console.warn(`Missing body for ${label} in ${testTitle}`);
-    return undefined;
+    throw new Error(
+      `Documentation ${label} attachment in ${testTitle} is missing an in-memory body. Generated documentation attachments must use body-based content so screenshot, caption, and Markdown quality checks cannot be skipped.`,
+    );
   }
   return attachment.body;
 };
@@ -72,10 +73,13 @@ const collectPermissionsLines = (
   const permissionsAttachment = attachments.find(
     (attachment) => attachment.name === 'permissions',
   );
-  const body = permissionsAttachment
-    ? readAttachmentBody(permissionsAttachment, testTitle, 'permissions')
-    : undefined;
-  if (!body) return [];
+  if (!permissionsAttachment) return [];
+
+  const body = readAttachmentBody(
+    permissionsAttachment,
+    testTitle,
+    'permissions',
+  );
   return body
     .toString()
     .split(/\r?\n/)
@@ -220,7 +224,6 @@ export const buildSectionContent = (
     switch (attachment.name) {
       case 'image': {
         const body = readAttachmentBody(attachment, test.title, 'image');
-        if (!body) continue;
         assertMeaningfulDocumentationImage(attachment, body, test.title);
 
         const hash = crypto.createHash('sha256').update(body).digest('hex');
@@ -239,7 +242,6 @@ export const buildSectionContent = (
           test.title,
           'image-caption',
         );
-        if (!body) continue;
 
         const last = sectionContent.at(-1) ?? '';
         if (!last.startsWith('![')) {
@@ -255,7 +257,6 @@ export const buildSectionContent = (
       }
       case 'markdown': {
         const body = readAttachmentBody(attachment, test.title, 'markdown');
-        if (!body) continue;
 
         const markdown = body.toString();
         assertNoRawMarkdownImages(markdown, test.title);

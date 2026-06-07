@@ -2894,8 +2894,15 @@ describe('stabilization source', () => {
     expect(reporterAttachmentsSource).toContain(
       'minimumMarkdownBodyLength = 120',
     );
+    expect(reporterAttachmentsSource).toContain('missing an in-memory body');
+    expect(reporterAttachmentsSource).toContain(
+      'screenshot, caption, and Markdown quality checks cannot be skipped',
+    );
     expect(inventory).toContain(
       'reporter runtime now enforces the same 120-character',
+    );
+    expect(inventory).toMatch(
+      /body-based\s+reserved documentation attachments/u,
     );
     expect(inventory).toContain(
       'a missed dynamic\n  attachment path cannot publish thin docs prose',
@@ -2982,7 +2989,19 @@ describe('stabilization source', () => {
       'documentation reporter rejects weak markdown body text',
     );
     expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects image attachments without body content',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects markdown attachments without body content',
+    );
+    expect(reporterPathsSpec).toContain(
       'Documentation image attachment in Uncaptioned image is missing a paired image-caption attachment.',
+    );
+    expect(reporterPathsSpec).toContain(
+      'Documentation image attachment in Missing image body is missing an in-memory body.',
+    );
+    expect(reporterPathsSpec).toContain(
+      'Documentation markdown attachment in Missing markdown body is missing an in-memory body.',
     );
     expect(reporterPathsSpec).toContain(
       'Documentation image-caption attachment in Orphan caption is missing a preceding image attachment.',

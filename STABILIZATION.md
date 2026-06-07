@@ -7167,3 +7167,27 @@ text, no horizontal overflow, and zero Browser warning/error logs. WebStorm
 diagnostics could not inspect this worktree because the open IDE projects were
 `/Users/hedde/.codex/worktrees/e159/evorto` and
 `/Users/hedde/.codex/worktrees/0677/section-app`, not this checkout.
+
+Generated-doc reporter runtime now also rejects reserved documentation
+attachments that do not carry an in-memory body. That closes the detached-path
+fallback where an `image`, `image-caption`, `permissions`, or `markdown`
+attachment could be skipped before the screenshot, caption, permissions, or
+Markdown quality checks ran. Focused reporter-path coverage now exercises
+missing image-body and missing Markdown-body failures, and source-level
+stabilization checks keep the body-based attachment rule documented in the test
+inventory. Focused validation passed `bun run test:e2e:reporter-paths`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts
+helpers/testing/stabilization-source.spec.ts --reporter=verbose`, `bun run
+format:write`, `bun run lint`, `bun run dev:status`, and `git diff --check`.
+WebStorm diagnostics could not inspect this worktree because the open IDE
+projects were still `/Users/hedde/.codex/worktrees/e159/evorto` and
+`/Users/hedde/.codex/worktrees/0677/section-app`, not this checkout. A
+same-slice in-app Browser spot check at 390x844 opened `/legal/terms` and
+`/events` with `stabilizationEvidence=body-required-doc-attachments-*`; both
+pages rendered expected content with no visible loading text, no rendered
+application-error text, no horizontal overflow, and zero Browser warning/error
+logs. The inspected screenshots
+`/tmp/evorto-body-required-doc-attachments-terms-390x844.png` and
+`/tmp/evorto-body-required-doc-attachments-events-390x844.png` show readable
+Terms fallback copy, seeded Material event cards with icons/times, and fixed
+Events/Login mobile bottom navigation without overlap.

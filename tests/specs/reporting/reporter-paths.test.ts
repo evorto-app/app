@@ -137,6 +137,67 @@ test('documentation reporter rejects uncaptioned image attachments', async ({}, 
   );
 });
 
+test('documentation reporter rejects image attachments without body content', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-missing-image-body');
+  const imgsRoot = testInfo.outputPath('docs-img-missing-image-body');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        path: 'detached-evidence.png',
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from(
+          'Missing image body should fail generated documentation output',
+        ),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Missing image body' } as any, result),
+  ).toThrow(
+    'Documentation image attachment in Missing image body is missing an in-memory body.',
+  );
+});
+
+test('documentation reporter rejects markdown attachments without body content', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-missing-markdown-body');
+  const imgsRoot = testInfo.outputPath('docs-img-missing-markdown-body');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        path: 'detached-section.md',
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Missing markdown body' } as any, result),
+  ).toThrow(
+    'Documentation markdown attachment in Missing markdown body is missing an in-memory body.',
+  );
+});
+
 test('documentation reporter rejects invalid image attachments', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out-invalid-image');
   const imgsRoot = testInfo.outputPath('docs-img-invalid-image');

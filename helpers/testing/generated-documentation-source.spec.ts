@@ -11009,6 +11009,11 @@ describe('generated docs source current behavior', () => {
     expect(reporterAttachments).toContain(
       'generated docs can be judged without clicking through the app',
     );
+    expect(reporterAttachments).toContain('readAttachmentBody');
+    expect(reporterAttachments).toContain('missing an in-memory body');
+    expect(reporterAttachments).toContain(
+      'screenshot, caption, and Markdown quality checks cannot be skipped',
+    );
     expect(reporterAttachments).toContain(
       'Documentation image-caption attachment',
     );
@@ -11075,6 +11080,16 @@ describe('generated docs source current behavior', () => {
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain('documentation reporter rejects weak markdown body text');
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation reporter rejects image attachments without body content',
+    );
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation reporter rejects markdown attachments without body content',
+    );
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(

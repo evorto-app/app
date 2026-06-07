@@ -227,7 +227,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     generated-doc image attachments, so tiny valid PNGs cannot stand in for
     screenshot evidence with enough UI context, and rejects weak Markdown body
     text so generated docs keep enough explanatory body text to be reviewed
-    without clicking through the app.
+    without clicking through the app. Reporter runtime also requires body-based
+    reserved documentation attachments, so image, caption, permissions, and
+    Markdown quality checks cannot be skipped by passing only a detached path.
     `bun run test:e2e:reporter-paths` is the focused local rerun; it uses
     `helpers/testing/run-playwright.ts` to refresh `.env.dev`, set ignored docs
     output paths, set `NO_WEBSERVER=true`, and pass `--no-deps`.
