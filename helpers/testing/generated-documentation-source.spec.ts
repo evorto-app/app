@@ -4318,10 +4318,39 @@ const findDirectImageAttachmentCalls = (
         attachFunctionAliases.add(node.name.text);
       }
 
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isImageAttachmentName,
+        imageAttachmentNameAliases,
+        imageAttachmentNamePropertyAliases,
+        staticStringAliases,
+      );
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isImageAttachmentPayloadValue,
+        imageAttachmentPayloadValueAliases,
+        imageAttachmentPayloadValuePropertyAliases,
+        staticStringAliases,
+      );
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isAttachFunctionReference,
+        attachFunctionAliases,
+        attachFunctionPropertyAliases,
+        staticStringAliases,
+      );
+
       const objectInitializer = unwrapExpression(node.initializer);
 
       if (ts.isObjectLiteralExpression(objectInitializer)) {
         for (const property of objectInitializer.properties) {
+          if (ts.isSpreadAssignment(property)) {
+            continue;
+          }
+
           const initializer = ts.isPropertyAssignment(property)
             ? unwrapExpression(property.initializer)
             : null;
@@ -4627,10 +4656,23 @@ const findDirectImageAttachmentCalls = (
       ts.isIdentifier(node.name) &&
       node.initializer
     ) {
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isImageAttachmentPayload,
+        imageAttachmentPayloadAliases,
+        imageAttachmentPayloadPropertyAliases,
+        staticStringAliases,
+      );
+
       const objectInitializer = unwrapExpression(node.initializer);
 
       if (ts.isObjectLiteralExpression(objectInitializer)) {
         for (const property of objectInitializer.properties) {
+          if (ts.isSpreadAssignment(property)) {
+            continue;
+          }
+
           const propertyName = getStaticPropertyNameFromName(
             property.name,
             staticStringAliases,
@@ -5909,6 +5951,51 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/object-rest-grouped-raw-image-alias.doc.ts:17:13',
       'tests/docs/example/object-rest-grouped-raw-image-alias.doc.ts:21:13',
+    ]);
+  });
+
+  it('detects copied grouped raw image aliases before generated docs can use them', () => {
+    const copiedGroupedRawImageAliasSource = `
+      const rawImagePayload = { body: imageBuffer, contentType: 'image/png' };
+      const imagePayloadGroup = { rawImagePayload };
+      const spreadImagePayloadGroup = { ...imagePayloadGroup };
+      const assignedImagePayloadGroup = Object.assign({}, imagePayloadGroup);
+      await testInfo.attach('raw evidence', spreadImagePayloadGroup.rawImagePayload);
+      await testInfo.attach('raw file evidence', assignedImagePayloadGroup.rawImagePayload);
+      const imageName = 'image';
+      const imageNameGroup = { imageName };
+      const spreadImageNameGroup = { ...imageNameGroup };
+      const assignedImageNameGroup = Object.assign({}, imageNameGroup);
+      await testInfo.attach(spreadImageNameGroup.imageName, { body: imageBuffer });
+      await testInfo.attach(assignedImageNameGroup.imageName, { body: imageBuffer });
+      const attachEvidence = testInfo.attach.bind(testInfo);
+      const attachGroup = { attachEvidence };
+      const spreadAttachGroup = { ...attachGroup };
+      const assignedAttachGroup = Object.assign({}, attachGroup);
+      await spreadAttachGroup.attachEvidence('raw evidence', { contentType: 'image/png' });
+      await assignedAttachGroup.attachEvidence('raw file evidence', { path: 'raw-evidence.webp' });
+      const imageContentType = 'image/png';
+      const imagePayloadValueGroup = { imageContentType };
+      const spreadImagePayloadValueGroup = { ...imagePayloadValueGroup };
+      const assignedImagePayloadValueGroup = Object.assign({}, imagePayloadValueGroup);
+      await testInfo.attach('raw evidence', { contentType: spreadImagePayloadValueGroup.imageContentType });
+      await testInfo.attach('raw file evidence', { path: assignedImagePayloadValueGroup.imageContentType });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/copied-grouped-raw-image-alias.doc.ts',
+        copiedGroupedRawImageAliasSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:6:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:7:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:12:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:13:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:18:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:19:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:24:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:25:13',
     ]);
   });
 

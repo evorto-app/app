@@ -742,8 +742,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   nullish/logical expressions, and concatenation, object shorthand image
   payloads, computed raw image payload keys, spread raw image payload objects,
   `Object.assign(...)` raw image payload objects, object-rest raw image payload
-  aliases, object-rest grouped raw image aliases, spread direct attachment
-  arguments, opaque attachment `apply(...)` lists, and `.at(...)`
+  aliases, object-rest grouped raw image aliases, object-spread and
+  `Object.assign(...)` copied grouped raw image aliases, spread direct
+  attachment arguments, opaque attachment `apply(...)` lists, and `.at(...)`
   indexed attach-helper lists,
   raw screenshot and image attach call/apply invocations, `Reflect.apply(...)`
   raw screenshot and image attach invocations, `Reflect.get(...)` shared helper,

@@ -1631,6 +1631,11 @@ describe('stabilization source', () => {
     expect(source).toContain('spreadScreenshotHelpers.capture(...)');
     expect(source).toContain('assignedScreenshotHelpers.captureElement(...)');
     expect(source).toContain(
+      'Object-spread and `Object.assign(...)` copies of grouped raw image payload',
+    );
+    expect(source).toContain('`spreadGroup.rawPayload`');
+    expect(source).toContain('`assignedGroup.attachEvidence(...)`');
+    expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
     expect(source).toContain('rebuilt the Docker docs stack');
@@ -1894,6 +1899,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('concatenation');
     expect(inventory).toMatch(/object shorthand image\s+payloads/u);
     expect(inventory).toMatch(/computed\s+raw\s+image\s+payload\s+keys/u);
+    expect(inventory).toContain(
+      'object-spread and\n  `Object.assign(...)` copied grouped raw image aliases',
+    );
     expect(inventory).toContain('indexed attach-helper lists');
     expect(inventory).toMatch(
       /raw screenshot and image\s+attach call\/apply invocations/u,
@@ -2946,7 +2954,7 @@ describe('stabilization source', () => {
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);
     expect(source).toContain('Optional-call invocations');
-    expect(inventory).toMatch(/spread direct attachment\s+arguments/u);
+    expect(inventory).toMatch(/spread direct\s+attachment\s+arguments/u);
     expect(inventory).toMatch(/opaque attachment `apply\(\.\.\.\)` lists/u);
     expect(inventory).toMatch(/`Reflect\.apply\(\.\.\.\)`\s+raw screenshot/u);
     expect(inventory).toMatch(

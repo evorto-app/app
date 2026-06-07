@@ -6592,6 +6592,11 @@ Object-rest copies of grouped raw image, raw Markdown, attachment-name, and
 attach-helper aliases transfer their tracked properties too, so generated docs
 cannot copy an alias group and then call `copiedGroup.rawPayload` or
 `copiedGroup.attachEvidence(...)` outside the shared helper boundary.
+Object-spread and `Object.assign(...)` copies of grouped raw image payload,
+attachment-name, attach-helper, and MIME/path value aliases now transfer the
+same tracked properties, so `spreadGroup.rawPayload`,
+`assignedGroup.attachEvidence(...)`, and copied grouped MIME/path values cannot
+attach raw image evidence outside the shared screenshot helper either.
 Tracked direct image attachment calls with spread arguments or opaque
 `apply(...)` argument lists are rejected too, and `.at(...)` indexed attach
 helper lists are tracked as direct attachment callees, so
