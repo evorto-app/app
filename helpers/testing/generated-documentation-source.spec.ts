@@ -7520,8 +7520,11 @@ describe('generated docs source current behavior', () => {
       };
       const spreadScreenshotHelpers = { ...screenshotHelpers };
       const assignedScreenshotHelpers = Object.assign({}, screenshotHelpers);
+      const { capture: ignoredCapture, ...restScreenshotHelpers } = screenshotHelpers;
       await spreadScreenshotHelpers.capture({ path: 'spread-page.png' });
       await assignedScreenshotHelpers.captureElement({ path: 'assigned-element.png' });
+      await restScreenshotHelpers.capture({ path: 'rest-page.png' });
+      await restScreenshotHelpers.captureElement({ path: 'rest-element.png' });
     `;
 
     expect(
@@ -7530,8 +7533,10 @@ describe('generated docs source current behavior', () => {
         copiedGroupedScreenshotSource,
       ),
     ).toEqual([
-      'tests/docs/example/copied-grouped-screenshot.doc.ts:9:13',
       'tests/docs/example/copied-grouped-screenshot.doc.ts:10:13',
+      'tests/docs/example/copied-grouped-screenshot.doc.ts:11:13',
+      'tests/docs/example/copied-grouped-screenshot.doc.ts:12:13',
+      'tests/docs/example/copied-grouped-screenshot.doc.ts:13:13',
     ]);
   });
 

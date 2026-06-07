@@ -7553,3 +7553,23 @@ readable Terms fallback copy and real seeded Events cards with Material
 surfaces/icons/times, fixed Events/Login bottom navigation, no loading or
 application-error text, document/body widths inside the mobile viewport, and
 zero warning/error Browser logs.
+
+Object-rest copied grouped screenshot-helper aliases are now explicitly pinned
+inside the copied-grouped direct-screenshot regression as well, not only in the
+separate object-rest grouped-alias test. The focused generated-doc source test
+now exercises both page and element screenshot helper properties copied through
+object-rest destructuring after the same helper object is copied through spread
+and `Object.assign(...)`, keeping that screenshot-helper bypass family tied to
+one regression case. Validation passed `bun run format:write`, `bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 194 tests, and `git diff --check`; WebStorm errors-only diagnostics are
+still blocked because this worktree is not one of the IDE's open projects.
+Browser checked `/legal/terms?stabilizationEvidence=object-rest-grouped-screenshot-helper`
+and `/events?stabilizationEvidence=object-rest-grouped-screenshot-helper` at
+390x844 and saved
+`/tmp/evorto-object-rest-grouped-screenshot-helper-terms-390x844.png` plus
+`/tmp/evorto-object-rest-grouped-screenshot-helper-events-390x844.png`. The
+screenshots show readable Terms fallback copy and real seeded Events cards with
+Material card surfaces/icons/dates/times, fixed Events/Login bottom navigation,
+no loading or application-error text, document/body widths inside the mobile
+viewport, and zero warning/error Browser logs.
