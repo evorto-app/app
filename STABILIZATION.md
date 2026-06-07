@@ -512,6 +512,21 @@ the current working direction until a product decision overrides them.
 - Current Browser runtime evidence: Browser plugin Node-backed in-app Browser
   runtime, generated `.env.dev` `BASE_URL`, `/events` route, `Upcoming Events`
   tenant feed, and public event-link DOM snapshots.
+- Current PR-head General viewport evidence: on June 7, 2026, in-app Browser
+  control opened the running Docker app at `http://localhost:4218` on head
+  `ac8286a28`, used the Browser viewport capability for 320x740, 390x844, and
+  1440x900, and rechecked all 10 anonymous General routes: `/`, `/events`, the
+  seeded public event detail route, `/legal/imprint`, `/legal/privacy`,
+  `/legal/terms`, `/403`, `/500`, `/404`, and the wildcard not-found redirect.
+  The settled-state sweep checked expected route text, no horizontal overflow,
+  no top/side clipped visible controls, no rendered application-error text, no
+  persistent loading text after hydration settled, fixed General navigation,
+  and no Browser warning/error logs. Representative screenshots were captured
+  for the 320x740 event list, the 390x844 privacy legal page, and the 1440x900
+  event detail; visual inspection confirmed they show the intended surfaces
+  rather than unrelated or heading-only crops. The same running app also passed
+  `bun run test:e2e:public-general-viewports`, preserving the durable
+  Playwright coverage for this Browser-observed General/mobile pass.
 
 ## Events
 
