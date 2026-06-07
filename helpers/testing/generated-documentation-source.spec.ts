@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 // the docs tied to implemented flows instead of stale aspirational copy.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 const minimumSourceMarkdownBodyLength = 120;
+const maximumScreenshotsPerMarkdownAttachment = 2;
 
 const readSource = (path: string): string =>
   readFileSync(nodePath.join(repositoryRoot, path), 'utf8');
@@ -1488,6 +1489,80 @@ const findWeakMarkdownBodyAttachments = (
   visit(sourceFile);
 
   return weakBodies;
+};
+
+const findDenseScreenshotRunsBetweenMarkdown = (
+  path: string,
+  source: string,
+): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const events: Array<{
+    kind: 'markdown' | 'screenshot';
+    node: ts.CallExpression;
+    position: number;
+  }> = [];
+
+  const describeCall = (node: ts.CallExpression): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.expression.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const attachmentName = node.arguments[0]
+        ? resolveStaticStringValue(node.arguments[0], staticStringAliases)
+        : null;
+
+      if (attachmentName === 'markdown') {
+        events.push({
+          kind: 'markdown',
+          node,
+          position: node.getStart(sourceFile),
+        });
+      }
+
+      if (isTakeScreenshotCall(node)) {
+        events.push({
+          kind: 'screenshot',
+          node,
+          position: node.getStart(sourceFile),
+        });
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  const denseRuns: string[] = [];
+  let screenshotsSinceMarkdown = 0;
+
+  for (const event of events.toSorted(
+    (left, right) => left.position - right.position,
+  )) {
+    if (event.kind === 'markdown') {
+      screenshotsSinceMarkdown = 0;
+      continue;
+    }
+
+    screenshotsSinceMarkdown += 1;
+
+    if (screenshotsSinceMarkdown > maximumScreenshotsPerMarkdownAttachment) {
+      denseRuns.push(describeCall(event.node));
+    }
+  }
+
+  return denseRuns;
 };
 
 const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
@@ -6505,6 +6580,52 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('keeps generated documentation screenshots close to explanatory markdown', () => {
+    const denseScreenshotSource = `
+      await testInfo.attach('markdown', {
+        body: \`
+          This section explains the generated documentation workflow and the screenshots that immediately follow it with enough product context.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        settingsSurface,
+        page,
+        'First settings screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        legalSurface,
+        page,
+        'Second settings screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        financeSurface,
+        page,
+        'Third screenshot needs a new explanatory markdown section',
+      );
+      await testInfo.attach('markdown', {
+        body: \`
+          This new section resets the screenshot cluster so later generated images keep a nearby explanation for reviewers.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        discountSurface,
+        page,
+        'Reset screenshot cluster with descriptive caption',
+      );
+    `;
+
+    expect(
+      findDenseScreenshotRunsBetweenMarkdown(
+        'tests/docs/example/dense-screenshot-run.doc.ts',
+        denseScreenshotSource,
+      ),
+    ).toEqual(['tests/docs/example/dense-screenshot-run.doc.ts:19:13']);
+  });
+
   it('inspects optional documentation screenshot and raw image calls', () => {
     const optionalCallSource = `
       async function captureEvidence() {
@@ -9728,6 +9849,10 @@ describe('generated docs source current behavior', () => {
 
       expect(source, path).toContain("testInfo.attach('markdown'");
       expect(findWeakMarkdownBodyAttachments(path, source), path).toEqual([]);
+      expect(
+        findDenseScreenshotRunsBetweenMarkdown(path, source),
+        path,
+      ).toEqual([]);
       expect(source, path).not.toContain('waitForTimeout(');
       expect(source, path).not.toContain('.waitForTimeout(');
 

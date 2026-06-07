@@ -685,7 +685,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   rejects weak Markdown body text so generated docs keep explanatory body text
   before generated markdown is written, and rejects per-section source bodies
   shorter than 120 static characters so one long section cannot mask a thin
-  generated-doc section in the same file,
+  generated-doc section in the same file. It also rejects more than two
+  screenshots after one Markdown section so generated images stay close to the
+  explanatory text that gives them product context,
   including aliased markdown names, bracketed `attach` calls,
   binding-default and parameter-default markdown names,
   grouped/indexed/destructured/assigned markdown names including `.at(...)`

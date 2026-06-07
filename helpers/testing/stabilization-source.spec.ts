@@ -1984,6 +1984,12 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'minimumSourceMarkdownBodyLength = 120',
     );
+    expect(generatedDocumentationSource).toContain(
+      'findDenseScreenshotRunsBetweenMarkdown',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'maximumScreenshotsPerMarkdownAttachment = 2',
+    );
     expect(generatedDocumentationSource).toContain('countTakeScreenshotCalls');
     expect(generatedDocumentationSource).toContain('expectedScreenshotCounts');
     expect(generatedDocumentationSource).toContain(

@@ -186,6 +186,14 @@ Tax rates are managed on the separate **Tax Rates** page.
     page,
     'Operations policy settings with participant registration limits',
   );
+
+  await testInfo.attach('markdown', {
+    body: `
+## Brand assets and search metadata
+
+The brand asset section keeps tenant public-page presentation in the same settings workflow. Admins can review externally hosted logo and favicon URLs, use the upload buttons for supported image formats, and maintain the SEO title and description that appear in tenant-level page metadata.
+`,
+  });
   await expect(generalSettings.getByLabel('Logo URL')).toBeVisible();
   await expect(
     generalSettings.getByRole('button', { name: 'Upload logo' }),
@@ -234,6 +242,14 @@ Tax rates are managed on the separate **Tax Rates** page.
     page,
     'Brand asset upload and search preview settings for tenant public pages',
   );
+
+  await testInfo.attach('markdown', {
+    body: `
+## Hosted and external legal pages
+
+The legal-page section separates external legal URLs from hosted legal text for imprint, privacy, and terms. Hosted text publishes on the tenant legal routes, while external URLs stay available for tenants that already maintain their legal content outside Evorto.
+`,
+  });
   await expect(
     generalSettings.getByLabel('Imprint / legal notice URL'),
   ).toBeVisible();
@@ -275,6 +291,14 @@ Tax rates are managed on the separate **Tax Rates** page.
     page,
     'Legal page fields for hosted imprint privacy and terms content',
   );
+
+  await testInfo.attach('markdown', {
+    body: `
+## Finance, receipt countries, and discount providers
+
+The finance settings section controls receipt-country eligibility, whether submitters may choose an unlisted country, and whether ESNcard discounts are enabled for the tenant. The save action belongs to the same page so admins can review these settings with the rest of the relaunch configuration before submitting changes.
+`,
+  });
   await expect(
     generalSettings.getByLabel('Allowed receipt countries'),
   ).toBeVisible();
