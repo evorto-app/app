@@ -7348,6 +7348,7 @@ describe('generated docs source current behavior', () => {
       const { names: { imageName } } = groupedImageEvidence;
       await testInfo.attach(imageName, { body: imageBuffer });
       await testInfo.attach('nested raw mime evidence', { contentType: groupedImageEvidence.values.mime });
+      await testInfo.attach('nested raw direct payload evidence', groupedImageEvidence.payloads[0].raw);
       const { payloads: [{ raw: rawPayload }] } = groupedImageEvidence;
       await testInfo.attach('nested raw payload evidence', rawPayload);
       const { attach: { helpers: { capture } } } = groupedImageEvidence;
@@ -7363,9 +7364,10 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/nested-grouped-image-attachment.doc.ts:9:13',
       'tests/docs/example/nested-grouped-image-attachment.doc.ts:10:13',
-      'tests/docs/example/nested-grouped-image-attachment.doc.ts:12:13',
-      'tests/docs/example/nested-grouped-image-attachment.doc.ts:14:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:11:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:13:13',
       'tests/docs/example/nested-grouped-image-attachment.doc.ts:15:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:16:13',
     ]);
   });
 
@@ -7723,6 +7725,7 @@ describe('generated docs source current behavior', () => {
       const { raw: { capturePage } } = screenshotHelpers;
       await capturePage({ path: 'nested-destructured-page.png' });
       await screenshotHelpers.raw.capturePage({ path: 'nested-property-page.png' });
+      await screenshotHelpers.list[0][0]({ path: 'nested-direct-array-element.png' });
       const [[captureElement]] = screenshotHelpers.list;
       await captureElement({ path: 'nested-array-element.png' });
     `;
@@ -7735,7 +7738,8 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/nested-grouped-screenshot.doc.ts:7:13',
       'tests/docs/example/nested-grouped-screenshot.doc.ts:8:13',
-      'tests/docs/example/nested-grouped-screenshot.doc.ts:10:13',
+      'tests/docs/example/nested-grouped-screenshot.doc.ts:9:13',
+      'tests/docs/example/nested-grouped-screenshot.doc.ts:11:13',
     ]);
   });
 

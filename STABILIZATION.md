@@ -7696,3 +7696,25 @@ the inspected screenshots show readable Terms fallback copy and the current
 empty Events state with fixed Events/Login bottom navigation, no loading or
 application-error text after settle, no horizontal overflow, no clipped visible
 controls, and zero Browser warning/error logs.
+
+Direct nested indexed raw screenshot and raw image payload aliases are now
+covered beside the nested destructuring cases. The generated-doc source tests
+exercise `screenshotHelpers.list[0][0](...)` and
+`groupedImageEvidence.payloads[0].raw` directly, so the static property
+normalization used for nested raw Markdown image payloads is also pinned for
+raw screenshot helpers and raw image attachment payloads. Validation and Browser
+evidence for this direct indexed follow-up passed `bun run format:write`,
+`bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 197 tests, and `git diff --check`. WebStorm errors-only diagnostics
+remained blocked because this worktree is not one of the IDE's open projects.
+Browser rechecked
+`/legal/terms?stabilizationEvidence=direct-nested-indexed-doc-source-guard` and
+`/events?stabilizationEvidence=direct-nested-indexed-doc-source-guard` at
+390x844 and saved the settled evidence at
+`/tmp/evorto-direct-nested-indexed-doc-source-guard-legal-terms-settled-390x844.png`
+plus `/tmp/evorto-direct-nested-indexed-doc-source-guard-events-390x844.png`;
+the inspected screenshots show readable Terms fallback copy and the current
+empty Events state with fixed Events/Login bottom navigation, no loading or
+application-error text after settle, no horizontal overflow, no clipped visible
+controls, and zero Browser warning/error logs.

@@ -1908,6 +1908,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /nested grouped\s+screenshot-function properties/u,
     );
+    expect(inventory).toContain('direct nested indexed screenshot-function');
     expect(inventory).toMatch(
       /shorthand or alias-valued grouped\s+screenshot\s+helpers/u,
     );
@@ -1926,6 +1927,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/raw image\s+MIME\/file-extension payloads/u);
     expect(inventory).toMatch(
       /[Aa]liased,\s+grouped,\s+indexed,\s+destructured,\s+and\s+assigned raw image payload\s+objects/u,
+    );
+    expect(inventory).toContain(
+      'direct nested indexed raw image payload objects',
     );
     expect(inventory).toContain('indexed payload lists');
     expect(inventory).toMatch(/grouped or indexed\s+MIME\/path\s+values/u);
@@ -2161,6 +2165,12 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'async function groupedAttachHelperParameter({ attachEvidence } = groupedAttachHelpers)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'groupedImageEvidence.payloads[0].raw',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'screenshotHelpers.list[0][0]',
     );
     expect(generatedDocumentationSource).toContain(
       'detects at-indexed raw screenshot aliases',
@@ -3214,12 +3224,16 @@ describe('stabilization source', () => {
       'grouped parameter-default screenshot-function aliases',
     );
     expect(inventory).toContain('nested grouped\n  screenshot-function');
+    expect(inventory).toContain('direct nested indexed screenshot-function');
     expect(inventory).toContain('assigned local raw image names');
     expect(inventory).toContain(
       'grouped parameter-default attachment\n  names, MIME/path values, raw image payload objects, and attach-function',
     );
     expect(inventory).toContain(
       'nested grouped attachment names, MIME/path values, raw image payload',
+    );
+    expect(inventory).toContain(
+      'direct nested indexed raw image payload objects',
     );
     expect(inventory).toContain('returned\n  attach-function factories');
     expect(inventory).toContain('assigned local raw Markdown names');
