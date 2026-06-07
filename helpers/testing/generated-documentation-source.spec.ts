@@ -1938,8 +1938,45 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         markdownAttachFunctionAliases.add(node.name.text);
       }
 
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isMarkdownAttachmentName,
+        markdownAttachmentNameAliases,
+        markdownAttachmentNamePropertyAliases,
+        staticStringAliases,
+      );
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        hasRawMarkdownImage,
+        rawMarkdownBodyAliases,
+        rawMarkdownBodyPropertyAliases,
+        staticStringAliases,
+      );
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        hasRawMarkdownPayload,
+        rawMarkdownPayloadAliases,
+        rawMarkdownPayloadPropertyAliases,
+        staticStringAliases,
+      );
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isAttachFunctionReference,
+        markdownAttachFunctionAliases,
+        markdownAttachFunctionPropertyAliases,
+        staticStringAliases,
+      );
+
       if (ts.isObjectLiteralExpression(initializer)) {
         for (const property of initializer.properties) {
+          if (ts.isSpreadAssignment(property)) {
+            continue;
+          }
+
           const propertyName = getStaticPropertyNameFromName(
             property.name,
             staticStringAliases,
@@ -7401,6 +7438,51 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/grouped-markdown-body.doc.ts:11:13',
       'tests/docs/example/grouped-markdown-body.doc.ts:13:13',
       'tests/docs/example/grouped-markdown-body.doc.ts:15:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind copied grouped aliases', () => {
+    const copiedGroupedMarkdownImageSource = `
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      const markdownPayloadGroup = { rawMarkdownPayload };
+      const spreadMarkdownPayloadGroup = { ...markdownPayloadGroup };
+      const assignedMarkdownPayloadGroup = Object.assign({}, markdownPayloadGroup);
+      await testInfo.attach('markdown', spreadMarkdownPayloadGroup.rawMarkdownPayload);
+      await testInfo.attach('markdown', assignedMarkdownPayloadGroup.rawMarkdownPayload);
+      const markdownName = 'markdown';
+      const markdownNameGroup = { markdownName };
+      const spreadMarkdownNameGroup = { ...markdownNameGroup };
+      const assignedMarkdownNameGroup = Object.assign({}, markdownNameGroup);
+      await testInfo.attach(spreadMarkdownNameGroup.markdownName, rawMarkdownPayload);
+      await testInfo.attach(assignedMarkdownNameGroup.markdownName, rawMarkdownPayload);
+      const rawMarkdownBody = '<img src="../raw.png" alt="Raw">';
+      const rawMarkdownBodyGroup = { rawMarkdownBody };
+      const spreadMarkdownBodyGroup = { ...rawMarkdownBodyGroup };
+      const assignedMarkdownBodyGroup = Object.assign({}, rawMarkdownBodyGroup);
+      await testInfo.attach('markdown', { body: spreadMarkdownBodyGroup.rawMarkdownBody });
+      await testInfo.attach('markdown', { body: assignedMarkdownBodyGroup.rawMarkdownBody });
+      const attachMarkdownEvidence = testInfo.attach.bind(testInfo);
+      const attachGroup = { attachMarkdownEvidence };
+      const spreadAttachGroup = { ...attachGroup };
+      const assignedAttachGroup = Object.assign({}, attachGroup);
+      await spreadAttachGroup.attachMarkdownEvidence('markdown', rawMarkdownPayload);
+      await assignedAttachGroup.attachMarkdownEvidence('markdown', rawMarkdownPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/copied-grouped-markdown-image.doc.ts',
+        copiedGroupedMarkdownImageSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:6:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:7:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:12:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:13:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:18:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:19:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:24:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:25:13',
     ]);
   });
 

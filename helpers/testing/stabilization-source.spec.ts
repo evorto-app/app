@@ -1636,6 +1636,13 @@ describe('stabilization source', () => {
     expect(source).toContain('`spreadGroup.rawPayload`');
     expect(source).toContain('`assignedGroup.attachEvidence(...)`');
     expect(source).toContain(
+      'Object-spread and `Object.assign(...)` copies of grouped raw Markdown',
+    );
+    expect(source).toContain('`spreadMarkdownGroup.rawPayload`');
+    expect(source).toContain(
+      '`assignedMarkdownGroup.attachMarkdownEvidence(...)`',
+    );
+    expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
     expect(source).toContain('rebuilt the Docker docs stack');
@@ -1901,6 +1908,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/computed\s+raw\s+image\s+payload\s+keys/u);
     expect(inventory).toContain(
       'object-spread and\n  `Object.assign(...)` copied grouped raw image aliases',
+    );
+    expect(inventory).toContain(
+      'object-spread or\n  `Object.assign(...)` copied grouped raw Markdown image aliases',
     );
     expect(inventory).toContain('indexed attach-helper lists');
     expect(inventory).toMatch(
@@ -2957,6 +2967,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/spread direct\s+attachment\s+arguments/u);
     expect(inventory).toMatch(/opaque attachment `apply\(\.\.\.\)` lists/u);
     expect(inventory).toMatch(/`Reflect\.apply\(\.\.\.\)`\s+raw screenshot/u);
+    expect(inventory).toContain(
+      'object-spread and `Object.assign(...)` copied grouped raw Markdown image\n  aliases',
+    );
     expect(inventory).toMatch(
       /inline bound raw screenshot and\s+image\s+attach/u,
     );

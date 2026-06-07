@@ -6523,6 +6523,11 @@ Markdown attachment names now also use the shared static array-built string
 resolution, so `['mark', 'down'].join('')` and
 `['mark'].concat(['down']).join('')` cannot hide raw Markdown image payloads
 from the shared screenshot helper boundary.
+Object-spread and `Object.assign(...)` copies of grouped raw Markdown
+attachment-name, body, payload, and attach-helper aliases now transfer the same
+tracked properties, so `spreadMarkdownGroup.rawPayload` and
+`assignedMarkdownGroup.attachMarkdownEvidence(...)` cannot attach raw Markdown
+image evidence outside the shared screenshot helper either.
 A same-slice in-app Browser mobile spot check opened `/events` at 390x844 with
 `stabilizationEvidence=array-built-markdown-name-source-guard`, waited past the
 initial loading card, and verified the settled empty Events state plus fixed

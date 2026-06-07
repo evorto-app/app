@@ -586,7 +586,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   including array-built names, MIME types, and image file paths, and properties
   read through `Reflect.get(...)` before attachment, while it
   tracks raw Markdown attachment-name, body, and payload properties read through
-  `Reflect.get(...)` before attachment,
+  `Reflect.get(...)` before attachment and object-spread or
+  `Object.assign(...)` copied grouped raw Markdown image aliases,
   parses the root Product documentation-expectations list and maps every
   important documentation area to generated docs files plus concrete source
   terms, so new Product bullets fail until the generated-doc mapping is updated.
@@ -754,6 +755,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   comma-expression raw screenshot and image attach invocations, conditional,
   logical, and nested raw screenshot and image attach callees,
   optional-call screenshot-helper, raw screenshot, and image attach invocations,
+  object-spread and `Object.assign(...)` copied grouped raw Markdown image
+  aliases,
   forward-declared raw aliases, binding-pattern default raw function aliases,
   and simple, destructured, nested destructured, grouped, shorthand,
   alias-valued, or direct/alias-valued tuple/array
