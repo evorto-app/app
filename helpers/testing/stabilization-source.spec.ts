@@ -3786,7 +3786,9 @@ describe('stabilization source', () => {
       'local aliases of `test.slow` called\n  through `slow()`',
     );
     expect(inventory).toContain("page['pause'](...)");
-    expect(inventory).toContain('split docs-helper `setTimeout(...)` calls');
+    expect(inventory).toContain('local aliases of `page.pause`');
+    expect(inventory).toContain('local aliases of `page.waitForTimeout`');
+    expect(inventory).toContain('docs-helper `setTimeout(...)` calls');
     expect(inventory).toContain('Playwright `forbidOnly` remains enabled');
     expect(inventory).toContain(
       'Runtime-affecting modifiers such as\n  `test.describe.configure(...)` and `test.slow()`',
@@ -3824,6 +3826,8 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('skip/focus/runtime inventory');
     expect(source).toContain("page['pause'](...)");
+    expect(source).toContain('local `page.pause`\naliases');
+    expect(source).toContain('local `page.waitForTimeout` aliases');
     expect(source).toContain('split `setTimeout(...)` calls');
     expect(source).toContain('rejects interactive\n`page.pause()`/`debugger`');
     expect(source).toContain('rejects fixed `.waitForTimeout(...)` waits');

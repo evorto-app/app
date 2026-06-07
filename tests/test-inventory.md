@@ -492,9 +492,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   bracket-property spellings such as `test['skip'](...)`,
   `test.describe['fixme'](...)`, and `test['only'](...)` even when those
   modifier calls are split across lines;
-  interactive `page.pause()`/`debugger` hooks including `page['pause'](...)`;
+  interactive `page.pause()`/`debugger` hooks including `page['pause'](...)`
+  and local aliases of `page.pause`;
   and fixed `.waitForTimeout(...)` waits in specs and generated docs, including
-  split wait calls and split docs-helper `setTimeout(...)` calls,
+  split wait calls, local aliases of `page.waitForTimeout`, and split
+  docs-helper `setTimeout(...)` calls,
   keeping those flows tied to concrete UI state and preventing accidental
   partial-suite commits. Playwright `forbidOnly` remains enabled in CI as the
   runner-level backstop for focused-only tests. Runtime-affecting modifiers such as

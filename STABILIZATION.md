@@ -6225,9 +6225,10 @@ line wrapping. Local modifier aliases are covered too, so assigning or
 destructuring `test.skip`, `test.fixme`, `test.only`, `test.slow`, or
 `test.describe.configure` before calling the alias is classified by the same
 skip/focus/runtime inventory. Interactive debug hooks and fixed waits use the
-same whole-file source scan, so `page['pause'](...)`, split
-`.waitForTimeout(...)`, and split `setTimeout(...)` calls in docs screenshot
-helpers are rejected instead of depending on single-line formatting.
+same whole-file source scan, so `page['pause'](...)`, local `page.pause`
+aliases, split `.waitForTimeout(...)`, local `page.waitForTimeout` aliases, and
+split `setTimeout(...)` calls in docs screenshot helpers are rejected instead
+of depending on single-line formatting.
 
 Registration confirmation, cancellation, transfer, and waitlist spot-available
 now record durable email outbox rows with notification-email details, and paid

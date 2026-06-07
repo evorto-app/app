@@ -62,12 +62,24 @@ const playwrightModifierAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*test(?:${playwrightDescribeAccessPattern})?${playwrightModifierAccessCapturePattern('skip|fixme|only|slow|configure')}`,
   'g',
 );
+const pageMethodAliasPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*page${playwrightModifierAccessCapturePattern('pause|waitForTimeout')}`,
+  'g',
+);
 const playwrightDestructuredModifierAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^}]+)\}\s*=\s*test(?:${playwrightDescribeAccessPattern})?`,
   'g',
 );
+const pageDestructuredMethodAliasPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^}]+)\}\s*=\s*page\b`,
+  'g',
+);
 const destructuredModifierBindingPattern = new RegExp(
   String.raw`^(?<modifier>skip|fixme|only|slow|configure)\b(?:\s*:\s*(?<alias>${identifierPattern}))?`,
+  'u',
+);
+const destructuredPageMethodBindingPattern = new RegExp(
+  String.raw`^(?<method>pause|waitForTimeout)\b(?:\s*:\s*(?<alias>${identifierPattern}))?`,
   'u',
 );
 const skipPattern = new RegExp(
@@ -254,6 +266,79 @@ const collectAliasedModifierEntries = (modifiers: readonly string[]) =>
     );
   });
 
+const collectAliasedPageMethodEntriesForSource = (
+  relativePath: string,
+  source: string,
+  methods: readonly string[],
+) => {
+  const allowedMethods = new Set(methods);
+  const aliases = new Map<string, string>();
+
+  for (const match of source.matchAll(pageMethodAliasPattern)) {
+    const alias = match.groups?.alias;
+    const method = modifierForAliasMatch(match);
+
+    if (
+      alias !== undefined &&
+      method !== undefined &&
+      allowedMethods.has(method)
+    ) {
+      aliases.set(alias, method);
+    }
+  }
+
+  for (const match of source.matchAll(pageDestructuredMethodAliasPattern)) {
+    const bindings = match.groups?.bindings;
+
+    if (bindings === undefined) {
+      continue;
+    }
+
+    for (const binding of bindings.split(',')) {
+      const bindingMatch = binding
+        .trim()
+        .match(destructuredPageMethodBindingPattern);
+      const method = bindingMatch?.groups?.method;
+      const alias = bindingMatch?.groups?.alias ?? method;
+
+      if (
+        alias !== undefined &&
+        method !== undefined &&
+        allowedMethods.has(method)
+      ) {
+        aliases.set(alias, method);
+      }
+    }
+  }
+
+  return [...aliases.entries()].flatMap(([alias, method]) => {
+    const aliasCallPattern = new RegExp(
+      String.raw`\b${escapeRegExp(alias)}\s*\(`,
+      'g',
+    );
+
+    return collectPatternEntriesForSource(
+      relativePath,
+      source,
+      aliasCallPattern,
+    )
+      .filter((entry) => !entry.includes(`:${alias} =`))
+      .map((entry) => `${entry} (page.${method} alias)`);
+  });
+};
+
+const collectAliasedPageMethodEntries = (methods: readonly string[]) =>
+  collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectAliasedPageMethodEntriesForSource(
+      relativePath,
+      source,
+      methods,
+    );
+  });
+
 const collectPlaywrightSkipEntries = () => [
   ...collectPatternEntries(skipPattern),
   ...collectAliasedModifierEntries(['skip', 'fixme']),
@@ -269,8 +354,10 @@ const collectFocusedOnlyEntries = () => [
   ...collectAliasedModifierEntries(['only']),
 ];
 
-const collectInteractiveDebugEntries = () =>
-  collectPatternEntries(interactiveDebugPattern);
+const collectInteractiveDebugEntries = () => [
+  ...collectPatternEntries(interactiveDebugPattern),
+  ...collectAliasedPageMethodEntries(['pause']),
+];
 
 const sourceContextForEntry = (entry: string): string => {
   const [relativePath, lineNumber] = entry.split(':');
@@ -319,7 +406,10 @@ const collectPlaceholderMetadataEntries = () =>
     );
   });
 
-const collectFixedWaitEntries = () => collectPatternEntries(fixedWaitPattern);
+const collectFixedWaitEntries = () => [
+  ...collectPatternEntries(fixedWaitPattern),
+  ...collectAliasedPageMethodEntries(['waitForTimeout']),
+];
 
 const collectScreenshotHelperFixedSleepEntries = () =>
   screenshotHelperPaths.flatMap((relativePath) => {
@@ -509,6 +599,38 @@ hiddenSlow();`;
     ).toEqual([
       'tests/specs/example/aliased-modifiers.spec.ts:10:hiddenSlow( (slow alias)',
       'tests/specs/example/aliased-modifiers.spec.ts:8:configureSerial( (configure alias)',
+    ]);
+  });
+
+  it('recognizes aliased page debug and fixed-wait helpers before inventory checks run', () => {
+    const aliasedPageMethodSource = `const pauseForDebug = page.pause;
+await pauseForDebug();
+const { pause: pauseFromPage } = page;
+await pauseFromPage();
+const waitByAlias = page.waitForTimeout;
+await waitByAlias(100);
+const { waitForTimeout } = page;
+await waitForTimeout(100);`;
+
+    expect(
+      collectAliasedPageMethodEntriesForSource(
+        'tests/specs/example/aliased-page-methods.spec.ts',
+        aliasedPageMethodSource,
+        ['pause'],
+      ),
+    ).toEqual([
+      'tests/specs/example/aliased-page-methods.spec.ts:2:pauseForDebug( (page.pause alias)',
+      'tests/specs/example/aliased-page-methods.spec.ts:4:pauseFromPage( (page.pause alias)',
+    ]);
+    expect(
+      collectAliasedPageMethodEntriesForSource(
+        'tests/specs/example/aliased-page-methods.spec.ts',
+        aliasedPageMethodSource,
+        ['waitForTimeout'],
+      ),
+    ).toEqual([
+      'tests/specs/example/aliased-page-methods.spec.ts:6:waitByAlias( (page.waitForTimeout alias)',
+      'tests/specs/example/aliased-page-methods.spec.ts:8:waitForTimeout( (page.waitForTimeout alias)',
     ]);
   });
 
