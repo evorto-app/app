@@ -1477,7 +1477,7 @@ describe('stabilization source', () => {
     expect(source).toContain('documentation reporter barrel');
     expect(source).toContain('literal');
     expect(source).toContain('screenshot caption');
-    expect(source).toContain('at least four words');
+    expect(source).toContain('at least 32 characters and\nfive words');
     expect(source).toMatch(/terse\s+section\/list label/u);
     expect(source).toContain('captured image');
     expect(source).toContain('highlighted focus-target\n  pixels');
@@ -1609,7 +1609,7 @@ describe('stabilization source', () => {
     expect(source).toContain('app-root');
     expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
     expect(source).toContain('PERMISSION_GROUPS');
-    expect(inventory).toContain('current 16 documentation source files');
+    expect(inventory).toMatch(/current 16 documentation source\s+files/u);
     expect(inventory).toContain(
       'at least 120 characters of explanatory markdown',
     );
@@ -1627,7 +1627,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('shared `takeScreenshot` helper');
     expect(inventory).toMatch(/documentation\s+reporter\s+barrel/u);
     expect(inventory).toContain('meaningful literal caption');
-    expect(inventory).toContain('at least 24 characters and four words');
+    expect(inventory).toContain('at least 32 characters and five words');
     expect(inventory).toMatch(/terse\s+section\/list labels/u);
     expect(inventory).toMatch(/generic page-root\s+screenshot targets/u);
     expect(inventory).toContain(
@@ -2458,10 +2458,10 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       "'../../support/reporters/documentation-reporter'",
     );
-    expect(generatedDocumentationSource).toContain('captionText.length < 24');
+    expect(generatedDocumentationSource).toContain('captionText.length < 32');
     expect(generatedDocumentationSource).toContain('caption: string');
     expect(generatedDocumentationSource).toContain(
-      'caption.trim().length < 24',
+      'caption.trim().length < 32',
     );
     expect(generatedDocumentationSource).toContain(
       'findRawMarkdownImageMarkup',
@@ -2646,7 +2646,7 @@ describe('stabilization source', () => {
       'assertDescriptiveDocumentationCaption',
     );
     expect(reporterAttachmentsSource).toContain(
-      'must be a descriptive caption of at least 24 characters and four words',
+      'must be a descriptive caption of at least 32 characters and five words',
     );
     expect(reporterAttachmentsSource).toContain(
       'must be a valid PNG screenshot',
@@ -2726,7 +2726,7 @@ describe('stabilization source', () => {
       'Documentation image-caption attachment in Orphan caption is missing a preceding image attachment.',
     );
     expect(reporterPathsSpec).toContain(
-      'Documentation image-caption attachment in Weak reporter caption must be a descriptive caption of at least 24 characters and four words.',
+      'Documentation image-caption attachment in Weak reporter caption must be a descriptive caption of at least 32 characters and five words.',
     );
     expect(reporterPathsSpec).toContain(
       'documentation screenshot helper rejects weak runtime captions',

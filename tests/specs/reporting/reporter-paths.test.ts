@@ -324,7 +324,7 @@ test('documentation reporter rejects weak image captions at output time', async 
   expect(() =>
     reporter.onTestEnd({ title: 'Weak reporter caption' } as any, result),
   ).toThrow(
-    'Documentation image-caption attachment in Weak reporter caption must be a descriptive caption of at least 24 characters and four words.',
+    'Documentation image-caption attachment in Weak reporter caption must be a descriptive caption of at least 32 characters and five words.',
   );
 });
 
@@ -612,7 +612,7 @@ test('documentation screenshot helper rejects weak runtime captions', async ({
   await expect(
     takeScreenshot(testInfo, page.locator('#target'), page, 'Too short'),
   ).rejects.toThrow(
-    'Documentation screenshots require a descriptive caption of at least 24 characters and four words.',
+    'Documentation screenshots require a descriptive caption of at least 32 characters and five words.',
   );
 });
 

@@ -3713,7 +3713,7 @@ fallback rather than a profile discount-card defect.
 - Current generated-docs runtime caption checkpoint:
   `tests/support/reporters/documentation-reporter/take-screenshot.ts` now makes
   the caption parameter required and fails fast when the caption is shorter than
-  the source-guarded 24-character floor, so a generated-doc screenshot cannot
+  the source-guarded 32-character and five-word floor, so a generated-doc screenshot cannot
   silently render as an uncaptioned or weakly captioned image even if a future
   docs flow bypasses the source parser. The same helper now parses the captured
   PNG and rejects screenshots that do not include the highlighted focus-target
@@ -6417,9 +6417,11 @@ imports, computed raw payload keys, or destructured/grouped raw helper aliases
 behind local strings such as `const key = 'screenshot'` before using
 `page[key](...)`, `testInfo[attachKey](...)`,
 `documentationReporter[helperKey](...)`, or `import(reporterPath)`.
-Generated-doc screenshot captions now also require at least four words at
-runtime and in source coverage, so a screenshot cannot pass with a terse
-section/list label that does not explain what the image proves.
+Generated-doc screenshot captions now also require at least 32 characters and
+five words at runtime and in source coverage, so a screenshot cannot pass with a
+terse section/list label that does not explain what the image proves. The
+shorter role, profile, template, and event-approval captions were expanded to
+name the surrounding state or decision controls they prove.
 Generated-doc image attachments now also have to be at least 320x240 at
 reporter runtime, so a tiny valid PNG with a highlight and colored pixels cannot
 stand in for a screenshot that shows enough UI context to judge the captured

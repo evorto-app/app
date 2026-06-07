@@ -541,14 +541,15 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   visibility, account-creation retry errors, existing-global-user tenant joins,
   template role-picker hard-failure guards before duplicate-hiding docs are
   emitted, and template simple-mode default-title assertions are aligned with
-  the form model defaults. It also requires the current 16 documentation source files to attach
+  the form model defaults. It also requires the current 16 documentation source
+  files to attach
   at least 120 characters of explanatory markdown, pins the current per-flow
   screenshot counts with a manifest that must include every image-backed docs
   file so docs cannot quietly drop image-backed states, requires UI docs to use
   the shared `takeScreenshot` helper imported from the documentation reporter
   barrel with a meaningful literal caption, requires screenshot captions to stay
   unique across generated docs so one caption cannot describe unrelated states,
-  requires screenshot captions to have at least 24 characters and four words so
+  requires screenshot captions to have at least 32 characters and five words so
   terse section/list labels do not pass as meaningful evidence,
   parses the root Product documentation-expectations list and maps every
   important documentation area to generated docs files plus concrete source

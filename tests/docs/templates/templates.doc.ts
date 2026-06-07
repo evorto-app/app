@@ -219,7 +219,7 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
     testInfo,
     organizerRegistrationForm,
     page,
-    'Organizer payment fields visible',
+    'Organizer payment fields visible in template option form',
   );
   await page.getByRole('switch', { name: 'Enable Payment' }).first().click();
 
@@ -293,7 +293,7 @@ Questions can include help text and can be marked as required. Event-side answer
     testInfo,
     questionForm,
     page,
-    'Reusable registration question form',
+    'Reusable registration question form with required response controls',
   );
 
   await testInfo.attach('markdown', {

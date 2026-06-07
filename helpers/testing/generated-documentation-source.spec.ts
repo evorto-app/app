@@ -1028,8 +1028,8 @@ const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
 
       if (
         !captionText ||
-        captionText.length < 24 ||
-        captionText.split(/\s+/u).filter(Boolean).length < 4
+        captionText.length < 32 ||
+        captionText.split(/\s+/u).filter(Boolean).length < 5
       ) {
         weakCaptions.push(describeCall(node));
       }
@@ -8078,8 +8078,8 @@ describe('generated docs source current behavior', () => {
       'Documentation screenshots must include visible page content outside the highlighted focus target.',
     );
     expect(screenshotHelper).toContain('caption: string');
-    expect(screenshotHelper).toContain('caption.trim().length < 24');
-    expect(screenshotHelper).toContain('captionWords.length < 4');
+    expect(screenshotHelper).toContain('caption.trim().length < 32');
+    expect(screenshotHelper).toContain('captionWords.length < 5');
     expect(screenshotHelper).toContain('hasVisibleLoadingIndicator');
     expect(screenshotHelper).toContain(
       'return ![...document.body.querySelectorAll',
@@ -8087,12 +8087,12 @@ describe('generated docs source current behavior', () => {
     expect(screenshotHelper).toContain(
       'Documentation screenshots require a descriptive caption',
     );
-    expect(screenshotHelper).toContain('at least 24 characters and four words');
+    expect(screenshotHelper).toContain('at least 32 characters and five words');
     expect(reporterAttachments).toContain(
       'assertDescriptiveDocumentationCaption',
     );
-    expect(reporterAttachments).toContain('minimumCaptionLength = 24');
-    expect(reporterAttachments).toContain('minimumCaptionWordCount = 4');
+    expect(reporterAttachments).toContain('minimumCaptionLength = 32');
+    expect(reporterAttachments).toContain('minimumCaptionWordCount = 5');
     expect(reporterAttachments).toContain('minimumImageWidth = 320');
     expect(reporterAttachments).toContain('minimumImageHeight = 240');
     expect(reporterAttachments).toContain('minimumMarkdownBodyLength = 60');

@@ -9,8 +9,8 @@ export type ResultAttachment = TestResult['attachments'][number];
 const highlightedTargetColor = { b: 153, g: 72, r: 236 };
 const minimumHighlightedPixelCount = 16;
 const minimumVisibleContentPixelCount = 128;
-const minimumCaptionLength = 24;
-const minimumCaptionWordCount = 4;
+const minimumCaptionLength = 32;
+const minimumCaptionWordCount = 5;
 const minimumImageWidth = 320;
 const minimumImageHeight = 240;
 const minimumMarkdownBodyLength = 60;
@@ -157,7 +157,7 @@ const assertDescriptiveDocumentationCaption = (
     captionWords.length < minimumCaptionWordCount
   ) {
     throw new Error(
-      `Documentation image-caption attachment in ${testTitle} must be a descriptive caption of at least 24 characters and four words.`,
+      `Documentation image-caption attachment in ${testTitle} must be a descriptive caption of at least 32 characters and five words.`,
     );
   }
 };

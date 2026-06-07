@@ -114,7 +114,7 @@ Start by navigating to **Admin tools**. The current relaunch admin surface separ
       testInfo,
       userList,
       page,
-      'Read-only tenant user list',
+      'Read-only tenant user list with role assignment deferral',
     );
     await testInfo.attach('markdown', {
       body: `

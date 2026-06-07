@@ -204,7 +204,7 @@ The form uses inline validation, and the save button is only enabled when both n
       testInfo,
       editDialog,
       page,
-      'Edit profile validation state',
+      'Edit profile dialog validation state with disabled save action',
     );
     await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(editDialog).toHaveCount(0);
@@ -247,7 +247,7 @@ The notification email is user-managed and may differ from the Auth0 login email
       testInfo,
       profileSummarySurface(page),
       page,
-      'Profile notification email persisted',
+      'Profile summary after notification email persistence',
     );
 
     await testInfo.attach('markdown', {
