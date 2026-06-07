@@ -1264,6 +1264,21 @@ provider outcomes without live identifiers.
   Events/Login bottom navigation. The matching focused
   `bun run test:e2e:public-general-viewports` run passed against the same
   running Docker app.
+  The current-head Browser refresh at `ffe94889` rebuilt and reseeded the
+  generated Docker app, derived the public `Small Event Example 1` detail link
+  from `/events`, and checked all anonymous General routes at 320x740, 390x844,
+  and 1440x900. All 30 checks found expected content, document/body widths
+  inside the viewport, no horizontal overflow, no top/side clipped visible
+  controls, no persistent visible loading or application-error text, contained
+  mobile/desktop navigation, and no Browser warning/error logs. The inspected
+  screenshots
+  `/tmp/evorto-public-general-ffe94889-events-list-320x740.png`,
+  `/tmp/evorto-public-general-ffe94889-privacy-legal-page-390x844.png`, and
+  `/tmp/evorto-public-general-ffe94889-event-detail-1440x900.png` show seeded
+  Material event cards, the privacy legal fallback page, and the desktop event
+  detail/registration state. The matching focused
+  `bun run test:e2e:public-general-viewports` run passed against the same
+  running Docker app.
 - `tests/setup/mcp-browser-authenticated.seed.ts` is the authenticated MCP
   Browser planner seed for the dedicated `mcp-browser-authenticated-planner`
   project. It depends on the normal `setup` project, then opens

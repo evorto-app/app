@@ -5952,6 +5952,19 @@ placeholders, no rendered application-error text, no horizontal overflow or
 visible left/right overflow entries, and no Browser warning/error logs. The
 matching focused `bun run test:e2e:public-general-viewports` run passed against
 the same Docker app.
+A fresh June 7, 2026 current-head Browser refresh on pushed head `ffe94889`
+rebuilt and reseeded the generated Docker app, derived the public
+`Small Event Example 1` detail link from `/events`, and checked all 10
+anonymous General routes at 320x740, 390x844, and 1440x900. All 30 checks
+found expected content, matching document/body widths inside the viewport, no
+horizontal overflow, no top/side clipped visible controls, no persistent visible
+loading or application-error text, contained mobile/desktop navigation, and no
+Browser warning/error logs. Representative screenshots were visually inspected
+at `/tmp/evorto-public-general-ffe94889-events-list-320x740.png`,
+`/tmp/evorto-public-general-ffe94889-privacy-legal-page-390x844.png`, and
+`/tmp/evorto-public-general-ffe94889-event-detail-1440x900.png`; the matching
+focused `bun run test:e2e:public-general-viewports` run passed against the same
+running Docker app with 2 tests.
 A fresh June 6, 2026 current-head runtime refresh at pushed head `612eddd2`
 could not produce new in-app Browser evidence: `bun run dev:status` regenerated
 `.env.dev`, reported `BASE_URL=http://localhost:4200` and
