@@ -161,6 +161,25 @@ const isTrackedArrayTarget = (
       );
     }
 
+    if (
+      methodName === 'from' &&
+      unwrappedReceiver &&
+      ts.isIdentifier(unwrappedReceiver) &&
+      unwrappedReceiver.text === 'Array'
+    ) {
+      const sourceArgument = target.arguments[0];
+      const mapperArgument = target.arguments[1];
+
+      return (
+        (sourceArgument
+          ? isTrackedArrayTarget(sourceArgument, isTrackedTarget, options) ||
+            isTrackedTarget(sourceArgument)
+          : options.emptyArrayIsTracked === true) ||
+        (!!mapperArgument &&
+          returnsTrackedTarget(mapperArgument, isTrackedTarget, options))
+      );
+    }
+
     if (methodName === 'at' && receiver && target.arguments[0]) {
       const index = getStaticIntegerIndex(target.arguments[0]);
 
@@ -4316,6 +4335,8 @@ describe('generated docs source current behavior', () => {
 
   it('detects weak documentation screenshot targets hidden behind array helper calls', () => {
     const arrayHelperTargetSource = `
+      const returnsSingleControlTarget = () => page.getByRole('button', { name: 'Save' });
+
       await takeScreenshot(
         testInfo,
         [settingsSurface, page.locator('main')].filter(Boolean),
@@ -4340,6 +4361,30 @@ describe('generated docs source current behavior', () => {
         page,
         'Concatenated icon target with a descriptive caption',
       );
+      await takeScreenshot(
+        testInfo,
+        Array.from([settingsSurface, page.locator('main')]),
+        page,
+        'Array from generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        Array.from([settingsSurface], () => page.locator('section')),
+        page,
+        'Array from mapper broad target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        Array.from({ length: 1 }, returnsSingleControlTarget),
+        page,
+        'Array from named mapper control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        Array.from([settingsSurface], () => [page.locator('svg')]),
+        page,
+        'Array from mapper icon target with a descriptive caption',
+      );
     `;
 
     expect(
@@ -4347,25 +4392,37 @@ describe('generated docs source current behavior', () => {
         'tests/docs/example/array-helper-target.doc.ts',
         arrayHelperTargetSource,
       ),
-    ).toEqual(['tests/docs/example/array-helper-target.doc.ts:2:13']);
+    ).toEqual([
+      'tests/docs/example/array-helper-target.doc.ts:4:13',
+      'tests/docs/example/array-helper-target.doc.ts:28:13',
+    ]);
     expect(
       findUnfilteredBroadScreenshotTargets(
         'tests/docs/example/array-helper-target.doc.ts',
         arrayHelperTargetSource,
       ),
-    ).toEqual(['tests/docs/example/array-helper-target.doc.ts:8:13']);
+    ).toEqual([
+      'tests/docs/example/array-helper-target.doc.ts:10:13',
+      'tests/docs/example/array-helper-target.doc.ts:34:13',
+    ]);
     expect(
       findSingleControlScreenshotTargets(
         'tests/docs/example/array-helper-target.doc.ts',
         arrayHelperTargetSource,
       ),
-    ).toEqual(['tests/docs/example/array-helper-target.doc.ts:14:13']);
+    ).toEqual([
+      'tests/docs/example/array-helper-target.doc.ts:16:13',
+      'tests/docs/example/array-helper-target.doc.ts:40:13',
+    ]);
     expect(
       findIconOrMediaScreenshotTargets(
         'tests/docs/example/array-helper-target.doc.ts',
         arrayHelperTargetSource,
       ),
-    ).toEqual(['tests/docs/example/array-helper-target.doc.ts:20:13']);
+    ).toEqual([
+      'tests/docs/example/array-helper-target.doc.ts:22:13',
+      'tests/docs/example/array-helper-target.doc.ts:46:13',
+    ]);
   });
 
   it('detects weak documentation screenshot targets inserted through toSpliced calls', () => {

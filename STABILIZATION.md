@@ -5987,13 +5987,14 @@ It now rejects icon-only and media-only screenshot targets such as `svg`, `img`,
 when they are passed to generated-doc screenshots, so docs cannot crop to a lone
 icon or uploaded media asset instead of the surrounding workflow surface. The
 guard also inspects screenshot target arrays, spread target arrays, array
-helper calls such as `Array.of(...)`, `.concat(...)`, `.map(...)`,
-`.flatMap(...)`, `.toSpliced(...)`, `.with(...)`, `.fill(...)`, `.slice()`,
-`.reverse()`, `.sort()`, `.toReversed()`, `.toSorted()`, and `.flat()`, and
-helper-returned targets for direct generic, broad, single-control, and
-icon/media screenshot targets. `map` and `flatMap` callback return values are
-checked too, including named or locally aliased callback helpers, so a safe
-receiver array cannot manufacture a weak screenshot target in the callback.
+helper calls such as `Array.of(...)`, `Array.from(...)`, `.concat(...)`,
+`.map(...)`, `.flatMap(...)`, `.toSpliced(...)`, `.with(...)`, `.fill(...)`,
+`.slice()`, `.reverse()`, `.sort()`, `.toReversed()`, `.toSorted()`, and
+`.flat()`, and helper-returned targets for direct generic, broad,
+single-control, and icon/media screenshot targets. `map`, `flatMap`, and
+`Array.from(...)` callback return values are checked too, including named or
+locally aliased callback helpers, so a safe receiver array cannot manufacture a
+weak screenshot target in the callback.
 Conditional, nullish-coalesced, and logical target
 expressions are checked too, so selecting between a good surface and a weak
 fallback cannot hide generic, broad, single-control, or icon/media screenshot
@@ -6009,6 +6010,14 @@ The page rendered seeded event-card content and meaningful event icons such as
 overflow, clipped visible controls, loading placeholder, rendered application
 error text, or Browser warning/error logs; and saved the viewport screenshot to
 `/tmp/evorto-named-callback-events-390.png`.
+A follow-up in-app Browser refresh for the `Array.from(...)` source-guard slice
+opened `/legal/terms` at 320x740 with
+`stabilizationEvidence=array-from-source-guard`. The viewport screenshot showed
+the Terms page, tenant-missing legal-text fallback, Back to events link, and
+bottom Events/Login navigation; Browser metrics reported no horizontal
+overflow, clipped visible controls, loading placeholder, rendered application
+error text, or Browser warning/error logs, and saved the viewport screenshot to
+`/tmp/evorto-array-from-terms-320.png`.
 The generated-doc source guard now collects screenshot target aliases and helper
 functions before it inspects screenshot calls, so generic shell, broad,
 single-control, and icon/media-only targets are still rejected when the alias or

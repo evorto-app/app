@@ -1524,7 +1524,7 @@ describe('stabilization source', () => {
     expect(source).toContain('icon-only and media-only screenshot targets');
     expect(source).toContain("getByRole('img')");
     expect(source).toMatch(
-      /targets for direct generic, broad, single-control, and\s+icon\/media screenshot targets/u,
+      /targets for direct generic, broad,\s+single-control, and icon\/media screenshot targets/u,
     );
     expect(source).toContain('`.flat()`');
     expect(source).toContain('spread target arrays');
@@ -1607,13 +1607,13 @@ describe('stabilization source', () => {
     expect(inventory).toContain('.toSorted()');
     expect(inventory).toContain('.flat()');
     expect(inventory).toContain(
-      'weak targets produced\n  by inline, named, or locally aliased `map` and `flatMap` callbacks',
+      'weak\n  targets produced by inline, named, or locally aliased `map` and `flatMap`\n  callbacks and by `Array.from(...)` mapper callbacks',
     );
     expect(inventory).toContain(
       'conditional, nullish-coalesced, and logical target\n  expressions',
     );
     expect(inventory).toMatch(/non-null assertion wrappers/u);
-    expect(inventory).toContain('helper-returned icon/media locators');
+    expect(inventory).toMatch(/helper-returned\s+icon\/media locators/u);
     expect(inventory).toContain('helper-internal screenshot imports');
     expect(inventory).toMatch(/local\s+screenshot\s+wrappers/u);
     expect(inventory).toMatch(/assigned helper\s+properties/u);
@@ -1950,6 +1950,12 @@ describe('stabilization source', () => {
       "[settingsSurface].concat(page.locator('section'))",
     );
     expect(generatedDocumentationSource).toContain('Array.of(settingsSurface');
+    expect(generatedDocumentationSource).toContain(
+      "Array.from([settingsSurface, page.locator('main')])",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'Array.from({ length: 1 }, returnsSingleControlTarget)',
+    );
     expect(generatedDocumentationSource).toContain(
       "[settingsSurface, page.locator('main')].map((target) => target)",
     );
