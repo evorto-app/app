@@ -6503,6 +6503,11 @@ caption, highlight, and target-quality checks.
 `Reflect.apply(...)` invocations of `takeScreenshot`, raw screenshot functions,
 and image attachment functions are rejected as the same bypass class, so docs
 cannot hide helper or raw-image calls behind the global reflection API.
+Returned raw capture helpers are rejected too, so `resolveCapture()({ ... })`
+or `resolveAttach()('image', ...)` cannot hide direct `page.screenshot`,
+`locator.screenshot`, or `testInfo.attach` usage behind a neutral local helper
+function before docs reach the shared screenshot-helper caption, highlight,
+content-pixel, and readable-text checks.
 Static `Reflect.get(...)` lookups of `takeScreenshot`, `page.screenshot`, and
 `testInfo.attach` are treated as shared-helper or raw screenshot/image helpers
 too, including string-alias property names, so generated docs cannot hide direct

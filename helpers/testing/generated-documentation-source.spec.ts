@@ -4544,6 +4544,7 @@ const findDirectImageAttachmentCalls = (
   const imageAttachmentPayloadValueAliases = new Set<string>();
   const imageAttachmentPayloadValuePropertyAliases = new Set<string>();
   const attachFunctionAliases = new Set<string>();
+  const attachFunctionFactoryAliases = new Set<string>();
   const attachFunctionPropertyAliases = new Set<string>();
 
   const describeCall = (node: ts.CallExpression): string => {
@@ -4833,6 +4834,17 @@ const findDirectImageAttachmentCalls = (
       return attachFunctionAliases.has(expression.text);
     }
 
+    if (ts.isCallExpression(expression)) {
+      const callee = unwrapExpression(expression.expression);
+
+      if (
+        ts.isIdentifier(callee) &&
+        attachFunctionFactoryAliases.has(callee.text)
+      ) {
+        return true;
+      }
+    }
+
     if (hasPropertyAlias(expression, attachFunctionPropertyAliases)) {
       return true;
     }
@@ -4842,6 +4854,45 @@ const findDirectImageAttachmentCalls = (
 
   const addAttachBindingAliases = (name: ts.BindingName): void => {
     addBindingIdentifiers(name, attachFunctionAliases);
+  };
+
+  const returnsAttachFunctionReference = (
+    node: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression,
+  ): boolean => {
+    if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+      return isTrackedAttachFunctionReference(node.body);
+    }
+
+    if (!ts.isBlock(node.body)) {
+      return false;
+    }
+
+    let returnsAttachFunction = false;
+
+    const visitReturn = (child: ts.Node): void => {
+      if (
+        child !== node.body &&
+        (ts.isArrowFunction(child) ||
+          ts.isFunctionDeclaration(child) ||
+          ts.isFunctionExpression(child))
+      ) {
+        return;
+      }
+
+      if (
+        ts.isReturnStatement(child) &&
+        child.expression &&
+        isTrackedAttachFunctionReference(child.expression)
+      ) {
+        returnsAttachFunction = true;
+      }
+
+      ts.forEachChild(child, visitReturn);
+    };
+
+    visitReturn(node.body);
+
+    return returnsAttachFunction;
   };
 
   const collectAliasValuesAndAttachFunctions = (node: ts.Node): void => {
@@ -4858,8 +4909,16 @@ const findDirectImageAttachmentCalls = (
         imageAttachmentPayloadValueAliases.add(node.name.text);
       }
 
-      if (isAttachFunctionReference(node.initializer)) {
+      if (isTrackedAttachFunctionReference(node.initializer)) {
         attachFunctionAliases.add(node.name.text);
+      }
+
+      if (
+        (ts.isArrowFunction(node.initializer) ||
+          ts.isFunctionExpression(node.initializer)) &&
+        returnsAttachFunctionReference(node.initializer)
+      ) {
+        attachFunctionFactoryAliases.add(node.name.text);
       }
 
       collectGroupedPropertyAliases(
@@ -5007,6 +5066,14 @@ const findDirectImageAttachmentCalls = (
           imageAttachmentPayloadValuePropertyAliases,
         );
       }
+    }
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      returnsAttachFunctionReference(node)
+    ) {
+      attachFunctionFactoryAliases.add(node.name.text);
     }
 
     if (
@@ -5448,6 +5515,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
   const reflectAliases = collectReflectAliases(sourceFile);
   const screenshotCalls: string[] = [];
   const screenshotFunctionAliases = new Set<string>();
+  const screenshotFunctionFactoryAliases = new Set<string>();
   const screenshotFunctionPropertyAliases = new Set<string>();
 
   const describeCall = (node: ts.CallExpression): string => {
@@ -5537,6 +5605,17 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       return screenshotFunctionAliases.has(expression.text);
     }
 
+    if (ts.isCallExpression(expression)) {
+      const callee = unwrapExpression(expression.expression);
+
+      if (
+        ts.isIdentifier(callee) &&
+        screenshotFunctionFactoryAliases.has(callee.text)
+      ) {
+        return true;
+      }
+    }
+
     if (isScreenshotFunctionPropertyAlias(expression)) {
       return true;
     }
@@ -5546,6 +5625,45 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
 
   const addScreenshotBindingAliases = (name: ts.BindingName): void => {
     addBindingIdentifiers(name, screenshotFunctionAliases);
+  };
+
+  const returnsScreenshotFunctionReference = (
+    node: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression,
+  ): boolean => {
+    if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+      return isTrackedScreenshotFunctionReference(node.body);
+    }
+
+    if (!ts.isBlock(node.body)) {
+      return false;
+    }
+
+    let returnsScreenshotFunction = false;
+
+    const visitReturn = (child: ts.Node): void => {
+      if (
+        child !== node.body &&
+        (ts.isArrowFunction(child) ||
+          ts.isFunctionDeclaration(child) ||
+          ts.isFunctionExpression(child))
+      ) {
+        return;
+      }
+
+      if (
+        ts.isReturnStatement(child) &&
+        child.expression &&
+        isTrackedScreenshotFunctionReference(child.expression)
+      ) {
+        returnsScreenshotFunction = true;
+      }
+
+      ts.forEachChild(child, visitReturn);
+    };
+
+    visitReturn(node.body);
+
+    return returnsScreenshotFunction;
   };
 
   const isInlineBoundScreenshotCall = (callee: ts.Expression): boolean => {
@@ -5582,9 +5700,28 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.initializer &&
-      isScreenshotFunctionReference(node.initializer)
+      isTrackedScreenshotFunctionReference(node.initializer)
     ) {
       screenshotFunctionAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      (ts.isArrowFunction(node.initializer) ||
+        ts.isFunctionExpression(node.initializer)) &&
+      returnsScreenshotFunctionReference(node.initializer)
+    ) {
+      screenshotFunctionFactoryAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      returnsScreenshotFunctionReference(node)
+    ) {
+      screenshotFunctionFactoryAliases.add(node.name.text);
     }
 
     if (
@@ -6302,6 +6439,30 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects direct image attachments hidden behind returned function helpers', () => {
+    const returnedAttachSource = `
+      function resolveAttachEvidence() {
+        return testInfo.attach.bind(testInfo);
+      }
+      const resolveAttachAlias = () => testInfo.attach.bind(testInfo);
+      const attachEvidence = resolveAttachEvidence();
+      await resolveAttachEvidence()('image', { body: imageBuffer });
+      await resolveAttachAlias()('raw evidence', { contentType: 'image/png' });
+      await attachEvidence('raw file evidence', { path: 'returned-raw.png' });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/returned-attach-helper.doc.ts',
+        returnedAttachSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/returned-attach-helper.doc.ts:7:13',
+      'tests/docs/example/returned-attach-helper.doc.ts:8:13',
+      'tests/docs/example/returned-attach-helper.doc.ts:9:13',
+    ]);
+  });
+
   it('detects direct image attachments hidden behind Reflect.get attach aliases', () => {
     const reflectGetImageAttachmentSource = `
       const reflectedAttach = Reflect.get(testInfo, 'attach');
@@ -6807,6 +6968,30 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/reflect-get-screenshot.doc.ts:8:13',
       'tests/docs/example/reflect-get-screenshot.doc.ts:9:13',
       'tests/docs/example/reflect-get-screenshot.doc.ts:11:13',
+    ]);
+  });
+
+  it('detects direct screenshots hidden behind returned function helpers', () => {
+    const returnedScreenshotSource = `
+      function resolvePageCapture() {
+        return page.screenshot.bind(page);
+      }
+      const resolveElementCapture = () => page.locator('main').screenshot.bind(page.locator('main'));
+      const capturePageScreenshot = resolvePageCapture();
+      await resolvePageCapture()({ path: 'returned-page.png' });
+      await resolveElementCapture()({ path: 'returned-element.png' });
+      await capturePageScreenshot({ path: 'assigned-returned-page.png' });
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/returned-screenshot-helper.doc.ts',
+        returnedScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/returned-screenshot-helper.doc.ts:7:13',
+      'tests/docs/example/returned-screenshot-helper.doc.ts:8:13',
+      'tests/docs/example/returned-screenshot-helper.doc.ts:9:13',
     ]);
   });
 

@@ -3007,6 +3007,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Inline `bind(...)(...)` invocations');
     expect(source).toContain('`Reflect.apply(...)` invocations');
+    expect(source).toContain('Returned raw capture helpers');
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);
     expect(source).toContain('Optional-call invocations');
@@ -4794,6 +4795,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('Reflection-based modifier access');
     expect(inventory).toContain('Reflect.get(...)');
     expect(inventory).toContain('Reflect.apply(...)');
+    expect(inventory).toContain(
+      'returned raw screenshot and image attach helper functions',
+    );
     expect(inventory).toContain('local `Reflect` aliases');
     expect(inventory).toContain("page['pause'](...)");
     expect(inventory).toContain('local aliases of `page.pause`');
