@@ -578,9 +578,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   meaningful-target checks, includes object-property target aliases so grouped
   screenshot target objects cannot hide weak locator targets, including computed
   object keys, bracket property references, shorthand properties, alias-valued
-  properties, static indexed target lists, and static `.at(...)` array access,
-  unwraps `as const` and `satisfies` grouped target objects before alias
-  collection, rejects local
+  properties, static indexed target lists, and positive or negative static
+  `.at(...)` array access, unwraps `as const` and `satisfies` grouped target
+  objects before alias collection, rejects local
   aliases, assigned helper properties, indexed helper entries, and wrapper
   functions that reference `takeScreenshot` even when the helper is named like
   `captureDocumentationImage`, rejects dynamic screenshot-helper imports through

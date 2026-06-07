@@ -240,6 +240,7 @@ const collectIndexedPropertyAliases = (
   elements.forEach((element, index) => {
     if (isTrackedReference(element)) {
       propertyAliases.add(`${ownerName}.${index}`);
+      propertyAliases.add(`${ownerName}.${index - elements.length}`);
     }
   });
 };
@@ -4761,6 +4762,72 @@ describe('generated docs source current behavior', () => {
         arrayAccessorTargetSource,
       ),
     ).toEqual(['tests/docs/example/array-accessor-target.doc.ts:26:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind negative array accessors', () => {
+    const negativeArrayAccessorTargetSource = `
+      const genericTargets = [settingsSurface, page.locator('main')];
+      const broadTargets = [settingsSurface, page.locator('section')];
+      const singleTargets = [settingsSurface, page.getByRole('button', { name: 'Save' })];
+      const iconTargets = [settingsSurface, page.locator('img[alt="Tenant logo"]')];
+      await takeScreenshot(
+        testInfo,
+        genericTargets.at(-1),
+        page,
+        'Negative array generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        broadTargets.at(-1),
+        page,
+        'Negative array broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        singleTargets.at(-1),
+        page,
+        'Negative array single button target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        iconTargets.at(-1),
+        page,
+        'Negative array image target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/negative-array-accessor-target.doc.ts',
+        negativeArrayAccessorTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/negative-array-accessor-target.doc.ts:6:13',
+    ]);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/negative-array-accessor-target.doc.ts',
+        negativeArrayAccessorTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/negative-array-accessor-target.doc.ts:12:13',
+    ]);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/negative-array-accessor-target.doc.ts',
+        negativeArrayAccessorTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/negative-array-accessor-target.doc.ts:18:13',
+    ]);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/negative-array-accessor-target.doc.ts',
+        negativeArrayAccessorTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/negative-array-accessor-target.doc.ts:24:13',
+    ]);
   });
 
   it('detects generic documentation screenshot targets', () => {

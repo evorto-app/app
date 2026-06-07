@@ -1530,6 +1530,7 @@ describe('stabilization source', () => {
     expect(source).toContain('spread target arrays');
     expect(source).toContain('array\nhelper calls');
     expect(source).toContain('`targetList.at(0)`');
+    expect(source).toContain('`targetList.at(-1)`');
     expect(source).toMatch(
       /Conditional, nullish-coalesced, and logical\s+target expressions/u,
     );
@@ -1607,11 +1608,13 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/indexed helper\s+entries/u);
     expect(inventory).toContain('captureDocumentationImage');
     expect(inventory).toContain('unwraps `as const`');
-    expect(inventory).toContain('`satisfies` grouped target objects');
+    expect(inventory).toContain('`satisfies` grouped target');
+    expect(inventory).toContain('objects before alias collection');
     expect(inventory).toContain('shorthand properties');
     expect(inventory).toContain('alias-valued\n  properties');
     expect(inventory).toContain('static indexed target lists');
-    expect(inventory).toContain('static `.at(...)` array access');
+    expect(inventory).toContain('positive or negative static');
+    expect(inventory).toContain('`.at(...)` array access');
     expect(inventory).toContain('`locator.screenshot`');
     expect(inventory).toContain("direct `testInfo.attach('image', ...)`");
     expect(inventory).toContain("`page['screenshot']`");
@@ -1932,8 +1935,12 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind static array accessors',
     );
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets hidden behind negative array accessors',
+    );
     expect(generatedDocumentationSource).toContain('targetList.at(0)');
     expect(generatedDocumentationSource).toContain("targetList['at'](3)");
+    expect(generatedDocumentationSource).toContain('genericTargets.at(-1)');
     expect(generatedDocumentationSource).toContain(
       "useFallback ? page.locator('main') : settingsSurface",
     );
