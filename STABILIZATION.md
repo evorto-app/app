@@ -6671,7 +6671,8 @@ aliased body variables,
 grouped/indexed/destructured/assigned body variables including `.at(...)`
 indexed lists, body variables wrapped directly or through simple body forwarding
 such as `Buffer.from(...)`, `String(...)`, template interpolation,
-conditionals, or nullish/logical expressions, aliased payload objects,
+conditionals, nullish/logical expressions, or array-built bodies such as
+`['![raw](x.png)'].join('')`, aliased payload objects,
 grouped/indexed/destructured, assigned, binding-default, or parameter-default
 body/payload aliases, including `.at(...)` indexed payload lists, shorthand
 `{ body }`, bound, destructured, grouped, indexed, assigned, binding-default, or

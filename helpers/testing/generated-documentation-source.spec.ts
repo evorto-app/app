@@ -1393,9 +1393,23 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       return true;
     }
 
+    if (ts.isArrayLiteralExpression(expression)) {
+      return expression.elements.some((element) =>
+        hasRawMarkdownImage(unwrapArrayElement(element)),
+      );
+    }
+
     if (ts.isCallExpression(expression)) {
-      return expression.arguments.some((argument) =>
-        hasRawMarkdownImage(argument),
+      const callee = unwrapExpression(expression.expression);
+      const receiver =
+        ts.isPropertyAccessExpression(callee) ||
+        ts.isElementAccessExpression(callee)
+          ? getStaticPropertyReceiver(callee)
+          : null;
+
+      return (
+        (!!receiver && hasRawMarkdownImage(receiver)) ||
+        expression.arguments.some((argument) => hasRawMarkdownImage(argument))
       );
     }
 
@@ -6460,6 +6474,35 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/raw-markdown-image.doc.ts:107:13',
       'tests/docs/example/raw-markdown-image.doc.ts:111:13',
       'tests/docs/example/raw-markdown-image.doc.ts:112:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind array-built bodies', () => {
+    const arrayBuiltRawMarkdownImageSource = `
+      const arrayJoinedBody = [
+        'Introductory copy.',
+        '![Array joined screenshot](../array-joined.png)',
+      ].join('\\n');
+      const arrayConcatenatedBody = [
+        'Introductory copy.',
+      ].concat(['<img src="../array-concat.png" alt="Array concat">']).join('\\n');
+      const arrayPayload = {
+        body: ['Introductory copy.', '<svg viewBox="0 0 10 10"></svg>'].join('\\n'),
+      };
+      await testInfo.attach('markdown', { body: arrayJoinedBody });
+      await testInfo.attach('markdown', { body: arrayConcatenatedBody });
+      await testInfo.attach('markdown', arrayPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/array-built-raw-markdown-image.doc.ts',
+        arrayBuiltRawMarkdownImageSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/array-built-raw-markdown-image.doc.ts:12:13',
+      'tests/docs/example/array-built-raw-markdown-image.doc.ts:13:13',
+      'tests/docs/example/array-built-raw-markdown-image.doc.ts:14:13',
     ]);
   });
 
