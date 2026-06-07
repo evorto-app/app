@@ -6539,7 +6539,8 @@ binding-default and parameter-default markdown names,
 grouped/indexed/destructured/assigned markdown names including `.at(...)`
 indexed lists, simple markdown-name forwarding through calls, template
 interpolation, conditionals, nullish/logical expressions, and static
-concatenation, aliased body variables,
+concatenation, computed helper/raw-capture keys wrapped with `String(...)`,
+aliased body variables,
 grouped/indexed/destructured/assigned body variables including `.at(...)`
 indexed lists, body variables wrapped directly or through simple body forwarding
 such as `Buffer.from(...)`, `String(...)`, template interpolation,

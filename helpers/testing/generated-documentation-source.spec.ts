@@ -788,6 +788,15 @@ const resolveStaticStringValue = (
     return value;
   }
 
+  if (
+    ts.isCallExpression(expression) &&
+    ts.isIdentifier(expression.expression) &&
+    expression.expression.text === 'String' &&
+    expression.arguments.length === 1
+  ) {
+    return resolveStaticStringValue(expression.arguments[0], stringAliases);
+  }
+
   return null;
 };
 
@@ -4679,6 +4688,13 @@ describe('generated docs source current behavior', () => {
         page,
         'Reflect apply helper bypass with descriptive caption',
       ]);
+      const stringWrappedHelperKey = String('takeScreenshot');
+      await documentationReporter[stringWrappedHelperKey](
+        testInfo,
+        settingsSurface,
+        page,
+        'String wrapped helper key bypass with descriptive caption',
+      );
     `;
 
     expect(
@@ -4713,6 +4729,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:71:13',
       'tests/docs/example/bypass.doc.ts:77:13',
       'tests/docs/example/bypass.doc.ts:83:13',
+      'tests/docs/example/bypass.doc.ts:90:13',
     ]);
   });
 
@@ -4963,6 +4980,8 @@ describe('generated docs source current behavior', () => {
       await attachEvidence.call(testInfo, 'image', { body: imageBuffer });
       await Reflect.apply(testInfo.attach, testInfo, ['image', { body: imageBuffer }]);
       await Reflect.apply(attachEvidence, testInfo, ['reflect raw evidence', { contentType: 'image/png' }]);
+      const stringWrappedAttachKey = String('attach');
+      await testInfo[stringWrappedAttachKey]('image', { body: imageBuffer });
       await testInfo.attach('markdown', { body: markdown });
       const forwardAttachEvidence = testInfo.attach.bind(testInfo);
       const forwardAttachmentName = 'image';
@@ -4979,6 +4998,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:2:13',
       'tests/docs/example/direct-image.doc.ts:3:13',
       'tests/docs/example/direct-image.doc.ts:5:13',
+      'tests/docs/example/direct-image.doc.ts:12:13',
       'tests/docs/example/direct-image.doc.ts:13:13',
       'tests/docs/example/direct-image.doc.ts:17:13',
       'tests/docs/example/direct-image.doc.ts:23:13',
@@ -5049,6 +5069,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:160:13',
       'tests/docs/example/direct-image.doc.ts:161:13',
       'tests/docs/example/direct-image.doc.ts:162:13',
+      'tests/docs/example/direct-image.doc.ts:164:13',
     ]);
   });
 
@@ -5420,6 +5441,8 @@ describe('generated docs source current behavior', () => {
       await capturePageScreenshot.call(page, { path: 'page-alias-call.png' });
       await Reflect.apply(page.screenshot, page, [{ path: 'page-reflect.png' }]);
       await Reflect.apply(capturePageScreenshot, page, [{ path: 'page-alias-reflect.png' }]);
+      const stringWrappedScreenshotKey = String('screenshot');
+      await page[stringWrappedScreenshotKey]({ path: 'string-wrapped-page.png' });
       await takeScreenshot(
         testInfo,
         settingsSurface,
@@ -5460,6 +5483,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:46:13',
       'tests/docs/example/direct-screenshot.doc.ts:47:13',
       'tests/docs/example/direct-screenshot.doc.ts:48:13',
+      'tests/docs/example/direct-screenshot.doc.ts:50:13',
     ]);
   });
 

@@ -676,7 +676,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `documentationReporter['take' + 'Screenshot']`, and resolves
   constant-backed property spellings such as `page[screenshotKey]`,
   `testInfo[attachKey]`, `documentationReporter[helperKey]`, and
-  `import(reporterPath)`, rejects direct screenshots through simple,
+  `import(reporterPath)`, including string-wrapped keys such as
+  `page[String('screenshot')]`, `testInfo[String('attach')]`, and
+  `documentationReporter[String('takeScreenshot')]`, rejects direct screenshots
+  through simple,
   destructured, or nested destructured screenshot-function aliases,
   binding-default and parameter-default screenshot-function aliases,
   grouped screenshot-function properties, shorthand or alias-valued grouped

@@ -1576,6 +1576,9 @@ describe('stabilization source', () => {
     expect(source).toContain(
       "`documentationReporter['take' + 'Screenshot'](...)`",
     );
+    expect(source).toContain(
+      'computed helper/raw-capture keys wrapped with `String(...)`',
+    );
     expect(inventory).toContain(
       'comma-expression raw screenshot and image attach invocations',
     );
@@ -1591,6 +1594,12 @@ describe('stabilization source', () => {
     expect(inventory).toContain('computed static property spellings');
     expect(inventory).toContain("`page['screen' + 'shot']`");
     expect(inventory).toContain("`testInfo['att' + 'ach']`");
+    expect(inventory).toContain('string-wrapped keys');
+    expect(inventory).toContain("`page[String('screenshot')]`");
+    expect(inventory).toContain("`testInfo[String('attach')]`");
+    expect(inventory).toContain(
+      "`documentationReporter[String('takeScreenshot')]`",
+    );
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
