@@ -3070,6 +3070,13 @@ const findScreenshotHelperBypasses = (
       return true;
     }
 
+    if (
+      ts.isCallExpression(node) &&
+      isReflectGetPropertyReference(node, 'takeScreenshot', staticStringAliases)
+    ) {
+      return true;
+    }
+
     let referencesHelper = false;
 
     ts.forEachChild(node, (child) => {
@@ -3206,6 +3213,16 @@ const findScreenshotHelperBypasses = (
       }
 
       if (isIndirectTakeScreenshotCall(callee)) {
+        bypasses.push(describeNode(node.expression));
+      }
+
+      if (
+        isReflectGetPropertyReference(
+          callee,
+          'takeScreenshot',
+          staticStringAliases,
+        )
+      ) {
         bypasses.push(describeNode(node.expression));
       }
 
@@ -4537,6 +4554,42 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:71:13',
       'tests/docs/example/bypass.doc.ts:77:13',
       'tests/docs/example/bypass.doc.ts:83:13',
+    ]);
+  });
+
+  it('detects screenshot helper bypasses hidden behind Reflect.get', () => {
+    const reflectGetHelperSource = `
+      const reflectedHelper = Reflect.get(documentationReporter, 'takeScreenshot');
+      await reflectedHelper(
+        testInfo,
+        settingsSurface,
+        page,
+        'Reflected helper bypass with descriptive caption',
+      );
+      await Reflect.get(documentationReporter, 'takeScreenshot')(
+        testInfo,
+        settingsSurface,
+        page,
+        'Direct reflected helper bypass with descriptive caption',
+      );
+      const helperMethodName = 'takeScreenshot';
+      await Reflect.get(documentationReporter, helperMethodName)(
+        testInfo,
+        settingsSurface,
+        page,
+        'Aliased reflected helper bypass with descriptive caption',
+      );
+    `;
+
+    expect(
+      findScreenshotHelperBypasses(
+        'tests/docs/example/reflect-get-helper.doc.ts',
+        reflectGetHelperSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/reflect-get-helper.doc.ts:2:13',
+      'tests/docs/example/reflect-get-helper.doc.ts:9:13',
+      'tests/docs/example/reflect-get-helper.doc.ts:16:13',
     ]);
   });
 

@@ -1529,11 +1529,13 @@ describe('stabilization source', () => {
       /and spread,\s+`call`,\s+`apply`,\s+`Reflect\.apply`,\s+or inline `bind`/u,
     );
     expect(source).toContain('Static `Reflect.get(...)` lookups');
-    expect(source).toContain('string-alias property\nnames');
+    expect(source).toContain('`takeScreenshot`, `page.screenshot`, and');
+    expect(source).toMatch(/string-alias property\s+names/u);
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('84 source-guard tests');
+    expect(source).toContain('85 source-guard tests');
+    expect(source).toContain('synthetic reflected\nhelper');
     expect(source).toContain('Comma-expression invocations');
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);
@@ -1548,7 +1550,7 @@ describe('stabilization source', () => {
       'comma-expression raw screenshot and image attach invocations',
     );
     expect(inventory).toContain(
-      '`Reflect.get(...)` raw\n  screenshot and image attach lookups',
+      '`Reflect.get(...)` shared helper,\n  raw screenshot, and image attach lookups',
     );
     expect(inventory).toContain(
       'conditional,\n  logical, and nested raw screenshot and image attach callees',
