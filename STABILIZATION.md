@@ -6016,12 +6016,13 @@ guard also inspects screenshot target arrays, spread target arrays, array
 helper calls such as `Array.of(...)`, `Array.from(...)`, `.concat(...)`,
 `.map(...)`, `.flatMap(...)`, `.toSpliced(...)`, `.with(...)`, `.fill(...)`,
 `.slice()`, `.reverse()`, `.sort()`, `.toReversed()`, `.toSorted()`, `.flat()`,
-`.find(...)`, `.findLast(...)`, `.pop()`, and `.shift()`, and helper-returned
-targets for direct generic, broad,
+`.find(...)`, `.findLast(...)`, `.pop()`, `.shift()`, `.reduce(...)`, and
+`.reduceRight(...)`, and helper-returned targets for direct generic, broad,
 single-control, and icon/media screenshot targets. `map`, `flatMap`, and
 `Array.from(...)` callback return values are checked too, including named or
-locally aliased callback helpers, so a safe receiver array cannot manufacture a
-weak screenshot target in the callback.
+locally aliased callback helpers; reducer callbacks and reducer initial values
+are checked too, so a safe receiver array cannot manufacture or seed a weak
+screenshot target in the callback.
 Conditional, nullish-coalesced, and logical target expressions are checked
 recursively too, so selecting between a good surface and a weak fallback cannot
 hide generic, broad, single-control, or icon/media screenshot evidence even when

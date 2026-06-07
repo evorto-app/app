@@ -1619,8 +1619,10 @@ describe('stabilization source', () => {
     expect(inventory).toContain('.toReversed()');
     expect(inventory).toContain('.toSorted()');
     expect(inventory).toContain('.flat()');
+    expect(inventory).toContain('.reduce(...)');
+    expect(inventory).toContain('.reduceRight(...)');
     expect(inventory).toContain(
-      'weak\n  targets produced by inline, named, or locally aliased `map` and `flatMap`\n  callbacks and by `Array.from(...)` mapper callbacks',
+      'weak\n  targets produced by inline, named, or locally aliased `map` and `flatMap`\n  callbacks, by `Array.from(...)` mapper callbacks, and by reducer callbacks or\n  reducer initial values',
     );
     expect(inventory).toContain(
       'conditional, nullish-coalesced, and logical\n  target expressions recursively',
@@ -2029,6 +2031,21 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       "[settingsSurface, page.locator('svg')].shift()",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets hidden behind array reduce calls',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('main')].reduce((selected) => selected)",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('section')].reduceRight((selected) => selected)",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface].reduce(() => page.getByRole('button', { name: 'Save' }))",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface].reduce((selected) => selected, page.locator('svg'))",
     );
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind flattened arrays',

@@ -570,10 +570,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `Array.from(...)`, `.concat(...)`, `.map(...)`, `.flatMap(...)`,
   `.toSpliced(...)`, `.with(...)`, `.fill(...)`, `.slice()`, `.reverse()`,
   `.sort()`, `.toReversed()`, `.toSorted()`, `.flat()`, `.find(...)`,
-  `.findLast(...)`, `.pop()`, and `.shift()`, including weak
+  `.findLast(...)`, `.pop()`, `.shift()`, `.reduce(...)`, and
+  `.reduceRight(...)`, including weak
   targets produced by inline, named, or locally aliased `map` and `flatMap`
-  callbacks and by `Array.from(...)` mapper callbacks, and helper-returned
-  icon/media locators,
+  callbacks, by `Array.from(...)` mapper callbacks, and by reducer callbacks or
+  reducer initial values, and helper-returned icon/media locators,
   before docs can regress to button-only, input-only, option-only, cell-only, or
   icon-only images. It also rejects conditional, nullish-coalesced, and logical
   target expressions recursively when any nested branch hides a weak screenshot

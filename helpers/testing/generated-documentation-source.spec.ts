@@ -240,6 +240,20 @@ const isTrackedArrayTarget = (
       );
     }
 
+    if (methodName === 'reduce' || methodName === 'reduceRight') {
+      return (
+        (receiver
+          ? isTrackedArrayTarget(receiver, isTrackedTarget, options)
+          : false) ||
+        target.arguments.some(
+          (argument, index) =>
+            (index === 0 &&
+              returnsTrackedTarget(argument, isTrackedTarget, options)) ||
+            (index > 0 && isTrackedTarget(argument)),
+        )
+      );
+    }
+
     if (
       methodName === 'flat' ||
       methodName === 'find' ||
@@ -4915,6 +4929,60 @@ describe('generated docs source current behavior', () => {
         arrayMapTargetSource,
       ),
     ).toEqual(['tests/docs/example/array-map-target.doc.ts:20:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind array reduce calls', () => {
+    const arrayReduceTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('main')].reduce((selected) => selected),
+        page,
+        'Reduced generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('section')].reduceRight((selected) => selected),
+        page,
+        'Reduced broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].reduce(() => page.getByRole('button', { name: 'Save' })),
+        page,
+        'Reducer callback single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].reduce((selected) => selected, page.locator('svg')),
+        page,
+        'Reducer initial icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/array-reduce-target.doc.ts',
+        arrayReduceTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-reduce-target.doc.ts:2:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/array-reduce-target.doc.ts',
+        arrayReduceTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-reduce-target.doc.ts:8:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/array-reduce-target.doc.ts',
+        arrayReduceTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-reduce-target.doc.ts:14:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/array-reduce-target.doc.ts',
+        arrayReduceTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-reduce-target.doc.ts:20:13']);
   });
 
   it('detects weak documentation screenshot targets produced by array map callbacks', () => {
