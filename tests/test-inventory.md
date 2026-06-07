@@ -569,7 +569,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   spread screenshot target arrays, array helper calls such as `Array.of(...)`,
   `Array.from(...)`, `.concat(...)`, `.map(...)`, `.flatMap(...)`,
   `.toSpliced(...)`, `.with(...)`, `.fill(...)`, `.slice()`, `.reverse()`,
-  `.sort()`, `.toReversed()`, `.toSorted()`, and `.flat()`, including weak
+  `.sort()`, `.toReversed()`, `.toSorted()`, `.flat()`, `.find(...)`,
+  `.findLast(...)`, `.pop()`, and `.shift()`, including weak
   targets produced by inline, named, or locally aliased `map` and `flatMap`
   callbacks and by `Array.from(...)` mapper callbacks, and helper-returned
   icon/media locators,

@@ -2016,6 +2016,21 @@ describe('stabilization source', () => {
       "[settingsSurface, page.locator('svg')].toSorted()",
     );
     expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets selected by array element helpers',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('main')].find(Boolean)",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('section')].findLast(Boolean)",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.getByRole('button', { name: 'Save' })].pop()",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('svg')].shift()",
+    );
+    expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind flattened arrays',
     );
     expect(generatedDocumentationSource).toContain(

@@ -6015,8 +6015,9 @@ icon or uploaded media asset instead of the surrounding workflow surface. The
 guard also inspects screenshot target arrays, spread target arrays, array
 helper calls such as `Array.of(...)`, `Array.from(...)`, `.concat(...)`,
 `.map(...)`, `.flatMap(...)`, `.toSpliced(...)`, `.with(...)`, `.fill(...)`,
-`.slice()`, `.reverse()`, `.sort()`, `.toReversed()`, `.toSorted()`, and
-`.flat()`, and helper-returned targets for direct generic, broad,
+`.slice()`, `.reverse()`, `.sort()`, `.toReversed()`, `.toSorted()`, `.flat()`,
+`.find(...)`, `.findLast(...)`, `.pop()`, and `.shift()`, and helper-returned
+targets for direct generic, broad,
 single-control, and icon/media screenshot targets. `map`, `flatMap`, and
 `Array.from(...)` callback return values are checked too, including named or
 locally aliased callback helpers, so a safe receiver array cannot manufacture a
