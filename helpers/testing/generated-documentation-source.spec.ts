@@ -9327,6 +9327,69 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('keeps screenshots close to optional-call explanatory markdown attachments', () => {
+    const optionalCallDenseScreenshotSource = `
+      const markdownName = 'markdown';
+      const attachMarkdown = testInfo.attach.bind(testInfo);
+      await testInfo.attach?.(markdownName, {
+        body: \`
+          This optional testInfo attach documentation section explains the next screenshots with enough product context.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        firstOptionalAttachSurface,
+        page,
+        'First optional testInfo attach markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        secondOptionalAttachSurface,
+        page,
+        'Second optional testInfo attach markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        thirdOptionalAttachSurface,
+        page,
+        'Third optional testInfo attach markdown cluster screenshot should require text',
+      );
+      await attachMarkdown?.(markdownName, {
+        body: \`
+          This optional aliased helper documentation section explains the next screenshots with enough product context.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        firstOptionalHelperSurface,
+        page,
+        'First optional helper markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        secondOptionalHelperSurface,
+        page,
+        'Second optional helper markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        thirdOptionalHelperSurface,
+        page,
+        'Third optional helper markdown cluster screenshot should require text',
+      );
+    `;
+
+    expect(
+      findDenseScreenshotRunsBetweenMarkdown(
+        'tests/docs/example/optional-call-dense-screenshot-run.doc.ts',
+        optionalCallDenseScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/optional-call-dense-screenshot-run.doc.ts:21:13',
+      'tests/docs/example/optional-call-dense-screenshot-run.doc.ts:44:13',
+    ]);
+  });
+
   it('keeps screenshots close to parameter-computed explanatory markdown attachments', () => {
     const parameterComputedDenseScreenshotSource = `
       const markdownNameKey = 'name';

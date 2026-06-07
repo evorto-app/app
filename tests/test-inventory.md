@@ -738,7 +738,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   names for that screenshot-density reset including assigned local aliases,
   returned attach-helper factories, copied returned attach-helper groups
   including object-rest copies, `call(...)`, `apply(...)`, inline
-  `bind(...)(...)`, and
+  `bind(...)(...)`, optional-call syntax, and
   `Reflect.apply(...)`, and only real Playwright `testInfo.attach`-backed
   Markdown calls count as explanatory generated-doc sections, rejects blank
   dedicated permissions attachments and blank Markdown frontmatter permissions

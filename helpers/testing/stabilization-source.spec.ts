@@ -2061,6 +2061,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('`call(...)`');
     expect(inventory).toContain('`apply(...)`');
     expect(inventory).toContain('`bind(...)(...)`');
+    expect(inventory).toContain('optional-call syntax');
     expect(inventory).toContain('`Reflect.apply(...)`');
     expect(inventory).toMatch(
       /only real Playwright\s+`testInfo\.attach`-backed\s+Markdown calls count as explanatory generated-doc\s+sections/u,
@@ -2102,6 +2103,9 @@ describe('stabilization source', () => {
       'keeps screenshots close to parameter-computed explanatory markdown attachments',
     );
     expect(generatedDocumentationSource).toContain(
+      'keeps screenshots close to optional-call explanatory markdown attachments',
+    );
+    expect(generatedDocumentationSource).toContain(
       'const { attach: destructuredAttachMarkdown } = testInfo',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2123,7 +2127,16 @@ describe('stabilization source', () => {
       'parameter-computed-dense-screenshot-run.doc.ts',
     );
     expect(generatedDocumentationSource).toContain(
+      'optional-call-dense-screenshot-run.doc.ts',
+    );
+    expect(generatedDocumentationSource).toContain(
       'async function renderDensitySections',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'testInfo.attach?.(markdownName',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'attachMarkdown?.(markdownName',
     );
     expect(generatedDocumentationSource).toContain(
       '[attachKey]: attachMarkdown',
@@ -5838,25 +5851,22 @@ describe('stabilization source', () => {
       'without changing the fully green E2E baseline',
     );
     expect(source).toContain('Latest coverage checkpoint:');
-    expect(source).toContain(
-      'generated-doc screenshot-density detection now tracks\nparameter-destructured Markdown names',
+    expect(source).toMatch(
+      /generated-doc screenshot-density source coverage now\s+explicitly pins optional-call Markdown attachment syntax/u,
     );
-    expect(source).toContain('attach helpers from constant-backed computed');
+    expect(source).toContain('`testInfo.attach?.(markdownName, ...)`');
+    expect(source).toContain('`attachMarkdown?.(markdownName, ...)`');
     expect(source).toContain('two-screenshots-per-explanatory-section limit');
-    expect(source).toContain("`[markdownNameKey]: 'markdown'`");
-    expect(source).toContain('`[attachKey]: testInfo.attach.bind(testInfo)`');
-    expect(source).toContain('`[markdownNameKey]: markdownName`');
-    expect(source).toContain('`[attachKey]: attachMarkdown`');
     expect(source).toMatch(
-      /rejects the third screenshots at lines\s+29 and 52/u,
+      /rejects the third screenshots at lines\s+21 and 44/u,
     );
     expect(source).toMatch(
-      /hide screenshot clusters without nearby\s+explanatory prose by moving Markdown attachment names or helpers into\s+computed-key parameter objects/u,
+      /Generated docs cannot hide screenshot clusters without nearby\s+explanatory prose by switching explanatory Markdown calls to optional-call\s+syntax/u,
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 206 tests');
+    expect(source).toContain('with 207 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5881,7 +5891,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=parameter-computed-density-source-guard',
+      '/legal/terms?stabilizationEvidence=optional-call-density-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');
