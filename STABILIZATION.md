@@ -7173,7 +7173,8 @@ attachments that do not carry an in-memory body. That closes the detached-path
 fallback where an `image`, `image-caption`, `permissions`, or `markdown`
 attachment could be skipped before the screenshot, caption, permissions, or
 Markdown quality checks ran. Focused reporter-path coverage now exercises
-missing image-body and missing Markdown-body failures, and source-level
+missing image-body, caption-body, permissions-body, and Markdown-body failures,
+and source-level
 stabilization checks keep the body-based attachment rule documented in the test
 inventory. Focused validation passed `bun run test:e2e:reporter-paths`,
 `bunx vitest run helpers/testing/generated-documentation-source.spec.ts
@@ -7191,3 +7192,14 @@ logs. The inspected screenshots
 `/tmp/evorto-body-required-doc-attachments-events-390x844.png` show readable
 Terms fallback copy, seeded Material event cards with icons/times, and fixed
 Events/Login mobile bottom navigation without overlap.
+The follow-up reporter-path pass expanded the missing-body regression coverage
+to `image-caption` and `permissions` attachments too, so all reserved generated
+documentation attachment types covered by the runtime guard now have focused
+failure cases. The final focused rerun reported 39 reporter-path tests passing,
+the source/stabilization rerun reported 181 passing tests, `bun run
+dev:status` and `git diff --check` passed, and a final in-app Browser 390x844
+spot check of `/events` saved
+`/tmp/evorto-body-required-doc-attachments-all-reserved-events-390x844.png`
+with seeded Material event cards, fixed Events/Login bottom navigation, no
+visible loading or application-error text, no horizontal overflow signal, and
+zero Browser warning/error logs.

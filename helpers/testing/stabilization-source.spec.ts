@@ -2992,7 +2992,13 @@ describe('stabilization source', () => {
       'documentation reporter rejects image attachments without body content',
     );
     expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects image captions without body content',
+    );
+    expect(reporterPathsSpec).toContain(
       'documentation reporter rejects markdown attachments without body content',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects permissions attachments without body content',
     );
     expect(reporterPathsSpec).toContain(
       'Documentation image attachment in Uncaptioned image is missing a paired image-caption attachment.',
@@ -3001,7 +3007,13 @@ describe('stabilization source', () => {
       'Documentation image attachment in Missing image body is missing an in-memory body.',
     );
     expect(reporterPathsSpec).toContain(
+      'Documentation image-caption attachment in Missing caption body is missing an in-memory body.',
+    );
+    expect(reporterPathsSpec).toContain(
       'Documentation markdown attachment in Missing markdown body is missing an in-memory body.',
+    );
+    expect(reporterPathsSpec).toContain(
+      'Documentation permissions attachment in Missing permissions body is missing an in-memory body.',
     );
     expect(reporterPathsSpec).toContain(
       'Documentation image-caption attachment in Orphan caption is missing a preceding image attachment.',

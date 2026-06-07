@@ -171,6 +171,38 @@ test('documentation reporter rejects image attachments without body content', as
   );
 });
 
+test('documentation reporter rejects image captions without body content', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-missing-caption-body');
+  const imgsRoot = testInfo.outputPath('docs-img-missing-caption-body');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: createDocumentationEvidencePng(),
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        path: 'detached-caption.txt',
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Missing caption body' } as any, result),
+  ).toThrow(
+    'Documentation image-caption attachment in Missing caption body is missing an in-memory body.',
+  );
+});
+
 test('documentation reporter rejects markdown attachments without body content', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out-missing-markdown-body');
   const imgsRoot = testInfo.outputPath('docs-img-missing-markdown-body');
@@ -195,6 +227,38 @@ test('documentation reporter rejects markdown attachments without body content',
     reporter.onTestEnd({ title: 'Missing markdown body' } as any, result),
   ).toThrow(
     'Documentation markdown attachment in Missing markdown body is missing an in-memory body.',
+  );
+});
+
+test('documentation reporter rejects permissions attachments without body content', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-missing-permissions-body');
+  const imgsRoot = testInfo.outputPath('docs-img-missing-permissions-body');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'permissions',
+        contentType: 'text/plain',
+        path: 'detached-permissions.txt',
+      },
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from(descriptiveMarkdown),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Missing permissions body' } as any, result),
+  ).toThrow(
+    'Documentation permissions attachment in Missing permissions body is missing an in-memory body.',
   );
 });
 
