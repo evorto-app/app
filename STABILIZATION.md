@@ -7493,3 +7493,22 @@ surfaces/icons/times, fixed Events/Login bottom navigation, no loading or
 application-error text, document/body widths inside the mobile viewport, and
 zero warning/error Browser logs. WebStorm diagnostics remained blocked because
 this worktree is not one of the open IDE projects.
+
+The current pushed head `df439746` also refreshed public General mobile
+evidence after the Docker stack recovery. The focused
+`bun run test:e2e:public-general-viewports -- --no-deps` run passed against the
+running app with both tests green, covering the full anonymous General route
+matrix at narrow mobile, mobile, and desktop viewports. A same-head in-app
+Browser sweep checked the 10 anonymous General routes (`/`, `/events`, the
+derived public event detail, `/legal/imprint`, `/legal/privacy`, `/legal/terms`,
+`/403`, `/500`, `/404`, and `/missing-general-page`) at 320x740 and 390x844.
+All 20 Browser route/viewport checks passed with expected content, fixed
+Events/Login navigation, no loading or application-error text, no horizontal or
+top-side visible-control overflow, document/body widths inside the active
+mobile viewport, and zero warning/error Browser logs. The inspected screenshots
+`/tmp/evorto-general-df439746-events-320x740.png`,
+`/tmp/evorto-general-df439746-event-detail-390x844.png`,
+`/tmp/evorto-general-df439746-500-390x844.png`, and
+`/tmp/evorto-general-df439746-wildcard-390x844.png` show seeded Material event
+cards, the event-detail registration surface, and readable 500/not-found
+fallback pages with fixed bottom navigation.
