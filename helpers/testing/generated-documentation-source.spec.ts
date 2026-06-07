@@ -437,6 +437,18 @@ const addBindingIdentifiers = (
   }
 };
 
+const getBindingIdentifierNames = (name: ts.BindingName): string[] => {
+  if (ts.isIdentifier(name)) {
+    return [name.text];
+  }
+
+  return name.elements.flatMap((element) =>
+    ts.isOmittedExpression(element)
+      ? []
+      : getBindingIdentifierNames(element.name),
+  );
+};
+
 const collectPropertyBindingAliases = (
   name: ts.BindingName,
   propertyName: string,
@@ -519,6 +531,48 @@ const collectObjectRestBindingAliases = (
   for (const element of node.name.elements) {
     if (element.dotDotDotToken) {
       addBindingIdentifiers(element.name, aliases);
+    }
+  }
+};
+
+const collectObjectRestPropertyAliases = (
+  node: ts.VariableDeclaration,
+  propertyAliases: Set<string>,
+): void => {
+  if (
+    !node.initializer ||
+    !ts.isObjectBindingPattern(node.name) ||
+    !ts.isIdentifier(unwrapExpression(node.initializer))
+  ) {
+    return;
+  }
+
+  const sourceObject = unwrapExpression(node.initializer);
+
+  if (!ts.isIdentifier(sourceObject)) {
+    return;
+  }
+
+  const sourcePrefix = `${sourceObject.text}.`;
+  const copiedPropertyAliases = [...propertyAliases].filter((propertyAlias) =>
+    propertyAlias.startsWith(sourcePrefix),
+  );
+
+  if (copiedPropertyAliases.length === 0) {
+    return;
+  }
+
+  for (const element of node.name.elements) {
+    if (!element.dotDotDotToken) {
+      continue;
+    }
+
+    for (const targetName of getBindingIdentifierNames(element.name)) {
+      for (const propertyAlias of copiedPropertyAliases) {
+        propertyAliases.add(
+          `${targetName}.${propertyAlias.slice(sourcePrefix.length)}`,
+        );
+      }
     }
   }
 };
@@ -1452,6 +1506,16 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         markdownAttachFunctionAliases,
         staticStringAliases,
       );
+      collectObjectRestPropertyAliases(
+        node,
+        markdownAttachmentNamePropertyAliases,
+      );
+      collectObjectRestPropertyAliases(node, rawMarkdownBodyPropertyAliases);
+      collectObjectRestPropertyAliases(
+        node,
+        markdownAttachFunctionPropertyAliases,
+      );
+      collectObjectRestPropertyAliases(node, rawMarkdownPayloadPropertyAliases);
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -3454,6 +3518,15 @@ const findDirectImageAttachmentCalls = (
         attachFunctionAliases,
         staticStringAliases,
       );
+      collectObjectRestPropertyAliases(
+        node,
+        imageAttachmentNamePropertyAliases,
+      );
+      collectObjectRestPropertyAliases(
+        node,
+        imageAttachmentPayloadValuePropertyAliases,
+      );
+      collectObjectRestPropertyAliases(node, attachFunctionPropertyAliases);
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -3571,6 +3644,10 @@ const findDirectImageAttachmentCalls = (
         imageAttachmentPayloadPropertyAliases,
         imageAttachmentPayloadAliases,
         staticStringAliases,
+      );
+      collectObjectRestPropertyAliases(
+        node,
+        imageAttachmentPayloadPropertyAliases,
       );
     }
 
@@ -4492,6 +4569,52 @@ describe('generated docs source current behavior', () => {
       ),
     ).toEqual([
       'tests/docs/example/object-rest-raw-image-payload.doc.ts:10:13',
+    ]);
+  });
+
+  it('detects object-rest grouped raw image aliases before generated docs can use them', () => {
+    const objectRestGroupedRawImageAliasSource = `
+      const rawImagePayload = { body: imageBuffer, contentType: 'image/png' };
+      const imagePayloadGroup = { rawImagePayload };
+      const { ...copiedImagePayloadGroup } = imagePayloadGroup;
+      await testInfo.attach('raw evidence', copiedImagePayloadGroup.rawImagePayload);
+      const imageName = 'image';
+      const imageNameGroup = { imageName };
+      const { ...copiedImageNameGroup } = imageNameGroup;
+      await testInfo.attach(copiedImageNameGroup.imageName, { body: imageBuffer });
+      const attachEvidence = testInfo.attach.bind(testInfo);
+      const attachGroup = { attachEvidence };
+      const { ...copiedAttachGroup } = attachGroup;
+      await copiedAttachGroup.attachEvidence('raw evidence', { contentType: 'image/png' });
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      const markdownPayloadGroup = { rawMarkdownPayload };
+      const { ...copiedMarkdownPayloadGroup } = markdownPayloadGroup;
+      await testInfo.attach('markdown', copiedMarkdownPayloadGroup.rawMarkdownPayload);
+      const markdownName = 'markdown';
+      const markdownNameGroup = { markdownName };
+      const { ...copiedMarkdownNameGroup } = markdownNameGroup;
+      await testInfo.attach(copiedMarkdownNameGroup.markdownName, rawMarkdownPayload);
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/object-rest-grouped-raw-image-alias.doc.ts',
+        objectRestGroupedRawImageAliasSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/object-rest-grouped-raw-image-alias.doc.ts:5:13',
+      'tests/docs/example/object-rest-grouped-raw-image-alias.doc.ts:9:13',
+      'tests/docs/example/object-rest-grouped-raw-image-alias.doc.ts:13:13',
+    ]);
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/object-rest-grouped-raw-image-alias.doc.ts',
+        objectRestGroupedRawImageAliasSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/object-rest-grouped-raw-image-alias.doc.ts:17:13',
+      'tests/docs/example/object-rest-grouped-raw-image-alias.doc.ts:21:13',
     ]);
   });
 

@@ -6305,6 +6305,10 @@ through helper-style object merging either.
 Object-rest copies of tracked raw image and raw Markdown payloads are covered
 as aliases too, so generated docs cannot destructure `{ ...copiedPayload }`
 before attaching raw image evidence outside the shared helper.
+Object-rest copies of grouped raw image, raw Markdown, attachment-name, and
+attach-helper aliases transfer their tracked properties too, so generated docs
+cannot copy an alias group and then call `copiedGroup.rawPayload` or
+`copiedGroup.attachEvidence(...)` outside the shared helper boundary.
 Tracked direct image attachment calls with spread arguments or opaque
 `apply(...)` argument lists are rejected too, and `.at(...)` indexed attach
 helper lists are tracked as direct attachment callees, so
