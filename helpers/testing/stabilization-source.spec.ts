@@ -8865,6 +8865,11 @@ describe('stabilization source', () => {
     expect(viewportSpec).toContain(').toBeVisible()');
     expect(viewportSpec).toContain("expect(position.position).toBe('fixed')");
     expect(viewportSpec).toContain('if (viewport.width < 1024)');
+    expect(navigationTemplate).toContain('navigation z-30');
+    expect(viewportSpec).toContain('maxStickyLayer');
+    expect(viewportSpec).toContain(
+      'expect(layerOrder.navigationLayer).toBeGreaterThan(layerOrder.maxStickyLayer)',
+    );
     expect(inventory).toContain(
       'Events/Login navigation remains visible and fixed as bottom navigation on\n    mobile, with the desktop side navigation also exposing Scanner',
     );
@@ -9022,6 +9027,21 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain('no visible\n  offending element');
     expect(inventory).toContain('green Playwright layout result');
+    expect(inventory).toContain(
+      'navigation\n  layer `30` above the event-list sticky date layer `10`',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-browser-nav-layer-ecf3fe57/events-320x740.png',
+    );
+    expect(source).toContain(
+      'Browser viewport\nmatrix then rechecked all 10 anonymous General routes at 320x740 and 390x844',
+    );
+    expect(source).toContain(
+      'navigation layer 30 stayed above the sticky event-date layer 10',
+    );
+    expect(source).toContain(
+      '/tmp/evorto-browser-nav-layer-ecf3fe57/events-320x740.png',
+    );
     expect(pageLayoutHelper).toContain(
       'export const collectBrowserLogFailures = (page: Page): string[]',
     );

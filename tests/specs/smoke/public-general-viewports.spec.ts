@@ -157,6 +157,27 @@ const expectAnonymousNavigation = async (
     expect(position.left).toBe(0);
     expect(position.top).toBe(0);
   }
+
+  const layerOrder = await page.evaluate(() => {
+    const parseLayer = (value: string) => {
+      const parsed = Number.parseInt(value, 10);
+
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const navigationLayer = parseLayer(
+      window.getComputedStyle(document.querySelector('.navigation')!).zIndex,
+    );
+    const stickyLayers = Array.from(document.querySelectorAll('.sticky')).map(
+      (element) => parseLayer(window.getComputedStyle(element).zIndex),
+    );
+
+    return {
+      maxStickyLayer: Math.max(0, ...stickyLayers),
+      navigationLayer,
+    };
+  });
+
+  expect(layerOrder.navigationLayer).toBeGreaterThan(layerOrder.maxStickyLayer);
 };
 
 const expectStableLayout = async (page: Page) => {

@@ -1909,3 +1909,23 @@ provider outcomes without live identifiers.
   readable Terms fallback copy, readable not-found fallback copy, and the
   desktop list/detail event registration surface with side navigation rather
   than unrelated or heading-only images.
+- A follow-up local nav-layer regression pass on the rebuilt
+  `BASE_URL=http://localhost:4200` Docker app raised the fixed anonymous
+  navigation above page-local sticky content and made
+  `specs/smoke/public-general-viewports.spec.ts` fail if `.navigation` no
+  longer has a higher computed layer than `.sticky` content. Focused local
+  validation passed `bun run format:write`, `bun run lint`, `bun run build:app`,
+  `bun run dev:status`, `bun run docker:start`, and
+  `bun run test:e2e:public-general-viewports -- --no-deps` with both General
+  viewport tests passing. The in-app Browser matrix then checked all 10
+  anonymous General routes at 320x740 and 390x844 plus `/events` at 1440x900.
+  It found expected content, no horizontal overflow, no clipped visible
+  controls, no persistent loading or application-error text, visible mobile
+  Events/Login navigation with Scanner hidden, visible desktop
+  Events/Scanner/Login navigation, zero warning/error logs, and navigation
+  layer `30` above the event-list sticky date layer `10`. The inspected
+  screenshots
+  `/tmp/evorto-browser-nav-layer-ecf3fe57/events-320x740.png` and
+  `/tmp/evorto-browser-nav-layer-ecf3fe57/legal-terms-390x844.png` show seeded
+  Material event cards with icons/times and readable Terms fallback copy with
+  fixed Events/Login bottom navigation in front of the page content.

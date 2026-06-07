@@ -8349,3 +8349,23 @@ global admin, profile, templates, events, finance, scanner, and members-hub
 surfaces against the same local runtime. The latest pushed-head CI E2E run is
 tracked separately so source/evidence-only updates do not over-claim a fully
 green PR head before GitHub Actions finishes.
+
+The local public General nav-layer regression is now fixed and Browser-verified
+on the rebuilt `BASE_URL=http://localhost:4200` Docker app. The original
+Browser sweep found that event-list sticky date headers could draw above the
+fixed mobile Events/Login bottom navigation; the navigation template now uses a
+higher Material/Tailwind z layer, and the public General viewport spec fails if
+`.navigation` no longer stays above `.sticky` page content. Local validation
+passed `bun run format:write`, `bun run lint`, `bun run build:app`,
+`bun run dev:status`, `bun run docker:start`, and
+`bun run test:e2e:public-general-viewports -- --no-deps`. The Browser viewport
+matrix then rechecked all 10 anonymous General routes at 320x740 and 390x844,
+plus `/events` at 1440x900, with expected content, no horizontal overflow, no
+clipped visible controls, no persistent loading or application-error text,
+visible Events/Login mobile navigation with Scanner hidden, visible
+Events/Scanner/Login desktop navigation, and zero warning/error logs. The
+navigation layer 30 stayed above the sticky event-date layer 10. The inspected
+screenshots `/tmp/evorto-browser-nav-layer-ecf3fe57/events-320x740.png` and
+`/tmp/evorto-browser-nav-layer-ecf3fe57/legal-terms-390x844.png` show seeded
+Material event cards with icons/times and readable Terms fallback copy with the
+fixed bottom navigation visually in front of page content.
