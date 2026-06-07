@@ -1299,6 +1299,22 @@ provider outcomes without live identifiers.
   detail/registration state. The matching focused
   `bun run test:e2e:public-general-viewports` run passed against the same
   running Docker app.
+  The current PR-head Browser refresh at `449108fc` reused the generated Docker
+  app on `http://localhost:4218`, derived the seeded public event detail link
+  from `/events`, and rechecked the same 10 anonymous General routes at
+  320x740, 390x844, and 1440x900 after waiting for hydration/loading text to
+  settle. All 30 checks found expected content, no horizontal overflow, no
+  top/side clipped visible controls, no rendered application-error text, fixed
+  General navigation, and no Browser warning/error logs. The inspected
+  screenshots
+  `test-results/stabilization-browser/320x740-events-list-settled.png`,
+  `test-results/stabilization-browser/390x844-privacy-legal-page-settled.png`,
+  and
+  `test-results/stabilization-browser/1440x900-event-detail-settled.png` show
+  the seeded Material event list, the privacy legal fallback page, and the
+  event detail/registration state. The matching focused
+  `bun run test:e2e:public-general-viewports` run passed against the same
+  running Docker app.
 - `tests/setup/mcp-browser-authenticated.seed.ts` is the authenticated MCP
   Browser planner seed for the dedicated `mcp-browser-authenticated-planner`
   project. It depends on the normal `setup` project, then opens
