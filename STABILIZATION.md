@@ -6998,6 +6998,11 @@ The cluster guard now follows the same aliased Markdown attachment helpers and
 names as the weak-body guard, including copied helper/name groups and indexed
 lists, so `attachMarkdown(markdownName, ...)` counts as real product-facing
 explanatory text while still rejecting a third screenshot after that section.
+Both guards now also inspect `call(...)`, `apply(...)`, and
+`Reflect.apply(...)` invocations of real Markdown attachment helpers, so
+`testInfo.attach.call(testInfo, markdownName, ...)` cannot publish a thin
+generated-doc section or reset screenshot density without enough nearby
+product-facing explanation.
 The tenant General settings guide now splits brand assets/search metadata,
 hosted/external legal pages, and finance/discount settings into separate
 text-backed screenshot clusters.

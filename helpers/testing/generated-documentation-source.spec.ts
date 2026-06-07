@@ -1611,6 +1611,80 @@ const findWeakMarkdownBodyAttachments = (
     );
   };
 
+  const getStaticCallArgumentList = (
+    node: ts.Expression | undefined,
+  ): null | ts.Expression[] => {
+    if (!node) {
+      return null;
+    }
+
+    const expression = unwrapExpression(node);
+
+    if (!ts.isArrayLiteralExpression(expression)) {
+      return null;
+    }
+
+    return expression.elements.map((element) => unwrapArrayElement(element));
+  };
+
+  const getMarkdownAttachmentPayload = (
+    node: ts.CallExpression,
+  ): null | ts.Expression => {
+    if (isMarkdownAttachmentCall(node)) {
+      return node.arguments[1] ?? null;
+    }
+
+    const callee = unwrapExpression(node.expression);
+
+    if (
+      ts.isPropertyAccessExpression(callee) ||
+      ts.isElementAccessExpression(callee)
+    ) {
+      const methodName = getStaticPropertyName(callee, staticStringAliases);
+      const receiver = getStaticPropertyReceiver(callee);
+
+      if (
+        methodName === 'call' &&
+        receiver &&
+        isTrackedAttachFunctionReference(receiver) &&
+        node.arguments[1] &&
+        isMarkdownAttachmentName(node.arguments[1])
+      ) {
+        return node.arguments[2] ?? null;
+      }
+
+      if (
+        methodName === 'apply' &&
+        receiver &&
+        isTrackedAttachFunctionReference(receiver)
+      ) {
+        const args = getStaticCallArgumentList(node.arguments[1]);
+
+        if (args?.[0] && isMarkdownAttachmentName(args[0])) {
+          return args[1] ?? null;
+        }
+      }
+    }
+
+    if (
+      isReflectApplyCallee(
+        node.expression,
+        staticStringAliases,
+        reflectAliases,
+      ) &&
+      node.arguments[0] &&
+      isTrackedAttachFunctionReference(node.arguments[0])
+    ) {
+      const args = getStaticCallArgumentList(node.arguments[2]);
+
+      if (args?.[0] && isMarkdownAttachmentName(args[0])) {
+        return args[1] ?? null;
+      }
+    }
+
+    return null;
+  };
+
   const collectAliases = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -1665,15 +1739,13 @@ const findWeakMarkdownBodyAttachments = (
 
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
-      const payload = node.arguments[1]
-        ? unwrapExpression(node.arguments[1])
-        : null;
+      const payload = getMarkdownAttachmentPayload(node);
 
-      if (isMarkdownAttachmentCall(node)) {
-        const body =
-          payload && ts.isObjectLiteralExpression(payload)
-            ? getObjectPropertyValue(payload, 'body')
-            : null;
+      if (payload) {
+        const unwrappedPayload = unwrapExpression(payload);
+        const body = ts.isObjectLiteralExpression(unwrappedPayload)
+          ? getObjectPropertyValue(unwrappedPayload, 'body')
+          : null;
         const bodyText = body ? getMarkdownBodyText(body) : null;
         const normalizedBodyLength =
           bodyText?.replace(/\s+/gu, ' ').trim().length ?? 0;
@@ -1838,6 +1910,72 @@ const findDenseScreenshotRunsBetweenMarkdown = (
     );
   };
 
+  const getStaticCallArgumentList = (
+    node: ts.Expression | undefined,
+  ): null | ts.Expression[] => {
+    if (!node) {
+      return null;
+    }
+
+    const expression = unwrapExpression(node);
+
+    if (!ts.isArrayLiteralExpression(expression)) {
+      return null;
+    }
+
+    return expression.elements.map((element) => unwrapArrayElement(element));
+  };
+
+  const isIndirectMarkdownAttachmentCall = (
+    node: ts.CallExpression,
+  ): boolean => {
+    const callee = unwrapExpression(node.expression);
+
+    if (
+      ts.isPropertyAccessExpression(callee) ||
+      ts.isElementAccessExpression(callee)
+    ) {
+      const methodName = getStaticPropertyName(callee, staticStringAliases);
+      const receiver = getStaticPropertyReceiver(callee);
+
+      if (
+        methodName === 'call' &&
+        receiver &&
+        isTrackedAttachFunctionReference(receiver)
+      ) {
+        return (
+          !!node.arguments[1] && isMarkdownAttachmentName(node.arguments[1])
+        );
+      }
+
+      if (
+        methodName === 'apply' &&
+        receiver &&
+        isTrackedAttachFunctionReference(receiver)
+      ) {
+        const args = getStaticCallArgumentList(node.arguments[1]);
+
+        return !!args?.[0] && isMarkdownAttachmentName(args[0]);
+      }
+    }
+
+    if (
+      isReflectApplyCallee(
+        node.expression,
+        staticStringAliases,
+        reflectAliases,
+      ) &&
+      node.arguments[0] &&
+      isTrackedAttachFunctionReference(node.arguments[0])
+    ) {
+      const args = getStaticCallArgumentList(node.arguments[2]);
+
+      return !!args?.[0] && isMarkdownAttachmentName(args[0]);
+    }
+
+    return false;
+  };
+
   const collectAliases = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -1892,7 +2030,10 @@ const findDenseScreenshotRunsBetweenMarkdown = (
 
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
-      if (isMarkdownAttachmentCall(node)) {
+      if (
+        isMarkdownAttachmentCall(node) ||
+        isIndirectMarkdownAttachmentCall(node)
+      ) {
         events.push({
           kind: 'markdown',
           node,
@@ -7175,6 +7316,33 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('requires indirect documentation markdown attachments to include explanatory body text', () => {
+    const indirectMarkdownBodySource = `
+      const markdownName = 'markdown';
+      const attachMarkdown = testInfo.attach.bind(testInfo);
+      await testInfo.attach.call(testInfo, markdownName, { body: 'Too short.' });
+      await testInfo.attach.apply(testInfo, [markdownName, { body: 'Still too short.' }]);
+      await Reflect.apply(testInfo.attach, testInfo, [markdownName, { body: 'Short.' }]);
+      await attachMarkdown.call(testInfo, markdownName, { body: 'Also short.' });
+      await attachMarkdown.apply(testInfo, [markdownName, { body: 'Thin.' }]);
+      await Reflect.apply(attachMarkdown, testInfo, [markdownName, { body: 'Brief.' }]);
+    `;
+
+    expect(
+      findWeakMarkdownBodyAttachments(
+        'tests/docs/example/indirect-markdown-body.doc.ts',
+        indirectMarkdownBodySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/indirect-markdown-body.doc.ts:4:13',
+      'tests/docs/example/indirect-markdown-body.doc.ts:5:13',
+      'tests/docs/example/indirect-markdown-body.doc.ts:6:13',
+      'tests/docs/example/indirect-markdown-body.doc.ts:7:13',
+      'tests/docs/example/indirect-markdown-body.doc.ts:8:13',
+      'tests/docs/example/indirect-markdown-body.doc.ts:9:13',
+    ]);
+  });
+
   it('keeps generated documentation screenshots close to explanatory markdown', () => {
     const denseScreenshotSource = `
       await takeScreenshot(
@@ -7310,6 +7478,85 @@ describe('generated docs source current behavior', () => {
         aliasedDenseScreenshotSource,
       ),
     ).toEqual(['tests/docs/example/aliased-dense-screenshot-run.doc.ts:61:13']);
+  });
+
+  it('keeps screenshots close to indirect explanatory markdown attachments', () => {
+    const indirectDenseScreenshotSource = `
+      const markdownName = 'markdown';
+      const attachMarkdown = testInfo.attach.bind(testInfo);
+      await testInfo.attach.call(testInfo, markdownName, {
+        body: \`
+          This indirect call documentation section explains the next screenshots with enough product context.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        settingsSurface,
+        page,
+        'First indirect call markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        legalSurface,
+        page,
+        'Second indirect call markdown cluster screenshot with descriptive caption',
+      );
+      await testInfo.attach.apply(testInfo, [
+        markdownName,
+        {
+          body: \`
+            This indirect apply documentation section explains the next screenshots with enough product context.
+          \`,
+        },
+      ]);
+      await takeScreenshot(
+        testInfo,
+        financeSurface,
+        page,
+        'First indirect apply markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        discountSurface,
+        page,
+        'Second indirect apply markdown cluster screenshot with descriptive caption',
+      );
+      await Reflect.apply(attachMarkdown, testInfo, [
+        markdownName,
+        {
+          body: \`
+            This reflected apply documentation section explains the next screenshots with enough product context.
+          \`,
+        },
+      ]);
+      await takeScreenshot(
+        testInfo,
+        profileSurface,
+        page,
+        'First reflected apply markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        receiptSurface,
+        page,
+        'Second reflected apply markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        overflowSurface,
+        page,
+        'Third reflected apply markdown cluster screenshot should require text',
+      );
+    `;
+
+    expect(
+      findDenseScreenshotRunsBetweenMarkdown(
+        'tests/docs/example/indirect-dense-screenshot-run.doc.ts',
+        indirectDenseScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/indirect-dense-screenshot-run.doc.ts:61:13',
+    ]);
   });
 
   it('inspects optional documentation screenshot and raw image calls', () => {
