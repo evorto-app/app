@@ -6177,9 +6177,10 @@ runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.
 Generated-doc markdown attachments also reject raw Markdown image syntax and
 HTML `<img>` tags, including aliased markdown names, bracketed `attach` calls,
-binding-default markdown names, aliased body variables wrapped directly or
-through simple body forwarding such as `Buffer.from(...)`, `String(...)`,
-template interpolation, conditionals, or nullish/logical expressions, aliased payload objects,
+binding-default markdown names, grouped/indexed/destructured/assigned markdown
+names, aliased body variables wrapped directly or through simple body forwarding
+such as `Buffer.from(...)`, `String(...)`, template interpolation,
+conditionals, or nullish/logical expressions, aliased payload objects,
 grouped/indexed/destructured, assigned, or binding-default body/payload aliases,
 shorthand `{ body }`, bound, destructured, grouped, indexed, assigned, or
 binding-default `attach` helpers, and spread, `call`, `apply`, `Reflect.apply`,

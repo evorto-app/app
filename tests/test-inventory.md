@@ -605,7 +605,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   screenshots with highlighted focus-target pixels and visible surrounding page
   content, rejects raw Markdown image syntax and HTML `<img>` tags in generated
   docs markdown attachments, including aliased markdown names, bracketed
-  `attach` calls, binding-default markdown names, aliased body variables
+  `attach` calls, binding-default markdown names,
+  grouped/indexed/destructured/assigned markdown names, aliased body variables
   including simple forwarding through `Buffer.from(...)`, `String(...)`,
   template interpolation, conditionals, or nullish/logical expressions, aliased
   payload objects, grouped, indexed, destructured, assigned, or binding-default

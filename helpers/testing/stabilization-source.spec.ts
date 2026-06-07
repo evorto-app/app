@@ -1471,6 +1471,9 @@ describe('stabilization source', () => {
     expect(source).toContain('HTML `<img>` tags');
     expect(source).toContain('binding-default markdown names');
     expect(source).toMatch(
+      /grouped\/indexed\/destructured\/assigned markdown\s+names/u,
+    );
+    expect(source).toMatch(
       /grouped\/indexed\/destructured,\s+assigned,\s+or binding-default body\/payload aliases/u,
     );
     expect(source).toContain('simple body forwarding');
@@ -2368,6 +2371,18 @@ describe('stabilization source', () => {
       'await capture(markdownAttachmentName, rawMarkdownPayload)',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind grouped markdown names',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await testInfo.attach(markdownNames.evidence, rawMarkdownPayload)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await testInfo.attach(markdownNameList[0], rawMarkdownPayload)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'const { evidence: groupedMarkdownName } = markdownNames',
+    );
+    expect(generatedDocumentationSource).toContain(
       'detects raw markdown images hidden behind binding default body and payload aliases',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2425,6 +2440,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('HTML `<img>` tags');
     expect(inventory).toContain('aliased markdown names');
     expect(inventory).toContain('binding-default markdown names');
+    expect(inventory).toContain(
+      'grouped/indexed/destructured/assigned markdown names',
+    );
     expect(inventory).toContain('aliased body variables');
     expect(inventory).toContain('simple forwarding through');
     expect(inventory).toContain('`Buffer.from(...)`');
