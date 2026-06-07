@@ -10,7 +10,10 @@ import { ConfigProvider, Effect } from 'effect';
 import path from 'node:path';
 
 import { documentationOutputEnvironment } from '../config/environment';
-import { buildSectionContent } from './documentation-reporter/attachments';
+import {
+  assertNoUnsupportedDocumentationImageAttachments,
+  buildSectionContent,
+} from './documentation-reporter/attachments';
 import { DocumentationGroupRegistry } from './documentation-reporter/group-registry';
 import {
   DOCUMENTATION_ATTACHMENT_NAMES,
@@ -187,6 +190,10 @@ class DocumentationReporter implements Reporter {
       DOCUMENTATION_ATTACHMENT_NAMES.has(attachment.name),
     );
     if (relevantAttachments.length === 0) return;
+    assertNoUnsupportedDocumentationImageAttachments(
+      result.attachments,
+      test.title,
+    );
 
     const groupInfo = this.registry.resolveForTest(test);
     const imagesDir = ensureDirectory(

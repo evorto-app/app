@@ -9294,6 +9294,14 @@ describe('generated docs source current behavior', () => {
     expect(reporterAttachments).toContain(
       'Documentation image-caption attachment',
     );
+    expect(reporterAttachments).toContain(
+      'assertNoUnsupportedDocumentationImageAttachments',
+    );
+    expect(reporterAttachments).toContain('imageContentTypePattern');
+    expect(reporterAttachments).toContain('uses unsupported content type');
+    expect(reporterSource).toContain(
+      'assertNoUnsupportedDocumentationImageAttachments',
+    );
     expect(
       readSource('helpers/testing/generated-documentation-source.spec.ts'),
     ).toContain('singleControlCssSelectors');
@@ -9324,6 +9332,11 @@ describe('generated docs source current behavior', () => {
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(
       'documentation reporter rejects weak image captions at output time',
+    );
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation reporter rejects unsupported image attachments in doc output',
     );
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),

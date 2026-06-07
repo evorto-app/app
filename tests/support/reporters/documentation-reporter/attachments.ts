@@ -3,7 +3,7 @@ import * as crypto from 'node:crypto';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 
-import { writeFile } from './shared';
+import { DOCUMENTATION_ATTACHMENT_NAMES, writeFile } from './shared';
 
 export type ResultAttachment = TestResult['attachments'][number];
 const highlightedTargetColor = { b: 153, g: 72, r: 236 };
@@ -16,6 +16,26 @@ const minimumImageHeight = 240;
 const minimumMarkdownBodyLength = 60;
 const rawMarkdownImagePattern =
   /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<(?:img|picture|source|svg|image|object|embed|iframe|video|canvas)(?:\s|>|\/)|style\s*=\s*(?:"[^"]*url\s*\(|'[^']*url\s*\(|[^\s>]*url\s*\()|(?:background(?:-image)?|list-style(?:-image)?|border-image(?:-source)?|content|(?:-webkit-)?mask(?:-image|-box-image)?|cursor)\s*:\s*[^;{}]*?\burl\s*\(/iu;
+const imageContentTypePattern = /^image\//iu;
+
+export const assertNoUnsupportedDocumentationImageAttachments = (
+  attachments: ResultAttachment[],
+  testTitle: string,
+): void => {
+  const unsupportedImageAttachment = attachments.find(
+    (attachment) =>
+      !DOCUMENTATION_ATTACHMENT_NAMES.has(attachment.name) &&
+      imageContentTypePattern.test(attachment.contentType),
+  );
+
+  if (!unsupportedImageAttachment) {
+    return;
+  }
+
+  throw new Error(
+    `Documentation image attachment "${unsupportedImageAttachment.name}" in ${testTitle} uses unsupported content type ${unsupportedImageAttachment.contentType}. Use the shared screenshot helper so image evidence is captioned, highlighted, and validated.`,
+  );
+};
 
 const readAttachmentBody = (
   attachment: ResultAttachment,

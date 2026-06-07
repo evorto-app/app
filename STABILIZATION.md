@@ -3655,6 +3655,9 @@ fallback rather than a profile discount-card defect.
   rejects orphan `image-caption` attachments that do not immediately follow an
   image, so generated docs cannot silently publish an uncaptioned raw markdown image
   or drop a misplaced caption.
+  The reporter now also rejects unsupported `image/*` attachments when a test is
+  otherwise emitting generated-doc content, so a missed source-parser pattern
+  cannot hide raw image evidence behind a nonstandard attachment name.
   Generated-docs source coverage pins the user-facing unlisted-event guide while continuing to reject
   unrelated admin-only unlisted-event product docs.
 - Current generated-docs evidence-quality guard checkpoint:
@@ -3745,6 +3748,9 @@ fallback rather than a profile discount-card defect.
   check for paired `image-caption` attachments, so even a valid highlighted PNG
   cannot be written into generated docs with a terse or content-free caption if
   a future helper or fixture bypasses the normal screenshot helper path.
+  The same output boundary rejects unsupported `image/*` attachment names when a
+  documentation section is being emitted, so raw screenshots attached under names
+  like `raw-screenshot` fail instead of being filtered away before validation.
   A June 6, 2026 full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`
   rebuilt the Docker docs stack, seeded the docs tenant, and then failed in
   authenticated setup before generated-doc assertions because Auth0 rejected the

@@ -1889,7 +1889,10 @@ describe('stabilization source', () => {
       /undersized\s+generated-doc\s+image\s+attachments/u,
     );
     expect(inventory).toContain(
-      'duplicate figure captions and duplicate figure',
+      'duplicate figure captions on one generated page',
+    );
+    expect(inventory).toContain(
+      'duplicate figure\n  captions and duplicate figure image hashes across generated pages',
     );
     expect(inventory).toContain('image hashes across generated pages');
     expect(source).toContain(
@@ -2785,6 +2788,13 @@ describe('stabilization source', () => {
       'must include visible page content outside the highlighted focus target',
     );
     expect(reporterAttachmentsSource).toContain(
+      'assertNoUnsupportedDocumentationImageAttachments',
+    );
+    expect(reporterAttachmentsSource).toContain('imageContentTypePattern');
+    expect(reporterAttachmentsSource).toContain(
+      'uses unsupported content type',
+    );
+    expect(reporterAttachmentsSource).toContain(
       'minimumMarkdownBodyLength = 60',
     );
     expect(reporterAttachmentsSource).toContain(
@@ -2837,6 +2847,12 @@ describe('stabilization source', () => {
     );
     expect(reporterPathsSpec).toContain(
       'documentation reporter rejects invalid image attachments',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects unsupported image attachments in doc output',
+    );
+    expect(reporterPathsSpec).toContain(
+      'Documentation image attachment "raw-screenshot" in Unsupported image attachment uses unsupported content type image/png.',
     );
     expect(reporterPathsSpec).toContain(
       'documentation reporter rejects images without a highlighted target',

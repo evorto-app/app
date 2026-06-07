@@ -169,6 +169,41 @@ test('documentation reporter rejects invalid image attachments', async ({}, test
   );
 });
 
+test('documentation reporter rejects unsupported image attachments in doc output', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-unsupported-image-name');
+  const imgsRoot = testInfo.outputPath('docs-img-unsupported-image-name');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from(descriptiveMarkdown),
+      },
+      {
+        name: 'raw-screenshot',
+        contentType: 'image/png',
+        body: createDocumentationEvidencePng(),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd(
+      { title: 'Unsupported image attachment' } as any,
+      result,
+    ),
+  ).toThrow(
+    'Documentation image attachment "raw-screenshot" in Unsupported image attachment uses unsupported content type image/png.',
+  );
+});
+
 test('documentation reporter rejects undersized image attachments', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out-undersized-image');
   const imgsRoot = testInfo.outputPath('docs-img-undersized-image');

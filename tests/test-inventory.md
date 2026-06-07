@@ -221,11 +221,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     checks documentation reporter output paths, caption pairing, weak
     image-caption rejection, generated figure escaping, highlighted screenshot
     targets, visible page-content detection, and zero-box host screenshots
-    without app startup. It also rejects undersized generated-doc image
-    attachments, so tiny valid PNGs cannot stand in for screenshot evidence with
-    enough UI context, and rejects weak Markdown body text so generated docs
-    keep enough explanatory body text to be reviewed without clicking through
-    the app.
+    without app startup. It also rejects unsupported `image/*` attachment names
+    when documentation content is otherwise being emitted and rejects undersized
+    generated-doc image attachments, so tiny valid PNGs cannot stand in for
+    screenshot evidence with enough UI context, and rejects weak Markdown body
+    text so generated docs keep enough explanatory body text to be reviewed
+    without clicking through the app.
     `bun run test:e2e:reporter-paths` is the focused local rerun; it uses
     `helpers/testing/run-playwright.ts` to refresh `.env.dev`, set ignored docs
     output paths, set `NO_WEBSERVER=true`, and pass `--no-deps`.
@@ -656,9 +657,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   invalid-image, missing-highlight, and blank/context-free highlighted-image
   runtime failures in reporter-path tests, rejects uncaptioned image attachments
   and orphan or weak image-caption attachments before generated markdown is
-  written, rejects duplicate figure image sources and duplicate figure captions
-  on one generated page, rejects duplicate figure captions and duplicate figure
-  image hashes across generated pages, requires reporter-written image
+  written, rejects unsupported `image/*` attachment names when documentation
+  content is otherwise being emitted, rejects duplicate figure image sources and
+  duplicate figure captions on one generated page, rejects duplicate figure
+  captions and duplicate figure image hashes across generated pages, requires reporter-written image
   attachments to be valid PNG
   screenshots with highlighted focus-target pixels and visible surrounding page
   content, rejects inline and reference-style raw Markdown image syntax and
