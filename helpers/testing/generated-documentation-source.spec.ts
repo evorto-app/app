@@ -273,7 +273,10 @@ const isTrackedBranchingTarget = (
 
   if (ts.isConditionalExpression(target)) {
     return (
-      isTrackedTarget(target.whenTrue) || isTrackedTarget(target.whenFalse)
+      isTrackedTarget(target.whenTrue) ||
+      isTrackedBranchingTarget(target.whenTrue, isTrackedTarget) ||
+      isTrackedTarget(target.whenFalse) ||
+      isTrackedBranchingTarget(target.whenFalse, isTrackedTarget)
     );
   }
 
@@ -283,7 +286,12 @@ const isTrackedBranchingTarget = (
       target.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
       target.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
   ) {
-    return isTrackedTarget(target.left) || isTrackedTarget(target.right);
+    return (
+      isTrackedTarget(target.left) ||
+      isTrackedBranchingTarget(target.left, isTrackedTarget) ||
+      isTrackedTarget(target.right) ||
+      isTrackedBranchingTarget(target.right, isTrackedTarget)
+    );
   }
 
   return false;
@@ -4067,6 +4075,50 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects raw docs image capture hidden behind nested branching callees', () => {
+    const nestedBranchingCalleeSource = `
+      async function captureDocsEvidence(useRaw: boolean, preferDirect: boolean) {
+        const attachEvidence = testInfo.attach.bind(testInfo);
+        const capturePageScreenshot = page.screenshot.bind(page);
+        const markdownPayload = { body: '![raw](raw.png)' };
+        await (useRaw ? (preferDirect ? page.screenshot : captureSafe) : captureSafe)({ path: 'page.png' });
+        await (safeCapture || (maybeCapture ?? capturePageScreenshot))({ path: 'page-nullish.png' });
+        await (useRaw ? (preferDirect ? testInfo.attach : attachSafe) : attachSafe)('image', { body: imageBuffer });
+        await (attachSafe || (maybeAttach ?? attachEvidence))('raw evidence', { contentType: 'image/png' });
+        await (useRaw ? (preferDirect ? testInfo.attach : attachSafe) : attachSafe)('markdown', markdownPayload);
+      }
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/nested-branching-callee-image-capture.doc.ts',
+        nestedBranchingCalleeSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/nested-branching-callee-image-capture.doc.ts:6:15',
+      'tests/docs/example/nested-branching-callee-image-capture.doc.ts:7:15',
+    ]);
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/nested-branching-callee-image-capture.doc.ts',
+        nestedBranchingCalleeSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/nested-branching-callee-image-capture.doc.ts:8:15',
+      'tests/docs/example/nested-branching-callee-image-capture.doc.ts:9:15',
+    ]);
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/nested-branching-callee-image-capture.doc.ts',
+        nestedBranchingCalleeSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/nested-branching-callee-image-capture.doc.ts:10:15',
+    ]);
+  });
+
   it('detects inline bound raw screenshot calls before generated docs can use them', () => {
     const inlineBoundScreenshotSource = `
       const capturePageScreenshot = page.screenshot.bind(page);
@@ -4916,6 +4968,63 @@ describe('generated docs source current behavior', () => {
         branchingTargetSource,
       ),
     ).toEqual(['tests/docs/example/branching-target.doc.ts:24:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind nested branching expressions', () => {
+    const nestedBranchingTargetSource = `
+      const useFallback = true;
+      const preferWeakTarget = true;
+
+      await takeScreenshot(
+        testInfo,
+        useFallback ? (preferWeakTarget ? page.locator('main') : settingsSurface) : settingsSurface,
+        page,
+        'Nested conditional generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        settingsSurface ?? (preferWeakTarget ? page.locator('section') : settingsSurface),
+        page,
+        'Nested nullish broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        safeTarget || (preferWeakTarget ? page.getByRole('button', { name: 'Save' }) : settingsSurface),
+        page,
+        'Nested logical single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        safeTarget && (preferWeakTarget ? page.locator('svg') : settingsSurface),
+        page,
+        'Nested logical icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/nested-branching-target.doc.ts',
+        nestedBranchingTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/nested-branching-target.doc.ts:5:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/nested-branching-target.doc.ts',
+        nestedBranchingTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/nested-branching-target.doc.ts:11:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/nested-branching-target.doc.ts',
+        nestedBranchingTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/nested-branching-target.doc.ts:17:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/nested-branching-target.doc.ts',
+        nestedBranchingTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/nested-branching-target.doc.ts:23:13']);
   });
 
   it('detects weak documentation screenshot targets hidden behind non-null assertions', () => {

@@ -1484,11 +1484,12 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Comma-expression invocations');
     expect(source).toContain('Conditional and logical callees');
+    expect(source).toMatch(/Nested\s+branching callees/u);
     expect(inventory).toContain(
       'comma-expression raw screenshot and image attach invocations',
     );
     expect(inventory).toContain(
-      'conditional and\n  logical raw screenshot and image attach callees',
+      'conditional,\n  logical, and nested raw screenshot and image attach callees',
     );
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
@@ -1542,7 +1543,7 @@ describe('stabilization source', () => {
     expect(source).toMatch(
       /[Cc]onditional, nullish-coalesced, and logical\s+target\s+expressions/u,
     );
-    expect(source).toMatch(/Non-null\s+assertion wrappers/u);
+    expect(source).toMatch(/Non-null assertion\s+wrappers/u);
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
     expect(source).toContain('captureDocumentationImage');
@@ -1618,7 +1619,7 @@ describe('stabilization source', () => {
       'weak\n  targets produced by inline, named, or locally aliased `map` and `flatMap`\n  callbacks and by `Array.from(...)` mapper callbacks',
     );
     expect(inventory).toContain(
-      'conditional, nullish-coalesced, and logical target\n  expressions',
+      'conditional, nullish-coalesced, and logical\n  target expressions recursively',
     );
     expect(inventory).toMatch(/non-null assertion wrappers/u);
     expect(inventory).toMatch(/helper-returned\s+icon\/media locators/u);
@@ -1943,6 +1944,15 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind branching expressions',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets hidden behind nested branching expressions',
+    );
+    expect(source).toContain(
+      'Conditional, nullish-coalesced, and logical target expressions are checked\nrecursively',
+    );
+    expect(inventory).toContain(
+      'target expressions recursively when any nested branch hides a weak screenshot\n  target',
     );
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind non-null assertions',
@@ -2345,12 +2355,13 @@ describe('stabilization source', () => {
     expect(source).toContain('Inline `bind(...)(...)` invocations');
     expect(source).toContain('`Reflect.apply(...)` invocations');
     expect(source).toContain('Conditional and logical callees');
+    expect(source).toMatch(/Nested\s+branching callees/u);
     expect(inventory).toMatch(/spread direct attachment\s+arguments/u);
     expect(inventory).toMatch(/opaque attachment `apply\(\.\.\.\)` lists/u);
     expect(inventory).toContain('`Reflect.apply(...)` raw screenshot');
     expect(inventory).toContain('inline bound raw screenshot and image attach');
     expect(inventory).toContain(
-      'conditional and\n  logical raw screenshot and image attach callees',
+      'conditional,\n  logical, and nested raw screenshot and image attach callees',
     );
   });
 

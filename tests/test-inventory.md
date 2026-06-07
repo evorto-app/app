@@ -574,8 +574,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   callbacks and by `Array.from(...)` mapper callbacks, and helper-returned
   icon/media locators,
   before docs can regress to button-only, input-only, option-only, cell-only, or
-  icon-only images. It also rejects conditional, nullish-coalesced, and logical target
-  expressions when either branch hides a weak screenshot target, resolves
+  icon-only images. It also rejects conditional, nullish-coalesced, and logical
+  target expressions recursively when any nested branch hides a weak screenshot
+  target, resolves
   non-null assertion wrappers before screenshot counting and direct image or
   screenshot-helper inspection, resolves screenshot target aliases and helper
   functions before
@@ -626,8 +627,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   arguments, opaque attachment `apply(...)` lists, raw screenshot and image
   attach call/apply invocations, `Reflect.apply(...)` raw screenshot and image
   attach invocations, inline bound raw screenshot and image attach invocations,
-  comma-expression raw screenshot and image attach invocations, conditional and
-  logical raw screenshot and image attach callees,
+  comma-expression raw screenshot and image attach invocations, conditional,
+  logical, and nested raw screenshot and image attach callees,
   forward-declared raw aliases, and simple, destructured, nested destructured,
   grouped, shorthand, alias-valued, or direct/alias-valued tuple/array
   attach-function aliases, rejects

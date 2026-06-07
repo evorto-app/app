@@ -5730,10 +5730,13 @@ worktree Compose app returned HTTP 500 for `/legal/terms`, the app log showed an
 `EffectDrizzleQueryError` during tenant lookup, direct local Neon queries failed
 with `password authentication failed for user 'appdb_owner'`, and the worktree
 database container later reported unhealthy while the app container was stopped.
-No current-head Browser route/layout evidence is claimed for `f6ee41ae`; the
-latest positive General Browser evidence remains the `574e9273` checkpoint above
-until Docker/Neon Local is recovered. The durable public General viewport spec
-now also asserts that
+The follow-up bounded cleanup path `bun run docker:clean-stale` also failed to
+remove `evorto-91c45a89-db-1` because Docker could not kill the unhealthy
+container and did not receive an exit event. No current-head Browser
+route/layout evidence is claimed for `f6ee41ae` or the follow-up documentation
+head; the latest positive General Browser evidence remains the `574e9273`
+checkpoint above until Docker/Neon Local is recovered. The durable public
+General viewport spec now also asserts that
 the anonymous Events/Login navigation remains visible and fixed as bottom
 navigation on mobile and side navigation on desktop for every covered General
 route. Playwright config now uses the repo runtime config provider
@@ -6018,10 +6021,11 @@ single-control, and icon/media screenshot targets. `map`, `flatMap`, and
 `Array.from(...)` callback return values are checked too, including named or
 locally aliased callback helpers, so a safe receiver array cannot manufacture a
 weak screenshot target in the callback.
-Conditional, nullish-coalesced, and logical target
-expressions are checked too, so selecting between a good surface and a weak
-fallback cannot hide generic, broad, single-control, or icon/media screenshot
-evidence. Non-null assertion wrappers are unwrapped before screenshot
+Conditional, nullish-coalesced, and logical target expressions are checked
+recursively too, so selecting between a good surface and a weak fallback cannot
+hide generic, broad, single-control, or icon/media screenshot evidence even when
+the weak target is nested inside another fallback expression. Non-null assertion
+wrappers are unwrapped before screenshot
 counting, target inspection, direct raw-image attachment checks, and direct
 screenshot-helper checks run, so `target!`, `takeScreenshot!(...)`,
 `testInfo.attach!(...)`, and
@@ -6117,7 +6121,10 @@ Conditional and logical callees such as
 `(safeCapture || page['screenshot'])(...)`, and
 `(maybeAttach ?? testInfo.attach)(...)` are tracked as raw captures whenever any
 branch is a direct raw screenshot or image attachment function, so generated
-docs cannot hide raw evidence behind fallback function selection.
+docs cannot hide raw evidence behind fallback function selection. Nested
+branching callees are inspected the same way, so raw screenshot or attachment
+functions cannot be buried inside a second conditional, logical, or nullish
+fallback expression.
 Raw image attachments with image MIME types or common image file extensions are
 also rejected even when their attachment name is not `image`, so docs cannot
 smuggle screenshot evidence through a differently named `testInfo.attach(...)`
