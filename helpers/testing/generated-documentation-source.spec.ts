@@ -3435,6 +3435,7 @@ const findGenericScreenshotTargets = (
         genericTargetPropertyAliases,
         genericTargetAliases,
       );
+      collectObjectRestPropertyAliases(node, genericTargetPropertyAliases);
     }
 
     if (
@@ -3714,6 +3715,7 @@ const findUnfilteredBroadScreenshotTargets = (
         broadTargetPropertyAliases,
         broadTargetAliases,
       );
+      collectObjectRestPropertyAliases(node, broadTargetPropertyAliases);
     }
 
     if (
@@ -4060,6 +4062,7 @@ const findSingleControlScreenshotTargets = (
         singleControlPropertyAliases,
         singleControlAliases,
       );
+      collectObjectRestPropertyAliases(node, singleControlPropertyAliases);
     }
 
     if (
@@ -4367,6 +4370,7 @@ const findIconOrMediaScreenshotTargets = (
         iconOrMediaPropertyAliases,
         iconOrMediaAliases,
       );
+      collectObjectRestPropertyAliases(node, iconOrMediaPropertyAliases);
     }
 
     if (
@@ -10965,6 +10969,76 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/copied-helper-returned-target.doc.ts:33:13',
     ]);
+  });
+
+  it('detects object-rest copied weak documentation screenshot target groups', () => {
+    const objectRestTargetSource = `
+      function resolveShellTarget(page) { return page.locator('main'); }
+      function resolveBroadTarget(page) { return page.locator('section'); }
+      function resolveSingleTarget(page) { return page.getByRole('button', { name: 'Save' }); }
+      function resolveIconTarget(page) { return page.locator('svg'); }
+      const groupedTargets = {
+        ignored: page.getByRole('region', { name: 'Real documentation surface' }),
+        shell: resolveShellTarget(page),
+        broad: resolveBroadTarget(page),
+        single: resolveSingleTarget(page),
+        icon: resolveIconTarget(page),
+      };
+      const { ignored, ...restTargets } = groupedTargets;
+
+      await takeScreenshot(
+        testInfo,
+        restTargets.shell,
+        page,
+        'Object-rest helper-returned generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        restTargets.broad,
+        page,
+        'Object-rest helper-returned broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        restTargets.single,
+        page,
+        'Object-rest helper-returned single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        restTargets.icon,
+        page,
+        'Object-rest helper-returned icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/object-rest-grouped-target.doc.ts',
+        objectRestTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/object-rest-grouped-target.doc.ts:15:13']);
+
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/object-rest-grouped-target.doc.ts',
+        objectRestTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/object-rest-grouped-target.doc.ts:21:13']);
+
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/object-rest-grouped-target.doc.ts',
+        objectRestTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/object-rest-grouped-target.doc.ts:27:13']);
+
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/object-rest-grouped-target.doc.ts',
+        objectRestTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/object-rest-grouped-target.doc.ts:33:13']);
   });
 
   it('detects chained generic documentation screenshot targets', () => {

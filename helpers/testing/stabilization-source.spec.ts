@@ -1884,12 +1884,12 @@ describe('stabilization source', () => {
     expect(inventory).toContain('shorthand properties');
     expect(inventory).toContain('alias-valued\n  properties');
     expect(inventory).toContain(
-      'object-spread and `Object.assign(...)` copied grouped target\n  objects',
+      'object-spread, `Object.assign(...)`, and object-rest copied\n  grouped target objects',
     );
     expect(inventory).toContain('copied helper-returned weak target groups');
     expect(inventory).toMatch(/static indexed\s+target lists/u);
     expect(inventory).toMatch(/positive or negative static/u);
-    expect(inventory).toContain('`.at(...)` array access');
+    expect(inventory).toMatch(/`\.at\(\.\.\.\)` array\s+access/u);
     expect(inventory).toContain('`locator.screenshot`');
     expect(inventory).toContain("direct `testInfo.attach('image', ...)`");
     expect(inventory).toContain("`page['screenshot']`");
@@ -2537,7 +2537,13 @@ describe('stabilization source', () => {
       'detects copied helper-returned weak documentation screenshot target groups',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects object-rest copied weak documentation screenshot target groups',
+    );
+    expect(generatedDocumentationSource).toContain(
       'collectGroupedPropertyAliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'collectObjectRestPropertyAliases(node, genericTargetPropertyAliases)',
     );
     expect(generatedDocumentationSource).toContain('isTrackedReferenceOrAlias');
     expect(generatedDocumentationSource).toContain(

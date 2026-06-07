@@ -7412,6 +7412,26 @@ surfaces/icons/times, fixed Events/Login bottom navigation, no loading or
 application-error text, no clipped visible controls on the Terms route, and
 zero warning/error Browser logs.
 
+Object-rest copied weak screenshot target groups are now pinned in generated
+documentation source coverage as well. That closes the parallel image-quality
+gap where a helper-returned generic page shell, broad section, single control,
+or icon/media locator could be stored on a grouped target object, copied through
+`const { ignored, ...restTargets } = groupedTargets`, and then used as a
+supposedly meaningful `takeScreenshot(...)` target. The weak-target detectors
+now propagate grouped target property aliases through object-rest destructuring
+for generic, broad, single-control, and icon/media target classes, and the test
+inventory names object-rest copied grouped target objects beside spread and
+`Object.assign(...)` copies.
+Validation for this slice passed `bun run format:write`, `bun run lint`, the
+focused generated-documentation/stabilization source suite with 194 passing
+tests, and `git diff --check`. Browser verification at 390x844 captured
+`/tmp/evorto-object-rest-weak-target-terms-390x844.png` and
+`/tmp/evorto-object-rest-weak-target-events-390x844.png`; the images show
+readable Terms fallback copy and real seeded Events cards with Material
+surfaces/icons/times, fixed Events/Login bottom navigation, no loading or
+application-error text, no clipped visible controls on the Terms route, and
+zero warning/error Browser logs.
+
 Copied returned explanatory Markdown helper groups are now pinned in the
 weak-body and screenshot-density source guards as well. That covers the
 remaining generated-doc prose bypass where a returned `testInfo.attach` helper
