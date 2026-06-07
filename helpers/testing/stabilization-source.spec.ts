@@ -6898,8 +6898,12 @@ describe('stabilization source', () => {
     const checkpoint = queue.match(
       /Current Docker\/Browser runtime recovered checkpoint:[\s\S]*?(?=\n\n## Review Next|\n- Current |\n$)/u,
     )?.[0];
+    const currentHeadRecovery = source.match(
+      /A current-head recovery on PR head `14fe958b`[\s\S]*?390x844, and 1440x900\./u,
+    )?.[0];
 
     expect(checkpoint).toBeDefined();
+    expect(currentHeadRecovery).toBeDefined();
     expect(checkpoint).toContain('serving the current local branch');
     expect(checkpoint).toContain('local\n  head `db7845e5e`');
     expect(checkpoint).toContain(
@@ -7116,6 +7120,53 @@ describe('stabilization source', () => {
       '/tmp/evorto-general-current-fdd040de-390x844--events.png',
     );
     expect(checkpoint).toMatch(/tenant-missing legal-text message/u);
+    expect(currentHeadRecovery).toContain('PR head `14fe958b`');
+    expect(currentHeadRecovery).toContain('`bun run docker:resume`');
+    expect(currentHeadRecovery).toContain('`bun run dev:status` passed');
+    expect(currentHeadRecovery).toContain(
+      'reachable database validation query',
+    );
+    expect(currentHeadRecovery).toContain('`/legal/terms` route probe');
+    expect(currentHeadRecovery).toContain('/events` at 320x740');
+    expect(currentHeadRecovery).toContain('first rendered public event detail');
+    expect(currentHeadRecovery).toContain('/legal/terms` at 390x844');
+    expect(currentHeadRecovery).toContain('/404` at 390x844');
+    expect(currentHeadRecovery).toContain('/events` at 1440x900');
+    expect(currentHeadRecovery).toContain(
+      'evorto-current-general-14fe958b-events-320x740.png',
+    );
+    expect(currentHeadRecovery).toContain(
+      'evorto-current-general-14fe958b-event-detail-320x740.png',
+    );
+    expect(currentHeadRecovery).toContain(
+      'evorto-current-general-14fe958b-terms-390x844.png',
+    );
+    expect(currentHeadRecovery).toContain(
+      'evorto-current-general-14fe958b-404-390x844.png',
+    );
+    expect(currentHeadRecovery).toContain(
+      'evorto-current-general-14fe958b-events-1440x900.png',
+    );
+    expect(currentHeadRecovery).toMatch(/real seeded Material\s+event cards/u);
+    expect(currentHeadRecovery).toContain('event-detail registration content');
+    expect(currentHeadRecovery).toContain('hosted legal fallback copy');
+    expect(currentHeadRecovery).toContain('not-found fallback');
+    expect(currentHeadRecovery).toContain(
+      'focused `bun run test:e2e:public-general-viewports` run passed',
+    );
+    expect(currentHeadRecovery).toMatch(
+      /covering all anonymous General routes at 320x740,\s+390x844, and 1440x900/u,
+    );
+    expect(testInventory).toContain(
+      'A current-head recovery on PR head `14fe958b`',
+    );
+    expect(testInventory).toContain('`bun run docker:resume`');
+    expect(testInventory).toContain(
+      'evorto-current-general-14fe958b-event-detail-320x740.png',
+    );
+    expect(testInventory).toContain(
+      '`bun run test:e2e:public-general-viewports` run passed',
+    );
     expect(checkpoint).toContain('Playwright-test MCP Browser planner');
     expect(checkpoint).toMatch(/`DATABASE_URL` was\s+undefined/u);
     expect(checkpoint).toContain(

@@ -1503,6 +1503,24 @@ provider outcomes without live identifiers.
   `evorto-91c45a89-db-1` because Docker could not kill the container and did
   not receive an exit event, so no fresh Browser evidence is claimed until the
   Docker engine/Desktop is restarted outside the app tooling.
+  A current-head recovery on PR head `14fe958b` used `bun run docker:resume`
+  to restart the exited generated DB container without recreating the stack,
+  then `bun run dev:status` passed with a reachable DB validation query and a
+  healthy `/legal/terms` route probe. In-app Browser checked `/events` at
+  320x740, the first rendered public event detail at 320x740, `/legal/terms`
+  at 390x844, `/404` at 390x844, and `/events` at 1440x900 with no loading or
+  application-error text, no horizontal overflow, fixed General navigation,
+  and zero Browser warning/error logs. The inspected screenshots
+  `evorto-current-general-14fe958b-events-320x740.png`,
+  `evorto-current-general-14fe958b-event-detail-320x740.png`,
+  `evorto-current-general-14fe958b-terms-390x844.png`,
+  `evorto-current-general-14fe958b-404-390x844.png`, and
+  `evorto-current-general-14fe958b-events-1440x900.png` show real seeded
+  Material event cards, event-detail registration content, hosted legal
+  fallback copy, and the not-found fallback. The matching focused
+  `bun run test:e2e:public-general-viewports` run passed against the same
+  running app with 2 tests, covering all anonymous General routes at 320x740,
+  390x844, and 1440x900.
 - `tests/setup/mcp-browser-authenticated.seed.ts` is the authenticated MCP
   Browser planner seed for the dedicated `mcp-browser-authenticated-planner`
   project. It depends on the normal `setup` project, then opens

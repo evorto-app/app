@@ -7096,3 +7096,22 @@ Docker Compose and the disposable Alpine start path were available, still saw
 `/legal/terms` return HTTP 500, and kept the Neon dry-run clean with only
 protected `main`. No Browser or focused E2E layout claim is made for this
 matrix expansion until the local DB/app route probe is healthy again.
+
+A current-head recovery on PR head `14fe958b` used `bun run docker:resume` to
+restart the exited generated DB container without recreating the stack, then
+`bun run dev:status` passed with a reachable database validation query and
+`/legal/terms` route probe. The in-app Browser checked `/events` at 320x740,
+the first rendered public event detail at 320x740, `/legal/terms` at 390x844,
+`/404` at 390x844, and `/events` at 1440x900 with expected content, no loading
+or application-error text, no horizontal overflow, fixed General navigation,
+and zero Browser warning/error logs. The inspected screenshots
+`evorto-current-general-14fe958b-events-320x740.png`,
+`evorto-current-general-14fe958b-event-detail-320x740.png`,
+`evorto-current-general-14fe958b-terms-390x844.png`,
+`evorto-current-general-14fe958b-404-390x844.png`, and
+`evorto-current-general-14fe958b-events-1440x900.png` show real seeded Material
+event cards, event-detail registration content, hosted legal fallback copy, and
+the not-found fallback instead of unrelated or blank evidence. The matching
+focused `bun run test:e2e:public-general-viewports` run passed against the same
+running app with 2 tests, covering all anonymous General routes at 320x740,
+390x844, and 1440x900.
