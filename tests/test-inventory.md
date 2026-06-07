@@ -187,6 +187,16 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     of route-shell presence, a generic dialog crop, or a single combobox crop.
     Generated-doc source coverage also ties tax-rate metadata to Product.md's
     Stripe source-of-truth boundary and rejects local/manual tax-rate wording.
+  - Docker-backed system-Chrome finance execution has passed for
+    `specs/finance/finance-overview-permissions.spec.ts`,
+    `specs/finance/receipts-flows.spec.ts`,
+    `specs/finance/stripe-webhook-replay.spec.ts`,
+    `specs/finance/tax-rates/admin-import-tax-rates.spec.ts`,
+    `docs/finance/finance-overview.doc.ts`,
+    `docs/finance/receipt-review-reimbursement.doc.ts`, and
+    `docs/finance/inclusive-tax-rates.doc.ts`, tying the finance docs images to
+    the same runtime paths that cover permission-scoped navigation, receipt
+    review/reimbursement, Stripe webhook replay, and inclusive tax-rate import.
   - finance viewport coverage checks the authenticated finance overview,
     transactions, receipt approval list/detail, and reimbursement pages at
     narrow mobile, mobile, and desktop viewports for expected seeded content,
@@ -944,6 +954,16 @@ provider outcomes without live identifiers.
     discounts guide tied to the local ESNcard helper functions and provider
     outage retry semantics, and rejects all-tenant ESN wording so the guide stays
     aligned with the tenant opt-in provider boundary.
+    Docker-backed system-Chrome profile/account execution has passed for
+    `specs/profile/user-profile-edit.spec.ts`,
+    `specs/profile/user-profile-events.spec.ts`,
+    `specs/profile/user-profile-receipts.spec.ts`,
+    `specs/profile/user-profile-discounts.spec.ts`,
+    `specs/discounts/esn-discounts.test.ts`,
+    `docs/profile/user-profile.doc.ts`, and `docs/profile/discounts.doc.ts`,
+    tying the profile docs images to notification-email persistence, event-card
+    state, receipt cards, deterministic ESNcard provider outcomes, and
+    discounts error-state screenshots.
   - Account-creation retry and tenant-join behavior. Server coverage already
     proves transactional creation, existing-global-user tenant joins,
     duplicate-assignment conflicts, and visible create-account error message

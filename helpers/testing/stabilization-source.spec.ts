@@ -1262,8 +1262,52 @@ describe('stabilization source', () => {
     expect(reviewNext).toContain('system-Chrome coverage');
     expect(reviewNext).toContain('manual Browser review pass');
     expect(reviewNext).toContain('visible profile discount-card UX');
-    expect(reviewNext).toContain(
-      'evidence drift and relaunch-scope watchpoints',
+    expect(source).toContain('Docker finance runtime refresh');
+    expect(source).toContain(
+      'tests/specs/finance/finance-overview-permissions.spec.ts',
+    );
+    expect(source).toContain('tests/specs/finance/receipts-flows.spec.ts');
+    expect(source).toContain(
+      'tests/specs/finance/stripe-webhook-replay.spec.ts',
+    );
+    expect(source).toContain(
+      'tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts',
+    );
+    expect(source).toContain('tests/docs/finance/finance-overview.doc.ts');
+    expect(source).toContain(
+      'tests/docs/finance/receipt-review-reimbursement.doc.ts',
+    );
+    expect(source).toContain('tests/docs/finance/inclusive-tax-rates.doc.ts');
+    expect(testInventory).toContain(
+      'Docker-backed system-Chrome finance execution has passed',
+    );
+    expect(testInventory).toContain(
+      'permission-scoped navigation, receipt\n    review/reimbursement, Stripe webhook replay, and inclusive tax-rate import',
+    );
+    expect(source).toContain('Docker profile/account runtime pass');
+    expect(source).toContain('tests/specs/profile/user-profile-edit.spec.ts');
+    expect(source).toContain('tests/specs/profile/user-profile-events.spec.ts');
+    expect(source).toContain(
+      'tests/specs/profile/user-profile-receipts.spec.ts',
+    );
+    expect(source).toContain(
+      'tests/specs/profile/user-profile-discounts.spec.ts',
+    );
+    expect(source).toContain('tests/specs/discounts/esn-discounts.test.ts');
+    expect(source).toContain('tests/docs/profile/user-profile.doc.ts');
+    expect(source).toContain('tests/docs/profile/discounts.doc.ts');
+    expect(testInventory).toContain(
+      'Docker-backed system-Chrome profile/account execution has passed',
+    );
+    expect(testInventory).toContain(
+      'notification-email persistence, event-card\n    state, receipt cards, deterministic ESNcard provider outcomes',
+    );
+    expect(reviewNext).toContain('reusable add-ons and questions');
+    expect(reviewNext).toContain('test:e2e:docs:publish');
+    expect(
+      readSource('helpers/testing/generated-documentation-source.spec.ts'),
+    ).toContain(
+      'keeps generated documentation publishing explicit in package scripts',
     );
     expect(
       readSource('helpers/testing/generated-documentation-source.spec.ts'),
