@@ -543,6 +543,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   transfer/resale, registration confirmation with QR ticket availability,
   payments, direct QR email-delivery boundaries, email notifications, and
   documentation/help to checked-in docs sources,
+  maps `ARCHITECTURE.md`'s Playwright documentation evidence boundary to
+  checked-in docs files, `test:e2e:docs`, markdown attachments, shared screenshot
+  helper calls, paired captions, and highlighted/content-checked PNG evidence,
   rejects fixed `waitForTimeout` sleeps in generated docs so screenshots stay
   tied to concrete UI state,
   keeps the helper's runtime caption parameter required with the same minimum

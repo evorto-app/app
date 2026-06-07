@@ -6216,6 +6216,11 @@ transfer/resale, registration confirmation with QR ticket availability,
 payments, direct QR email-delivery boundaries, email notifications, and
 documentation/help, so the product and quality root docs cannot drift apart on
 which user/admin guides are expected.
+It also maps `ARCHITECTURE.md`'s Playwright documentation evidence boundary to
+checked-in docs files, `test:e2e:docs`, markdown attachments, shared screenshot
+helper calls, paired captions, and highlighted/content-checked PNG evidence, so
+the system architecture's durable-docs expectation stays connected to the
+generated documentation source guard.
 The email-notification docs/source guards now also pin product-level absent
 email promises: no separate payment success/failure emails, checkout-expiry
 emails, transfer-started emails, receipt-submitted emails, or push-notification

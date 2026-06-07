@@ -1743,10 +1743,28 @@ describe('stabilization source', () => {
       'keeps quality documentation topics represented by generated docs',
     );
     expect(generatedDocumentationSource).toContain(
+      'keeps documentation architecture represented by Playwright docs evidence',
+    );
+    expect(generatedDocumentationSource).toContain(
       'imageBackedDocumentationAreas',
     );
     expect(generatedDocumentationSource).toContain(
       'generatedDocumentationTopics',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'generated user/admin documentation',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'screenshots and evidence for documented flows',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'Use Playwright screenshots/docs as durable evidence.',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'assertMeaningfulDocumentationImage',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'countDocumentationHighlightPixels',
     );
     expect(generatedDocumentationSource).toContain(
       'creating an event from a template',
@@ -1769,6 +1787,10 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'expectedImageBackedDocuments',
     );
+    expect(inventory).toContain(
+      "`ARCHITECTURE.md`'s Playwright documentation evidence boundary",
+    );
+    expect(inventory).toContain('highlighted/content-checked PNG evidence');
     expect(generatedDocumentationSource).toContain(
       '[...expectedScreenshotCounts.keys()].toSorted()',
     );

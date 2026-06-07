@@ -7328,6 +7328,42 @@ describe('generated docs source current behavior', () => {
     }
   });
 
+  it('keeps documentation architecture represented by Playwright docs evidence', () => {
+    const architectureSource = readSource('ARCHITECTURE.md');
+    const packageSource = readSource('package.json');
+    const reporterSource = readSource(
+      'tests/support/reporters/documentation-reporter/attachments.ts',
+    );
+    const screenshotHelperSource = readSource(
+      'tests/support/reporters/documentation-reporter/take-screenshot.ts',
+    );
+    const docsFiles = findFiles('tests/docs')
+      .filter((path) => path.endsWith('.doc.ts'))
+      .toSorted();
+    const docsSource = docsFiles.map((file) => readSource(file)).join('\n');
+
+    expect(architectureSource).toContain('generated user/admin documentation');
+    expect(architectureSource).toContain(
+      'screenshots and evidence for documented flows',
+    );
+    expect(architectureSource).toContain(
+      'Use Playwright screenshots/docs as durable evidence.',
+    );
+    expect(packageSource).toContain('"test:e2e:docs"');
+    expect(docsFiles.length).toBeGreaterThanOrEqual(16);
+    expect(docsFiles).toContain('tests/docs/events/register.doc.ts');
+    expect(docsFiles).toContain('tests/docs/admin/general-settings.doc.ts');
+    expect(docsFiles).toContain('tests/docs/roles/about-permissions.doc.ts');
+    expect(docsSource).toContain("testInfo.attach('markdown'");
+    expect(docsSource).toContain('takeScreenshot(');
+    expect(reporterSource).toContain('image-caption');
+    expect(reporterSource).toContain('assertMeaningfulDocumentationImage');
+    expect(screenshotHelperSource).toContain(
+      'countDocumentationHighlightPixels',
+    );
+    expect(screenshotHelperSource).toContain('countDocumentationContentPixels');
+  });
+
   it('keeps generated documentation publishing explicit in package scripts', () => {
     const packageJson = JSON.parse(readSource('package.json')) as {
       scripts?: Record<string, string>;
