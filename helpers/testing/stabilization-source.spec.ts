@@ -1524,7 +1524,7 @@ describe('stabilization source', () => {
     expect(source).toContain('icon-only and media-only screenshot targets');
     expect(source).toContain("getByRole('img')");
     expect(source).toMatch(
-      /targets for direct generic, broad, single-control, and icon\/media screenshot\s+targets/u,
+      /targets for direct generic, broad, single-control, and\s+icon\/media screenshot targets/u,
     );
     expect(source).toContain('`.flat()`');
     expect(source).toContain('spread target arrays');
@@ -1532,7 +1532,7 @@ describe('stabilization source', () => {
     expect(source).toContain('`targetList.at(0)`');
     expect(source).toContain('`targetList.at(-1)`');
     expect(source).toMatch(
-      /Conditional, nullish-coalesced, and logical\s+target expressions/u,
+      /[Cc]onditional, nullish-coalesced, and logical\s+target\s+expressions/u,
     );
     expect(source).toMatch(/Non-null\s+assertion wrappers/u);
     expect(source).toContain('aliased `takeScreenshot` imports');
@@ -1596,6 +1596,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('Array.of(...)');
     expect(inventory).toContain('.concat(...)');
     expect(inventory).toContain('.map(...)');
+    expect(inventory).toContain('.flatMap(...)');
     expect(inventory).toContain('.toSpliced(...)');
     expect(inventory).toContain('.with(...)');
     expect(inventory).toContain('.fill(...)');
@@ -1605,6 +1606,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('.toReversed()');
     expect(inventory).toContain('.toSorted()');
     expect(inventory).toContain('.flat()');
+    expect(inventory).toContain(
+      'weak targets produced\n  by `map` or `flatMap` callbacks',
+    );
     expect(inventory).toContain(
       'conditional, nullish-coalesced, and logical target\n  expressions',
     );
@@ -1915,6 +1919,9 @@ describe('stabilization source', () => {
       'detects weak documentation screenshot targets hidden behind array map calls',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets produced by array map callbacks',
+    );
+    expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets inserted through toSpliced calls',
     );
     expect(generatedDocumentationSource).toContain(
@@ -1943,6 +1950,13 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       "[settingsSurface, page.locator('main')].map((target) => target)",
     );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface].map(() => page.locator('main'))",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface].flatMap(() => [page.locator('section')])",
+    );
+    expect(generatedDocumentationSource).toContain('returnsTrackedTarget');
     expect(generatedDocumentationSource).toContain(
       "[settingsSurface].toSpliced(1, 0, page.locator('main'))",
     );
