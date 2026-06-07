@@ -541,8 +541,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   visibility, account-creation retry errors, existing-global-user tenant joins,
   template role-picker hard-failure guards before duplicate-hiding docs are
   emitted, and template simple-mode default-title assertions are aligned with
-  the form model defaults. It also requires the current 16 documentation source
-  files to attach
+  the form model defaults. It also requires every current documentation source
+  file in the screenshot-count manifest to attach
   at least 120 characters of explanatory markdown, pins the current per-flow
   screenshot counts with a manifest that must include every image-backed docs
   file so docs cannot quietly drop image-backed states, requires UI docs to use

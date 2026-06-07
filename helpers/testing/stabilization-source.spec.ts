@@ -1609,7 +1609,9 @@ describe('stabilization source', () => {
     expect(source).toContain('app-root');
     expect(source).toContain('tests/docs/roles/about-permissions.doc.ts');
     expect(source).toContain('PERMISSION_GROUPS');
-    expect(inventory).toMatch(/current 16 documentation source\s+files/u);
+    expect(inventory).toMatch(
+      /every current documentation source\s+file in the screenshot-count manifest/u,
+    );
     expect(inventory).toContain(
       'at least 120 characters of explanatory markdown',
     );
@@ -1837,7 +1839,7 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain('legal/privacy settings');
     expect(generatedDocumentationSource).toContain(
-      'expect(documentFiles.length).toBe(16)',
+      'expect(documentFiles).toEqual(expectedImageBackedDocuments)',
     );
     expect(generatedDocumentationSource).toContain('markdownTextLength');
     expect(generatedDocumentationSource).toContain(
@@ -1857,10 +1859,13 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain('qualityFeatureAreaFolders');
     expect(generatedDocumentationSource).toContain(
-      '[...expectedScreenshotCounts.keys()].toSorted()',
+      '...expectedScreenshotCounts.keys()',
     );
     expect(generatedDocumentationSource).toContain(
       "['tests/docs/events/register.doc.ts', 14]",
+    );
+    expect(source).toContain(
+      'the 14 image-backed states in `tests/docs/events/register.doc.ts`',
     );
     expect(generatedDocumentationSource).toContain(
       "['tests/docs/templates/templates.doc.ts', 8]",

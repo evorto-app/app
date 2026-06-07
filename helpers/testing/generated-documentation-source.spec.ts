@@ -8055,13 +8055,12 @@ describe('generated docs source current behavior', () => {
     const reporterAttachments = readSource(
       'tests/support/reporters/documentation-reporter/attachments.ts',
     );
-    const expectedImageBackedDocuments = documentFiles;
+    const expectedImageBackedDocuments = [
+      ...expectedScreenshotCounts.keys(),
+    ].toSorted();
     const screenshotCaptions = new Map<string, string[]>();
 
-    expect(documentFiles.length).toBe(16);
-    expect([...expectedScreenshotCounts.keys()].toSorted()).toEqual(
-      expectedImageBackedDocuments,
-    );
+    expect(documentFiles).toEqual(expectedImageBackedDocuments);
     expect(screenshotHelper).toContain(
       'htmlElement.style.outline = `thick solid ${highlightColor}`',
     );
