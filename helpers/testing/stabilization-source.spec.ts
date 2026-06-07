@@ -5917,7 +5917,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toMatch(
-      /Latest coverage checkpoint: current pushed head `7fcbeecd`\s+now makes the\s+finance and profile\/account Docker-backed runtime evidence\s+reviewable from the\s+test inventory/u,
+      /Latest coverage checkpoint: pushed checkpoint `7fcbeecd`\s+made the\s+finance and profile\/account Docker-backed runtime evidence\s+reviewable from the\s+test inventory/u,
     );
     expect(source).toContain('only from the stabilization narrative');
     expect(source).toContain(
