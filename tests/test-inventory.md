@@ -511,10 +511,15 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `setTimeout(...)` calls,
   keeping those flows tied to concrete UI state and preventing accidental
   partial-suite commits. Playwright `forbidOnly` remains enabled in CI as the
-  runner-level backstop for focused-only tests. Runtime-affecting modifiers such as
-  `test.describe.configure(...)` and `test.slow()` must also be explicitly
+  runner-level backstop for focused-only tests. Runtime-affecting modifiers such
+  as `test.describe.configure(...)` and `test.slow()` must also be explicitly
   allowlisted with a local reason, and local aliases of `test.slow` called
-  through `slow()` are classified the same way as direct modifier calls. The
+  through `slow()` are classified the same way as direct modifier calls.
+  Constant-backed property spellings such as
+  `const key = 'skip'; test[key](...)`, `test.describe[configureKey](...)`,
+  `page[pauseKey](...)`, and `page[waitForTimeoutKey](...)` are resolved before
+  inventory comparison, so aliases cannot hide skipped, focused, slowed, serial,
+  debug, or fixed-wait coverage changes. The
   current runtime-modifier allowlist is limited to
   `docs/events/register.doc.ts`: the registration documentation flow runs
   serially because it mutates shared registration state, and the free and paid

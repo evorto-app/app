@@ -4308,6 +4308,12 @@ describe('stabilization source', () => {
     ).toContain('playwrightModifierAccessPattern');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('collectStaticStringAliases');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('collectStaticPropertyEntriesForSource');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('collectPatternEntriesForSource');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
@@ -4335,6 +4341,21 @@ describe('stabilization source', () => {
     ).toContain(`test["slow"]`);
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('static-properties.spec.ts');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('test[skipKey]');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('test.describe[configureKey]');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('page[pauseKey]');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('page[waitKey]');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('split-modifiers.spec.ts');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
@@ -4359,6 +4380,11 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'local aliases of `test.slow` called\n  through `slow()`',
     );
+    expect(inventory).toContain('Constant-backed property spellings');
+    expect(inventory).toContain("const key = 'skip'; test[key](...)");
+    expect(inventory).toContain('test.describe[configureKey](...)');
+    expect(inventory).toContain('page[pauseKey](...)');
+    expect(inventory).toContain('page[waitForTimeoutKey](...)');
     expect(inventory).toContain("page['pause'](...)");
     expect(inventory).toContain('local aliases of `page.pause`');
     expect(inventory).toContain('direct `page.pause.call/apply/bind(...)`');
@@ -4368,8 +4394,8 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain('split docs-helper\n  `setTimeout(...)` calls');
     expect(inventory).toContain('Playwright `forbidOnly` remains enabled');
-    expect(inventory).toContain(
-      'Runtime-affecting modifiers such as\n  `test.describe.configure(...)` and `test.slow()`',
+    expect(inventory).toMatch(
+      /Runtime-affecting modifiers such\s+as `test\.describe\.configure\(\.\.\.\)` and `test\.slow\(\)`/u,
     );
     expect(inventory).toContain(
       'current runtime-modifier allowlist is limited to',
@@ -4402,10 +4428,15 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'assigning or\ndestructuring `test.skip`, `test.fixme`, `test.only`, `test.slow`, or\n`test.describe.configure`',
     );
+    expect(source).toContain('Constant-backed modifier spellings');
+    expect(source).toContain("const key = 'skip'; test[key](...)");
+    expect(source).toContain('test.describe[configureKey](...)');
+    expect(source).toContain('page[pauseKey](...)');
+    expect(source).toContain('page[waitForTimeoutKey](...)');
     expect(source).toContain('skip/focus/runtime inventory');
     expect(source).toContain("page['pause'](...)");
-    expect(source).toContain('local `page.pause`\naliases');
-    expect(source).toContain('direct `page.pause.call/apply/bind(...)`');
+    expect(source).toContain('local `page.pause` aliases');
+    expect(source).toContain('direct\n`page.pause.call/apply/bind(...)`');
     expect(source).toContain('local `page.waitForTimeout` aliases');
     expect(source).toContain(
       'direct\n`page.waitForTimeout.call/apply/bind(...)`',

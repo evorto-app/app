@@ -6531,10 +6531,15 @@ coverage behind alternate JavaScript property access or formatter-resistant
 line wrapping. Local modifier aliases are covered too, so assigning or
 destructuring `test.skip`, `test.fixme`, `test.only`, `test.slow`, or
 `test.describe.configure` before calling the alias is classified by the same
-skip/focus/runtime inventory. Interactive debug hooks and fixed waits use the
-same whole-file source scan, so `page['pause'](...)`, local `page.pause`
-aliases, direct `page.pause.call/apply/bind(...)` forwarding, split
-`.waitForTimeout(...)`, local `page.waitForTimeout` aliases, direct
+skip/focus/runtime inventory. Constant-backed modifier spellings are resolved
+too, so `const key = 'skip'; test[key](...)`,
+`test.describe[configureKey](...)`, `page[pauseKey](...)`, and
+`page[waitForTimeoutKey](...)` cannot hide skipped, focused, slowed, serial,
+debug, or fixed-wait coverage changes behind local strings. Interactive debug
+hooks and fixed waits use the same whole-file source scan, so
+`page['pause'](...)`, local `page.pause` aliases, direct
+`page.pause.call/apply/bind(...)` forwarding, split `.waitForTimeout(...)`,
+local `page.waitForTimeout` aliases, direct
 `page.waitForTimeout.call/apply/bind(...)` forwarding, and split
 `setTimeout(...)` calls in docs screenshot helpers are rejected instead of
 depending on single-line formatting.

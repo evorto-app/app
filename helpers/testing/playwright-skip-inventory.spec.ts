@@ -58,12 +58,28 @@ const playwrightModifierAccessPattern = (names: string): string =>
 const playwrightModifierAccessCapturePattern = (names: string): string =>
   String.raw`(?:\s*\.\s*(?<dotModifier>${names})\b|\s*\[\s*['"](?<bracketModifier>${names})['"]\s*\])`;
 const identifierPattern = String.raw`[A-Za-z_$][\w$]*`;
+const staticStringAssignmentPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*(?<expression>[^;\n]+)`,
+  'g',
+);
+const staticStringTokenPattern = new RegExp(
+  String.raw`^\s*(?:'(?<single>[^']*)'|"(?<double>[^"]*)"|(?<alias>${identifierPattern}))\s*$`,
+  'u',
+);
 const playwrightModifierAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*test(?:${playwrightDescribeAccessPattern})?${playwrightModifierAccessCapturePattern('skip|fixme|only|slow|configure')}`,
   'g',
 );
+const playwrightStaticPropertyModifierAliasPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*test(?:${playwrightDescribeAccessPattern})?\s*\[\s*(?<modifierAlias>${identifierPattern})\s*\]`,
+  'g',
+);
 const pageMethodAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*page${playwrightModifierAccessCapturePattern('pause|waitForTimeout')}`,
+  'g',
+);
+const pageStaticPropertyMethodAliasPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*page\s*\[\s*(?<methodAlias>${identifierPattern})\s*\]`,
   'g',
 );
 const pageMethodIndirectInvocationPattern = (names: string): RegExp =>
@@ -185,6 +201,95 @@ const collectPatternEntriesForSource = (
     );
   });
 
+const resolveStaticStringExpression = (
+  expression: string,
+  aliases: ReadonlyMap<string, string>,
+): string | undefined => {
+  const parts = expression.split('+');
+  let value = '';
+
+  for (const part of parts) {
+    const match = part.match(staticStringTokenPattern);
+
+    if (!match?.groups) {
+      return undefined;
+    }
+
+    const staticPart =
+      match.groups.single ??
+      match.groups.double ??
+      aliases.get(match.groups.alias ?? '');
+
+    if (staticPart === undefined) {
+      return undefined;
+    }
+
+    value += staticPart;
+  }
+
+  return value;
+};
+
+const collectStaticStringAliases = (
+  source: string,
+): ReadonlyMap<string, string> => {
+  const aliases = new Map<string, string>();
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (const match of source.matchAll(staticStringAssignmentPattern)) {
+      const alias = match.groups?.alias;
+      const expression = match.groups?.expression;
+
+      if (alias === undefined || expression === undefined) {
+        continue;
+      }
+
+      const value = resolveStaticStringExpression(expression, aliases);
+
+      if (value !== undefined && !aliases.has(alias)) {
+        aliases.set(alias, value);
+        changed = true;
+      }
+    }
+  }
+
+  return aliases;
+};
+
+const collectStaticPropertyEntriesForSource = (
+  relativePath: string,
+  source: string,
+  ownerPattern: string,
+  names: readonly string[],
+) => {
+  const aliases = collectStaticStringAliases(source);
+  const allowedNames = new Set(names);
+  const staticPropertyPattern = new RegExp(
+    String.raw`${ownerPattern}\s*\[\s*(?<propertyAlias>${identifierPattern})\s*\]\s*(?:\(|\.\s*(?:call|apply|bind)\b|\[\s*['"](?:call|apply|bind)['"]\s*\])`,
+    'g',
+  );
+
+  return [...source.matchAll(staticPropertyPattern)].flatMap((match) => {
+    const propertyAlias = match.groups?.propertyAlias;
+    const propertyName =
+      propertyAlias === undefined ? undefined : aliases.get(propertyAlias);
+
+    if (propertyName === undefined || !allowedNames.has(propertyName)) {
+      return [];
+    }
+
+    const offset = match.index ?? 0;
+
+    return `${relativePath}:${lineNumberForOffset(source, offset)}:${formatPatternMatch(match[0])} (${propertyName} property alias)`.replaceAll(
+      '\\',
+      '/',
+    );
+  });
+};
+
 const collectPatternEntries = (pattern: RegExp) =>
   collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
     const source = readFileSync(filePath, 'utf8');
@@ -202,11 +307,31 @@ const collectAliasedModifierEntriesForSource = (
   modifiers: readonly string[],
 ) => {
   const allowedModifiers = new Set(modifiers);
+  const staticStringAliases = collectStaticStringAliases(source);
   const aliases = new Map<string, string>();
 
   for (const match of source.matchAll(playwrightModifierAliasPattern)) {
     const alias = match.groups?.alias;
     const modifier = modifierForAliasMatch(match);
+
+    if (
+      alias !== undefined &&
+      modifier !== undefined &&
+      allowedModifiers.has(modifier)
+    ) {
+      aliases.set(alias, modifier);
+    }
+  }
+
+  for (const match of source.matchAll(
+    playwrightStaticPropertyModifierAliasPattern,
+  )) {
+    const alias = match.groups?.alias;
+    const modifierAlias = match.groups?.modifierAlias;
+    const modifier =
+      modifierAlias === undefined
+        ? undefined
+        : staticStringAliases.get(modifierAlias);
 
     if (
       alias !== undefined &&
@@ -277,11 +402,29 @@ const collectAliasedPageMethodEntriesForSource = (
   methods: readonly string[],
 ) => {
   const allowedMethods = new Set(methods);
+  const staticStringAliases = collectStaticStringAliases(source);
   const aliases = new Map<string, string>();
 
   for (const match of source.matchAll(pageMethodAliasPattern)) {
     const alias = match.groups?.alias;
     const method = modifierForAliasMatch(match);
+
+    if (
+      alias !== undefined &&
+      method !== undefined &&
+      allowedMethods.has(method)
+    ) {
+      aliases.set(alias, method);
+    }
+  }
+
+  for (const match of source.matchAll(pageStaticPropertyMethodAliasPattern)) {
+    const alias = match.groups?.alias;
+    const methodAlias = match.groups?.methodAlias;
+    const method =
+      methodAlias === undefined
+        ? undefined
+        : staticStringAliases.get(methodAlias);
 
     if (
       alias !== undefined &&
@@ -346,22 +489,66 @@ const collectAliasedPageMethodEntries = (methods: readonly string[]) =>
 
 const collectPlaywrightSkipEntries = () => [
   ...collectPatternEntries(skipPattern),
+  ...collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectStaticPropertyEntriesForSource(
+      relativePath,
+      source,
+      playwrightCallablePattern.source,
+      ['skip', 'fixme'],
+    );
+  }),
   ...collectAliasedModifierEntries(['skip', 'fixme']),
 ];
 
 const collectPlaywrightRuntimeModifierEntries = () => [
   ...collectPatternEntries(runtimeModifierPattern),
+  ...collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectStaticPropertyEntriesForSource(
+      relativePath,
+      source,
+      String.raw`\b(?:test${playwrightDescribeAccessPattern}|test)`,
+      ['slow', 'configure'],
+    );
+  }),
   ...collectAliasedModifierEntries(['slow', 'configure']),
 ];
 
 const collectFocusedOnlyEntries = () => [
   ...collectPatternEntries(focusedOnlyPattern),
+  ...collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectStaticPropertyEntriesForSource(
+      relativePath,
+      source,
+      playwrightCallablePattern.source,
+      ['only'],
+    );
+  }),
   ...collectAliasedModifierEntries(['only']),
 ];
 
 const collectInteractiveDebugEntries = () => [
   ...collectPatternEntries(interactiveDebugPattern),
   ...collectPatternEntries(pageMethodIndirectInvocationPattern('pause')),
+  ...collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectStaticPropertyEntriesForSource(
+      relativePath,
+      source,
+      String.raw`\bpage`,
+      ['pause'],
+    );
+  }),
   ...collectAliasedPageMethodEntries(['pause']),
 ];
 
@@ -417,6 +604,17 @@ const collectFixedWaitEntries = () => [
   ...collectPatternEntries(
     pageMethodIndirectInvocationPattern('waitForTimeout'),
   ),
+  ...collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectStaticPropertyEntriesForSource(
+      relativePath,
+      source,
+      String.raw`\bpage`,
+      ['waitForTimeout'],
+    );
+  }),
   ...collectAliasedPageMethodEntries(['waitForTimeout']),
 ];
 
@@ -568,6 +766,77 @@ debugger;`,
     ).toEqual(['tests/support/utils/doc-screenshot.ts:1:setTimeout (']);
   });
 
+  it('recognizes constant-backed Playwright and page property modifiers', () => {
+    const staticPropertySource = `const skipKey = 'skip';
+test[skipKey]('hidden skip', () => {});
+const focusPart = 'on';
+const onlyKey = focusPart + 'ly';
+test.describe[onlyKey]('hidden focus', () => {});
+const configureKey = 'configure';
+test.describe[configureKey]({ mode: 'serial' });
+const slowKey = 'slow';
+test[slowKey]();
+const pauseKey = 'pause';
+await page[pauseKey]();
+const waitPrefix = 'waitFor';
+const waitKey = waitPrefix + 'Timeout';
+await page[waitKey](100);
+await page[waitKey].call(page, 100);`;
+
+    expect(
+      collectStaticPropertyEntriesForSource(
+        'tests/specs/example/static-properties.spec.ts',
+        staticPropertySource,
+        playwrightCallablePattern.source,
+        ['skip', 'fixme'],
+      ),
+    ).toEqual([
+      'tests/specs/example/static-properties.spec.ts:2:test[skipKey]( (skip property alias)',
+    ]);
+    expect(
+      collectStaticPropertyEntriesForSource(
+        'tests/specs/example/static-properties.spec.ts',
+        staticPropertySource,
+        playwrightCallablePattern.source,
+        ['only'],
+      ),
+    ).toEqual([
+      'tests/specs/example/static-properties.spec.ts:5:test.describe[onlyKey]( (only property alias)',
+    ]);
+    expect(
+      collectStaticPropertyEntriesForSource(
+        'tests/specs/example/static-properties.spec.ts',
+        staticPropertySource,
+        String.raw`\b(?:test${playwrightDescribeAccessPattern}|test)`,
+        ['slow', 'configure'],
+      ),
+    ).toEqual([
+      'tests/specs/example/static-properties.spec.ts:7:test.describe[configureKey]( (configure property alias)',
+      'tests/specs/example/static-properties.spec.ts:9:test[slowKey]( (slow property alias)',
+    ]);
+    expect(
+      collectStaticPropertyEntriesForSource(
+        'tests/specs/example/static-properties.spec.ts',
+        staticPropertySource,
+        String.raw`\bpage`,
+        ['pause'],
+      ),
+    ).toEqual([
+      'tests/specs/example/static-properties.spec.ts:11:page[pauseKey]( (pause property alias)',
+    ]);
+    expect(
+      collectStaticPropertyEntriesForSource(
+        'tests/specs/example/static-properties.spec.ts',
+        staticPropertySource,
+        String.raw`\bpage`,
+        ['waitForTimeout'],
+      ),
+    ).toEqual([
+      'tests/specs/example/static-properties.spec.ts:14:page[waitKey]( (waitForTimeout property alias)',
+      'tests/specs/example/static-properties.spec.ts:15:page[waitKey].call (waitForTimeout property alias)',
+    ]);
+  });
+
   it('recognizes aliased Playwright modifiers before inventory checks run', () => {
     const aliasedModifierSource = `const hiddenSkip = test.skip;
 hiddenSkip('hidden skip', () => {});
@@ -578,7 +847,16 @@ hiddenFocus('hidden focus', () => {});
 const { configure: configureSerial } = test.describe;
 configureSerial({ mode: 'serial' });
 const hiddenSlow = test.slow;
-hiddenSlow();`;
+hiddenSlow();
+const skipKey = 'skip';
+const hiddenStaticSkip = test[skipKey];
+hiddenStaticSkip('hidden static skip', () => {});
+const onlyKey = 'only';
+const hiddenStaticFocus = test.describe[onlyKey];
+hiddenStaticFocus('hidden static focus', () => {});
+const configureKey = 'configure';
+const configureStaticSerial = test.describe[configureKey];
+configureStaticSerial({ mode: 'serial' });`;
 
     expect(
       collectAliasedModifierEntriesForSource(
@@ -588,6 +866,7 @@ hiddenSlow();`;
       ),
     ).toEqual([
       'tests/specs/example/aliased-modifiers.spec.ts:2:hiddenSkip( (skip alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:13:hiddenStaticSkip( (skip alias)',
       'tests/specs/example/aliased-modifiers.spec.ts:4:hiddenFixme( (fixme alias)',
     ]);
     expect(
@@ -598,6 +877,7 @@ hiddenSlow();`;
       ),
     ).toEqual([
       'tests/specs/example/aliased-modifiers.spec.ts:6:hiddenFocus( (only alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:16:hiddenStaticFocus( (only alias)',
     ]);
     expect(
       collectAliasedModifierEntriesForSource(
@@ -607,6 +887,7 @@ hiddenSlow();`;
       ),
     ).toEqual([
       'tests/specs/example/aliased-modifiers.spec.ts:10:hiddenSlow( (slow alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:19:configureStaticSerial( (configure alias)',
       'tests/specs/example/aliased-modifiers.spec.ts:8:configureSerial( (configure alias)',
     ]);
   });
@@ -619,7 +900,13 @@ await pauseFromPage();
 const waitByAlias = page.waitForTimeout;
 await waitByAlias(100);
 const { waitForTimeout } = page;
-await waitForTimeout(100);`;
+await waitForTimeout(100);
+const pauseKey = 'pause';
+const pauseByStaticKey = page[pauseKey];
+await pauseByStaticKey();
+const waitKey = 'waitFor' + 'Timeout';
+const waitByStaticKey = page[waitKey];
+await waitByStaticKey(100);`;
 
     expect(
       collectAliasedPageMethodEntriesForSource(
@@ -629,6 +916,7 @@ await waitForTimeout(100);`;
       ),
     ).toEqual([
       'tests/specs/example/aliased-page-methods.spec.ts:2:pauseForDebug( (page.pause alias)',
+      'tests/specs/example/aliased-page-methods.spec.ts:11:pauseByStaticKey( (page.pause alias)',
       'tests/specs/example/aliased-page-methods.spec.ts:4:pauseFromPage( (page.pause alias)',
     ]);
     expect(
@@ -639,6 +927,7 @@ await waitForTimeout(100);`;
       ),
     ).toEqual([
       'tests/specs/example/aliased-page-methods.spec.ts:6:waitByAlias( (page.waitForTimeout alias)',
+      'tests/specs/example/aliased-page-methods.spec.ts:14:waitByStaticKey( (page.waitForTimeout alias)',
       'tests/specs/example/aliased-page-methods.spec.ts:8:waitForTimeout( (page.waitForTimeout alias)',
     ]);
   });
