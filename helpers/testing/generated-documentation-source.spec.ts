@@ -2110,7 +2110,9 @@ const findGenericScreenshotTargets = (
 
       if (methodName === 'locator') {
         const selector = candidate.arguments[0];
-        const selectorText = selector ? getLiteralText(selector) : null;
+        const selectorText = selector
+          ? getLiteralText(selector, staticStringAliases)
+          : null;
 
         if (selectorText) {
           return genericSelectors.has(selectorText.trim().toLowerCase());
@@ -2373,7 +2375,9 @@ const findUnfilteredBroadScreenshotTargets = (
 
       if (methodName === 'locator') {
         const selector = candidate.arguments[0];
-        const selectorText = selector ? getLiteralText(selector) : null;
+        const selectorText = selector
+          ? getLiteralText(selector, staticStringAliases)
+          : null;
 
         return !hasFilteringStep && selectorText !== null
           ? isBroadSelector(selectorText)
@@ -2593,11 +2597,9 @@ const findSingleControlScreenshotTargets = (
   };
 
   const getStringLiteralText = (node: ts.Expression): null | string => {
-    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
-      return node.text.trim().toLowerCase();
-    }
-
-    return null;
+    return (
+      getLiteralText(node, staticStringAliases)?.trim().toLowerCase() ?? null
+    );
   };
 
   const isSingleControlCssSelector = (selector: string): boolean => {
@@ -2690,12 +2692,11 @@ const findSingleControlScreenshotTargets = (
 
       if (methodName === 'locator') {
         const selector = candidate.arguments[0];
-        if (
-          selector &&
-          (ts.isStringLiteral(selector) ||
-            ts.isNoSubstitutionTemplateLiteral(selector))
-        ) {
-          return isSingleControlCssSelector(selector.text);
+        const selectorText = selector
+          ? getLiteralText(selector, staticStringAliases)
+          : null;
+        if (selectorText) {
+          return isSingleControlCssSelector(selectorText);
         }
       }
 
@@ -2985,23 +2986,23 @@ const findIconOrMediaScreenshotTargets = (
 
       if (methodName === 'locator') {
         const selector = candidate.arguments[0];
-        if (
-          selector &&
-          (ts.isStringLiteral(selector) ||
-            ts.isNoSubstitutionTemplateLiteral(selector))
-        ) {
-          return isIconOrMediaCssSelector(selector.text);
+        const selectorText = selector
+          ? getLiteralText(selector, staticStringAliases)
+          : null;
+        if (selectorText) {
+          return isIconOrMediaCssSelector(selectorText);
         }
       }
 
       if (methodName === 'getByRole') {
         const role = candidate.arguments[0];
-        if (
-          role &&
-          (ts.isStringLiteral(role) || ts.isNoSubstitutionTemplateLiteral(role))
-        ) {
-          return iconOrMediaRoles.has(role.text.trim().toLowerCase());
-        }
+        const roleText = role
+          ? getLiteralText(role, staticStringAliases)
+          : null;
+
+        return roleText
+          ? iconOrMediaRoles.has(roleText.trim().toLowerCase())
+          : false;
       }
 
       if (methodName === 'getByAltText' || methodName === 'getByTitle') {
@@ -8017,6 +8018,87 @@ describe('generated docs source current behavior', () => {
         reflectedTargetSource,
       ),
     ).toEqual(['tests/docs/example/reflect-get-target.doc.ts:30:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind static selector aliases', () => {
+    const staticSelectorTargetSource = `
+      const shellSelector = 'main';
+      await takeScreenshot(
+        testInfo,
+        page.locator(shellSelector),
+        page,
+        'Static generic shell selector with a descriptive caption',
+      );
+      const broadSelector = 'section';
+      await takeScreenshot(
+        testInfo,
+        page.locator(broadSelector),
+        page,
+        'Static broad section selector with a descriptive caption',
+      );
+      const buttonRole = 'button';
+      await takeScreenshot(
+        testInfo,
+        page.getByRole(buttonRole, { name: 'Save' }),
+        page,
+        'Static button role target with a descriptive caption',
+      );
+      const actionTestId = 'save-button';
+      await takeScreenshot(
+        testInfo,
+        page.getByTestId(actionTestId),
+        page,
+        'Static button test id target with a descriptive caption',
+      );
+      const iconSelector = 'svg';
+      await takeScreenshot(
+        testInfo,
+        page.locator(iconSelector),
+        page,
+        'Static icon selector target with a descriptive caption',
+      );
+      const imageRole = 'img';
+      await takeScreenshot(
+        testInfo,
+        page.getByRole(imageRole, { name: 'Tenant logo' }),
+        page,
+        'Static image role target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/static-selector-target.doc.ts',
+        staticSelectorTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/static-selector-target.doc.ts:3:13']);
+
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/static-selector-target.doc.ts',
+        staticSelectorTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/static-selector-target.doc.ts:10:13']);
+
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/static-selector-target.doc.ts',
+        staticSelectorTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/static-selector-target.doc.ts:17:13',
+      'tests/docs/example/static-selector-target.doc.ts:24:13',
+    ]);
+
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/static-selector-target.doc.ts',
+        staticSelectorTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/static-selector-target.doc.ts:31:13',
+      'tests/docs/example/static-selector-target.doc.ts:38:13',
+    ]);
   });
 
   it('detects grouped weak documentation screenshot target aliases', () => {

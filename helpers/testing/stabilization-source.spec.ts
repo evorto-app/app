@@ -1656,6 +1656,21 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'reflected grouped weak target\n  properties read through `Reflect.get(...)`',
     );
+    expect(source).toContain('Constant-backed\nselector, role, and test-id');
+    expect(source).toContain('page.locator(shellSelector)');
+    expect(source).toContain('page.getByRole(buttonRole)');
+    expect(source).toContain('page.getByTestId(actionTestId)');
+    expect(inventory).toContain(
+      'constant-backed selector\n  aliases such as `page.locator(shellSelector)`',
+    );
+    expect(inventory).toContain('constant-backed role/test-id targets');
+    expect(source).toContain(
+      'stabilizationEvidence=constant-backed-target-source-guard',
+    );
+    expect(source).toContain(
+      '/tmp/evorto-constant-backed-target-events-final-390x844.png',
+    );
+    expect(source).toContain('no clipped fixed/sticky controls');
     expect(source).toMatch(
       /[Cc]onditional, nullish-coalesced, and logical\s+target\s+expressions/u,
     );

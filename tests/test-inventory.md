@@ -596,7 +596,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   helper-returned generic locators inside screenshot arguments and arrays plus
   chained generic page-shell locators such as `.first()` or `.filter(...)`,
   template-literal generic shell selectors, and reflected grouped weak target
-  properties read through `Reflect.get(...)`,
+  properties read through `Reflect.get(...)`, plus constant-backed selector
+  aliases such as `page.locator(shellSelector)`,
   rejects unfiltered broad `section`, `article`, `div`, `form`, and `app-*`
   component-host screenshot targets, including no-substitution template-literal
   broad selectors, aliased broad locators, and helper-returned broad locators
@@ -605,7 +606,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   locators plus direct single-control CSS locator targets such as `button`,
   `input`, ARIA role selectors, and Material control hosts/classes, including
   single-option and single table-cell/header ARIA targets plus helper-returned
-  single-control locators, rejects direct single-control-looking `getByTestId`
+  single-control locators and constant-backed role/test-id targets, rejects
+  direct single-control-looking `getByTestId`
   screenshot targets such as `*-button`, `*-input`, and `*-icon-button` while
   allowing surface-level test ids, rejects direct icon/media targets such as
   `svg`, `img`, `fa-icon`, `mat-icon`, `getByRole('img')`, `getByAltText`, and

@@ -6349,8 +6349,13 @@ normalizes static computed keys such as `targets['shell']` and
 bypass meaningful-image enforcement. It also resolves `Reflect.get(...)` reads
 of grouped generic, broad, single-control, and icon/media target properties,
 including local `Reflect` aliases and constant-backed keys, so reflected weak
-target lookups cannot bypass meaningful-image enforcement. It also resolves grouped target shorthand,
-alias-valued grouped properties, and static indexed target lists such as
+target lookups cannot bypass meaningful-image enforcement. Constant-backed
+selector, role, and test-id values now feed the same generic, broad,
+single-control, and icon/media target checks, so `page.locator(shellSelector)`,
+`page.getByRole(buttonRole)`, and `page.getByTestId(actionTestId)` cannot hide
+weak generated-doc image targets behind local string variables. It also resolves
+grouped target shorthand, alias-valued grouped properties, and static indexed
+target lists such as
 `targetList[0]`, `targetList.at(0)`, or `targetList.at(-1)`, so
 `targets.shell`, `targetList[0]`, `targetList.at(0)`, and `targetList.at(-1)`
 cannot hide weak screenshot targets behind an intermediate collection. It also
@@ -6366,6 +6371,17 @@ opened `/legal/terms?stabilizationEvidence=reflected-target-source-guard` at
 390x844 on the generated local app, confirmed Terms content and hosted fallback
 copy, found no loading or application-error text, found no horizontal-overflow
 entries, and reported zero Browser warning/error logs.
+A same-slice in-app Browser mobile spot check for the constant-backed selector
+source guard opened `/events`, `/legal/terms`, and `/404` at 390x844 with
+`stabilizationEvidence=constant-backed-target-source-guard`. The settled Events
+page rendered real seeded Material event cards with meaningful icons and times,
+the Terms page rendered hosted fallback legal copy, and the not-found page
+rendered the expected fallback state. Browser metrics reported no horizontal
+overflow, no rendered application-error text, zero Browser warning/error logs,
+and no clipped fixed/sticky controls; the inspected screenshots are
+`/tmp/evorto-constant-backed-target-events-final-390x844.png`,
+`/tmp/evorto-constant-backed-target-terms-390x844.png`, and
+`/tmp/evorto-constant-backed-target-not-found-390x844.png`.
 Parenthesized helper calls such as `(takeScreenshot)(...)` are unwrapped before
 the same screenshot counting, caption, and target-quality checks run, so
 syntactic wrapping cannot hide weak generated-doc image evidence.
