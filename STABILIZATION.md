@@ -4127,6 +4127,21 @@ fallback rather than a profile discount-card defect.
   body showed the seeded event list including `Soccer Match 1`, and Browser
   warning/error logs were empty.
 - Current public General Browser refresh checkpoint: after pushing PR head
+  `ccbe793d`, a current-head in-app Browser spot check reused the running
+  generated Docker app at the generated `BASE_URL` and checked `/events`,
+  `/legal/terms`, and `/404` at 320x740 and 390x844. All six
+  route/viewport checks rendered expected route content, kept document/body
+  widths inside the viewport, reported no horizontal overflow or top/side
+  clipped visible controls, showed no visible loading or application-error text,
+  and had zero Browser warning/error logs. Representative screenshots were
+  visually inspected and saved as
+  `/tmp/evorto-browser-ccbe793d-events-320x740.png`, showing seeded Material
+  event cards with meaningful icons, times, and fixed Events/Login bottom
+  navigation; `/tmp/evorto-browser-ccbe793d-legal-terms-390x844.png`, showing
+  the Terms fallback legal page and fixed bottom navigation; and
+  `/tmp/evorto-browser-ccbe793d-404-390x844.png`, showing the not-found page and
+  fixed bottom navigation. The temporary Browser viewport override was reset
+  after the pass. Earlier, after pushing PR head
   `71c08ed9`, `bun run docker:start` rebuilt the Docker app on the generated
   `BASE_URL` and seeded the local Docker database. `bun run dev:status` then
   passed, including reachable database and

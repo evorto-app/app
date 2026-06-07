@@ -3875,6 +3875,36 @@ describe('stabilization source', () => {
     const checkpointText = checkpoint ?? '';
     const normalizedCheckpoint = checkpointText.replace(/\s+/gu, ' ');
 
+    expect(normalizedCheckpoint).toContain('PR head `ccbe793d`');
+    expect(normalizedCheckpoint).toContain(
+      'generated Docker app at the generated `BASE_URL`',
+    );
+    expect(normalizedCheckpoint).toContain(
+      '`/events`, `/legal/terms`, and `/404` at 320x740 and 390x844',
+    );
+    expect(normalizedCheckpoint).toContain('All six route/viewport checks');
+    expect(normalizedCheckpoint).toContain(
+      'document/body widths inside the viewport',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'no horizontal overflow or top/side clipped visible controls',
+    );
+    expect(normalizedCheckpoint).toContain('zero Browser warning/error logs');
+    expect(normalizedCheckpoint).toContain(
+      'evorto-browser-ccbe793d-events-320x740.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'event cards with meaningful icons, times, and fixed Events/Login bottom navigation',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-browser-ccbe793d-legal-terms-390x844.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'Terms fallback legal page and fixed bottom navigation',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-browser-ccbe793d-404-390x844.png',
+    );
     expect(normalizedCheckpoint).toContain('PR head `71c08ed9`');
     expect(normalizedCheckpoint).toContain('`bun run docker:start` rebuilt');
     expect(normalizedCheckpoint).toContain('generated `BASE_URL`');
