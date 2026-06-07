@@ -444,7 +444,7 @@ test('documentation reporter rejects weak markdown body text', async ({}, testIn
   expect(() =>
     reporter.onTestEnd({ title: 'Weak markdown body' } as any, result),
   ).toThrow(
-    'Documentation markdown attachment in Weak markdown body must include at least 60 characters of explanatory body text so generated docs can be judged without clicking through the app.',
+    'Documentation markdown attachment in Weak markdown body must include at least 120 characters of explanatory body text so generated docs can be judged without clicking through the app.',
   );
 });
 
@@ -1185,7 +1185,7 @@ test('documentation reporter emits one markdown file per describe block', async 
         name: 'markdown',
         contentType: 'text/markdown',
         body: Buffer.from(
-          'First section content explains the opening registration docs state with enough detail for generated documentation review.',
+          'First section content explains the opening registration docs state with enough detail for generated documentation review, including what the image-backed flow should prove before a reviewer relies on the page.',
         ),
       },
     ],
@@ -1196,7 +1196,7 @@ test('documentation reporter emits one markdown file per describe block', async 
         name: 'markdown',
         contentType: 'text/markdown',
         body: Buffer.from(
-          'Second section content explains the paid registration docs state with enough detail for generated documentation review.',
+          'Second section content explains the paid registration docs state with enough detail for generated documentation review, including the checkout boundary and why the surrounding UI evidence matters.',
         ),
       },
     ],
@@ -1284,7 +1284,7 @@ test('two tests in one describe block share one markdown file', async ({}, testI
           name: 'markdown',
           contentType: 'text/markdown',
           body: Buffer.from(
-            'Open checkout section explains the first checkout step with enough detail for generated documentation review.',
+            'Open checkout section explains the first checkout step with enough detail for generated documentation review, including the product state a reader should verify before continuing through payment.',
           ),
         },
       ],
@@ -1310,7 +1310,7 @@ test('two tests in one describe block share one markdown file', async ({}, testI
           name: 'markdown',
           contentType: 'text/markdown',
           body: Buffer.from(
-            'Confirm checkout section explains payment confirmation with enough detail for generated documentation review.',
+            'Confirm checkout section explains payment confirmation with enough detail for generated documentation review, including the expected post-payment state and why it belongs in the generated guide.',
           ),
         },
       ],

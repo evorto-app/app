@@ -6669,9 +6669,10 @@ output boundary.
 The readable-text guard now also ignores transparent or zero-paint text, so
 generated docs cannot satisfy the requirement with DOM text that is present but
 not actually visible in the captured image.
-Generated-doc markdown attachments now also need at least 60 characters of
-explanatory body text at reporter runtime, so placeholder prose cannot publish
-as evidence that reviewers can judge without clicking through the app.
+Generated-doc markdown attachments now also need at least 120 characters of
+explanatory body text at reporter runtime, matching the source-level generated
+Markdown section guard so placeholder prose cannot publish as evidence that
+reviewers can judge without clicking through the app.
 Generated-doc page emission now also rejects duplicate figure image sources, so
 multiple captions on one generated page cannot point at the same PNG hash and
 pretend to prove different states with repeated screenshot evidence.
@@ -7145,3 +7146,24 @@ meaningful seeded Material event cards with icons/times, event-detail
 registration content, hosted legal fallback copy, the wildcard not-found
 fallback, fixed Events/Login navigation on mobile, and the desktop event-list
 screenshot.
+
+Generated-doc runtime Markdown body validation now matches the stronger source
+guard: reporter output requires at least 120 characters of explanatory body text
+for every Markdown attachment before generated pages are written. This closes
+the fallback gap where a dynamic attachment path missed by source inspection
+could have published prose long enough for the previous 60-character runtime
+minimum but still too thin for reviewers to judge without clicking through the
+app. Focused validation passed `bun run test:e2e:reporter-paths`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts
+helpers/testing/stabilization-source.spec.ts --reporter=verbose`, `bun run
+format:write`, `bun run lint`, and `git diff --check`. `bun run dev:status`
+also passed for `BASE_URL=http://localhost:4218`, including the database
+validation query, Docker/Compose preflights, `/legal/terms` route probe, and
+Neon dry-run. A same-slice in-app Browser spot check at 390x844 opened
+`/legal/terms` and `/events` with
+`stabilizationEvidence=docs-runtime-markdown-body-120-*`; both pages rendered
+expected content with no visible loading text, no rendered application-error
+text, no horizontal overflow, and zero Browser warning/error logs. WebStorm
+diagnostics could not inspect this worktree because the open IDE projects were
+`/Users/hedde/.codex/worktrees/e159/evorto` and
+`/Users/hedde/.codex/worktrees/0677/section-app`, not this checkout.

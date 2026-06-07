@@ -10999,7 +10999,7 @@ describe('generated docs source current behavior', () => {
     expect(reporterAttachments).toContain('minimumCaptionWordCount = 5');
     expect(reporterAttachments).toContain('minimumImageWidth = 320');
     expect(reporterAttachments).toContain('minimumImageHeight = 240');
-    expect(reporterAttachments).toContain('minimumMarkdownBodyLength = 60');
+    expect(reporterAttachments).toContain('minimumMarkdownBodyLength = 120');
     expect(reporterAttachments).toContain('png.width < minimumImageWidth');
     expect(reporterAttachments).toContain('png.height < minimumImageHeight');
     expect(reporterAttachments).toContain(

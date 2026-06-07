@@ -2892,7 +2892,13 @@ describe('stabilization source', () => {
       'uses unsupported content type',
     );
     expect(reporterAttachmentsSource).toContain(
-      'minimumMarkdownBodyLength = 60',
+      'minimumMarkdownBodyLength = 120',
+    );
+    expect(inventory).toContain(
+      'reporter runtime now enforces the same 120-character',
+    );
+    expect(inventory).toContain(
+      'a missed dynamic\n  attachment path cannot publish thin docs prose',
     );
     expect(reporterAttachmentsSource).toContain(
       'assertDescriptiveMarkdownBody',

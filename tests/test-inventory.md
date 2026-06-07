@@ -567,7 +567,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   the form model defaults. It also requires every current documentation source
   file in the screenshot-count manifest to attach
   at least 120 characters of explanatory markdown in every generated Markdown
-  attachment, pins the current per-flow
+  attachment, and the reporter runtime now enforces the same 120-character
+  explanatory-body minimum before writing generated pages so a missed dynamic
+  attachment path cannot publish thin docs prose. It pins the current per-flow
   screenshot counts with a manifest that must include every image-backed docs
   file so docs cannot quietly drop image-backed states, requires UI docs to use
   the shared `takeScreenshot` helper imported from the documentation reporter
