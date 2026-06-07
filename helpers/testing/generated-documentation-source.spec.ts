@@ -3088,6 +3088,102 @@ const importsSharedScreenshotHelper = (
   return importsHelper;
 };
 
+const findLegacyDocScreenshotUsage = (
+  path: string,
+  source: string,
+): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const legacyHelperLocals = new Set<string>();
+  const legacyHelperNamespaces = new Set<string>();
+  const usages: string[] = [];
+
+  const describeNode = (node: ts.Node): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const isLegacyDocScreenshotModule = (
+    moduleSpecifier: string | null,
+  ): boolean =>
+    moduleSpecifier?.endsWith('support/utils/doc-screenshot') === true;
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      isLegacyDocScreenshotModule(node.moduleSpecifier.text)
+    ) {
+      usages.push(describeNode(node.moduleSpecifier));
+
+      const namedBindings = node.importClause?.namedBindings;
+
+      if (namedBindings && ts.isNamedImports(namedBindings)) {
+        for (const element of namedBindings.elements) {
+          const importedName = element.propertyName?.text ?? element.name.text;
+
+          if (importedName === 'docScreenshot') {
+            legacyHelperLocals.add(element.name.text);
+          }
+        }
+      }
+
+      if (namedBindings && ts.isNamespaceImport(namedBindings)) {
+        legacyHelperNamespaces.add(namedBindings.name.text);
+      }
+    }
+
+    if (ts.isCallExpression(node)) {
+      const callee = unwrapExpression(node.expression);
+
+      if (callee.kind === ts.SyntaxKind.ImportKeyword && node.arguments[0]) {
+        const moduleSpecifier = getLiteralText(
+          node.arguments[0],
+          staticStringAliases,
+        );
+
+        if (isLegacyDocScreenshotModule(moduleSpecifier)) {
+          usages.push(describeNode(node.expression));
+        }
+      }
+
+      if (ts.isIdentifier(callee) && legacyHelperLocals.has(callee.text)) {
+        usages.push(describeNode(node.expression));
+      }
+
+      if (
+        (ts.isPropertyAccessExpression(callee) ||
+          ts.isElementAccessExpression(callee)) &&
+        getStaticPropertyName(callee, staticStringAliases) === 'docScreenshot'
+      ) {
+        const receiver = getStaticPropertyReceiver(callee);
+
+        if (
+          receiver &&
+          ts.isIdentifier(receiver) &&
+          legacyHelperNamespaces.has(receiver.text)
+        ) {
+          usages.push(describeNode(node.expression));
+        }
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return usages;
+};
+
 const findScreenshotHelperBypasses = (
   path: string,
   source: string,
@@ -4668,6 +4764,38 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/reflect-get-helper.doc.ts:16:13',
       'tests/docs/example/reflect-get-helper.doc.ts:23:13',
       'tests/docs/example/reflect-get-helper.doc.ts:30:13',
+    ]);
+  });
+
+  it('detects legacy docScreenshot imports before generated docs can use them', () => {
+    const legacyDocScreenshotSource = `
+      import { docScreenshot } from '../../support/utils/doc-screenshot';
+      import { docScreenshot as legacyCapture } from '../../support/utils/doc-screenshot';
+      import { takeScreenshot as legacyTakeScreenshot } from '../../support/utils/doc-screenshot';
+      import * as legacyDocsImages from '../../support/utils/doc-screenshot';
+
+      await docScreenshot(testInfo, settingsSurface, page, 'legacy-section');
+      await legacyCapture(testInfo, settingsSurface, page, 'legacy-alias');
+      await legacyDocsImages.docScreenshot(testInfo, settingsSurface, page, 'legacy-namespace');
+      await legacyDocsImages['docScreenshot'](testInfo, settingsSurface, page, 'legacy-bracket');
+      await import('../../support/utils/doc-screenshot');
+    `;
+
+    expect(
+      findLegacyDocScreenshotUsage(
+        'tests/docs/example/legacy-doc-screenshot.doc.ts',
+        legacyDocScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/legacy-doc-screenshot.doc.ts:2:37',
+      'tests/docs/example/legacy-doc-screenshot.doc.ts:3:54',
+      'tests/docs/example/legacy-doc-screenshot.doc.ts:4:62',
+      'tests/docs/example/legacy-doc-screenshot.doc.ts:5:41',
+      'tests/docs/example/legacy-doc-screenshot.doc.ts:7:13',
+      'tests/docs/example/legacy-doc-screenshot.doc.ts:8:13',
+      'tests/docs/example/legacy-doc-screenshot.doc.ts:9:13',
+      'tests/docs/example/legacy-doc-screenshot.doc.ts:10:13',
+      'tests/docs/example/legacy-doc-screenshot.doc.ts:11:13',
     ]);
   });
 
@@ -8375,6 +8503,12 @@ describe('generated docs source current behavior', () => {
     expect(
       readSource('helpers/testing/generated-documentation-source.spec.ts'),
     ).toContain('singleControlCssSelectors');
+    expect(
+      readSource('helpers/testing/generated-documentation-source.spec.ts'),
+    ).toContain('findLegacyDocScreenshotUsage');
+    expect(
+      readSource('helpers/testing/generated-documentation-source.spec.ts'),
+    ).toContain('legacy-doc-screenshot.doc.ts');
     expect(screenshotHelper).toContain("testInfo.attach('image'");
     expect(screenshotHelper).toContain("testInfo.attach('image-caption'");
     expect(
@@ -8438,6 +8572,7 @@ describe('generated docs source current behavior', () => {
         [],
       );
       expect(findIconOrMediaScreenshotTargets(path, source), path).toEqual([]);
+      expect(findLegacyDocScreenshotUsage(path, source), path).toEqual([]);
       for (const [caption, locations] of collectScreenshotCaptions(
         path,
         source,

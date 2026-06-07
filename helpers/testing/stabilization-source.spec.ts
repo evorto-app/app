@@ -1534,11 +1534,17 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'tracks local aliases of the global `Reflect` object',
     );
+    expect(source).toContain('support/utils/doc-screenshot');
+    expect(source).toContain('docScreenshot(...)');
+    expect(source).toContain('Generated product documentation is');
+    expect(source).toContain('source-guarded against importing');
+    expect(inventory).toContain('legacy `support/utils/doc-screenshot`');
+    expect(inventory).toContain('`docScreenshot(...)` calls');
     expect(inventory).toContain('local `Reflect` aliases');
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('85 source-guard tests');
+    expect(source).toContain('86 source-guard tests');
     expect(source).toContain('synthetic reflected\nhelper');
     expect(source).toContain('Comma-expression invocations');
     expect(source).toContain('Conditional and logical callees');

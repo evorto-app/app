@@ -706,7 +706,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   alias-valued, or direct/alias-valued tuple/array
   attach-function aliases, rejects
   aliased/helper-internal screenshot imports, dynamic screenshot-helper imports,
-  and local screenshot wrappers, self-tests those bypass examples, and keeps the
+  local screenshot wrappers, and legacy `support/utils/doc-screenshot` imports
+  or `docScreenshot(...)` calls, self-tests those bypass examples, and keeps the
   permission
   reference image-backed with the actual role-form permission/dependency
   surface. It also pins the tenant General settings docs to section-backed

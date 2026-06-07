@@ -1893,7 +1893,11 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** the generic `tests/docs/template.doc.ts` discovery placeholder was removed; current template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - **Addressed in stabilization pass:** the focused `docScreenshot` helper now
   resolves `DOCS_IMG_OUT_DIR` at call time instead of import time, so tests and
-  docs jobs can set output paths per run.
+  docs jobs can set output paths per run. Generated product documentation is
+  now source-guarded against importing `support/utils/doc-screenshot` or calling
+  `docScreenshot(...)`; `.doc.ts` files must use the reporter
+  `takeScreenshot` barrel so captions, full-page highlighted targets, and
+  visible surrounding page-content checks stay enforced.
 - **Addressed in stabilization pass:** `tests/docs/events/event-management.doc.ts` now waits on concrete headings instead of fixed one-second delays before its major screenshots.
 - **Addressed in stabilization pass:** Playwright inventory coverage now rejects
   fixed `.waitForTimeout(...)` waits in specs and generated docs, so future
@@ -6384,7 +6388,7 @@ helper, raw screenshot, raw image attachment, or raw Markdown-image attachment
 checks either. The
 focused
 `bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`
-run passed with 85 source-guard tests after adding the synthetic reflected
+run passed with 86 source-guard tests after adding the synthetic reflected
 helper, raw screenshot, raw image attachment, and raw markdown-image cases.
 Inline `bind(...)(...)` invocations of raw screenshot and image-attachment
 functions are rejected as well, so generated docs cannot hide direct capture by
