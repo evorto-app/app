@@ -361,52 +361,69 @@ const collectDestructuredPropertyAliases = (
 ): void => {
   if (
     !node.initializer ||
-    !ts.isIdentifier(unwrapExpression(node.initializer))
+    (!ts.isIdentifier(unwrapExpression(node.initializer)) &&
+      !ts.isPropertyAccessExpression(unwrapExpression(node.initializer)) &&
+      !ts.isElementAccessExpression(unwrapExpression(node.initializer)))
   ) {
     return;
   }
 
-  const sourceObject = unwrapExpression(node.initializer);
+  const sourceExpression = unwrapExpression(node.initializer);
+  const sourcePath = ts.isIdentifier(sourceExpression)
+    ? sourceExpression.text
+    : getStaticPropertyReference(sourceExpression, sourceFile, stringAliases);
 
-  if (!ts.isIdentifier(sourceObject)) {
+  if (!sourcePath) {
     return;
   }
 
-  if (ts.isObjectBindingPattern(node.name)) {
-    for (const element of node.name.elements) {
-      if (!ts.isIdentifier(element.name)) {
-        continue;
+  const collectFromBindingPattern = (
+    bindingName: ts.BindingName,
+    propertyPath: string,
+  ): void => {
+    if (ts.isIdentifier(bindingName)) {
+      if (propertyAliases.has(propertyPath)) {
+        aliases.add(bindingName.text);
       }
 
-      const propertyName = element.propertyName ?? element.name;
-
-      const aliasedStaticPropertyName = getStaticPropertyNameFromName(
-        propertyName,
-        stringAliases,
-      );
-
-      if (
-        aliasedStaticPropertyName &&
-        propertyAliases.has(`${sourceObject.text}.${aliasedStaticPropertyName}`)
-      ) {
-        aliases.add(element.name.text);
-      }
+      return;
     }
 
-    return;
-  }
+    if (ts.isObjectBindingPattern(bindingName)) {
+      for (const element of bindingName.elements) {
+        if (element.dotDotDotToken) {
+          continue;
+        }
 
-  if (ts.isArrayBindingPattern(node.name)) {
-    node.name.elements.forEach((element, index) => {
-      if (ts.isOmittedExpression(element) || !ts.isIdentifier(element.name)) {
+        const propertyName = element.propertyName ?? element.name;
+        const aliasedStaticPropertyName = getStaticPropertyNameFromName(
+          propertyName,
+          stringAliases,
+        );
+
+        if (!aliasedStaticPropertyName) {
+          continue;
+        }
+
+        collectFromBindingPattern(
+          element.name,
+          `${propertyPath}.${aliasedStaticPropertyName}`,
+        );
+      }
+
+      return;
+    }
+
+    bindingName.elements.forEach((element, index) => {
+      if (ts.isOmittedExpression(element) || element.dotDotDotToken) {
         return;
       }
 
-      if (propertyAliases.has(`${sourceObject.text}.${index}`)) {
-        aliases.add(element.name.text);
-      }
+      collectFromBindingPattern(element.name, `${propertyPath}.${index}`);
     });
-  }
+  };
+
+  collectFromBindingPattern(node.name, sourcePath);
 };
 
 const collectIndexedPropertyAliases = (
@@ -729,6 +746,11 @@ const collectGroupedPropertyAliases = (
         copyGroupedAliasesFrom(property.expression);
       }
 
+      const propertyName =
+        !ts.isSpreadAssignment(property) && !ts.isMethodDeclaration(property)
+          ? getStaticPropertyNameFromName(property.name, stringAliases)
+          : null;
+
       if (
         ts.isPropertyAssignment(property) &&
         isTrackedReferenceOrAlias(
@@ -737,14 +759,20 @@ const collectGroupedPropertyAliases = (
           aliases,
         )
       ) {
-        const propertyName = getStaticPropertyNameFromName(
-          property.name,
-          stringAliases,
-        );
-
         if (propertyName) {
           propertyAliases.add(`${ownerName}.${propertyName}`);
         }
+      }
+
+      if (ts.isPropertyAssignment(property) && propertyName) {
+        collectGroupedPropertyAliases(
+          `${ownerName}.${propertyName}`,
+          property.initializer,
+          isTrackedReference,
+          aliases,
+          propertyAliases,
+          stringAliases,
+        );
       }
 
       if (
@@ -770,6 +798,21 @@ const collectGroupedPropertyAliases = (
         isTrackedReferenceOrAlias(element, isTrackedReference, aliases),
       propertyAliases,
     );
+
+    groupedInitializer.elements.forEach((element, index) => {
+      if (ts.isSpreadElement(element)) {
+        return;
+      }
+
+      collectGroupedPropertyAliases(
+        `${ownerName}.${index}`,
+        element,
+        isTrackedReference,
+        aliases,
+        propertyAliases,
+        stringAliases,
+      );
+    });
   }
 };
 
@@ -7273,6 +7316,38 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects direct image attachments hidden behind nested grouped aliases', () => {
+    const nestedGroupedImageAttachmentSource = `
+      const groupedImageEvidence = {
+        names: { imageName: 'image' },
+        values: { mime: 'image/png' },
+        payloads: [{ raw: { body: imageBuffer, contentType: 'image/webp' } }],
+        attach: { helpers: { capture: testInfo.attach.bind(testInfo) } },
+      };
+      const { names: { imageName } } = groupedImageEvidence;
+      await testInfo.attach(imageName, { body: imageBuffer });
+      await testInfo.attach('nested raw mime evidence', { contentType: groupedImageEvidence.values.mime });
+      const { payloads: [{ raw: rawPayload }] } = groupedImageEvidence;
+      await testInfo.attach('nested raw payload evidence', rawPayload);
+      const { attach: { helpers: { capture } } } = groupedImageEvidence;
+      await capture('image', { body: imageBuffer });
+      await groupedImageEvidence.attach.helpers.capture('nested image evidence', { contentType: 'image/png' });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/nested-grouped-image-attachment.doc.ts',
+        nestedGroupedImageAttachmentSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:9:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:10:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:12:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:14:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:15:13',
+    ]);
+  });
+
   it('detects at-indexed direct image attachment aliases', () => {
     const atIndexedImageAttachmentSource = `
       const imageAttachmentName = 'image';
@@ -7615,6 +7690,31 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/binding-default-screenshot.doc.ts:3:13',
       'tests/docs/example/binding-default-screenshot.doc.ts:5:13',
+    ]);
+  });
+
+  it('detects direct screenshots hidden behind nested grouped aliases', () => {
+    const nestedGroupedScreenshotSource = `
+      const screenshotHelpers = {
+        raw: { capturePage: page.screenshot.bind(page) },
+        list: [[page.locator('main').screenshot.bind(page.locator('main'))]],
+      };
+      const { raw: { capturePage } } = screenshotHelpers;
+      await capturePage({ path: 'nested-destructured-page.png' });
+      await screenshotHelpers.raw.capturePage({ path: 'nested-property-page.png' });
+      const [[captureElement]] = screenshotHelpers.list;
+      await captureElement({ path: 'nested-array-element.png' });
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/nested-grouped-screenshot.doc.ts',
+        nestedGroupedScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/nested-grouped-screenshot.doc.ts:7:13',
+      'tests/docs/example/nested-grouped-screenshot.doc.ts:8:13',
+      'tests/docs/example/nested-grouped-screenshot.doc.ts:10:13',
     ]);
   });
 

@@ -749,10 +749,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   through simple,
   destructured, or nested destructured screenshot-function aliases,
   binding-default and parameter-default screenshot-function aliases,
-  grouped parameter-default screenshot-function aliases,
-  grouped screenshot-function properties, shorthand or alias-valued grouped
-  screenshot helpers, object-spread, `Object.assign(...)`, and object-rest
-  copied grouped screenshot helpers, copied returned screenshot-helper groups
+  grouped parameter-default screenshot-function aliases, nested grouped
+  screenshot-function properties, shorthand or alias-valued grouped screenshot
+  helpers, object-spread, `Object.assign(...)`, and object-rest copied grouped
+  screenshot helpers, copied returned screenshot-helper groups
   with object-rest copies, and
   direct or alias-valued tuple/array screenshot-function entries including
   `.at(...)` indexed raw screenshot-helper lists, assigned local raw screenshot
@@ -767,7 +767,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   and parameter-default attachment names, MIME/path values, raw image payload
   objects, and attach-function aliases, grouped parameter-default attachment
   names, MIME/path values, raw image payload objects, and attach-function
-  aliases, assigned local raw image names,
+  aliases, nested grouped attachment names, MIME/path values, raw image payload
+  objects, and attach-function aliases, assigned local raw image names,
   MIME/path values, payload objects, attach-function aliases, and returned
   attach-function factories including copied returned attach-helper groups with
   object-rest copies,

@@ -1905,12 +1905,15 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'binding-default and parameter-default screenshot-function aliases',
     );
-    expect(inventory).toMatch(/grouped screenshot-function\s+properties/u);
     expect(inventory).toMatch(
-      /shorthand or alias-valued grouped\s+screenshot helpers/u,
+      /nested grouped\s+screenshot-function properties/u,
     );
-    expect(inventory).toContain(
-      'object-spread, `Object.assign(...)`, and object-rest\n  copied grouped screenshot helpers',
+    expect(inventory).toMatch(
+      /shorthand or alias-valued grouped\s+screenshot\s+helpers/u,
+    );
+    expect(inventory).toContain('object-spread, `Object.assign(...)`');
+    expect(inventory).toMatch(
+      /object-rest copied grouped\s+screenshot helpers/u,
     );
     expect(inventory).toMatch(
       /direct or alias-valued tuple\/array screenshot-function\s+entries/u,
@@ -3198,9 +3201,13 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'grouped parameter-default screenshot-function aliases',
     );
+    expect(inventory).toContain('nested grouped\n  screenshot-function');
     expect(inventory).toContain('assigned local raw image names');
     expect(inventory).toContain(
       'grouped parameter-default attachment\n  names, MIME/path values, raw image payload objects, and attach-function',
+    );
+    expect(inventory).toContain(
+      'nested grouped attachment names, MIME/path values, raw image payload',
     );
     expect(inventory).toContain('returned\n  attach-function factories');
     expect(inventory).toContain('assigned local raw Markdown names');

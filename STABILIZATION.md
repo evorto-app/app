@@ -7644,3 +7644,31 @@ screenshots show readable Terms fallback copy and the current empty Events
 state with fixed Events/Login bottom navigation, no loading or application-error
 text, document/body widths inside the mobile viewport, and zero warning/error
 Browser logs.
+
+Nested grouped raw screenshot/image aliases are now pinned beside the flat
+grouped generated-doc source guards. The shared alias collector records nested
+object and array property paths such as `helpers.raw.capture`,
+`evidence.values.mime`, and `evidence.payloads.0.raw`, and destructuring now
+resolves static nested sources such as `helpers.list`, so docs cannot hide raw
+`page.screenshot`, `testInfo.attach`, raw image names, MIME/path values, or raw
+image payload objects inside nested helper bags before bypassing the shared
+screenshot helper. The focused regression covers direct nested property calls,
+nested object destructuring, and nested array destructuring for both direct
+screenshots and raw image attachments; the inventory records the same nested
+grouped coverage next to the existing grouped parameter-default and copied
+group guard families. Validation for this slice passed the focused
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`
+run with 130 tests before broader verification. The later combined
+`bun run format:write`, `bun run lint`, and
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+run passed with 196 tests. WebStorm errors-only diagnostics remained blocked
+because this worktree is not one of the IDE's open projects. Browser rechecked
+`/legal/terms?stabilizationEvidence=nested-grouped-doc-source-guard` and
+`/events?stabilizationEvidence=nested-grouped-doc-source-guard` at 390x844 and
+saved
+`/tmp/evorto-nested-grouped-doc-source-guard-legal-terms-390x844.png` plus
+`/tmp/evorto-nested-grouped-doc-source-guard-events-390x844.png`; the
+screenshots show readable Terms fallback copy and the current Events empty
+state with fixed Events/Login bottom navigation, no loading or
+application-error text, no horizontal overflow, no clipped visible controls,
+and zero Browser warning/error logs.
