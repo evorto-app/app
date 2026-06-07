@@ -1774,8 +1774,12 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'keeps documentation architecture represented by Playwright docs evidence',
     );
+    expect(generatedDocumentationSource).toContain('extractMarkdownListAfter');
     expect(generatedDocumentationSource).toContain(
-      'imageBackedDocumentationAreas',
+      'importantProductDocumentationAreas',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'supplementalProductModelDocumentationAreas',
     );
     expect(generatedDocumentationSource).toContain(
       'generatedDocumentationTopics',

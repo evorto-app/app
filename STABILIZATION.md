@@ -6325,19 +6325,17 @@ highlight, and content-pixel checks.
 The reporter now enforces the same raw Markdown/HTML image boundary at runtime
 for the final markdown attachment body too, so a missed source pattern still
 fails before generated pages are written.
-Generated-doc source coverage now also maps the root product docs' important
-documentation areas to generated doc files and concrete source terms, so
-essential flows like browsing events, registering, account-required tenant
-account creation, successful registration confirmation with QR ticket
-availability, registration cancellation/refund scope, transfers, waitlists,
-create-from-template, event review/publishing, templates, roles/capabilities,
-ESN-card discount behavior, check-in, receipts, tenant branding/settings,
-legal/privacy settings, and email notifications cannot silently disappear from
-the product-facing documentation inventory. Role documentation source coverage
-also rejects existing-user role-assignment instructions and action selectors
-while the relaunch user-list surface remains read-only, and it keeps the role
-guide tied to Product.md's tenant-defined/default-role boundary instead of
-system-defined or global default-role wording.
+Generated-doc source coverage now also parses the root Product documentation
+expectations list and maps every important documentation area to generated doc
+files plus concrete source terms, so a new Product bullet fails until the
+generated-doc mapping is updated. Supplemental product-model invariants such as
+account-required tenant account creation, successful registration confirmation
+with QR ticket availability, registration cancellation/refund scope, and
+waitlists stay pinned too. Role documentation source coverage also rejects
+existing-user role-assignment instructions and action selectors while the
+relaunch user-list surface remains read-only, and it keeps the role guide tied
+to Product.md's tenant-defined/default-role boundary instead of system-defined
+or global default-role wording.
 It also maps `QUALITY.md` generated-documentation topics to checked-in docs
 sources, including paid registration, waitlists, registration cancellation,
 transfer/resale, registration confirmation with QR ticket availability,

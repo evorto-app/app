@@ -541,13 +541,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   unique across generated docs so one caption cannot describe unrelated states,
   requires screenshot captions to have at least 24 characters and four words so
   terse section/list labels do not pass as meaningful evidence,
-  maps the root product docs' important documentation areas to the generated
-  docs files and concrete source terms for browsing events, registration,
-  successful registration confirmation with QR ticket availability,
-  account-required tenant account creation, registration cancellation/refund
-  scope, transfers, waitlists, create-from-template, event review/publishing,
-  templates, ESN-card discount behavior, roles/capabilities, check-in, receipts,
-  tenant branding/settings, legal/privacy settings, and email notifications,
+  parses the root Product documentation-expectations list and maps every
+  important documentation area to generated docs files plus concrete source
+  terms, so new Product bullets fail until the generated-doc mapping is updated.
+  Supplemental product-model invariants also stay pinned for successful
+  registration confirmation with QR ticket availability, account-required
+  tenant account creation, registration cancellation/refund scope, and
+  waitlists,
   maps root `QUALITY.md` generated-documentation topics
   including paid registration, waitlists, registration cancellation,
   transfer/resale, registration confirmation with QR ticket availability,

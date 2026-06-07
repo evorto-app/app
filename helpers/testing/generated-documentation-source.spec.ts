@@ -10,6 +10,32 @@ const repositoryRoot = new URL('../..', import.meta.url).pathname;
 const readSource = (path: string): string =>
   readFileSync(nodePath.join(repositoryRoot, path), 'utf8');
 
+const extractMarkdownListAfter = (source: string, marker: string): string[] => {
+  const markerIndex = source.indexOf(marker);
+
+  if (markerIndex === -1) {
+    throw new Error(`Markdown marker not found: ${marker}`);
+  }
+
+  const listItems: string[] = [];
+  const lines = source.slice(markerIndex + marker.length).split(/\r?\n/u);
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('- ')) {
+      listItems.push(trimmed.slice(2).trim());
+      continue;
+    }
+
+    if (listItems.length > 0 && trimmed.length === 0) {
+      break;
+    }
+  }
+
+  return listItems;
+};
+
 const findFiles = (path: string): string[] => {
   const absolutePath = nodePath.join(repositoryRoot, path);
 
@@ -7060,7 +7086,7 @@ describe('generated docs source current behavior', () => {
 
   it('keeps product-important documentation areas represented by generated docs', () => {
     const productSource = readSource('PRODUCT.md');
-    const imageBackedDocumentationAreas = [
+    const importantProductDocumentationAreas = [
       {
         files: ['tests/docs/events/register.doc.ts'],
         productArea: 'browsing events',
@@ -7078,39 +7104,9 @@ describe('generated docs source current behavior', () => {
         ],
       },
       {
-        files: [
-          'tests/docs/events/register.doc.ts',
-          'tests/docs/users/create-account.doc.ts',
-        ],
-        productArea: 'Registration requires an account.',
-        terms: [
-          'Account-required registration',
-          'You can only register after logging in',
-          'Log in now',
-          'Tenant Account Creation',
-          'Creating the account joins the current tenant',
-        ],
-      },
-      {
-        files: ['tests/docs/events/register.doc.ts'],
-        productArea: 'manage registrations and cancellations',
-        terms: [
-          'Cancellation queues a registration-cancelled email',
-          'Paid confirmed cancellations are still allowed',
-        ],
-      },
-      {
         files: ['tests/docs/events/register.doc.ts'],
         productArea: 'transferring a registration',
         terms: ['Transfer an unpaid registration', 'Transfer code'],
-      },
-      {
-        files: ['tests/docs/events/register.doc.ts'],
-        productArea: 'use waitlists as lightweight demand indicators',
-        terms: [
-          'Full participant options expose a distinct **Join waitlist** action',
-          'Leave waitlist',
-        ],
       },
       {
         files: ['tests/docs/events/event-management.doc.ts'],
@@ -7210,8 +7206,55 @@ describe('generated docs source current behavior', () => {
       },
     ] as const;
 
-    for (const documentationArea of imageBackedDocumentationAreas) {
-      expect(productSource).toContain(`- ${documentationArea.productArea}`);
+    const supplementalProductModelDocumentationAreas = [
+      {
+        files: [
+          'tests/docs/events/register.doc.ts',
+          'tests/docs/users/create-account.doc.ts',
+        ],
+        productArea: 'Registration requires an account.',
+        terms: [
+          'Account-required registration',
+          'You can only register after logging in',
+          'Log in now',
+          'Tenant Account Creation',
+          'Creating the account joins the current tenant',
+        ],
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        productArea: 'manage registrations and cancellations',
+        terms: [
+          'Cancellation queues a registration-cancelled email',
+          'Paid confirmed cancellations are still allowed',
+        ],
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        productArea: 'use waitlists as lightweight demand indicators',
+        terms: [
+          'Full participant options expose a distinct **Join waitlist** action',
+          'Leave waitlist',
+        ],
+      },
+    ] as const;
+
+    expect(
+      extractMarkdownListAfter(
+        productSource,
+        'Important documentation areas include:',
+      ),
+    ).toEqual(
+      importantProductDocumentationAreas.map(
+        (documentationArea) => documentationArea.productArea,
+      ),
+    );
+
+    for (const documentationArea of [
+      ...importantProductDocumentationAreas,
+      ...supplementalProductModelDocumentationAreas,
+    ]) {
+      expect(productSource).toContain(documentationArea.productArea);
 
       const combinedSource = documentationArea.files
         .map((file) => readSource(file))
