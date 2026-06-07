@@ -35,6 +35,7 @@ const figurePattern = /\{% figure src="([^"]+)" caption="([^"]*)"/gu;
 const assertUniqueFigureEvidence = (
   pageLines: string[],
   docTitle: string,
+  runCaptions: Map<string, string>,
 ): void => {
   const seenSources = new Set<string>();
   const seenCaptions = new Set<string>();
@@ -53,8 +54,15 @@ const assertUniqueFigureEvidence = (
           `Generated documentation page ${docTitle} uses duplicate figure caption "${caption}". Each screenshot needs a distinct caption that describes its own UI state.`,
         );
       }
+      const existingDocTitle = runCaptions.get(caption);
+      if (existingDocTitle) {
+        throw new Error(
+          `Generated documentation page ${docTitle} uses duplicate figure caption "${caption}" already used by ${existingDocTitle}. Captions must stay unique across generated docs so one description cannot claim unrelated UI states.`,
+        );
+      }
       seenSources.add(source);
       seenCaptions.add(caption);
+      runCaptions.set(caption, docTitle);
     }
   }
 };
@@ -99,6 +107,12 @@ class DocumentationReporter implements Reporter {
       return;
     }
 
+    const pages: Array<{
+      folderName: string;
+      pageLines: string[];
+      title: string;
+    }> = [];
+
     for (const doc of this.registry.getDocuments()) {
       if (doc.sections.length === 0) continue;
 
@@ -121,15 +135,26 @@ class DocumentationReporter implements Reporter {
         if (hasMultipleTests) pageLines.push(`## ${section.title}`);
         pageLines.push(...section.content);
       }
-      assertUniqueFigureEvidence(pageLines, mainTitle);
+      pages.push({
+        folderName: doc.folderName,
+        pageLines,
+        title: mainTitle,
+      });
+    }
 
+    const runCaptions = new Map<string, string>();
+    for (const page of pages) {
+      assertUniqueFigureEvidence(page.pageLines, page.title, runCaptions);
+    }
+
+    for (const page of pages) {
       const pageDir = ensureDirectory(
-        path.join(this.docsRoot(), doc.folderName),
+        path.join(this.docsRoot(), page.folderName),
         {
           empty: true,
         },
       );
-      writeFile(path.join(pageDir, 'page.md'), pageLines.join('\n'));
+      writeFile(path.join(pageDir, 'page.md'), page.pageLines.join('\n'));
     }
   }
 

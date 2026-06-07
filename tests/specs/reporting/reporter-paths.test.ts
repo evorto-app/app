@@ -393,6 +393,68 @@ test('documentation reporter rejects duplicate figure captions', async ({}, test
   );
 });
 
+test('documentation reporter rejects duplicate figure captions across docs', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-duplicate-caption-run');
+  const imgsRoot = testInfo.outputPath('docs-img-duplicate-caption-run');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const secondPng = PNG.sync.read(createDocumentationEvidencePng());
+  const offset = (52 * secondPng.width + 52) * 4;
+  secondPng.data[offset] = 10;
+  secondPng.data[offset + 1] = 10;
+  secondPng.data[offset + 2] = 10;
+  secondPng.data[offset + 3] = 255;
+
+  const repeatedCaption = 'Repeated cross document caption should fail output';
+
+  reporter.onTestEnd(
+    { title: 'First duplicate caption document' } as any,
+    {
+      attachments: [
+        {
+          name: 'image',
+          contentType: 'image/png',
+          body: createDocumentationEvidencePng(),
+        },
+        {
+          name: 'image-caption',
+          contentType: 'text/plain',
+          body: Buffer.from(repeatedCaption),
+        },
+      ],
+    } as any,
+  );
+  reporter.onTestEnd(
+    { title: 'Second duplicate caption document' } as any,
+    {
+      attachments: [
+        {
+          name: 'image',
+          contentType: 'image/png',
+          body: PNG.sync.write(secondPng),
+        },
+        {
+          name: 'image-caption',
+          contentType: 'text/plain',
+          body: Buffer.from(repeatedCaption),
+        },
+      ],
+    } as any,
+  );
+
+  expect(() =>
+    // @ts-expect-error minimal stubs for types
+    reporter.onEnd({}),
+  ).toThrow(
+    `Generated documentation page Second duplicate caption document uses duplicate figure caption "${repeatedCaption}" already used by First duplicate caption document`,
+  );
+});
+
 test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time', async ({}, testInfo) => {
   const previous = process.env.DOCS_IMG_OUT_DIR;
   const imgsRoot = testInfo.outputPath('docs-img-call-time');

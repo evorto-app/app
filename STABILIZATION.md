@@ -6244,6 +6244,9 @@ multiple captions on one generated page cannot point at the same PNG hash and
 pretend to prove different states with repeated screenshot evidence.
 It also rejects duplicate figure captions on one generated page, so two
 different screenshots cannot use the same description for unrelated UI states.
+Generated-doc page emission now validates the whole run before writing pages and
+rejects duplicate figure captions across generated pages too, matching the
+source guard's expectation that captions stay unique across generated docs.
 The focused reporter-path regression now exercises that failure without app
 startup. An in-app Browser attempt to inspect the generated local Markdown
 artifact directly was blocked by Browser URL policy for `file://` output, so no
