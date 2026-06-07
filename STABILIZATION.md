@@ -6262,6 +6262,10 @@ checked-in docs files, `test:e2e:docs`, markdown attachments, shared screenshot
 helper calls, paired captions, and highlighted/content-checked PNG evidence, so
 the system architecture's durable-docs expectation stays connected to the
 generated documentation source guard.
+It also keeps `PRODUCT.md` and `ARCHITECTURE.md` documentation-organization
+rules connected to the checked-in docs tree: generated docs must stay
+product-facing, grouped under feature-area folders, and free of internal
+example/fixture documentation sources.
 The email-notification docs/source guards now also pin product-level absent
 email promises: no separate payment success/failure emails, checkout-expiry
 emails, transfer-started emails, receipt-submitted emails, or push-notification

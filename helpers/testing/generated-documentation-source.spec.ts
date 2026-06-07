@@ -7329,6 +7329,7 @@ describe('generated docs source current behavior', () => {
   });
 
   it('keeps documentation architecture represented by Playwright docs evidence', () => {
+    const productSource = readSource('PRODUCT.md');
     const architectureSource = readSource('ARCHITECTURE.md');
     const packageSource = readSource('package.json');
     const reporterSource = readSource(
@@ -7341,7 +7342,25 @@ describe('generated docs source current behavior', () => {
       .filter((path) => path.endsWith('.doc.ts'))
       .toSorted();
     const docsSource = docsFiles.map((file) => readSource(file)).join('\n');
+    const expectedFeatureAreas = [
+      'admin',
+      'events',
+      'finance',
+      'profile',
+      'roles',
+      'template-categories',
+      'templates',
+      'users',
+    ];
+    const featureAreas = [
+      ...new Set(
+        docsFiles.map((file) => file.split('/').at(2)).filter(Boolean),
+      ),
+    ].toSorted();
 
+    expect(productSource).toContain(
+      'Generated documentation is product-facing. It should be grouped by feature area and should not mix in internal testing examples.',
+    );
     expect(architectureSource).toContain('generated user/admin documentation');
     expect(architectureSource).toContain(
       'screenshots and evidence for documented flows',
@@ -7349,8 +7368,20 @@ describe('generated docs source current behavior', () => {
     expect(architectureSource).toContain(
       'Use Playwright screenshots/docs as durable evidence.',
     );
+    expect(architectureSource).toContain(
+      'Playwright-generated documentation should be grouped by feature area, not by persona first.',
+    );
+    expect(architectureSource).toContain(
+      'Feature-area grouping should align with test organization where practical.',
+    );
     expect(packageSource).toContain('"test:e2e:docs"');
     expect(docsFiles.length).toBeGreaterThanOrEqual(16);
+    expect(featureAreas).toEqual(expectedFeatureAreas);
+    expect(
+      docsFiles.filter((file) =>
+        /\/(?:example|internal|fixture)s?\//u.test(file),
+      ),
+    ).toEqual([]);
     expect(docsFiles).toContain('tests/docs/events/register.doc.ts');
     expect(docsFiles).toContain('tests/docs/admin/general-settings.doc.ts');
     expect(docsFiles).toContain('tests/docs/roles/about-permissions.doc.ts');
