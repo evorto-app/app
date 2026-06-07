@@ -5795,7 +5795,25 @@ stack, then checked `/legal/terms` and `/events` at 320x740 plus `/404` and
 `/legal/terms` at 390x844. The Browser screenshots showed readable legal text,
 seeded event cards with meaningful icons and times, and fixed Events/Login
 bottom navigation without visible clipping or overlap; the `/events` console
-entries were app info logs only. A June 7, 2026 current-head Browser evidence
+entries were app info logs only. A fresh June 7, 2026 current-head Browser
+refresh at PR head `8a70d36f` recovered the generated Docker stack on
+`BASE_URL=http://localhost:4218` and checked `/`, `/events`, `/legal/imprint`,
+`/legal/privacy`, `/legal/terms`, `/403`, `/500`, `/404`, and a wildcard
+not-found route at 320x740 and 390x844 through direct in-app Browser control.
+All legal and fallback routes had matching viewport/body/document widths, no
+horizontal overflow, no top/side clipped visible controls, no rendered
+application-error text, no visible loading placeholder, and zero Browser
+warning/error logs. The first `/events` pass caught the transient loading
+placeholder, so `/events` was rerun with a bounded settle poll; the final
+320x740 and 390x844 Events checks rendered 12 seeded event-card links with
+meaningful icons/times, no visible loading placeholder, no horizontal overflow,
+no top/side clipped visible controls, no rendered application-error text, and
+zero Browser warning/error logs. Visually inspected screenshots were saved at
+`/tmp/evorto-general-browser-8a70d36f-events-settled-320x740.png`,
+`/tmp/evorto-general-browser-8a70d36f-events-settled-390x844.png`, and
+`/tmp/evorto-general-browser-8a70d36f-legal-terms-320x740.png`; they show
+readable Material event cards/legal text and fixed Events/Login mobile bottom
+navigation without overlap. A June 7, 2026 current-head Browser evidence
 attempt at pushed head `f6ee41ae` did not produce route/layout evidence:
 `bun run dev:status` regenerated `.env.dev` for `BASE_URL=http://localhost:4218`,
 but Docker's disposable container start-path preflight timed out, the existing
@@ -5807,7 +5825,7 @@ The follow-up bounded cleanup path `bun run docker:clean-stale` also failed to
 remove `evorto-91c45a89-db-1` because Docker could not kill the unhealthy
 container and did not receive an exit event. No current-head Browser
 route/layout evidence is claimed for `f6ee41ae` or the follow-up documentation
-head; the latest positive General Browser evidence remains the `574e9273`
+head; the latest positive General Browser evidence remains the `8a70d36f`
 checkpoint above until Docker/Neon Local is recovered. The durable public
 General viewport spec now also asserts that
 the anonymous Events/Login navigation remains visible and fixed as bottom
