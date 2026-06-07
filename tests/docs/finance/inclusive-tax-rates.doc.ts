@@ -4,6 +4,8 @@ import type { Locator, Page } from '@playwright/test';
 import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { fillTemplateBasics } from '../../support/utils/template-form';
+import { withNoCompatibleTaxRates } from '../../support/utils/tax-rates';
 
 const taxRateSection = (page: Page, heading: string): Locator =>
   page
@@ -56,6 +58,16 @@ const eventPaidRegistrationOptionForm = (page: Page): Locator =>
   page
     .locator('app-registration-option-form')
     .filter({ has: page.getByRole('combobox', { name: 'Tax rate' }) })
+    .first();
+
+const emptyTaxRateOptionsPanel = (page: Page): Locator =>
+  page
+    .locator('.cdk-overlay-pane')
+    .filter({
+      has: page.getByRole('option', {
+        name: 'No active inclusive tax rates available',
+      }),
+    })
     .first();
 
 test.describe('Inclusive tax rates documentation (admin)', () => {
@@ -355,6 +367,70 @@ Open **Edit Event** on a draft event to adjust tax rates if regulations or prici
       body: `
 Existing paid registrations keep their inclusive tax requirements. Update the selected rate here—event creators cannot save the form without picking a compatible imported tax rate.
 `,
+    });
+  });
+
+  test('Explain empty compatible tax-rate feedback', async ({
+    database,
+    page,
+    templateCategories,
+    tenant,
+  }, testInfo) => {
+    const category = templateCategories[0];
+    if (!category) {
+      throw new Error(
+        'Expected seeded template category before empty tax-rate docs flow',
+      );
+    }
+
+    await withNoCompatibleTaxRates(database, tenant.id, async () => {
+      await page.goto('/templates/create');
+      await fillTemplateBasics(page, {
+        categoryTitle: category.title,
+        title: 'Paid registration without compatible tax rates',
+      });
+
+      await testInfo.attach('markdown', {
+        body: `
+## Missing compatible rates
+
+If the tenant has no active inclusive rates imported, paid registration options still show the required tax-rate control. Opening the selector explains what is missing instead of leaving creators with an empty menu.
+`,
+      });
+
+      await page
+        .getByRole('switch', { name: 'Enable Payment' })
+        .first()
+        .click();
+      const paidRegistrationOption = page
+        .locator('app-template-registration-option-form')
+        .filter({ has: page.getByRole('combobox', { name: 'Tax rate' }) })
+        .first();
+      const taxRateSelect = paidRegistrationOption.getByRole('combobox', {
+        name: 'Tax rate',
+      });
+      await expect(taxRateSelect).toBeVisible();
+      await taxRateSelect.click();
+      await expect(
+        page.getByRole('option', {
+          name: 'No active inclusive tax rates available',
+        }),
+      ).toBeVisible();
+      const emptyOptionsPanel = emptyTaxRateOptionsPanel(page);
+      await expect(emptyOptionsPanel).toBeVisible();
+
+      await takeScreenshot(
+        testInfo,
+        emptyOptionsPanel,
+        page,
+        'Paid registration option explains missing compatible tax rates',
+      );
+
+      await testInfo.attach('markdown', {
+        body: `
+Import an active inclusive Stripe tax rate before saving paid registration options. Free registration options do not need a tax rate.
+`,
+      });
     });
   });
 });

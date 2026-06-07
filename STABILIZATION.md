@@ -945,7 +945,7 @@ the current working direction until a product decision overrides them.
 - `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, reusable add-on editing, reusable registration-question editing, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot, then asserts that adding a reusable add-on reveals the add-on name, attachment, and purchase-timing controls, and that adding a registration question reveals the question, target, and required-answer controls. It now saves a reusable template, screenshots the saved template detail page, and reads back the persisted planning tips, add-on attachment/quantity, and required question state before cleanup. Its role-picker docs fail explicitly when seeded autocomplete roles are missing or nameless before asserting selected roles disappear from the autocomplete.
   The simple registration setup screenshot now targets the create-form panel containing the simple-mode heading, explanatory copy, and exactly two registration-option forms instead of a generic wrapper `div`, so the generated image backs the organizer and participant defaults described in the docs. The docs assert the current organizer and participant default registration-option titles, and the source guard keeps those assertions aligned with the form model defaults.
   The saved-detail screenshot now targets the template detail section containing the persisted organizer planning tips, reusable add-on label, and registration-question label instead of the page heading alone, so the generated image backs the state asserted by the docs flow.
-- `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. The previous future bulk/no-compatible-rate fixme declarations were removed; current no-compatible-rate select feedback is pinned in local component coverage until a broader page flow exists.
+- `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement, a seeded inclusive tax-rate save path, and a page-backed empty compatible-rate path that opens the paid template tax-rate selector and asserts the visible no-compatible-inclusive-rates feedback.
 - `tests/specs/seed/seed-baseline.test.ts` now treats seeded reusable template
   add-ons and registration questions as part of the reset-from-zero contract
   for template detail review.
@@ -1739,7 +1739,7 @@ the current working direction until a product decision overrides them.
   global reimbursement details, event-card routing/check-in copy, submitted
   receipt visibility, account-creation retry errors, and existing-global-user
   tenant joins.
-- `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management and now screenshots seeded compatible VAT rows, the filtered Stripe import dialog with VAT/imported chips and the Import selected action, plus the full paid registration option tax-rate controls instead of broad route shells, generic dialog containers, or single-field crops.
+- `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management and now screenshots seeded compatible VAT rows, the filtered Stripe import dialog with VAT/imported chips and the Import selected action, the full paid registration option tax-rate controls, and the empty compatible-rate selector feedback instead of broad route shells, generic dialog containers, or single-field crops.
 - `src/app/admin/components/import-tax-rates-dialog/import-tax-rates-dialog.component.spec.ts` covers the local Stripe tax-rate import guard so empty selections and pending imports cannot submit duplicate tax-rate writes.
 - `src/server/effect/rpc/handlers/admin.handlers.spec.ts` covers tenant settings normalization plus the server-side currency/locale/timezone lock once event or payment data exists.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
@@ -7583,3 +7583,30 @@ screenshots show readable Terms fallback copy and real seeded Events cards with
 Material card surfaces/icons/dates/times, fixed Events/Login bottom navigation,
 no loading or application-error text, document/body widths inside the mobile
 viewport, and zero warning/error Browser logs.
+
+The template paid-registration no-compatible-tax-rate gap is now page-backed
+instead of component-only. `tests/support/utils/tax-rates.ts` temporarily marks
+a seeded tenant's tax rates inactive and restores the original compatibility
+flags afterwards; `tests/specs/templates/paid-option-requires-tax-rate.spec.ts`
+uses it to open the real template create form, enable payment, open the Material
+tax-rate selector, and assert the visible "No active inclusive tax rates
+available" feedback. `tests/docs/finance/inclusive-tax-rates.doc.ts` adds the
+same empty compatible-rate state to generated finance docs and screenshots the
+actual Material overlay panel containing the feedback, so the image evidence is
+not a broad page shell or a component crop that misses the dropdown overlay. The
+generated-doc source guard now requires the new docs screenshot and copy, and
+the inventory no longer describes this path as waiting for a broader page flow.
+Validation passed `bun run format:write`, `bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 194 tests, `bun run test:e2e:docs -- --list tests/docs/finance/inclusive-tax-rates.doc.ts`,
+and `git diff --check`. The full authenticated focused Playwright run remains
+blocked on this worktree's unregistered Auth0 callback port
+(`BASE_URL=http://localhost:4218`), and the already-occupied registered
+`localhost:4200` runtime belongs to a different Compose project, so this slice
+did not repoint the worktree at that runtime. Browser rechecked the current
+General mobile shell on `/legal/terms` and `/events` at 390x844 with evidence
+paths `/tmp/evorto-empty-tax-rate-docs-legal-terms-settled-390x844.png` and
+`/tmp/evorto-empty-tax-rate-docs-events-settled-390x844.png`; both settled
+screenshots are readable Material surfaces with fixed Events/Login bottom
+navigation, no horizontal clipping, no app-error text, and zero warning/error
+Browser logs.

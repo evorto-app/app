@@ -2,6 +2,7 @@ import { organizerStateFile } from '../../../helpers/user-data';
 import { getId } from '../../../helpers/get-id';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { fillTemplateBasics } from '../../support/utils/template-form';
+import { withNoCompatibleTaxRates } from '../../support/utils/tax-rates';
 import type { Page } from '@playwright/test';
 
 test.use({ storageState: organizerStateFile });
@@ -144,5 +145,38 @@ test.describe('Template Tax Rate Validation', () => {
     await saveButton.click();
     await expect(page).toHaveURL(/\/templates/);
     await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
+  });
+
+  test('creator sees empty tax-rate feedback when no compatible inclusive rates exist', async ({
+    database,
+    page,
+    templateCategories,
+    tenant,
+  }) => {
+    const category = templateCategories[0];
+    if (!category) {
+      throw new Error(
+        'Expected seeded template category before paid template empty tax-rate validation',
+      );
+    }
+
+    await withNoCompatibleTaxRates(database, tenant.id, async () => {
+      await page.goto('/templates/create');
+      await fillTemplateBasics(page, {
+        categoryTitle: category.title,
+        title: `No tax rates ${getId().slice(0, 6)}`,
+      });
+
+      await enablePaymentForFirstRegistrationOption(page);
+      const taxRateSelect = page.getByLabel('Tax rate').first();
+      await expect(taxRateSelect).toBeVisible();
+      await taxRateSelect.click();
+
+      await expect(
+        page.getByRole('option', {
+          name: 'No active inclusive tax rates available',
+        }),
+      ).toBeVisible();
+    });
   });
 });

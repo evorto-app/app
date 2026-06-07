@@ -11905,7 +11905,7 @@ describe('generated docs source current behavior', () => {
       ['tests/docs/events/register.doc.ts', 14],
       ['tests/docs/events/unlisted-user.doc.ts', 2],
       ['tests/docs/finance/finance-overview.doc.ts', 4],
-      ['tests/docs/finance/inclusive-tax-rates.doc.ts', 5],
+      ['tests/docs/finance/inclusive-tax-rates.doc.ts', 6],
       ['tests/docs/finance/receipt-review-reimbursement.doc.ts', 4],
       ['tests/docs/profile/discounts.doc.ts', 3],
       ['tests/docs/profile/user-profile.doc.ts', 7],
@@ -13426,6 +13426,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('taxRateRow');
     expect(source).toContain('importStripeTaxRatesDialogSurface');
     expect(source).toContain('eventPaidRegistrationOptionForm');
+    expect(source).toContain('emptyTaxRateOptionsPanel');
     expect(source).toContain('Compatible Tax Rates');
     expect(source).toContain('txr_1S6a7sPPcz51fqyK4AVB8NSS');
     expect(source).toContain('txr_1S6a8LPPcz51fqyK4CPonBgy');
@@ -13446,6 +13447,11 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("importDialog.getByText('imported').first()");
     expect(source).toContain(
       'Event edit paid registration option tax-rate controls',
+    );
+    expect(source).toContain('withNoCompatibleTaxRates');
+    expect(source).toContain('No active inclusive tax rates available');
+    expect(source).toContain(
+      'Paid registration option explains missing compatible tax rates',
     );
     expect(source).toContain('Inclusive tax; shown price is final');
     expect(source).not.toContain(
