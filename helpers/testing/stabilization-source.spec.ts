@@ -5917,40 +5917,39 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toMatch(
-      /Latest coverage checkpoint: pushed checkpoint `7fcbeecd`\s+made the\s+finance and profile\/account Docker-backed runtime evidence\s+reviewable from the\s+test inventory/u,
+      /Latest coverage checkpoint: PR head `5c827759`\s+has fresh in-app Browser public\s+General evidence/u,
     );
-    expect(source).toContain('only from the stabilization narrative');
+    expect(source).toContain('`BASE_URL=http://localhost:4218`');
+    expect(source).toContain('all 10 anonymous General routes');
     expect(source).toContain(
-      '`tests/test-inventory.md` names the\nexact finance specs/docs',
+      'seeded event detail `/events/cc139a736e819c574cf3`',
     );
-    expect(source).toContain('finance overview permissions');
-    expect(source).toContain('receipt flows');
-    expect(source).toContain('Stripe webhook replay');
-    expect(source).toContain('inclusive tax-rate import');
-    expect(source).toContain('three\nfinance generated-doc journeys');
-    expect(source).toContain('exact profile/account\nspecs/docs');
-    expect(source).toContain('profile edit');
-    expect(source).toContain('event cards');
-    expect(source).toContain('receipts');
-    expect(source).toContain('discounts');
-    expect(source).toContain('deterministic ESNcard provider\noutcomes');
-    expect(source).toContain('profile\ngenerated-doc journeys');
+    expect(source).toContain('/missing-general-page');
+    expect(source).toContain('All 30 route/viewport checks');
+    expect(source).toContain('no horizontal\noverflow');
+    expect(source).toContain('no top/side clipped controls');
+    expect(source).toContain('no clipped fixed controls');
+    expect(source).toContain('correct\nEvents/Login mobile navigation');
     expect(source).toContain(
-      'runtime evidence cannot stay broad while the discoverable inventory loses the\ncovered paths',
+      'correct desktop\nEvents/Scanner/Login navigation',
     );
-    expect(source).toContain('finance-profile-inventory-guard');
+    expect(source).toContain('zero Browser warning/error logs');
     expect(source).toContain(
-      '/tmp/evorto-finance-profile-inventory-guard-terms-390x844.png',
+      '/tmp/evorto-public-general-5c827759/events-list-320x740.png',
     );
-    expect(source).toContain('readable\nTerms fallback copy');
-    expect(source).toContain('fixed Events/Login bottom navigation');
     expect(source).toContain(
-      'rather than an\nunrelated or heading-only artifact',
+      '/tmp/evorto-public-general-5c827759/legal-terms-390x844.png',
     );
-    expect(source).toContain('Scanner hidden on mobile');
-    expect(source).toContain('no loading text');
-    expect(source).toContain('no\napplication-error text');
-    expect(source).toContain('E2E run `27101593864` is still in progress');
+    expect(source).toContain(
+      '/tmp/evorto-public-general-5c827759/not-found-390x844.png',
+    );
+    expect(source).toContain(
+      '/tmp/evorto-public-general-5c827759/public-event-detail-1440x900.png',
+    );
+    expect(source).toContain(
+      'rather than\nunrelated or heading-only artifacts',
+    );
+    expect(source).toContain('E2E run `27101832020` is still in progress');
     expect(source).toMatch(
       /[Cc]urrent-head local runtime and Browser evidence are\s+positive again after\s+resetting the stale Docker stack/u,
     );
@@ -7629,10 +7628,14 @@ describe('stabilization source', () => {
     const pushedHeadGeneralRefresh = source.match(
       /A later pushed-head General Browser refresh on PR head `533cf16b`[\s\S]*?desktop event-list\s+screenshot\./u,
     )?.[0];
+    const currentPushedHeadGeneralRefresh = source.match(
+      /The current pushed-head public General Browser refresh on PR head `5c827759`[\s\S]*?heading-only images\./u,
+    )?.[0];
 
     expect(checkpoint).toBeDefined();
     expect(currentHeadRecovery).toBeDefined();
     expect(pushedHeadGeneralRefresh).toBeDefined();
+    expect(currentPushedHeadGeneralRefresh).toBeDefined();
     expect(checkpoint).toContain('serving the current local branch');
     expect(checkpoint).toContain('local\n  head `db7845e5e`');
     expect(checkpoint).toContain(
@@ -7960,6 +7963,79 @@ describe('stabilization source', () => {
     expect(pushedHeadGeneralRefresh).toContain(
       'fixed Events/Login navigation on mobile',
     );
+    expect(currentPushedHeadGeneralRefresh).toContain('PR head `5c827759`');
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'generated-doc screenshot alias guard push',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      '`bun run dev:status` passed',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      '`BASE_URL=http://localhost:4218`',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'all 10 anonymous General routes',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      '320x740, 390x844, and 1440x900',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain('`/`, `/events`');
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'seeded event detail\n`/events/cc139a736e819c574cf3`',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain('/legal/imprint');
+    expect(currentPushedHeadGeneralRefresh).toContain('/legal/privacy');
+    expect(currentPushedHeadGeneralRefresh).toContain('/legal/terms');
+    expect(currentPushedHeadGeneralRefresh).toContain('/403');
+    expect(currentPushedHeadGeneralRefresh).toContain('/500');
+    expect(currentPushedHeadGeneralRefresh).toContain('/404');
+    expect(currentPushedHeadGeneralRefresh).toContain('/missing-general-page');
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'All 30\nroute/viewport checks',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'no persistent loading or\napplication-error text',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain('no horizontal overflow');
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'no top/side clipped controls',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'no clipped fixed controls',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'correct Events/Login mobile navigation with Scanner\nhidden',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'correct Events/Scanner/Login desktop navigation',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'zero Browser\nwarning/error logs',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      '/tmp/evorto-public-general-5c827759/events-list-320x740.png',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      '/tmp/evorto-public-general-5c827759/legal-terms-390x844.png',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      '/tmp/evorto-public-general-5c827759/not-found-390x844.png',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      '/tmp/evorto-public-general-5c827759/public-event-detail-1440x900.png',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'meaningful seeded Material event cards',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'readable Terms fallback copy',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'readable not-found fallback copy',
+    );
+    expect(currentPushedHeadGeneralRefresh).toContain(
+      'rather\nthan unrelated or heading-only images',
+    );
     expect(testInventory).toContain(
       'A current-head recovery on PR head `14fe958b`',
     );
@@ -7981,6 +8057,35 @@ describe('stabilization source', () => {
       'seeded Material event cards with real icons/times',
     );
     expect(testInventory).toContain('wildcard not-found fallback text');
+    expect(testInventory).toContain(
+      'PR head `5c827759` has a current in-app Browser public General refresh',
+    );
+    expect(testInventory).toContain(
+      'refined Browser sweep checked all 10 anonymous General routes',
+    );
+    expect(testInventory).toContain('`/events/cc139a736e819c574cf3`');
+    expect(testInventory).toContain('no clipped fixed controls');
+    expect(testInventory).toContain(
+      'correct Events/Login mobile navigation\n  with Scanner hidden',
+    );
+    expect(testInventory).toContain(
+      'correct Events/Scanner/Login desktop navigation',
+    );
+    expect(testInventory).toContain(
+      '/tmp/evorto-public-general-5c827759/events-list-320x740.png',
+    );
+    expect(testInventory).toContain(
+      '/tmp/evorto-public-general-5c827759/legal-terms-390x844.png',
+    );
+    expect(testInventory).toContain(
+      '/tmp/evorto-public-general-5c827759/not-found-390x844.png',
+    );
+    expect(testInventory).toContain(
+      '/tmp/evorto-public-general-5c827759/public-event-detail-1440x900.png',
+    );
+    expect(testInventory).toContain(
+      'desktop list/detail event registration surface with side navigation rather\n  than unrelated or heading-only images',
+    );
     expect(checkpoint).toContain('Playwright-test MCP Browser planner');
     expect(checkpoint).toMatch(/`DATABASE_URL` was\s+undefined/u);
     expect(checkpoint).toContain(

@@ -1874,3 +1874,22 @@ provider outcomes without live identifiers.
   seeded Material event cards with real icons/times, event-detail registration
   content, legal fallback text, wildcard not-found fallback text, fixed
   Events/Login mobile navigation, and the desktop event-list layout.
+- PR head `5c827759` has a current in-app Browser public General refresh.
+  `bun run dev:status` passed at `BASE_URL=http://localhost:4218`; then the
+  refined Browser sweep checked all 10 anonymous General routes at 320x740,
+  390x844, and 1440x900: `/`, `/events`, seeded event detail
+  `/events/cc139a736e819c574cf3`, `/legal/imprint`, `/legal/privacy`,
+  `/legal/terms`, `/403`, `/500`, `/404`, and `/missing-general-page`. All 30
+  route/viewport checks found expected current content, no persistent loading
+  or application-error text, no horizontal overflow, no top/side clipped
+  controls, no clipped fixed controls, correct Events/Login mobile navigation
+  with Scanner hidden, correct Events/Scanner/Login desktop navigation, and zero
+  Browser warning/error logs. The inspected screenshots
+  `/tmp/evorto-public-general-5c827759/events-list-320x740.png`,
+  `/tmp/evorto-public-general-5c827759/legal-terms-390x844.png`,
+  `/tmp/evorto-public-general-5c827759/not-found-390x844.png`, and
+  `/tmp/evorto-public-general-5c827759/public-event-detail-1440x900.png` show
+  seeded Material event cards with icons/times and fixed bottom navigation,
+  readable Terms fallback copy, readable not-found fallback copy, and the
+  desktop list/detail event registration surface with side navigation rather
+  than unrelated or heading-only images.
