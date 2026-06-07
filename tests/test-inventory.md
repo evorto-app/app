@@ -1297,7 +1297,7 @@ provider outcomes without live identifiers.
   Events/Login bottom navigation. The matching focused
   `bun run test:e2e:public-general-viewports` run passed against the same
   running Docker app.
-  The current-head Browser refresh at `ffe94889` rebuilt and reseeded the
+  An earlier current-head Browser refresh at `ffe94889` rebuilt and reseeded the
   generated Docker app, derived the public `Small Event Example 1` detail link
   from `/events`, and checked all anonymous General routes at 320x740, 390x844,
   and 1440x900. All 30 checks found expected content, document/body widths
@@ -1312,6 +1312,21 @@ provider outcomes without live identifiers.
   detail/registration state. The matching focused
   `bun run test:e2e:public-general-viewports` run passed against the same
   running Docker app.
+  The current-head Browser refresh at `38a398c7` rebuilt and started the
+  generated Docker app at `BASE_URL=http://localhost:4218`, reran
+  `bun run test:e2e:public-general-viewports -- --no-deps` with 2 passing
+  tests, and checked all anonymous General routes at 320x740, 390x844, and
+  1440x900 through direct in-app Browser control. All 30 Browser checks found
+  expected content, document/body widths inside the viewport, no horizontal
+  overflow, no top/side clipped visible controls, no visible loading
+  placeholders, no rendered application-error text, fixed General navigation,
+  and zero Browser warning/error logs. The inspected screenshots
+  `/tmp/evorto-general-browser-38a398c7-events-320x740.png`,
+  `/tmp/evorto-general-browser-38a398c7-terms-390x844.png`, and
+  `/tmp/evorto-general-browser-38a398c7-event-detail-1440x900.png` show seeded
+  Material event cards, the Terms legal fallback page, and the desktop event
+  detail/registration state without the transient list-loading overlay from the
+  first Browser attempt.
   An earlier PR-head Browser refresh at `449108fc` reused the generated Docker
   app on `http://localhost:4218`, derived the seeded public event detail link
   from `/events`, and rechecked the same 10 anonymous General routes at

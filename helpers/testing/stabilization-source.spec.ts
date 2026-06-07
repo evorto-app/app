@@ -7497,6 +7497,28 @@ describe('stabilization source', () => {
       '/tmp/evorto-public-general-aef3ccdc-mobile-legal-privacy.jpg',
     );
     expect(inventory).toContain(
+      'The current-head Browser refresh at `38a398c7`',
+    );
+    expect(inventory).toContain(
+      'bun run test:e2e:public-general-viewports -- --no-deps',
+    );
+    expect(inventory).toContain(
+      'All 30 Browser checks found\n  expected content',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-general-browser-38a398c7-events-320x740.png',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-general-browser-38a398c7-terms-390x844.png',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-general-browser-38a398c7-event-detail-1440x900.png',
+    );
+    expect(inventory).toContain('transient list-loading overlay');
+    expect(inventory).not.toContain(
+      'The current-head Browser refresh at `ffe94889`',
+    );
+    expect(inventory).toContain(
       'An earlier PR-head Browser refresh at `449108fc`',
     );
     expect(inventory).not.toContain(

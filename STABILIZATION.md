@@ -6008,7 +6008,7 @@ placeholders, no rendered application-error text, no horizontal overflow or
 visible left/right overflow entries, and no Browser warning/error logs. The
 matching focused `bun run test:e2e:public-general-viewports` run passed against
 the same Docker app.
-A fresh June 7, 2026 current-head Browser refresh on pushed head `ffe94889`
+An earlier June 7, 2026 current-head Browser refresh on pushed head `ffe94889`
 rebuilt and reseeded the generated Docker app, derived the public
 `Small Event Example 1` detail link from `/events`, and checked all 10
 anonymous General routes at 320x740, 390x844, and 1440x900. All 30 checks
@@ -6021,6 +6021,22 @@ at `/tmp/evorto-public-general-ffe94889-events-list-320x740.png`,
 `/tmp/evorto-public-general-ffe94889-event-detail-1440x900.png`; the matching
 focused `bun run test:e2e:public-general-viewports` run passed against the same
 running Docker app with 2 tests.
+A fresh June 7, 2026 current-head Browser refresh on pushed head `38a398c7`
+rebuilt and started the generated Docker app at
+`BASE_URL=http://localhost:4218`, reran the focused
+`bun run test:e2e:public-general-viewports -- --no-deps` sweep with 2 passing
+tests, then used direct in-app Browser control for all 10 anonymous General
+routes at 320x740, 390x844, and 1440x900. All 30 Browser checks found expected
+content, document/body widths inside the viewport, no horizontal overflow, no
+top/side clipped visible controls, no visible loading placeholders, no rendered
+application-error text, fixed General navigation, and zero Browser warning/error
+logs. The Browser pass saved and visually inspected representative screenshots
+at `/tmp/evorto-general-browser-38a398c7-events-320x740.png`,
+`/tmp/evorto-general-browser-38a398c7-terms-390x844.png`, and
+`/tmp/evorto-general-browser-38a398c7-event-detail-1440x900.png`; they show
+seeded Material event cards, the Terms legal fallback page, and the desktop
+event detail/registration state without the transient list-loading overlay from
+the first Browser attempt.
 A fresh June 6, 2026 current-head runtime refresh at pushed head `612eddd2`
 could not produce new in-app Browser evidence: `bun run dev:status` regenerated
 `.env.dev`, reported `BASE_URL=http://localhost:4200` and
