@@ -2967,6 +2967,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/`\.at\(\.\.\.\)`\s+indexed helper lists/u);
     expect(inventory).toContain('assigned local aliases');
     expect(inventory).toContain('returned attach-helper factories');
+    expect(inventory).toContain('copied returned helper\n  groups');
     expect(inventory).toMatch(/simple body\s+forwarding/u);
     expect(inventory).toContain('`Buffer.from(...)`');
     expect(inventory).toContain('template interpolation');
@@ -2980,7 +2981,10 @@ describe('stabilization source', () => {
       /bound,\s+destructured,\s+grouped,\s+indexed,\s+assigned,\s+binding-default,\s+or\s+parameter-default/u,
     );
     expect(inventory).toMatch(
-      /returned raw Markdown attach-helper factories,\s+and spread,\s+`call`,\s+`apply`,\s+or\s+inline `bind` forwarding/u,
+      /returned raw Markdown attach-helper factories including copied returned helper\s+groups/u,
+    );
+    expect(inventory).toMatch(
+      /spread,\s+`call`,\s+`apply`,\s+or inline `bind` forwarding/u,
     );
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');
@@ -3092,6 +3096,9 @@ describe('stabilization source', () => {
     expect(source).toContain('Assigned local raw capture aliases');
     expect(source).toContain('Assigned local raw Markdown-image aliases');
     expect(source).toMatch(/Returned raw\s+Markdown attach helpers/u);
+    expect(source).toContain(
+      'Copied returned raw Markdown attach helper groups',
+    );
     expect(source).toContain(
       'Assigned and returned explanatory Markdown helpers',
     );

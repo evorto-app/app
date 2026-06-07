@@ -2721,7 +2721,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       collectGroupedPropertyAliases(
         node.name.text,
         node.initializer,
-        isAttachFunctionReference,
+        isTrackedAttachFunctionReference,
         markdownAttachFunctionAliases,
         markdownAttachFunctionPropertyAliases,
         staticStringAliases,
@@ -9061,6 +9061,30 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/returned-markdown-attach.doc.ts:7:13',
       'tests/docs/example/returned-markdown-attach.doc.ts:8:13',
       'tests/docs/example/returned-markdown-attach.doc.ts:10:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind copied returned attach helper groups', () => {
+    const copiedReturnedAttachSource = `
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      function resolveMarkdownAttach() {
+        return testInfo.attach.bind(testInfo);
+      }
+      const attachHelpers = { attachMarkdownEvidence: resolveMarkdownAttach() };
+      const spreadAttachHelpers = { ...attachHelpers };
+      const assignedAttachHelpers = Object.assign({}, attachHelpers);
+      await spreadAttachHelpers.attachMarkdownEvidence('markdown', rawMarkdownPayload);
+      await assignedAttachHelpers.attachMarkdownEvidence('markdown', rawMarkdownPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/copied-returned-markdown-attach.doc.ts',
+        copiedReturnedAttachSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-returned-markdown-attach.doc.ts:9:13',
+      'tests/docs/example/copied-returned-markdown-attach.doc.ts:10:13',
     ]);
   });
 

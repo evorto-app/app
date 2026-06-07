@@ -726,8 +726,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   payloads, and attach helpers, shorthand `{ body }`, plus bound,
   destructured, grouped, indexed, assigned, binding-default, or
   parameter-default `attach` helpers including `.at(...)` indexed helper lists,
-  returned raw Markdown attach-helper factories, and spread, `call`, `apply`, or
-  inline `bind` forwarding,
+  returned raw Markdown attach-helper factories including copied returned helper
+  groups, and spread, `call`, `apply`, or inline `bind` forwarding,
   so image evidence cannot bypass the shared helper, and
   rejects raw `page.screenshot`,
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs

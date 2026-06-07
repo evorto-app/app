@@ -7352,3 +7352,22 @@ the images show readable Terms fallback copy and a real seeded Events list with
 Material event cards/icons/times, fixed Events/Login bottom navigation, no
 loading or application-error text, no clipped visible controls on the Terms
 route, and zero warning/error Browser logs.
+
+Copied returned raw Markdown attach helper groups are now rejected by the same
+raw Markdown-image source guard. That closes the adjacent docs bypass where a
+returned `testInfo.attach` helper could be stored in an object, copied through
+spread or `Object.assign(...)`, and then used to attach raw Markdown image
+markup outside the shared screenshot helper. Focused generated-doc source
+coverage now includes the copied returned-helper group regression, and the test
+inventory records copied returned helper groups under raw Markdown image
+attachment quality. Validation for this slice passed `bun run format:write`,
+`bun run lint`, the focused generated-documentation/stabilization source suite
+with 188 passing tests, and `git diff --check`; WebStorm errors-only diagnostics
+stayed blocked because this worktree is not open in the IDE. Browser
+verification at 390x844 captured
+`/tmp/evorto-copied-returned-markdown-helper-source-guard-privacy-390x844.png`
+and `/tmp/evorto-copied-returned-markdown-helper-source-guard-events-390x844.png`;
+the images show readable Privacy fallback copy and real seeded Events cards with
+Material surfaces/icons/times, fixed Events/Login bottom navigation, no loading
+or application-error text, no clipped visible controls on the Privacy route, and
+zero warning/error Browser logs.
