@@ -6960,11 +6960,12 @@ no horizontal overflow entries, fixed Events/Login bottom navigation, and zero
 Browser warning/error logs. The inspected screenshot is
 `/tmp/evorto-visible-loading-layout-guard-terms-390x844.png`.
 
-The public General readability guard now runs the hosted legal, 403, 404, and
-500 simple pages across the full durable viewport matrix, not just the 390x844
-mobile viewport. Each page is checked under light and dark rendering at 320x740,
-390x844, and 1440x900 so headings and supporting copy must stay readable on a
-painted Material surface at every General viewport covered by the layout sweep.
+The public General readability guard now runs every hosted legal page plus the
+403, 404, and 500 simple pages across the full durable viewport matrix, not just
+the 390x844 mobile viewport. Each page is checked under light and dark rendering
+at 320x740, 390x844, and 1440x900 so headings and supporting copy must stay
+readable on a painted Material surface at every General viewport covered by the
+layout sweep.
 A same-slice in-app Browser desktop spot check opened `/404` at 1440x900 with
 `stabilizationEvidence=general-readability-viewport-matrix` and verified the
 Page not found heading and supporting copy on the Material surface with no
@@ -7075,3 +7076,14 @@ generated unhealthy DB container because Docker could not kill it and did not
 receive an exit event. No new Browser visual/layout evidence is claimed for
 this follow-up; the next Browser refresh still needs a Docker Desktop/engine
 restart before app-level verification can be trusted.
+
+A later local rerun after expanding the public General readability matrix tried
+`bun run test:e2e:public-general-viewports` against the same generated
+`BASE_URL=http://localhost:4218`; both Playwright tests failed before any route
+rendering because tenant seeding hit `DrizzleQueryError` during the initial
+`tenants` insert. The follow-up `bun run dev:status` regenerated `.env.dev`,
+reported the database endpoint on `localhost:55618` as unreachable, confirmed
+Docker Compose and the disposable Alpine start path were available, still saw
+`/legal/terms` return HTTP 500, and kept the Neon dry-run clean with only
+protected `main`. No Browser or focused E2E layout claim is made for this
+matrix expansion until the local DB/app route probe is healthy again.

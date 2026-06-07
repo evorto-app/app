@@ -248,6 +248,20 @@ test('public simple General pages remain readable across viewport rendering', as
   const simpleGeneralRoutes = [
     {
       extraText: 'No tenant-provided legal text is configured for this page.',
+      heading: 'Imprint',
+      paragraphSelector: 'app-legal-page p',
+      path: '/legal/imprint',
+      titleSelector: 'app-legal-page h1',
+    },
+    {
+      extraText: 'No tenant-provided legal text is configured for this page.',
+      heading: 'Privacy policy',
+      paragraphSelector: 'app-legal-page p',
+      path: '/legal/privacy',
+      titleSelector: 'app-legal-page h1',
+    },
+    {
+      extraText: 'No tenant-provided legal text is configured for this page.',
       heading: 'Terms',
       paragraphSelector: 'app-legal-page p',
       path: '/legal/terms',

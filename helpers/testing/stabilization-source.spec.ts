@@ -8689,6 +8689,12 @@ describe('stabilization source', () => {
     expect(viewportSpec).toContain(
       "test('public simple General pages remain readable across viewport rendering'",
     );
+    expect(viewportSpec).toContain("heading: 'Imprint'");
+    expect(viewportSpec).toContain("path: '/legal/imprint'");
+    expect(viewportSpec).toContain("heading: 'Privacy policy'");
+    expect(viewportSpec).toContain("path: '/legal/privacy'");
+    expect(viewportSpec).toContain("heading: 'Terms'");
+    expect(viewportSpec).toContain("path: '/legal/terms'");
     expect(viewportSpec).toContain(
       'await test.step(`${viewport.label} viewport`, async () =>',
     );
