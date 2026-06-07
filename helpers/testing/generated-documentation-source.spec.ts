@@ -1069,6 +1069,16 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
       collectBindingInitializerAliases(
         node.name,
+        hasRawMarkdownImage,
+        rawMarkdownBodyAliases,
+      );
+      collectBindingInitializerAliases(
+        node.name,
+        hasRawMarkdownPayload,
+        rawMarkdownPayloadAliases,
+      );
+      collectBindingInitializerAliases(
+        node.name,
         isTrackedAttachFunctionReference,
         markdownAttachFunctionAliases,
       );
@@ -4540,6 +4550,25 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/binding-default-markdown-image.doc.ts:4:13',
       'tests/docs/example/binding-default-markdown-image.doc.ts:6:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind binding default body and payload aliases', () => {
+    const bindingDefaultMarkdownBodySource = `
+      const { rawMarkdownBody = '![raw](raw.png)' } = {};
+      await testInfo.attach('markdown', { body: rawMarkdownBody });
+      const [rawMarkdownPayload = { body: '<img src="../raw.png" alt="Raw">' }] = [];
+      await testInfo.attach('markdown', rawMarkdownPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/binding-default-markdown-body.doc.ts',
+        bindingDefaultMarkdownBodySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/binding-default-markdown-body.doc.ts:3:13',
+      'tests/docs/example/binding-default-markdown-body.doc.ts:5:13',
     ]);
   });
 

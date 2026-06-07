@@ -1470,7 +1470,7 @@ describe('stabilization source', () => {
     expect(source).toContain('raw Markdown image syntax');
     expect(source).toContain('HTML `<img>` tags');
     expect(source).toMatch(
-      /grouped\/indexed\/destructured or\s+assigned payload objects/u,
+      /grouped\/indexed\/destructured,\s+assigned,\s+or binding-default body\/payload aliases/u,
     );
     expect(source).toContain('simple body forwarding');
     expect(source).toContain('`Buffer.from(...)`');
@@ -1478,9 +1478,6 @@ describe('stabilization source', () => {
     expect(source).toContain('nullish/logical expressions');
     expect(source).toMatch(/shorthand\s+`\{ body \}`,\s+bound/u);
     expect(source).toMatch(/destructured,\s+grouped,\s+indexed/u);
-    expect(source).toMatch(
-      /assigned,\s+or binding-default\s+`attach`\s+helpers/u,
-    );
     expect(source).toContain('binding-default `attach`');
     expect(source).toMatch(
       /and spread,\s+`call`,\s+`apply`,\s+`Reflect\.apply`,\s+or inline `bind`/u,
@@ -2352,6 +2349,15 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       "const [attachEvidence = testInfo['attach'].bind(testInfo)] = []",
     );
+    expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind binding default body and payload aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const { rawMarkdownBody = '![raw](raw.png)' } = {}",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'const [rawMarkdownPayload = { body: \'<img src="../raw.png" alt="Raw">\' }] = []',
+    );
     expect(generatedDocumentationSource).toContain('const rawMarkdownArgs = [');
     expect(generatedDocumentationSource).toContain(
       'await testInfo.attach(...rawMarkdownArgs)',
@@ -2407,8 +2413,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('conditionals');
     expect(inventory).toContain('nullish/logical expressions');
     expect(inventory).toMatch(/aliased payload\s+objects/u);
+    expect(inventory).toMatch(/binding-default\s+body\/payload aliases/u);
     expect(inventory).toMatch(
-      /bound,\s+destructured,\s+grouped,\s+indexed,\s+assigned,\s+or binding-default/u,
+      /bound,\s+destructured,\s+grouped,\s+indexed,\s+assigned,\s+or\s+binding-default/u,
     );
     expect(inventory).toMatch(
       /spread,\s+`call`,\s+`apply`,\s+or inline `bind`\s+forwarding/u,
