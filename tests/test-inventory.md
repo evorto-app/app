@@ -594,8 +594,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   page content before attachment, rejects generic page-root screenshot targets
   such as `body`, `html`, or `app-root`, including aliased generic locators and
   helper-returned generic locators inside screenshot arguments and arrays plus
-  chained generic page-shell locators such as `.first()` or `.filter(...)` and
-  template-literal generic shell selectors,
+  chained generic page-shell locators such as `.first()` or `.filter(...)`,
+  template-literal generic shell selectors, and reflected grouped weak target
+  properties read through `Reflect.get(...)`,
   rejects unfiltered broad `section`, `article`, `div`, `form`, and `app-*`
   component-host screenshot targets, including no-substitution template-literal
   broad selectors, aliased broad locators, and helper-returned broad locators

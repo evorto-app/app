@@ -6346,7 +6346,10 @@ helper is declared later in the file. Object-property aliases such as
 docs from hiding weak screenshot targets behind a grouped target object. The guard
 normalizes static computed keys such as `targets['shell']` and
 `{ ['shell']: page.locator('main') }`, so bracketed grouped targets do not
-bypass meaningful-image enforcement. It also resolves grouped target shorthand,
+bypass meaningful-image enforcement. It also resolves `Reflect.get(...)` reads
+of grouped generic, broad, single-control, and icon/media target properties,
+including local `Reflect` aliases and constant-backed keys, so reflected weak
+target lookups cannot bypass meaningful-image enforcement. It also resolves grouped target shorthand,
 alias-valued grouped properties, and static indexed target lists such as
 `targetList[0]`, `targetList.at(0)`, or `targetList.at(-1)`, so
 `targets.shell`, `targetList[0]`, `targetList.at(0)`, and `targetList.at(-1)`
@@ -6358,7 +6361,11 @@ screenshots through a differently named helper such as
 Namespace imports and property-access calls such as
 `documentationReporter.takeScreenshot(...)` are rejected too, so generated docs
 cannot bypass direct `takeScreenshot(...)` target, caption, and count checks
-through the reporter module object.
+through the reporter module object. A same-slice in-app Browser spot check
+opened `/legal/terms?stabilizationEvidence=reflected-target-source-guard` at
+390x844 on the generated local app, confirmed Terms content and hosted fallback
+copy, found no loading or application-error text, found no horizontal-overflow
+entries, and reported zero Browser warning/error logs.
 Parenthesized helper calls such as `(takeScreenshot)(...)` are unwrapped before
 the same screenshot counting, caption, and target-quality checks run, so
 syntactic wrapping cannot hide weak generated-doc image evidence.

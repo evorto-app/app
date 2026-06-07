@@ -1651,6 +1651,11 @@ describe('stabilization source', () => {
     expect(source).toContain('array\nhelper calls');
     expect(source).toContain('`targetList.at(0)`');
     expect(source).toContain('`targetList.at(-1)`');
+    expect(source).toContain('`Reflect.get(...)` reads\nof grouped generic');
+    expect(source).toContain('reflected weak\ntarget lookups');
+    expect(inventory).toContain(
+      'reflected grouped weak target\n  properties read through `Reflect.get(...)`',
+    );
     expect(source).toMatch(
       /[Cc]onditional, nullish-coalesced, and logical\s+target\s+expressions/u,
     );

@@ -1090,6 +1090,36 @@ const getReflectGetPropertyReference = (
   return `${unwrapExpression(expression.arguments[0]).getText(sourceFile)}.${propertyName}`;
 };
 
+const getStaticOrReflectedPropertyReference = (
+  node: ts.Expression,
+  sourceFile: ts.SourceFile,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
+  reflectAliases: ReadonlySet<string> = new Set(),
+): null | string => {
+  const expression = unwrapExpression(node);
+
+  if (
+    ts.isPropertyAccessExpression(expression) ||
+    ts.isElementAccessExpression(expression)
+  ) {
+    return getStaticPropertyReference(expression, sourceFile, stringAliases);
+  }
+
+  if (ts.isCallExpression(expression)) {
+    return (
+      getStaticArrayMethodReference(expression, sourceFile, stringAliases) ??
+      getReflectGetPropertyReference(
+        expression,
+        sourceFile,
+        stringAliases,
+        reflectAliases,
+      )
+    );
+  }
+
+  return null;
+};
+
 const getStaticArrayMethodReference = (
   node: ts.Expression,
   sourceFile: ts.SourceFile,
@@ -1987,6 +2017,8 @@ const findGenericScreenshotTargets = (
     true,
     ts.ScriptKind.TS,
   );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const reflectAliases = collectReflectAliases(sourceFile);
   const genericTargets: string[] = [];
   const genericTargetAliases = new Set<string>();
   const genericTargetPropertyAliases = new Set<string>();
@@ -2033,16 +2065,23 @@ const findGenericScreenshotTargets = (
       ts.isPropertyAccessExpression(target) ||
       ts.isElementAccessExpression(target)
     ) {
-      const propertyReference = getStaticPropertyReference(target, sourceFile);
+      const propertyReference = getStaticOrReflectedPropertyReference(
+        target,
+        sourceFile,
+        staticStringAliases,
+        reflectAliases,
+      );
       return propertyReference
         ? genericTargetPropertyAliases.has(propertyReference)
         : false;
     }
 
     if (ts.isCallExpression(target)) {
-      const propertyReference = getStaticArrayMethodReference(
+      const propertyReference = getStaticOrReflectedPropertyReference(
         target,
         sourceFile,
+        staticStringAliases,
+        reflectAliases,
       );
 
       if (
@@ -2237,6 +2276,8 @@ const findUnfilteredBroadScreenshotTargets = (
     true,
     ts.ScriptKind.TS,
   );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const reflectAliases = collectReflectAliases(sourceFile);
   const broadTargets: string[] = [];
   const broadTargetAliases = new Set<string>();
   const broadTargetPropertyAliases = new Set<string>();
@@ -2282,16 +2323,23 @@ const findUnfilteredBroadScreenshotTargets = (
       ts.isPropertyAccessExpression(target) ||
       ts.isElementAccessExpression(target)
     ) {
-      const propertyReference = getStaticPropertyReference(target, sourceFile);
+      const propertyReference = getStaticOrReflectedPropertyReference(
+        target,
+        sourceFile,
+        staticStringAliases,
+        reflectAliases,
+      );
       return propertyReference
         ? broadTargetPropertyAliases.has(propertyReference)
         : false;
     }
 
     if (ts.isCallExpression(target)) {
-      const propertyReference = getStaticArrayMethodReference(
+      const propertyReference = getStaticOrReflectedPropertyReference(
         target,
         sourceFile,
+        staticStringAliases,
+        reflectAliases,
       );
 
       if (
@@ -2491,6 +2539,8 @@ const findSingleControlScreenshotTargets = (
     true,
     ts.ScriptKind.TS,
   );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const reflectAliases = collectReflectAliases(sourceFile);
   const singleControlTargets: string[] = [];
   const singleControlAliases = new Set<string>();
   const singleControlPropertyAliases = new Set<string>();
@@ -2587,16 +2637,23 @@ const findSingleControlScreenshotTargets = (
       ts.isPropertyAccessExpression(target) ||
       ts.isElementAccessExpression(target)
     ) {
-      const propertyReference = getStaticPropertyReference(target, sourceFile);
+      const propertyReference = getStaticOrReflectedPropertyReference(
+        target,
+        sourceFile,
+        staticStringAliases,
+        reflectAliases,
+      );
       return propertyReference
         ? singleControlPropertyAliases.has(propertyReference)
         : false;
     }
 
     if (ts.isCallExpression(target)) {
-      const propertyReference = getStaticArrayMethodReference(
+      const propertyReference = getStaticOrReflectedPropertyReference(
         target,
         sourceFile,
+        staticStringAliases,
+        reflectAliases,
       );
 
       if (
@@ -2817,6 +2874,8 @@ const findIconOrMediaScreenshotTargets = (
     true,
     ts.ScriptKind.TS,
   );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const reflectAliases = collectReflectAliases(sourceFile);
   const iconOrMediaTargets: string[] = [];
   const iconOrMediaAliases = new Set<string>();
   const iconOrMediaPropertyAliases = new Set<string>();
@@ -2881,16 +2940,23 @@ const findIconOrMediaScreenshotTargets = (
       ts.isPropertyAccessExpression(target) ||
       ts.isElementAccessExpression(target)
     ) {
-      const propertyReference = getStaticPropertyReference(target, sourceFile);
+      const propertyReference = getStaticOrReflectedPropertyReference(
+        target,
+        sourceFile,
+        staticStringAliases,
+        reflectAliases,
+      );
       return propertyReference
         ? iconOrMediaPropertyAliases.has(propertyReference)
         : false;
     }
 
     if (ts.isCallExpression(target)) {
-      const propertyReference = getStaticArrayMethodReference(
+      const propertyReference = getStaticOrReflectedPropertyReference(
         target,
         sourceFile,
+        staticStringAliases,
+        reflectAliases,
       );
 
       if (
@@ -7884,6 +7950,73 @@ describe('generated docs source current behavior', () => {
         computedTargetSource,
       ),
     ).toEqual(['tests/docs/example/computed-target.doc.ts:29:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind Reflect.get property aliases', () => {
+    const reflectedTargetSource = `
+      const targets = {
+        shell: page.locator('main'),
+        broad: page.locator('section'),
+        single: page.getByRole('button', { name: 'Save' }),
+        icon: page.locator('svg'),
+      };
+      const reflectedShell = Reflect.get(targets, 'shell');
+      await takeScreenshot(
+        testInfo,
+        reflectedShell,
+        page,
+        'Reflected generic shell target with a descriptive caption',
+      );
+      const reflectMirror = Reflect;
+      await takeScreenshot(
+        testInfo,
+        reflectMirror.get(targets, 'broad'),
+        page,
+        'Reflected broad section target with a descriptive caption',
+      );
+      const singleKey = 'single';
+      await takeScreenshot(
+        testInfo,
+        Reflect.get(targets, singleKey),
+        page,
+        'Reflected single control target with a descriptive caption',
+      );
+      const iconKey = 'icon';
+      await takeScreenshot(
+        testInfo,
+        reflectMirror.get(targets, iconKey),
+        page,
+        'Reflected icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/reflect-get-target.doc.ts',
+        reflectedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/reflect-get-target.doc.ts:9:13']);
+
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/reflect-get-target.doc.ts',
+        reflectedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/reflect-get-target.doc.ts:16:13']);
+
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/reflect-get-target.doc.ts',
+        reflectedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/reflect-get-target.doc.ts:23:13']);
+
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/reflect-get-target.doc.ts',
+        reflectedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/reflect-get-target.doc.ts:30:13']);
   });
 
   it('detects grouped weak documentation screenshot target aliases', () => {
