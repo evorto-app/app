@@ -168,16 +168,17 @@ Tax rates are managed on the separate **Tax Rates** page.
   for (const field of operationsPolicySettingsFields) {
     await expect(field).toBeVisible();
   }
-  const operationsPolicySettingsSurface = generalSettings
-    .locator('form')
-    .filter({ hasText: 'Operations policy' })
-    .filter({ hasText: 'Configure tenant-level operational defaults.' })
-    .filter({ hasText: 'Event review policy' })
-    .filter({ hasText: 'Stripe account management' })
-    .filter({ hasText: 'Email sender name' })
-    .filter({ hasText: 'Registration limit' })
-    .filter({ hasText: 'Limit window days' })
-    .first();
+  const operationsPolicySettingsSurface = generalSettingsSection(page, {
+    requiredText: [
+      'Configure tenant-level operational defaults.',
+      'Event review policy',
+      'Stripe account management',
+      'Email sender name',
+      'Registration limit',
+      'Limit window days',
+    ],
+    title: 'Operations policy',
+  });
   await expect(operationsPolicySettingsSurface).toBeVisible();
   await takeScreenshot(
     testInfo,
@@ -216,14 +217,16 @@ Tax rates are managed on the separate **Tax Rates** page.
   for (const control of brandAndSearchSettingsControls) {
     await expect(control).toBeVisible();
   }
-  const brandAndSearchSettingsSurface = generalSettings
-    .locator('form')
-    .filter({ hasText: 'Brand assets' })
-    .filter({ hasText: 'Upload logo' })
-    .filter({ hasText: 'Upload favicon' })
-    .filter({ hasText: 'Search preview' })
-    .filter({ hasText: 'SEO title' })
-    .first();
+  const brandAndSearchSettingsSurface = generalSettingsSection(page, {
+    requiredText: [
+      'Upload logo',
+      'Upload favicon',
+      'Search preview',
+      'SEO title',
+      'SEO description',
+    ],
+    title: 'Brand assets',
+  });
   await expect(brandAndSearchSettingsSurface).toBeVisible();
   await takeScreenshot(
     testInfo,
@@ -254,16 +257,17 @@ Tax rates are managed on the separate **Tax Rates** page.
   for (const field of legalPageSettingsFields) {
     await expect(field).toBeVisible();
   }
-  const legalPageSettingsSurface = generalSettings
-    .locator('form')
-    .filter({ hasText: 'Legal pages' })
-    .filter({ hasText: 'Imprint / legal notice URL' })
-    .filter({ hasText: 'Hosted imprint / legal notice text' })
-    .filter({ hasText: 'Privacy policy URL' })
-    .filter({ hasText: 'Hosted privacy policy text' })
-    .filter({ hasText: 'Terms URL' })
-    .filter({ hasText: 'Hosted terms text' })
-    .first();
+  const legalPageSettingsSurface = generalSettingsSection(page, {
+    requiredText: [
+      'Imprint / legal notice URL',
+      'Hosted imprint / legal notice text',
+      'Privacy policy URL',
+      'Hosted privacy policy text',
+      'Terms URL',
+      'Hosted terms text',
+    ],
+    title: 'Legal pages',
+  });
   await expect(legalPageSettingsSurface).toBeVisible();
   await takeScreenshot(
     testInfo,
@@ -279,14 +283,15 @@ Tax rates are managed on the separate **Tax Rates** page.
   await expect(
     generalSettings.getByRole('button', { name: 'Save' }),
   ).toBeVisible();
-  const financeAndDiscountSettingsSurface = generalSettings
-    .locator('form')
-    .filter({ hasText: 'Finance settings' })
-    .filter({ hasText: 'Allowed receipt countries' })
-    .filter({ hasText: 'Discount providers' })
-    .filter({ hasText: 'ESN Card discounts' })
-    .filter({ hasText: 'Save' })
-    .first();
+  const financeAndDiscountSettingsSurface = generalSettingsSection(page, {
+    requiredText: [
+      'Allowed receipt countries',
+      'Discount providers',
+      'ESN Card discounts',
+      'Save',
+    ],
+    title: 'Finance settings',
+  });
   await expect(financeAndDiscountSettingsSurface).toBeVisible();
   const financeAndDiscountSettingsControls = [
     generalSettingsField(page, 'Allowed receipt countries'),

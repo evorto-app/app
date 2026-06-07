@@ -1,5 +1,10 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/admin" mat-icon-button class="lg:hidden! block">
+  <a
+    routerLink="/admin"
+    mat-icon-button
+    aria-label="Back to admin overview"
+    class="lg:hidden! block"
+  >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">General settings</h1>
@@ -106,278 +111,302 @@
         </mat-form-field>
       </div>
 
-      <h3 class="title-small mb-2 mt-6">Operations policy</h3>
-      <p class="text-on-surface-variant mb-3 text-sm">
-        Configure tenant-level operational defaults.
-      </p>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <mat-form-field>
-          <mat-label>Event review policy</mat-label>
-          <mat-select [formField]="settingsForm.eventReviewPolicy">
-            @for (policy of reviewPolicyOptions; track policy) {
-              <mat-option [value]="policy">
-                {{
-                  policy === "review_required"
-                    ? "Reviewer approval required"
-                    : "Organizers publish directly"
-                }}
-              </mat-option>
-            }
-          </mat-select>
-          <mat-hint>Controls what happens when an organizer submits.</mat-hint>
-        </mat-form-field>
-        <mat-form-field>
-          <mat-label>Stripe account management</mat-label>
-          <mat-select [formField]="settingsForm.stripeAccountManagement">
-            @for (policy of stripeAccountManagementOptions; track policy) {
-              <mat-option [value]="policy">
-                {{
-                  policy === "platform_managed"
-                    ? "Platform managed"
-                    : "Tenant admins manage"
-                }}
-              </mat-option>
-            }
-          </mat-select>
-          <mat-hint>Controls who maintains the connected account.</mat-hint>
-        </mat-form-field>
-      </div>
-      <mat-form-field>
-        <mat-label>Email sender name</mat-label>
-        <input
-          matInput
-          [formField]="settingsForm.emailSenderName"
-          placeholder="Example Section"
-        />
-        <mat-hint>
-          Optional display name for future tenant email notifications.
-        </mat-hint>
-      </mat-form-field>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <mat-form-field>
-          <mat-label>Registration limit</mat-label>
+      <section class="mt-8 rounded-xl p-2">
+        <h3 class="title-small mb-2">Operations policy</h3>
+        <p class="text-on-surface-variant mb-3 text-sm">
+          Configure tenant-level operational defaults.
+        </p>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <mat-form-field>
+            <mat-label>Event review policy</mat-label>
+            <mat-select [formField]="settingsForm.eventReviewPolicy">
+              @for (policy of reviewPolicyOptions; track policy) {
+                <mat-option [value]="policy">
+                  {{
+                    policy === "review_required"
+                      ? "Reviewer approval required"
+                      : "Organizers publish directly"
+                  }}
+                </mat-option>
+              }
+            </mat-select>
+            <mat-hint
+              >Controls what happens when an organizer submits.</mat-hint
+            >
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Stripe account management</mat-label>
+            <mat-select [formField]="settingsForm.stripeAccountManagement">
+              @for (policy of stripeAccountManagementOptions; track policy) {
+                <mat-option [value]="policy">
+                  {{
+                    policy === "platform_managed"
+                      ? "Platform managed"
+                      : "Tenant admins manage"
+                  }}
+                </mat-option>
+              }
+            </mat-select>
+            <mat-hint>Controls who maintains the connected account.</mat-hint>
+          </mat-form-field>
+        </div>
+        <mat-form-field class="w-full">
+          <mat-label>Email sender name</mat-label>
           <input
             matInput
-            type="number"
-            [formField]="settingsForm.registrationLimitCount"
-            placeholder="4"
-          />
-          <mat-hint>Maximum participant registrations per user.</mat-hint>
-        </mat-form-field>
-        <mat-form-field>
-          <mat-label>Limit window days</mat-label>
-          <input
-            matInput
-            type="number"
-            [formField]="settingsForm.registrationLimitWindowDays"
-            placeholder="30"
-          />
-          <mat-hint>Rolling upcoming-event window for the limit.</mat-hint>
-        </mat-form-field>
-      </div>
-
-      <h3 class="title-small mb-2 mt-6">Brand assets</h3>
-      <p class="text-on-surface-variant mb-3 text-sm">
-        Upload tenant assets or paste externally hosted URLs. The favicon
-        updates the browser tab icon.
-      </p>
-      <mat-form-field>
-        <mat-label>Logo URL</mat-label>
-        <input
-          matInput
-          [formField]="settingsForm.logoUrl"
-          placeholder="https://section.example.org/logo.svg"
-        />
-      </mat-form-field>
-      <input
-        #logoAssetInput
-        type="file"
-        class="hidden"
-        aria-label="Upload tenant logo file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
-        (change)="uploadBrandAsset('logo', $event)"
-      />
-      <button
-        mat-stroked-button
-        type="button"
-        class="mb-4 w-fit"
-        [disabled]="brandAssetUploadDisabled()"
-        (click)="logoAssetInput.click()"
-      >
-        <fa-duotone-icon [icon]="faUpload" class="mr-2" />
-        {{
-          uploadingBrandAsset() === "logo" ? "Uploading logo" : "Upload logo"
-        }}
-      </button>
-      <mat-form-field>
-        <mat-label>Favicon URL</mat-label>
-        <input
-          matInput
-          [formField]="settingsForm.faviconUrl"
-          placeholder="https://section.example.org/favicon.ico"
-        />
-      </mat-form-field>
-      <input
-        #faviconAssetInput
-        type="file"
-        class="hidden"
-        aria-label="Upload tenant favicon file"
-        accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,image/vnd.microsoft.icon"
-        (change)="uploadBrandAsset('favicon', $event)"
-      />
-      <button
-        mat-stroked-button
-        type="button"
-        class="w-fit"
-        [disabled]="brandAssetUploadDisabled()"
-        (click)="faviconAssetInput.click()"
-      >
-        <fa-duotone-icon [icon]="faUpload" class="mr-2" />
-        {{
-          uploadingBrandAsset() === "favicon"
-            ? "Uploading favicon"
-            : "Upload favicon"
-        }}
-      </button>
-
-      <h3 class="title-small mb-2 mt-6">Search preview</h3>
-      <p class="text-on-surface-variant mb-3 text-sm">
-        Set the default title and description used for tenant-level pages.
-      </p>
-      <mat-form-field>
-        <mat-label>SEO title</mat-label>
-        <input
-          matInput
-          [formField]="settingsForm.seoTitle"
-          placeholder="Tenant name or public site title"
-        />
-      </mat-form-field>
-      <mat-form-field>
-        <mat-label>SEO description</mat-label>
-        <textarea
-          matInput
-          rows="3"
-          [formField]="settingsForm.seoDescription"
-          placeholder="Short description for search results and previews"
-        ></textarea>
-      </mat-form-field>
-
-      <h3 class="title-small mb-2 mt-6">Legal pages</h3>
-      <p class="text-on-surface-variant mb-3 text-sm">
-        Configure tenant-specific public legal pages. Use an external URL when
-        the page is handled elsewhere, or add hosted text for Evorto to publish
-        the page locally.
-      </p>
-      <mat-form-field>
-        <mat-label>Imprint / legal notice URL</mat-label>
-        <input
-          matInput
-          [formField]="settingsForm.legalNoticeUrl"
-          placeholder="https://section.example.org/imprint"
-        />
-      </mat-form-field>
-      <mat-form-field>
-        <mat-label>Hosted imprint / legal notice text</mat-label>
-        <textarea
-          matInput
-          rows="5"
-          [formField]="settingsForm.legalNoticeText"
-          placeholder="Legal notice text shown at /legal/imprint"
-        ></textarea>
-      </mat-form-field>
-      <mat-form-field>
-        <mat-label>Privacy policy URL</mat-label>
-        <input
-          matInput
-          [formField]="settingsForm.privacyPolicyUrl"
-          placeholder="https://section.example.org/privacy"
-        />
-      </mat-form-field>
-      <mat-form-field>
-        <mat-label>Hosted privacy policy text</mat-label>
-        <textarea
-          matInput
-          rows="5"
-          [formField]="settingsForm.privacyPolicyText"
-          placeholder="Privacy policy text shown at /legal/privacy"
-        ></textarea>
-      </mat-form-field>
-      <mat-form-field>
-        <mat-label>Terms URL</mat-label>
-        <input
-          matInput
-          [formField]="settingsForm.termsUrl"
-          placeholder="https://section.example.org/terms"
-        />
-      </mat-form-field>
-      <mat-form-field>
-        <mat-label>Hosted terms text</mat-label>
-        <textarea
-          matInput
-          rows="5"
-          [formField]="settingsForm.termsText"
-          placeholder="Terms shown at /legal/terms"
-        ></textarea>
-      </mat-form-field>
-
-      <h3 class="title-small mb-2 mt-6">Finance settings</h3>
-      <p class="text-on-surface-variant mb-3 text-sm">
-        Configure which countries can be selected when users submit receipts.
-      </p>
-      <mat-form-field>
-        <mat-label>Allowed receipt countries</mat-label>
-        <mat-select [formField]="settingsForm.receiptCountries" multiple>
-          @for (country of receiptCountryOptions; track country.code) {
-            <mat-option [value]="country.code">
-              {{ country.label }} ({{ country.code }})
-            </mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-      <mat-checkbox [formField]="settingsForm.allowOther">
-        Allow other
-      </mat-checkbox>
-      <p class="text-on-surface-variant mt-1 text-xs">
-        Adds an “Other” option for receipts outside the selected countries.
-      </p>
-
-      <h3 class="title-small mb-2 mt-6">Discount providers</h3>
-      <div class="mb-4">
-        <mat-slide-toggle
-          [checked]="esnEnabled()"
-          (change)="setEsnEnabled($event.checked)"
-        >
-          ESN Card discounts
-        </mat-slide-toggle>
-      </div>
-      @if (esnEnabled()) {
-        <mat-form-field class="mb-4">
-          <mat-label>Buy ESNcard URL</mat-label>
-          <input
-            matInput
-            [formField]="settingsForm.buyEsnCardUrl"
-            placeholder="https://esncard.org/"
+            [formField]="settingsForm.emailSenderName"
+            placeholder="Example Section"
           />
           <mat-hint>
-            Optional link shown to users without a verified ESNcard.
+            Optional display name for future tenant email notifications.
           </mat-hint>
         </mat-form-field>
-      }
-      <button
-        mat-flat-button
-        type="submit"
-        [disabled]="
-          generalSettingsSaveDisabled({
-            brandAssetMutationPending: uploadBrandAssetMutation.isPending(),
-            uploadingBrandAsset: uploadingBrandAsset(),
-            formInvalid: settingsForm().invalid(),
-            formSubmitting: settingsForm().submitting(),
-            mutationPending: updateSettingsMutation.isPending(),
-          })
-        "
-      >
-        Save
-      </button>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <mat-form-field>
+            <mat-label>Registration limit</mat-label>
+            <input
+              matInput
+              type="number"
+              [formField]="settingsForm.registrationLimitCount"
+              placeholder="4"
+            />
+            <mat-hint>Maximum participant registrations per user.</mat-hint>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Limit window days</mat-label>
+            <input
+              matInput
+              type="number"
+              [formField]="settingsForm.registrationLimitWindowDays"
+              placeholder="30"
+            />
+            <mat-hint>Rolling upcoming-event window for the limit.</mat-hint>
+          </mat-form-field>
+        </div>
+      </section>
+
+      <section class="mt-8 rounded-xl p-2">
+        <h3 class="title-small mb-2">Brand assets</h3>
+        <p class="text-on-surface-variant mb-3 text-sm">
+          Upload tenant assets or paste externally hosted URLs. The favicon
+          updates the browser tab icon.
+        </p>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div class="flex flex-col gap-2">
+            <mat-form-field class="w-full">
+              <mat-label>Logo URL</mat-label>
+              <input
+                matInput
+                [formField]="settingsForm.logoUrl"
+                placeholder="https://section.example.org/logo.svg"
+              />
+            </mat-form-field>
+            <input
+              #logoAssetInput
+              type="file"
+              class="hidden"
+              aria-label="Upload tenant logo file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              (change)="uploadBrandAsset('logo', $event)"
+            />
+            <button
+              mat-stroked-button
+              type="button"
+              class="w-fit"
+              [disabled]="brandAssetUploadDisabled()"
+              (click)="logoAssetInput.click()"
+            >
+              <fa-duotone-icon [icon]="faUpload" class="mr-2" />
+              {{
+                uploadingBrandAsset() === "logo"
+                  ? "Uploading logo"
+                  : "Upload logo"
+              }}
+            </button>
+          </div>
+          <div class="flex flex-col gap-2">
+            <mat-form-field class="w-full">
+              <mat-label>Favicon URL</mat-label>
+              <input
+                matInput
+                [formField]="settingsForm.faviconUrl"
+                placeholder="https://section.example.org/favicon.ico"
+              />
+            </mat-form-field>
+            <input
+              #faviconAssetInput
+              type="file"
+              class="hidden"
+              aria-label="Upload tenant favicon file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,image/vnd.microsoft.icon"
+              (change)="uploadBrandAsset('favicon', $event)"
+            />
+            <button
+              mat-stroked-button
+              type="button"
+              class="w-fit"
+              [disabled]="brandAssetUploadDisabled()"
+              (click)="faviconAssetInput.click()"
+            >
+              <fa-duotone-icon [icon]="faUpload" class="mr-2" />
+              {{
+                uploadingBrandAsset() === "favicon"
+                  ? "Uploading favicon"
+                  : "Upload favicon"
+              }}
+            </button>
+          </div>
+        </div>
+
+        <h3 class="title-small mb-2 mt-6">Search preview</h3>
+        <p class="text-on-surface-variant mb-3 text-sm">
+          Set the default title and description used for tenant-level pages.
+        </p>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <mat-form-field class="w-full">
+            <mat-label>SEO title</mat-label>
+            <input
+              matInput
+              [formField]="settingsForm.seoTitle"
+              placeholder="Tenant name or public site title"
+            />
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label>SEO description</mat-label>
+            <textarea
+              matInput
+              rows="3"
+              [formField]="settingsForm.seoDescription"
+              placeholder="Short description for search results and previews"
+            ></textarea>
+          </mat-form-field>
+        </div>
+      </section>
+
+      <section class="mt-8 rounded-xl p-2">
+        <h3 class="title-small mb-2">Legal pages</h3>
+        <p class="text-on-surface-variant mb-3 text-sm">
+          Configure tenant-specific public legal pages. Use an external URL when
+          the page is handled elsewhere, or add hosted text for Evorto to
+          publish the page locally.
+        </p>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <mat-form-field class="w-full">
+            <mat-label>Imprint / legal notice URL</mat-label>
+            <input
+              matInput
+              [formField]="settingsForm.legalNoticeUrl"
+              placeholder="https://section.example.org/imprint"
+            />
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label>Hosted imprint / legal notice text</mat-label>
+            <textarea
+              matInput
+              rows="5"
+              [formField]="settingsForm.legalNoticeText"
+              placeholder="Legal notice text shown at /legal/imprint"
+            ></textarea>
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label>Privacy policy URL</mat-label>
+            <input
+              matInput
+              [formField]="settingsForm.privacyPolicyUrl"
+              placeholder="https://section.example.org/privacy"
+            />
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label>Hosted privacy policy text</mat-label>
+            <textarea
+              matInput
+              rows="5"
+              [formField]="settingsForm.privacyPolicyText"
+              placeholder="Privacy policy text shown at /legal/privacy"
+            ></textarea>
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label>Terms URL</mat-label>
+            <input
+              matInput
+              [formField]="settingsForm.termsUrl"
+              placeholder="https://section.example.org/terms"
+            />
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label>Hosted terms text</mat-label>
+            <textarea
+              matInput
+              rows="5"
+              [formField]="settingsForm.termsText"
+              placeholder="Terms shown at /legal/terms"
+            ></textarea>
+          </mat-form-field>
+        </div>
+      </section>
+
+      <section class="mt-8 rounded-xl p-2">
+        <h3 class="title-small mb-2">Finance settings</h3>
+        <p class="text-on-surface-variant mb-3 text-sm">
+          Configure which countries can be selected when users submit receipts.
+        </p>
+        <div class="grid grid-cols-1 items-center gap-4 md:grid-cols-2">
+          <mat-form-field class="w-full">
+            <mat-label>Allowed receipt countries</mat-label>
+            <mat-select [formField]="settingsForm.receiptCountries" multiple>
+              @for (country of receiptCountryOptions; track country.code) {
+                <mat-option [value]="country.code">
+                  {{ country.label }} ({{ country.code }})
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-checkbox [formField]="settingsForm.allowOther">
+            Allow other
+          </mat-checkbox>
+        </div>
+        <p class="text-on-surface-variant mt-1 text-xs">
+          Adds an “Other” option for receipts outside the selected countries.
+        </p>
+
+        <h3 class="title-small mb-2 mt-6">Discount providers</h3>
+        <div class="mb-4">
+          <mat-slide-toggle
+            [checked]="esnEnabled()"
+            (change)="setEsnEnabled($event.checked)"
+          >
+            ESN Card discounts
+          </mat-slide-toggle>
+        </div>
+        @if (esnEnabled()) {
+          <mat-form-field class="mb-4 w-full">
+            <mat-label>Buy ESNcard URL</mat-label>
+            <input
+              matInput
+              [formField]="settingsForm.buyEsnCardUrl"
+              placeholder="https://esncard.org/"
+            />
+            <mat-hint>
+              Optional link shown to users without a verified ESNcard.
+            </mat-hint>
+          </mat-form-field>
+        }
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="
+            generalSettingsSaveDisabled({
+              brandAssetMutationPending: uploadBrandAssetMutation.isPending(),
+              uploadingBrandAsset: uploadingBrandAsset(),
+              formInvalid: settingsForm().invalid(),
+              formSubmitting: settingsForm().submitting(),
+              mutationPending: updateSettingsMutation.isPending(),
+            })
+          "
+        >
+          Save
+        </button>
+      </section>
     </form>
   </div>
 </div>

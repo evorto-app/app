@@ -6341,14 +6341,33 @@ URL and hosted-text fields for imprint, privacy, and terms instead of passing
 only the individual field locators, so the generated image keeps the legal page
 heading and surrounding settings context needed to judge that it is not an
 unrelated form crop.
+The follow-up docs-source pass found that the Operations, brand/search, legal,
+and finance/discount captions could still resolve to the same whole-form image
+when the source used filtered `form` locators. The General settings docs source
+now targets real section surfaces for those four screenshots, and the source
+guard pins the section helper calls so future whole-form or duplicate-image
+regressions fail before publishing docs.
+The General settings template now groups those settings into padded section
+surfaces with responsive Material form-field grids. This fixed the visual
+evidence issues found in the generated screenshots: section headings are no
+longer clipped by the highlight border, hints no longer crowd adjacent fields,
+and the legal/finance captures show the intended controls rather than an
+unrelated page crop.
 Local verification for this focused docs-source slice passed format, lint,
 `helpers/testing/generated-documentation-source.spec.ts`,
-`helpers/testing/stabilization-source.spec.ts`, and `git diff --check`. The
-targeted `docs-baseline` run for `tests/docs/admin/general-settings.doc.ts` was
-attempted against the running Docker app but did not reach the docs scenario:
-the normal dependency run stopped at the Auth0 callback-port guard for generated
-`BASE_URL=http://localhost:4218`, and the `--no-deps` retry stopped because
-`tests/.auth/admin-user.json` was not present in this worktree.
+`helpers/testing/stabilization-source.spec.ts`, `bun run build:app`, Docker
+rebuild, targeted `bun run test:e2e:docs --
+tests/docs/admin/general-settings.doc.ts --no-deps --workers=1`, generated
+Markdown inspection, PNG dimension inspection, visual inspection of the six
+generated `manage-tenant-general-settings` screenshots, and `git diff --check`.
+The final generated page has six distinct 1280x720 images. Browser verification
+on the rebuilt Docker app opened public General/legal routes at mobile and
+desktop widths: `/legal/imprint`, `/legal/privacy`, `/legal/terms`, and
+`/events` rendered expected content with no detected horizontal overflow. The
+in-app Browser could not reach authenticated `/admin/settings` on this worktree
+port because Auth0 rejected `http://localhost:4218/callback`; the authenticated
+General settings evidence therefore remains the page-backed Playwright docs run
+using the generated test storage state.
 The global-admin generated doc now uses concrete tenant summary, empty search,
 scope boundary, rejected create-form/error, detail review, and edit-form
 surfaces for its screenshot targets instead of highlighting page headings, card

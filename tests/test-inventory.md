@@ -663,9 +663,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   alias-valued, or direct/alias-valued tuple/array
   attach-function aliases, rejects
   aliased/helper-internal screenshot imports, dynamic screenshot-helper imports,
-  and local screenshot wrappers, self-tests those bypass examples, and keeps the permission
+  and local screenshot wrappers, self-tests those bypass examples, and keeps the
+  permission
   reference image-backed with the actual role-form permission/dependency
-  surface. Reporter-path coverage verifies those captions become generated
+  surface. It also pins the tenant General settings docs to section-backed
+  screenshots for Operations policy, Brand assets/Search preview, Legal pages,
+  and Finance settings so those captions cannot regress to repeated whole-form
+  images. Reporter-path coverage verifies those captions become generated
   `{% figure %}` blocks and escapes caption attributes so quotes or ampersands
   in descriptive captions cannot break the generated docs.
 - `helpers/testing/authorization-source.spec.ts` keeps server permission checks

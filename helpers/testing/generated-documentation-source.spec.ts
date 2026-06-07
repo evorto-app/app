@@ -7589,11 +7589,12 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'takeScreenshot(\n    testInfo,\n    operationsPolicySettingsSurface,',
     );
-    expect(source).toContain(".filter({ hasText: 'Operations policy' })");
     expect(source).toContain(
-      ".filter({ hasText: 'Configure tenant-level operational defaults.' })",
+      'const operationsPolicySettingsSurface = generalSettingsSection(page,',
     );
-    expect(source).toContain(".filter({ hasText: 'Registration limit' })");
+    expect(source).toContain("title: 'Operations policy'");
+    expect(source).toContain("'Configure tenant-level operational defaults.'");
+    expect(source).toContain("'Registration limit'");
     expect(source).not.toContain(
       'takeScreenshot(\n    testInfo,\n    operationsPolicySettingsFields,',
     );
@@ -7601,13 +7602,18 @@ describe('generated docs source current behavior', () => {
       'takeScreenshot(\n    testInfo,\n    brandAndSearchSettingsSurface,',
     );
     expect(source).toContain(
+      'const brandAndSearchSettingsSurface = generalSettingsSection(page,',
+    );
+    expect(source).toContain("title: 'Brand assets'");
+    expect(source).toContain(
       'takeScreenshot(\n    testInfo,\n    legalPageSettingsSurface,',
     );
-    expect(source).toContain(".filter({ hasText: 'Legal pages' })");
     expect(source).toContain(
-      ".filter({ hasText: 'Hosted privacy policy text' })",
+      'const legalPageSettingsSurface = generalSettingsSection(page,',
     );
-    expect(source).toContain(".filter({ hasText: 'Hosted terms text' })");
+    expect(source).toContain("title: 'Legal pages'");
+    expect(source).toContain("'Hosted privacy policy text'");
+    expect(source).toContain("'Hosted terms text'");
     expect(source).not.toContain(
       'takeScreenshot(\n    testInfo,\n    emailSenderField,',
     );
@@ -7623,6 +7629,10 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'takeScreenshot(\n    testInfo,\n    financeAndDiscountSettingsSurface,',
     );
+    expect(source).toContain(
+      'const financeAndDiscountSettingsSurface = generalSettingsSection(page,',
+    );
+    expect(source).toContain("title: 'Finance settings'");
     expect(source).not.toContain(
       "const esnDiscountToggle = generalSettingsToggle(page, 'ESN Card discounts');",
     );
