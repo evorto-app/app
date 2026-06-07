@@ -7096,26 +7096,34 @@ describe('generated docs source current behavior', () => {
       const imagePayloadGroup = { rawImagePayload };
       const spreadImagePayloadGroup = { ...imagePayloadGroup };
       const assignedImagePayloadGroup = Object.assign({}, imagePayloadGroup);
+      const { rawImagePayload: ignoredRawImagePayload, ...restImagePayloadGroup } = imagePayloadGroup;
       await testInfo.attach('raw evidence', spreadImagePayloadGroup.rawImagePayload);
       await testInfo.attach('raw file evidence', assignedImagePayloadGroup.rawImagePayload);
+      await testInfo.attach('rest raw evidence', restImagePayloadGroup.rawImagePayload);
       const imageName = 'image';
       const imageNameGroup = { imageName };
       const spreadImageNameGroup = { ...imageNameGroup };
       const assignedImageNameGroup = Object.assign({}, imageNameGroup);
+      const { imageName: ignoredImageName, ...restImageNameGroup } = imageNameGroup;
       await testInfo.attach(spreadImageNameGroup.imageName, { body: imageBuffer });
       await testInfo.attach(assignedImageNameGroup.imageName, { body: imageBuffer });
+      await testInfo.attach(restImageNameGroup.imageName, { body: imageBuffer });
       const attachEvidence = testInfo.attach.bind(testInfo);
       const attachGroup = { attachEvidence };
       const spreadAttachGroup = { ...attachGroup };
       const assignedAttachGroup = Object.assign({}, attachGroup);
+      const { attachEvidence: ignoredAttachEvidence, ...restAttachGroup } = attachGroup;
       await spreadAttachGroup.attachEvidence('raw evidence', { contentType: 'image/png' });
       await assignedAttachGroup.attachEvidence('raw file evidence', { path: 'raw-evidence.webp' });
+      await restAttachGroup.attachEvidence('rest file evidence', { path: 'rest-raw.png' });
       const imageContentType = 'image/png';
       const imagePayloadValueGroup = { imageContentType };
       const spreadImagePayloadValueGroup = { ...imagePayloadValueGroup };
       const assignedImagePayloadValueGroup = Object.assign({}, imagePayloadValueGroup);
+      const { imageContentType: ignoredImageContentType, ...restImagePayloadValueGroup } = imagePayloadValueGroup;
       await testInfo.attach('raw evidence', { contentType: spreadImagePayloadValueGroup.imageContentType });
       await testInfo.attach('raw file evidence', { path: assignedImagePayloadValueGroup.imageContentType });
+      await testInfo.attach('rest raw evidence', { contentType: restImagePayloadValueGroup.imageContentType });
     `;
 
     expect(
@@ -7124,14 +7132,18 @@ describe('generated docs source current behavior', () => {
         copiedGroupedRawImageAliasSource,
       ),
     ).toEqual([
-      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:6:13',
       'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:7:13',
-      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:12:13',
-      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:13:13',
-      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:18:13',
-      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:19:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:8:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:9:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:15:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:16:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:17:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:23:13',
       'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:24:13',
       'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:25:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:31:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:32:13',
+      'tests/docs/example/copied-grouped-raw-image-alias.doc.ts:33:13',
     ]);
   });
 

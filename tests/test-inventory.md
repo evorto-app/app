@@ -593,8 +593,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   including array-built names, MIME types, and image file paths, and properties
   read through `Reflect.get(...)` before attachment, while it
   tracks raw Markdown attachment-name, body, and payload properties read through
-  `Reflect.get(...)` before attachment and object-spread or
-  `Object.assign(...)` copied grouped raw Markdown image aliases,
+  `Reflect.get(...)` before attachment and object-spread, `Object.assign(...)`,
+  and object-rest copied grouped raw Markdown image aliases,
   parses the root Product documentation-expectations list and maps every
   important documentation area to generated docs files plus concrete source
   terms, so new Product bullets fail until the generated-doc mapping is updated.
@@ -773,8 +773,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   nullish/logical expressions, and concatenation, object shorthand image
   payloads, computed raw image payload keys, spread raw image payload objects,
   `Object.assign(...)` raw image payload objects, object-rest raw image payload
-  aliases, object-rest grouped raw image aliases, object-spread and
-  `Object.assign(...)` copied grouped raw image aliases, spread direct
+  aliases, object-rest grouped raw image aliases, object-spread,
+  `Object.assign(...)`, and object-rest copied grouped raw image aliases, spread direct
   attachment arguments, opaque attachment `apply(...)` lists, and `.at(...)`
   indexed attach-helper lists,
   raw screenshot and image attach call/apply invocations, `Reflect.apply(...)`

@@ -7533,3 +7533,23 @@ show readable Terms fallback copy and real seeded Events cards with Material
 surfaces/icons/times, fixed Events/Login bottom navigation, no loading or
 application-error text, document/body widths inside the mobile viewport, and
 zero warning/error Browser logs.
+
+Object-rest copied grouped raw image aliases are now explicitly pinned beside
+the existing spread and `Object.assign(...)` direct-image guard cases too. The
+focused generated-doc source regression now exercises copied raw image payload,
+image attachment-name, direct attach-helper, and MIME/path value groups copied
+through object-rest destructuring before raw image evidence is attached outside
+the shared screenshot helper. The detector already rejected those object-rest
+shapes, and the inventory now records object-rest copied grouped raw image
+aliases alongside the existing copied-grouped raw Markdown-image coverage.
+Validation for this slice passed `bun run format:write`, `bun run lint`, the
+focused generated-documentation/stabilization source suite with 194 passing
+tests, and `git diff --check`. WebStorm diagnostics remained blocked because
+this worktree is not one of the open IDE projects. Browser verification at
+390x844 captured
+`/tmp/evorto-object-rest-grouped-raw-image-terms-390x844.png` and
+`/tmp/evorto-object-rest-grouped-raw-image-events-390x844.png`; the images show
+readable Terms fallback copy and real seeded Events cards with Material
+surfaces/icons/times, fixed Events/Login bottom navigation, no loading or
+application-error text, document/body widths inside the mobile viewport, and
+zero warning/error Browser logs.

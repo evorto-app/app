@@ -1936,10 +1936,10 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/object shorthand image\s+payloads/u);
     expect(inventory).toMatch(/computed\s+raw\s+image\s+payload\s+keys/u);
     expect(inventory).toContain(
-      'object-spread and\n  `Object.assign(...)` copied grouped raw image aliases',
+      'object-spread,\n  `Object.assign(...)`, and object-rest copied grouped raw image aliases',
     );
     expect(inventory).toContain(
-      'object-spread or\n  `Object.assign(...)` copied grouped raw Markdown image aliases',
+      'object-spread, `Object.assign(...)`,\n  and object-rest copied grouped raw Markdown image aliases',
     );
     expect(inventory).toContain('indexed attach-helper lists');
     expect(inventory).toMatch(
@@ -3124,6 +3124,11 @@ describe('stabilization source', () => {
     expect(source).toContain('Assigned local raw capture aliases');
     expect(source).toContain('Assigned local raw Markdown-image aliases');
     expect(source).toMatch(/Returned raw\s+Markdown attach helpers/u);
+    expect(generatedDocumentationSource).toContain('...restImagePayloadGroup');
+    expect(generatedDocumentationSource).toContain('...restImageNameGroup');
+    expect(generatedDocumentationSource).toContain(
+      '...restImagePayloadValueGroup',
+    );
     expect(source).toContain(
       'Copied returned raw Markdown attach helper groups',
     );
