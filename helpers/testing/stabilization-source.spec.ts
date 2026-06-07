@@ -2308,6 +2308,12 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain('localScreenshot');
     expect(generatedDocumentationSource).toContain(
+      'captureDefault = takeScreenshot',
+    );
+    expect(inventory).toContain(
+      'binding-default helper\n  aliases such as `const { capture = takeScreenshot } = {}`',
+    );
+    expect(generatedDocumentationSource).toContain(
       'documentation-reporter/take-screenshot',
     );
     expect(generatedDocumentationSource).toContain('templateLiteralReporter');

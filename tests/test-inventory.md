@@ -623,7 +623,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `captureDocumentationImage`, rejects dynamic screenshot-helper imports through
   both string-literal and no-substitution template-literal specifiers, rejects
   indirect call/apply/bind helper invocations that would evade normal
-  screenshot counting and target-quality checks, covers
+  screenshot counting and target-quality checks, rejects binding-default helper
+  aliases such as `const { capture = takeScreenshot } = {}` and
+  `const [capture = takeScreenshot] = []`, covers
   the weak-caption,
   invalid-image, missing-highlight, and blank/context-free highlighted-image
   runtime failures in reporter-path tests, rejects uncaptioned image attachments

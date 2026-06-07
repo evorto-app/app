@@ -3667,8 +3667,9 @@ fallback rather than a profile discount-card defect.
   docs edit cannot quietly drop meaningful images while leaving one remaining
   screenshot behind or add a new UI doc without count coverage. It also rejects
   aliased `takeScreenshot` imports, direct imports from the helper implementation
-  path, and local screenshot wrapper declarations, so docs cannot route around
-  the meaningful-image checks while still appearing to use the shared helper.
+  path, local screenshot wrapper declarations, and binding-default aliases such
+  as `const { capture = takeScreenshot } = {}`, so docs cannot route around the
+  meaningful-image checks while still appearing to use the shared helper.
   It also rejects raw markdown image syntax and raw HTML `<img>` bodies even
   when the markdown attachment name or body is hidden behind a local alias, a
   bracketed `attach` call, an aliased payload object, or shorthand `{ body }`,
@@ -6243,6 +6244,17 @@ Indirect shared-helper invocations through `takeScreenshot.call(...)`,
 `takeScreenshot.apply(...)`, bracket-property `apply`, or inline
 `takeScreenshot.bind(...)` are rejected too, because those calls would otherwise
 evade the normal screenshot count, caption, and target-quality inspections.
+Binding-default aliases of the shared helper are rejected too, so destructuring
+fallbacks such as `const { capture = takeScreenshot } = {}` or
+`const [capture = takeScreenshot] = []` cannot hide docs screenshots from the
+same count, caption, and meaningful-target checks.
+A same-slice in-app Browser smoke opened `/events` at 390x844 on the rebuilt
+Docker app with `stabilizationEvidence=helper-binding-default-source-guard`,
+settled past the loading placeholder, and rendered seeded Material event cards
+with meaningful icons and times. Browser metrics reported no horizontal
+overflow, no visible app errors, no loading text after settle, and zero
+warning/error logs; the inspected screenshot was saved at
+`/tmp/evorto-general-browser-helper-binding-default-source-guard-events-390x844.png`.
 Grouped screenshot target objects wrapped in `as const`, `satisfies`, type
 assertions, or parentheses are unwrapped before alias collection, so TypeScript
 syntax cannot hide a weak `targets.shell` locator from the same meaningful-image

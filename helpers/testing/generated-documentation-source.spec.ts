@@ -2894,6 +2894,27 @@ const findScreenshotHelperBypasses = (
     );
   };
 
+  const recordBindingDefaultHelperAliases = (name: ts.BindingName): void => {
+    if (ts.isIdentifier(name)) {
+      return;
+    }
+
+    for (const element of name.elements) {
+      if (ts.isOmittedExpression(element)) {
+        continue;
+      }
+
+      if (
+        element.initializer &&
+        expressionReferencesTakeScreenshot(element.initializer)
+      ) {
+        bypasses.push(describeNode(element.name));
+      }
+
+      recordBindingDefaultHelperAliases(element.name);
+    }
+  };
+
   const visit = (node: ts.Node): void => {
     if (
       ts.isImportDeclaration(node) &&
@@ -2991,6 +3012,10 @@ const findScreenshotHelperBypasses = (
           expressionReferencesTakeScreenshot(node.initializer)))
     ) {
       bypasses.push(describeNode(node.name));
+    }
+
+    if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+      recordBindingDefaultHelperAliases(node.name);
     }
 
     if (
@@ -4124,6 +4149,8 @@ describe('generated docs source current behavior', () => {
       helperAssignments['computedCapture'] = takeScreenshot;
       const helperList = [];
       helperList[0] = takeScreenshot;
+      const { captureDefault = takeScreenshot } = {};
+      const [listedCaptureDefault = takeScreenshot] = [];
 
       async function dynamicImportBypass() {
         const dynamicReporter = await import('../../support/reporters/documentation-reporter');
@@ -4185,14 +4212,16 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/bypass.doc.ts:38:7',
       'tests/docs/example/bypass.doc.ts:39:7',
       'tests/docs/example/bypass.doc.ts:41:7',
-      'tests/docs/example/bypass.doc.ts:44:39',
-      'tests/docs/example/bypass.doc.ts:45:43',
-      'tests/docs/example/bypass.doc.ts:46:47',
-      'tests/docs/example/bypass.doc.ts:47:51',
-      'tests/docs/example/bypass.doc.ts:56:13',
-      'tests/docs/example/bypass.doc.ts:63:13',
-      'tests/docs/example/bypass.doc.ts:69:13',
-      'tests/docs/example/bypass.doc.ts:75:13',
+      'tests/docs/example/bypass.doc.ts:42:15',
+      'tests/docs/example/bypass.doc.ts:43:14',
+      'tests/docs/example/bypass.doc.ts:46:39',
+      'tests/docs/example/bypass.doc.ts:47:43',
+      'tests/docs/example/bypass.doc.ts:48:47',
+      'tests/docs/example/bypass.doc.ts:49:51',
+      'tests/docs/example/bypass.doc.ts:58:13',
+      'tests/docs/example/bypass.doc.ts:65:13',
+      'tests/docs/example/bypass.doc.ts:71:13',
+      'tests/docs/example/bypass.doc.ts:77:13',
     ]);
   });
 
