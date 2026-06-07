@@ -1223,6 +1223,12 @@ provider outcomes without live identifiers.
   `/tmp/evorto-public-general-aef3ccdc-mobile-legal-privacy.jpg` show actual
   seeded Material event cards and the privacy legal fallback page with fixed
   Events/Login bottom navigation.
+  A current pushed-head Browser refresh at `689d5a78` repeated the mobile
+  General route sweep after a reset-from-zero Docker reseed, and the inspected
+  screenshots `/tmp/evorto-general-current-689d5a78-events-320x740.png` and
+  `/tmp/evorto-general-current-689d5a78-terms-390x844.png` show seeded Material
+  event cards and the Terms fallback page with fixed Events/Login bottom
+  navigation.
 - `tests/setup/mcp-browser-authenticated.seed.ts` is the authenticated MCP
   Browser planner seed for the dedicated `mcp-browser-authenticated-planner`
   project. It depends on the normal `setup` project, then opens

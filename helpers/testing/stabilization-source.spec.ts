@@ -3818,6 +3818,40 @@ describe('stabilization source', () => {
     );
     expect(normalizedCheckpoint).toContain('1 passed (14.8s)');
     expect(normalizedCheckpoint).toContain(
+      'Browser refresh on pushed PR head `689d5a78`',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'interrupted authenticated docs rerun had polluted the active',
+    );
+    expect(normalizedCheckpoint).toContain('`Events` plus `No events found`');
+    expect(normalizedCheckpoint).toContain('1 passed (14.1s)');
+    expect(normalizedCheckpoint).toContain(
+      'reset-from-zero `bun run docker:start`',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'reachable database, reachable `/legal/terms`',
+    );
+    expect(normalizedCheckpoint).toContain('/events/cc139a736e819c574cf3');
+    expect(normalizedCheckpoint).toContain(
+      'same anonymous General route set at 320x740 and 390x844',
+    );
+    expect(normalizedCheckpoint).toContain('`Access not allowed`');
+    expect(normalizedCheckpoint).toContain(
+      'fresh 390x844 event-detail recheck rendered the selected event detail without a loading',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-general-current-689d5a78-events-320x740.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'seeded Material event cards with icons, times, and fixed Events/Login bottom',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-general-current-689d5a78-terms-390x844.png',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'Terms fallback page and fixed bottom navigation',
+    );
+    expect(normalizedCheckpoint).toContain(
       'Browser viewport override was reset',
     );
     expect(normalizedCheckpoint).toContain(

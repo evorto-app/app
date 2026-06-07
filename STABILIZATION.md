@@ -4150,6 +4150,27 @@ fallback rather than a profile discount-card defect.
   Privacy policy fallback text and fixed bottom navigation. The matching
   durable `bun run test:e2e:public-general-viewports` run passed against the
   same recovered Docker app with `1 passed (14.8s)`.
+  A current June 7, 2026 Browser refresh on pushed PR head `689d5a78` first
+  exposed that the interrupted authenticated docs rerun had polluted the active
+  local `localhost` seed: `/events` rendered `Events` plus `No events found`.
+  The focused `bun run test:e2e:public-general-viewports` rerun still passed
+  with `1 passed (14.1s)` against its isolated seeded tenant. A fresh
+  reset-from-zero `bun run docker:start` then rebuilt/reseeded the worktree
+  Docker app, and `bun run dev:status` passed with reachable database,
+  reachable `/legal/terms`, seven inspectable Compose project containers, and
+  only protected `main` plus one active Neon Local branch inside the two-hour
+  TTL. The in-app Browser derived `/events/cc139a736e819c574cf3` from the
+  restored `/events` list and rechecked the same anonymous General route set at
+  320x740 and 390x844. The final 20 route/viewport checks rendered expected
+  content after correcting the `/403` expectation to `Access not allowed`;
+  reported no horizontal overflow, top/side clipped visible controls, rendered
+  application-error text, or Browser warning/error logs; and a fresh 390x844
+  event-detail recheck rendered the selected event detail without a loading
+  placeholder. Representative Browser screenshots were visually inspected and
+  saved as `/tmp/evorto-general-current-689d5a78-events-320x740.png`, showing
+  seeded Material event cards with icons, times, and fixed Events/Login bottom
+  navigation, and `/tmp/evorto-general-current-689d5a78-terms-390x844.png`,
+  showing the Terms fallback page and fixed bottom navigation.
 - Current live Browser route refresh checkpoint: the Docker stack stayed healthy
   on the generated `BASE_URL`, the in-app Browser opened `/events`, found the
   seeded `Soccer Match 1` event link, and loaded that event detail page. The
