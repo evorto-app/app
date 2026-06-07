@@ -1530,7 +1530,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     ) {
       const initializer = unwrapExpression(node.initializer);
 
-      if (getLiteralText(initializer, staticStringAliases) === 'markdown') {
+      if (isMarkdownAttachmentName(initializer)) {
         markdownAttachmentNameAliases.add(node.name.text);
       }
 
@@ -6627,6 +6627,32 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/reflect-get-markdown-body-payload.doc.ts:9:13',
       'tests/docs/example/reflect-get-markdown-body-payload.doc.ts:11:13',
       'tests/docs/example/reflect-get-markdown-body-payload.doc.ts:15:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind Reflect.get markdown-name aliases', () => {
+    const reflectGetMarkdownNameSource = `
+      const markdownPieces = {
+        name: 'markdown',
+        payload: { body: '![raw](raw.png)' },
+      };
+      const reflectedName = Reflect.get(markdownPieces, 'name');
+      await testInfo.attach(reflectedName, markdownPieces.payload);
+      const reflectMirror = Reflect;
+      await testInfo.attach(reflectMirror.get(markdownPieces, 'name'), markdownPieces.payload);
+      const nameKey = 'name';
+      await testInfo.attach(reflectMirror.get(markdownPieces, nameKey), markdownPieces.payload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/reflect-get-markdown-name.doc.ts',
+        reflectGetMarkdownNameSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/reflect-get-markdown-name.doc.ts:7:13',
+      'tests/docs/example/reflect-get-markdown-name.doc.ts:9:13',
+      'tests/docs/example/reflect-get-markdown-name.doc.ts:11:13',
     ]);
   });
 
