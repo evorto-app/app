@@ -1657,6 +1657,15 @@ provider outcomes without live identifiers.
   retry failed the same way. Port 4200 was already occupied by a separate
   `evorto-cc7ef3a9` Compose project, so this run does not claim authenticated
   Material/layout evidence for the current head.
+  A follow-up local authenticated refresh used the Auth0-registered
+  `APP_HOST_PORT=4200` / `BASE_URL=http://localhost:4200` runtime for this
+  worktree. `bun run test:e2e:mcp-browser-authenticated-planner` passed all 10
+  tests after the planner seed scoped its duplicate page-heading assertions to
+  `app-general-settings` and `app-tenant-list`. The broader
+  `bun run test:e2e:authenticated-viewports -- --no-deps` run then passed all 12
+  selected authenticated viewport tests against the same runtime, restoring
+  local authenticated Material/layout evidence across tenant admin, global
+  admin, profile, templates, events, finance, scanner, and members-hub surfaces.
 - Scenario handles from `seeded.scenario.events.*` are the preferred way to address seeded entities.
 - `tests/specs/scanning/scanner.test.ts`,
   `tests/specs/profile/user-profile-discounts.spec.ts`, and

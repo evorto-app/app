@@ -14,7 +14,9 @@ test.describe('tenant-admin authenticated MCP Browser planning seed', () => {
   }) => {
     await page.goto('/admin/settings');
     await expect(
-      page.getByRole('heading', { name: 'General settings' }),
+      page
+        .locator('app-general-settings')
+        .getByRole('heading', { name: 'General settings' }),
     ).toBeVisible();
   });
 });
@@ -26,7 +28,9 @@ test.describe('global-admin authenticated MCP Browser planning seed', () => {
     page,
   }) => {
     await page.goto('/global-admin/tenants');
-    await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
+    await expect(
+      page.locator('app-tenant-list').getByRole('heading', { name: 'Tenants' }),
+    ).toBeVisible();
   });
 });
 

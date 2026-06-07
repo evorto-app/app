@@ -6052,6 +6052,15 @@ Auth0-registered port. No authenticated Material/layout regression is claimed
 from this failed run; fresh authenticated Browser or Playwright evidence still
 requires either an Auth0-registered worktree port or a non-interfering 4200
 runtime for this branch.
+A follow-up authenticated local refresh used the Auth0-registered
+`APP_HOST_PORT=4200` / `BASE_URL=http://localhost:4200` runtime for this
+worktree. `bun run test:e2e:mcp-browser-authenticated-planner` passed all 10
+tests after the planner seed scoped the duplicate admin page-heading assertions
+to `app-general-settings` and `app-tenant-list`. The broader
+`bun run test:e2e:authenticated-viewports -- --no-deps` run then passed all 12
+selected authenticated viewport tests against the same runtime, restoring local
+authenticated Material/layout evidence across tenant admin, global admin,
+profile, templates, events, finance, scanner, and members-hub surfaces.
 
 Important entrypoints remain visible in `package.json`: app build/dev,
 unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker
@@ -8328,3 +8337,15 @@ Scanner hidden on mobile, zero warning/error logs, no loading text, and no
 application-error text. Current-head E2E run `27101593864` is still in progress
 after this pushed checkpoint, and the latest fully green E2E evidence remains
 the older completed pushed head until the new CI run finishes.
+
+Current authenticated viewport evidence is positive again locally after moving
+this worktree's generated Docker app to the Auth0-registered
+`BASE_URL=http://localhost:4200`. The focused authenticated MCP Browser planner
+rerun passed all 10 tests, including `/admin/settings`,
+`/global-admin/tenants`, and `/profile`, after narrowing duplicate heading
+assertions to the routed page components. The broader authenticated viewport
+pack also passed all 12 selected tests with `--no-deps`, covering tenant admin,
+global admin, profile, templates, events, finance, scanner, and members-hub
+surfaces against the same local runtime. The latest pushed-head CI E2E run is
+tracked separately so source/evidence-only updates do not over-claim a fully
+green PR head before GitHub Actions finishes.

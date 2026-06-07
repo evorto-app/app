@@ -6143,9 +6143,11 @@ describe('stabilization source', () => {
     expect(mcpAuthenticatedSeed).toContain(
       "await page.goto('/admin/settings');",
     );
+    expect(mcpAuthenticatedSeed).toContain(".locator('app-general-settings')");
     expect(mcpAuthenticatedSeed).toContain(
       "await page.goto('/global-admin/tenants');",
     );
+    expect(mcpAuthenticatedSeed).toContain("page.locator('app-tenant-list')");
     expect(mcpAuthenticatedSeed).toContain("await page.goto('/profile');");
     expect(mcpAuthenticatedSeed).toContain(
       "page.getByRole('button', { name: 'Edit profile' })",
@@ -9050,6 +9052,29 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain(
       'evorto-cc7ef3a9` Compose project, so this run does not claim authenticated\n  Material/layout evidence',
+    );
+    expect(inventory).toContain(
+      'A follow-up local authenticated refresh used the Auth0-registered\n  `APP_HOST_PORT=4200` / `BASE_URL=http://localhost:4200` runtime',
+    );
+    expect(inventory).toContain(
+      '`bun run test:e2e:mcp-browser-authenticated-planner` passed all 10\n  tests',
+    );
+    expect(inventory).toContain('app-general-settings');
+    expect(inventory).toContain('app-tenant-list');
+    expect(inventory).toContain(
+      '`bun run test:e2e:authenticated-viewports -- --no-deps` run then passed all 12\n  selected authenticated viewport tests',
+    );
+    expect(inventory).toContain(
+      'restoring\n  local authenticated Material/layout evidence',
+    );
+    expect(source).toContain(
+      'A follow-up authenticated local refresh used the Auth0-registered\n`APP_HOST_PORT=4200` / `BASE_URL=http://localhost:4200` runtime',
+    );
+    expect(source).toContain(
+      'The broader\n`bun run test:e2e:authenticated-viewports -- --no-deps` run then passed all 12\nselected authenticated viewport tests',
+    );
+    expect(source).toContain(
+      'Current authenticated viewport evidence is positive again locally',
     );
 
     for (const durableViewportSpecPath of durableViewportSpecPaths) {
