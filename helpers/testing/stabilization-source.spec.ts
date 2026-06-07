@@ -5045,6 +5045,34 @@ describe('stabilization source', () => {
     ).toContain('reflectMirror.apply(Reflect.get(page, waitKey)');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('playwrightObjectRestModifierAliasPattern');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('pageObjectRestMethodAliasPattern');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('collectObjectRestPropertyEntriesForSource');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain(
+      'recognizes object-rest copied Playwright modifiers before inventory checks run',
+    );
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain(
+      'recognizes object-rest copied page debug and fixed-wait helpers before inventory checks run',
+    );
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('testRest[skipKey]');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('describeRest[configureKey]');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('timingRest[waitKey].apply');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('split-modifiers.spec.ts');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
@@ -5083,6 +5111,24 @@ describe('stabilization source', () => {
       'returned raw screenshot and image attach helper functions',
     );
     expect(inventory).toContain('local `Reflect` aliases');
+    expect(inventory).toContain(
+      'Object-rest copied Playwright and page helper objects',
+    );
+    expect(inventory).toContain(
+      'const { skip: ignoredSkip, ...testRest } = test',
+    );
+    expect(inventory).toContain(
+      'const { only: ignoredOnly, ...describeRest } = test.describe',
+    );
+    expect(inventory).toContain(
+      'const { pause: ignoredPause, ...pageRest } = page',
+    );
+    expect(inventory).toContain('rest-copied `testRest.skip(...)`');
+    expect(inventory).toContain('describeRest[configureKey](...)');
+    expect(inventory).toContain('timingRest[waitKey].apply(...)');
+    expect(inventory).toContain(
+      'skipped, focused, runtime-altered, debug, or fixed-wait coverage changes',
+    );
     expect(inventory).toContain("page['pause'](...)");
     expect(inventory).toContain('local aliases of `page.pause`');
     expect(inventory).toContain('direct `page.pause.call/apply/bind(...)`');
@@ -5138,6 +5184,20 @@ describe('stabilization source', () => {
     expect(source).toContain('Reflect.apply(...)');
     expect(source).toContain('local `Reflect` aliases');
     expect(source).toContain('skip/focus/runtime inventory');
+    expect(source).toContain(
+      'Object-rest copied Playwright and page helper objects are covered too',
+    );
+    expect(source).toContain('const { skip: ignoredSkip, ...testRest } = test');
+    expect(source).toContain(
+      'const { only: ignoredOnly, ...describeRest } = test.describe',
+    );
+    expect(source).toContain(
+      'const { pause: ignoredPause, ...pageRest } = page',
+    );
+    expect(source).toContain('testRest[skipKey](...)');
+    expect(source).toContain('describeRest[configureKey](...)');
+    expect(source).toContain('timingRest[waitKey].apply(...)');
+    expect(source).toContain('before allowlist comparison');
     expect(source).toContain("page['pause'](...)");
     expect(source).toContain('local `page.pause` aliases');
     expect(source).toContain('direct\n`page.pause.call/apply/bind(...)`');
@@ -5586,22 +5646,28 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toContain(
-      'generated-doc explanatory Markdown section counts',
+      'object-rest copied Playwright modifier and page\nhelper objects',
     );
-    expect(source).toContain('pinned beside screenshot counts');
     expect(source).toContain(
-      'the section-count guard follows direct, destructured, bound, grouped, indexed,\nassigned, returned, and indirect `testInfo.attach` aliases',
+      'classified before the skip/focus/runtime/debug/fixed-wait\ninventory',
     );
-    expect(source).toContain('local helper names or\nhelper-forwarding calls');
-    expect(source).toMatch(
-      /15\s+explanatory\s+sections and 14 image-backed states in\s+`tests\/docs\/events\/register\.doc\.ts`/u,
-    );
-    expect(source).toContain('eight plus eight in');
-    expect(source).toContain('tests/docs/templates/templates.doc.ts');
+    expect(source).toContain('const { skip: ignoredSkip, ...testRest } = test');
     expect(source).toContain(
-      '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
+      'const { only: ignoredOnly, ...describeRest } = test.describe',
     );
-    expect(source).toContain('with 199 tests');
+    expect(source).toContain(
+      'const { pause: ignoredPause, ...pageRest } = page',
+    );
+    expect(source).toContain('testRest[skipKey](...)');
+    expect(source).toContain('describeRest[configureKey](...)');
+    expect(source).toContain('timingRest[waitKey].apply(...)');
+    expect(source).toContain(
+      'cannot hide skipped, focused, serial/slow, interactive\ndebug, or fixed-wait coverage changes',
+    );
+    expect(source).toContain(
+      '`bunx vitest run helpers/testing/playwright-skip-inventory.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
+    );
+    expect(source).toContain('with 88 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5609,25 +5675,40 @@ describe('stabilization source', () => {
     expect(source).toContain(
       "this worktree is not one of the IDE's open projects",
     );
-    expect(source).toContain('Browser\nreused the local app');
+    expect(source).toContain(
+      'Browser\nverification was attempted, but no positive visual evidence is claimed',
+    );
+    expect(source).toContain('source-only slice');
+    expect(source).toContain('`bun run dev:status`');
+    expect(source).toContain(
+      'generated local app returning\nHTTP 500 for `/legal/terms`',
+    );
+    expect(source).toContain('database validation query failed');
+    expect(source).toContain(
+      "Docker's\ndisposable start-path preflight timed out",
+    );
+    expect(source).toContain(
+      'project-scoped app container\ncould not be restarted',
+    );
+    expect(source).toContain('database container became unhealthy');
+    expect(source).toContain('in-app Browser probe at 390x844');
+    expect(source).toContain(
+      '/legal/terms?stabilizationEvidence=object-rest-skip-inventory-source-guard',
+    );
+    expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`http://localhost:4218`');
-    expect(source).toContain('`/legal/terms` and\n`/events` at 390x844');
     expect(source).toContain(
-      'settled expected content, no visible loading text, no\napplication-error text, no horizontal overflow',
+      'was not listening after the app container exited',
     );
-    expect(source).toMatch(/fixed General\s+navigation/u);
-    expect(source).toContain(
-      'The Events console report returned zero warning/error messages',
+    expect(source).not.toContain(
+      '`evorto-object-rest-skip-inventory-terms-390x844.png`',
     );
-    expect(source).toContain(
-      '`evorto-markdown-helper-count-terms-390x844.png`',
-    );
-    expect(source).toContain(
-      '`evorto-markdown-helper-count-events-390x844.png`',
+    expect(source).not.toContain(
+      '`evorto-object-rest-skip-inventory-events-390x844.png`',
     );
     expect(source).toMatch(/The\s+live PR checks are tracked\s+separately/u);
-    expect(source).toMatch(/latest fully green\s+E2E/u);
-    expect(source).toMatch(/older completed\s+pushed head/u);
+    expect(source).toMatch(/latest\s+fully\s+green\s+E2E/u);
+    expect(source).toMatch(/older\s+completed\s+pushed\s+head/u);
     expect(source).toContain('actual Material overlay panel');
     expect(source).toMatch(/No active inclusive tax rates\s+available/u);
     expect(source).toContain('empty compatible-rate selector feedback');

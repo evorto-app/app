@@ -95,8 +95,16 @@ const playwrightNestedDescribeModifierAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s*\{[^{}]*\bdescribe\s*:\s*\{(?<bindings>[^}]+)\}[^{}]*\}\s*=\s*test\b`,
   'g',
 );
+const playwrightObjectRestModifierAliasPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^{}]*\.\.\.\s*(?<alias>${identifierPattern})[^{}]*)\}\s*=\s*(?<owner>test(?:${playwrightDescribeAccessPattern})?)\b`,
+  'g',
+);
 const pageDestructuredMethodAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^}]+)\}\s*=\s*page\b`,
+  'g',
+);
+const pageObjectRestMethodAliasPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^{}]*\.\.\.\s*(?<alias>${identifierPattern})[^{}]*)\}\s*=\s*page\b`,
   'g',
 );
 const destructuredModifierBindingPattern = new RegExp(
@@ -557,6 +565,45 @@ const collectPatternEntries = (pattern: RegExp) =>
     return collectPatternEntriesForSource(relativePath, source, pattern);
   });
 
+const collectObjectRestPropertyEntriesForSource = (
+  relativePath: string,
+  source: string,
+  ownerAlias: string,
+  ownerDescription: string,
+  names: readonly string[],
+) => {
+  const allowedNames = new Set(names);
+  const staticStringAliases = collectStaticStringAliases(source);
+  const directPropertyPattern = new RegExp(
+    String.raw`\b${escapeRegExp(ownerAlias)}\s*(?:\.\s*(?<dotProperty>${names
+      .map(escapeRegExp)
+      .join(
+        '|',
+      )})\b|\[\s*(?<bracketProperty>(?:'[^']*'|"[^"]*"|${identifierPattern}))\s*\])\s*(?:\(|\.\s*(?:call|apply|bind)\b|\[\s*['"](?:call|apply|bind)['"]\s*\])`,
+    'g',
+  );
+
+  return [...source.matchAll(directPropertyPattern)].flatMap((match) => {
+    const propertyName =
+      match.groups?.dotProperty ??
+      resolveStaticStringExpression(
+        match.groups?.bracketProperty ?? '',
+        staticStringAliases,
+      );
+
+    if (propertyName === undefined || !allowedNames.has(propertyName)) {
+      return [];
+    }
+
+    const offset = match.index ?? 0;
+
+    return `${relativePath}:${lineNumberForOffset(source, offset)}:${formatPatternMatch(match[0])} (${ownerDescription}.${propertyName} object-rest alias)`.replaceAll(
+      '\\',
+      '/',
+    );
+  });
+};
+
 const modifierForAliasMatch = (match: RegExpExecArray): string | undefined =>
   match.groups?.dotModifier ?? match.groups?.bracketModifier;
 
@@ -653,7 +700,7 @@ const collectAliasedModifierEntriesForSource = (
     }
   }
 
-  return [...aliases.entries()].flatMap(([alias, modifier]) => {
+  const aliasEntries = [...aliases.entries()].flatMap(([alias, modifier]) => {
     const aliasCallPattern = new RegExp(
       String.raw`\b${escapeRegExp(alias)}\s*\(`,
       'g',
@@ -667,6 +714,31 @@ const collectAliasedModifierEntriesForSource = (
       .filter((entry) => !entry.includes(`:${alias} =`))
       .map((entry) => `${entry} (${modifier} alias)`);
   });
+
+  const objectRestEntries = [
+    ...source.matchAll(playwrightObjectRestModifierAliasPattern),
+  ].flatMap((match) => {
+    const owner = match.groups?.owner;
+    const alias = match.groups?.alias;
+
+    if (alias === undefined || owner === undefined) {
+      return [];
+    }
+
+    const ownerDescription = owner.includes('describe')
+      ? 'test.describe'
+      : 'test';
+
+    return collectObjectRestPropertyEntriesForSource(
+      relativePath,
+      source,
+      alias,
+      ownerDescription,
+      modifiers,
+    );
+  });
+
+  return [...aliasEntries, ...objectRestEntries];
 };
 
 const collectAliasedModifierEntries = (modifiers: readonly string[]) =>
@@ -744,7 +816,7 @@ const collectAliasedPageMethodEntriesForSource = (
     }
   }
 
-  return [...aliases.entries()].flatMap(([alias, method]) => {
+  const aliasEntries = [...aliases.entries()].flatMap(([alias, method]) => {
     const aliasCallPattern = new RegExp(
       String.raw`\b${escapeRegExp(alias)}\s*\(`,
       'g',
@@ -758,6 +830,24 @@ const collectAliasedPageMethodEntriesForSource = (
       .filter((entry) => !entry.includes(`:${alias} =`))
       .map((entry) => `${entry} (page.${method} alias)`);
   });
+
+  const objectRestEntries = [
+    ...source.matchAll(pageObjectRestMethodAliasPattern),
+  ].flatMap((match) => {
+    const alias = match.groups?.alias;
+
+    return alias === undefined
+      ? []
+      : collectObjectRestPropertyEntriesForSource(
+          relativePath,
+          source,
+          alias,
+          'page',
+          methods,
+        );
+  });
+
+  return [...aliasEntries, ...objectRestEntries];
 };
 
 const collectAliasedPageMethodEntries = (methods: readonly string[]) =>
@@ -1255,6 +1345,49 @@ configureStaticSerial({ mode: 'serial' });`;
     ]);
   });
 
+  it('recognizes object-rest copied Playwright modifiers before inventory checks run', () => {
+    const objectRestModifierSource = `const skipKey = 'skip';
+const { skip: ignoredSkip, ...testRest } = test;
+testRest.skip('hidden rest skip', () => {});
+testRest[skipKey]('hidden static rest skip', () => {});
+const { only: ignoredOnly, ...describeRest } = test.describe;
+describeRest.only('hidden rest focus', () => {});
+const configureKey = 'configure';
+describeRest[configureKey]({ mode: 'serial' });
+const { slow: ignoredSlow, ...runtimeRest } = test;
+runtimeRest.slow();`;
+
+    expect(
+      collectAliasedModifierEntriesForSource(
+        'tests/specs/example/object-rest-modifiers.spec.ts',
+        objectRestModifierSource,
+        ['skip', 'fixme'],
+      ),
+    ).toEqual([
+      'tests/specs/example/object-rest-modifiers.spec.ts:3:testRest.skip( (test.skip object-rest alias)',
+      'tests/specs/example/object-rest-modifiers.spec.ts:4:testRest[skipKey]( (test.skip object-rest alias)',
+    ]);
+    expect(
+      collectAliasedModifierEntriesForSource(
+        'tests/specs/example/object-rest-modifiers.spec.ts',
+        objectRestModifierSource,
+        ['only'],
+      ),
+    ).toEqual([
+      'tests/specs/example/object-rest-modifiers.spec.ts:6:describeRest.only( (test.describe.only object-rest alias)',
+    ]);
+    expect(
+      collectAliasedModifierEntriesForSource(
+        'tests/specs/example/object-rest-modifiers.spec.ts',
+        objectRestModifierSource,
+        ['slow', 'configure'],
+      ),
+    ).toEqual([
+      'tests/specs/example/object-rest-modifiers.spec.ts:8:describeRest[configureKey]( (test.describe.configure object-rest alias)',
+      'tests/specs/example/object-rest-modifiers.spec.ts:10:runtimeRest.slow( (test.slow object-rest alias)',
+    ]);
+  });
+
   it('recognizes aliased page debug and fixed-wait helpers before inventory checks run', () => {
     const aliasedPageMethodSource = `const pauseForDebug = page.pause;
 await pauseForDebug();
@@ -1292,6 +1425,38 @@ await waitByStaticKey(100);`;
       'tests/specs/example/aliased-page-methods.spec.ts:6:waitByAlias( (page.waitForTimeout alias)',
       'tests/specs/example/aliased-page-methods.spec.ts:14:waitByStaticKey( (page.waitForTimeout alias)',
       'tests/specs/example/aliased-page-methods.spec.ts:8:waitForTimeout( (page.waitForTimeout alias)',
+    ]);
+  });
+
+  it('recognizes object-rest copied page debug and fixed-wait helpers before inventory checks run', () => {
+    const objectRestPageMethodSource = `const pauseKey = 'pause';
+const { pause: ignoredPause, ...pageRest } = page;
+await pageRest.pause();
+await pageRest[pauseKey]();
+const waitKey = 'waitForTimeout';
+const { waitForTimeout: ignoredWait, ...timingRest } = page;
+await timingRest.waitForTimeout(100);
+await timingRest[waitKey].apply(page, [100]);`;
+
+    expect(
+      collectAliasedPageMethodEntriesForSource(
+        'tests/specs/example/object-rest-page-methods.spec.ts',
+        objectRestPageMethodSource,
+        ['pause'],
+      ),
+    ).toEqual([
+      'tests/specs/example/object-rest-page-methods.spec.ts:3:pageRest.pause( (page.pause object-rest alias)',
+      'tests/specs/example/object-rest-page-methods.spec.ts:4:pageRest[pauseKey]( (page.pause object-rest alias)',
+    ]);
+    expect(
+      collectAliasedPageMethodEntriesForSource(
+        'tests/specs/example/object-rest-page-methods.spec.ts',
+        objectRestPageMethodSource,
+        ['waitForTimeout'],
+      ),
+    ).toEqual([
+      'tests/specs/example/object-rest-page-methods.spec.ts:7:timingRest.waitForTimeout( (page.waitForTimeout object-rest alias)',
+      'tests/specs/example/object-rest-page-methods.spec.ts:8:timingRest[waitKey].apply (page.waitForTimeout object-rest alias)',
     ]);
   });
 

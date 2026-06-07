@@ -19,30 +19,32 @@ and useful for small cleanup batches.
 | Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, generated-doc evidence-quality rules, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Local runtime/developer workflow                | Stabilized | high       | Env preflight, Neon Local cleanup, public Font Awesome install paths, CI teardown cleanup, and the first in-app Browser queue pass are covered. Historical Docker start-path and unhealthy-container blockers remain recorded as diagnostics, but later current-state Browser evidence supersedes them: the public General viewport Playwright browser sweep passed locally, direct in-app Browser tab API sweeps rechecked the full anonymous General route set at 320x740, 390x844, and 1440x900 through local head `1ab95b1c5`, a focused in-app Browser mobile refresh rechecked all anonymous General routes at 320x740 and 390x844 on local head `a2c1d2e70`, the current-head direct in-app Browser sweep at local head `6b975474c` rechecked all anonymous General routes at 320x740, 390x844, and 1440x900 with no horizontal overflow, top/side clipped visible controls, rendered application-error text, or Browser warning/error logs, the current authenticated in-app Browser probe at local head `c0c83ce2b` checked `/admin/settings`, `/global-admin/tenants`, and `/profile` at 320x740, 390x844, and 1440x900 with no horizontal overflow, clipped visible controls, rendered application-error text, Browser warning/error logs, or Auth0 redirect, pushed-head Docker/Browser refreshes through PR head `19e5bb0bc` rechecked all anonymous General routes at 320x740, 390x844, and 1440x900 with no horizontal overflow, top/side clipped visible controls, rendered application-error text, or Browser warning/error logs, the June 7, 2026 pushed-head Browser refresh at PR head `aef3ccdc` rechecked the same anonymous General route set at 320x740 and 390x844 with no horizontal overflow, top/side clipped visible controls, persistent loading placeholders, or rendered application-error text while visually inspecting representative event-list and privacy legal screenshots, and the earlier pushed-head Browser spot check at PR head `cab7f1fe` reused the generated Docker app at its generated `BASE_URL` to verify `/events`, `/legal/terms`, and `/404` at 320x740 and 390x844 with expected content, no loading or application-error text, no horizontal overflow, no top/side clipped visible controls, zero Browser warning/error logs, and inspected event-list, terms, and not-found screenshots showing seeded Material cards, legal fallback content, and fixed Events/Login navigation. Subsequent pushed head `76335498` records the same Browser evidence in `tests/test-inventory.md` and source guards without changing the fully green E2E baseline. Playwright config now uses the repo runtime config provider, so direct config importers can initialize from generated `.env.dev` when `DATABASE_URL` and `BASE_URL` are absent from `process.env`; the Playwright-test MCP Browser planner now recognizes the dedicated `mcp-browser-planner` project and `tests/setup/mcp-browser.seed.ts`, opens the seeded `/legal/terms` public General page, and captures the 320x740 mobile screenshot path after config import. A dedicated authenticated MCP Browser planner project now depends on the normal setup project and opens `/admin/settings`, `/global-admin/tenants`, and `/profile` from their admin, global-admin, and regular-user storage states so Browser planning has stable logged-in starting points without running the full viewport pack. GitHub E2E now uses Neon Local's documented default project branch when `PARENT_BRANCH_ID` is absent, sets a two-hour Neon Local branch TTL, prunes stale branches before/after E2E, and timeout-bounds project-label discovery and force-removal for leftover Compose containers during shutdown. Neon branch audits now have `bun run neon:cleanup:dry-run`, and confirmed local cleanup has `bun run neon:cleanup`, so operators do not need to remember the helper path or dotenv cascade. Local runtime diagnosis now also has `bun run dev:status`, a combined non-mutating status command that refreshes `.env.dev`, runs the development and Docker preflights, and still reports the Neon dry-run when the database port or Docker engine is blocked. Local Playwright package scripts now use guarded `env:copy-main --if-missing` before refreshing `.env.dev`, so focused local E2E reruns can inherit main-checkout developer secrets when a worktree `.env` is missing while CI still uses Actions env, vars, and secrets directly. The latest fully green PR E2E evidence is pushed head `2667494b`: CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` were green. E2E run `27068078693` completed all three serialized worker shards on pushed head `2667494b` with warmed Bun, Docker, and Playwright caches; each worker confirmed Neon branch expiration, recorded Neon Local metadata, passed its shard, stopped Docker, and ran the final Neon prune. Newer source-guard pushes are tracked separately by the live PR checks instead of being claimed as fully green here. Repo-local Neon cleanup dry-run after the completed current-head finalizers returned `total=1`, `protected=1`, `active_test=0`, `stale_deleted=0`, and `ttl=2h`, so only protected `main` remained once every worker released Neon Local. |
 
-Latest coverage checkpoint: generated-doc explanatory Markdown section counts
-are now pinned beside screenshot counts for every checked-in docs journey, and
-the section-count guard follows direct, destructured, bound, grouped, indexed,
-assigned, returned, and indirect `testInfo.attach` aliases. A future docs edit
-cannot quietly remove prose while keeping enough images to pass the density
-guard, or hide section attachments behind local helper names or
-helper-forwarding calls. The manifest currently pins, for example, 15
-explanatory sections and 14 image-backed states in
-`tests/docs/events/register.doc.ts` and eight plus eight in
-`tests/docs/templates/templates.doc.ts`. Local validation for the slice passed
+Latest coverage checkpoint: object-rest copied Playwright modifier and page
+helper objects are now classified before the skip/focus/runtime/debug/fixed-wait
+inventory compares source against its allowlists. The guard covers
+`const { skip: ignoredSkip, ...testRest } = test`,
+`const { only: ignoredOnly, ...describeRest } = test.describe`, and
+`const { pause: ignoredPause, ...pageRest } = page`, including direct calls and
+constant-backed bracket access such as `testRest[skipKey](...)`,
+`describeRest[configureKey](...)`, and `timingRest[waitKey].apply(...)`. A
+future spec or docs test cannot hide skipped, focused, serial/slow, interactive
+debug, or fixed-wait coverage changes by copying the remaining helper object
+through rest destructuring. Local validation for the slice passed
 `bun run format:write`, `bun run lint`,
-`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
-with 199 tests, and `git diff --check`; WebStorm errors-only diagnostics remain
+`bunx vitest run helpers/testing/playwright-skip-inventory.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 88 tests, and `git diff --check`; WebStorm errors-only diagnostics remain
 blocked because this worktree is not one of the IDE's open projects. Browser
-reused the local app at `http://localhost:4218` and checked `/legal/terms` and
-`/events` at 390x844 with settled expected content, no visible loading text, no
-application-error text, no horizontal overflow, and fixed General navigation.
-The Events console report returned zero warning/error messages. The screenshots
-`evorto-markdown-helper-count-terms-390x844.png` and
-`evorto-markdown-helper-count-events-390x844.png` show the actual Terms fallback
-copy and current Events empty state on Material surfaces with stable mobile
-navigation. The live PR checks are tracked separately; the latest fully green
-E2E evidence remains the older completed pushed head until the new CI run
-finishes.
+verification was attempted, but no positive visual evidence is claimed for this
+source-only slice: `bun run dev:status` found the generated local app returning
+HTTP 500 for `/legal/terms` after the database validation query failed, Docker's
+disposable start-path preflight timed out, and the project-scoped app container
+could not be restarted while the database container became unhealthy. The
+in-app Browser probe at 390x844 tried
+`/legal/terms?stabilizationEvidence=object-rest-skip-inventory-source-guard`
+and failed before rendering the page, while `curl` confirmed
+`http://localhost:4218` was not listening after the app container exited. The
+live PR checks are tracked separately; the latest fully green E2E evidence
+remains the older completed pushed head until the new CI run finishes.
 
 ## Product Decision Draft
 
@@ -6973,6 +6975,15 @@ local `page.waitForTimeout` aliases, direct
 `page.waitForTimeout.call/apply/bind(...)` forwarding, and split
 `setTimeout(...)` calls in docs screenshot helpers are rejected instead of
 depending on single-line formatting.
+Object-rest copied Playwright and page helper objects are covered too, so
+`const { skip: ignoredSkip, ...testRest } = test`,
+`const { only: ignoredOnly, ...describeRest } = test.describe`, and
+`const { pause: ignoredPause, ...pageRest } = page` cannot copy the remaining
+helper object into a local alias that bypasses the inventory. Rest-copied
+`testRest.skip(...)`, `testRest[skipKey](...)`, `describeRest.only(...)`,
+`describeRest[configureKey](...)`, `pageRest.pause(...)`, and
+`timingRest[waitKey].apply(...)` are classified as skip/focus/runtime,
+interactive debug, or fixed-wait entries before allowlist comparison.
 A same-slice in-app Browser mobile spot check opened `/legal/privacy` at
 390x844 with `stabilizationEvidence=array-built-runtime-modifier-source-guard`
 and verified the Privacy policy fallback page plus fixed Events/Login navigation
@@ -7837,3 +7848,31 @@ messages. The inspected screenshots
 `evorto-markdown-helper-count-events-390x844.png` show readable Terms fallback
 copy and the current empty Events state on Material surfaces with stable mobile
 navigation.
+
+Object-rest copied Playwright modifier and page helper objects are now
+classified before the skip/focus/runtime/debug/fixed-wait inventory compares
+source against its allowlists. The guard covers
+`const { skip: ignoredSkip, ...testRest } = test`,
+`const { only: ignoredOnly, ...describeRest } = test.describe`, and
+`const { pause: ignoredPause, ...pageRest } = page`, including direct calls and
+constant-backed bracket access such as `testRest[skipKey](...)`,
+`describeRest[configureKey](...)`, and `timingRest[waitKey].apply(...)`. A
+future spec or docs test cannot hide skipped, focused, serial/slow, interactive
+debug, or fixed-wait coverage changes by copying the remaining helper object
+through rest destructuring. The test inventory and stabilization source guard
+pin this object-rest coverage beside the direct, bracket-property, local-alias,
+nested-destructuring, static-key, array-built-key, and reflection-based
+modifier/page-helper cases. Validation for this slice passed
+`bun run format:write`, `bun run lint`,
+`bunx vitest run helpers/testing/playwright-skip-inventory.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 88 tests, and `git diff --check`; WebStorm errors-only diagnostics
+remained blocked because this worktree is not one of the IDE's open projects.
+Browser verification was attempted, but no positive visual evidence is claimed
+for this source-only slice: `bun run dev:status` found the generated local app
+returning HTTP 500 for `/legal/terms` after the database validation query
+failed, Docker's disposable start-path preflight timed out, and the
+project-scoped app container could not be restarted while the database container
+became unhealthy. The in-app Browser probe at 390x844 tried
+`/legal/terms?stabilizationEvidence=object-rest-skip-inventory-source-guard`
+and failed before rendering the page, while `curl` confirmed
+`http://localhost:4218` was not listening after the app container exited.

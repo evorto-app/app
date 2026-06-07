@@ -548,6 +548,14 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   through `Reflect.get(...)`, `Reflect.apply(...)`, and local `Reflect` aliases
   is covered for `test.skip`/`fixme`/`only`/`slow`,
   `test.describe.configure`, `page.pause`, and `page.waitForTimeout` as well.
+  Object-rest copied Playwright and page helper objects such as
+  `const { skip: ignoredSkip, ...testRest } = test`,
+  `const { only: ignoredOnly, ...describeRest } = test.describe`, and
+  `const { pause: ignoredPause, ...pageRest } = page` are classified before
+  inventory comparison too, so rest-copied `testRest.skip(...)`,
+  `describeRest.only(...)`, `describeRest[configureKey](...)`,
+  `pageRest.pause(...)`, and `timingRest[waitKey].apply(...)` cannot hide
+  skipped, focused, runtime-altered, debug, or fixed-wait coverage changes.
   Nested `test.describe` destructuring such as
   `const { describe: { skip } } = test` is classified before the alias can hide
   skipped, focused, or serial coverage.
