@@ -5873,14 +5873,14 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toMatch(
-      /public General viewport coverage now checks fixed\s+Events\/Login navigation label readability/u,
+      /public General viewport coverage now checks the\s+desktop-only Scanner navigation label/u,
     );
     expect(source).toContain('painted Material surfaces');
-    expect(source).toContain('CSS\nselectors or locators');
-    expect(source).toContain('visible Events and Login navigation\nlabels');
-    expect(source).toContain('light/dark\nsimple-page loop');
+    expect(source).toContain('same shared contrast helper as Events and Login');
+    expect(source).toContain('desktop branch where Scanner is visible');
+    expect(source).toContain('mobile branch asserting Scanner is hidden');
     expect(source).toMatch(
-      /General pages cannot keep readable headings while the fixed\s+mobile navigation silently regresses to low-contrast text/u,
+      /General pages cannot pass mobile navigation coverage while the\s+desktop side navigation keeps a low-contrast Scanner entry/u,
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
@@ -5913,7 +5913,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=general-navigation-contrast-source-guard',
+      '/legal/terms?stabilizationEvidence=general-scanner-contrast-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');
@@ -9507,8 +9507,13 @@ describe('stabilization source', () => {
     expect(viewportSpec).toContain(
       "navigation.getByRole('link', { name: 'Login' })",
     );
+    expect(viewportSpec).toContain(
+      "navigation.getByRole('link', { name: 'Scanner' })",
+    );
     expect(viewportSpec).toContain('General navigation Events link');
     expect(viewportSpec).toContain('General navigation Login link');
+    expect(viewportSpec).toContain('General navigation Scanner link');
+    expect(viewportSpec).toContain('await expect(scannerLink).toBeHidden()');
     expect(viewportSpec).toContain(
       'await expectAnonymousNavigation(page, viewport)',
     );
@@ -9531,7 +9536,8 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /wildcard not-found redirect under\s+light and dark rendering/u,
     );
-    expect(inventory).toMatch(/visible Events\/Login\s+navigation labels/u);
+    expect(inventory).toMatch(/visible Events\/Login labels/u);
+    expect(inventory).toMatch(/desktop-only Scanner navigation label/u);
     expect(inventory).toMatch(/fixed navigation text stay readable/u);
     expect(viewportSpec).not.toContain('test.describe');
     expect(viewportSpec).not.toMatch(

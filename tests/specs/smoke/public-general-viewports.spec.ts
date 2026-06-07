@@ -111,6 +111,7 @@ const expectAnonymousNavigation = async (
   const navigation = page.locator('.navigation');
   const eventsLink = navigation.getByRole('link', { name: 'Events' });
   const loginLink = navigation.getByRole('link', { name: 'Login' });
+  const scannerLink = navigation.getByRole('link', { name: 'Scanner' });
   await expect(navigation).toBeVisible();
   await expect(eventsLink).toBeVisible();
   await expect(loginLink).toBeVisible();
@@ -125,13 +126,14 @@ const expectAnonymousNavigation = async (
     `${viewport.label} General navigation Login link`,
   );
   if (viewport.width < 1024) {
-    await expect(
-      navigation.getByRole('link', { name: 'Scanner' }),
-    ).toBeHidden();
+    await expect(scannerLink).toBeHidden();
   } else {
-    await expect(
-      navigation.getByRole('link', { name: 'Scanner' }),
-    ).toBeVisible();
+    await expect(scannerLink).toBeVisible();
+    await expectReadableTextOnPaintedSurface(
+      page,
+      scannerLink.locator('span'),
+      `${viewport.label} General navigation Scanner link`,
+    );
   }
 
   const position = await navigation.evaluate((element) => {
