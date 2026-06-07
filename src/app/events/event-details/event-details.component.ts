@@ -157,23 +157,7 @@ export const eventAddonsForRegistrationOption = <
     MaterialThemeDirective,
     PriceWithTaxComponent,
   ],
-  styles: `
-    header {
-      view-transition-name: header;
-      //h1 {
-      //  view-transition-name: header-title;
-      //}
-      //app-shape {
-      //  view-transition-name: header-shape;
-      //}
-      //app-icon {
-      //  view-transition-name: header-icon;
-      //}
-    }
-    .description {
-      view-transition-name: event-description;
-    }
-  `,
+  styles: ``,
   templateUrl: './event-details.component.html',
 })
 export class EventDetailsComponent {

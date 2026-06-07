@@ -158,6 +158,14 @@ describe('EventDetails template', () => {
     expect(template).toContain('Failed to load registration status.');
     expect(template).toContain('registrationStatusQuery.isSuccess()');
   });
+
+  it('keeps desktop list/detail rendering free of local view-transition overlays', () => {
+    const source = readSource(
+      'src/app/events/event-details/event-details.component.ts',
+    );
+
+    expect(source).not.toContain('view-transition-name');
+  });
 });
 
 describe('transferCodeRedemptionActionDisabled', () => {

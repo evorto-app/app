@@ -760,7 +760,10 @@ the current working direction until a product decision overrides them.
 - `src/app/events/event-details/event-details.component.spec.ts` covers event
   review and submit-for-review action guards for permission, status, and
   mutation-pending states, keeping the event lifecycle actions safe on slow
-  networks and duplicate local triggers.
+  networks and duplicate local triggers. It also source-guards the
+  event-detail component against route-local `view-transition-name` styles after
+  in-app Browser verification found those overlays could ghost duplicate
+  desktop list/detail text on the public General event-detail route.
 - `src/app/events/event-edit/event-edit.spec.ts` covers event edit submit
   guards for invalid, submitting, and mutation-pending states.
 - `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations; unpaid self-service transfer copy; paid transfer-code copy; cancellation/transfer/code action disabling; target-email normalization; and transfer/resale-unavailable notes for pending, waitlisted, and blocked confirmed active registrations.
@@ -5841,7 +5844,22 @@ remove `evorto-91c45a89-db-1` because Docker could not kill the unhealthy
 container and did not receive an exit event. No current-head Browser
 route/layout evidence is claimed for `f6ee41ae` or the follow-up documentation
 head; the latest positive General Browser evidence remains the `8a70d36f`
-checkpoint above until Docker/Neon Local is recovered. The durable public
+checkpoint above until Docker/Neon Local is recovered. A fresh June 7, 2026
+local recovery pass then rebuilt the generated Docker app at
+`BASE_URL=http://localhost:4218`, reran
+`bun run test:e2e:public-general-viewports` with 2 passing tests, and used the
+in-app Browser to recheck all 10 anonymous General routes at 320x740, 390x844,
+and 1440x900. The first Browser screenshot pass exposed duplicate ghosted
+desktop list/detail text on the event-detail route from route-local
+`view-transition-name` styles; those event-detail transition names were removed,
+`src/app/events/event-details/event-details.component.spec.ts` now guards
+against reintroducing them, and the rebuilt Browser matrix passed all 30
+route/viewport checks with no horizontal overflow, clipped visible controls,
+rendered application-error text, warning/error logs, or event-detail local
+transition names. The visually inspected fixed screenshot
+`/tmp/evorto-general-browser-view-transition-fix-event-detail-1440x900.jpg`
+shows the desktop Material event list and detail panel without duplicate text.
+The durable public
 General viewport spec now also asserts that
 the anonymous Events/Login navigation remains visible and fixed as bottom
 navigation on mobile and side navigation on desktop for every covered General

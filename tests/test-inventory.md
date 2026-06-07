@@ -266,7 +266,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     mobile and side navigation on desktop, and it checks the hosted legal,
     not-allowed, server-error, and not-found pages under light and dark mobile
     rendering so headings and supporting copy stay readable on painted Material
-    surfaces instead of inheriting low-contrast fallback styling.
+    surfaces instead of inheriting low-contrast fallback styling. A matching
+    in-app Browser refresh caught and rechecked the desktop event-detail
+    list/detail view-transition overlay, with the source regression in
+    `src/app/events/event-details/event-details.component.spec.ts` keeping
+    route-local transition names out of that General page.
     The source guard pins the exact
     public General route list and route content assertions against
     `src/app/app.routes.ts`; `src/app/app.routes.spec.ts` also enumerates the
