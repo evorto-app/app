@@ -7538,6 +7538,22 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'fails on browser console warning/error logs while the\n    General settings route is opened at each viewport',
     );
+    expect(inventory).toContain(
+      'A June 7, 2026 authenticated viewport refresh attempt at pushed head\n  `9853852c`',
+    );
+    expect(inventory).toContain(
+      'bun run test:e2e:authenticated-viewports -- --no-deps',
+    );
+    expect(inventory).toContain(
+      'All 12 selected\n  authenticated viewport tests failed before layout assertions',
+    );
+    expect(inventory).toContain('http://localhost:4218/callback');
+    expect(inventory).toContain(
+      'refreshing only the generated\n  `evorto-tenant` cookie expiry did not recover the session',
+    );
+    expect(inventory).toContain(
+      'evorto-cc7ef3a9` Compose project, so this run does not claim authenticated\n  Material/layout evidence',
+    );
 
     for (const durableViewportSpecPath of durableViewportSpecPaths) {
       expect(inventory).toContain(

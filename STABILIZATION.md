@@ -5905,8 +5905,24 @@ known local-dev configuration error and reports the evaluated `BASE_URL`,
 `APP_HOST_PORT`, and current Auth0 URL instead of timing out while waiting for
 the username field. Use the registered local callback port, usually
 `APP_HOST_PORT=4200` on this machine, or add the generated worktree port to the
-Auth0 application before running authenticated Browser planning. Important
-entrypoints remain visible in `package.json`: app build/dev,
+Auth0 application before running authenticated Browser planning. An
+authenticated viewport refresh attempt on June 7, 2026 at pushed head
+`9853852c` rebuilt and reused the worktree Docker app at
+`BASE_URL=http://localhost:4218`, then ran
+`bun run test:e2e:authenticated-viewports -- --no-deps`. The run failed all 12
+selected authenticated viewport tests before layout assertions because the
+stored auth state redirected to Auth0 for callback
+`http://localhost:4218/callback`; refreshing only the generated
+`evorto-tenant` cookie expiry did not recover the session, and a focused
+`tests/specs/admin/general-settings.spec.ts --project=local-chrome-baseline --workers=1 --no-deps`
+retry failed the same way. Port 4200 was already occupied by a separate
+`evorto-cc7ef3a9` Compose project, so this pass did not take over that
+Auth0-registered port. No authenticated Material/layout regression is claimed
+from this failed run; fresh authenticated Browser or Playwright evidence still
+requires either an Auth0-registered worktree port or a non-interfering 4200
+runtime for this branch.
+
+Important entrypoints remain visible in `package.json`: app build/dev,
 unit tests, Playwright e2e/docs and focused viewport/layout/MCP reruns, Docker
 stack start/reset/resume/webServer/stop, database commands, dependency updates,
 Stripe/Sentry ops, theme generation, and receipt-image cleanup. The runtime

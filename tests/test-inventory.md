@@ -1357,6 +1357,18 @@ provider outcomes without live identifiers.
   Authentication setup recognizes Auth0 `Callback URL mismatch.` errors and
   reports the current `BASE_URL` and `APP_HOST_PORT` before the normal username
   field wait can become a misleading timeout.
+  A June 7, 2026 authenticated viewport refresh attempt at pushed head
+  `9853852c` reused the generated Docker app at
+  `BASE_URL=http://localhost:4218` and ran
+  `bun run test:e2e:authenticated-viewports -- --no-deps`. All 12 selected
+  authenticated viewport tests failed before layout assertions because the
+  stored auth state redirected to Auth0 for
+  `http://localhost:4218/callback`; refreshing only the generated
+  `evorto-tenant` cookie expiry did not recover the session, and a focused
+  `tests/specs/admin/general-settings.spec.ts --project=local-chrome-baseline --workers=1 --no-deps`
+  retry failed the same way. Port 4200 was already occupied by a separate
+  `evorto-cc7ef3a9` Compose project, so this run does not claim authenticated
+  Material/layout evidence for the current head.
 - Scenario handles from `seeded.scenario.events.*` are the preferred way to address seeded entities.
 - `tests/specs/scanning/scanner.test.ts`,
   `tests/specs/profile/user-profile-discounts.spec.ts`, and
