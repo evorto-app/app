@@ -80,11 +80,19 @@ const collectPermissionsLines = (
     testTitle,
     'permissions',
   );
-  return body
+  const permissionsLines = body
     .toString()
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
+
+  if (!permissionsLines.length) {
+    throw new Error(
+      `Documentation permissions attachment in ${testTitle} must include at least one permission line.`,
+    );
+  }
+
+  return permissionsLines;
 };
 
 const appendPermissionsCallout = (

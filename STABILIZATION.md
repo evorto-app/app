@@ -7225,3 +7225,25 @@ readable Page not found copy on a Material surface with fixed Events/Login
 bottom navigation and no visible overlap, while Browser metrics reported the
 expected copy, no loading or application-error text, and matching document/body
 scroll widths inside the active mobile viewport.
+
+Generated-doc reporter runtime now also rejects blank dedicated `permissions`
+attachments. That closes the permissions-doc fallback where a docs test could
+attach only whitespace, pass the reserved-attachment body guard, and then emit
+no user-permissions callout before the explanatory Markdown. Focused
+reporter-path coverage now exercises the blank-permissions failure, and
+source-level generated-doc/stabilization guards plus the test inventory pin that
+permissions attachments must carry at least one real permission line. Focused
+validation passed `bun run test:e2e:reporter-paths` with 40 reporter-path tests
+green, `bunx vitest run helpers/testing/generated-documentation-source.spec.ts
+helpers/testing/stabilization-source.spec.ts --reporter=verbose` with 181 source
+tests green, `bun run format:write`, `bun run lint`, and `bun run dev:status`.
+WebStorm diagnostics could not inspect this worktree because the open IDE
+projects were still `/Users/hedde/.codex/worktrees/e159/evorto` and
+`/Users/hedde/.codex/worktrees/0677/section-app`, not this checkout. A
+same-slice in-app Browser mobile spot check opened `/legal/terms` with
+`stabilizationEvidence=blank-permissions-doc-guard` and saved
+`/tmp/evorto-blank-permissions-doc-guard-terms-390x844.png`; the screenshot
+shows readable Terms fallback copy on a Material surface with fixed Events/Login
+bottom navigation and no visible overlap, while Browser metrics reported the
+expected copy, no loading or application-error text, and matching document/body
+scroll widths inside the active mobile viewport.

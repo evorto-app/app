@@ -262,6 +262,38 @@ test('documentation reporter rejects permissions attachments without body conten
   );
 });
 
+test('documentation reporter rejects blank permissions attachments', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-blank-permissions');
+  const imgsRoot = testInfo.outputPath('docs-img-blank-permissions');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'permissions',
+        contentType: 'text/plain',
+        body: Buffer.from(' \n\t\n '),
+      },
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from(descriptiveMarkdown),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Blank permissions' } as any, result),
+  ).toThrow(
+    'Documentation permissions attachment in Blank permissions must include at least one permission line.',
+  );
+});
+
 test('documentation reporter rejects invalid image attachments', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out-invalid-image');
   const imgsRoot = testInfo.outputPath('docs-img-invalid-image');

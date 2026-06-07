@@ -11102,6 +11102,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain('documentation reporter rejects blank permissions attachments');
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(
       'documentation reporter rejects reference-style markdown image syntax',
     );
