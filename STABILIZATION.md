@@ -5722,8 +5722,18 @@ stack, then checked `/legal/terms` and `/events` at 320x740 plus `/404` and
 `/legal/terms` at 390x844. The Browser screenshots showed readable legal text,
 seeded event cards with meaningful icons and times, and fixed Events/Login
 bottom navigation without visible clipping or overlap; the `/events` console
-entries were app info logs only. The durable public General viewport spec now
-also asserts that
+entries were app info logs only. A June 7, 2026 current-head Browser evidence
+attempt at pushed head `f6ee41ae` did not produce route/layout evidence:
+`bun run dev:status` regenerated `.env.dev` for `BASE_URL=http://localhost:4218`,
+but Docker's disposable container start-path preflight timed out, the existing
+worktree Compose app returned HTTP 500 for `/legal/terms`, the app log showed an
+`EffectDrizzleQueryError` during tenant lookup, direct local Neon queries failed
+with `password authentication failed for user 'appdb_owner'`, and the worktree
+database container later reported unhealthy while the app container was stopped.
+No current-head Browser route/layout evidence is claimed for `f6ee41ae`; the
+latest positive General Browser evidence remains the `574e9273` checkpoint above
+until Docker/Neon Local is recovered. The durable public General viewport spec
+now also asserts that
 the anonymous Events/Login navigation remains visible and fixed as bottom
 navigation on mobile and side navigation on desktop for every covered General
 route. Playwright config now uses the repo runtime config provider
