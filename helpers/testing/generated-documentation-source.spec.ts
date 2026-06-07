@@ -8734,6 +8734,36 @@ describe('generated docs source current behavior', () => {
     ).toBe(5);
   });
 
+  it('counts returned and indirect generated documentation markdown attachments for the manifest guard', () => {
+    const returnedMarkdownCountSource = `
+      const markdownName = 'markdown';
+      let assignedAttachMarkdown;
+      assignedAttachMarkdown = testInfo.attach.bind(testInfo);
+      await assignedAttachMarkdown(markdownName, { body: 'Assigned section body.' });
+      function resolveAttachMarkdown() {
+        return testInfo.attach.bind(testInfo);
+      }
+      const returnedAttachMarkdown = resolveAttachMarkdown();
+      await returnedAttachMarkdown(markdownName, { body: 'Returned section body.' });
+      const attachHelpers = { attachMarkdownEvidence: resolveAttachMarkdown() };
+      const spreadAttachHelpers = { ...attachHelpers };
+      const assignedAttachHelpers = Object.assign({}, attachHelpers);
+      await spreadAttachHelpers.attachMarkdownEvidence(markdownName, { body: 'Spread returned section body.' });
+      await assignedAttachHelpers.attachMarkdownEvidence(markdownName, { body: 'Assigned returned section body.' });
+      await testInfo.attach.call(testInfo, markdownName, { body: 'Call section body.' });
+      await assignedAttachMarkdown.apply(testInfo, [markdownName, { body: 'Apply section body.' }]);
+      await Reflect.apply(assignedAttachMarkdown, testInfo, [markdownName, { body: 'Reflect section body.' }]);
+      await recordDocumentationNote('markdown', { body: 'Not a Playwright docs section.' });
+    `;
+
+    expect(
+      countGeneratedMarkdownAttachments(
+        'tests/docs/example/returned-markdown-count.doc.ts',
+        returnedMarkdownCountSource,
+      ),
+    ).toBe(7);
+  });
+
   it('requires indirect documentation markdown attachments to include explanatory body text', () => {
     const indirectMarkdownBodySource = `
       const markdownName = 'markdown';

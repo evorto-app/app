@@ -577,9 +577,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   attachment path cannot publish thin docs prose. It pins the current per-flow
   Markdown section counts and screenshot counts with manifests that must include
   every image-backed docs file, and the Markdown-count guard follows direct,
-  destructured, bound, grouped, and indexed `testInfo.attach` aliases so docs
-  cannot quietly drop explanatory sections while hiding them behind local helper
-  names. It also prevents docs from dropping image-backed states, requires UI docs to use
+  destructured, bound, grouped, indexed, assigned, returned, and indirect
+  `testInfo.attach` aliases so docs cannot quietly drop explanatory sections
+  while hiding them behind local helper names or helper-forwarding calls. It
+  also prevents docs from dropping image-backed states, requires UI docs to use
   the shared `takeScreenshot` helper imported from the documentation reporter
   barrel with a meaningful literal caption, requires screenshot captions to stay
   unique across generated docs so one caption cannot describe unrelated states,

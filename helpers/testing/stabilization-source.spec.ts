@@ -1805,7 +1805,7 @@ describe('stabilization source', () => {
     );
     expect(inventory).toMatch(/Markdown section counts and screenshot counts/u);
     expect(inventory).toContain(
-      'Markdown-count guard follows direct,\n  destructured, bound, grouped, and indexed `testInfo.attach` aliases',
+      'Markdown-count guard follows direct,\n  destructured, bound, grouped, indexed, assigned, returned, and indirect\n  `testInfo.attach` aliases',
     );
     expect(inventory).toMatch(
       /manifests? that must include\s+every image-backed docs/u,
@@ -2037,10 +2037,16 @@ describe('stabilization source', () => {
       'counts aliased generated documentation markdown attachments for the manifest guard',
     );
     expect(generatedDocumentationSource).toContain(
+      'counts returned and indirect generated documentation markdown attachments for the manifest guard',
+    );
+    expect(generatedDocumentationSource).toContain(
       'const { attach: destructuredAttachMarkdown } = testInfo',
     );
     expect(generatedDocumentationSource).toContain(
       'attachMarkdownHelpers.at(0)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'Reflect.apply(assignedAttachMarkdown, testInfo',
     );
     expect(generatedDocumentationSource).toContain(
       'keeps product-important documentation areas represented by generated docs',
@@ -5584,18 +5590,18 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('pinned beside screenshot counts');
     expect(source).toContain(
-      'the section-count guard follows direct, destructured, bound, grouped, and\nindexed `testInfo.attach` aliases',
+      'the section-count guard follows direct, destructured, bound, grouped, indexed,\nassigned, returned, and indirect `testInfo.attach` aliases',
     );
-    expect(source).toContain('local helper names');
+    expect(source).toContain('local helper names or\nhelper-forwarding calls');
     expect(source).toMatch(
-      /15 explanatory\s+sections and 14 image-backed states in\s+`tests\/docs\/events\/register\.doc\.ts`/u,
+      /15\s+explanatory\s+sections and 14 image-backed states in\s+`tests\/docs\/events\/register\.doc\.ts`/u,
     );
     expect(source).toContain('eight plus eight in');
     expect(source).toContain('tests/docs/templates/templates.doc.ts');
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 198 tests');
+    expect(source).toContain('with 199 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5613,9 +5619,11 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'The Events console report returned zero warning/error messages',
     );
-    expect(source).toContain('`evorto-markdown-alias-count-terms-390x844.png`');
     expect(source).toContain(
-      '`evorto-markdown-alias-count-events-390x844.png`',
+      '`evorto-markdown-helper-count-terms-390x844.png`',
+    );
+    expect(source).toContain(
+      '`evorto-markdown-helper-count-events-390x844.png`',
     );
     expect(source).toMatch(/The\s+live PR checks are tracked\s+separately/u);
     expect(source).toMatch(/latest fully green\s+E2E/u);

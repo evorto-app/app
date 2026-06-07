@@ -21,23 +21,24 @@ and useful for small cleanup batches.
 
 Latest coverage checkpoint: generated-doc explanatory Markdown section counts
 are now pinned beside screenshot counts for every checked-in docs journey, and
-the section-count guard follows direct, destructured, bound, grouped, and
-indexed `testInfo.attach` aliases. A future docs edit cannot quietly remove
-prose while keeping enough images to pass the density guard, or hide section
-attachments behind local helper names. The manifest currently pins, for
-example, 15 explanatory sections and 14 image-backed states in
+the section-count guard follows direct, destructured, bound, grouped, indexed,
+assigned, returned, and indirect `testInfo.attach` aliases. A future docs edit
+cannot quietly remove prose while keeping enough images to pass the density
+guard, or hide section attachments behind local helper names or
+helper-forwarding calls. The manifest currently pins, for example, 15
+explanatory sections and 14 image-backed states in
 `tests/docs/events/register.doc.ts` and eight plus eight in
 `tests/docs/templates/templates.doc.ts`. Local validation for the slice passed
 `bun run format:write`, `bun run lint`,
 `bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
-with 198 tests, and `git diff --check`; WebStorm errors-only diagnostics remain
+with 199 tests, and `git diff --check`; WebStorm errors-only diagnostics remain
 blocked because this worktree is not one of the IDE's open projects. Browser
 reused the local app at `http://localhost:4218` and checked `/legal/terms` and
 `/events` at 390x844 with settled expected content, no visible loading text, no
 application-error text, no horizontal overflow, and fixed General navigation.
 The Events console report returned zero warning/error messages. The screenshots
-`evorto-markdown-alias-count-terms-390x844.png` and
-`evorto-markdown-alias-count-events-390x844.png` show the actual Terms fallback
+`evorto-markdown-helper-count-terms-390x844.png` and
+`evorto-markdown-helper-count-events-390x844.png` show the actual Terms fallback
 copy and current Events empty state on Material surfaces with stable mobile
 navigation. The live PR checks are tracked separately; the latest fully green
 E2E evidence remains the older completed pushed head until the new CI run
@@ -7813,25 +7814,26 @@ stable Events/Login/Scanner navigation.
 
 Generated-doc explanatory section counts are now pinned beside screenshot
 counts. `helpers/testing/generated-documentation-source.spec.ts` counts
-direct, destructured, bound, grouped, and indexed
+direct, destructured, bound, grouped, indexed, assigned, returned, and indirect
 `testInfo.attach('markdown', ...)`-backed calls for every docs journey and
 compares them with a per-file manifest, so a future docs edit cannot remove
 explanatory sections while preserving enough screenshots to satisfy the density
-guard or hiding section attachments behind local helper names. The
+guard or hiding section attachments behind local helper names or
+helper-forwarding calls. The
 manifest currently pins, for example, the 15 Markdown sections and 14 screenshots
 in `tests/docs/events/register.doc.ts` and the eight Markdown sections and eight
 screenshots in `tests/docs/templates/templates.doc.ts`. The test inventory and
 stabilization source guard record the combined Markdown/screenshot contract.
 Validation for this slice passed `bun run format:write`, `bun run lint`, and
 `bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
-with 198 tests after correcting the tracking assertions. WebStorm errors-only
+with 199 tests after correcting the tracking assertions. WebStorm errors-only
 diagnostics remained blocked because this worktree is not one of the IDE's open
 projects. Browser reused the already-running app at `http://localhost:4218` and
 checked `/legal/terms` and `/events` at 390x844 with settled expected content,
 no visible loading text, no application-error text, no horizontal overflow, and
 fixed General navigation. The Events console report returned zero warning/error
 messages. The inspected screenshots
-`evorto-markdown-alias-count-terms-390x844.png` and
-`evorto-markdown-alias-count-events-390x844.png` show readable Terms fallback
+`evorto-markdown-helper-count-terms-390x844.png` and
+`evorto-markdown-helper-count-events-390x844.png` show readable Terms fallback
 copy and the current empty Events state on Material surfaces with stable mobile
 navigation.
