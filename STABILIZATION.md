@@ -6508,6 +6508,11 @@ or `resolveAttach()('image', ...)` cannot hide direct `page.screenshot`,
 `locator.screenshot`, or `testInfo.attach` usage behind a neutral local helper
 function before docs reach the shared screenshot-helper caption, highlight,
 content-pixel, and readable-text checks.
+Assigned local raw capture aliases are rejected too, so a generated-doc source
+cannot declare `let capture; capture = page.screenshot.bind(page)` or
+`let evidence; evidence = testInfo.attach.bind(testInfo)` before attaching raw
+screenshots, raw image names, raw image MIME/path values, or raw image payloads
+outside the shared screenshot helper.
 Static `Reflect.get(...)` lookups of `takeScreenshot`, `page.screenshot`, and
 `testInfo.attach` are treated as shared-helper or raw screenshot/image helpers
 too, including string-alias property names, so generated docs cannot hide direct
@@ -7292,3 +7297,20 @@ and the desktop screenshot shows the fixed side rail with Events, Scanner, and
 Login. Browser metrics reported expected Events/Soccer Match content, no
 loading or application-error text, zero warning/error logs, and no clipped
 visible navigation controls at either viewport.
+
+The generated-documentation source guard now also rejects raw docs-image capture
+hidden behind assigned local aliases, covering post-declaration assignment to
+raw `page.screenshot`/`locator.screenshot` functions, `testInfo.attach`
+functions, image attachment names, raw image MIME/path values, and raw image
+payload objects. The focused generated-doc source suite passed with 117
+source-guard tests after adding the assigned-alias regression cases, and the
+combined generated-doc/stabilization source rerun passed with 183 source tests.
+This keeps docs tests from bypassing the shared screenshot helper through a
+neutral `let capture; capture = ...` style alias. A same-slice in-app Browser
+mobile spot check opened `/legal/terms` and `/events` at 390x844 with
+`stabilizationEvidence=assigned-doc-source-alias-guard-*`, saved
+`/tmp/evorto-assigned-doc-source-guard-terms-readable-390x844.png` and
+`/tmp/evorto-assigned-doc-source-guard-events-viewport-390x844.png`, and
+verified readable legal fallback copy, seeded event cards with icons/times,
+fixed Events/Login bottom navigation, no loading or application-error text,
+zero Browser warning/error logs, and no clipped visible controls.

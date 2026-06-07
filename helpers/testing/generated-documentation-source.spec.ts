@@ -5079,6 +5079,52 @@ const findDirectImageAttachmentCalls = (
     if (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isImageAttachmentName(node.right)
+    ) {
+      imageAttachmentNameAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isImageAttachmentPayloadValue(node.right)
+    ) {
+      imageAttachmentPayloadValueAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isImageAttachmentPayload(node.right)
+    ) {
+      imageAttachmentPayloadAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isTrackedAttachFunctionReference(node.right)
+    ) {
+      attachFunctionAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      (ts.isArrowFunction(node.right) || ts.isFunctionExpression(node.right)) &&
+      returnsAttachFunctionReference(node.right)
+    ) {
+      attachFunctionFactoryAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
       (ts.isPropertyAccessExpression(node.left) ||
         ts.isElementAccessExpression(node.left)) &&
       isImageAttachmentName(node.right)
@@ -5797,6 +5843,25 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     if (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isTrackedScreenshotFunctionReference(node.right)
+    ) {
+      screenshotFunctionAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      (ts.isArrowFunction(node.right) || ts.isFunctionExpression(node.right)) &&
+      returnsScreenshotFunctionReference(node.right)
+    ) {
+      screenshotFunctionFactoryAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
       (ts.isPropertyAccessExpression(node.left) ||
         ts.isElementAccessExpression(node.left)) &&
       isScreenshotFunctionReference(node.right)
@@ -6439,6 +6504,39 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects direct image attachments hidden behind assigned local aliases', () => {
+    const assignedImageAttachmentSource = `
+      let assignedAttach;
+      assignedAttach = testInfo.attach.bind(testInfo);
+      await assignedAttach('image', { body: imageBuffer });
+      let assignedImageName;
+      assignedImageName = 'image';
+      await testInfo.attach(assignedImageName, { body: imageBuffer });
+      let assignedImageMime;
+      assignedImageMime = 'image/png';
+      await testInfo.attach('raw mime evidence', { contentType: assignedImageMime });
+      let assignedRawImagePayload;
+      assignedRawImagePayload = { body: imageBuffer, contentType: 'image/webp' };
+      await testInfo.attach('raw payload evidence', assignedRawImagePayload);
+      let assignedAttachFactory;
+      assignedAttachFactory = () => testInfo.attach.bind(testInfo);
+      await assignedAttachFactory()('raw file evidence', { path: 'assigned-raw.png' });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/assigned-image-attachment.doc.ts',
+        assignedImageAttachmentSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/assigned-image-attachment.doc.ts:4:13',
+      'tests/docs/example/assigned-image-attachment.doc.ts:7:13',
+      'tests/docs/example/assigned-image-attachment.doc.ts:10:13',
+      'tests/docs/example/assigned-image-attachment.doc.ts:13:13',
+      'tests/docs/example/assigned-image-attachment.doc.ts:16:13',
+    ]);
+  });
+
   it('detects direct image attachments hidden behind returned function helpers', () => {
     const returnedAttachSource = `
       function resolveAttachEvidence() {
@@ -6939,6 +7037,31 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/computed-destructured-screenshot.doc.ts:3:13',
       'tests/docs/example/computed-destructured-screenshot.doc.ts:5:15',
+    ]);
+  });
+
+  it('detects direct screenshots hidden behind assigned local aliases', () => {
+    const assignedScreenshotSource = `
+      let assignedCapture;
+      assignedCapture = page.screenshot.bind(page);
+      await assignedCapture({ path: 'assigned-page.png' });
+      let assignedElementCapture;
+      assignedElementCapture = page.locator('main').screenshot.bind(page.locator('main'));
+      await assignedElementCapture({ path: 'assigned-element.png' });
+      let assignedCaptureFactory;
+      assignedCaptureFactory = () => page.screenshot.bind(page);
+      await assignedCaptureFactory()({ path: 'assigned-factory-page.png' });
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/assigned-screenshot.doc.ts',
+        assignedScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/assigned-screenshot.doc.ts:4:13',
+      'tests/docs/example/assigned-screenshot.doc.ts:7:13',
+      'tests/docs/example/assigned-screenshot.doc.ts:10:13',
     ]);
   });
 

@@ -2621,6 +2621,14 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('testInfo.attach.call');
     expect(generatedDocumentationSource).toContain('hasSpreadArgument');
     expect(generatedDocumentationSource).toContain(
+      'detects direct image attachments hidden behind assigned local aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects direct screenshots hidden behind assigned local aliases',
+    );
+    expect(generatedDocumentationSource).toContain('assignedAttachFactory');
+    expect(generatedDocumentationSource).toContain('assignedCaptureFactory');
+    expect(generatedDocumentationSource).toContain(
       'detects spread direct image attachment arguments before generated docs can use them',
     );
     expect(generatedDocumentationSource).toContain(
@@ -3057,6 +3065,7 @@ describe('stabilization source', () => {
     expect(source).toContain('Inline `bind(...)(...)` invocations');
     expect(source).toContain('`Reflect.apply(...)` invocations');
     expect(source).toContain('Returned raw capture helpers');
+    expect(source).toContain('Assigned local raw capture aliases');
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);
     expect(source).toContain('Optional-call invocations');
@@ -3075,6 +3084,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'optional-call screenshot-helper, raw screenshot, and image attach invocations',
     );
+    expect(inventory).toContain('assigned local raw screenshot\n  aliases');
+    expect(inventory).toContain('assigned local raw image names');
+    expect(inventory).toContain('returned\n  attach-function factories');
   });
 
   it('keeps the PR readiness checkpoint current without pinning stale heads', () => {

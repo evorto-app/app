@@ -744,7 +744,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   screenshot helpers, object-spread, `Object.assign(...)`, and object-rest
   copied grouped screenshot helpers, and
   direct or alias-valued tuple/array screenshot-function entries including
-  `.at(...)` indexed raw screenshot-helper lists, rejects direct
+  `.at(...)` indexed raw screenshot-helper lists, assigned local raw screenshot
+  aliases and assigned raw screenshot factory aliases, rejects direct
   image attachments through simple or grouped attachment-name aliases, wrapped
   attachment-name forwarding through calls, template interpolation, conditionals,
   nullish/logical expressions, and static concatenation including `.at(...)`
@@ -753,7 +754,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   including `.at(...)` indexed payload lists, aliased grouped or indexed
   MIME/path values including `.at(...)` indexed MIME/path lists, binding-default
   and parameter-default attachment names, MIME/path values, raw image payload
-  objects, and attach-function aliases, simple
+  objects, and attach-function aliases, assigned local raw image names,
+  MIME/path values, payload objects, attach-function aliases, and returned
+  attach-function factories, simple
   MIME/path forwarding through calls, template interpolation, conditionals,
   nullish/logical expressions, and concatenation, object shorthand image
   payloads, computed raw image payload keys, spread raw image payload objects,
