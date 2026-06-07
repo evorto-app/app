@@ -548,11 +548,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   registration confirmation with QR ticket availability, account-required
   tenant account creation, registration cancellation/refund scope, and
   waitlists,
-  maps root `QUALITY.md` generated-documentation topics
-  including paid registration, waitlists, registration cancellation,
-  transfer/resale, registration confirmation with QR ticket availability,
-  payments, direct QR email-delivery boundaries, email notifications, and
-  documentation/help to checked-in docs sources,
+  parses root `QUALITY.md` generated-documentation feature areas and maps each
+  one to checked-in docs sources, while supplemental high-value quality journeys
+  such as paid registration, waitlists, registration cancellation,
+  transfer/resale, registration confirmation with QR ticket availability, and
+  direct QR email-delivery boundaries stay pinned to concrete generated-doc
+  terms,
   maps `ARCHITECTURE.md`'s Playwright documentation evidence boundary to
   checked-in docs files, `test:e2e:docs`, markdown attachments, shared screenshot
   helper calls, paired captions, and highlighted/content-checked PNG evidence,

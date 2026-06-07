@@ -7268,7 +7268,7 @@ describe('generated docs source current behavior', () => {
 
   it('keeps quality documentation topics represented by generated docs', () => {
     const qualitySource = readSource('QUALITY.md');
-    const generatedDocumentationTopics = [
+    const qualityFeatureAreaDocumentationTopics = [
       {
         files: [
           'tests/docs/events/event-approval.doc.ts',
@@ -7288,44 +7288,6 @@ describe('generated docs source current behavior', () => {
         files: ['tests/docs/events/register.doc.ts'],
         terms: ['Register for a free event', 'Successful registration'],
         topic: 'registrations',
-      },
-      {
-        files: ['tests/docs/events/register.doc.ts'],
-        terms: [
-          'Your event ticket',
-          'QR code for the registration',
-          'registration-confirmation email',
-        ],
-        topic: 'receiving registration confirmation / QR code',
-      },
-      {
-        files: ['tests/docs/events/register.doc.ts'],
-        terms: ['Stripe Checkout', 'Paid event registration options'],
-        topic: 'registering for a paid event',
-      },
-      {
-        files: ['tests/docs/events/register.doc.ts'],
-        terms: [
-          'Full participant options expose a distinct **Join waitlist** action',
-          'Leave waitlist',
-        ],
-        topic: 'joining a waitlist',
-      },
-      {
-        files: ['tests/docs/events/register.doc.ts'],
-        terms: [
-          'Cancellation queues a registration-cancelled email',
-          'Paid confirmed cancellations are still allowed',
-        ],
-        topic: 'cancelling a registration',
-      },
-      {
-        files: ['tests/docs/events/register.doc.ts'],
-        terms: [
-          'Transfer an unpaid registration',
-          'Paid transfer and resale boundary',
-        ],
-        topic: 'transferring/reselling a registration',
       },
       {
         files: [
@@ -7385,7 +7347,62 @@ describe('generated docs source current behavior', () => {
       },
     ] as const;
 
-    for (const documentationTopic of generatedDocumentationTopics) {
+    const supplementalQualityJourneyDocumentationTopics = [
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        terms: [
+          'Your event ticket',
+          'QR code for the registration',
+          'registration-confirmation email',
+        ],
+        topic: 'receiving registration confirmation / QR code',
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        terms: ['Stripe Checkout', 'Paid event registration options'],
+        topic: 'registering for a paid event',
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        terms: [
+          'Full participant options expose a distinct **Join waitlist** action',
+          'Leave waitlist',
+        ],
+        topic: 'joining a waitlist',
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        terms: [
+          'Cancellation queues a registration-cancelled email',
+          'Paid confirmed cancellations are still allowed',
+        ],
+        topic: 'cancelling a registration',
+      },
+      {
+        files: ['tests/docs/events/register.doc.ts'],
+        terms: [
+          'Transfer an unpaid registration',
+          'Paid transfer and resale boundary',
+        ],
+        topic: 'transferring/reselling a registration',
+      },
+    ] as const;
+
+    expect(
+      extractMarkdownListAfter(
+        qualitySource,
+        'Organize generated docs by feature area, such as:',
+      ),
+    ).toEqual(
+      qualityFeatureAreaDocumentationTopics.map(
+        (documentationTopic) => documentationTopic.topic,
+      ),
+    );
+
+    for (const documentationTopic of [
+      ...qualityFeatureAreaDocumentationTopics,
+      ...supplementalQualityJourneyDocumentationTopics,
+    ]) {
       expect(qualitySource).toContain(`- ${documentationTopic.topic}`);
 
       const combinedSource = documentationTopic.files

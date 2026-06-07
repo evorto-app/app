@@ -1601,10 +1601,10 @@ describe('stabilization source', () => {
       'manifest that must include every image-backed docs',
     );
     expect(inventory).toMatch(
-      /root `QUALITY\.md`\s+generated-documentation topics/u,
+      /root `QUALITY\.md`\s+generated-documentation feature areas/u,
     );
     expect(inventory).toMatch(
-      /paid registration,\s+waitlists,\s+registration cancellation,\s+transfer\/resale,\s+registration confirmation with QR ticket availability,\s+payments,\s+direct QR email-delivery boundaries,\s+email notifications,\s+and\s+documentation\/help/u,
+      /supplemental high-value quality journeys\s+such as paid registration,\s+waitlists,\s+registration cancellation,\s+transfer\/resale,\s+registration confirmation with QR ticket availability,\s+and\s+direct QR email-delivery boundaries/u,
     );
     expect(inventory).toContain('quietly drop image-backed states');
     expect(inventory).toContain('shared `takeScreenshot` helper');
@@ -1782,7 +1782,10 @@ describe('stabilization source', () => {
       'supplementalProductModelDocumentationAreas',
     );
     expect(generatedDocumentationSource).toContain(
-      'generatedDocumentationTopics',
+      'qualityFeatureAreaDocumentationTopics',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'supplementalQualityJourneyDocumentationTopics',
     );
     expect(generatedDocumentationSource).toContain(
       'generated user/admin documentation',

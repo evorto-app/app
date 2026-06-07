@@ -6336,12 +6336,13 @@ existing-user role-assignment instructions and action selectors while the
 relaunch user-list surface remains read-only, and it keeps the role guide tied
 to Product.md's tenant-defined/default-role boundary instead of system-defined
 or global default-role wording.
-It also maps `QUALITY.md` generated-documentation topics to checked-in docs
-sources, including paid registration, waitlists, registration cancellation,
-transfer/resale, registration confirmation with QR ticket availability,
-payments, direct QR email-delivery boundaries, email notifications, and
-documentation/help, so the product and quality root docs cannot drift apart on
-which user/admin guides are expected.
+It also parses `QUALITY.md` generated-documentation feature areas and maps each
+one to checked-in docs sources, while supplemental high-value quality journeys
+such as paid registration, waitlists, registration cancellation, transfer/resale,
+registration confirmation with QR ticket availability, and direct QR
+email-delivery boundaries stay pinned to concrete generated-doc terms. This
+keeps the product and quality root docs from drifting apart on which user/admin
+guides are expected.
 It also maps `ARCHITECTURE.md`'s Playwright documentation evidence boundary to
 checked-in docs files, `test:e2e:docs`, markdown attachments, shared screenshot
 helper calls, paired captions, and highlighted/content-checked PNG evidence, so
