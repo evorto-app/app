@@ -4356,6 +4356,18 @@ describe('stabilization source', () => {
       'rechecked all anonymous General routes at 320x740, 390x844, and 1440x900',
     );
     expect(statusTable).toContain(
+      'June 7, 2026 pushed-head Browser refresh at PR head `aef3ccdc`',
+    );
+    expect(statusTable).toContain(
+      'same anonymous General route set at 320x740 and 390x844',
+    );
+    expect(statusTable).toContain(
+      'no horizontal overflow, top/side clipped visible controls, persistent loading placeholders, or rendered application-error text',
+    );
+    expect(statusTable).toContain(
+      'visually inspecting representative event-list and privacy legal screenshots',
+    );
+    expect(statusTable).toContain(
       'Playwright config now uses the repo runtime config provider',
     );
     expect(statusTable).toContain(
