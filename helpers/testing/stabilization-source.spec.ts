@@ -1621,6 +1621,10 @@ describe('stabilization source', () => {
       "Reflect.get(groupedScreenshotHelpers, 'capture')",
     );
     expect(source).toContain(
+      'Object-rest copied grouped screenshot helpers are also tracked',
+    );
+    expect(source).toContain('copiedScreenshotHelpers.capture(...)');
+    expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
     expect(source).toContain('rebuilt the Docker docs stack');
@@ -1853,6 +1857,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/grouped screenshot-function\s+properties/u);
     expect(inventory).toMatch(
       /shorthand or alias-valued grouped\s+screenshot helpers/u,
+    );
+    expect(inventory).toContain(
+      'object-rest copied grouped screenshot helpers',
     );
     expect(inventory).toMatch(
       /direct or alias-valued tuple\/array screenshot-function\s+entries/u,

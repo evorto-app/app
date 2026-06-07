@@ -6629,6 +6629,10 @@ Reflected grouped screenshot-helper properties are now resolved as raw
 screenshot callees too, so `Reflect.get(groupedScreenshotHelpers, 'capture')`
 cannot hide a `page.screenshot` alias behind a neutral helper object before a
 generated-doc image is attached.
+Object-rest copied grouped screenshot helpers are also tracked, so generated
+docs cannot destructure `{ ...copiedScreenshotHelpers }` from a helper group and
+then call `copiedScreenshotHelpers.capture(...)` as an unvalidated raw
+screenshot.
 Generated-doc screenshot captions now also require at least 32 characters and
 five words at runtime and in source coverage, so a screenshot cannot pass with a
 terse section/list label that does not explain what the image proves. The

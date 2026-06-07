@@ -5092,6 +5092,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
         screenshotFunctionAliases,
         staticStringAliases,
       );
+      collectObjectRestPropertyAliases(node, screenshotFunctionPropertyAliases);
     }
 
     if (ts.isParameter(node)) {
@@ -6166,6 +6167,28 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/reflect-get-screenshot.doc.ts:8:13',
       'tests/docs/example/reflect-get-screenshot.doc.ts:9:13',
       'tests/docs/example/reflect-get-screenshot.doc.ts:11:13',
+    ]);
+  });
+
+  it('detects direct screenshots hidden behind object-rest grouped aliases', () => {
+    const objectRestGroupedScreenshotSource = `
+      const screenshotHelpers = {
+        capture: page.screenshot.bind(page),
+        captureElement: locator.screenshot.bind(locator),
+      };
+      const { ...copiedScreenshotHelpers } = screenshotHelpers;
+      await copiedScreenshotHelpers.capture({ path: 'copied-page.png' });
+      await copiedScreenshotHelpers.captureElement({ path: 'copied-element.png' });
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/object-rest-grouped-screenshot.doc.ts',
+        objectRestGroupedScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/object-rest-grouped-screenshot.doc.ts:7:13',
+      'tests/docs/example/object-rest-grouped-screenshot.doc.ts:8:13',
     ]);
   });
 
