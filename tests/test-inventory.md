@@ -1391,6 +1391,17 @@ provider outcomes without live identifiers.
   event detail/registration state. The matching focused
   `bun run test:e2e:public-general-viewports` run passed against the same
   running Docker app.
+  A current PR-head Browser spot check at `797e51dd` reused the generated app
+  at the generated `BASE_URL` after the generated-documentation string-wrapped
+  capture-key guard push. Browser checked `/events` at 320x740 and
+  `/legal/terms` at 390x844 with expected seeded event/legal content,
+  document/body widths inside each mobile viewport, no horizontal overflow, no
+  top/side clipped visible controls, no loading or application-error text, and
+  Events console output limited to app info logs. The inspected screenshots
+  `test-results/stabilization-browser/797e51dd-events-320x740.png` and
+  `test-results/stabilization-browser/797e51dd-terms-390x844.png` show seeded
+  Material event cards with meaningful icons/times and the readable Terms
+  fallback legal page with fixed Events/Login bottom navigation.
 - `tests/setup/mcp-browser-authenticated.seed.ts` is the authenticated MCP
   Browser planner seed for the dedicated `mcp-browser-authenticated-planner`
   project. It depends on the normal `setup` project, then opens

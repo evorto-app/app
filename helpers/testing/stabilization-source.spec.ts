@@ -7754,6 +7754,24 @@ describe('stabilization source', () => {
       'The current PR-head Browser refresh at `449108fc`',
     );
     expect(inventory).toContain(
+      'current PR-head Browser spot check at `797e51dd`',
+    );
+    expect(inventory).toContain(
+      'generated-documentation string-wrapped\n  capture-key guard push',
+    );
+    expect(inventory).toContain(
+      'Browser checked `/events` at 320x740 and\n  `/legal/terms` at 390x844',
+    );
+    expect(inventory).toContain(
+      'Events console output limited to app info logs',
+    );
+    expect(inventory).toContain(
+      'test-results/stabilization-browser/797e51dd-events-320x740.png',
+    );
+    expect(inventory).toContain(
+      'test-results/stabilization-browser/797e51dd-terms-390x844.png',
+    );
+    expect(inventory).toContain(
       'actual\n  seeded Material event cards and the privacy legal fallback page',
     );
     expect(adminSettingsSpec).toContain(

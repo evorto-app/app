@@ -4178,7 +4178,22 @@ fallback rather than a profile discount-card defect.
   route probe and an active Neon Local branch still inside the two-hour TTL
   (`total=2`, `protected=1`, `active_test=1`, `stale_deleted=0`), so this is
   current Browser/layout evidence for the running app, not proof that Docker can
-  start new containers on this host. Earlier, after pushing PR head
+  start new containers on this host. After the generated-documentation
+  string-wrapped capture-key guard push at PR head `797e51dd`, an in-app Browser
+  spot check reused the generated app at the generated `BASE_URL`,
+  opened `/events?stabilizationEvidence=string-wrapped-doc-guards` at 320x740
+  and `/legal/terms?stabilizationEvidence=string-wrapped-doc-guards` at
+  390x844, and found expected seeded event/legal content, no loading or
+  application-error text, document/body widths inside each mobile viewport, no
+  horizontal overflow, and no top/side clipped visible controls. The Events
+  route rendered 12 visible seeded event links and its Browser console log
+  contained app info entries only. The visually inspected screenshots were saved
+  at `test-results/stabilization-browser/797e51dd-events-320x740.png`, showing
+  seeded Material event cards with meaningful icons, times, and fixed Events/Login
+  bottom navigation, and
+  `test-results/stabilization-browser/797e51dd-terms-390x844.png`, showing the
+  readable Terms fallback legal page on a painted Material surface with fixed
+  Events/Login bottom navigation. Earlier, after pushing PR head
   `71c08ed9`, `bun run docker:start` rebuilt the Docker app on the generated
   `BASE_URL` and seeded the local Docker database. `bun run dev:status` then
   passed, including reachable database and
