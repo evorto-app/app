@@ -608,8 +608,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `attach` calls, binding-default markdown names,
   grouped/indexed/destructured/assigned markdown names, simple markdown-name
   forwarding through calls, template interpolation, conditionals, nullish/logical
-  expressions, and static concatenation, aliased body variables including simple
-  forwarding through `Buffer.from(...)`, `String(...)`, template interpolation,
+  expressions, and static concatenation, aliased body variables,
+  grouped/indexed/destructured/assigned body variables, simple body forwarding
+  through `Buffer.from(...)`, `String(...)`, template interpolation,
   conditionals, or nullish/logical expressions, aliased payload objects, grouped,
   indexed, destructured, assigned, or binding-default body/payload aliases,
   shorthand `{ body }`, plus bound, destructured, grouped, indexed, assigned, or

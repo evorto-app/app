@@ -779,6 +779,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
   const markdownAttachmentNameAliases = new Set<string>();
   const markdownAttachmentNamePropertyAliases = new Set<string>();
   const rawMarkdownBodyAliases = new Set<string>();
+  const rawMarkdownBodyPropertyAliases = new Set<string>();
   const rawMarkdownPayloadAliases = new Set<string>();
   const rawMarkdownPayloadPropertyAliases = new Set<string>();
   const markdownAttachFunctionAliases = new Set<string>();
@@ -876,6 +877,11 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     return (
       (ts.isIdentifier(expression) &&
         rawMarkdownBodyAliases.has(expression.text)) ||
+      ((ts.isPropertyAccessExpression(expression) ||
+        ts.isElementAccessExpression(expression)) &&
+        rawMarkdownBodyPropertyAliases.has(
+          getStaticPropertyReference(expression, sourceFile) ?? '',
+        )) ||
       rawMarkdownImagePattern.test(expression.getText(sourceFile))
     );
   };
@@ -1056,6 +1062,16 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
           }
 
           if (
+            (propertyInitializer && hasRawMarkdownImage(propertyInitializer)) ||
+            (ts.isShorthandPropertyAssignment(property) &&
+              rawMarkdownBodyAliases.has(property.name.text))
+          ) {
+            rawMarkdownBodyPropertyAliases.add(
+              `${node.name.text}.${propertyName}`,
+            );
+          }
+
+          if (
             (propertyInitializer &&
               (isAttachFunctionReference(propertyInitializer) ||
                 (ts.isIdentifier(propertyInitializer) &&
@@ -1093,6 +1109,12 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         collectIndexedPropertyAliases(
           node.name.text,
           initializer.elements,
+          hasRawMarkdownImage,
+          rawMarkdownBodyPropertyAliases,
+        );
+        collectIndexedPropertyAliases(
+          node.name.text,
+          initializer.elements,
           (element) => {
             const expression = unwrapExpression(element);
 
@@ -1110,6 +1132,23 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
           hasRawMarkdownPayload,
           rawMarkdownPayloadPropertyAliases,
         );
+      }
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
+      hasRawMarkdownImage(node.right)
+    ) {
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+      );
+
+      if (propertyReference) {
+        rawMarkdownBodyPropertyAliases.add(propertyReference);
       }
     }
 
@@ -1198,6 +1237,12 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         sourceFile,
         markdownAttachmentNamePropertyAliases,
         markdownAttachmentNameAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        rawMarkdownBodyPropertyAliases,
+        rawMarkdownBodyAliases,
       );
       collectDestructuredPropertyAliases(
         node,
@@ -4762,6 +4807,37 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/forwarded-markdown-name.doc.ts:6:13',
       'tests/docs/example/forwarded-markdown-name.doc.ts:7:13',
       'tests/docs/example/forwarded-markdown-name.doc.ts:8:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind grouped body aliases', () => {
+    const groupedMarkdownBodySource = `
+      const rawMarkdownBody = '![raw](raw.png)';
+      const rawMarkdownBodies = {
+        evidence: rawMarkdownBody,
+        rawMarkdownBody,
+      };
+      await testInfo.attach('markdown', { body: rawMarkdownBodies.evidence });
+      await testInfo.attach('markdown', { body: rawMarkdownBodies.rawMarkdownBody });
+      const rawMarkdownBodyList = [rawMarkdownBody];
+      await testInfo.attach('markdown', { body: rawMarkdownBodyList[0] });
+      const { evidence: groupedRawMarkdownBody } = rawMarkdownBodies;
+      await testInfo.attach('markdown', { body: groupedRawMarkdownBody });
+      rawMarkdownBodies.assigned = '<img src="../raw.png" alt="Raw">';
+      await testInfo.attach('markdown', { body: rawMarkdownBodies.assigned });
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/grouped-markdown-body.doc.ts',
+        groupedMarkdownBodySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/grouped-markdown-body.doc.ts:7:13',
+      'tests/docs/example/grouped-markdown-body.doc.ts:8:13',
+      'tests/docs/example/grouped-markdown-body.doc.ts:10:13',
+      'tests/docs/example/grouped-markdown-body.doc.ts:12:13',
+      'tests/docs/example/grouped-markdown-body.doc.ts:14:13',
     ]);
   });
 

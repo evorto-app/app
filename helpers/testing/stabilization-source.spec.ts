@@ -1475,6 +1475,9 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('simple markdown-name forwarding');
     expect(source).toContain('static concatenation');
+    expect(source).toContain(
+      'grouped/indexed/destructured/assigned body variables',
+    );
     expect(source).toMatch(
       /grouped\/indexed\/destructured,\s+assigned,\s+or binding-default body\/payload aliases/u,
     );
@@ -2394,6 +2397,18 @@ describe('stabilization source', () => {
       "await testInfo.attach('mark' + 'down', rawMarkdownPayload)",
     );
     expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind grouped body aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await testInfo.attach('markdown', { body: rawMarkdownBodies.evidence })",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await testInfo.attach('markdown', { body: rawMarkdownBodyList[0] })",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'const { evidence: groupedRawMarkdownBody } = rawMarkdownBodies',
+    );
+    expect(generatedDocumentationSource).toContain(
       'detects raw markdown images hidden behind binding default body and payload aliases',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2457,7 +2472,10 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/simple markdown-name\s+forwarding/u);
     expect(inventory).toContain('static concatenation');
     expect(inventory).toContain('aliased body variables');
-    expect(inventory).toMatch(/simple\s+forwarding through/u);
+    expect(inventory).toContain(
+      'grouped/indexed/destructured/assigned body variables',
+    );
+    expect(inventory).toMatch(/simple body\s+forwarding/u);
     expect(inventory).toContain('`Buffer.from(...)`');
     expect(inventory).toContain('template interpolation');
     expect(inventory).toContain('conditionals');
