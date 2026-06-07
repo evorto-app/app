@@ -2766,6 +2766,12 @@ describe('stabilization source', () => {
       'await attachHelperList[0](markdownAttachmentName, shorthandMarkdownPayload)',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects direct image attachments hidden behind copied returned helper groups',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects direct screenshots hidden behind copied returned helper groups',
+    );
+    expect(generatedDocumentationSource).toContain(
       'requires returned and assigned documentation markdown helpers to include explanatory body text',
     );
     expect(generatedDocumentationSource).toContain(
@@ -3111,6 +3117,8 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'object-spread and `Object.assign(...)` copied grouped raw Markdown image\n  aliases',
     );
+    expect(inventory).toContain('copied returned screenshot-helper groups');
+    expect(inventory).toContain('copied returned attach-helper groups');
     expect(inventory).toMatch(
       /inline bound raw screenshot and\s+image\s+attach/u,
     );

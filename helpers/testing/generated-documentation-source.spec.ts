@@ -5243,7 +5243,7 @@ const findDirectImageAttachmentCalls = (
       collectGroupedPropertyAliases(
         node.name.text,
         node.initializer,
-        isAttachFunctionReference,
+        isTrackedAttachFunctionReference,
         attachFunctionAliases,
         attachFunctionPropertyAliases,
         staticStringAliases,
@@ -5263,10 +5263,7 @@ const findDirectImageAttachmentCalls = (
 
           if (
             ts.isPropertyAssignment(property) &&
-            (isAttachFunctionReference(property.initializer) ||
-              (initializer &&
-                ts.isIdentifier(initializer) &&
-                attachFunctionAliases.has(initializer.text)))
+            isTrackedAttachFunctionReference(property.initializer)
           ) {
             const propertyName = getStaticPropertyNameFromName(
               property.name,
@@ -5346,13 +5343,7 @@ const findDirectImageAttachmentCalls = (
           node.name.text,
           objectInitializer.elements,
           (element) => {
-            const expression = unwrapExpression(element);
-
-            return (
-              isAttachFunctionReference(element) ||
-              (ts.isIdentifier(expression) &&
-                attachFunctionAliases.has(expression.text))
-            );
+            return isTrackedAttachFunctionReference(element);
           },
           attachFunctionPropertyAliases,
         );
@@ -5466,7 +5457,7 @@ const findDirectImageAttachmentCalls = (
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
       (ts.isPropertyAccessExpression(node.left) ||
         ts.isElementAccessExpression(node.left)) &&
-      isAttachFunctionReference(node.right)
+      isTrackedAttachFunctionReference(node.right)
     ) {
       const propertyReference = getStaticPropertyReference(
         node.left,
@@ -6081,7 +6072,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       collectGroupedPropertyAliases(
         node.name.text,
         node.initializer,
-        isScreenshotFunctionReference,
+        isTrackedScreenshotFunctionReference,
         screenshotFunctionAliases,
         screenshotFunctionPropertyAliases,
         staticStringAliases,
@@ -6097,10 +6088,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
 
           if (
             ts.isPropertyAssignment(property) &&
-            (isScreenshotFunctionReference(property.initializer) ||
-              (initializer &&
-                ts.isIdentifier(initializer) &&
-                screenshotFunctionAliases.has(initializer.text)))
+            isTrackedScreenshotFunctionReference(property.initializer)
           ) {
             const propertyName = getStaticPropertyNameFromName(
               property.name,
@@ -6129,15 +6117,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
         collectIndexedPropertyAliases(
           node.name.text,
           objectInitializer.elements,
-          (element) => {
-            const expression = unwrapExpression(element);
-
-            return (
-              isScreenshotFunctionReference(element) ||
-              (ts.isIdentifier(expression) &&
-                screenshotFunctionAliases.has(expression.text))
-            );
-          },
+          isTrackedScreenshotFunctionReference,
           screenshotFunctionPropertyAliases,
         );
       }
@@ -6167,7 +6147,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
       (ts.isPropertyAccessExpression(node.left) ||
         ts.isElementAccessExpression(node.left)) &&
-      isScreenshotFunctionReference(node.right)
+      isTrackedScreenshotFunctionReference(node.right)
     ) {
       const propertyReference = getStaticPropertyReference(
         node.left,
@@ -6864,6 +6844,29 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects direct image attachments hidden behind copied returned helper groups', () => {
+    const copiedReturnedAttachSource = `
+      function resolveAttachEvidence() {
+        return testInfo.attach.bind(testInfo);
+      }
+      const attachHelpers = { attachEvidence: resolveAttachEvidence() };
+      const spreadAttachHelpers = { ...attachHelpers };
+      const assignedAttachHelpers = Object.assign({}, attachHelpers);
+      await spreadAttachHelpers.attachEvidence('image', { body: imageBuffer });
+      await assignedAttachHelpers.attachEvidence('raw file evidence', { path: 'returned-raw.png' });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/copied-returned-attach-helper.doc.ts',
+        copiedReturnedAttachSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-returned-attach-helper.doc.ts:8:13',
+      'tests/docs/example/copied-returned-attach-helper.doc.ts:9:13',
+    ]);
+  });
+
   it('detects direct image attachments hidden behind Reflect.get attach aliases', () => {
     const reflectGetImageAttachmentSource = `
       const reflectedAttach = Reflect.get(testInfo, 'attach');
@@ -7418,6 +7421,29 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/returned-screenshot-helper.doc.ts:7:13',
       'tests/docs/example/returned-screenshot-helper.doc.ts:8:13',
       'tests/docs/example/returned-screenshot-helper.doc.ts:9:13',
+    ]);
+  });
+
+  it('detects direct screenshots hidden behind copied returned helper groups', () => {
+    const copiedReturnedScreenshotSource = `
+      function resolvePageCapture() {
+        return page.screenshot.bind(page);
+      }
+      const screenshotHelpers = { capture: resolvePageCapture() };
+      const spreadScreenshotHelpers = { ...screenshotHelpers };
+      const assignedScreenshotHelpers = Object.assign({}, screenshotHelpers);
+      await spreadScreenshotHelpers.capture({ path: 'spread-returned-page.png' });
+      await assignedScreenshotHelpers.capture({ path: 'assigned-returned-page.png' });
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/copied-returned-screenshot-helper.doc.ts',
+        copiedReturnedScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-returned-screenshot-helper.doc.ts:8:13',
+      'tests/docs/example/copied-returned-screenshot-helper.doc.ts:9:13',
     ]);
   });
 

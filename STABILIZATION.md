@@ -7371,3 +7371,24 @@ the images show readable Privacy fallback copy and real seeded Events cards with
 Material surfaces/icons/times, fixed Events/Login bottom navigation, no loading
 or application-error text, no clipped visible controls on the Privacy route, and
 zero warning/error Browser logs.
+
+Copied returned direct image and screenshot helper groups are now rejected by
+the raw docs-image source guards as well. That closes the same aliasing path for
+`page.screenshot`/`locator.screenshot` and direct `testInfo.attach('image',
+...)` bypasses where a returned raw helper could be stored in an object, copied
+through spread or `Object.assign(...)`, and then called outside the shared
+generated-documentation screenshot helper. Focused generated-doc source coverage
+now includes copied returned-helper group regressions for both direct image
+attachments and direct screenshots, and the test inventory records both copied
+returned screenshot-helper groups and copied returned attach-helper groups.
+Validation for this slice passed `bun run format:write`, `bun run lint`, the
+focused generated-documentation/stabilization source suite with 190 passing
+tests, and `git diff --check`; WebStorm errors-only diagnostics stayed blocked
+because this worktree is not open in the IDE. Browser verification at 390x844
+captured
+`/tmp/evorto-direct-copied-returned-doc-source-guard-terms-390x844.png` and
+`/tmp/evorto-direct-copied-returned-doc-source-guard-events-390x844.png`; the
+images show readable Terms fallback copy and real seeded Events cards with
+Material surfaces/icons/times, fixed Events/Login bottom navigation, no loading
+or application-error text, no clipped visible controls on the Terms route, and
+zero warning/error Browser logs.

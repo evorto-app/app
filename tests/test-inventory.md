@@ -746,7 +746,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   binding-default and parameter-default screenshot-function aliases,
   grouped screenshot-function properties, shorthand or alias-valued grouped
   screenshot helpers, object-spread, `Object.assign(...)`, and object-rest
-  copied grouped screenshot helpers, and
+  copied grouped screenshot helpers, copied returned screenshot-helper groups,
+  and
   direct or alias-valued tuple/array screenshot-function entries including
   `.at(...)` indexed raw screenshot-helper lists, assigned local raw screenshot
   aliases and assigned raw screenshot factory aliases, rejects direct
@@ -760,7 +761,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   and parameter-default attachment names, MIME/path values, raw image payload
   objects, and attach-function aliases, assigned local raw image names,
   MIME/path values, payload objects, attach-function aliases, and returned
-  attach-function factories, simple
+  attach-function factories including copied returned attach-helper groups,
+  simple
   MIME/path forwarding through calls, template interpolation, conditionals,
   nullish/logical expressions, and concatenation, object shorthand image
   payloads, computed raw image payload keys, spread raw image payload objects,
