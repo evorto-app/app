@@ -167,6 +167,7 @@ test('shared page layout helper labels overflow, coverage, and clipped controls'
         Focusable action
       </div>
       <p class="fixed-clipped-text">Fixed clipped readable copy</p>
+      <p class="loading-placeholder">Loading profile settings...</p>
       <button class="fixed-clipped-action" type="button">
         Fixed clipped action
       </button>
@@ -274,6 +275,14 @@ test('shared page layout helper labels overflow, coverage, and clipped controls'
     expect.arrayContaining([
       expect.objectContaining({
         className: 'unlabeled-icon-action',
+      }),
+    ]),
+  );
+  expect(layout.visibleLoadingTextLabels).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        className: 'loading-placeholder',
+        text: 'Loading profile settings...',
       }),
     ]),
   );

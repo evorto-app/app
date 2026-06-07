@@ -57,6 +57,12 @@ export type VerticallyClippedTextLabel = {
   top: number;
 };
 
+export type LoadingTextLabel = {
+  className: string;
+  tagName: string;
+  text: string;
+};
+
 export type CoveredTextLabel = {
   centerX: number;
   centerY: number;
@@ -88,6 +94,8 @@ export type PageLayout = {
   horizontallyOverflowingElementLabels: OverflowingElementLabel[];
   unlabeledControlCount: number;
   unlabeledControlLabels: UnlabeledControlLabel[];
+  visibleLoadingTextCount: number;
+  visibleLoadingTextLabels: LoadingTextLabel[];
   verticallyClippedFixedControlCount: number;
   verticallyClippedFixedControlLabels: VerticallyClippedControlLabel[];
   verticallyClippedFixedTextCount: number;
@@ -109,6 +117,8 @@ export const expectedStablePageLayout = {
   horizontallyOverflowingElementLabels: [],
   unlabeledControlCount: 0,
   unlabeledControlLabels: [],
+  visibleLoadingTextCount: 0,
+  visibleLoadingTextLabels: [],
   verticallyClippedFixedControlCount: 0,
   verticallyClippedFixedControlLabels: [],
   verticallyClippedFixedTextCount: 0,
@@ -233,6 +243,13 @@ export const readPageLayout = async (page: Page): Promise<PageLayout> =>
 
       return label?.trim().replace(/\s+/g, ' ').slice(0, 80) ?? '';
     };
+    const directText = (element: HTMLElement): string =>
+      [...element.childNodes]
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent ?? '')
+        .join(' ')
+        .trim()
+        .replace(/\s+/g, ' ');
     const interactiveSelector = [
       'a[href]',
       'button',
@@ -606,6 +623,16 @@ export const readPageLayout = async (page: Page): Promise<PageLayout> =>
         text: element.innerText?.trim().replace(/\s+/g, ' ').slice(0, 80) ?? '',
         width: Math.round(rect.width),
       }));
+    const visibleLoadingTextElements = visibleElements
+      .map(({ element }) => element)
+      .filter((element) => /^Loading\b.*$/u.test(directText(element)));
+    const visibleLoadingTextLabels = visibleLoadingTextElements.map(
+      (element) => ({
+        className: element.className.toString(),
+        tagName: element.tagName.toLowerCase(),
+        text: directText(element).slice(0, 80),
+      }),
+    );
 
     return {
       appError: /application error|server error|hydration/i.test(
@@ -627,6 +654,8 @@ export const readPageLayout = async (page: Page): Promise<PageLayout> =>
       horizontallyOverflowingElementLabels,
       unlabeledControlCount: unlabeledControls.length,
       unlabeledControlLabels,
+      visibleLoadingTextCount: visibleLoadingTextElements.length,
+      visibleLoadingTextLabels,
       verticallyClippedFixedControlCount: verticallyClippedFixedControls.length,
       verticallyClippedFixedControlLabels,
       verticallyClippedFixedTextCount:

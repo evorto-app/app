@@ -261,7 +261,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     narrow mobile, mobile, and desktop viewports for rendered content, no
     application-error text, no horizontal overflow, no horizontally clipped
     visible controls, no overflowing visible text or panel elements outside
-    intentional horizontal scroll containers, and no browser console
+    intentional horizontal scroll containers, no stale visible `Loading...`
+    placeholders after expected route content renders, and no browser console
     warning/error logs while each route is opened. It also asserts the anonymous
     Events/Login navigation remains visible and fixed as bottom navigation on
     mobile and side navigation on desktop, and it checks the hosted legal,
@@ -299,8 +300,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     covered by another visible layer with covering element labels and
     center-point coordinates, vertically clipped fixed/sticky visible controls
     with edge and position labels, vertically clipped fixed/sticky readable text
-    with edge and position labels, and overflowing visible text or panel
-    elements outside intentional horizontal scroll containers while ignoring
+    with edge and position labels, stale visible `Loading...` placeholders
+    after route content is expected to have settled, and overflowing visible
+    text or panel elements outside intentional horizontal scroll containers
+    while ignoring
     Angular Material's empty touch-target shim, document-root or ancestor
     hit-test targets, controls inside readable text, same-form-field Material
     floating labels or required markers, and allowing normal below-fold vertical

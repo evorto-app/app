@@ -6911,11 +6911,29 @@ transfer-code intent creation now has server-side RPC coverage for the
 Stripe-backed direct transfer/resale flow. Receipt review now records a durable
 `receiptReviewed` email outbox row with submitter notification-email details,
 and the disabled-by-default Resend-backed dispatcher processes pending/failed
-outbox records when configured. Profile/account home-tenant data model and
-profile warning UI are implemented, the RPC context header now preserves
-`homeTenantId` and `communicationEmail`, a focused authenticated Playwright spec
-covers the warning, and authenticated in-app Browser review verified the warning
-plus notification-email rendering after normal Auth0 login. Tenant/global admin now exposes the relaunch operations
-policy settings for review/publishing, registration limits, and Stripe account
-management as typed tenant configuration; custom-domain automation,
-multi-domain automation, and impersonation remain deferred product scope.
+outbox records when configured.
+
+Profile/account home-tenant data model and profile warning UI are implemented,
+the RPC context header now preserves `homeTenantId` and `communicationEmail`, a
+focused authenticated Playwright spec covers the warning, and authenticated
+in-app Browser review verified the warning plus notification-email rendering
+after normal Auth0 login. Tenant/global admin now exposes the relaunch
+operations-policy settings for review/publishing, registration limits, and
+Stripe account management as typed tenant configuration; custom-domain
+automation, multi-domain automation, and impersonation remain deferred product
+scope.
+
+The shared viewport layout guard now treats visible direct `Loading...` text as
+an unstable layout state, so the public General/mobile viewport sweep can no
+longer pass just because the expected heading and route copy rendered while a
+stale loading placeholder remains visible. The no-app layout-helper smoke test
+now includes a synthetic stale loading placeholder and expects it in the layout
+diagnostics, keeping the reusable page-glitch contract aligned with the in-app
+Browser checks that already record no loading text.
+A same-slice in-app Browser mobile spot check reused the existing reachable app
+route at `http://localhost:4218`, opened `/legal/terms` at 390x844 with
+`stabilizationEvidence=visible-loading-layout-guard`, and verified the Terms
+fallback page with zero visible loading placeholders, no application-error text,
+no horizontal overflow entries, fixed Events/Login bottom navigation, and zero
+Browser warning/error logs. The inspected screenshot is
+`/tmp/evorto-visible-loading-layout-guard-terms-390x844.png`.
