@@ -1528,6 +1528,12 @@ describe('stabilization source', () => {
     expect(source).toMatch(
       /and spread,\s+`call`,\s+`apply`,\s+`Reflect\.apply`,\s+or inline `bind`/u,
     );
+    expect(source).toContain('Static `Reflect.get(...)` lookups');
+    expect(source).toContain('string-alias property\nnames');
+    expect(source).toContain(
+      '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`',
+    );
+    expect(source).toContain('84 source-guard tests');
     expect(source).toContain('Comma-expression invocations');
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);
@@ -1540,6 +1546,9 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain(
       'comma-expression raw screenshot and image attach invocations',
+    );
+    expect(inventory).toContain(
+      '`Reflect.get(...)` raw\n  screenshot and image attach lookups',
     );
     expect(inventory).toContain(
       'conditional,\n  logical, and nested raw screenshot and image attach callees',
@@ -2772,7 +2781,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/opaque attachment `apply\(\.\.\.\)` lists/u);
     expect(inventory).toMatch(/`Reflect\.apply\(\.\.\.\)`\s+raw screenshot/u);
     expect(inventory).toMatch(
-      /inline bound raw screenshot and\s+image attach/u,
+      /inline bound raw screenshot and\s+image\s+attach/u,
     );
     expect(inventory).toMatch(
       /conditional,\s+logical, and nested raw screenshot and image attach callees/u,

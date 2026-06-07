@@ -690,8 +690,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   arguments, opaque attachment `apply(...)` lists, and `.at(...)`
   indexed attach-helper lists,
   raw screenshot and image attach call/apply invocations, `Reflect.apply(...)`
-  raw screenshot and image attach invocations, inline bound raw screenshot and
-  image attach invocations,
+  raw screenshot and image attach invocations, `Reflect.get(...)` raw
+  screenshot and image attach lookups, inline bound raw screenshot and image
+  attach invocations,
   comma-expression raw screenshot and image attach invocations, conditional,
   logical, and nested raw screenshot and image attach callees,
   optional-call screenshot-helper, raw screenshot, and image attach invocations,

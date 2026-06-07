@@ -917,6 +917,39 @@ const isReflectApplyCallee = (node: ts.Expression): boolean => {
   );
 };
 
+const isReflectGetPropertyReference = (
+  node: ts.Expression,
+  propertyName: string,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
+): boolean => {
+  const expression = unwrapExpression(node);
+
+  if (!ts.isCallExpression(expression) || !expression.arguments[1]) {
+    return false;
+  }
+
+  const callee = unwrapExpression(expression.expression);
+
+  if (
+    !ts.isPropertyAccessExpression(callee) &&
+    !ts.isElementAccessExpression(callee)
+  ) {
+    return false;
+  }
+
+  const receiver = unwrapExpression(
+    getStaticPropertyReceiver(callee) ?? callee,
+  );
+
+  return (
+    ts.isIdentifier(receiver) &&
+    receiver.text === 'Reflect' &&
+    getStaticPropertyName(callee, stringAliases) === 'get' &&
+    resolveStaticStringValue(expression.arguments[1], stringAliases) ===
+      propertyName
+  );
+};
+
 const isStaticObjectAssignCall = (
   node: ts.Expression,
   stringAliases: ReadonlyMap<string, string> = new Map(),
@@ -1346,6 +1379,12 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
           expression.expression,
         staticStringAliases,
       ) === 'attach'
+    ) {
+      return true;
+    }
+
+    if (
+      isReflectGetPropertyReference(expression, 'attach', staticStringAliases)
     ) {
       return true;
     }
@@ -3494,6 +3533,12 @@ const findDirectImageAttachmentCalls = (
       return true;
     }
 
+    if (
+      isReflectGetPropertyReference(expression, 'attach', staticStringAliases)
+    ) {
+      return true;
+    }
+
     return false;
   };
 
@@ -4108,6 +4153,16 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
           expression.expression,
         staticStringAliases,
       ) === 'screenshot'
+    ) {
+      return true;
+    }
+
+    if (
+      isReflectGetPropertyReference(
+        expression,
+        'screenshot',
+        staticStringAliases,
+      )
     ) {
       return true;
     }
@@ -4770,6 +4825,27 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects direct image attachments hidden behind Reflect.get attach aliases', () => {
+    const reflectGetImageAttachmentSource = `
+      const reflectedAttach = Reflect.get(testInfo, 'attach');
+      await reflectedAttach('image', { body: imageBuffer });
+      await Reflect.get(testInfo, 'attach')('raw evidence', { contentType: 'image/png' });
+      const attachMethodName = 'attach';
+      await Reflect.get(testInfo, attachMethodName)('image', { body: imageBuffer });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/reflect-get-image.doc.ts',
+        reflectGetImageAttachmentSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/reflect-get-image.doc.ts:3:13',
+      'tests/docs/example/reflect-get-image.doc.ts:4:13',
+      'tests/docs/example/reflect-get-image.doc.ts:6:13',
+    ]);
+  });
+
   it('detects spread raw image payloads before generated docs can use them', () => {
     const spreadRawImagePayloadSource = `
       const rawImagePayload = { body: imageBuffer, contentType: 'image/png' };
@@ -5119,6 +5195,27 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:46:13',
       'tests/docs/example/direct-screenshot.doc.ts:47:13',
       'tests/docs/example/direct-screenshot.doc.ts:48:13',
+    ]);
+  });
+
+  it('detects direct screenshots hidden behind Reflect.get', () => {
+    const reflectGetScreenshotSource = `
+      const reflectedCapture = Reflect.get(page, 'screenshot');
+      await reflectedCapture({ path: 'reflected-page.png' });
+      await Reflect.get(page, 'screenshot')({ path: 'direct-reflected-page.png' });
+      const screenshotMethodName = 'screenshot';
+      await Reflect.get(page, screenshotMethodName)({ path: 'aliased-reflected-page.png' });
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/reflect-get-screenshot.doc.ts',
+        reflectGetScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/reflect-get-screenshot.doc.ts:3:13',
+      'tests/docs/example/reflect-get-screenshot.doc.ts:4:13',
+      'tests/docs/example/reflect-get-screenshot.doc.ts:6:13',
     ]);
   });
 
@@ -5977,6 +6074,28 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/at-indexed-markdown.doc.ts:4:13',
       'tests/docs/example/at-indexed-markdown.doc.ts:7:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind Reflect.get attach aliases', () => {
+    const reflectGetMarkdownImageSource = `
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      const reflectedAttach = Reflect.get(testInfo, 'attach');
+      await reflectedAttach('markdown', rawMarkdownPayload);
+      await Reflect.get(testInfo, 'attach')('markdown', rawMarkdownPayload);
+      const attachMethodName = 'attach';
+      await Reflect.get(testInfo, attachMethodName)('markdown', rawMarkdownPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/reflect-get-markdown-image.doc.ts',
+        reflectGetMarkdownImageSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/reflect-get-markdown-image.doc.ts:4:13',
+      'tests/docs/example/reflect-get-markdown-image.doc.ts:5:13',
+      'tests/docs/example/reflect-get-markdown-image.doc.ts:7:13',
     ]);
   });
 

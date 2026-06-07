@@ -6373,6 +6373,13 @@ caption, highlight, and target-quality checks.
 `Reflect.apply(...)` invocations of `takeScreenshot`, raw screenshot functions,
 and image attachment functions are rejected as the same bypass class, so docs
 cannot hide helper or raw-image calls behind the global reflection API.
+Static `Reflect.get(...)` lookups of `page.screenshot` and `testInfo.attach`
+are treated as raw screenshot/image helpers too, including string-alias property
+names, so generated docs cannot hide direct captures behind reflection before
+calling or aliasing the returned function. The focused
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`
+run passed with 84 source-guard tests after adding the synthetic raw screenshot,
+raw image attachment, and raw markdown-image cases.
 Inline `bind(...)(...)` invocations of raw screenshot and image-attachment
 functions are rejected as well, so generated docs cannot hide direct capture by
 binding `page.screenshot`, `testInfo.attach`, or one of their aliases at the
