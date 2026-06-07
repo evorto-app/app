@@ -8539,7 +8539,7 @@ describe('generated docs source current behavior', () => {
       ['tests/docs/finance/inclusive-tax-rates.doc.ts', 5],
       ['tests/docs/finance/receipt-review-reimbursement.doc.ts', 4],
       ['tests/docs/profile/discounts.doc.ts', 3],
-      ['tests/docs/profile/user-profile.doc.ts', 8],
+      ['tests/docs/profile/user-profile.doc.ts', 7],
       ['tests/docs/roles/about-permissions.doc.ts', 1],
       ['tests/docs/roles/roles.doc.ts', 4],
       ['tests/docs/template-categories/categories.doc.ts', 5],
@@ -9733,6 +9733,9 @@ describe('generated docs source current behavior', () => {
       'User profile overview with section navigation and personal details',
     );
     expect(source).toContain('[profileNavigation, profileSummary]');
+    expect(source).not.toContain(
+      "takeScreenshot(\n      testInfo,\n      profileNavigation,\n      page,\n      'Navigation bar with Profile link'",
+    );
     expect(source).toContain('const profileEventCardSurface =');
     expect(source).toContain('filter({ hasText: eventTitle })');
     expect(source).toContain('hasText: addOnTitle');

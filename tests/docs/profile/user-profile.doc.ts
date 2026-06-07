@@ -139,12 +139,6 @@ To access your profile, click on the **Profile** link in the navigation bar at t
     await page.getByRole('link', { name: 'Profile' }).click();
     const profileNavigation = profileNavigationSurface(page);
     const profileSummary = profileSummarySurface(page);
-    await takeScreenshot(
-      testInfo,
-      profileNavigation,
-      page,
-      'Navigation bar with Profile link',
-    );
     await expect(profileSummary).toBeVisible();
     await takeScreenshot(
       testInfo,

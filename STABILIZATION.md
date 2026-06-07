@@ -6700,13 +6700,19 @@ template-choice, event-detail header, the created event's participant
 registration option, receipt-submission dialog, event status/action, scanner
 guest check-in, and event-edit role-picker surfaces instead of highlighting
 page, section, broad component hosts, or isolated status text.
-The user-profile generated doc now uses concrete profile summary, multi-state
-event registration section, and seeded receipt card screenshot targets for
-profile data, registration history, and reimbursement evidence instead of broad
-profile-page captures for those states. The profile events screenshot
-highlights the registrations section plus confirmed, pending-checkout,
-waitlisted, and checked-in cards so the generated image shows the states
-asserted by the surrounding docs text.
+The user-profile generated doc now uses the combined navigation/profile-summary
+overview, concrete profile summary, multi-state event registration section, and
+seeded receipt card screenshot targets for profile data, registration history,
+and reimbursement evidence instead of broad profile-page or nav-only captures
+for those states. The profile events screenshot highlights the registrations
+section plus confirmed, pending-checkout, waitlisted, and checked-in cards so
+the generated image shows the states asserted by the surrounding docs text.
+The same docs-only cleanup attempted a fresh Browser spot check against the
+generated local app, but no positive visual evidence is claimed for that pass:
+`bun run dev:status` reported reachable database/runtime configuration while
+`/legal/terms` returned HTTP 500, and the in-app Browser rejected the loopback
+navigation before rendering the page. The source-level and reporter-level
+checks remain the evidence for this screenshot-count cleanup.
 The receipt review generated doc now uses concrete approval queue receipt,
 review decision, reimbursement group, and post-recording reimbursement state
 targets instead of broad receipt component hosts.
