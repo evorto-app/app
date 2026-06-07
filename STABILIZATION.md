@@ -6625,6 +6625,10 @@ imports, computed raw payload keys, or destructured/grouped raw helper aliases
 behind local strings such as `const key = 'screenshot'` before using
 `page[key](...)`, `testInfo[attachKey](...)`,
 `documentationReporter[helperKey](...)`, or `import(reporterPath)`.
+Reflected grouped screenshot-helper properties are now resolved as raw
+screenshot callees too, so `Reflect.get(groupedScreenshotHelpers, 'capture')`
+cannot hide a `page.screenshot` alias behind a neutral helper object before a
+generated-doc image is attached.
 Generated-doc screenshot captions now also require at least 32 characters and
 five words at runtime and in source coverage, so a screenshot cannot pass with a
 terse section/list label that does not explain what the image proves. The

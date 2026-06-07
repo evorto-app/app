@@ -4920,11 +4920,17 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
             staticStringAliases,
           )
         : ts.isCallExpression(expression)
-          ? getStaticArrayMethodReference(
+          ? (getStaticArrayMethodReference(
               expression,
               sourceFile,
               staticStringAliases,
-            )
+            ) ??
+            getReflectGetPropertyReference(
+              expression,
+              sourceFile,
+              staticStringAliases,
+              reflectAliases,
+            ))
           : null;
 
     return propertyReference
@@ -6144,6 +6150,8 @@ describe('generated docs source current behavior', () => {
       const reflectMirror = Reflect;
       await reflectMirror.get(page, 'screenshot')({ path: 'mirror-reflected-page.png' });
       await reflectMirror.apply(page.screenshot, page, [{ path: 'mirror-applied-page.png' }]);
+      const groupedScreenshotHelpers = { capture: page.screenshot.bind(page) };
+      await Reflect.get(groupedScreenshotHelpers, 'capture')({ path: 'grouped-reflected-page.png' });
     `;
 
     expect(
@@ -6157,6 +6165,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/reflect-get-screenshot.doc.ts:6:13',
       'tests/docs/example/reflect-get-screenshot.doc.ts:8:13',
       'tests/docs/example/reflect-get-screenshot.doc.ts:9:13',
+      'tests/docs/example/reflect-get-screenshot.doc.ts:11:13',
     ]);
   });
 

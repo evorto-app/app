@@ -1597,6 +1597,9 @@ describe('stabilization source', () => {
       '`Reflect.get(...)` shared helper,\n  raw screenshot, and image attach lookups',
     );
     expect(inventory).toContain(
+      'reflected grouped screenshot-helper\n  properties',
+    );
+    expect(inventory).toContain(
       'conditional,\n  logical, and nested raw screenshot and image attach callees',
     );
     expect(inventory).toContain(
@@ -1610,6 +1613,12 @@ describe('stabilization source', () => {
     expect(inventory).toContain("`testInfo[String('attach')]`");
     expect(inventory).toContain(
       "`documentationReporter[String('takeScreenshot')]`",
+    );
+    expect(source).toContain(
+      'Reflected grouped screenshot-helper properties are now resolved as raw\nscreenshot callees',
+    );
+    expect(source).toContain(
+      "Reflect.get(groupedScreenshotHelpers, 'capture')",
     );
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
