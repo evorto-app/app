@@ -1741,6 +1741,10 @@ describe('stabilization source', () => {
     expect(inventory).toContain('blank/context-free highlighted-image');
     expect(inventory).toContain('uncaptioned image attachments');
     expect(inventory).toContain('orphan or weak image-caption attachments');
+    expect(inventory).toMatch(
+      /undersized\s+generated-doc\s+image\s+attachments/u,
+    );
+    expect(inventory).toContain('tiny valid PNGs');
     expect(inventory).toMatch(/valid\s+PNG\s+screenshots/u);
     expect(inventory).toMatch(
       /highlighted\s+focus-target\s+pixels\s+and\s+visible\s+surrounding\s+page\s+content/u,
@@ -7611,6 +7615,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/highlighted\s+screenshot\s+targets/u);
     expect(inventory).toContain('static doc-screenshot helper contract');
     expect(inventory).toMatch(/visible page-content\s+detection/u);
+    expect(inventory).toMatch(
+      /undersized\s+generated-doc\s+image\s+attachments/u,
+    );
     expect(inventory).toMatch(/ignored\s+docs(?:\/image)?\s+output paths/u);
     expect(inventory).toContain('support/utils/page-layout.ts');
     expect(inventory).toContain('shared viewport layout guard');

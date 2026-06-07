@@ -6261,6 +6261,10 @@ not depend on one JavaScript property-access spelling.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.
+Generated-doc image attachments now also have to be at least 320x240 at
+reporter runtime, so a tiny valid PNG with a highlight and colored pixels cannot
+stand in for a screenshot that shows enough UI context to judge the captured
+state.
 Generated-doc page emission now also rejects duplicate figure image sources, so
 multiple captions on one generated page cannot point at the same PNG hash and
 pretend to prove different states with repeated screenshot evidence.

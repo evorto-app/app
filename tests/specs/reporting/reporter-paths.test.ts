@@ -12,13 +12,17 @@ import {
 import { resolveDocsImageOutputDirectory } from '../../support/utils/doc-screenshot';
 
 const createDocumentationEvidencePng = ({
+  height = 240,
   includeContent = true,
   includeHighlight = true,
+  width = 360,
 }: {
+  height?: number;
   includeContent?: boolean;
   includeHighlight?: boolean;
+  width?: number;
 } = {}): Buffer => {
-  const png = new PNG({ height: 64, width: 64 });
+  const png = new PNG({ height, width });
   png.data.fill(255);
 
   if (includeContent) {
@@ -159,6 +163,38 @@ test('documentation reporter rejects invalid image attachments', async ({}, test
     reporter.onTestEnd({ title: 'Invalid image' } as any, result),
   ).toThrow(
     'Documentation image attachment in Invalid image must be a valid PNG screenshot.',
+  );
+});
+
+test('documentation reporter rejects undersized image attachments', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-undersized-image');
+  const imgsRoot = testInfo.outputPath('docs-img-undersized-image');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: createDocumentationEvidencePng({ height: 64, width: 64 }),
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from('Tiny highlighted screenshot should fail dimensions'),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Undersized image' } as any, result),
+  ).toThrow(
+    'Documentation image attachment in Undersized image must be at least 320x240px so generated docs show enough UI context to judge the captured state.',
   );
 });
 

@@ -11,6 +11,8 @@ const minimumHighlightedPixelCount = 16;
 const minimumVisibleContentPixelCount = 128;
 const minimumCaptionLength = 24;
 const minimumCaptionWordCount = 4;
+const minimumImageWidth = 320;
+const minimumImageHeight = 240;
 const rawMarkdownImagePattern = /!\[[^\]]*\]\([^)]+\)|<img(?:\s|>)/iu;
 
 const readAttachmentBody = (
@@ -97,6 +99,12 @@ const assertMeaningfulDocumentationImage = (
   } catch {
     throw new Error(
       `Documentation image attachment in ${testTitle} must be a valid PNG screenshot.`,
+    );
+  }
+
+  if (png.width < minimumImageWidth || png.height < minimumImageHeight) {
+    throw new Error(
+      `Documentation image attachment in ${testTitle} must be at least ${minimumImageWidth}x${minimumImageHeight}px so generated docs show enough UI context to judge the captured state.`,
     );
   }
 

@@ -221,7 +221,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     checks documentation reporter output paths, caption pairing, weak
     image-caption rejection, generated figure escaping, highlighted screenshot
     targets, visible page-content detection, and zero-box host screenshots
-    without app startup.
+    without app startup. It also rejects undersized generated-doc image
+    attachments, so tiny valid PNGs cannot stand in for screenshot evidence with
+    enough UI context.
     `bun run test:e2e:reporter-paths` is the focused local rerun; it uses
     `helpers/testing/run-playwright.ts` to refresh `.env.dev`, set ignored docs
     output paths, set `NO_WEBSERVER=true`, and pass `--no-deps`.

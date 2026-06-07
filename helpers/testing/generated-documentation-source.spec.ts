@@ -6950,6 +6950,13 @@ describe('generated docs source current behavior', () => {
     );
     expect(reporterAttachments).toContain('minimumCaptionLength = 24');
     expect(reporterAttachments).toContain('minimumCaptionWordCount = 4');
+    expect(reporterAttachments).toContain('minimumImageWidth = 320');
+    expect(reporterAttachments).toContain('minimumImageHeight = 240');
+    expect(reporterAttachments).toContain('png.width < minimumImageWidth');
+    expect(reporterAttachments).toContain('png.height < minimumImageHeight');
+    expect(reporterAttachments).toContain(
+      'generated docs show enough UI context to judge the captured state',
+    );
     expect(reporterAttachments).toContain(
       'Documentation image-caption attachment',
     );
@@ -6973,6 +6980,9 @@ describe('generated docs source current behavior', () => {
     ).toContain(
       'documentation reporter rejects weak image captions at output time',
     );
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain('documentation reporter rejects undersized image attachments');
 
     for (const path of documentFiles) {
       const source = readSource(path);
