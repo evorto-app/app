@@ -804,14 +804,19 @@ const collectGroupedPropertyAliases = (
         return;
       }
 
-      collectGroupedPropertyAliases(
+      for (const indexedPath of [
         `${ownerName}.${index}`,
-        element,
-        isTrackedReference,
-        aliases,
-        propertyAliases,
-        stringAliases,
-      );
+        `${ownerName}.${index - groupedInitializer.elements.length}`,
+      ]) {
+        collectGroupedPropertyAliases(
+          indexedPath,
+          element,
+          isTrackedReference,
+          aliases,
+          propertyAliases,
+          stringAliases,
+        );
+      }
     });
   }
 };
@@ -7372,6 +7377,7 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach('nested raw mime evidence', { contentType: groupedImageEvidence.values.mime });
       await testInfo.attach('nested raw direct payload evidence', groupedImageEvidence.payloads[0].raw);
       await testInfo.attach('nested raw at-indexed payload evidence', groupedImageEvidence.payloads.at(0).raw);
+      await testInfo.attach('nested raw negative at-indexed payload evidence', groupedImageEvidence.payloads.at(-1).raw);
       const { payloads: [{ raw: rawPayload }] } = groupedImageEvidence;
       await testInfo.attach('nested raw payload evidence', rawPayload);
       const { attach: { helpers: { capture } } } = groupedImageEvidence;
@@ -7389,9 +7395,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/nested-grouped-image-attachment.doc.ts:10:13',
       'tests/docs/example/nested-grouped-image-attachment.doc.ts:11:13',
       'tests/docs/example/nested-grouped-image-attachment.doc.ts:12:13',
-      'tests/docs/example/nested-grouped-image-attachment.doc.ts:14:13',
-      'tests/docs/example/nested-grouped-image-attachment.doc.ts:16:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:13:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:15:13',
       'tests/docs/example/nested-grouped-image-attachment.doc.ts:17:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:18:13',
     ]);
   });
 
@@ -7751,6 +7758,7 @@ describe('generated docs source current behavior', () => {
       await screenshotHelpers.raw.capturePage({ path: 'nested-property-page.png' });
       await screenshotHelpers.list[0][0]({ path: 'nested-direct-array-element.png' });
       await screenshotHelpers.list.at(0).at(0)({ path: 'nested-at-array-element.png' });
+      await screenshotHelpers.list.at(-1).at(-1)({ path: 'nested-negative-at-array-element.png' });
       const [[captureElement]] = screenshotHelpers.list;
       await captureElement({ path: 'nested-array-element.png' });
     `;
@@ -7765,7 +7773,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/nested-grouped-screenshot.doc.ts:8:13',
       'tests/docs/example/nested-grouped-screenshot.doc.ts:9:13',
       'tests/docs/example/nested-grouped-screenshot.doc.ts:10:13',
-      'tests/docs/example/nested-grouped-screenshot.doc.ts:12:13',
+      'tests/docs/example/nested-grouped-screenshot.doc.ts:11:13',
+      'tests/docs/example/nested-grouped-screenshot.doc.ts:13:13',
     ]);
   });
 
@@ -9452,6 +9461,7 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach('markdown', { body: markdownEvidence.bodies.raw });
       await testInfo.attach('markdown', markdownEvidence.payloads[0].raw);
       await testInfo.attach('markdown', markdownEvidence.payloads.at(0).raw);
+      await testInfo.attach('markdown', markdownEvidence.payloads.at(-1).raw);
       await markdownEvidence.helpers.attach.raw('markdown', rawMarkdownPayload);
       const {
         names: { raw: nestedMarkdownName },
@@ -9478,10 +9488,11 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:25:13',
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:26:13',
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:27:13',
-      'tests/docs/example/nested-grouped-markdown-image.doc.ts:36:13',
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:28:13',
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:37:13',
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:38:13',
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:39:13',
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:40:13',
     ]);
   });
 

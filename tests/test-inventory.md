@@ -727,7 +727,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   expressions, aliased payload objects, grouped, indexed, destructured,
   assigned, binding-default, or parameter-default body/payload aliases including
   `.at(...)` indexed payload lists, nested grouped raw Markdown names, bodies,
-  payloads, nested `.at(...)` raw Markdown payloads, and attach helpers,
+  payloads, nested `.at(...)` raw Markdown payloads, negative nested `.at(...)`
+  raw Markdown payloads, and attach helpers,
   assigned local raw Markdown names, bodies, payloads, and attach helpers,
   shorthand `{ body }`, plus bound,
   destructured, grouped, nested grouped, indexed, assigned, binding-default, or
@@ -753,7 +754,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   binding-default and parameter-default screenshot-function aliases,
   grouped parameter-default screenshot-function aliases, nested grouped
   screenshot-function properties, direct nested indexed screenshot-function
-  properties and nested `.at(...)` screenshot-function properties, shorthand or alias-valued grouped
+  properties and nested `.at(...)` screenshot-function properties, negative
+  nested `.at(...)` screenshot-function properties, shorthand or alias-valued grouped
   screenshot helpers, object-spread, `Object.assign(...)`, and object-rest copied grouped
   screenshot helpers, copied returned screenshot-helper groups
   with object-rest copies, and
@@ -771,7 +773,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   objects, and attach-function aliases, grouped parameter-default attachment
   names, MIME/path values, raw image payload objects, and attach-function
   aliases, nested grouped attachment names, MIME/path values, raw image payload
-  objects, direct nested indexed raw image payload objects and nested `.at(...)` raw image payload objects,
+  objects, direct nested indexed raw image payload objects, nested `.at(...)`
+  raw image payload objects, negative nested `.at(...)` raw image payload objects,
   and attach-function aliases, assigned local raw image names,
   MIME/path values, payload objects, attach-function aliases, and returned
   attach-function factories including copied returned attach-helper groups with

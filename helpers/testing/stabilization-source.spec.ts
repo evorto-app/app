@@ -2175,10 +2175,16 @@ describe('stabilization source', () => {
       'groupedImageEvidence.payloads.at(0).raw',
     );
     expect(generatedDocumentationSource).toContain(
+      'groupedImageEvidence.payloads.at(-1).raw',
+    );
+    expect(generatedDocumentationSource).toContain(
       'screenshotHelpers.list[0][0]',
     );
     expect(generatedDocumentationSource).toContain(
       'screenshotHelpers.list.at(0).at(0)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'screenshotHelpers.list.at(-1).at(-1)',
     );
     expect(generatedDocumentationSource).toContain(
       'detects at-indexed raw screenshot aliases',
@@ -2911,6 +2917,9 @@ describe('stabilization source', () => {
       'markdownEvidence.payloads.at(0).raw',
     );
     expect(generatedDocumentationSource).toContain(
+      'markdownEvidence.payloads.at(-1).raw',
+    );
+    expect(generatedDocumentationSource).toContain(
       'nestedAttachMarkdown(nestedMarkdownName, rawMarkdownPayload)',
     );
     expect(generatedDocumentationSource).toMatch(
@@ -3237,6 +3246,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('nested grouped\n  screenshot-function');
     expect(inventory).toContain('direct nested indexed screenshot-function');
     expect(inventory).toContain('nested `.at(...)` screenshot-function');
+    expect(inventory).toMatch(
+      /negative\s+nested `\.at\(\.\.\.\)` screenshot-function/u,
+    );
     expect(inventory).toContain('assigned local raw image names');
     expect(inventory).toContain(
       'grouped parameter-default attachment\n  names, MIME/path values, raw image payload objects, and attach-function',
@@ -3248,10 +3260,16 @@ describe('stabilization source', () => {
       'direct nested indexed raw image payload objects',
     );
     expect(inventory).toContain('nested `.at(...)` raw image payload objects');
+    expect(inventory).toContain(
+      'negative nested `.at(...)` raw image payload objects',
+    );
     expect(inventory).toContain('returned\n  attach-function factories');
     expect(inventory).toContain('assigned local raw Markdown names');
     expect(inventory).toContain('nested grouped raw Markdown names');
     expect(inventory).toContain('nested `.at(...)` raw Markdown payloads');
+    expect(inventory).toMatch(
+      /negative nested `\.at\(\.\.\.\)`\s+raw Markdown payloads/u,
+    );
     expect(inventory).toContain(
       'returned raw Markdown attach-helper factories',
     );

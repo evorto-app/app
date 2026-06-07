@@ -7746,3 +7746,32 @@ The inspected screenshots
 `/tmp/evorto-nested-at-indexed-doc-source-guard-not-found-390x844.png` show the
 current empty Events state, readable Terms fallback copy, and the not-found
 fallback on Material surfaces with visible Events/Login mobile navigation.
+
+Negative nested `.at(...)` raw screenshot/image/Markdown aliases are now
+covered by the same grouped-alias source guard. The grouped collector records
+negative nested array paths beside positive paths, and the focused regressions
+exercise `groupedImageEvidence.payloads.at(-1).raw`,
+`screenshotHelpers.list.at(-1).at(-1)`, and
+`markdownEvidence.payloads.at(-1).raw`, so generated docs cannot hide raw
+screenshots, raw image attachments, or raw Markdown image payloads behind
+negative static `.at(...)` access on nested helper bags. The test inventory and
+stabilization source guard pin this negative nested coverage next to the
+positive `.at(...)` and direct nested indexed cases. Validation for this slice
+passed `bun run format:write`, `bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 197 tests, and `git diff --check`; WebStorm errors-only diagnostics
+remained blocked because this worktree is not one of the IDE's open projects.
+`bun run dev:status` proved the existing app route and database validation query
+healthy but still failed Docker's disposable Alpine start-path preflight. Browser
+therefore reused the already-running app at `http://localhost:4218` and checked
+the public General routes `/`, `/events`, `/legal/imprint`, `/legal/privacy`,
+`/legal/terms`, `/403`, `/500`, `/404`, and `/missing-general-page` at 320x740,
+390x844, and 1440x900 with expected settled content, no visible loading or
+application-error text, no overflowing elements, no clipped visible controls,
+and zero warning/error logs. The inspected screenshots
+`/tmp/evorto-negative-at-doc-guard-final-events-320x740.png`,
+`/tmp/evorto-negative-at-doc-guard-final-legal-terms-390x844.png`,
+`/tmp/evorto-negative-at-doc-guard-final-404-390x844.png`, and
+`/tmp/evorto-negative-at-doc-guard-final-events-1440x900.png` show the current
+empty Events state, readable Terms fallback copy, the not-found fallback, and
+the desktop empty Events layout on Material surfaces with stable navigation.
