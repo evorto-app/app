@@ -5564,25 +5564,46 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toContain(
-      'template paid-registration empty\ncompatible-tax-rate gap',
+      'generated-doc explanatory Markdown section counts',
     );
-    expect(source).toContain('Material overlay screenshot');
-    expect(source).toContain('No\nactive inclusive tax rates available');
-    expect(source).toContain('selector feedback');
+    expect(source).toContain('pinned beside screenshot counts');
+    expect(source).toMatch(
+      /15 explanatory\s+sections and 14 image-backed states in `tests\/docs\/events\/register\.doc\.ts`/u,
+    );
+    expect(source).toContain('eight plus eight in');
+    expect(source).toContain('tests/docs/templates/templates.doc.ts');
+    expect(source).toContain(
+      '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
+    );
+    expect(source).toContain('with 197 tests');
+    expect(source).toContain('git diff --check');
+    expect(source).toContain(
+      'WebStorm errors-only diagnostics remain\nblocked',
+    );
+    expect(source).toContain(
+      "this worktree is not one of the IDE's open projects",
+    );
+    expect(source).toContain('Browser\nreused the local app');
+    expect(source).toContain('`http://localhost:4218`');
+    expect(source).toContain('`/legal/terms`,\n`/events`, and `/404`');
+    expect(source).toContain(
+      'settled expected content, no\nvisible loading text, no application-error text, no overflow',
+    );
+    expect(source).toContain('fixed General\nnavigation');
+    expect(source).toContain('zero warning/error logs');
+    expect(source).toMatch(/The\s+live PR checks are tracked\s+separately/u);
+    expect(source).toContain('latest fully green E2E');
+    expect(source).toMatch(/older completed\s+pushed head/u);
+    expect(source).toContain('actual Material overlay panel');
+    expect(source).toMatch(/No active inclusive tax rates\s+available/u);
+    expect(source).toContain('empty compatible-rate selector feedback');
     expect(source).toContain(
       '`bun run test:e2e:docs -- --list tests/docs/finance/inclusive-tax-rates.doc.ts`',
     );
-    expect(source).toContain('the focused generated-doc');
-    expect(source).toContain('stabilization source suites with 194 tests');
-    expect(source).toContain(
-      'unregistered generated Auth0 callback port `localhost:4218`',
+    expect(source).toMatch(
+      /focused generated-documentation\/stabilization source suite with 194 passing\s+tests/u,
     );
-    expect(source).toContain(
-      'registered `localhost:4200` port is occupied by a different Compose project',
-    );
-    expect(source).toContain('The live PR checks are tracked separately');
-    expect(source).toContain('latest fully green E2E');
-    expect(source).toContain('older completed pushed head');
+    expect(source).toContain('unregistered Auth0 callback port');
     expect(source).toContain(
       'Later page-backed coverage now opens the paid\n  template tax-rate selector',
     );
