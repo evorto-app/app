@@ -5926,9 +5926,12 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toMatch(
-      /Latest coverage checkpoint: PR head `1eaa2789`\s+has fresh in-app Browser public\s+General evidence/u,
+      /Latest coverage checkpoint: the latest in-app Browser public General evidence\s+was captured on PR head `1eaa2789`/u,
     );
-    expect(source).toContain('forced Docker Desktop\nbackend restart');
+    expect(source).toMatch(
+      /later source-only evidence-recording pushes\s+preserve that visual checkpoint instead of re-claiming fresh Browser proof/u,
+    );
+    expect(source).toMatch(/forced Docker Desktop\s+backend restart/u);
     expect(source).toContain('`bun run test:e2e:public-general-viewports`');
     expect(source).toContain('`BASE_URL=http://localhost:4218`');
     expect(source).toContain('all 10 anonymous General routes');
@@ -5959,7 +5962,9 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'rather than\nunrelated or heading-only artifacts',
     );
-    expect(source).toContain('E2E run `27103901612`');
+    expect(source).toContain(
+      'source-only evidence-recording pushes can supersede in-progress E2E runs',
+    );
     expect(source).toMatch(
       /[Cc]urrent-head local runtime and Browser evidence are\s+positive again after\s+resetting the stale Docker stack/u,
     );
@@ -7638,14 +7643,14 @@ describe('stabilization source', () => {
     const pushedHeadGeneralRefresh = source.match(
       /A later pushed-head General Browser refresh on PR head `533cf16b`[\s\S]*?desktop event-list\s+screenshot\./u,
     )?.[0];
-    const currentPushedHeadGeneralRefresh = source.match(
-      /The current pushed-head public General Browser refresh on PR head `1eaa2789`[\s\S]*?heading-only images\./u,
+    const latestCapturedGeneralRefresh = source.match(
+      /The latest public General Browser refresh was captured on PR head `1eaa2789`[\s\S]*?heading-only images\./u,
     )?.[0];
 
     expect(checkpoint).toBeDefined();
     expect(currentHeadRecovery).toBeDefined();
     expect(pushedHeadGeneralRefresh).toBeDefined();
-    expect(currentPushedHeadGeneralRefresh).toBeDefined();
+    expect(latestCapturedGeneralRefresh).toBeDefined();
     expect(checkpoint).toContain('serving the current local branch');
     expect(checkpoint).toContain('local\n  head `db7845e5e`');
     expect(checkpoint).toContain(
@@ -7973,88 +7978,89 @@ describe('stabilization source', () => {
     expect(pushedHeadGeneralRefresh).toContain(
       'fixed Events/Login navigation on mobile',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain('PR head `1eaa2789`');
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain('PR head `1eaa2789`');
+    expect(latestCapturedGeneralRefresh).toContain(
       'generated-doc evidence stabilization push',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
+      'later source-only\nevidence-recording pushes preserve that checkpoint',
+    );
+    expect(latestCapturedGeneralRefresh).toContain(
       'forced Docker Desktop backend restart',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       '`bun run docker:start` rebuilt',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
-      '`bun run\ndev:status` passed',
+    expect(latestCapturedGeneralRefresh).toMatch(
+      /`bun run\s+dev:status` passed/u,
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       '`bun run test:e2e:public-general-viewports` passed both local General viewport\ntests',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       'without test-cookie\ninjection',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       '`BASE_URL=http://localhost:4218`',
     );
-    expect(currentPushedHeadGeneralRefresh).toMatch(
+    expect(latestCapturedGeneralRefresh).toMatch(
       /all 10 anonymous General\s+routes/u,
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       '320x740, 390x844, and 1440x900',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain('`/`, `/events`');
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain('`/`, `/events`');
+    expect(latestCapturedGeneralRefresh).toContain(
       'seeded event detail\n`/events/09673e60b8e35d7cdc25`',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain('/legal/imprint');
-    expect(currentPushedHeadGeneralRefresh).toContain('/legal/privacy');
-    expect(currentPushedHeadGeneralRefresh).toContain('/legal/terms');
-    expect(currentPushedHeadGeneralRefresh).toContain('/403');
-    expect(currentPushedHeadGeneralRefresh).toContain('/500');
-    expect(currentPushedHeadGeneralRefresh).toContain('/404');
-    expect(currentPushedHeadGeneralRefresh).toContain('/missing-general-page');
-    expect(currentPushedHeadGeneralRefresh).toMatch(
+    expect(latestCapturedGeneralRefresh).toContain('/legal/imprint');
+    expect(latestCapturedGeneralRefresh).toContain('/legal/privacy');
+    expect(latestCapturedGeneralRefresh).toContain('/legal/terms');
+    expect(latestCapturedGeneralRefresh).toContain('/403');
+    expect(latestCapturedGeneralRefresh).toContain('/500');
+    expect(latestCapturedGeneralRefresh).toContain('/404');
+    expect(latestCapturedGeneralRefresh).toContain('/missing-general-page');
+    expect(latestCapturedGeneralRefresh).toMatch(
       /All 30\s+route\/viewport checks/u,
     );
-    expect(currentPushedHeadGeneralRefresh).toMatch(
+    expect(latestCapturedGeneralRefresh).toMatch(
       /no persistent loading or\s+application-error text/u,
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       'no true horizontal overflow',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
-      'no clipped fixed controls',
-    );
-    expect(currentPushedHeadGeneralRefresh).toMatch(
+    expect(latestCapturedGeneralRefresh).toContain('no clipped fixed controls');
+    expect(latestCapturedGeneralRefresh).toMatch(
       /correct Events\/Login mobile navigation with Scanner\s+hidden/u,
     );
-    expect(currentPushedHeadGeneralRefresh).toMatch(
+    expect(latestCapturedGeneralRefresh).toMatch(
       /correct\s+Events\/Scanner\/Login desktop navigation/u,
     );
-    expect(currentPushedHeadGeneralRefresh).toMatch(
+    expect(latestCapturedGeneralRefresh).toMatch(
       /zero Browser\s+warning\/error logs/u,
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       '/tmp/evorto-public-general-1eaa2789/events-list-320x740.png',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       '/tmp/evorto-public-general-1eaa2789/legal-terms-390x844.png',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       '/tmp/evorto-public-general-1eaa2789/not-found-390x844.png',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       '/tmp/evorto-public-general-1eaa2789/public-event-detail-1440x900.png',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       'meaningful seeded Material event cards',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       'readable Terms fallback copy',
     );
-    expect(currentPushedHeadGeneralRefresh).toContain(
+    expect(latestCapturedGeneralRefresh).toContain(
       'readable not-found fallback copy',
     );
-    expect(currentPushedHeadGeneralRefresh).toMatch(
+    expect(latestCapturedGeneralRefresh).toMatch(
       /rather\s+than unrelated or heading-only images/u,
     );
     expect(testInventory).toContain(
@@ -8079,10 +8085,13 @@ describe('stabilization source', () => {
     );
     expect(testInventory).toContain('wildcard not-found fallback text');
     expect(testInventory).toContain(
-      'PR head `1eaa2789` has a current in-app Browser public General refresh',
+      'The latest in-app Browser public General refresh was captured on PR head\n  `1eaa2789`',
     );
     expect(testInventory).toContain(
-      'forced Docker Desktop backend restart recovered the local container start\n  path',
+      'later source-only evidence-recording pushes preserve that\n  checkpoint',
+    );
+    expect(testInventory).toMatch(
+      /forced Docker Desktop\s+backend restart recovered the local container start\s+path/u,
     );
     expect(testInventory).toContain(
       '`bun run test:e2e:public-general-viewports` passed both local General\n  viewport tests',

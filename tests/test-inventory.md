@@ -1874,9 +1874,11 @@ provider outcomes without live identifiers.
   seeded Material event cards with real icons/times, event-detail registration
   content, legal fallback text, wildcard not-found fallback text, fixed
   Events/Login mobile navigation, and the desktop event-list layout.
-- PR head `1eaa2789` has a current in-app Browser public General refresh. A
-  forced Docker Desktop backend restart recovered the local container start
-  path; `bun run docker:start` rebuilt the generated Docker app,
+- The latest in-app Browser public General refresh was captured on PR head
+  `1eaa2789`; later source-only evidence-recording pushes preserve that
+  checkpoint instead of re-claiming fresh Browser proof. A forced Docker Desktop
+  backend restart recovered the local container start path;
+  `bun run docker:start` rebuilt the generated Docker app,
   `bun run dev:status` passed at `BASE_URL=http://localhost:4218`, and
   `bun run test:e2e:public-general-viewports` passed both local General
   viewport tests. The localhost Browser evidence shifted only local seeded demo
