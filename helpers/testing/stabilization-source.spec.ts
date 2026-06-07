@@ -1622,6 +1622,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('.reduce(...)');
     expect(inventory).toContain('.reduceRight(...)');
     expect(inventory).toContain(
+      'weak `.concat(...)` receiver arrays and\n  arguments',
+    );
+    expect(inventory).toContain(
       'weak\n  targets produced by inline, named, or locally aliased `map` and `flatMap`\n  callbacks, by `Array.from(...)` mapper callbacks, and by reducer callbacks or\n  reducer initial values',
     );
     expect(inventory).toContain(
@@ -1985,6 +1988,15 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       "[settingsSurface, page.locator('main')].map((target) => target)",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets preserved by concat receiver arrays',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('main')].concat([settingsSurface])",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('section')].concat([settingsSurface])",
     );
     expect(generatedDocumentationSource).toContain(
       "[settingsSurface].map(() => page.locator('main'))",

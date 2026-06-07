@@ -571,7 +571,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `.toSpliced(...)`, `.with(...)`, `.fill(...)`, `.slice()`, `.reverse()`,
   `.sort()`, `.toReversed()`, `.toSorted()`, `.flat()`, `.find(...)`,
   `.findLast(...)`, `.pop()`, `.shift()`, `.reduce(...)`, and
-  `.reduceRight(...)`, including weak
+  `.reduceRight(...)`, including weak `.concat(...)` receiver arrays and
+  arguments plus weak
   targets produced by inline, named, or locally aliased `map` and `flatMap`
   callbacks, by `Array.from(...)` mapper callbacks, and by reducer callbacks or
   reducer initial values, and helper-returned icon/media locators,

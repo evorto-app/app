@@ -274,7 +274,10 @@ const isTrackedArrayTarget = (
 
     if (methodName === 'concat') {
       return (
-        (receiver ? isTrackedTarget(receiver) : false) ||
+        (receiver
+          ? isTrackedArrayTarget(receiver, isTrackedTarget, options) ||
+            isTrackedTarget(receiver)
+          : false) ||
         target.arguments.some((argument) => isTrackedTarget(argument))
       );
     }
@@ -4650,6 +4653,60 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/array-helper-target.doc.ts:22:13',
       'tests/docs/example/array-helper-target.doc.ts:46:13',
     ]);
+  });
+
+  it('detects weak documentation screenshot targets preserved by concat receiver arrays', () => {
+    const concatReceiverTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('main')].concat([settingsSurface]),
+        page,
+        'Concat receiver generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('section')].concat([settingsSurface]),
+        page,
+        'Concat receiver broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.getByRole('button', { name: 'Save' })].concat(settingsSurface),
+        page,
+        'Concat receiver single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('svg')].concat(),
+        page,
+        'Concat receiver icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/concat-receiver-target.doc.ts',
+        concatReceiverTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/concat-receiver-target.doc.ts:2:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/concat-receiver-target.doc.ts',
+        concatReceiverTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/concat-receiver-target.doc.ts:8:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/concat-receiver-target.doc.ts',
+        concatReceiverTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/concat-receiver-target.doc.ts:14:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/concat-receiver-target.doc.ts',
+        concatReceiverTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/concat-receiver-target.doc.ts:20:13']);
   });
 
   it('detects weak documentation screenshot targets inserted through toSpliced calls', () => {
