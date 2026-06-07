@@ -720,10 +720,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `String(...)`, template interpolation, conditionals, or nullish/logical
   expressions, aliased payload objects, grouped, indexed, destructured,
   assigned, binding-default, or parameter-default body/payload aliases including
-  `.at(...)` indexed payload lists, shorthand `{ body }`, plus bound,
+  `.at(...)` indexed payload lists, assigned local raw Markdown names, bodies,
+  payloads, and attach helpers, shorthand `{ body }`, plus bound,
   destructured, grouped, indexed, assigned, binding-default, or
-  parameter-default `attach` helpers including `.at(...)` indexed helper lists
-  and spread, `call`, `apply`, or inline `bind` forwarding,
+  parameter-default `attach` helpers including `.at(...)` indexed helper lists,
+  returned raw Markdown attach-helper factories, and spread, `call`, `apply`, or
+  inline `bind` forwarding,
   so image evidence cannot bypass the shared helper, and
   rejects raw `page.screenshot`,
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs

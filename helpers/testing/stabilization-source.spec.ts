@@ -2824,6 +2824,16 @@ describe('stabilization source', () => {
       'const { evidence: groupedRawMarkdownBody } = rawMarkdownBodies',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind assigned local aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind returned attach helpers',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'assignedAttachMarkdownFactory',
+    );
+    expect(generatedDocumentationSource).toContain('resolveMarkdownAttach');
+    expect(generatedDocumentationSource).toContain(
       'detects raw markdown images hidden behind at-indexed payload and attach aliases',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2956,7 +2966,7 @@ describe('stabilization source', () => {
       /bound,\s+destructured,\s+grouped,\s+indexed,\s+assigned,\s+binding-default,\s+or\s+parameter-default/u,
     );
     expect(inventory).toMatch(
-      /spread,\s+`call`,\s+`apply`,\s+or inline `bind`\s+forwarding/u,
+      /returned raw Markdown attach-helper factories,\s+and spread,\s+`call`,\s+`apply`,\s+or\s+inline `bind` forwarding/u,
     );
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');
@@ -3066,6 +3076,8 @@ describe('stabilization source', () => {
     expect(source).toContain('`Reflect.apply(...)` invocations');
     expect(source).toContain('Returned raw capture helpers');
     expect(source).toContain('Assigned local raw capture aliases');
+    expect(source).toContain('Assigned local raw Markdown-image aliases');
+    expect(source).toMatch(/Returned raw\s+Markdown attach helpers/u);
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);
     expect(source).toContain('Optional-call invocations');
@@ -3087,6 +3099,10 @@ describe('stabilization source', () => {
     expect(inventory).toContain('assigned local raw screenshot\n  aliases');
     expect(inventory).toContain('assigned local raw image names');
     expect(inventory).toContain('returned\n  attach-function factories');
+    expect(inventory).toContain('assigned local raw Markdown names');
+    expect(inventory).toContain(
+      'returned raw Markdown attach-helper factories',
+    );
   });
 
   it('keeps the PR readiness checkpoint current without pinning stale heads', () => {

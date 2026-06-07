@@ -7314,3 +7314,21 @@ mobile spot check opened `/legal/terms` and `/events` at 390x844 with
 verified readable legal fallback copy, seeded event cards with icons/times,
 fixed Events/Login bottom navigation, no loading or application-error text,
 zero Browser warning/error logs, and no clipped visible controls.
+
+Assigned local raw Markdown-image aliases are rejected as well, so generated-doc
+sources cannot split `markdown` attachment names, raw Markdown bodies, raw
+Markdown payload objects, or `testInfo.attach` helpers across `let name; name =
+...` style assignments before attaching raw Markdown image markup. Returned raw
+Markdown attach helpers are covered too, including `resolveMarkdownAttach()`
+direct calls and locals assigned from that returned helper. The focused
+generated-doc source suite passed with 119 tests after adding both regression
+cases; the combined generated-doc/stabilization source rerun passed with 185
+source tests. A same-slice in-app Browser mobile spot check opened
+`/legal/terms` and `/events` at 390x844 with
+`stabilizationEvidence=assigned-markdown-doc-source-guard-*`, saved
+`/tmp/evorto-assigned-markdown-doc-source-guard-terms-390x844.png` and
+`/tmp/evorto-assigned-markdown-doc-source-guard-events-390x844.png`, and
+verified readable Terms fallback copy, seeded Material event cards with
+icons/times, fixed Events/Login bottom navigation, no loading or
+application-error text, zero Browser warning/error logs, and no clipped visible
+controls.

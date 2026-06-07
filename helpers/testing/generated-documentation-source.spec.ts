@@ -1707,7 +1707,7 @@ const findWeakMarkdownBodyAttachments = (
         markdownAttachmentNameAliases.add(node.name.text);
       }
 
-      if (isAttachFunctionReference(initializer)) {
+      if (isTrackedAttachFunctionReference(initializer)) {
         markdownAttachFunctionAliases.add(node.name.text);
       }
 
@@ -2008,7 +2008,7 @@ const findDenseScreenshotRunsBetweenMarkdown = (
         markdownAttachmentNameAliases.add(node.name.text);
       }
 
-      if (isAttachFunctionReference(initializer)) {
+      if (isTrackedAttachFunctionReference(initializer)) {
         markdownAttachFunctionAliases.add(node.name.text);
       }
 
@@ -2120,6 +2120,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
   const rawMarkdownPayloadAliases = new Set<string>();
   const rawMarkdownPayloadPropertyAliases = new Set<string>();
   const markdownAttachFunctionAliases = new Set<string>();
+  const markdownAttachFunctionFactoryAliases = new Set<string>();
   const markdownAttachFunctionPropertyAliases = new Set<string>();
   const rawMarkdownImagePattern =
     /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<(?:img|picture|source|svg|image|object|embed|iframe|video|canvas)(?:\s|>|\/)|style\s*=\s*(?:"[^"]*url\s*\(|'[^']*url\s*\(|[^\s>]*url\s*\()|(?:background(?:-image)?|list-style(?:-image)?|border-image(?:-source)?|content|(?:-webkit-)?mask(?:-image|-box-image)?|cursor)\s*:\s*[^;{}]*?\burl\s*\(/iu;
@@ -2410,11 +2411,61 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       return markdownAttachFunctionAliases.has(expression.text);
     }
 
+    if (ts.isCallExpression(expression)) {
+      const callee = unwrapExpression(expression.expression);
+
+      if (
+        ts.isIdentifier(callee) &&
+        markdownAttachFunctionFactoryAliases.has(callee.text)
+      ) {
+        return true;
+      }
+    }
+
     if (hasPropertyAlias(expression, markdownAttachFunctionPropertyAliases)) {
       return true;
     }
 
     return false;
+  };
+
+  const returnsAttachFunctionReference = (
+    node: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression,
+  ): boolean => {
+    if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+      return isTrackedAttachFunctionReference(node.body);
+    }
+
+    if (!ts.isBlock(node.body)) {
+      return false;
+    }
+
+    let returnsAttachFunction = false;
+
+    const visitReturn = (child: ts.Node): void => {
+      if (
+        child !== node.body &&
+        (ts.isArrowFunction(child) ||
+          ts.isFunctionDeclaration(child) ||
+          ts.isFunctionExpression(child))
+      ) {
+        return;
+      }
+
+      if (
+        ts.isReturnStatement(child) &&
+        child.expression &&
+        isTrackedAttachFunctionReference(child.expression)
+      ) {
+        returnsAttachFunction = true;
+      }
+
+      ts.forEachChild(child, visitReturn);
+    };
+
+    visitReturn(node.body);
+
+    return returnsAttachFunction;
   };
 
   const isTrackedAttachCallCallee = (callee: ts.Expression): boolean =>
@@ -2441,8 +2492,16 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         rawMarkdownPayloadAliases.add(node.name.text);
       }
 
-      if (isAttachFunctionReference(initializer)) {
+      if (isTrackedAttachFunctionReference(initializer)) {
         markdownAttachFunctionAliases.add(node.name.text);
+      }
+
+      if (
+        (ts.isArrowFunction(initializer) ||
+          ts.isFunctionExpression(initializer)) &&
+        returnsAttachFunctionReference(initializer)
+      ) {
+        markdownAttachFunctionFactoryAliases.add(node.name.text);
       }
 
       collectGroupedPropertyAliases(
@@ -2519,7 +2578,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
 
           if (
             (propertyInitializer &&
-              (isAttachFunctionReference(propertyInitializer) ||
+              (isTrackedAttachFunctionReference(propertyInitializer) ||
                 (ts.isIdentifier(propertyInitializer) &&
                   markdownAttachFunctionAliases.has(
                     propertyInitializer.text,
@@ -2565,7 +2624,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
             const expression = unwrapExpression(element);
 
             return (
-              isAttachFunctionReference(element) ||
+              isTrackedAttachFunctionReference(element) ||
               (ts.isIdentifier(expression) &&
                 markdownAttachFunctionAliases.has(expression.text))
             );
@@ -2579,6 +2638,60 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
           rawMarkdownPayloadPropertyAliases,
         );
       }
+    }
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      returnsAttachFunctionReference(node)
+    ) {
+      markdownAttachFunctionFactoryAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      hasRawMarkdownImage(node.right)
+    ) {
+      rawMarkdownBodyAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isMarkdownAttachmentName(node.right)
+    ) {
+      markdownAttachmentNameAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isTrackedAttachFunctionReference(node.right)
+    ) {
+      markdownAttachFunctionAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      (ts.isArrowFunction(node.right) || ts.isFunctionExpression(node.right)) &&
+      returnsAttachFunctionReference(node.right)
+    ) {
+      markdownAttachFunctionFactoryAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      hasRawMarkdownPayload(node.right)
+    ) {
+      rawMarkdownPayloadAliases.add(node.left.text);
     }
 
     if (
@@ -8584,6 +8697,65 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/computed-destructured-markdown-image.doc.ts:14:13',
       'tests/docs/example/computed-destructured-markdown-image.doc.ts:15:13',
       'tests/docs/example/computed-destructured-markdown-image.doc.ts:16:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind assigned local aliases', () => {
+    const assignedMarkdownImageSource = `
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      let assignedMarkdownName;
+      assignedMarkdownName = 'markdown';
+      await testInfo.attach(assignedMarkdownName, rawMarkdownPayload);
+      let assignedRawMarkdownBody;
+      assignedRawMarkdownBody = '<img src="../raw.png" alt="Raw">';
+      await testInfo.attach('markdown', { body: assignedRawMarkdownBody });
+      let assignedRawMarkdownPayload;
+      assignedRawMarkdownPayload = { body: '<svg viewBox="0 0 10 10"></svg>' };
+      await testInfo.attach('markdown', assignedRawMarkdownPayload);
+      let assignedAttachMarkdown;
+      assignedAttachMarkdown = testInfo.attach.bind(testInfo);
+      await assignedAttachMarkdown('markdown', rawMarkdownPayload);
+      let assignedAttachMarkdownFactory;
+      assignedAttachMarkdownFactory = () => testInfo.attach.bind(testInfo);
+      await assignedAttachMarkdownFactory()('markdown', rawMarkdownPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/assigned-markdown-image.doc.ts',
+        assignedMarkdownImageSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/assigned-markdown-image.doc.ts:5:13',
+      'tests/docs/example/assigned-markdown-image.doc.ts:8:13',
+      'tests/docs/example/assigned-markdown-image.doc.ts:11:13',
+      'tests/docs/example/assigned-markdown-image.doc.ts:14:13',
+      'tests/docs/example/assigned-markdown-image.doc.ts:17:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind returned attach helpers', () => {
+    const returnedMarkdownAttachSource = `
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      function resolveMarkdownAttach() {
+        return testInfo.attach.bind(testInfo);
+      }
+      const resolveMarkdownAttachAlias = () => testInfo.attach.bind(testInfo);
+      await resolveMarkdownAttach()('markdown', rawMarkdownPayload);
+      await resolveMarkdownAttachAlias()('markdown', rawMarkdownPayload);
+      const attachMarkdownEvidence = resolveMarkdownAttach();
+      await attachMarkdownEvidence('markdown', rawMarkdownPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/returned-markdown-attach.doc.ts',
+        returnedMarkdownAttachSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/returned-markdown-attach.doc.ts:7:13',
+      'tests/docs/example/returned-markdown-attach.doc.ts:8:13',
+      'tests/docs/example/returned-markdown-attach.doc.ts:10:13',
     ]);
   });
 
