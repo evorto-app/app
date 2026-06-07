@@ -1264,10 +1264,15 @@ const getStaticPropertyReference = (
   }
 
   const receiverExpression = unwrapExpression(receiver);
-  const receiverReference =
-    ts.isIdentifier(receiverExpression) ||
-    ts.isPropertyAccessExpression(receiverExpression) ||
-    ts.isElementAccessExpression(receiverExpression)
+  const receiverReference = ts.isCallExpression(receiverExpression)
+    ? getStaticArrayMethodReference(
+        receiverExpression,
+        sourceFile,
+        stringAliases,
+      )
+    : ts.isIdentifier(receiverExpression) ||
+        ts.isPropertyAccessExpression(receiverExpression) ||
+        ts.isElementAccessExpression(receiverExpression)
       ? getStaticPropertyReference(
           receiverExpression,
           sourceFile,
@@ -1384,7 +1389,24 @@ const getStaticArrayMethodReference = (
     return null;
   }
 
-  return `${unwrapExpression(receiver).getText(sourceFile)}.${index}`;
+  const receiverExpression = unwrapExpression(receiver);
+  const receiverReference = ts.isCallExpression(receiverExpression)
+    ? getStaticArrayMethodReference(
+        receiverExpression,
+        sourceFile,
+        stringAliases,
+      )
+    : ts.isIdentifier(receiverExpression) ||
+        ts.isPropertyAccessExpression(receiverExpression) ||
+        ts.isElementAccessExpression(receiverExpression)
+      ? getStaticPropertyReference(
+          receiverExpression,
+          sourceFile,
+          stringAliases,
+        )
+      : receiverExpression.getText(sourceFile);
+
+  return receiverReference ? `${receiverReference}.${index}` : null;
 };
 
 const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
@@ -7349,6 +7371,7 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach(imageName, { body: imageBuffer });
       await testInfo.attach('nested raw mime evidence', { contentType: groupedImageEvidence.values.mime });
       await testInfo.attach('nested raw direct payload evidence', groupedImageEvidence.payloads[0].raw);
+      await testInfo.attach('nested raw at-indexed payload evidence', groupedImageEvidence.payloads.at(0).raw);
       const { payloads: [{ raw: rawPayload }] } = groupedImageEvidence;
       await testInfo.attach('nested raw payload evidence', rawPayload);
       const { attach: { helpers: { capture } } } = groupedImageEvidence;
@@ -7365,9 +7388,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/nested-grouped-image-attachment.doc.ts:9:13',
       'tests/docs/example/nested-grouped-image-attachment.doc.ts:10:13',
       'tests/docs/example/nested-grouped-image-attachment.doc.ts:11:13',
-      'tests/docs/example/nested-grouped-image-attachment.doc.ts:13:13',
-      'tests/docs/example/nested-grouped-image-attachment.doc.ts:15:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:12:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:14:13',
       'tests/docs/example/nested-grouped-image-attachment.doc.ts:16:13',
+      'tests/docs/example/nested-grouped-image-attachment.doc.ts:17:13',
     ]);
   });
 
@@ -7726,6 +7750,7 @@ describe('generated docs source current behavior', () => {
       await capturePage({ path: 'nested-destructured-page.png' });
       await screenshotHelpers.raw.capturePage({ path: 'nested-property-page.png' });
       await screenshotHelpers.list[0][0]({ path: 'nested-direct-array-element.png' });
+      await screenshotHelpers.list.at(0).at(0)({ path: 'nested-at-array-element.png' });
       const [[captureElement]] = screenshotHelpers.list;
       await captureElement({ path: 'nested-array-element.png' });
     `;
@@ -7739,7 +7764,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/nested-grouped-screenshot.doc.ts:7:13',
       'tests/docs/example/nested-grouped-screenshot.doc.ts:8:13',
       'tests/docs/example/nested-grouped-screenshot.doc.ts:9:13',
-      'tests/docs/example/nested-grouped-screenshot.doc.ts:11:13',
+      'tests/docs/example/nested-grouped-screenshot.doc.ts:10:13',
+      'tests/docs/example/nested-grouped-screenshot.doc.ts:12:13',
     ]);
   });
 
@@ -9425,6 +9451,7 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach(markdownEvidence.names.raw, rawMarkdownPayload);
       await testInfo.attach('markdown', { body: markdownEvidence.bodies.raw });
       await testInfo.attach('markdown', markdownEvidence.payloads[0].raw);
+      await testInfo.attach('markdown', markdownEvidence.payloads.at(0).raw);
       await markdownEvidence.helpers.attach.raw('markdown', rawMarkdownPayload);
       const {
         names: { raw: nestedMarkdownName },
@@ -9450,10 +9477,11 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:24:13',
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:25:13',
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:26:13',
-      'tests/docs/example/nested-grouped-markdown-image.doc.ts:35:13',
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:27:13',
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:36:13',
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:37:13',
       'tests/docs/example/nested-grouped-markdown-image.doc.ts:38:13',
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:39:13',
     ]);
   });
 

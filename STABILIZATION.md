@@ -7718,3 +7718,31 @@ the inspected screenshots show readable Terms fallback copy and the current
 empty Events state with fixed Events/Login bottom navigation, no loading or
 application-error text after settle, no horizontal overflow, no clipped visible
 controls, and zero Browser warning/error logs.
+
+Nested `.at(...)` raw screenshot/image/Markdown aliases are now normalized to
+the same dotted property paths as direct bracket indexing. The source guard now
+resolves `groupedImageEvidence.payloads.at(0).raw`,
+`screenshotHelpers.list.at(0).at(0)`, and
+`markdownEvidence.payloads.at(0).raw` to the nested grouped aliases collected
+from the source object, so generated docs cannot hide raw screenshots, raw image
+attachments, or raw Markdown image payloads behind static `.at(...)` access on
+nested helper bags. The test inventory and stabilization source guard pin this
+coverage beside the direct nested indexed cases.
+Validation for this slice passed `bun run format:write`, `bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 197 tests after formatting, and `git diff --check`; WebStorm errors-only
+diagnostics remained blocked because this worktree is not one of the IDE's open
+projects. `bun run dev:status` proved the existing app route and database
+validation query healthy but still failed Docker's disposable Alpine start-path
+preflight, so this slice used the already-running app at
+`http://localhost:4218` and did not restart Docker. Browser checked the public
+General routes `/`, `/events`, `/legal/imprint`, `/legal/privacy`,
+`/legal/terms`, `/403`, `/500`, `/404`, and `/missing-general-page` at 390x844
+with expected content, no visible loading or application-error text, no
+horizontal overflow, no clipped visible controls, and zero warning/error logs.
+The inspected screenshots
+`/tmp/evorto-nested-at-indexed-doc-source-guard-events-390x844.png`,
+`/tmp/evorto-nested-at-indexed-doc-source-guard-terms-390x844.png`, and
+`/tmp/evorto-nested-at-indexed-doc-source-guard-not-found-390x844.png` show the
+current empty Events state, readable Terms fallback copy, and the not-found
+fallback on Material surfaces with visible Events/Login mobile navigation.
