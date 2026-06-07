@@ -1521,6 +1521,12 @@ describe('stabilization source', () => {
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);
     expect(source).toContain('Optional-call invocations');
+    expect(source).toContain('Computed static property\nspellings');
+    expect(source).toContain("`testInfo['att' + 'ach'](...)`");
+    expect(source).toContain("`page['screen' + 'shot'](...)`");
+    expect(source).toContain(
+      "`documentationReporter['take' + 'Screenshot'](...)`",
+    );
     expect(inventory).toContain(
       'comma-expression raw screenshot and image attach invocations',
     );
@@ -1530,6 +1536,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'optional-call screenshot-helper, raw screenshot, and image attach invocations',
     );
+    expect(inventory).toContain('computed static property spellings');
+    expect(inventory).toContain("`page['screen' + 'shot']`");
+    expect(inventory).toContain("`testInfo['att' + 'ach']`");
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );

@@ -552,6 +552,45 @@ const isTakeScreenshotCall = (node: ts.CallExpression): boolean => {
   return ts.isIdentifier(callee) && callee.text === 'takeScreenshot';
 };
 
+const resolveStaticStringValue = (node: ts.Expression): null | string => {
+  const expression = unwrapExpression(node);
+
+  if (
+    ts.isStringLiteral(expression) ||
+    ts.isNoSubstitutionTemplateLiteral(expression)
+  ) {
+    return expression.text;
+  }
+
+  if (
+    ts.isBinaryExpression(expression) &&
+    expression.operatorToken.kind === ts.SyntaxKind.PlusToken
+  ) {
+    const left = resolveStaticStringValue(expression.left);
+    const right = resolveStaticStringValue(expression.right);
+
+    return left !== null && right !== null ? `${left}${right}` : null;
+  }
+
+  if (ts.isTemplateExpression(expression)) {
+    let value = expression.head.text;
+
+    for (const span of expression.templateSpans) {
+      const spanValue = resolveStaticStringValue(span.expression);
+
+      if (spanValue === null) {
+        return null;
+      }
+
+      value += spanValue + span.literal.text;
+    }
+
+    return value;
+  }
+
+  return null;
+};
+
 const getStaticPropertyName = (node: ts.Expression): null | string => {
   const expression = unwrapExpression(node);
 
@@ -561,12 +600,10 @@ const getStaticPropertyName = (node: ts.Expression): null | string => {
 
   if (ts.isElementAccessExpression(expression)) {
     const argument = unwrapExpression(expression.argumentExpression);
+    const staticStringValue = resolveStaticStringValue(argument);
 
-    if (
-      ts.isStringLiteral(argument) ||
-      ts.isNoSubstitutionTemplateLiteral(argument)
-    ) {
-      return argument.text;
+    if (staticStringValue !== null) {
+      return staticStringValue;
     }
 
     if (ts.isNumericLiteral(argument)) {
@@ -578,16 +615,7 @@ const getStaticPropertyName = (node: ts.Expression): null | string => {
 };
 
 const getLiteralText = (node: ts.Expression): null | string => {
-  const expression = unwrapExpression(node);
-
-  if (
-    ts.isStringLiteral(expression) ||
-    ts.isNoSubstitutionTemplateLiteral(expression)
-  ) {
-    return expression.text;
-  }
-
-  return null;
+  return resolveStaticStringValue(node);
 };
 
 const getIdentifierText = (node: ts.Expression): null | string => {
@@ -608,14 +636,7 @@ const getStaticPropertyNameFromName = (
   }
 
   if (ts.isComputedPropertyName(node)) {
-    const expression = unwrapExpression(node.expression);
-
-    if (
-      ts.isStringLiteral(expression) ||
-      ts.isNoSubstitutionTemplateLiteral(expression)
-    ) {
-      return expression.text;
-    }
+    return resolveStaticStringValue(node.expression);
   }
 
   return null;
@@ -4497,6 +4518,68 @@ describe('generated docs source current behavior', () => {
       ),
     ).toEqual([
       'tests/docs/example/nested-branching-callee-image-capture.doc.ts:10:15',
+    ]);
+  });
+
+  it('detects computed static property raw capture spellings', () => {
+    const computedStaticPropertySource = `
+      async function captureDocsEvidence() {
+        const rawImagePayload = { ['content' + 'Type']: 'image/png' };
+        const rawMarkdownPayload = { ['bo' + 'dy']: '![raw](raw.png)' };
+        await page['screen' + 'shot']({ path: 'page.png' });
+        const capturePageScreenshot = page['screen' + 'shot'].bind(page);
+        await capturePageScreenshot({ path: 'page-alias.png' });
+        await testInfo['att' + 'ach']('image', { body: imageBuffer });
+        await testInfo.attach('raw evidence', rawImagePayload);
+        await testInfo['att' + 'ach']('markdown', rawMarkdownPayload);
+        await documentationReporter['take' + 'Screenshot'](
+          testInfo,
+          settingsSurface,
+          page,
+          'Computed property helper bypass with descriptive caption',
+        );
+        await import('../../support/reporters/' + 'documentation-reporter');
+      }
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/computed-static-property-capture.doc.ts',
+        computedStaticPropertySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/computed-static-property-capture.doc.ts:5:15',
+      'tests/docs/example/computed-static-property-capture.doc.ts:7:15',
+    ]);
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/computed-static-property-capture.doc.ts',
+        computedStaticPropertySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/computed-static-property-capture.doc.ts:8:15',
+      'tests/docs/example/computed-static-property-capture.doc.ts:9:15',
+    ]);
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/computed-static-property-capture.doc.ts',
+        computedStaticPropertySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/computed-static-property-capture.doc.ts:10:15',
+    ]);
+
+    expect(
+      findScreenshotHelperBypasses(
+        'tests/docs/example/computed-static-property-capture.doc.ts',
+        computedStaticPropertySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/computed-static-property-capture.doc.ts:6:15',
+      'tests/docs/example/computed-static-property-capture.doc.ts:11:15',
+      'tests/docs/example/computed-static-property-capture.doc.ts:17:15',
     ]);
   });
 

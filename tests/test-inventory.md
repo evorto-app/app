@@ -646,7 +646,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs
   sources, treats static bracket-property forms such as `page['screenshot']`,
   `testInfo['attach']`, and `documentationReporter['takeScreenshot']` the same
-  as dot-property access, rejects direct screenshots through simple,
+  as dot-property access, resolves computed static property spellings such as
+  `page['screen' + 'shot']`, `testInfo['att' + 'ach']`, and
+  `documentationReporter['take' + 'Screenshot']`, rejects direct screenshots through simple,
   destructured, or nested destructured screenshot-function aliases,
   binding-default screenshot-function aliases,
   grouped screenshot-function properties, shorthand or alias-valued grouped

@@ -6273,7 +6273,12 @@ capture behind a neutral binding name.
 Bracket-property forms such as `testInfo['attach'](...)`,
 `page['screenshot'](...)`, and `documentationReporter['takeScreenshot'](...)`
 are treated the same as dot-property access, so generated-doc source guards do
-not depend on one JavaScript property-access spelling.
+not depend on one JavaScript property-access spelling. Computed static property
+spellings such as `testInfo['att' + 'ach'](...)`,
+`page['screen' + 'shot'](...)`, and
+`documentationReporter['take' + 'Screenshot'](...)` are resolved the same way,
+so splitting a sensitive method name across literals cannot bypass the shared
+docs screenshot helper or raw-image attachment guards.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.
