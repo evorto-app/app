@@ -1982,6 +1982,9 @@ describe('stabilization source', () => {
       'findWeakMarkdownBodyAttachments',
     );
     expect(generatedDocumentationSource).toContain(
+      'isTestInfoMarkdownAttachmentCall',
+    );
+    expect(generatedDocumentationSource).toContain(
       'minimumSourceMarkdownBodyLength = 120',
     );
     expect(generatedDocumentationSource).toContain(

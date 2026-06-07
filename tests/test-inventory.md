@@ -688,7 +688,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   generated-doc section in the same file. It also rejects screenshots before
   the first Markdown section and more than two screenshots after one Markdown
   section so generated images stay close to the explanatory text that gives
-  them product context,
+  them product context, and only real `testInfo.attach('markdown', ...)` calls
+  count as explanatory generated-doc sections,
   including aliased markdown names, bracketed `attach` calls,
   binding-default and parameter-default markdown names,
   grouped/indexed/destructured/assigned markdown names including `.at(...)`

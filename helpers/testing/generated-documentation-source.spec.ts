@@ -779,6 +779,38 @@ const isTakeScreenshotCall = (node: ts.CallExpression): boolean => {
   return ts.isIdentifier(callee) && callee.text === 'takeScreenshot';
 };
 
+const isTestInfoMarkdownAttachmentCall = (
+  node: ts.CallExpression,
+  stringAliases: ReadonlyMap<string, string>,
+): boolean => {
+  const attachmentName = node.arguments[0]
+    ? resolveStaticStringValue(node.arguments[0], stringAliases)
+    : null;
+
+  if (attachmentName !== 'markdown') {
+    return false;
+  }
+
+  const callee = unwrapExpression(node.expression);
+
+  if (
+    !ts.isPropertyAccessExpression(callee) &&
+    !ts.isElementAccessExpression(callee)
+  ) {
+    return false;
+  }
+
+  const receiver = unwrapExpression(
+    getStaticPropertyReceiver(callee) ?? callee,
+  );
+
+  return (
+    ts.isIdentifier(receiver) &&
+    receiver.text === 'testInfo' &&
+    getStaticPropertyName(callee, stringAliases) === 'attach'
+  );
+};
+
 const resolveStaticStringValue = (
   node: ts.Expression,
   stringAliases: ReadonlyMap<string, string> = new Map(),
@@ -1461,14 +1493,11 @@ const findWeakMarkdownBodyAttachments = (
 
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
-      const attachmentName = node.arguments[0]
-        ? resolveStaticStringValue(node.arguments[0], staticStringAliases)
-        : null;
       const payload = node.arguments[1]
         ? unwrapExpression(node.arguments[1])
         : null;
 
-      if (attachmentName === 'markdown') {
+      if (isTestInfoMarkdownAttachmentCall(node, staticStringAliases)) {
         const body =
           payload && ts.isObjectLiteralExpression(payload)
             ? getObjectPropertyValue(payload, 'body')
@@ -1518,11 +1547,7 @@ const findDenseScreenshotRunsBetweenMarkdown = (
 
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
-      const attachmentName = node.arguments[0]
-        ? resolveStaticStringValue(node.arguments[0], staticStringAliases)
-        : null;
-
-      if (attachmentName === 'markdown') {
+      if (isTestInfoMarkdownAttachmentCall(node, staticStringAliases)) {
         events.push({
           kind: 'markdown',
           node,
@@ -6565,8 +6590,11 @@ describe('generated docs source current behavior', () => {
           \${dynamicOnly}
         \`,
       });
+      await recordDocumentationNote('markdown', {
+        body: \`Too short, but it is not a generated-doc markdown attachment.\`,
+      });
       const markdownName = 'markdown';
-      await testInfo.attach(markdownName, {
+      await testInfo['attach'](markdownName, {
         body:
           'Another short generated documentation section ' +
           'still does not explain enough context.',
@@ -6581,7 +6609,7 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/markdown-body.doc.ts:7:13',
       'tests/docs/example/markdown-body.doc.ts:10:13',
-      'tests/docs/example/markdown-body.doc.ts:16:13',
+      'tests/docs/example/markdown-body.doc.ts:19:13',
     ]);
   });
 
@@ -6610,6 +6638,11 @@ describe('generated docs source current behavior', () => {
         page,
         'Second settings screenshot with descriptive caption',
       );
+      await recordDocumentationNote('markdown', {
+        body: \`
+          This call looks like markdown data, but it is not a Playwright generated-documentation attachment and cannot reset screenshot density.
+        \`,
+      });
       await takeScreenshot(
         testInfo,
         financeSurface,
@@ -6636,7 +6669,7 @@ describe('generated docs source current behavior', () => {
       ),
     ).toEqual([
       'tests/docs/example/dense-screenshot-run.doc.ts:2:13',
-      'tests/docs/example/dense-screenshot-run.doc.ts:25:13',
+      'tests/docs/example/dense-screenshot-run.doc.ts:30:13',
     ]);
   });
 

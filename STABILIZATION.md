@@ -6970,11 +6970,16 @@ calls after one Markdown attachment before adding another explanatory section.
 The tenant General settings guide now splits brand assets/search metadata,
 hosted/external legal pages, and finance/discount settings into separate
 text-backed screenshot clusters.
+The same guard now only treats real `testInfo.attach('markdown', ...)`
+attachments as explanatory Markdown, so helper/logging calls such as
+`recordDocumentationNote('markdown', ...)` cannot reset screenshot density or
+pretend that a generated-doc section has product-facing explanatory text.
 A same-slice in-app Browser mobile spot check opened `/legal/terms` at 390x844
-with `stabilizationEvidence=dense-doc-screenshot-markdown-guard` and verified
-the Terms fallback page with meaningful legal-page copy, fixed Events/Login
-bottom navigation, no loading text, no application-error text, no horizontal
-overflow, and zero Browser warning/error logs. The authenticated MCP Browser
-planner could not seed `/admin/settings` on the generated worktree port because
-Auth0 rejected `http://localhost:4218/callback`; durable authenticated General
-mobile coverage remains pinned by `tests/specs/admin/general-settings.spec.ts`.
+with `stabilizationEvidence=real-markdown-attachment-source-guard` and verified
+the Terms fallback page with meaningful legal-page copy, visible Back to events,
+Events, and Login controls, fixed Events/Login bottom navigation, no loading
+text, no application-error text, no horizontal overflow, and zero Browser
+warning/error logs. The authenticated MCP Browser planner could not seed
+`/admin/settings` on the generated worktree port because Auth0 rejected
+`http://localhost:4218/callback`; durable authenticated General mobile coverage
+remains pinned by `tests/specs/admin/general-settings.spec.ts`.
