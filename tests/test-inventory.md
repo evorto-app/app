@@ -528,7 +528,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `const key = 'skip'; test[key](...)`, `test.describe[configureKey](...)`,
   `page[pauseKey](...)`, and `page[waitForTimeoutKey](...)` are resolved before
   inventory comparison, so aliases cannot hide skipped, focused, slowed, serial,
-  debug, or fixed-wait coverage changes. Reflection-based modifier access
+  debug, or fixed-wait coverage changes; array-built keys such as
+  `['sk', 'ip'].join('')`, `['on'].concat(['ly']).join('')`, and
+  `['waitFor'].concat(['Timeout']).join('')` are resolved the same way.
+  Reflection-based modifier access
   through `Reflect.get(...)`, `Reflect.apply(...)`, and local `Reflect` aliases
   is covered for `test.skip`/`fixme`/`only`/`slow`,
   `test.describe.configure`, `page.pause`, and `page.waitForTimeout` as well.

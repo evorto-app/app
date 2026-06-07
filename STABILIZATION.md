@@ -6881,7 +6881,12 @@ serial coverage behind a local alias. Constant-backed modifier spellings are
 resolved too, so `const key = 'skip'; test[key](...)`,
 `test.describe[configureKey](...)`, `page[pauseKey](...)`, and
 `page[waitForTimeoutKey](...)` cannot hide skipped, focused, slowed, serial,
-debug, or fixed-wait coverage changes behind local strings. Reflection-based
+debug, or fixed-wait coverage changes behind local strings. Array-built
+modifier keys such as `['sk', 'ip'].join('')`,
+`['on'].concat(['ly']).join('')`, `['pau', 'se'].join('')`, and
+`['waitFor'].concat(['Timeout']).join('')` now resolve through the same
+inventory guard, so tests cannot rebuild skip/focus/debug/wait property names
+just before invoking them. Reflection-based
 modifier access is covered too, so `Reflect.get(...)`, `Reflect.apply(...)`,
 and local `Reflect` aliases cannot hide `test.skip`/`fixme`/`only`/`slow`,
 `test.describe.configure`, `page.pause`, or `page.waitForTimeout` behind the
@@ -6893,6 +6898,12 @@ local `page.waitForTimeout` aliases, direct
 `page.waitForTimeout.call/apply/bind(...)` forwarding, and split
 `setTimeout(...)` calls in docs screenshot helpers are rejected instead of
 depending on single-line formatting.
+A same-slice in-app Browser mobile spot check opened `/legal/privacy` at
+390x844 with `stabilizationEvidence=array-built-runtime-modifier-source-guard`
+and verified the Privacy policy fallback page plus fixed Events/Login navigation
+with no loading text, no application-error text, no horizontal overflow, and
+zero Browser warning/error logs. The inspected screenshot is
+`/tmp/evorto-array-built-runtime-modifier-privacy-390x844.png`.
 
 Registration confirmation, cancellation, transfer, and waitlist spot-available
 now record durable email outbox rows with notification-email details, and paid

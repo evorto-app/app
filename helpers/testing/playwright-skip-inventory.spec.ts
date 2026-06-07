@@ -209,6 +209,26 @@ const resolveStaticStringExpression = (
   expression: string,
   aliases: ReadonlyMap<string, string>,
 ): string | undefined => {
+  const trimmedExpression = expression.trim();
+  const joinMatch = trimmedExpression.match(
+    /^(?<receiver>.+)\.join\(\s*(?<separator>(?:'[^']*'|"[^"]*"))?\s*\)$/u,
+  );
+
+  if (joinMatch?.groups !== undefined) {
+    const values = resolveStaticStringArrayExpression(
+      joinMatch.groups.receiver,
+      aliases,
+    );
+    const separator =
+      joinMatch.groups.separator === undefined
+        ? ','
+        : resolveStaticStringExpression(joinMatch.groups.separator, aliases);
+
+    return values !== undefined && separator !== undefined
+      ? values.join(separator)
+      : undefined;
+  }
+
   const parts = expression.split('+');
   let value = '';
 
@@ -232,6 +252,98 @@ const resolveStaticStringExpression = (
   }
 
   return value;
+};
+
+const resolveStaticStringArrayExpression = (
+  expression: string,
+  aliases: ReadonlyMap<string, string>,
+): string[] | undefined => {
+  const trimmedExpression = expression.trim();
+  const concatMatch = trimmedExpression.match(
+    /^(?<receiver>.+)\.concat\((?<arguments>.*)\)$/u,
+  );
+
+  if (concatMatch?.groups !== undefined) {
+    const values = resolveStaticStringArrayExpression(
+      concatMatch.groups.receiver,
+      aliases,
+    );
+
+    if (values === undefined) {
+      return undefined;
+    }
+
+    const argumentValues: string[] = [];
+
+    for (const argument of splitStaticArrayElements(
+      concatMatch.groups.arguments,
+    )) {
+      const arrayValues = resolveStaticStringArrayExpression(argument, aliases);
+
+      if (arrayValues !== undefined) {
+        argumentValues.push(...arrayValues);
+        continue;
+      }
+
+      const value = resolveStaticStringExpression(argument, aliases);
+
+      if (value === undefined) {
+        return undefined;
+      }
+
+      argumentValues.push(value);
+    }
+
+    return [...values, ...argumentValues];
+  }
+
+  if (!trimmedExpression.startsWith('[') || !trimmedExpression.endsWith(']')) {
+    return undefined;
+  }
+
+  const elements = splitStaticArrayElements(trimmedExpression.slice(1, -1));
+  const values = elements.map((element) =>
+    resolveStaticStringExpression(element, aliases),
+  );
+
+  return values.every((value): value is string => value !== undefined)
+    ? values
+    : undefined;
+};
+
+const splitStaticArrayElements = (source: string): string[] => {
+  const elements: string[] = [];
+  let current = '';
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    const previous = source[index - 1];
+
+    if ((character === '"' || character === "'") && previous !== '\\') {
+      quote = quote === character ? null : (quote ?? character);
+    } else if (quote === null && character === '[') {
+      depth += 1;
+    } else if (quote === null && character === ']') {
+      depth -= 1;
+    } else if (quote === null && depth === 0 && character === ',') {
+      if (current.trim()) {
+        elements.push(current.trim());
+      }
+
+      current = '';
+      continue;
+    }
+
+    current += character;
+  }
+
+  if (current.trim()) {
+    elements.push(current.trim());
+  }
+
+  return elements;
 };
 
 const collectStaticStringAliases = (
@@ -1009,7 +1121,16 @@ await page[pauseKey]();
 const waitPrefix = 'waitFor';
 const waitKey = waitPrefix + 'Timeout';
 await page[waitKey](100);
-await page[waitKey].call(page, 100);`;
+await page[waitKey].call(page, 100);
+const arraySkipKey = ['sk', 'ip'].join('');
+test[arraySkipKey]('array hidden skip', () => {});
+const arrayOnlyKey = ['on'].concat(['ly']).join('');
+test.describe[arrayOnlyKey]('array hidden focus', () => {});
+const arrayPauseKey = ['pau', 'se'].join('');
+await page[arrayPauseKey]();
+const arrayWaitKey = ['waitFor'].concat(['Timeout']).join('');
+await page[arrayWaitKey](100);
+await page[arrayWaitKey].apply(page, [100]);`;
 
     expect(
       collectStaticPropertyEntriesForSource(
@@ -1020,6 +1141,7 @@ await page[waitKey].call(page, 100);`;
       ),
     ).toEqual([
       'tests/specs/example/static-properties.spec.ts:2:test[skipKey]( (skip property alias)',
+      'tests/specs/example/static-properties.spec.ts:17:test[arraySkipKey]( (skip property alias)',
     ]);
     expect(
       collectStaticPropertyEntriesForSource(
@@ -1030,6 +1152,7 @@ await page[waitKey].call(page, 100);`;
       ),
     ).toEqual([
       'tests/specs/example/static-properties.spec.ts:5:test.describe[onlyKey]( (only property alias)',
+      'tests/specs/example/static-properties.spec.ts:19:test.describe[arrayOnlyKey]( (only property alias)',
     ]);
     expect(
       collectStaticPropertyEntriesForSource(
@@ -1051,6 +1174,7 @@ await page[waitKey].call(page, 100);`;
       ),
     ).toEqual([
       'tests/specs/example/static-properties.spec.ts:11:page[pauseKey]( (pause property alias)',
+      'tests/specs/example/static-properties.spec.ts:21:page[arrayPauseKey]( (pause property alias)',
     ]);
     expect(
       collectStaticPropertyEntriesForSource(
@@ -1062,6 +1186,8 @@ await page[waitKey].call(page, 100);`;
     ).toEqual([
       'tests/specs/example/static-properties.spec.ts:14:page[waitKey]( (waitForTimeout property alias)',
       'tests/specs/example/static-properties.spec.ts:15:page[waitKey].call (waitForTimeout property alias)',
+      'tests/specs/example/static-properties.spec.ts:23:page[arrayWaitKey]( (waitForTimeout property alias)',
+      'tests/specs/example/static-properties.spec.ts:24:page[arrayWaitKey].apply (waitForTimeout property alias)',
     ]);
   });
 
