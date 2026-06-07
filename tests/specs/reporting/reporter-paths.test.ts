@@ -52,6 +52,9 @@ const createDocumentationEvidencePng = ({
   return PNG.sync.write(png);
 };
 
+const descriptiveMarkdown =
+  'This generated guide section explains the visible workflow state and why the captured UI matters for product documentation.';
+
 test('documentation reporter respects DOCS_* env and writes files', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out');
   const imgsRoot = testInfo.outputPath('docs-img');
@@ -73,7 +76,7 @@ test('documentation reporter respects DOCS_* env and writes files', async ({}, t
       {
         name: 'markdown',
         contentType: 'text/markdown',
-        body: Buffer.from('Hello world'),
+        body: Buffer.from(descriptiveMarkdown),
       },
       { name: 'image', contentType: 'image/png', body: png },
       {
@@ -351,6 +354,33 @@ test('documentation reporter rejects raw markdown image syntax', async ({}, test
     reporter.onTestEnd({ title: 'Raw markdown image' } as any, result),
   ).toThrow(
     'Documentation markdown attachment in Raw markdown image must not include raw Markdown image syntax or HTML <img> tags.',
+  );
+});
+
+test('documentation reporter rejects weak markdown body text', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-weak-markdown-body');
+  const imgsRoot = testInfo.outputPath('docs-img-weak-markdown-body');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from('Too short.'),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Weak markdown body' } as any, result),
+  ).toThrow(
+    'Documentation markdown attachment in Weak markdown body must include at least 60 characters of explanatory body text so generated docs can be judged without clicking through the app.',
   );
 });
 
@@ -790,7 +820,7 @@ test('front matter normalization with permissions callout', async ({}, testInfo)
 
   const title = 'Permissions Journey';
   const slug = title.toLowerCase().replaceAll(' ', '-');
-  const mdBlock = `---\nPermissions:\n - admin:manage\n - events:view\n---\nBody text`;
+  const mdBlock = `---\nPermissions:\n - admin:manage\n - events:view\n---\n${descriptiveMarkdown}`;
   const result = {
     attachments: [
       {
@@ -811,7 +841,7 @@ test('front matter normalization with permissions callout', async ({}, testInfo)
   expect(md).toContain('User permissions');
   expect(md).toContain('- admin:manage');
   expect(md).toContain('- events:view');
-  expect(md).toContain('Body text');
+  expect(md).toContain(descriptiveMarkdown);
 });
 
 test('documentation reporter emits one markdown file per describe block', async ({}, testInfo) => {
@@ -831,7 +861,9 @@ test('documentation reporter emits one markdown file per describe block', async 
       {
         name: 'markdown',
         contentType: 'text/markdown',
-        body: Buffer.from('First section content'),
+        body: Buffer.from(
+          'First section content explains the opening registration docs state with enough detail for generated documentation review.',
+        ),
       },
     ],
   } as any;
@@ -840,7 +872,9 @@ test('documentation reporter emits one markdown file per describe block', async 
       {
         name: 'markdown',
         contentType: 'text/markdown',
-        body: Buffer.from('Second section content'),
+        body: Buffer.from(
+          'Second section content explains the paid registration docs state with enough detail for generated documentation review.',
+        ),
       },
     ],
   } as any;
@@ -926,7 +960,9 @@ test('two tests in one describe block share one markdown file', async ({}, testI
         {
           name: 'markdown',
           contentType: 'text/markdown',
-          body: Buffer.from('Open checkout section'),
+          body: Buffer.from(
+            'Open checkout section explains the first checkout step with enough detail for generated documentation review.',
+          ),
         },
       ],
     } as any,
@@ -950,7 +986,9 @@ test('two tests in one describe block share one markdown file', async ({}, testI
         {
           name: 'markdown',
           contentType: 'text/markdown',
-          body: Buffer.from('Confirm checkout section'),
+          body: Buffer.from(
+            'Confirm checkout section explains payment confirmation with enough detail for generated documentation review.',
+          ),
         },
       ],
     } as any,

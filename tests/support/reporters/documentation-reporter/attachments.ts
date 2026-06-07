@@ -13,6 +13,7 @@ const minimumCaptionLength = 24;
 const minimumCaptionWordCount = 4;
 const minimumImageWidth = 320;
 const minimumImageHeight = 240;
+const minimumMarkdownBodyLength = 60;
 const rawMarkdownImagePattern = /!\[[^\]]*\]\([^)]+\)|<img(?:\s|>)/iu;
 
 const readAttachmentBody = (
@@ -172,6 +173,19 @@ const assertNoRawMarkdownImages = (
   }
 };
 
+const assertDescriptiveMarkdownBody = (
+  markdownBody: string,
+  testTitle: string,
+): void => {
+  const normalizedBody = markdownBody.replace(/\s+/gu, ' ').trim();
+
+  if (normalizedBody.length < minimumMarkdownBodyLength) {
+    throw new Error(
+      `Documentation markdown attachment in ${testTitle} must include at least ${minimumMarkdownBodyLength} characters of explanatory body text so generated docs can be judged without clicking through the app.`,
+    );
+  }
+};
+
 export const buildSectionContent = (
   test: TestCase,
   attachments: ResultAttachment[],
@@ -225,6 +239,7 @@ export const buildSectionContent = (
         const markdown = body.toString();
         assertNoRawMarkdownImages(markdown, test.title);
         const parsedMarkdown = parseMarkdownAttachment(markdown);
+        assertDescriptiveMarkdownBody(parsedMarkdown.body, test.title);
         permissionsLines.push(...parsedMarkdown.frontMatterPermissions);
         appendPermissionsCallout(sectionContent, permissionsLines);
         sectionContent.push(parsedMarkdown.body.trim());

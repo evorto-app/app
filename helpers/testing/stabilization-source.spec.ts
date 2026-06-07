@@ -1744,6 +1744,8 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /undersized\s+generated-doc\s+image\s+attachments/u,
     );
+    expect(inventory).toContain('weak Markdown body text');
+    expect(inventory).toContain('explanatory body text');
     expect(inventory).toContain('tiny valid PNGs');
     expect(inventory).toMatch(/valid\s+PNG\s+screenshots/u);
     expect(inventory).toMatch(
@@ -2554,6 +2556,15 @@ describe('stabilization source', () => {
     expect(reporterAttachmentsSource).toContain(
       'must include visible page content outside the highlighted focus target',
     );
+    expect(reporterAttachmentsSource).toContain(
+      'minimumMarkdownBodyLength = 60',
+    );
+    expect(reporterAttachmentsSource).toContain(
+      'assertDescriptiveMarkdownBody',
+    );
+    expect(reporterAttachmentsSource).toContain(
+      'generated docs can be judged without clicking through the app',
+    );
     expect(inventory).toContain('raw Markdown image syntax');
     expect(inventory).toContain('HTML `<img>` tags');
     expect(inventory).toContain('aliased markdown names');
@@ -2602,6 +2613,9 @@ describe('stabilization source', () => {
     );
     expect(reporterPathsSpec).toContain(
       'documentation reporter rejects weak image captions at output time',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects weak markdown body text',
     );
     expect(reporterPathsSpec).toContain(
       'Documentation image attachment in Uncaptioned image is missing a paired image-caption attachment.',

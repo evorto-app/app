@@ -223,7 +223,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     targets, visible page-content detection, and zero-box host screenshots
     without app startup. It also rejects undersized generated-doc image
     attachments, so tiny valid PNGs cannot stand in for screenshot evidence with
-    enough UI context.
+    enough UI context, and rejects weak Markdown body text so generated docs
+    keep enough explanatory body text to be reviewed without clicking through
+    the app.
     `bun run test:e2e:reporter-paths` is the focused local rerun; it uses
     `helpers/testing/run-playwright.ts` to refresh `.env.dev`, set ignored docs
     output paths, set `NO_WEBSERVER=true`, and pass `--no-deps`.
@@ -619,6 +621,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   screenshots with highlighted focus-target pixels and visible surrounding page
   content, rejects raw Markdown image syntax and HTML `<img>` tags in generated
   docs markdown attachments at reporter runtime and in source coverage,
+  rejects weak Markdown body text so generated docs keep explanatory body text
+  before generated markdown is written,
   including aliased markdown names, bracketed `attach` calls,
   binding-default markdown names,
   grouped/indexed/destructured/assigned markdown names including `.at(...)`
