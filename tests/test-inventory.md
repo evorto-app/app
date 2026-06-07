@@ -603,8 +603,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   mutating helper-returned weak arrays, plus weak
   targets produced by inline, named, or locally aliased `map` and `flatMap`
   callbacks, by `Array.from(...)` mapper callbacks, and by reducer callbacks or
-  reducer initial values, parameter-default weak target aliases, and
-  helper-returned icon/media locators,
+  reducer initial values, parameter-default weak target aliases including
+  destructured object/array helper defaults, and helper-returned icon/media locators,
   before docs can regress to button-only, input-only, option-only, cell-only, or
   icon-only images. It also rejects conditional, nullish-coalesced, and logical
   target expressions recursively when any nested branch hides a weak screenshot

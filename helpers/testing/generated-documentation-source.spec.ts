@@ -527,6 +527,70 @@ const collectParameterInitializerAliases = (
   collectBindingInitializerAliases(node.name, isTrackedReference, aliases);
 };
 
+const collectBindingInitializerFunctionAliases = (
+  name: ts.BindingName,
+  returnsTrackedFunction: (
+    node: ts.ArrowFunction | ts.FunctionExpression,
+  ) => boolean,
+  aliases: Set<string>,
+): void => {
+  if (ts.isIdentifier(name)) {
+    return;
+  }
+
+  for (const element of name.elements) {
+    if (ts.isOmittedExpression(element)) {
+      continue;
+    }
+
+    const initializer = element.initializer
+      ? unwrapExpression(element.initializer)
+      : null;
+
+    if (
+      initializer &&
+      (ts.isArrowFunction(initializer) ||
+        ts.isFunctionExpression(initializer)) &&
+      returnsTrackedFunction(initializer)
+    ) {
+      addBindingIdentifiers(element.name, aliases);
+    }
+
+    collectBindingInitializerFunctionAliases(
+      element.name,
+      returnsTrackedFunction,
+      aliases,
+    );
+  }
+};
+
+const collectParameterInitializerFunctionAliases = (
+  node: ts.ParameterDeclaration,
+  returnsTrackedFunction: (
+    node: ts.ArrowFunction | ts.FunctionExpression,
+  ) => boolean,
+  aliases: Set<string>,
+): void => {
+  const initializer = node.initializer
+    ? unwrapExpression(node.initializer)
+    : null;
+
+  if (
+    initializer &&
+    ts.isIdentifier(node.name) &&
+    (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) &&
+    returnsTrackedFunction(initializer)
+  ) {
+    aliases.add(node.name.text);
+  }
+
+  collectBindingInitializerFunctionAliases(
+    node.name,
+    returnsTrackedFunction,
+    aliases,
+  );
+};
+
 const collectParameterObjectRestAliases = (
   node: ts.ParameterDeclaration,
   isTrackedReference: (node: ts.Expression) => boolean,
@@ -1987,16 +2051,11 @@ const findGenericScreenshotTargets = (
         isGenericLocatorTarget,
         genericTargetAliases,
       );
-
-      if (
-        ts.isIdentifier(node.name) &&
-        node.initializer &&
-        (ts.isArrowFunction(node.initializer) ||
-          ts.isFunctionExpression(node.initializer)) &&
-        returnsGenericLocator(node.initializer)
-      ) {
-        genericTargetFunctions.add(node.name.text);
-      }
+      collectParameterInitializerFunctionAliases(
+        node,
+        returnsGenericLocator,
+        genericTargetFunctions,
+      );
     }
 
     ts.forEachChild(node, collectAliases);
@@ -2246,16 +2305,11 @@ const findUnfilteredBroadScreenshotTargets = (
         isUnfilteredBroadLocatorTarget,
         broadTargetAliases,
       );
-
-      if (
-        ts.isIdentifier(node.name) &&
-        node.initializer &&
-        (ts.isArrowFunction(node.initializer) ||
-          ts.isFunctionExpression(node.initializer)) &&
-        returnsUnfilteredBroadLocator(node.initializer)
-      ) {
-        broadTargetFunctions.add(node.name.text);
-      }
+      collectParameterInitializerFunctionAliases(
+        node,
+        returnsUnfilteredBroadLocator,
+        broadTargetFunctions,
+      );
     }
 
     ts.forEachChild(node, collectAliases);
@@ -2577,16 +2631,11 @@ const findSingleControlScreenshotTargets = (
         isSingleControlLocatorTarget,
         singleControlAliases,
       );
-
-      if (
-        ts.isIdentifier(node.name) &&
-        node.initializer &&
-        (ts.isArrowFunction(node.initializer) ||
-          ts.isFunctionExpression(node.initializer)) &&
-        returnsSingleControlLocator(node.initializer)
-      ) {
-        singleControlFunctions.add(node.name.text);
-      }
+      collectParameterInitializerFunctionAliases(
+        node,
+        returnsSingleControlLocator,
+        singleControlFunctions,
+      );
     }
 
     ts.forEachChild(node, collectAliases);
@@ -2866,16 +2915,11 @@ const findIconOrMediaScreenshotTargets = (
         isIconOrMediaLocatorTarget,
         iconOrMediaAliases,
       );
-
-      if (
-        ts.isIdentifier(node.name) &&
-        node.initializer &&
-        (ts.isArrowFunction(node.initializer) ||
-          ts.isFunctionExpression(node.initializer)) &&
-        returnsIconOrMediaLocator(node.initializer)
-      ) {
-        iconOrMediaFunctions.add(node.name.text);
-      }
+      collectParameterInitializerFunctionAliases(
+        node,
+        returnsIconOrMediaLocator,
+        iconOrMediaFunctions,
+      );
     }
 
     ts.forEachChild(node, collectAliases);
@@ -6982,6 +7026,18 @@ describe('generated docs source current behavior', () => {
       async function mediaHelperParameter(resolveImage = (page) => page.getByAltText('Tenant logo')) {
         await takeScreenshot(testInfo, resolveImage(page), page, 'Parameter image helper target with a descriptive caption');
       }
+      async function destructuredGenericHelperParameter({ resolveShell = (page) => page.locator('main') } = {}) {
+        await takeScreenshot(testInfo, resolveShell(page), page, 'Destructured generic helper target with a descriptive caption');
+      }
+      async function arrayBroadHelperParameter([resolveSection = (page) => page.locator('section')] = []) {
+        await takeScreenshot(testInfo, resolveSection(page), page, 'Array broad helper target with a descriptive caption');
+      }
+      async function destructuredSingleControlHelperParameter({ resolveAction = (page) => page.getByText('Save') } = {}) {
+        await takeScreenshot(testInfo, resolveAction(page), page, 'Destructured single helper target with a descriptive caption');
+      }
+      async function arrayIconHelperParameter([resolveIcon = (page) => page.locator('svg')] = []) {
+        await takeScreenshot(testInfo, resolveIcon(page), page, 'Array icon helper target with a descriptive caption');
+      }
     `;
 
     expect(
@@ -6993,6 +7049,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/parameter-default-weak-target.doc.ts:3:15',
       'tests/docs/example/parameter-default-weak-target.doc.ts:6:15',
       'tests/docs/example/parameter-default-weak-target.doc.ts:9:15',
+      'tests/docs/example/parameter-default-weak-target.doc.ts:30:15',
     ]);
 
     expect(
@@ -7004,6 +7061,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/parameter-default-weak-target.doc.ts:9:15',
       'tests/docs/example/parameter-default-weak-target.doc.ts:12:15',
       'tests/docs/example/parameter-default-weak-target.doc.ts:15:15',
+      'tests/docs/example/parameter-default-weak-target.doc.ts:33:15',
     ]);
 
     expect(
@@ -7014,6 +7072,7 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/parameter-default-weak-target.doc.ts:18:15',
       'tests/docs/example/parameter-default-weak-target.doc.ts:21:15',
+      'tests/docs/example/parameter-default-weak-target.doc.ts:36:15',
     ]);
 
     expect(
@@ -7024,6 +7083,7 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/parameter-default-weak-target.doc.ts:24:15',
       'tests/docs/example/parameter-default-weak-target.doc.ts:27:15',
+      'tests/docs/example/parameter-default-weak-target.doc.ts:39:15',
     ]);
   });
 
