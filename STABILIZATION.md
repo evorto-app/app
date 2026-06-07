@@ -6937,3 +6937,15 @@ fallback page with zero visible loading placeholders, no application-error text,
 no horizontal overflow entries, fixed Events/Login bottom navigation, and zero
 Browser warning/error logs. The inspected screenshot is
 `/tmp/evorto-visible-loading-layout-guard-terms-390x844.png`.
+
+The public General readability guard now runs the hosted legal, 403, 404, and
+500 simple pages across the full durable viewport matrix, not just the 390x844
+mobile viewport. Each page is checked under light and dark rendering at 320x740,
+390x844, and 1440x900 so headings and supporting copy must stay readable on a
+painted Material surface at every General viewport covered by the layout sweep.
+A same-slice in-app Browser desktop spot check opened `/404` at 1440x900 with
+`stabilizationEvidence=general-readability-viewport-matrix` and verified the
+Page not found heading and supporting copy on the Material surface with no
+horizontal overflow and zero Browser warning/error logs. The measured contrast
+was 14.74:1 for the heading and 8.04:1 for the supporting copy; the inspected
+screenshot is `/tmp/evorto-general-readability-404-1440x900.png`.

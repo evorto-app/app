@@ -8593,6 +8593,18 @@ describe('stabilization source', () => {
     expect(source).toMatch(/explicit `\/404` route/u);
     expect(viewportSpec).toContain('test.setTimeout(120_000)');
     expect(viewportSpec).toContain('toBeVisible({ timeout: 15_000 })');
+    expect(viewportSpec).toContain(
+      "test('public simple General pages remain readable across viewport rendering'",
+    );
+    expect(viewportSpec).toContain(
+      'await test.step(`${viewport.label} viewport`, async () =>',
+    );
+    expect(viewportSpec).toContain(
+      'await test.step(`${colorScheme} color scheme`, async () =>',
+    );
+    expect(inventory).toContain(
+      'under light and dark rendering\n    at narrow mobile, mobile, and desktop widths',
+    );
     expect(viewportSpec).not.toContain('test.describe');
     expect(viewportSpec).not.toMatch(
       /test\(`\$\{route\.name\} has stable \$\{viewport\.label\} layout`/u,

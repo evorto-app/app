@@ -18,6 +18,7 @@ const viewportSizes = [
 const expectReadableTextOnPaintedSurface = async (
   page: Page,
   selector: string,
+  context: string,
 ) => {
   const contrastReport = await page.locator(selector).evaluate((element) => {
     const parseRgb = (value: string) => {
@@ -92,11 +93,11 @@ const expectReadableTextOnPaintedSurface = async (
 
   expect(
     contrastReport.background,
-    `${selector} should render on a painted Material surface`,
+    `${context} ${selector} should render on a painted Material surface`,
   ).toBeDefined();
   expect(
     contrastReport.contrast,
-    `${selector} should stay readable in the mobile General page`,
+    `${context} ${selector} should stay readable in the General page`,
   ).toBeGreaterThanOrEqual(4.5);
 };
 
@@ -241,11 +242,9 @@ test('public General pages have stable layouts across viewports', async ({
   }
 });
 
-test('public simple General pages remain readable in mobile Browser rendering', async ({
+test('public simple General pages remain readable across viewport rendering', async ({
   page,
 }) => {
-  await page.setViewportSize({ height: 844, width: 390 });
-
   const simpleGeneralRoutes = [
     {
       extraText: 'No tenant-provided legal text is configured for this page.',
@@ -277,26 +276,38 @@ test('public simple General pages remain readable in mobile Browser rendering', 
     },
   ] as const;
 
-  for (const colorScheme of ['light', 'dark'] as const) {
-    await test.step(`${colorScheme} color scheme`, async () => {
-      await page.emulateMedia({ colorScheme });
+  for (const viewport of viewportSizes) {
+    await test.step(`${viewport.label} viewport`, async () => {
+      await page.setViewportSize(viewport);
 
-      for (const route of simpleGeneralRoutes) {
-        await test.step(route.path, async () => {
-          await page.goto(route.path);
+      for (const colorScheme of ['light', 'dark'] as const) {
+        await test.step(`${colorScheme} color scheme`, async () => {
+          await page.emulateMedia({ colorScheme });
 
-          await expect(
-            page.getByRole('heading', { name: route.heading }),
-          ).toBeVisible();
-          await expect(page.getByText(route.extraText)).toBeVisible();
-          await expectReadableTextOnPaintedSurface(page, route.titleSelector);
-          await expectReadableTextOnPaintedSurface(
-            page,
-            route.paragraphSelector,
-          );
-          await expect(readPageLayout(page)).resolves.toEqual(
-            expectedStablePageLayout,
-          );
+          for (const route of simpleGeneralRoutes) {
+            await test.step(route.path, async () => {
+              const context = `${viewport.label} ${colorScheme} ${route.path}`;
+              await page.goto(route.path);
+
+              await expect(
+                page.getByRole('heading', { name: route.heading }),
+              ).toBeVisible();
+              await expect(page.getByText(route.extraText)).toBeVisible();
+              await expectReadableTextOnPaintedSurface(
+                page,
+                route.titleSelector,
+                context,
+              );
+              await expectReadableTextOnPaintedSurface(
+                page,
+                route.paragraphSelector,
+                context,
+              );
+              await expect(readPageLayout(page)).resolves.toEqual(
+                expectedStablePageLayout,
+              );
+            });
+          }
         });
       }
     });
