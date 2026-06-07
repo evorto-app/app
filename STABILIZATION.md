@@ -6178,16 +6178,18 @@ section/list label that does not explain what the image proves.
 Generated-doc markdown attachments also reject raw Markdown image syntax and
 HTML `<img>` tags, including aliased markdown names, bracketed `attach` calls,
 binding-default markdown names, grouped/indexed/destructured/assigned markdown
-names, simple markdown-name forwarding through calls, template interpolation,
-conditionals, nullish/logical expressions, and static concatenation, aliased body
-variables, grouped/indexed/destructured/assigned body variables, body variables
-wrapped directly or through simple body forwarding such as `Buffer.from(...)`,
-`String(...)`, template interpolation, conditionals, or nullish/logical
-expressions, aliased payload objects,
+names including `.at(...)` indexed lists, simple markdown-name forwarding through
+calls, template interpolation, conditionals, nullish/logical expressions, and
+static concatenation, aliased body variables,
+grouped/indexed/destructured/assigned body variables including `.at(...)`
+indexed lists, body variables wrapped directly or through simple body forwarding
+such as `Buffer.from(...)`, `String(...)`, template interpolation,
+conditionals, or nullish/logical expressions, aliased payload objects,
 grouped/indexed/destructured, assigned, or binding-default body/payload aliases,
-shorthand `{ body }`, bound, destructured, grouped, indexed, assigned, or
-binding-default `attach` helpers, and spread, `call`, `apply`, `Reflect.apply`,
-or inline `bind` forwarding, so product docs cannot add unrelated or
+including `.at(...)` indexed payload lists, shorthand `{ body }`, bound,
+destructured, grouped, indexed, assigned, or binding-default `attach` helpers,
+including `.at(...)` indexed helper lists, and spread, `call`, `apply`,
+`Reflect.apply`, or inline `bind` forwarding, so product docs cannot add unrelated or
 unhighlighted images outside the shared screenshot helper, caption, highlight,
 and content-pixel checks.
 Generated-doc source coverage now also maps the root product docs' important

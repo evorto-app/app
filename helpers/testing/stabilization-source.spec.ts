@@ -1473,11 +1473,14 @@ describe('stabilization source', () => {
     expect(source).toMatch(
       /grouped\/indexed\/destructured\/assigned markdown\s+names/u,
     );
+    expect(source).toContain('`.at(...)` indexed lists');
     expect(source).toContain('simple markdown-name forwarding');
     expect(source).toContain('static concatenation');
     expect(source).toContain(
       'grouped/indexed/destructured/assigned body variables',
     );
+    expect(source).toContain('`.at(...)` indexed payload lists');
+    expect(source).toContain('`.at(...)` indexed helper lists');
     expect(source).toMatch(
       /grouped\/indexed\/destructured,\s+assigned,\s+or binding-default body\/payload aliases/u,
     );
@@ -2385,6 +2388,9 @@ describe('stabilization source', () => {
       'await testInfo.attach(markdownNameList[0], rawMarkdownPayload)',
     );
     expect(generatedDocumentationSource).toContain(
+      'await testInfo.attach(markdownNameList.at(0), rawMarkdownPayload)',
+    );
+    expect(generatedDocumentationSource).toContain(
       'const { evidence: groupedMarkdownName } = markdownNames',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2406,7 +2412,19 @@ describe('stabilization source', () => {
       "await testInfo.attach('markdown', { body: rawMarkdownBodyList[0] })",
     );
     expect(generatedDocumentationSource).toContain(
+      "await testInfo.attach('markdown', { body: rawMarkdownBodyList.at(0) })",
+    );
+    expect(generatedDocumentationSource).toContain(
       'const { evidence: groupedRawMarkdownBody } = rawMarkdownBodies',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind at-indexed payload and attach aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await testInfo.attach('markdown', rawMarkdownPayloadList.at(0))",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await attachHelperList.at(0)('markdown', rawMarkdownPayload)",
     );
     expect(generatedDocumentationSource).toContain(
       'detects raw markdown images hidden behind binding default body and payload aliases',
@@ -2469,12 +2487,15 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'grouped/indexed/destructured/assigned markdown names',
     );
+    expect(inventory).toMatch(/`\.at\(\.\.\.\)`\s+indexed lists/u);
     expect(inventory).toMatch(/simple markdown-name\s+forwarding/u);
     expect(inventory).toContain('static concatenation');
     expect(inventory).toContain('aliased body variables');
     expect(inventory).toContain(
       'grouped/indexed/destructured/assigned body variables',
     );
+    expect(inventory).toMatch(/`\.at\(\.\.\.\)` indexed\s+payload lists/u);
+    expect(inventory).toMatch(/`\.at\(\.\.\.\)`\s+indexed helper lists/u);
     expect(inventory).toMatch(/simple body\s+forwarding/u);
     expect(inventory).toContain('`Buffer.from(...)`');
     expect(inventory).toContain('template interpolation');

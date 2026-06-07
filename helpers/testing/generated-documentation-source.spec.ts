@@ -837,8 +837,28 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     return null;
   };
 
+  const hasPropertyAlias = (
+    node: ts.Expression,
+    propertyAliases: ReadonlySet<string>,
+  ): boolean => {
+    const expression = unwrapExpression(node);
+    const propertyReference =
+      ts.isPropertyAccessExpression(expression) ||
+      ts.isElementAccessExpression(expression)
+        ? getStaticPropertyReference(expression, sourceFile)
+        : ts.isCallExpression(expression)
+          ? getStaticArrayMethodReference(expression, sourceFile)
+          : null;
+
+    return propertyReference ? propertyAliases.has(propertyReference) : false;
+  };
+
   const hasRawMarkdownImage = (node: ts.Expression): boolean => {
     const expression = unwrapExpression(node);
+
+    if (hasPropertyAlias(expression, rawMarkdownBodyPropertyAliases)) {
+      return true;
+    }
 
     if (ts.isCallExpression(expression)) {
       return expression.arguments.some((argument) =>
@@ -894,6 +914,10 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       return staticStringValue === 'markdown';
     }
 
+    if (hasPropertyAlias(expression, markdownAttachmentNamePropertyAliases)) {
+      return true;
+    }
+
     if (ts.isCallExpression(expression)) {
       return expression.arguments.some((argument) =>
         isMarkdownAttachmentName(argument),
@@ -928,13 +952,8 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     }
 
     return (
-      (ts.isIdentifier(expression) &&
-        markdownAttachmentNameAliases.has(expression.text)) ||
-      ((ts.isPropertyAccessExpression(expression) ||
-        ts.isElementAccessExpression(expression)) &&
-        markdownAttachmentNamePropertyAliases.has(
-          getStaticPropertyReference(expression, sourceFile) ?? '',
-        ))
+      ts.isIdentifier(expression) &&
+      markdownAttachmentNameAliases.has(expression.text)
     );
   };
 
@@ -945,13 +964,8 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       return rawMarkdownPayloadAliases.has(payload.text);
     }
 
-    if (
-      ts.isPropertyAccessExpression(payload) ||
-      ts.isElementAccessExpression(payload)
-    ) {
-      return rawMarkdownPayloadPropertyAliases.has(
-        getStaticPropertyReference(payload, sourceFile) ?? '',
-      );
+    if (hasPropertyAlias(payload, rawMarkdownPayloadPropertyAliases)) {
+      return true;
     }
 
     if (!ts.isObjectLiteralExpression(payload)) {
@@ -999,13 +1013,8 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       return markdownAttachFunctionAliases.has(expression.text);
     }
 
-    if (
-      ts.isPropertyAccessExpression(expression) ||
-      ts.isElementAccessExpression(expression)
-    ) {
-      return markdownAttachFunctionPropertyAliases.has(
-        getStaticPropertyReference(expression, sourceFile) ?? '',
-      );
+    if (hasPropertyAlias(expression, markdownAttachFunctionPropertyAliases)) {
+      return true;
     }
 
     return false;
@@ -4765,6 +4774,7 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach(markdownNames.markdownAttachmentName, rawMarkdownPayload);
       const markdownNameList = [markdownAttachmentName];
       await testInfo.attach(markdownNameList[0], rawMarkdownPayload);
+      await testInfo.attach(markdownNameList.at(0), rawMarkdownPayload);
       const { evidence: groupedMarkdownName } = markdownNames;
       await testInfo.attach(groupedMarkdownName, rawMarkdownPayload);
       markdownNames.assigned = 'markdown';
@@ -4780,8 +4790,9 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/grouped-markdown-name.doc.ts:8:13',
       'tests/docs/example/grouped-markdown-name.doc.ts:9:13',
       'tests/docs/example/grouped-markdown-name.doc.ts:11:13',
-      'tests/docs/example/grouped-markdown-name.doc.ts:13:13',
-      'tests/docs/example/grouped-markdown-name.doc.ts:15:13',
+      'tests/docs/example/grouped-markdown-name.doc.ts:12:13',
+      'tests/docs/example/grouped-markdown-name.doc.ts:14:13',
+      'tests/docs/example/grouped-markdown-name.doc.ts:16:13',
     ]);
   });
 
@@ -4821,6 +4832,7 @@ describe('generated docs source current behavior', () => {
       await testInfo.attach('markdown', { body: rawMarkdownBodies.rawMarkdownBody });
       const rawMarkdownBodyList = [rawMarkdownBody];
       await testInfo.attach('markdown', { body: rawMarkdownBodyList[0] });
+      await testInfo.attach('markdown', { body: rawMarkdownBodyList.at(0) });
       const { evidence: groupedRawMarkdownBody } = rawMarkdownBodies;
       await testInfo.attach('markdown', { body: groupedRawMarkdownBody });
       rawMarkdownBodies.assigned = '<img src="../raw.png" alt="Raw">';
@@ -4836,8 +4848,30 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/grouped-markdown-body.doc.ts:7:13',
       'tests/docs/example/grouped-markdown-body.doc.ts:8:13',
       'tests/docs/example/grouped-markdown-body.doc.ts:10:13',
-      'tests/docs/example/grouped-markdown-body.doc.ts:12:13',
-      'tests/docs/example/grouped-markdown-body.doc.ts:14:13',
+      'tests/docs/example/grouped-markdown-body.doc.ts:11:13',
+      'tests/docs/example/grouped-markdown-body.doc.ts:13:13',
+      'tests/docs/example/grouped-markdown-body.doc.ts:15:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind at-indexed payload and attach aliases', () => {
+    const atIndexedMarkdownSource = `
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      const rawMarkdownPayloadList = [rawMarkdownPayload];
+      await testInfo.attach('markdown', rawMarkdownPayloadList.at(0));
+      const attachEvidence = testInfo.attach.bind(testInfo);
+      const attachHelperList = [attachEvidence];
+      await attachHelperList.at(0)('markdown', rawMarkdownPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/at-indexed-markdown.doc.ts',
+        atIndexedMarkdownSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/at-indexed-markdown.doc.ts:4:13',
+      'tests/docs/example/at-indexed-markdown.doc.ts:7:13',
     ]);
   });
 
