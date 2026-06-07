@@ -11103,6 +11103,15 @@ describe('generated docs source current behavior', () => {
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain('documentation reporter rejects blank permissions attachments');
+    expect(reporterAttachments).toContain('collectFrontMatterPermissions');
+    expect(reporterAttachments).toContain(
+      'Documentation markdown permissions front matter',
+    );
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation reporter rejects blank front matter permissions',
+    );
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(

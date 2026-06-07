@@ -705,8 +705,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `call(...)`, `apply(...)`, inline `bind(...)(...)`, and
   `Reflect.apply(...)`, and only real Playwright `testInfo.attach`-backed
   Markdown calls count as explanatory generated-doc sections, rejects blank
-  dedicated permissions attachments so a generated guide cannot silently omit the
-  expected user-permissions callout,
+  dedicated permissions attachments and blank Markdown frontmatter permissions
+  so a generated guide cannot silently omit or weaken the expected
+  user-permissions callout,
   including aliased markdown names, bracketed `attach` calls,
   binding-default and parameter-default markdown names,
   grouped/indexed/destructured/assigned markdown names including `.at(...)`

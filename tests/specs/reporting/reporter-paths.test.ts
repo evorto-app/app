@@ -1324,6 +1324,42 @@ test('front matter normalization with permissions callout', async ({}, testInfo)
   expect(md).toContain(descriptiveMarkdown);
 });
 
+test('documentation reporter rejects blank front matter permissions', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath(
+    'docs-out-blank-frontmatter-permissions',
+  );
+  const imgsRoot = testInfo.outputPath(
+    'docs-img-blank-frontmatter-permissions',
+  );
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error stubs
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from(
+          `---\nPermissions:\n -   \n---\n${descriptiveMarkdown}`,
+        ),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd(
+      { title: 'Blank frontmatter permissions' } as any,
+      result,
+    ),
+  ).toThrow(
+    'Documentation markdown permissions front matter in Blank frontmatter permissions must include at least one permission line.',
+  );
+});
+
 test('documentation reporter emits one markdown file per describe block', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out4');
   const imgsRoot = testInfo.outputPath('docs-img4');

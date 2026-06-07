@@ -7247,3 +7247,29 @@ shows readable Terms fallback copy on a Material surface with fixed Events/Login
 bottom navigation and no visible overlap, while Browser metrics reported the
 expected copy, no loading or application-error text, and matching document/body
 scroll widths inside the active mobile viewport.
+
+Generated-doc reporter runtime now also rejects blank Markdown frontmatter
+`Permissions:` blocks. That closes the separate frontmatter path where a docs
+test could provide only whitespace bullets, or have the closing `---` delimiter
+misread as a permissions list item, and still emit a weak or empty-looking user
+permissions callout before the explanatory Markdown. Focused reporter-path
+coverage now exercises that failure, and the generated-doc source guard plus
+test inventory pin the frontmatter permissions guard beside the dedicated
+permissions-attachment guard. Focused validation passed
+`bun run test:e2e:reporter-paths` with 41 reporter-path tests green,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts
+helpers/testing/stabilization-source.spec.ts --reporter=verbose` with 181
+source tests green, `bun run format:write`, `bun run lint`, and
+`bun run dev:status` with a healthy generated app at
+`BASE_URL=http://localhost:4218`. WebStorm diagnostics could not inspect this
+worktree because the open IDE projects were still
+`/Users/hedde/.codex/worktrees/e159/evorto` and
+`/Users/hedde/.codex/worktrees/0677/section-app`, not this checkout. A
+same-slice in-app Browser mobile spot check opened `/legal/privacy` with
+`stabilizationEvidence=frontmatter-permissions-doc-guard` and saved
+`/tmp/evorto-frontmatter-permissions-doc-guard-privacy-390x844.png`; the
+screenshot shows readable Privacy fallback copy on a Material surface with
+fixed Events/Login bottom navigation and no visible overlap. Browser metrics
+reported the expected copy, no loading or application-error text, zero
+warning/error logs, body width matching the active mobile viewport, and no
+clipped visible controls.

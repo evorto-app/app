@@ -50,15 +50,58 @@ const readAttachmentBody = (
   return attachment.body;
 };
 
-const parseMarkdownAttachment = (markdown: string) => {
+const collectFrontMatterPermissions = (
+  frontMatter: string,
+  testTitle: string,
+): string[] => {
+  const permissionsLines: string[] = [];
+  let hasPermissionsField = false;
+  let isCollectingPermissions = false;
+
+  for (const line of frontMatter.split(/\r?\n/)) {
+    if (/^\s*---\s*$/u.test(line)) {
+      continue;
+    }
+
+    const listItemMatch = line.match(/^\s*-\s*(.*)$/u);
+
+    if (/^\s*permissions\s*:\s*$/iu.test(line)) {
+      hasPermissionsField = true;
+      isCollectingPermissions = true;
+      continue;
+    }
+
+    if (isCollectingPermissions && listItemMatch) {
+      const permission = listItemMatch[1].trim();
+      if (permission) {
+        permissionsLines.push(permission);
+      }
+      continue;
+    }
+
+    if (isCollectingPermissions && /^\s*[\w-]+\s*:/u.test(line)) {
+      isCollectingPermissions = false;
+    }
+  }
+
+  if (hasPermissionsField && !permissionsLines.length) {
+    throw new Error(
+      `Documentation markdown permissions front matter in ${testTitle} must include at least one permission line.`,
+    );
+  }
+
+  return permissionsLines;
+};
+
+const parseMarkdownAttachment = (markdown: string, testTitle: string) => {
   const fmMatch = markdown.match(/^---[\s\S]*?---\s*/);
   if (!fmMatch)
     return { body: markdown, frontMatterPermissions: [] as string[] };
 
-  const frontMatterPermissions = fmMatch[0]
-    .split(/\r?\n/)
-    .map((line) => line.match(/^\s*-\s*(.+)$/)?.[1])
-    .filter((line): line is string => Boolean(line));
+  const frontMatterPermissions = collectFrontMatterPermissions(
+    fmMatch[0],
+    testTitle,
+  );
 
   return {
     body: markdown.slice(fmMatch[0].length),
@@ -268,7 +311,7 @@ export const buildSectionContent = (
 
         const markdown = body.toString();
         assertNoRawMarkdownImages(markdown, test.title);
-        const parsedMarkdown = parseMarkdownAttachment(markdown);
+        const parsedMarkdown = parseMarkdownAttachment(markdown, test.title);
         assertDescriptiveMarkdownBody(parsedMarkdown.body, test.title);
         permissionsLines.push(...parsedMarkdown.frontMatterPermissions);
         appendPermissionsCallout(sectionContent, permissionsLines);

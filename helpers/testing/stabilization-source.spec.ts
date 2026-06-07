@@ -3004,6 +3004,9 @@ describe('stabilization source', () => {
       'documentation reporter rejects blank permissions attachments',
     );
     expect(reporterPathsSpec).toContain(
+      'documentation reporter rejects blank front matter permissions',
+    );
+    expect(reporterPathsSpec).toContain(
       'Documentation image attachment in Uncaptioned image is missing a paired image-caption attachment.',
     );
     expect(reporterPathsSpec).toContain(
@@ -3020,6 +3023,9 @@ describe('stabilization source', () => {
     );
     expect(reporterPathsSpec).toContain(
       'Documentation permissions attachment in Blank permissions must include at least one permission line.',
+    );
+    expect(reporterPathsSpec).toContain(
+      'Documentation markdown permissions front matter in Blank frontmatter permissions must include at least one permission line.',
     );
     expect(reporterPathsSpec).toContain(
       'Documentation image-caption attachment in Orphan caption is missing a preceding image attachment.',
