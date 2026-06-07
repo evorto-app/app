@@ -695,9 +695,38 @@ const collectGroupedPropertyAliases = (
   stringAliases: ReadonlyMap<string, string> = new Map(),
 ): void => {
   const groupedInitializer = unwrapExpression(initializer);
+  const copyGroupedAliasesFrom = (source: ts.Expression): void => {
+    const sourceExpression = unwrapExpression(source);
+
+    if (ts.isObjectLiteralExpression(sourceExpression)) {
+      collectGroupedPropertyAliases(
+        ownerName,
+        sourceExpression,
+        isTrackedReference,
+        aliases,
+        propertyAliases,
+        stringAliases,
+      );
+      return;
+    }
+
+    const sourcePrefix = `${sourceExpression.getText()}.`;
+
+    for (const propertyAlias of Array.from(propertyAliases)) {
+      if (propertyAlias.startsWith(sourcePrefix)) {
+        propertyAliases.add(
+          `${ownerName}.${propertyAlias.slice(sourcePrefix.length)}`,
+        );
+      }
+    }
+  };
 
   if (ts.isObjectLiteralExpression(groupedInitializer)) {
     for (const property of groupedInitializer.properties) {
+      if (ts.isSpreadAssignment(property)) {
+        copyGroupedAliasesFrom(property.expression);
+      }
+
       if (
         ts.isPropertyAssignment(property) &&
         isTrackedReferenceOrAlias(
@@ -722,6 +751,12 @@ const collectGroupedPropertyAliases = (
       ) {
         propertyAliases.add(`${ownerName}.${property.name.text}`);
       }
+    }
+  }
+
+  if (isStaticObjectAssignCall(groupedInitializer, stringAliases)) {
+    for (const source of groupedInitializer.arguments) {
+      copyGroupedAliasesFrom(source);
     }
   }
 
@@ -8342,6 +8377,72 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/grouped-target.doc.ts:32:13',
       'tests/docs/example/grouped-target.doc.ts:56:13',
     ]);
+  });
+
+  it('detects weak documentation screenshot targets copied through grouped target spreads', () => {
+    const spreadGroupedTargetSource = `
+      const baseTargets = {
+        shell: page.locator('main'),
+        broad: page.locator('section'),
+        single: page.getByRole('button', { name: 'Save' }),
+        icon: page.locator('svg'),
+      };
+      const spreadTargets = { ...baseTargets };
+      const assignedTargets = Object.assign({}, baseTargets);
+
+      await takeScreenshot(
+        testInfo,
+        spreadTargets.shell,
+        page,
+        'Spread copied generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        spreadTargets.broad,
+        page,
+        'Spread copied broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        assignedTargets.single,
+        page,
+        'Object assigned single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        assignedTargets.icon,
+        page,
+        'Object assigned icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/spread-grouped-target.doc.ts',
+        spreadGroupedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/spread-grouped-target.doc.ts:11:13']);
+
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/spread-grouped-target.doc.ts',
+        spreadGroupedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/spread-grouped-target.doc.ts:17:13']);
+
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/spread-grouped-target.doc.ts',
+        spreadGroupedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/spread-grouped-target.doc.ts:23:13']);
+
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/spread-grouped-target.doc.ts',
+        spreadGroupedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/spread-grouped-target.doc.ts:29:13']);
   });
 
   it('detects chained generic documentation screenshot targets', () => {

@@ -1690,6 +1690,19 @@ describe('stabilization source', () => {
     expect(source).toContain(
       '/tmp/evorto-static-method-target-terms-390x844.png',
     );
+    expect(source).toContain('object spread');
+    expect(source).toContain('Object.assign(...)');
+    expect(source).toContain('{ ...baseTargets }');
+    expect(source).toContain('Object.assign({}, baseTargets)');
+    expect(source).toContain(
+      'stabilizationEvidence=spread-grouped-target-source-guard',
+    );
+    expect(source).toContain(
+      '/tmp/evorto-spread-grouped-target-terms-390x844.png',
+    );
+    expect(source).toContain(
+      '/tmp/evorto-spread-grouped-target-not-found-390x844.png',
+    );
     expect(source).toMatch(
       /[Cc]onditional, nullish-coalesced, and logical\s+target\s+expressions/u,
     );
@@ -1802,6 +1815,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('objects before alias collection');
     expect(inventory).toContain('shorthand properties');
     expect(inventory).toContain('alias-valued\n  properties');
+    expect(inventory).toContain(
+      'object-spread and `Object.assign(...)` copied grouped target\n  objects',
+    );
     expect(inventory).toContain('static indexed target lists');
     expect(inventory).toContain('positive or negative static');
     expect(inventory).toContain('`.at(...)` array access');

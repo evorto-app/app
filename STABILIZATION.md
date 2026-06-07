@@ -6362,6 +6362,10 @@ alias-valued grouped properties, and static indexed target lists such as
 `targetList[0]`, `targetList.at(0)`, or `targetList.at(-1)`, so
 `targets.shell`, `targetList[0]`, `targetList.at(0)`, and `targetList.at(-1)`
 cannot hide weak screenshot targets behind an intermediate collection. It also
+tracks grouped target objects copied through object spread and
+`Object.assign(...)`, so `{ ...baseTargets }` and
+`Object.assign({}, baseTargets)` cannot hide `targets.shell`-style weak
+screenshot targets behind a copied collection. It also
 rejects local aliases, assigned helper properties, indexed helper entries, and
 wrapper functions that reference `takeScreenshot`, so future docs cannot route
 screenshots through a differently named helper such as
@@ -6374,6 +6378,14 @@ opened `/legal/terms?stabilizationEvidence=reflected-target-source-guard` at
 390x844 on the generated local app, confirmed Terms content and hosted fallback
 copy, found no loading or application-error text, found no horizontal-overflow
 entries, and reported zero Browser warning/error logs.
+A same-slice in-app Browser mobile spot check for the grouped target copy source
+guard opened `/legal/terms` and `/404` at 390x844 with
+`stabilizationEvidence=spread-grouped-target-source-guard`. The settled Terms and
+Page not found routes showed route-specific copy plus bottom navigation, with no
+horizontal overflow, clipped fixed/sticky controls, loading placeholder,
+application-error text, or Browser warning/error logs. The viewport screenshots
+were saved to `/tmp/evorto-spread-grouped-target-terms-390x844.png` and
+`/tmp/evorto-spread-grouped-target-not-found-390x844.png`.
 A same-slice in-app Browser mobile spot check for the constant-backed selector
 source guard opened `/events`, `/legal/terms`, and `/404` at 390x844 with
 `stabilizationEvidence=constant-backed-target-source-guard`. The settled Events
