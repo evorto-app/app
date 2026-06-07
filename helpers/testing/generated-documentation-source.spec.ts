@@ -832,6 +832,106 @@ const resolveStaticStringValue = (
     return resolveStaticStringValue(expression.arguments[0], stringAliases);
   }
 
+  if (ts.isCallExpression(expression)) {
+    const callee = unwrapExpression(expression.expression);
+
+    if (
+      (ts.isPropertyAccessExpression(callee) ||
+        ts.isElementAccessExpression(callee)) &&
+      getStaticPropertyName(callee, stringAliases) === 'join'
+    ) {
+      const receiver = getStaticPropertyReceiver(callee);
+      const values = receiver
+        ? resolveStaticStringArrayValues(receiver, stringAliases)
+        : null;
+      const separator = expression.arguments[0]
+        ? resolveStaticStringValue(expression.arguments[0], stringAliases)
+        : ',';
+
+      return values && separator !== null ? values.join(separator) : null;
+    }
+  }
+
+  return null;
+};
+
+const resolveStaticStringArrayValues = (
+  node: ts.Expression,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
+): null | string[] => {
+  const expression = unwrapExpression(node);
+
+  if (ts.isArrayLiteralExpression(expression)) {
+    const values: string[] = [];
+
+    for (const element of expression.elements) {
+      if (ts.isSpreadElement(element)) {
+        const spreadValues = resolveStaticStringArrayValues(
+          element.expression,
+          stringAliases,
+        );
+
+        if (!spreadValues) {
+          return null;
+        }
+
+        values.push(...spreadValues);
+        continue;
+      }
+
+      const value = resolveStaticStringValue(element, stringAliases);
+
+      if (value === null) {
+        return null;
+      }
+
+      values.push(value);
+    }
+
+    return values;
+  }
+
+  if (ts.isCallExpression(expression)) {
+    const callee = unwrapExpression(expression.expression);
+
+    if (
+      (ts.isPropertyAccessExpression(callee) ||
+        ts.isElementAccessExpression(callee)) &&
+      getStaticPropertyName(callee, stringAliases) === 'concat'
+    ) {
+      const receiver = getStaticPropertyReceiver(callee);
+      const values = receiver
+        ? resolveStaticStringArrayValues(receiver, stringAliases)
+        : null;
+
+      if (!values) {
+        return null;
+      }
+
+      for (const argument of expression.arguments) {
+        const argumentValues = resolveStaticStringArrayValues(
+          argument,
+          stringAliases,
+        );
+
+        if (argumentValues) {
+          values.push(...argumentValues);
+          continue;
+        }
+
+        const value = resolveStaticStringValue(argument, stringAliases);
+
+        if (value === null) {
+          return null;
+        }
+
+        values.push(value);
+      }
+
+      return values;
+    }
+  }
+
   return null;
 };
 
@@ -3718,7 +3818,7 @@ const findDirectImageAttachmentCalls = (
       return left !== null && right !== null ? `${left}${right}` : null;
     }
 
-    return null;
+    return resolveStaticStringValue(expression, staticStringAliases);
   };
 
   const hasPropertyAlias = (
@@ -3821,6 +3921,17 @@ const findDirectImageAttachmentCalls = (
       return true;
     }
 
+    const propertyValue = getStringLiteralText(value);
+
+    if (propertyValue) {
+      const normalizedValue = propertyValue.trim().toLowerCase();
+
+      return (
+        normalizedValue.startsWith('image/') ||
+        /\.(?:avif|gif|jpe?g|png|webp)$/iu.test(normalizedValue)
+      );
+    }
+
     if (ts.isCallExpression(value)) {
       return value.arguments.some((argument) =>
         isImageAttachmentPayloadValue(argument),
@@ -3859,18 +3970,7 @@ const findDirectImageAttachmentCalls = (
       return imageAttachmentPayloadValueAliases.has(value.text);
     }
 
-    const propertyValue = getStringLiteralText(value);
-
-    if (!propertyValue) {
-      return false;
-    }
-
-    const normalizedValue = propertyValue.trim().toLowerCase();
-
-    return (
-      normalizedValue.startsWith('image/') ||
-      /\.(?:avif|gif|jpe?g|png|webp)$/iu.test(normalizedValue)
-    );
+    return false;
   };
 
   const isImageAttachmentPayload = (node: ts.Expression): boolean => {
@@ -5223,6 +5323,22 @@ describe('generated docs source current behavior', () => {
       await Reflect.apply(attachEvidence, testInfo, ['reflect raw evidence', { contentType: 'image/png' }]);
       const stringWrappedAttachKey = String('attach');
       await testInfo[stringWrappedAttachKey]('image', { body: imageBuffer });
+      const arrayBuiltAttachmentName = ['im', 'age'].join('');
+      const arrayBuiltImageMime = ['image/', 'png'].join('');
+      const arrayBuiltImagePath = ['array-built', '.webp'].join('');
+      const arrayBuiltRawImagePayload = {
+        body: imageBuffer,
+        contentType: ['image/'].concat(['jpeg']).join(''),
+      };
+      await testInfo.attach(arrayBuiltAttachmentName, { body: imageBuffer });
+      await testInfo.attach('array built mime evidence', {
+        body: imageBuffer,
+        contentType: arrayBuiltImageMime,
+      });
+      await testInfo.attach('array built path evidence', {
+        path: arrayBuiltImagePath,
+      });
+      await testInfo.attach('array built payload evidence', arrayBuiltRawImagePayload);
       await testInfo.attach('markdown', { body: markdown });
       const forwardAttachEvidence = testInfo.attach.bind(testInfo);
       const forwardAttachmentName = 'image';
@@ -5311,6 +5427,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:161:13',
       'tests/docs/example/direct-image.doc.ts:162:13',
       'tests/docs/example/direct-image.doc.ts:164:13',
+      'tests/docs/example/direct-image.doc.ts:172:13',
+      'tests/docs/example/direct-image.doc.ts:173:13',
+      'tests/docs/example/direct-image.doc.ts:177:13',
+      'tests/docs/example/direct-image.doc.ts:180:13',
     ]);
   });
 

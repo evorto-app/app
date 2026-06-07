@@ -569,7 +569,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `{ ['attach']: attachEvidence }`, or `{ ['body']: rawMarkdownBody }`, and
   rejects raw Markdown image bodies rebuilt through array literals and
   array/call receivers before attachment, while it
-  tracks raw image attachment-name, payload, content-type, and path properties
+  tracks raw image attachment-name, payload, content-type, and path properties,
+  including array-built names, MIME types, and image file paths, and properties
   read through `Reflect.get(...)` before attachment, while it
   tracks raw Markdown attachment-name, body, and payload properties read through
   `Reflect.get(...)` before attachment,

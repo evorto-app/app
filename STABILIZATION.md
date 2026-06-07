@@ -6510,7 +6510,11 @@ captures behind reflection before calling or aliasing the returned function. The
 raw image-attachment guard now resolves `Reflect.get(...)` reads of tracked
 image attachment-name, payload, content-type, and path properties too, including
 local `Reflect` aliases and constant-backed keys, so raw image names and payloads
-cannot be reflected out of helper objects before attachment. The
+cannot be reflected out of helper objects before attachment. Raw image
+attachment names, MIME types, and image file paths now also resolve array-built
+strings such as `['im', 'age'].join('')`, `['image/', 'png'].join('')`, and
+`['evidence', '.webp'].join('')`, so generated docs cannot rebuild direct image
+evidence strings just before attachment. The
 raw Markdown-image guard now also resolves `Reflect.get(...)` reads of tracked
 markdown attachment-name, body, and payload properties, including local
 `Reflect` aliases and constant-backed keys, so raw Markdown image names and
