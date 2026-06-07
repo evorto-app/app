@@ -500,6 +500,38 @@ test('documentation reporter rejects raw CSS image URLs', async ({}, testInfo) =
   );
 });
 
+test('documentation reporter rejects raw CSS declaration image URLs', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-raw-css-declaration-image');
+  const imgsRoot = testInfo.outputPath('docs-img-raw-css-declaration-image');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from(
+          'This product guide must not embed <style>.proof { background: linear-gradient(#fff, #eee), url(../raw.png); }</style> outside the screenshot helper.',
+        ),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd(
+      { title: 'Raw CSS declaration image URL' } as any,
+      result,
+    ),
+  ).toThrow(
+    'Documentation markdown attachment in Raw CSS declaration image URL must not include raw Markdown image syntax, including reference-style images, raw HTML visual/media tags, or raw CSS image URLs.',
+  );
+});
+
 test('documentation reporter rejects duplicate figure image sources', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out-duplicate-image-source');
   const imgsRoot = testInfo.outputPath('docs-img-duplicate-image-source');

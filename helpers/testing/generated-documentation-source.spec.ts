@@ -1183,7 +1183,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
   const markdownAttachFunctionAliases = new Set<string>();
   const markdownAttachFunctionPropertyAliases = new Set<string>();
   const rawMarkdownImagePattern =
-    /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<(?:img|picture|source|svg|image|object|embed|iframe|video|canvas)(?:\s|>|\/)|style\s*=\s*(?:"[^"]*url\s*\(|'[^']*url\s*\(|[^\s>]*url\s*\()|(?:background(?:-image)?|list-style-image|border-image(?:-source)?|content)\s*:\s*url\s*\(/iu;
+    /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<(?:img|picture|source|svg|image|object|embed|iframe|video|canvas)(?:\s|>|\/)|style\s*=\s*(?:"[^"]*url\s*\(|'[^']*url\s*\(|[^\s>]*url\s*\()|(?:background(?:-image)?|list-style(?:-image)?|border-image(?:-source)?|content|(?:-webkit-)?mask(?:-image|-box-image)?|cursor)\s*:\s*[^;{}]*?\burl\s*\(/iu;
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -6193,6 +6193,29 @@ describe('generated docs source current behavior', () => {
         rawCssImageSource,
       ),
     ).toEqual(['tests/docs/example/raw-css-image.doc.ts:2:13']);
+  });
+
+  it('detects raw CSS declaration image urls before generated docs can use them', () => {
+    const rawCssDeclarationSource = `
+      await testInfo.attach('markdown', {
+        body: \`
+          This guide cannot bypass screenshot checks with style-block imagery.
+          <style>
+            .proof {
+              background: linear-gradient(#fff, #eee), url('../raw-reference.png');
+              -webkit-mask-image: url('../raw-mask.png');
+            }
+          </style>
+        \`,
+      });
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/raw-css-declaration-image.doc.ts',
+        rawCssDeclarationSource,
+      ),
+    ).toEqual(['tests/docs/example/raw-css-declaration-image.doc.ts:2:13']);
   });
 
   it('detects raw markdown images hidden behind binding default attach aliases', () => {

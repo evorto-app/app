@@ -643,8 +643,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   attachments to be valid PNG
   screenshots with highlighted focus-target pixels and visible surrounding page
   content, rejects inline and reference-style raw Markdown image syntax and
-  raw HTML visual/media tags or raw CSS image URLs in generated docs markdown
-  attachments at reporter runtime and in source coverage,
+  raw HTML visual/media tags, style-attribute CSS image URLs, or style-block CSS
+  image declarations in generated docs markdown attachments at reporter runtime
+  and in source coverage,
   rejects weak Markdown body text so generated docs keep explanatory body text
   before generated markdown is written,
   including aliased markdown names, bracketed `attach` calls,

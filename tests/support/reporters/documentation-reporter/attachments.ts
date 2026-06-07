@@ -15,7 +15,7 @@ const minimumImageWidth = 320;
 const minimumImageHeight = 240;
 const minimumMarkdownBodyLength = 60;
 const rawMarkdownImagePattern =
-  /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<(?:img|picture|source|svg|image|object|embed|iframe|video|canvas)(?:\s|>|\/)|style\s*=\s*(?:"[^"]*url\s*\(|'[^']*url\s*\(|[^\s>]*url\s*\()|(?:background(?:-image)?|list-style-image|border-image(?:-source)?|content)\s*:\s*url\s*\(/iu;
+  /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<(?:img|picture|source|svg|image|object|embed|iframe|video|canvas)(?:\s|>|\/)|style\s*=\s*(?:"[^"]*url\s*\(|'[^']*url\s*\(|[^\s>]*url\s*\()|(?:background(?:-image)?|list-style(?:-image)?|border-image(?:-source)?|content|(?:-webkit-)?mask(?:-image|-box-image)?|cursor)\s*:\s*[^;{}]*?\burl\s*\(/iu;
 
 const readAttachmentBody = (
   attachment: ResultAttachment,
