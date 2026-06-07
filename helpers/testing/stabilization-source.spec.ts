@@ -1880,14 +1880,15 @@ describe('stabilization source', () => {
     expect(inventory).toContain('captureDocumentationImage');
     expect(inventory).toContain('unwraps `as const`');
     expect(inventory).toContain('`satisfies` grouped target');
-    expect(inventory).toContain('objects before alias collection');
+    expect(inventory).toMatch(/objects before alias\s+collection/u);
     expect(inventory).toContain('shorthand properties');
     expect(inventory).toContain('alias-valued\n  properties');
     expect(inventory).toContain(
       'object-spread and `Object.assign(...)` copied grouped target\n  objects',
     );
-    expect(inventory).toContain('static indexed target lists');
-    expect(inventory).toContain('positive or negative static');
+    expect(inventory).toContain('copied helper-returned weak target groups');
+    expect(inventory).toMatch(/static indexed\s+target lists/u);
+    expect(inventory).toMatch(/positive or negative static/u);
     expect(inventory).toContain('`.at(...)` array access');
     expect(inventory).toContain('`locator.screenshot`');
     expect(inventory).toContain("direct `testInfo.attach('image', ...)`");
@@ -2531,6 +2532,9 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain("targets['assignedShell']");
     expect(generatedDocumentationSource).toContain(
       'detects grouped weak documentation screenshot target aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects copied helper-returned weak documentation screenshot target groups',
     );
     expect(generatedDocumentationSource).toContain(
       'collectGroupedPropertyAliases',

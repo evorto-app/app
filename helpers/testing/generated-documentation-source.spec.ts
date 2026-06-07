@@ -10889,6 +10889,84 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/spread-grouped-target.doc.ts:29:13']);
   });
 
+  it('detects copied helper-returned weak documentation screenshot target groups', () => {
+    const copiedHelperReturnedTargetSource = `
+      function resolveShellTarget(page) { return page.locator('main'); }
+      function resolveBroadTarget(page) { return page.locator('section'); }
+      function resolveSingleTarget(page) { return page.getByRole('button', { name: 'Save' }); }
+      function resolveIconTarget(page) { return page.locator('svg'); }
+      const helperTargets = {
+        shell: resolveShellTarget(page),
+        broad: resolveBroadTarget(page),
+        single: resolveSingleTarget(page),
+        icon: resolveIconTarget(page),
+      };
+      const spreadHelperTargets = { ...helperTargets };
+      const assignedHelperTargets = Object.assign({}, helperTargets);
+
+      await takeScreenshot(
+        testInfo,
+        spreadHelperTargets.shell,
+        page,
+        'Spread helper-returned generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        spreadHelperTargets.broad,
+        page,
+        'Spread helper-returned broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        assignedHelperTargets.single,
+        page,
+        'Assigned helper-returned single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        assignedHelperTargets.icon,
+        page,
+        'Assigned helper-returned icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/copied-helper-returned-target.doc.ts',
+        copiedHelperReturnedTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-helper-returned-target.doc.ts:15:13',
+    ]);
+
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/copied-helper-returned-target.doc.ts',
+        copiedHelperReturnedTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-helper-returned-target.doc.ts:21:13',
+    ]);
+
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/copied-helper-returned-target.doc.ts',
+        copiedHelperReturnedTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-helper-returned-target.doc.ts:27:13',
+    ]);
+
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/copied-helper-returned-target.doc.ts',
+        copiedHelperReturnedTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-helper-returned-target.doc.ts:33:13',
+    ]);
+  });
+
   it('detects chained generic documentation screenshot targets', () => {
     const chainedGenericTargetSource = `
       await takeScreenshot(

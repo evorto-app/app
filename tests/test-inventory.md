@@ -667,9 +667,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   screenshot target objects cannot hide weak locator targets, including computed
   object keys, bracket property references, shorthand properties, alias-valued
   properties, object-spread and `Object.assign(...)` copied grouped target
-  objects, static indexed target lists, and positive or negative static
-  `.at(...)` array access, unwraps `as const` and `satisfies` grouped target
-  objects before alias collection, rejects local
+  objects including copied helper-returned weak target groups, static indexed
+  target lists, and positive or negative static `.at(...)` array access,
+  unwraps `as const` and `satisfies` grouped target objects before alias
+  collection, rejects local
   aliases, assigned helper properties, indexed helper entries, and wrapper
   functions that reference `takeScreenshot` even when the helper is named like
   `captureDocumentationImage`, rejects dynamic screenshot-helper imports through

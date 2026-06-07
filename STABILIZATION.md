@@ -7393,6 +7393,25 @@ Material surfaces/icons/times, fixed Events/Login bottom navigation, no loading
 or application-error text, no clipped visible controls on the Terms route, and
 zero warning/error Browser logs.
 
+Copied helper-returned weak screenshot target groups are now pinned in generated
+documentation source coverage. That closes the image-quality gap where a
+generic page shell, broad section, single control, or icon/media locator could
+be returned from a helper, stored in a grouped target object, copied through
+spread or `Object.assign(...)`, and then passed to `takeScreenshot(...)` as if
+it were a meaningful documentation surface. The focused generated-doc source
+coverage now exercises all four weak target classes through copied
+helper-returned target groups, and the test inventory records that grouped
+target copies include copied helper-returned weak target groups.
+Validation for this slice passed `bun run format:write`, `bun run lint`, the
+focused generated-documentation/stabilization source suite with 193 passing
+tests, and `git diff --check`. Browser verification at 390x844 captured
+`/tmp/evorto-copied-helper-returned-weak-target-terms-390x844.png` and
+`/tmp/evorto-copied-helper-returned-weak-target-events-390x844.png`; the images
+show readable Terms fallback copy and real seeded Events cards with Material
+surfaces/icons/times, fixed Events/Login bottom navigation, no loading or
+application-error text, no clipped visible controls on the Terms route, and
+zero warning/error Browser logs.
+
 Copied returned explanatory Markdown helper groups are now pinned in the
 weak-body and screenshot-density source guards as well. That covers the
 remaining generated-doc prose bypass where a returned `testInfo.attach` helper
