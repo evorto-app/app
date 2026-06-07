@@ -4387,7 +4387,7 @@ describe('stabilization source', () => {
   it('keeps the Playwright inventory clear about watchlist versus blockers', () => {
     const source = readSource('tests/test-inventory.md');
 
-    expect(source).toContain('Updated: 2026-06-06');
+    expect(source).toContain('Updated: 2026-06-07');
     expect(source).toContain('## Stabilization Coverage Watchlist');
     expect(source).not.toContain('## Stabilization Coverage Still Needed');
     expect(source).toContain(
@@ -4550,7 +4550,7 @@ describe('stabilization source', () => {
     expect(checkpoint).toContain(
       'public route sanity rather than new authenticated profile\n  evidence',
     );
-    expect(checkpoint).toContain('June 3 stabilization date');
+    expect(checkpoint).toContain('June 7 stabilization date');
     expect(checkpoint).toContain(
       'source coverage pins that timestamp to this active evidence refresh',
     );
@@ -4773,7 +4773,7 @@ describe('stabilization source', () => {
     expect(source).toContain('rejects fixed `.waitForTimeout(...)` waits');
     expect(source).toContain('fixed `setTimeout` sleeps');
     expect(source).toContain('time-based waits');
-    expect(inventory).toContain('Updated: 2026-06-06');
+    expect(inventory).toContain('Updated: 2026-06-07');
     expect(inventory).toContain(
       'in-app Browser\n    profile refresh also verified the seeded submitted receipt card',
     );

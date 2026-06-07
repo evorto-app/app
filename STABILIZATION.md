@@ -4365,7 +4365,7 @@ fallback rather than a profile discount-card defect.
   reachable from Browser. Direct `/profile#receipts` navigation in the current
   Browser tab returned an auth-gated HTTP response failure, so the fresh Browser
   pass is recorded as public route sanity rather than new authenticated profile
-  evidence. The inventory header now carries the June 3 stabilization date, and
+  evidence. The inventory header now carries the June 7 stabilization date, and
   source coverage pins that timestamp to this active evidence refresh. The
   current Playwright skip/fixme audit found exactly three credential-gated
   `test.skip` calls, zero `test.fixme` calls, and no unclassified Playwright
