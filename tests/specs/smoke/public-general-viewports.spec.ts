@@ -109,6 +109,15 @@ const expectAnonymousNavigation = async (
   await expect(navigation).toBeVisible();
   await expect(navigation.getByRole('link', { name: 'Events' })).toBeVisible();
   await expect(navigation.getByRole('link', { name: 'Login' })).toBeVisible();
+  if (viewport.width < 1024) {
+    await expect(
+      navigation.getByRole('link', { name: 'Scanner' }),
+    ).toBeHidden();
+  } else {
+    await expect(
+      navigation.getByRole('link', { name: 'Scanner' }),
+    ).toBeVisible();
+  }
 
   const position = await navigation.evaluate((element) => {
     const style = window.getComputedStyle(element);

@@ -268,7 +268,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     placeholders after expected route content renders, and no browser console
     warning/error logs while each route is opened. It also asserts the anonymous
     Events/Login navigation remains visible and fixed as bottom navigation on
-    mobile and side navigation on desktop, and it checks all hosted legal,
+    mobile, with the desktop side navigation also exposing Scanner as the
+    guarded scan-flow entrypoint, and it checks all hosted legal,
     not-allowed, server-error, not-found, and wildcard not-found redirect under
     light and dark rendering at narrow mobile, mobile, and desktop widths so
     headings and supporting copy stay readable on painted Material surfaces

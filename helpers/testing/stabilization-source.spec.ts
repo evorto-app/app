@@ -8040,10 +8040,15 @@ describe('stabilization source', () => {
     expect(viewportSpec).toContain(
       "navigation.getByRole('link', { name: 'Login' })",
     );
+    expect(viewportSpec).toContain(
+      "navigation.getByRole('link', { name: 'Scanner' })",
+    );
+    expect(viewportSpec).toContain(').toBeHidden()');
+    expect(viewportSpec).toContain(').toBeVisible()');
     expect(viewportSpec).toContain("expect(position.position).toBe('fixed')");
     expect(viewportSpec).toContain('if (viewport.width < 1024)');
     expect(inventory).toContain(
-      'Events/Login navigation remains visible and fixed as bottom navigation on\n    mobile and side navigation on desktop',
+      'Events/Login navigation remains visible and fixed as bottom navigation on\n    mobile, with the desktop side navigation also exposing Scanner',
     );
     expect(inventory).toContain(
       'current pushed-head Browser spot check at `cab7f1fe`',

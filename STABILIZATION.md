@@ -7273,3 +7273,22 @@ fixed Events/Login bottom navigation and no visible overlap. Browser metrics
 reported the expected copy, no loading or application-error text, zero
 warning/error logs, body width matching the active mobile viewport, and no
 clipped visible controls.
+
+The public General viewport spec now also pins the responsive anonymous
+navigation contract instead of only checking that Events/Login are visible. All
+anonymous General routes must keep fixed Events/Login bottom navigation on
+mobile, while desktop side navigation must also expose Scanner as the guarded
+scan-flow entrypoint. Focused validation passed
+`bun run test:e2e:public-general-viewports` with both public General tests
+green across the 320x740, 390x844, and 1440x900 route matrix, and the test
+inventory/source guards now keep that navigation expectation documented. A
+same-slice in-app Browser check opened `/events` with
+`stabilizationEvidence=general-navigation-scanner-contract` at 390x844 and
+1440x900 and saved
+`/tmp/evorto-general-navigation-scanner-390x844.png` plus
+`/tmp/evorto-general-navigation-scanner-1440x900.png`; the mobile screenshot
+shows seeded Material event cards with fixed Events/Login bottom navigation,
+and the desktop screenshot shows the fixed side rail with Events, Scanner, and
+Login. Browser metrics reported expected Events/Soccer Match content, no
+loading or application-error text, zero warning/error logs, and no clipped
+visible navigation controls at either viewport.
