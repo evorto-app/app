@@ -6102,6 +6102,12 @@ Comma-expression invocations such as `(undefined, page.screenshot)(...)` and
 `(undefined, testInfo.attach)(...)` are unwrapped before the same raw-capture
 guards run, so generated docs cannot hide direct screenshots or image
 attachments behind sequence expressions.
+Conditional and logical callees such as
+`(useRaw ? page.screenshot : captureSafe)(...)`,
+`(safeCapture || page['screenshot'])(...)`, and
+`(maybeAttach ?? testInfo.attach)(...)` are tracked as raw captures whenever any
+branch is a direct raw screenshot or image attachment function, so generated
+docs cannot hide raw evidence behind fallback function selection.
 Raw image attachments with image MIME types or common image file extensions are
 also rejected even when their attachment name is not `image`, so docs cannot
 smuggle screenshot evidence through a differently named `testInfo.attach(...)`

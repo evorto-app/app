@@ -885,13 +885,8 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
   };
 
   const isTrackedAttachCallCallee = (callee: ts.Expression): boolean =>
-    ((ts.isPropertyAccessExpression(callee) ||
-      ts.isElementAccessExpression(callee)) &&
-      (getStaticPropertyName(callee) === 'attach' ||
-        markdownAttachFunctionPropertyAliases.has(
-          getStaticPropertyReference(callee, sourceFile) ?? '',
-        ))) ||
-    (ts.isIdentifier(callee) && markdownAttachFunctionAliases.has(callee.text));
+    isTrackedAttachFunctionReference(callee) ||
+    isTrackedBranchingTarget(callee, isTrackedAttachFunctionReference);
 
   const collectAliases = (node: ts.Node): void => {
     if (
@@ -3077,13 +3072,8 @@ const findDirectImageAttachmentCalls = (
   ): boolean => elements.some((element) => ts.isSpreadElement(element));
 
   const isTrackedAttachCallCallee = (callee: ts.Expression): boolean =>
-    ((ts.isPropertyAccessExpression(callee) ||
-      ts.isElementAccessExpression(callee)) &&
-      (getStaticPropertyName(callee) === 'attach' ||
-        attachFunctionPropertyAliases.has(
-          getStaticPropertyReference(callee, sourceFile) ?? '',
-        ))) ||
-    (ts.isIdentifier(callee) && attachFunctionAliases.has(callee.text));
+    isTrackedAttachFunctionReference(callee) ||
+    isTrackedBranchingTarget(callee, isTrackedAttachFunctionReference);
 
   const isInlineBoundAttachCall = (callee: ts.Expression): boolean => {
     const expression = unwrapExpression(callee);
@@ -3315,6 +3305,10 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     );
   };
 
+  const isTrackedScreenshotCallCallee = (callee: ts.Expression): boolean =>
+    isTrackedScreenshotFunctionReference(callee) ||
+    isTrackedBranchingTarget(callee, isTrackedScreenshotFunctionReference);
+
   const collectAliases = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -3439,14 +3433,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
         isTrackedScreenshotFunctionReference(node.arguments[0]);
 
       if (
-        ((ts.isPropertyAccessExpression(callee) ||
-          ts.isElementAccessExpression(callee)) &&
-          (getStaticPropertyName(callee) === 'screenshot' ||
-            screenshotFunctionPropertyAliases.has(
-              getStaticPropertyReference(callee, sourceFile) ?? '',
-            ))) ||
-        (ts.isIdentifier(callee) &&
-          screenshotFunctionAliases.has(callee.text)) ||
+        isTrackedScreenshotCallCallee(callee) ||
         isInlineBoundScreenshotCall(callee) ||
         isIndirectScreenshotCall ||
         isReflectApplyScreenshotCall
@@ -4022,6 +4009,61 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/comma-expression-image-capture.doc.ts:8:15',
       'tests/docs/example/comma-expression-image-capture.doc.ts:9:15',
       'tests/docs/example/comma-expression-image-capture.doc.ts:10:15',
+    ]);
+  });
+
+  it('detects raw docs image capture hidden behind branching callees', () => {
+    const branchingCalleeSource = `
+      async function captureDocsEvidence(useRaw: boolean) {
+        const attachEvidence = testInfo.attach.bind(testInfo);
+        const capturePageScreenshot = page.screenshot.bind(page);
+        const markdownPayload = { body: '![raw](raw.png)' };
+        await (useRaw ? page.screenshot : captureSafe)({ path: 'page.png' });
+        await (safeCapture || page['screenshot'])({ path: 'page-logical.png' });
+        await (maybeCapture ?? capturePageScreenshot)({ path: 'page-nullish.png' });
+        await (useRaw ? testInfo.attach : attachSafe)('image', { body: imageBuffer });
+        await (attachSafe || testInfo['attach'])('image', { body: imageBuffer });
+        await (maybeAttach ?? attachEvidence)('raw evidence', { contentType: 'image/png' });
+        await (useRaw ? testInfo.attach : attachSafe)('markdown', markdownPayload);
+        await takeScreenshot(
+          testInfo,
+          settingsSurface,
+          page,
+          'Shared helper screenshot remains the allowed path',
+        );
+        await testInfo.attach('markdown', { body: markdown });
+      }
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/branching-callee-image-capture.doc.ts',
+        branchingCalleeSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/branching-callee-image-capture.doc.ts:6:15',
+      'tests/docs/example/branching-callee-image-capture.doc.ts:7:15',
+      'tests/docs/example/branching-callee-image-capture.doc.ts:8:15',
+    ]);
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/branching-callee-image-capture.doc.ts',
+        branchingCalleeSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/branching-callee-image-capture.doc.ts:9:15',
+      'tests/docs/example/branching-callee-image-capture.doc.ts:10:15',
+      'tests/docs/example/branching-callee-image-capture.doc.ts:11:15',
+    ]);
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/branching-callee-image-capture.doc.ts',
+        branchingCalleeSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/branching-callee-image-capture.doc.ts:12:15',
     ]);
   });
 

@@ -1483,8 +1483,12 @@ describe('stabilization source', () => {
       /and spread,\s+`call`,\s+`apply`,\s+`Reflect\.apply`,\s+or inline `bind`/u,
     );
     expect(source).toContain('Comma-expression invocations');
+    expect(source).toContain('Conditional and logical callees');
     expect(inventory).toContain(
       'comma-expression raw screenshot and image attach invocations',
+    );
+    expect(inventory).toContain(
+      'conditional and\n  logical raw screenshot and image attach callees',
     );
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
@@ -2340,10 +2344,14 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Inline `bind(...)(...)` invocations');
     expect(source).toContain('`Reflect.apply(...)` invocations');
+    expect(source).toContain('Conditional and logical callees');
     expect(inventory).toMatch(/spread direct attachment\s+arguments/u);
     expect(inventory).toMatch(/opaque attachment `apply\(\.\.\.\)` lists/u);
     expect(inventory).toContain('`Reflect.apply(...)` raw screenshot');
     expect(inventory).toContain('inline bound raw screenshot and image attach');
+    expect(inventory).toContain(
+      'conditional and\n  logical raw screenshot and image attach callees',
+    );
   });
 
   it('keeps the PR readiness checkpoint current without pinning stale heads', () => {

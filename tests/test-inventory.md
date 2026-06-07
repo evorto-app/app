@@ -626,7 +626,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   arguments, opaque attachment `apply(...)` lists, raw screenshot and image
   attach call/apply invocations, `Reflect.apply(...)` raw screenshot and image
   attach invocations, inline bound raw screenshot and image attach invocations,
-  comma-expression raw screenshot and image attach invocations,
+  comma-expression raw screenshot and image attach invocations, conditional and
+  logical raw screenshot and image attach callees,
   forward-declared raw aliases, and simple, destructured, nested destructured,
   grouped, shorthand, alias-valued, or direct/alias-valued tuple/array
   attach-function aliases, rejects
