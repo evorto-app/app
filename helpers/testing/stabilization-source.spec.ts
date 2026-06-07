@@ -1597,6 +1597,8 @@ describe('stabilization source', () => {
     expect(inventory).toContain('.concat(...)');
     expect(inventory).toContain('.map(...)');
     expect(inventory).toContain('.toSpliced(...)');
+    expect(inventory).toContain('.with(...)');
+    expect(inventory).toContain('.fill(...)');
     expect(inventory).toContain('.flat()');
     expect(inventory).toContain(
       'conditional, nullish-coalesced, and logical target\n  expressions',
@@ -1911,6 +1913,9 @@ describe('stabilization source', () => {
       'detects weak documentation screenshot targets inserted through toSpliced calls',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets inserted through replacement array helpers',
+    );
+    expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind branching expressions',
     );
     expect(generatedDocumentationSource).toContain(
@@ -1932,6 +1937,12 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       "[settingsSurface].toSpliced(1, 0, page.locator('main'))",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface].with(0, page.locator('main'))",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface].fill(page.getByRole('button', { name: 'Save' }))",
     );
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind flattened arrays',

@@ -5988,7 +5988,7 @@ when they are passed to generated-doc screenshots, so docs cannot crop to a lone
 icon or uploaded media asset instead of the surrounding workflow surface. The
 guard also inspects screenshot target arrays, spread target arrays, array
 helper calls such as `Array.of(...)`, `.concat(...)`, `.map(...)`,
-`.toSpliced(...)`, and `.flat()`, and
+`.toSpliced(...)`, `.with(...)`, `.fill(...)`, and `.flat()`, and
 helper-returned targets for direct generic, broad, single-control, and
 icon/media screenshot targets. Conditional, nullish-coalesced, and logical
 target expressions are checked too, so selecting between a good surface and a
