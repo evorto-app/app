@@ -6876,8 +6876,10 @@ describe('generated docs source current behavior', () => {
       const attachHelpers = { attachEvidence: resolveAttachEvidence() };
       const spreadAttachHelpers = { ...attachHelpers };
       const assignedAttachHelpers = Object.assign({}, attachHelpers);
+      const { attachEvidence: ignoredAttachEvidence, ...restAttachHelpers } = attachHelpers;
       await spreadAttachHelpers.attachEvidence('image', { body: imageBuffer });
       await assignedAttachHelpers.attachEvidence('raw file evidence', { path: 'returned-raw.png' });
+      await restAttachHelpers.attachEvidence('raw rest evidence', { contentType: 'image/png' });
     `;
 
     expect(
@@ -6886,8 +6888,9 @@ describe('generated docs source current behavior', () => {
         copiedReturnedAttachSource,
       ),
     ).toEqual([
-      'tests/docs/example/copied-returned-attach-helper.doc.ts:8:13',
       'tests/docs/example/copied-returned-attach-helper.doc.ts:9:13',
+      'tests/docs/example/copied-returned-attach-helper.doc.ts:10:13',
+      'tests/docs/example/copied-returned-attach-helper.doc.ts:11:13',
     ]);
   });
 
@@ -7456,8 +7459,10 @@ describe('generated docs source current behavior', () => {
       const screenshotHelpers = { capture: resolvePageCapture() };
       const spreadScreenshotHelpers = { ...screenshotHelpers };
       const assignedScreenshotHelpers = Object.assign({}, screenshotHelpers);
+      const { capture: ignoredCapture, ...restScreenshotHelpers } = screenshotHelpers;
       await spreadScreenshotHelpers.capture({ path: 'spread-returned-page.png' });
       await assignedScreenshotHelpers.capture({ path: 'assigned-returned-page.png' });
+      await restScreenshotHelpers.capture({ path: 'rest-returned-page.png' });
     `;
 
     expect(
@@ -7466,8 +7471,9 @@ describe('generated docs source current behavior', () => {
         copiedReturnedScreenshotSource,
       ),
     ).toEqual([
-      'tests/docs/example/copied-returned-screenshot-helper.doc.ts:8:13',
       'tests/docs/example/copied-returned-screenshot-helper.doc.ts:9:13',
+      'tests/docs/example/copied-returned-screenshot-helper.doc.ts:10:13',
+      'tests/docs/example/copied-returned-screenshot-helper.doc.ts:11:13',
     ]);
   });
 
@@ -9241,8 +9247,10 @@ describe('generated docs source current behavior', () => {
       const attachHelpers = { attachMarkdownEvidence: resolveMarkdownAttach() };
       const spreadAttachHelpers = { ...attachHelpers };
       const assignedAttachHelpers = Object.assign({}, attachHelpers);
+      const { attachMarkdownEvidence: ignoredAttachMarkdown, ...restAttachHelpers } = attachHelpers;
       await spreadAttachHelpers.attachMarkdownEvidence('markdown', rawMarkdownPayload);
       await assignedAttachHelpers.attachMarkdownEvidence('markdown', rawMarkdownPayload);
+      await restAttachHelpers.attachMarkdownEvidence('markdown', rawMarkdownPayload);
     `;
 
     expect(
@@ -9251,8 +9259,9 @@ describe('generated docs source current behavior', () => {
         copiedReturnedAttachSource,
       ),
     ).toEqual([
-      'tests/docs/example/copied-returned-markdown-attach.doc.ts:9:13',
       'tests/docs/example/copied-returned-markdown-attach.doc.ts:10:13',
+      'tests/docs/example/copied-returned-markdown-attach.doc.ts:11:13',
+      'tests/docs/example/copied-returned-markdown-attach.doc.ts:12:13',
     ]);
   });
 

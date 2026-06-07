@@ -7471,3 +7471,25 @@ show readable Terms fallback copy and real seeded Events cards with Material
 surfaces/icons/times, fixed Events/Login bottom navigation, no loading or
 application-error text, no clipped visible controls on the Terms route, and
 zero warning/error Browser logs.
+
+Object-rest copied returned raw documentation helper groups are now explicitly
+pinned in the generated-doc source tests. The existing alias propagation already
+rejected returned raw image attach helpers, returned raw screenshot helpers, and
+returned raw Markdown-image attach helpers after object-rest destructuring; the
+focused regressions now exercise those exact copied-returned helper shapes so
+future docs-source edits cannot silently drop that coverage while preserving
+spread and `Object.assign(...)` cases.
+Validation for this slice passed `bun run format:write`, `bun run lint`, the
+focused generated-documentation/stabilization source suite with 194 passing
+tests, and `git diff --check`. The first Browser attempt found the generated
+app unhealthy after the database accepted TCP but rejected the app credentials,
+so `bun run docker:start` rebuilt/reseeded this worktree stack and `bun run
+dev:status` then passed, including the database validation query and
+`/legal/terms` route probe. Browser verification at 390x844 captured
+`/tmp/evorto-object-rest-raw-helper-groups-terms-390x844.png` and
+`/tmp/evorto-object-rest-raw-helper-groups-events-390x844.png`; the images show
+readable Terms fallback copy and real seeded Events cards with Material
+surfaces/icons/times, fixed Events/Login bottom navigation, no loading or
+application-error text, document/body widths inside the mobile viewport, and
+zero warning/error Browser logs. WebStorm diagnostics remained blocked because
+this worktree is not one of the open IDE projects.

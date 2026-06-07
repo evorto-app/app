@@ -3012,7 +3012,7 @@ describe('stabilization source', () => {
       /returned raw Markdown attach-helper factories including copied returned helper\s+groups/u,
     );
     expect(inventory).toMatch(
-      /spread,\s+`call`,\s+`apply`,\s+or inline `bind` forwarding/u,
+      /and spread,\s+`call`,\s+`apply`,\s+or inline `bind`\s+forwarding/u,
     );
     expect(reporterPathsSpec).toContain('{% figure src="');
     expect(reporterPathsSpec).toContain('&quot;active&quot; &amp; pending');
@@ -3127,6 +3127,13 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'Copied returned raw Markdown attach helper groups',
     );
+    expect(generatedDocumentationSource).toContain('...restScreenshotHelpers');
+    expect(generatedDocumentationSource).toContain(
+      "await restAttachHelpers.attachEvidence('raw rest evidence'",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await restAttachHelpers.attachMarkdownEvidence('markdown', rawMarkdownPayload)",
+    );
     expect(source).toContain(
       'Assigned and returned explanatory Markdown helpers',
     );
@@ -3139,8 +3146,15 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'object-spread and `Object.assign(...)` copied grouped raw Markdown image\n  aliases',
     );
-    expect(inventory).toContain('copied returned screenshot-helper groups');
-    expect(inventory).toContain('copied returned attach-helper groups');
+    expect(inventory).toContain(
+      'copied returned screenshot-helper groups\n  with object-rest copies',
+    );
+    expect(inventory).toContain(
+      'copied returned attach-helper groups with\n  object-rest copies',
+    );
+    expect(inventory).toContain(
+      'copied returned helper\n  groups with object-rest copies',
+    );
     expect(inventory).toMatch(
       /inline bound raw screenshot and\s+image\s+attach/u,
     );

@@ -731,7 +731,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   destructured, grouped, indexed, assigned, binding-default, or
   parameter-default `attach` helpers including `.at(...)` indexed helper lists,
   returned raw Markdown attach-helper factories including copied returned helper
-  groups, and spread, `call`, `apply`, or inline `bind` forwarding,
+  groups with object-rest copies, and spread, `call`, `apply`, or inline `bind`
+  forwarding,
   so image evidence cannot bypass the shared helper, and
   rejects raw `page.screenshot`,
   `locator.screenshot`, and direct `testInfo.attach('image', ...)` calls in docs
@@ -750,8 +751,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   binding-default and parameter-default screenshot-function aliases,
   grouped screenshot-function properties, shorthand or alias-valued grouped
   screenshot helpers, object-spread, `Object.assign(...)`, and object-rest
-  copied grouped screenshot helpers, copied returned screenshot-helper groups,
-  and
+  copied grouped screenshot helpers, copied returned screenshot-helper groups
+  with object-rest copies, and
   direct or alias-valued tuple/array screenshot-function entries including
   `.at(...)` indexed raw screenshot-helper lists, assigned local raw screenshot
   aliases and assigned raw screenshot factory aliases, rejects direct
@@ -765,7 +766,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   and parameter-default attachment names, MIME/path values, raw image payload
   objects, and attach-function aliases, assigned local raw image names,
   MIME/path values, payload objects, attach-function aliases, and returned
-  attach-function factories including copied returned attach-helper groups,
+  attach-function factories including copied returned attach-helper groups with
+  object-rest copies,
   simple
   MIME/path forwarding through calls, template interpolation, conditionals,
   nullish/logical expressions, and concatenation, object shorthand image
