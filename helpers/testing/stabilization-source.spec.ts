@@ -131,6 +131,9 @@ describe('stabilization source', () => {
       'keeps app shell heights on dynamic viewport units',
     );
     expect(designTokenSpec).toContain(
+      'keeps container-query variants behind explicit container boundaries',
+    );
+    expect(designTokenSpec).toContain(
       'keeps app diagnostics on scoped browser loggers',
     );
     expect(designTokenSpec).toContain(
@@ -151,6 +154,9 @@ describe('stabilization source', () => {
     );
     expect(designTokenSpec).toContain(
       'legacy full viewport height declaration',
+    );
+    expect(designTokenSpec).toContain(
+      'container-query variant without @container',
     );
     expect(designTokenSpec).toContain('direct console usage');
     expect(designTokenSpec).toContain('debugger statement');
@@ -175,6 +181,7 @@ describe('stabilization source', () => {
     expect(source).toContain('mobile labels wrap');
     expect(source).toContain('full viewport-width sizing');
     expect(source).toContain('legacy full viewport-height sizing');
+    expect(source).toContain('container-query variants');
     expect(source).toContain('scoped `consola/browser` loggers');
     expect(source).toContain('semantic\n  Material/Tailwind containers');
     expect(source).toContain('Angular Material card\n  shells');
@@ -186,13 +193,14 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'src/app/shared/components/design-token-usage.spec.ts',
     );
-    expect(source).toMatch(/with 11 tests/u);
+    expect(source).toMatch(/with 12 tests/u);
     expect(source).toMatch(/source-level Material\/mobile drift coverage/u);
     expect(source).toMatch(/not fresh\s+Browser-rendered page evidence/u);
     expect(source).toMatch(/viewport-scaled typography/u);
     expect(source).toMatch(/no-wrap\/truncate\/line-clamp text clipping/u);
     expect(source).toMatch(/viewport-width containers/u);
     expect(source).toMatch(/legacy full-height mobile sizing/u);
+    expect(source).toMatch(/container-query boundaries/u);
     expect(source).toMatch(/large-blur backgrounds/u);
     expect(source).toMatch(/shadow\/drop-shadow\/box-shadow\/mat-elevation/u);
     expect(inventory).toContain('direct `console.*` or `debugger` usage');
@@ -208,6 +216,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('mobile labels wrap instead of clipping');
     expect(inventory).toContain('full viewport-width');
     expect(inventory).toContain('legacy full viewport-height sizing');
+    expect(inventory).toContain('container-query variants');
     expect(inventory).toContain('semantic\n    Material/Tailwind containers');
     expect(inventory).toContain('Angular Material card\n    shells');
     expect(inventory).toContain('decorative gradient/orb backgrounds');

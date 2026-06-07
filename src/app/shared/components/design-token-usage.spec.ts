@@ -88,6 +88,7 @@ const legacyViewportHeightPatterns = [
       /\b(?:height|min-height|max-height)\s*:[^;]*(?:100vh|100svh|100lvh)/u,
   },
 ] as const;
+const containerQueryVariantPattern = /(?:^|[\s"'`{])@[a-z0-9-]+:[^\s"'`}]*/u;
 const debugPatterns = [
   {
     label: 'direct console usage',
@@ -346,6 +347,23 @@ describe('design token usage', () => {
             ]
           : [];
       });
+    });
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps container-query variants behind explicit container boundaries', () => {
+    const offenders = appSourceFiles(sourceRoot).flatMap((filePath) => {
+      const source = readFileSync(filePath, 'utf8');
+      const matches = source.match(containerQueryVariantPattern);
+
+      if (!matches || source.includes('@container')) {
+        return [];
+      }
+
+      return [
+        `${filePath.replace(sourceRoot, 'src/app')}: container-query variant without @container (${matches[0].trim()})`,
+      ];
     });
 
     expect(offenders).toEqual([]);

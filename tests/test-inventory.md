@@ -1074,7 +1074,10 @@ provider outcomes without live identifiers.
     sizing so app layouts do not reintroduce narrow-mobile horizontal overflow.
     It also rejects legacy full viewport-height sizing such as `h-screen` or
     exact `100vh` app-shell heights, keeping mobile app shells on dynamic
-    viewport units where full-height sizing is needed.
+    viewport units where full-height sizing is needed. The container-query variants
+    are also required to live behind explicit `@container` boundaries, keeping
+    page layout on viewport breakpoints and component adaptation on container
+    queries.
     The same app-source guard rejects direct `console.*` or `debugger` usage
     instead of scoped browser loggers, and keeps app card surfaces on semantic
     Material/Tailwind containers instead of reintroducing Angular Material card
