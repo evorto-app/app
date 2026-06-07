@@ -6389,6 +6389,10 @@ Computed destructuring aliases such as `{ ['screenshot']: capture }` and
 `{ ['attach']: attachEvidence }` are now pinned by focused source tests too, so
 bracket-property binding syntax cannot hide raw screenshots or raw image
 attachments from the shared-helper guard.
+Raw Markdown image attachments have the same computed-destructuring coverage for
+markdown names, markdown bodies, markdown payloads, and attach helpers, so
+checked-in docs cannot smuggle unhighlighted Markdown images through
+bracket-property binding syntax either.
 Grouped screenshot and attach-function aliases are rejected too, including
 object-literal helpers, static bracket-property helpers, tuple/array helper
 entries including alias-valued entries, shorthand or alias-valued grouped helper

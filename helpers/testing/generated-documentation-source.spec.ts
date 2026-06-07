@@ -6469,6 +6469,37 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects raw markdown images hidden behind computed destructuring', () => {
+    const computedDestructuredMarkdownImageSource = `
+      const markdownPieces = {
+        ['name']: 'markdown',
+        ['body']: '![raw](raw.png)',
+        ['payload']: { body: '<img src="../raw.png" alt="Raw">' },
+        ['attach']: testInfo.attach.bind(testInfo),
+      };
+      const {
+        ['name']: markdownName,
+        ['body']: rawMarkdownBody,
+        ['payload']: rawMarkdownPayload,
+        ['attach']: attachMarkdown,
+      } = markdownPieces;
+      await testInfo.attach(markdownName, { body: rawMarkdownBody });
+      await testInfo.attach('markdown', rawMarkdownPayload);
+      await attachMarkdown(markdownName, rawMarkdownPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/computed-destructured-markdown-image.doc.ts',
+        computedDestructuredMarkdownImageSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/computed-destructured-markdown-image.doc.ts:14:13',
+      'tests/docs/example/computed-destructured-markdown-image.doc.ts:15:13',
+      'tests/docs/example/computed-destructured-markdown-image.doc.ts:16:13',
+    ]);
+  });
+
   it('detects raw markdown images hidden behind at-indexed payload and attach aliases', () => {
     const atIndexedMarkdownSource = `
       const rawMarkdownPayload = { body: '![raw](raw.png)' };
