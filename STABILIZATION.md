@@ -3683,11 +3683,13 @@ fallback rather than a profile discount-card defect.
   and it parses `takeScreenshot(...)` calls so UI docs must provide a literal
   screenshot caption with enough context to explain what the captured image
   proves while avoiding generic page-root screenshot targets such as `body`,
-  `html`, or `app-root`. It now also pins the current per-flow screenshot counts
-  with a manifest that must exactly match every image-backed docs file, including
-  the 14 image-backed states in `tests/docs/events/register.doc.ts` and the eight
-  image-backed states in `tests/docs/templates/templates.doc.ts`, so a future
-  docs edit cannot quietly drop meaningful images while leaving one remaining
+  `html`, or `app-root`. It now also pins the current per-flow Markdown section
+  counts and screenshot counts with manifests that must exactly match every
+  image-backed docs file, including the 15 explanatory sections and 14
+  image-backed states in `tests/docs/events/register.doc.ts` and the eight
+  explanatory sections and eight image-backed states in
+  `tests/docs/templates/templates.doc.ts`, so a future docs edit cannot quietly
+  drop meaningful text or images while leaving one remaining section or
   screenshot behind or add a new UI doc without count coverage. It also rejects
   aliased `takeScreenshot` imports, direct imports from the helper implementation
   path, local screenshot wrapper declarations, binding-default aliases such as
@@ -7798,3 +7800,27 @@ logs. The inspected screenshots
 `/tmp/evorto-layout-retry-events-1440x900.png` show the current empty Events
 state, readable Terms fallback copy, and desktop empty Events layout with
 stable Events/Login/Scanner navigation.
+
+Generated-doc explanatory section counts are now pinned beside screenshot
+counts. `helpers/testing/generated-documentation-source.spec.ts` counts
+`testInfo.attach('markdown', ...)` calls for every docs journey and compares
+them with a per-file manifest, so a future docs edit cannot remove explanatory
+sections while preserving enough screenshots to satisfy the density guard. The
+manifest currently pins, for example, the 15 Markdown sections and 14 screenshots
+in `tests/docs/events/register.doc.ts` and the eight Markdown sections and eight
+screenshots in `tests/docs/templates/templates.doc.ts`. The test inventory and
+stabilization source guard record the combined Markdown/screenshot contract.
+Validation for this slice passed `bun run format:write`, `bun run lint`, and
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 197 tests after correcting the tracking assertions. WebStorm errors-only
+diagnostics remained blocked because this worktree is not one of the IDE's open
+projects. Browser reused the already-running app at `http://localhost:4218` and
+checked `/legal/terms`, `/events`, and `/404` at 390x844 and 1440x900 with
+settled expected content, no visible loading text, no application-error text, no
+overflowing elements, fixed General navigation, and zero warning/error logs. The
+inspected screenshots
+`/tmp/evorto-markdown-count-guard-settled-legal-terms-390x844.png`,
+`/tmp/evorto-markdown-count-guard-settled-events-390x844.png`, and
+`/tmp/evorto-markdown-count-guard-settled-events-1440x900.png` show readable
+Terms fallback copy, the current empty Events state, and the desktop Events
+layout on Material surfaces with stable navigation.

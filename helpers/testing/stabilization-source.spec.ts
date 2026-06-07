@@ -1800,9 +1800,12 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'at least 120 characters of explanatory markdown',
     );
-    expect(inventory).toMatch(/pins the current per-flow\s+screenshot counts/u);
-    expect(inventory).toContain(
-      'manifest that must include every image-backed docs',
+    expect(inventory).toMatch(
+      /pins the current per-flow\s+Markdown section counts/u,
+    );
+    expect(inventory).toMatch(/Markdown section counts and screenshot counts/u);
+    expect(inventory).toMatch(
+      /manifests? that must include\s+every image-backed docs/u,
     );
     expect(inventory).toMatch(
       /root `QUALITY\.md`\s+generated-documentation feature areas/u,
@@ -1810,7 +1813,9 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /supplemental high-value quality journeys\s+such as paid registration,\s+waitlists,\s+registration cancellation,\s+transfer\/resale,\s+registration confirmation with QR ticket availability,\s+and\s+direct QR email-delivery boundaries/u,
     );
-    expect(inventory).toContain('quietly drop image-backed states');
+    expect(inventory).toContain(
+      'quietly drop explanatory sections\n  or image-backed states',
+    );
     expect(inventory).toContain('shared `takeScreenshot` helper');
     expect(inventory).toMatch(/documentation\s+reporter\s+barrel/u);
     expect(inventory).toContain('meaningful literal caption');
@@ -2092,7 +2097,17 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('countTakeScreenshotCalls');
     expect(generatedDocumentationSource).toContain('expectedScreenshotCounts');
     expect(generatedDocumentationSource).toContain(
+      'countGeneratedMarkdownAttachments',
+    );
+    expect(generatedDocumentationSource).toContain('expectedMarkdownCounts');
+    expect(generatedDocumentationSource).toContain(
       'expectedImageBackedDocuments',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "['tests/docs/events/register.doc.ts', 15]",
+    );
+    expect(source).toMatch(
+      /15 explanatory sections and 14\s+image-backed states in `tests\/docs\/events\/register\.doc\.ts`/u,
     );
     expect(inventory).toContain(
       "`ARCHITECTURE.md`'s Playwright documentation evidence boundary",
@@ -2108,8 +2123,8 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       "['tests/docs/events/register.doc.ts', 14]",
     );
-    expect(source).toContain(
-      'the 14 image-backed states in `tests/docs/events/register.doc.ts`',
+    expect(source).toMatch(
+      /15 explanatory sections and 14\s+image-backed states in `tests\/docs\/events\/register\.doc\.ts`/u,
     );
     expect(generatedDocumentationSource).toContain(
       "['tests/docs/templates/templates.doc.ts', 8]",

@@ -4560,6 +4560,36 @@ const countTakeScreenshotCalls = (path: string, source: string): number => {
   return screenshotCount;
 };
 
+const countGeneratedMarkdownAttachments = (
+  path: string,
+  source: string,
+): number => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
+  let markdownCount = 0;
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      isTestInfoMarkdownAttachmentCall(node, staticStringAliases)
+    ) {
+      markdownCount += 1;
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return markdownCount;
+};
+
 const importsSharedScreenshotHelper = (
   path: string,
   source: string,
@@ -12203,6 +12233,24 @@ describe('generated docs source current behavior', () => {
       ['tests/docs/templates/templates.doc.ts', 8],
       ['tests/docs/users/create-account.doc.ts', 4],
     ]);
+    const expectedMarkdownCounts = new Map([
+      ['tests/docs/admin/general-settings.doc.ts', 6],
+      ['tests/docs/admin/global-admin.doc.ts', 4],
+      ['tests/docs/events/event-approval.doc.ts', 6],
+      ['tests/docs/events/event-management.doc.ts', 12],
+      ['tests/docs/events/register.doc.ts', 15],
+      ['tests/docs/events/unlisted-user.doc.ts', 2],
+      ['tests/docs/finance/finance-overview.doc.ts', 6],
+      ['tests/docs/finance/inclusive-tax-rates.doc.ts', 11],
+      ['tests/docs/finance/receipt-review-reimbursement.doc.ts', 5],
+      ['tests/docs/profile/discounts.doc.ts', 3],
+      ['tests/docs/profile/user-profile.doc.ts', 5],
+      ['tests/docs/roles/about-permissions.doc.ts', 1],
+      ['tests/docs/roles/roles.doc.ts', 4],
+      ['tests/docs/template-categories/categories.doc.ts', 3],
+      ['tests/docs/templates/templates.doc.ts', 8],
+      ['tests/docs/users/create-account.doc.ts', 5],
+    ]);
     const screenshotHelper = readSource(
       'tests/support/reporters/documentation-reporter/take-screenshot.ts',
     );
@@ -12406,6 +12454,9 @@ describe('generated docs source current behavior', () => {
       const source = readSource(path);
 
       expect(source, path).toContain("testInfo.attach('markdown'");
+      expect(countGeneratedMarkdownAttachments(path, source), path).toBe(
+        expectedMarkdownCounts.get(path),
+      );
       expect(findWeakMarkdownBodyAttachments(path, source), path).toEqual([]);
       expect(
         findDenseScreenshotRunsBetweenMarkdown(path, source),
