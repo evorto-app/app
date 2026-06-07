@@ -288,7 +288,16 @@ test('public simple General pages remain readable across viewport rendering', as
       path: '/404',
       titleSelector: 'app-not-found h1',
     },
+    {
+      extraText: 'The page you are looking for doesn’t exist.',
+      heading: 'Page not found',
+      paragraphSelector: 'app-not-found p',
+      path: '/missing-general-page',
+      titleSelector: 'app-not-found h1',
+    },
   ] as const;
+
+  const browserLogFailures = collectBrowserLogFailures(page);
 
   for (const viewport of viewportSizes) {
     await test.step(`${viewport.label} viewport`, async () => {
@@ -301,6 +310,7 @@ test('public simple General pages remain readable across viewport rendering', as
           for (const route of simpleGeneralRoutes) {
             await test.step(route.path, async () => {
               const context = `${viewport.label} ${colorScheme} ${route.path}`;
+              browserLogFailures.length = 0;
               await page.goto(route.path);
 
               await expect(
@@ -320,6 +330,10 @@ test('public simple General pages remain readable across viewport rendering', as
               await expect(readPageLayout(page)).resolves.toEqual(
                 expectedStablePageLayout,
               );
+              expect(
+                browserLogFailures,
+                `${context} should not emit browser warning/error logs`,
+              ).toEqual([]);
             });
           }
         });

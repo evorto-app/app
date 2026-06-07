@@ -7203,3 +7203,25 @@ spot check of `/events` saved
 with seeded Material event cards, fixed Events/Login bottom navigation, no
 visible loading or application-error text, no horizontal overflow signal, and
 zero Browser warning/error logs.
+
+The next public General evidence pass closed a readability-matrix gap: the
+light/dark General-page readability test now includes the wildcard not-found
+redirect, not only the explicit `/404` route, and it fails on browser
+warning/error logs while each legal/fallback readability route is opened. The
+source guard and inventory now pin both behaviors so the durable mobile,
+desktop, light, and dark General-page checks cannot drift away from the full
+anonymous route set. Focused validation passed `bun run test:e2e:public-general-viewports`
+with both public General tests green, `bunx vitest run
+helpers/testing/stabilization-source.spec.ts --reporter=verbose` with 66 source
+tests green, `bun run format:write`, and `bun run lint`. WebStorm diagnostics
+could not inspect this worktree because the open IDE projects were still
+`/Users/hedde/.codex/worktrees/e159/evorto` and
+`/Users/hedde/.codex/worktrees/0677/section-app`, not this checkout. A same-slice
+in-app Browser mobile spot check opened
+`/missing-general-page?stabilizationEvidence=general-readability-wildcard-logs`,
+redirected to `/404`, and saved
+`/tmp/evorto-general-readability-wildcard-390x844.png`; the screenshot shows
+readable Page not found copy on a Material surface with fixed Events/Login
+bottom navigation and no visible overlap, while Browser metrics reported the
+expected copy, no loading or application-error text, and matching document/body
+scroll widths inside the active mobile viewport.

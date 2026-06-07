@@ -269,10 +269,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     warning/error logs while each route is opened. It also asserts the anonymous
     Events/Login navigation remains visible and fixed as bottom navigation on
     mobile and side navigation on desktop, and it checks all hosted legal,
-    not-allowed, server-error, and not-found pages under light and dark rendering
-    at narrow mobile, mobile, and desktop widths so headings and supporting copy
-    stay readable on painted Material surfaces instead of inheriting
-    low-contrast fallback styling. A matching
+    not-allowed, server-error, not-found, and wildcard not-found redirect under
+    light and dark rendering at narrow mobile, mobile, and desktop widths so
+    headings and supporting copy stay readable on painted Material surfaces
+    instead of inheriting low-contrast fallback styling, while also failing on
+    browser warning/error logs during that readability matrix. A matching
     in-app Browser refresh caught and rechecked the desktop event-detail
     list/detail view-transition overlay, with the source regression in
     `src/app/events/event-details/event-details.component.spec.ts` keeping

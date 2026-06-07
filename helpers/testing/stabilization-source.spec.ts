@@ -8892,14 +8892,18 @@ describe('stabilization source', () => {
     expect(viewportSpec).toContain("path: '/legal/privacy'");
     expect(viewportSpec).toContain("heading: 'Terms'");
     expect(viewportSpec).toContain("path: '/legal/terms'");
+    expect(viewportSpec).toContain("path: '/missing-general-page'");
     expect(viewportSpec).toContain(
       'await test.step(`${viewport.label} viewport`, async () =>',
     );
     expect(viewportSpec).toContain(
       'await test.step(`${colorScheme} color scheme`, async () =>',
     );
-    expect(inventory).toContain(
-      'under light and dark rendering\n    at narrow mobile, mobile, and desktop widths',
+    expect(viewportSpec).toContain(
+      '`${context} should not emit browser warning/error logs`',
+    );
+    expect(inventory).toMatch(
+      /wildcard not-found redirect under\s+light and dark rendering/u,
     );
     expect(viewportSpec).not.toContain('test.describe');
     expect(viewportSpec).not.toMatch(
