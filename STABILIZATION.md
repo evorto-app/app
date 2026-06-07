@@ -6645,6 +6645,11 @@ Binding-pattern default initializers are collected for raw screenshot and
 attach-function aliases too, so `const { capture = page.screenshot } = ...` or
 `const [attachEvidence = testInfo.attach] = ...` cannot hide direct image
 capture behind a neutral binding name.
+Grouped parameter-default destructuring is covered as well, so
+`function capture({ helper } = groupedRawHelpers) { ... }` cannot hide raw
+screenshot helpers, image attachment names, raw MIME/path values, raw image
+payloads, or attach helpers before generated-doc evidence reaches the shared
+screenshot helper.
 Bracket-property forms such as `testInfo['attach'](...)`,
 `page['screenshot'](...)`, and `documentationReporter['takeScreenshot'](...)`
 are treated the same as dot-property access, so generated-doc source guards do
@@ -7615,4 +7620,27 @@ paths `/tmp/evorto-empty-tax-rate-docs-legal-terms-settled-390x844.png` and
 `/tmp/evorto-empty-tax-rate-docs-events-settled-390x844.png`; both settled
 screenshots are readable Material surfaces with fixed Events/Login bottom
 navigation, no horizontal clipping, no app-error text, and zero warning/error
+Browser logs.
+
+Grouped parameter-default raw screenshot/image aliases are now pinned beside
+the existing binding-default, variable-destructuring, copied-group, and
+object-rest generated-doc source guards. The focused source regression now
+exercises grouped parameter defaults for raw screenshot helpers, image
+attachment names, raw MIME/path values, raw image payload objects, and direct
+attach helpers, so a docs helper cannot hide raw evidence by accepting
+`{ helper } = groupedRawHelpers` before calling it outside the shared screenshot
+helper. The inventory records the same coverage next to the raw image and
+direct screenshot guard families. Validation passed `bun run format:write`,
+`bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 194 tests, and `git diff --check`. WebStorm errors-only diagnostics remain
+blocked because this worktree is not one of the IDE's open projects. Browser
+rechecked `/legal/terms?stabilizationEvidence=parameter-default-doc-source-guard`
+and `/events?stabilizationEvidence=parameter-default-doc-source-guard` at
+390x844 and saved
+`/tmp/evorto-parameter-default-doc-source-guard-legal-terms-390x844.png` plus
+`/tmp/evorto-parameter-default-doc-source-guard-events-390x844.png`; the
+screenshots show readable Terms fallback copy and the current empty Events
+state with fixed Events/Login bottom navigation, no loading or application-error
+text, document/body widths inside the mobile viewport, and zero warning/error
 Browser logs.

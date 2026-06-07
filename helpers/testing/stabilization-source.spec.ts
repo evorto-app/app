@@ -1585,6 +1585,10 @@ describe('stabilization source', () => {
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);
     expect(source).toContain('Optional-call invocations');
+    expect(source).toContain('Grouped parameter-default destructuring');
+    expect(source).toContain(
+      'raw\nscreenshot helpers, image attachment names, raw MIME/path values',
+    );
     expect(source).toContain('Computed static property\nspellings');
     expect(source).toContain("`testInfo['att' + 'ach'](...)`");
     expect(source).toContain("`page['screen' + 'shot'](...)`");
@@ -2144,6 +2148,18 @@ describe('stabilization source', () => {
       'async function rawPayloadParameter(rawImagePayload = { body: imageBuffer',
     );
     expect(generatedDocumentationSource).toContain(
+      'async function groupedImageNameParameter({ evidence } = groupedImageAttachmentNames)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'async function groupedImageMimeParameter({ mime } = groupedRawImageValues)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'async function groupedRawPayloadParameter({ payload } = groupedRawImagePayloads)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'async function groupedAttachHelperParameter({ attachEvidence } = groupedAttachHelpers)',
+    );
+    expect(generatedDocumentationSource).toContain(
       'detects at-indexed raw screenshot aliases',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2670,6 +2686,9 @@ describe('stabilization source', () => {
       'detects direct screenshots hidden behind parameter default aliases',
     );
     expect(generatedDocumentationSource).toContain(
+      'async function groupedScreenshotHelperParameter({ capturePage } = screenshotHelpers)',
+    );
+    expect(generatedDocumentationSource).toContain(
       'const { capture = page.screenshot.bind(page) } = {}',
     );
     expect(generatedDocumentationSource).toContain(
@@ -3176,7 +3195,13 @@ describe('stabilization source', () => {
       'optional-call screenshot-helper, raw screenshot, and image attach invocations',
     );
     expect(inventory).toContain('assigned local raw screenshot\n  aliases');
+    expect(inventory).toContain(
+      'grouped parameter-default screenshot-function aliases',
+    );
     expect(inventory).toContain('assigned local raw image names');
+    expect(inventory).toContain(
+      'grouped parameter-default attachment\n  names, MIME/path values, raw image payload objects, and attach-function',
+    );
     expect(inventory).toContain('returned\n  attach-function factories');
     expect(inventory).toContain('assigned local raw Markdown names');
     expect(inventory).toContain(

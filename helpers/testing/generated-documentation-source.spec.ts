@@ -353,7 +353,7 @@ const isTrackedBranchingTarget = (
 };
 
 const collectDestructuredPropertyAliases = (
-  node: ts.VariableDeclaration,
+  node: ts.ParameterDeclaration | ts.VariableDeclaration,
   sourceFile: ts.SourceFile,
   propertyAliases: ReadonlySet<string>,
   aliases: Set<string>,
@@ -5559,6 +5559,27 @@ const findDirectImageAttachmentCalls = (
         attachFunctionAliases,
         staticStringAliases,
       );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        imageAttachmentNamePropertyAliases,
+        imageAttachmentNameAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        imageAttachmentPayloadValuePropertyAliases,
+        imageAttachmentPayloadValueAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        attachFunctionPropertyAliases,
+        attachFunctionAliases,
+        staticStringAliases,
+      );
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -5619,6 +5640,13 @@ const findDirectImageAttachmentCalls = (
         node,
         isImageAttachmentPayload,
         imageAttachmentPayloadAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        imageAttachmentPayloadPropertyAliases,
+        imageAttachmentPayloadAliases,
+        staticStringAliases,
       );
     }
 
@@ -6208,6 +6236,13 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       collectPropertyBindingAliases(
         node.name,
         'screenshot',
+        screenshotFunctionAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        screenshotFunctionPropertyAliases,
         screenshotFunctionAliases,
         staticStringAliases,
       );
@@ -7197,6 +7232,26 @@ describe('generated docs source current behavior', () => {
       ) {
         await testInfo.attach('raw rest payload parameter evidence', rawImagePayload);
       }
+      const groupedImageAttachmentNames = { evidence: 'image' };
+      async function groupedImageNameParameter({ evidence } = groupedImageAttachmentNames) {
+        await testInfo.attach(evidence, { body: imageBuffer });
+      }
+      const groupedRawImageValues = { mime: 'image/png' };
+      async function groupedImageMimeParameter({ mime } = groupedRawImageValues) {
+        await testInfo.attach('grouped raw mime parameter evidence', { contentType: mime });
+      }
+      const groupedRawImagePayloads = {
+        payload: { body: imageBuffer, contentType: 'image/webp' },
+      };
+      async function groupedRawPayloadParameter({ payload } = groupedRawImagePayloads) {
+        await testInfo.attach('grouped raw payload parameter evidence', payload);
+      }
+      const groupedAttachHelpers = {
+        attachEvidence: testInfo.attach.bind(testInfo),
+      };
+      async function groupedAttachHelperParameter({ attachEvidence } = groupedAttachHelpers) {
+        await attachEvidence('image', { body: imageBuffer });
+      }
     `;
 
     expect(
@@ -7211,6 +7266,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/parameter-default-image-attachment.doc.ts:12:15',
       'tests/docs/example/parameter-default-image-attachment.doc.ts:15:15',
       'tests/docs/example/parameter-default-image-attachment.doc.ts:20:15',
+      'tests/docs/example/parameter-default-image-attachment.doc.ts:24:15',
+      'tests/docs/example/parameter-default-image-attachment.doc.ts:28:15',
+      'tests/docs/example/parameter-default-image-attachment.doc.ts:34:15',
+      'tests/docs/example/parameter-default-image-attachment.doc.ts:40:15',
     ]);
   });
 
@@ -7570,6 +7629,12 @@ describe('generated docs source current behavior', () => {
       async function groupedScreenshotParameter({ screenshot = page.screenshot.bind(page) } = {}) {
         await screenshot({ path: 'parameter-grouped-page.png' });
       }
+      const screenshotHelpers = {
+        capturePage: page.screenshot.bind(page),
+      };
+      async function groupedScreenshotHelperParameter({ capturePage } = screenshotHelpers) {
+        await capturePage({ path: 'parameter-grouped-helper-page.png' });
+      }
     `;
 
     expect(
@@ -7581,6 +7646,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/parameter-default-screenshot.doc.ts:3:15',
       'tests/docs/example/parameter-default-screenshot.doc.ts:6:15',
       'tests/docs/example/parameter-default-screenshot.doc.ts:9:15',
+      'tests/docs/example/parameter-default-screenshot.doc.ts:15:15',
     ]);
   });
 
