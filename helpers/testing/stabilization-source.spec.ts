@@ -4593,6 +4593,8 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'local aliases of `test.slow` called\n  through `slow()`',
     );
+    expect(inventory).toContain('Nested `test.describe` destructuring');
+    expect(inventory).toContain('const { describe: { skip } } = test');
     expect(inventory).toContain('Constant-backed property spellings');
     expect(inventory).toContain("const key = 'skip'; test[key](...)");
     expect(inventory).toContain('test.describe[configureKey](...)');
@@ -4645,6 +4647,8 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'assigning or\ndestructuring `test.skip`, `test.fixme`, `test.only`, `test.slow`, or\n`test.describe.configure`',
     );
+    expect(source).toContain('Nested `test.describe` destructuring');
+    expect(source).toContain('const { describe: { skip } } = test');
     expect(source).toContain('Constant-backed modifier spellings');
     expect(source).toContain("const key = 'skip'; test[key](...)");
     expect(source).toContain('test.describe[configureKey](...)');

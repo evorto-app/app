@@ -527,6 +527,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   through `Reflect.get(...)`, `Reflect.apply(...)`, and local `Reflect` aliases
   is covered for `test.skip`/`fixme`/`only`/`slow`,
   `test.describe.configure`, `page.pause`, and `page.waitForTimeout` as well.
+  Nested `test.describe` destructuring such as
+  `const { describe: { skip } } = test` is classified before the alias can hide
+  skipped, focused, or serial coverage.
   The
   current runtime-modifier allowlist is limited to
   `docs/events/register.doc.ts`: the registration documentation flow runs

@@ -6722,8 +6722,10 @@ coverage behind alternate JavaScript property access or formatter-resistant
 line wrapping. Local modifier aliases are covered too, so assigning or
 destructuring `test.skip`, `test.fixme`, `test.only`, `test.slow`, or
 `test.describe.configure` before calling the alias is classified by the same
-skip/focus/runtime inventory. Constant-backed modifier spellings are resolved
-too, so `const key = 'skip'; test[key](...)`,
+skip/focus/runtime inventory. Nested `test.describe` destructuring is covered
+too, so `const { describe: { skip } } = test` cannot hide skipped, focused, or
+serial coverage behind a local alias. Constant-backed modifier spellings are
+resolved too, so `const key = 'skip'; test[key](...)`,
 `test.describe[configureKey](...)`, `page[pauseKey](...)`, and
 `page[waitForTimeoutKey](...)` cannot hide skipped, focused, slowed, serial,
 debug, or fixed-wait coverage changes behind local strings. Reflection-based

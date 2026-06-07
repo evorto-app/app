@@ -91,6 +91,10 @@ const playwrightDestructuredModifierAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^}]+)\}\s*=\s*test(?:${playwrightDescribeAccessPattern})?`,
   'g',
 );
+const playwrightNestedDescribeModifierAliasPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s*\{[^{}]*\bdescribe\s*:\s*\{(?<bindings>[^}]+)\}[^{}]*\}\s*=\s*test\b`,
+  'g',
+);
 const pageDestructuredMethodAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^}]+)\}\s*=\s*page\b`,
   'g',
@@ -487,6 +491,32 @@ const collectAliasedModifierEntriesForSource = (
 
   for (const match of source.matchAll(
     playwrightDestructuredModifierAliasPattern,
+  )) {
+    const bindings = match.groups?.bindings;
+
+    if (bindings === undefined) {
+      continue;
+    }
+
+    for (const binding of bindings.split(',')) {
+      const bindingMatch = binding
+        .trim()
+        .match(destructuredModifierBindingPattern);
+      const modifier = bindingMatch?.groups?.modifier;
+      const alias = bindingMatch?.groups?.alias ?? modifier;
+
+      if (
+        alias !== undefined &&
+        modifier !== undefined &&
+        allowedModifiers.has(modifier)
+      ) {
+        aliases.set(alias, modifier);
+      }
+    }
+  }
+
+  for (const match of source.matchAll(
+    playwrightNestedDescribeModifierAliasPattern,
   )) {
     const bindings = match.groups?.bindings;
 
@@ -1042,6 +1072,12 @@ const { fixme: hiddenFixme } = test;
 hiddenFixme('hidden fixme', () => {});
 const hiddenFocus = test.describe.only;
 hiddenFocus('hidden focus', () => {});
+const { describe: { skip: nestedDescribeSkip } } = test;
+nestedDescribeSkip('nested hidden skip', () => {});
+const { describe: { only: nestedDescribeFocus } } = test;
+nestedDescribeFocus('nested hidden focus', () => {});
+const { describe: { configure: nestedDescribeConfigure } } = test;
+nestedDescribeConfigure({ mode: 'serial' });
 const { configure: configureSerial } = test.describe;
 configureSerial({ mode: 'serial' });
 const hiddenSlow = test.slow;
@@ -1064,8 +1100,9 @@ configureStaticSerial({ mode: 'serial' });`;
       ),
     ).toEqual([
       'tests/specs/example/aliased-modifiers.spec.ts:2:hiddenSkip( (skip alias)',
-      'tests/specs/example/aliased-modifiers.spec.ts:13:hiddenStaticSkip( (skip alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:19:hiddenStaticSkip( (skip alias)',
       'tests/specs/example/aliased-modifiers.spec.ts:4:hiddenFixme( (fixme alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:8:nestedDescribeSkip( (skip alias)',
     ]);
     expect(
       collectAliasedModifierEntriesForSource(
@@ -1075,7 +1112,8 @@ configureStaticSerial({ mode: 'serial' });`;
       ),
     ).toEqual([
       'tests/specs/example/aliased-modifiers.spec.ts:6:hiddenFocus( (only alias)',
-      'tests/specs/example/aliased-modifiers.spec.ts:16:hiddenStaticFocus( (only alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:22:hiddenStaticFocus( (only alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:10:nestedDescribeFocus( (only alias)',
     ]);
     expect(
       collectAliasedModifierEntriesForSource(
@@ -1084,9 +1122,10 @@ configureStaticSerial({ mode: 'serial' });`;
         ['slow', 'configure'],
       ),
     ).toEqual([
-      'tests/specs/example/aliased-modifiers.spec.ts:10:hiddenSlow( (slow alias)',
-      'tests/specs/example/aliased-modifiers.spec.ts:19:configureStaticSerial( (configure alias)',
-      'tests/specs/example/aliased-modifiers.spec.ts:8:configureSerial( (configure alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:16:hiddenSlow( (slow alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:25:configureStaticSerial( (configure alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:14:configureSerial( (configure alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:12:nestedDescribeConfigure( (configure alias)',
     ]);
   });
 
