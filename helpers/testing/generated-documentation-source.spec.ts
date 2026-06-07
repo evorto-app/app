@@ -88,6 +88,7 @@ const isTrackedArrayTarget = (
     }
 
     if (
+      methodName === 'flat' ||
       methodName === 'filter' ||
       methodName === 'slice' ||
       methodName === 'toReversed' ||
@@ -4463,6 +4464,60 @@ describe('generated docs source current behavior', () => {
         templateLiteralTargetSource,
       ),
     ).toEqual(['tests/docs/example/template-literal-target.doc.ts:8:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind flattened arrays', () => {
+    const flattenedTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        [[page.locator('main')]].flat(),
+        page,
+        'Flattened generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [[page.locator('section')]].flat(),
+        page,
+        'Flattened broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [[page.getByRole('button', { name: 'Save' })]].flat(),
+        page,
+        'Flattened single button target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [[page.locator('img[alt="Tenant logo"]')]].flat(),
+        page,
+        'Flattened image target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/flattened-target.doc.ts',
+        flattenedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/flattened-target.doc.ts:2:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/flattened-target.doc.ts',
+        flattenedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/flattened-target.doc.ts:8:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/flattened-target.doc.ts',
+        flattenedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/flattened-target.doc.ts:14:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/flattened-target.doc.ts',
+        flattenedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/flattened-target.doc.ts:20:13']);
   });
 
   it('detects generic documentation screenshot targets', () => {

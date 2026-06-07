@@ -5987,14 +5987,15 @@ It now rejects icon-only and media-only screenshot targets such as `svg`, `img`,
 when they are passed to generated-doc screenshots, so docs cannot crop to a lone
 icon or uploaded media asset instead of the surrounding workflow surface. The
 guard also inspects screenshot target arrays, spread target arrays, array
-helper calls such as `Array.of(...)` and `.concat(...)`, and helper-returned
-targets for direct generic, broad, single-control, and icon/media screenshot
-targets. Conditional, nullish-coalesced, and logical target expressions are
-checked too, so selecting between a good surface and a weak fallback cannot hide
-generic, broad, single-control, or icon/media screenshot evidence. Non-null
-assertion wrappers are unwrapped before screenshot counting, target inspection,
-direct raw-image attachment checks, and direct screenshot-helper checks run, so
-`target!`, `takeScreenshot!(...)`, `testInfo.attach!(...)`, and
+helper calls such as `Array.of(...)`, `.concat(...)`, and `.flat()`, and
+helper-returned targets for direct generic, broad, single-control, and
+icon/media screenshot targets. Conditional, nullish-coalesced, and logical
+target expressions are checked too, so selecting between a good surface and a
+weak fallback cannot hide generic, broad, single-control, or icon/media
+screenshot evidence. Non-null assertion wrappers are unwrapped before screenshot
+counting, target inspection, direct raw-image attachment checks, and direct
+screenshot-helper checks run, so `target!`, `takeScreenshot!(...)`,
+`testInfo.attach!(...)`, and
 `page.screenshot!(...)` cannot hide the same weak evidence paths.
 The generated-doc source guard now collects screenshot target aliases and helper
 functions before it inspects screenshot calls, so generic shell, broad,

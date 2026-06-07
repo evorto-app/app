@@ -1524,12 +1524,13 @@ describe('stabilization source', () => {
     expect(source).toContain('icon-only and media-only screenshot targets');
     expect(source).toContain("getByRole('img')");
     expect(source).toMatch(
-      /targets for direct generic, broad, single-control, and icon\/media screenshot\s+targets/u,
+      /targets for direct generic, broad, single-control, and\s+icon\/media screenshot targets/u,
     );
+    expect(source).toContain('`.flat()`');
     expect(source).toContain('spread target arrays');
     expect(source).toContain('array\nhelper calls');
     expect(source).toMatch(
-      /Conditional, nullish-coalesced, and logical target expressions/u,
+      /Conditional, nullish-coalesced, and logical\s+target expressions/u,
     );
     expect(source).toMatch(/Non-null\s+assertion wrappers/u);
     expect(source).toContain('aliased `takeScreenshot` imports');
@@ -1592,6 +1593,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('array helper calls');
     expect(inventory).toContain('Array.of(...)');
     expect(inventory).toContain('.concat(...)');
+    expect(inventory).toContain('.flat()');
     expect(inventory).toContain(
       'conditional, nullish-coalesced, and logical target\n  expressions',
     );
@@ -1912,6 +1914,12 @@ describe('stabilization source', () => {
       "[settingsSurface].concat(page.locator('section'))",
     );
     expect(generatedDocumentationSource).toContain('Array.of(settingsSurface');
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets hidden behind flattened arrays',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[[page.locator('main')]].flat()",
+    );
     expect(generatedDocumentationSource).toContain(
       "useFallback ? page.locator('main') : settingsSurface",
     );
