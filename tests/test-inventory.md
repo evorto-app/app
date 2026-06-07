@@ -568,9 +568,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `getByTitle`, including direct weak locators inside screenshot target arrays,
   spread screenshot target arrays, array helper calls such as `Array.of(...)`,
   `.concat(...)`, `.map(...)`, `.toSpliced(...)`, `.with(...)`, `.fill(...)`,
-  and `.flat()`, and helper-returned icon/media locators, before docs can regress
-  to button-only, input-only, option-only, cell-only, or icon-only images. It
-  also rejects conditional, nullish-coalesced, and logical target
+  `.slice()`, `.reverse()`, `.sort()`, `.toReversed()`, `.toSorted()`, and
+  `.flat()`, and helper-returned icon/media locators, before docs can regress to
+  button-only, input-only, option-only, cell-only, or icon-only images. It also
+  rejects conditional, nullish-coalesced, and logical target
   expressions when either branch hides a weak screenshot target, resolves
   non-null assertion wrappers before screenshot counting and direct image or
   screenshot-helper inspection, resolves screenshot target aliases and helper

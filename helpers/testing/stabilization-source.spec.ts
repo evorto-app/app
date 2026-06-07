@@ -1524,7 +1524,7 @@ describe('stabilization source', () => {
     expect(source).toContain('icon-only and media-only screenshot targets');
     expect(source).toContain("getByRole('img')");
     expect(source).toMatch(
-      /targets for direct generic, broad, single-control, and\s+icon\/media screenshot targets/u,
+      /targets for direct generic, broad, single-control, and icon\/media screenshot\s+targets/u,
     );
     expect(source).toContain('`.flat()`');
     expect(source).toContain('spread target arrays');
@@ -1599,6 +1599,11 @@ describe('stabilization source', () => {
     expect(inventory).toContain('.toSpliced(...)');
     expect(inventory).toContain('.with(...)');
     expect(inventory).toContain('.fill(...)');
+    expect(inventory).toContain('.slice()');
+    expect(inventory).toContain('.reverse()');
+    expect(inventory).toContain('.sort()');
+    expect(inventory).toContain('.toReversed()');
+    expect(inventory).toContain('.toSorted()');
     expect(inventory).toContain('.flat()');
     expect(inventory).toContain(
       'conditional, nullish-coalesced, and logical target\n  expressions',
@@ -1916,6 +1921,9 @@ describe('stabilization source', () => {
       'detects weak documentation screenshot targets inserted through replacement array helpers',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets preserved by array copy and reorder helpers',
+    );
+    expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind branching expressions',
     );
     expect(generatedDocumentationSource).toContain(
@@ -1943,6 +1951,15 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       "[settingsSurface].fill(page.getByRole('button', { name: 'Save' }))",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('main')].slice()",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('section')].reverse()",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('svg')].toSorted()",
     );
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind flattened arrays',

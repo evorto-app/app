@@ -4359,6 +4359,69 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/array-replacement-target.doc.ts:20:13']);
   });
 
+  it('detects weak documentation screenshot targets preserved by array copy and reorder helpers', () => {
+    const arrayCopyAndReorderTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('main')].slice(),
+        page,
+        'Sliced generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('main')].sort(),
+        page,
+        'Sorted generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('section')].reverse(),
+        page,
+        'Reversed broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.getByRole('button', { name: 'Save' })].toReversed(),
+        page,
+        'Copy-reversed single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('svg')].toSorted(),
+        page,
+        'Copy-sorted icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/array-copy-reorder-target.doc.ts',
+        arrayCopyAndReorderTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/array-copy-reorder-target.doc.ts:2:13',
+      'tests/docs/example/array-copy-reorder-target.doc.ts:8:13',
+    ]);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/array-copy-reorder-target.doc.ts',
+        arrayCopyAndReorderTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-copy-reorder-target.doc.ts:14:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/array-copy-reorder-target.doc.ts',
+        arrayCopyAndReorderTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-copy-reorder-target.doc.ts:20:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/array-copy-reorder-target.doc.ts',
+        arrayCopyAndReorderTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-copy-reorder-target.doc.ts:26:13']);
+  });
+
   it('detects weak documentation screenshot targets hidden behind array map calls', () => {
     const arrayMapTargetSource = `
       await takeScreenshot(
