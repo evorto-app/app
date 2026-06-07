@@ -1594,6 +1594,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('array helper calls');
     expect(inventory).toContain('Array.of(...)');
     expect(inventory).toContain('.concat(...)');
+    expect(inventory).toContain('.map(...)');
     expect(inventory).toContain('.flat()');
     expect(inventory).toContain(
       'conditional, nullish-coalesced, and logical target\n  expressions',
@@ -1900,6 +1901,9 @@ describe('stabilization source', () => {
       'detects weak documentation screenshot targets hidden behind array helper calls',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets hidden behind array map calls',
+    );
+    expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind branching expressions',
     );
     expect(generatedDocumentationSource).toContain(
@@ -1916,6 +1920,9 @@ describe('stabilization source', () => {
       "[settingsSurface].concat(page.locator('section'))",
     );
     expect(generatedDocumentationSource).toContain('Array.of(settingsSurface');
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('main')].map((target) => target)",
+    );
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind flattened arrays',
     );

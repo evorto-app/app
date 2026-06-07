@@ -130,6 +130,7 @@ const isTrackedArrayTarget = (
     if (
       methodName === 'flat' ||
       methodName === 'filter' ||
+      methodName === 'map' ||
       methodName === 'reverse' ||
       methodName === 'slice' ||
       methodName === 'sort' ||
@@ -4221,6 +4222,60 @@ describe('generated docs source current behavior', () => {
         arrayHelperTargetSource,
       ),
     ).toEqual(['tests/docs/example/array-helper-target.doc.ts:20:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind array map calls', () => {
+    const arrayMapTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('main')].map((target) => target),
+        page,
+        'Mapped generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('section')].map((target) => target),
+        page,
+        'Mapped broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.getByRole('button', { name: 'Save' })].map((target) => target),
+        page,
+        'Mapped single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('svg')].map((target) => target),
+        page,
+        'Mapped icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/array-map-target.doc.ts',
+        arrayMapTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-map-target.doc.ts:2:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/array-map-target.doc.ts',
+        arrayMapTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-map-target.doc.ts:8:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/array-map-target.doc.ts',
+        arrayMapTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-map-target.doc.ts:14:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/array-map-target.doc.ts',
+        arrayMapTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-map-target.doc.ts:20:13']);
   });
 
   it('detects weak documentation screenshot targets hidden behind branching expressions', () => {
