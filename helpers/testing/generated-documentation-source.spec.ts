@@ -1110,7 +1110,14 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
 
     const body = getObjectPropertyValue(payload, 'body');
 
-    return body ? hasRawMarkdownImage(body) : false;
+    return (
+      (body ? hasRawMarkdownImage(body) : false) ||
+      payload.properties.some(
+        (property) =>
+          ts.isSpreadAssignment(property) &&
+          hasRawMarkdownPayload(property.expression),
+      )
+    );
   };
 
   const isAttachFunctionReference = (node: ts.Expression): boolean => {
@@ -3082,6 +3089,10 @@ const findDirectImageAttachmentCalls = (
     }
 
     return payload.properties.some((property) => {
+      if (ts.isSpreadAssignment(property)) {
+        return isImageAttachmentPayload(property.expression);
+      }
+
       if (
         ts.isShorthandPropertyAssignment(property) &&
         (property.name.text === 'contentType' || property.name.text === 'path')
@@ -4316,6 +4327,34 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/spread-direct-image.doc.ts:12:13',
       'tests/docs/example/spread-direct-image.doc.ts:13:13',
     ]);
+  });
+
+  it('detects spread raw image payloads before generated docs can use them', () => {
+    const spreadRawImagePayloadSource = `
+      const rawImagePayload = { body: imageBuffer, contentType: 'image/png' };
+      const rawImagePathPayload = { path: 'raw-evidence.webp' };
+      await testInfo.attach('raw evidence', { ...rawImagePayload });
+      await testInfo.attach('raw file evidence', { ...rawImagePathPayload });
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      await testInfo.attach('markdown', { ...rawMarkdownPayload });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/spread-raw-image-payload.doc.ts',
+        spreadRawImagePayloadSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/spread-raw-image-payload.doc.ts:4:13',
+      'tests/docs/example/spread-raw-image-payload.doc.ts:5:13',
+    ]);
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/spread-raw-image-payload.doc.ts',
+        spreadRawImagePayloadSource,
+      ),
+    ).toEqual(['tests/docs/example/spread-raw-image-payload.doc.ts:7:13']);
   });
 
   it('detects direct image attachments hidden behind binding default aliases', () => {
