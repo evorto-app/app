@@ -127,6 +127,15 @@ const isTrackedArrayTarget = (
       return isTrackedArrayTarget(receiver, isTrackedTarget, options);
     }
 
+    if (methodName === 'toSpliced') {
+      return (
+        (receiver
+          ? isTrackedArrayTarget(receiver, isTrackedTarget, options)
+          : false) ||
+        target.arguments.slice(2).some((argument) => isTrackedTarget(argument))
+      );
+    }
+
     if (
       methodName === 'flat' ||
       methodName === 'filter' ||
@@ -135,7 +144,6 @@ const isTrackedArrayTarget = (
       methodName === 'slice' ||
       methodName === 'sort' ||
       methodName === 'toReversed' ||
-      methodName === 'toSpliced' ||
       methodName === 'toSorted'
     ) {
       return receiver
@@ -4223,6 +4231,60 @@ describe('generated docs source current behavior', () => {
         arrayHelperTargetSource,
       ),
     ).toEqual(['tests/docs/example/array-helper-target.doc.ts:20:13']);
+  });
+
+  it('detects weak documentation screenshot targets inserted through toSpliced calls', () => {
+    const arrayToSplicedTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].toSpliced(1, 0, page.locator('main')),
+        page,
+        'Spliced generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].toSpliced(1, 0, page.locator('section')),
+        page,
+        'Spliced broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].toSpliced(1, 0, page.getByRole('button', { name: 'Save' })),
+        page,
+        'Spliced single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].toSpliced(1, 0, page.locator('svg')),
+        page,
+        'Spliced icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/array-to-spliced-target.doc.ts',
+        arrayToSplicedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-to-spliced-target.doc.ts:2:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/array-to-spliced-target.doc.ts',
+        arrayToSplicedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-to-spliced-target.doc.ts:8:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/array-to-spliced-target.doc.ts',
+        arrayToSplicedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-to-spliced-target.doc.ts:14:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/array-to-spliced-target.doc.ts',
+        arrayToSplicedTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-to-spliced-target.doc.ts:20:13']);
   });
 
   it('detects weak documentation screenshot targets hidden behind array map calls', () => {
