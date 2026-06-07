@@ -19,12 +19,14 @@ export const missingTenantLegalTextMessage =
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    class: 'block',
+    class: 'bg-surface-container text-on-surface block min-h-dvh',
   },
   imports: [RouterLink],
   selector: 'app-legal-page',
   template: `
-    <main class="mx-auto w-full max-w-3xl px-4 py-8 sm:py-12">
+    <main
+      class="bg-surface-container text-on-surface mx-auto min-h-dvh w-full max-w-3xl px-4 pb-28 pt-8 sm:pt-12 lg:pb-12"
+    >
       <a
         class="text-primary mb-6 inline-block text-sm underline"
         routerLink="/"

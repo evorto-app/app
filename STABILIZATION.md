@@ -5893,6 +5893,12 @@ The public General viewport Playwright sweep now also records browser console
 warnings/errors while it opens each covered anonymous General route, so the
 durable 320x740, 390x844, and 1440x900 route matrix protects the same clean-log
 invariant that the in-app Browser refreshes checked manually.
+The hosted legal page also now paints its own Material surface and reserves
+bottom spacing for the fixed mobile navigation. A current-head in-app Browser
+mobile check on `/legal/terms` exposed white Material text on an unpainted pale
+browser canvas when the Browser session preferred dark colors; the public
+General viewport spec now reruns the legal page at 390x844 with dark-preference
+rendering and asserts readable text contrast against a painted surface.
 A current local run failed on the expected closed database port and Docker
 container-start path, reported the existing port-4200 app's HTTP 500 on
 `/legal/terms`, and still reported the Neon summary as one protected branch, no

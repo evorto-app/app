@@ -34,6 +34,91 @@ const collectBrowserLogFailures = (page: Page): string[] => {
   return browserLogFailures;
 };
 
+const expectReadableTextOnPaintedSurface = async (
+  page: Page,
+  selector: string,
+) => {
+  const contrastReport = await page.locator(selector).evaluate((element) => {
+    const parseRgb = (value: string) => {
+      const match = value.match(
+        /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([.\d]+))?\)$/u,
+      );
+
+      if (!match) {
+        return undefined;
+      }
+
+      return {
+        alpha: match[4] === undefined ? 1 : Number(match[4]),
+        blue: Number(match[3]),
+        green: Number(match[2]),
+        red: Number(match[1]),
+      };
+    };
+    const luminance = (channel: number) => {
+      const normalized = channel / 255;
+
+      return normalized <= 0.03928
+        ? normalized / 12.92
+        : ((normalized + 0.055) / 1.055) ** 2.4;
+    };
+    const relativeLuminance = (color: {
+      blue: number;
+      green: number;
+      red: number;
+    }) =>
+      0.2126 * luminance(color.red) +
+      0.7152 * luminance(color.green) +
+      0.0722 * luminance(color.blue);
+    const contrastRatio = (
+      foreground: { blue: number; green: number; red: number },
+      background: { blue: number; green: number; red: number },
+    ) => {
+      const foregroundLuminance = relativeLuminance(foreground);
+      const backgroundLuminance = relativeLuminance(background);
+      const lighter = Math.max(foregroundLuminance, backgroundLuminance);
+      const darker = Math.min(foregroundLuminance, backgroundLuminance);
+
+      return (lighter + 0.05) / (darker + 0.05);
+    };
+    const findPaintedBackground = (start: Element) => {
+      let current: Element | null = start;
+
+      while (current) {
+        const background = parseRgb(
+          window.getComputedStyle(current).backgroundColor,
+        );
+        if (background && background.alpha > 0) {
+          return background;
+        }
+
+        current = current.parentElement;
+      }
+
+      return undefined;
+    };
+    const foreground = parseRgb(window.getComputedStyle(element).color);
+    const background = findPaintedBackground(element);
+
+    return {
+      background,
+      contrast:
+        foreground && background ? contrastRatio(foreground, background) : 0,
+      foreground,
+      text: element.textContent?.trim().replace(/\s+/g, ' ').slice(0, 80),
+    };
+  });
+
+  expect(
+    contrastReport.background,
+    `${selector} should render on a painted Material surface`,
+  ).toBeDefined();
+  expect(
+    contrastReport.contrast,
+    `${selector} should stay readable in the mobile legal page`,
+  ).toBeGreaterThanOrEqual(4.5);
+};
+
 const expectAnonymousNavigation = async (
   page: Page,
   viewport: (typeof viewportSizes)[number],
@@ -173,4 +258,22 @@ test('public General pages have stable layouts across viewports', async ({
       }
     });
   }
+});
+
+test('public legal page remains readable in dark-preference mobile Browser rendering', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.setViewportSize({ height: 844, width: 390 });
+  await page.goto('/legal/terms');
+
+  await expect(page.getByRole('heading', { name: 'Terms' })).toBeVisible();
+  await expect(
+    page.getByText(
+      'No tenant-provided legal text is configured for this page.',
+    ),
+  ).toBeVisible();
+  await expectReadableTextOnPaintedSurface(page, 'app-legal-page h1');
+  await expectReadableTextOnPaintedSurface(page, 'app-legal-page p');
+  await expect(readPageLayout(page)).resolves.toEqual(expectedStablePageLayout);
 });
