@@ -2785,12 +2785,32 @@ const findDirectImageAttachmentCalls = (
     return null;
   };
 
+  const hasPropertyAlias = (
+    node: ts.Expression,
+    propertyAliases: ReadonlySet<string>,
+  ): boolean => {
+    const expression = unwrapExpression(node);
+    const propertyReference =
+      ts.isPropertyAccessExpression(expression) ||
+      ts.isElementAccessExpression(expression)
+        ? getStaticPropertyReference(expression, sourceFile)
+        : ts.isCallExpression(expression)
+          ? getStaticArrayMethodReference(expression, sourceFile)
+          : null;
+
+    return propertyReference ? propertyAliases.has(propertyReference) : false;
+  };
+
   const isImageAttachmentName = (node: ts.Expression): boolean => {
     const expression = unwrapExpression(node);
     const staticStringValue = getStaticStringValue(expression);
 
     if (staticStringValue !== null) {
       return staticStringValue === 'image';
+    }
+
+    if (hasPropertyAlias(expression, imageAttachmentNamePropertyAliases)) {
+      return true;
     }
 
     if (ts.isCallExpression(expression)) {
@@ -2830,20 +2850,15 @@ const findDirectImageAttachmentCalls = (
       return imageAttachmentNameAliases.has(expression.text);
     }
 
-    if (
-      ts.isPropertyAccessExpression(expression) ||
-      ts.isElementAccessExpression(expression)
-    ) {
-      return imageAttachmentNamePropertyAliases.has(
-        getStaticPropertyReference(expression, sourceFile) ?? '',
-      );
-    }
-
     return false;
   };
 
   const isImageAttachmentPayloadValue = (node: ts.Expression): boolean => {
     const value = unwrapExpression(node);
+
+    if (hasPropertyAlias(value, imageAttachmentPayloadValuePropertyAliases)) {
+      return true;
+    }
 
     if (ts.isCallExpression(value)) {
       return value.arguments.some((argument) =>
@@ -2883,15 +2898,6 @@ const findDirectImageAttachmentCalls = (
       return imageAttachmentPayloadValueAliases.has(value.text);
     }
 
-    if (
-      ts.isPropertyAccessExpression(value) ||
-      ts.isElementAccessExpression(value)
-    ) {
-      return imageAttachmentPayloadValuePropertyAliases.has(
-        getStaticPropertyReference(value, sourceFile) ?? '',
-      );
-    }
-
     const propertyValue = getStringLiteralText(value);
 
     if (!propertyValue) {
@@ -2913,13 +2919,8 @@ const findDirectImageAttachmentCalls = (
       return imageAttachmentPayloadAliases.has(payload.text);
     }
 
-    if (
-      ts.isPropertyAccessExpression(payload) ||
-      ts.isElementAccessExpression(payload)
-    ) {
-      return imageAttachmentPayloadPropertyAliases.has(
-        getStaticPropertyReference(payload, sourceFile) ?? '',
-      );
+    if (hasPropertyAlias(payload, imageAttachmentPayloadPropertyAliases)) {
+      return true;
     }
 
     if (!ts.isObjectLiteralExpression(payload)) {
@@ -2988,13 +2989,8 @@ const findDirectImageAttachmentCalls = (
       return attachFunctionAliases.has(expression.text);
     }
 
-    if (
-      ts.isPropertyAccessExpression(expression) ||
-      ts.isElementAccessExpression(expression)
-    ) {
-      return attachFunctionPropertyAliases.has(
-        getStaticPropertyReference(expression, sourceFile) ?? '',
-      );
+    if (hasPropertyAlias(expression, attachFunctionPropertyAliases)) {
+      return true;
     }
 
     return false;
@@ -4134,6 +4130,35 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/binding-default-image-attachment.doc.ts:7:13',
       'tests/docs/example/binding-default-image-attachment.doc.ts:9:13',
       'tests/docs/example/binding-default-image-attachment.doc.ts:11:13',
+    ]);
+  });
+
+  it('detects at-indexed direct image attachment aliases', () => {
+    const atIndexedImageAttachmentSource = `
+      const imageAttachmentName = 'image';
+      const imageAttachmentNameList = [imageAttachmentName];
+      await testInfo.attach(imageAttachmentNameList.at(0), { body: imageBuffer });
+      const imageContentType = 'image/png';
+      const imageContentTypes = [imageContentType];
+      await testInfo.attach('raw evidence', { contentType: imageContentTypes.at(0) });
+      const rawImagePayload = { contentType: 'image/png' };
+      const rawImagePayloadList = [rawImagePayload];
+      await testInfo.attach('raw evidence', rawImagePayloadList.at(0));
+      const attachEvidence = testInfo.attach.bind(testInfo);
+      const attachHelperList = [attachEvidence];
+      await attachHelperList.at(0)('image', { body: imageBuffer });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/at-indexed-direct-image.doc.ts',
+        atIndexedImageAttachmentSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/at-indexed-direct-image.doc.ts:4:13',
+      'tests/docs/example/at-indexed-direct-image.doc.ts:7:13',
+      'tests/docs/example/at-indexed-direct-image.doc.ts:10:13',
+      'tests/docs/example/at-indexed-direct-image.doc.ts:13:13',
     ]);
   });
 

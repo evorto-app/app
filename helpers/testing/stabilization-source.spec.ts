@@ -1680,23 +1680,27 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/simple or grouped\s+attachment-name/u);
     expect(inventory).toMatch(/wrapped\s+attachment-name forwarding/u);
     expect(inventory).toContain('static concatenation');
+    expect(inventory).toContain('indexed attachment-name lists');
     expect(inventory).toMatch(/raw image\s+MIME\/file-extension payloads/u);
     expect(inventory).toMatch(
       /[Aa]liased,\s+grouped,\s+indexed,\s+destructured,\s+and\s+assigned raw image payload\s+objects/u,
     );
+    expect(inventory).toContain('indexed payload lists');
     expect(inventory).toMatch(/grouped or indexed\s+MIME\/path\s+values/u);
-    expect(inventory).toContain('binding-default attachment names');
-    expect(inventory).toContain('MIME/path values, and raw image payload');
-    expect(inventory).toContain('simple MIME/path forwarding');
+    expect(inventory).toContain('indexed MIME/path lists');
+    expect(inventory).toMatch(/binding-default\s+attachment names/u);
+    expect(inventory).toMatch(/MIME\/path values,\s+and raw image payload/u);
+    expect(inventory).toMatch(/simple\s+MIME\/path forwarding/u);
     expect(inventory).toContain('template interpolation');
     expect(inventory).toContain('nullish/logical expressions');
     expect(inventory).toContain('concatenation');
-    expect(inventory).toMatch(/object shorthand\s+image payloads/u);
+    expect(inventory).toMatch(/object shorthand image\s+payloads/u);
     expect(inventory).toMatch(/computed\s+raw\s+image\s+payload\s+keys/u);
+    expect(inventory).toContain('indexed attach-helper lists');
     expect(inventory).toMatch(
       /raw screenshot and image\s+attach call\/apply invocations/u,
     );
-    expect(inventory).toContain('`Reflect.apply(...)` raw screenshot');
+    expect(inventory).toMatch(/`Reflect\.apply\(\.\.\.\)`\s+raw screenshot/u);
     expect(inventory).toContain('forward-declared raw aliases');
     expect(inventory).toContain('binding-pattern default raw function aliases');
     expect(inventory).toMatch(/computed\s+object keys/u);
@@ -1823,6 +1827,18 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       "const { rawImagePayload = { body: imageBuffer, contentType: 'image/webp' } } = {}",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects at-indexed direct image attachment aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await testInfo.attach(imageAttachmentNameList.at(0), { body: imageBuffer })',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await testInfo.attach('raw evidence', rawImagePayloadList.at(0))",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await attachHelperList.at(0)('image', { body: imageBuffer })",
     );
     expect(generatedDocumentationSource).toContain(
       'const interpolatedAttachmentName = \\`\\${attachmentName}\\`',
@@ -2563,10 +2579,12 @@ describe('stabilization source', () => {
     expect(source).toContain('Optional-call invocations');
     expect(inventory).toMatch(/spread direct attachment\s+arguments/u);
     expect(inventory).toMatch(/opaque attachment `apply\(\.\.\.\)` lists/u);
-    expect(inventory).toContain('`Reflect.apply(...)` raw screenshot');
-    expect(inventory).toContain('inline bound raw screenshot and image attach');
-    expect(inventory).toContain(
-      'conditional,\n  logical, and nested raw screenshot and image attach callees',
+    expect(inventory).toMatch(/`Reflect\.apply\(\.\.\.\)`\s+raw screenshot/u);
+    expect(inventory).toMatch(
+      /inline bound raw screenshot and\s+image attach/u,
+    );
+    expect(inventory).toMatch(
+      /conditional,\s+logical, and nested raw screenshot and image attach callees/u,
     );
     expect(inventory).toContain(
       'optional-call screenshot-helper, raw screenshot, and image attach invocations',

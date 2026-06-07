@@ -631,16 +631,19 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   direct or alias-valued tuple/array screenshot-function entries, rejects direct
   image attachments through simple or grouped attachment-name aliases, wrapped
   attachment-name forwarding through calls, template interpolation, conditionals,
-  nullish/logical expressions, and static concatenation, raw image
-  MIME/file-extension payloads, aliased, grouped, indexed, destructured, and
-  assigned raw image payload objects, aliased grouped or indexed MIME/path values,
-  binding-default attachment names, MIME/path values, and raw image payload
-  objects, simple MIME/path forwarding through calls, template interpolation,
-  conditionals, nullish/logical expressions, and concatenation, object shorthand
-  image payloads, computed raw image payload keys, spread direct attachment
-  arguments, opaque attachment `apply(...)` lists, raw screenshot and image
-  attach call/apply invocations, `Reflect.apply(...)` raw screenshot and image
-  attach invocations, inline bound raw screenshot and image attach invocations,
+  nullish/logical expressions, and static concatenation including `.at(...)`
+  indexed attachment-name lists, raw image MIME/file-extension payloads, aliased,
+  grouped, indexed, destructured, and assigned raw image payload objects
+  including `.at(...)` indexed payload lists, aliased grouped or indexed
+  MIME/path values including `.at(...)` indexed MIME/path lists, binding-default
+  attachment names, MIME/path values, and raw image payload objects, simple
+  MIME/path forwarding through calls, template interpolation, conditionals,
+  nullish/logical expressions, and concatenation, object shorthand image
+  payloads, computed raw image payload keys, spread direct attachment arguments,
+  opaque attachment `apply(...)` lists, `.at(...)` indexed attach-helper lists,
+  raw screenshot and image attach call/apply invocations, `Reflect.apply(...)`
+  raw screenshot and image attach invocations, inline bound raw screenshot and
+  image attach invocations,
   comma-expression raw screenshot and image attach invocations, conditional,
   logical, and nested raw screenshot and image attach callees,
   optional-call screenshot-helper, raw screenshot, and image attach invocations,
