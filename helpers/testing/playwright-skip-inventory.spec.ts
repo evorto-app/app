@@ -99,12 +99,20 @@ const playwrightObjectRestModifierAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^{}]*\.\.\.\s*(?<alias>${identifierPattern})[^{}]*)\}\s*=\s*(?<owner>test(?:${playwrightDescribeAccessPattern})?)\b`,
   'g',
 );
+const playwrightCopiedModifierObjectAliasPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*(?:\{\s*\.\.\.\s*(?<spreadOwner>test(?:${playwrightDescribeAccessPattern})?)\s*\}|Object\.assign\(\s*\{\s*\}\s*,\s*(?<assignedOwner>test(?:${playwrightDescribeAccessPattern})?)\s*\))`,
+  'g',
+);
 const pageDestructuredMethodAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^}]+)\}\s*=\s*page\b`,
   'g',
 );
 const pageObjectRestMethodAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^{}]*\.\.\.\s*(?<alias>${identifierPattern})[^{}]*)\}\s*=\s*page\b`,
+  'g',
+);
+const pageCopiedMethodObjectAliasPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*(?:\{\s*\.\.\.\s*page\s*\}|Object\.assign\(\s*\{\s*\}\s*,\s*page\s*\))`,
   'g',
 );
 const destructuredModifierBindingPattern = new RegExp(
@@ -571,6 +579,7 @@ const collectObjectRestPropertyEntriesForSource = (
   ownerAlias: string,
   ownerDescription: string,
   names: readonly string[],
+  aliasDescription = 'object-rest alias',
 ) => {
   const allowedNames = new Set(names);
   const staticStringAliases = collectStaticStringAliases(source);
@@ -597,7 +606,7 @@ const collectObjectRestPropertyEntriesForSource = (
 
     const offset = match.index ?? 0;
 
-    return `${relativePath}:${lineNumberForOffset(source, offset)}:${formatPatternMatch(match[0])} (${ownerDescription}.${propertyName} object-rest alias)`.replaceAll(
+    return `${relativePath}:${lineNumberForOffset(source, offset)}:${formatPatternMatch(match[0])} (${ownerDescription}.${propertyName} ${aliasDescription})`.replaceAll(
       '\\',
       '/',
     );
@@ -738,7 +747,35 @@ const collectAliasedModifierEntriesForSource = (
     );
   });
 
-  return [...aliasEntries, ...objectRestEntries];
+  const copiedObjectEntries = [
+    ...source.matchAll(playwrightCopiedModifierObjectAliasPattern),
+  ].flatMap((match) => {
+    const alias = match.groups?.alias;
+    const owner = match.groups?.spreadOwner ?? match.groups?.assignedOwner;
+
+    if (alias === undefined || owner === undefined) {
+      return [];
+    }
+
+    const ownerDescription = owner.includes('describe')
+      ? 'test.describe'
+      : 'test';
+    const aliasDescription =
+      match.groups?.spreadOwner === undefined
+        ? 'Object.assign alias'
+        : 'object-spread alias';
+
+    return collectObjectRestPropertyEntriesForSource(
+      relativePath,
+      source,
+      alias,
+      ownerDescription,
+      modifiers,
+      aliasDescription,
+    );
+  });
+
+  return [...aliasEntries, ...objectRestEntries, ...copiedObjectEntries];
 };
 
 const collectAliasedModifierEntries = (modifiers: readonly string[]) =>
@@ -847,7 +884,30 @@ const collectAliasedPageMethodEntriesForSource = (
         );
   });
 
-  return [...aliasEntries, ...objectRestEntries];
+  const copiedObjectEntries = [
+    ...source.matchAll(pageCopiedMethodObjectAliasPattern),
+  ].flatMap((match) => {
+    const alias = match.groups?.alias;
+
+    if (alias === undefined) {
+      return [];
+    }
+
+    const aliasDescription = match[0].includes('Object.assign')
+      ? 'Object.assign alias'
+      : 'object-spread alias';
+
+    return collectObjectRestPropertyEntriesForSource(
+      relativePath,
+      source,
+      alias,
+      'page',
+      methods,
+      aliasDescription,
+    );
+  });
+
+  return [...aliasEntries, ...objectRestEntries, ...copiedObjectEntries];
 };
 
 const collectAliasedPageMethodEntries = (methods: readonly string[]) =>
@@ -1388,6 +1448,49 @@ runtimeRest.slow();`;
     ]);
   });
 
+  it('recognizes object-spread and assigned Playwright modifier objects before inventory checks run', () => {
+    const copiedModifierSource = `const skipKey = 'skip';
+const spreadTest = { ...test };
+spreadTest.skip('hidden spread skip', () => {});
+spreadTest[skipKey]('hidden static spread skip', () => {});
+const assignedDescribe = Object.assign({}, test.describe);
+assignedDescribe.only('hidden assigned focus', () => {});
+const configureKey = 'configure';
+assignedDescribe[configureKey]({ mode: 'serial' });
+const spreadRuntime = { ...test };
+spreadRuntime.slow();`;
+
+    expect(
+      collectAliasedModifierEntriesForSource(
+        'tests/specs/example/copied-modifier-objects.spec.ts',
+        copiedModifierSource,
+        ['skip', 'fixme'],
+      ),
+    ).toEqual([
+      'tests/specs/example/copied-modifier-objects.spec.ts:3:spreadTest.skip( (test.skip object-spread alias)',
+      'tests/specs/example/copied-modifier-objects.spec.ts:4:spreadTest[skipKey]( (test.skip object-spread alias)',
+    ]);
+    expect(
+      collectAliasedModifierEntriesForSource(
+        'tests/specs/example/copied-modifier-objects.spec.ts',
+        copiedModifierSource,
+        ['only'],
+      ),
+    ).toEqual([
+      'tests/specs/example/copied-modifier-objects.spec.ts:6:assignedDescribe.only( (test.describe.only Object.assign alias)',
+    ]);
+    expect(
+      collectAliasedModifierEntriesForSource(
+        'tests/specs/example/copied-modifier-objects.spec.ts',
+        copiedModifierSource,
+        ['slow', 'configure'],
+      ),
+    ).toEqual([
+      'tests/specs/example/copied-modifier-objects.spec.ts:8:assignedDescribe[configureKey]( (test.describe.configure Object.assign alias)',
+      'tests/specs/example/copied-modifier-objects.spec.ts:10:spreadRuntime.slow( (test.slow object-spread alias)',
+    ]);
+  });
+
   it('recognizes aliased page debug and fixed-wait helpers before inventory checks run', () => {
     const aliasedPageMethodSource = `const pauseForDebug = page.pause;
 await pauseForDebug();
@@ -1457,6 +1560,38 @@ await timingRest[waitKey].apply(page, [100]);`;
     ).toEqual([
       'tests/specs/example/object-rest-page-methods.spec.ts:7:timingRest.waitForTimeout( (page.waitForTimeout object-rest alias)',
       'tests/specs/example/object-rest-page-methods.spec.ts:8:timingRest[waitKey].apply (page.waitForTimeout object-rest alias)',
+    ]);
+  });
+
+  it('recognizes object-spread and assigned page debug and fixed-wait helpers before inventory checks run', () => {
+    const copiedPageMethodSource = `const pauseKey = 'pause';
+const spreadPage = { ...page };
+await spreadPage.pause();
+await spreadPage[pauseKey]();
+const waitKey = 'waitForTimeout';
+const assignedPage = Object.assign({}, page);
+await assignedPage.waitForTimeout(100);
+await assignedPage[waitKey].apply(page, [100]);`;
+
+    expect(
+      collectAliasedPageMethodEntriesForSource(
+        'tests/specs/example/copied-page-methods.spec.ts',
+        copiedPageMethodSource,
+        ['pause'],
+      ),
+    ).toEqual([
+      'tests/specs/example/copied-page-methods.spec.ts:3:spreadPage.pause( (page.pause object-spread alias)',
+      'tests/specs/example/copied-page-methods.spec.ts:4:spreadPage[pauseKey]( (page.pause object-spread alias)',
+    ]);
+    expect(
+      collectAliasedPageMethodEntriesForSource(
+        'tests/specs/example/copied-page-methods.spec.ts',
+        copiedPageMethodSource,
+        ['waitForTimeout'],
+      ),
+    ).toEqual([
+      'tests/specs/example/copied-page-methods.spec.ts:7:assignedPage.waitForTimeout( (page.waitForTimeout Object.assign alias)',
+      'tests/specs/example/copied-page-methods.spec.ts:8:assignedPage[waitKey].apply (page.waitForTimeout Object.assign alias)',
     ]);
   });
 

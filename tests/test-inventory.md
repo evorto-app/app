@@ -556,6 +556,14 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `describeRest.only(...)`, `describeRest[configureKey](...)`,
   `pageRest.pause(...)`, and `timingRest[waitKey].apply(...)` cannot hide
   skipped, focused, runtime-altered, debug, or fixed-wait coverage changes.
+  Object-spread and `Object.assign` copied Playwright/page helper objects are
+  classified the same way, so `const spreadTest = { ...test }`,
+  `const assignedDescribe = Object.assign({}, test.describe)`,
+  `const spreadPage = { ...page }`, and
+  `const assignedPage = Object.assign({}, page)` cannot hide
+  `spreadTest.skip(...)`, `assignedDescribe[configureKey](...)`,
+  `spreadPage.pause(...)`, or `assignedPage[waitKey].apply(...)` from the
+  skip/focus/runtime/debug/fixed-wait inventory.
   Nested `test.describe` destructuring such as
   `const { describe: { skip } } = test` is classified before the alias can hide
   skipped, focused, or serial coverage.

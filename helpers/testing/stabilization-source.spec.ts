@@ -5051,6 +5051,12 @@ describe('stabilization source', () => {
     ).toContain('pageObjectRestMethodAliasPattern');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('playwrightCopiedModifierObjectAliasPattern');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('pageCopiedMethodObjectAliasPattern');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('collectObjectRestPropertyEntriesForSource');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
@@ -5064,6 +5070,16 @@ describe('stabilization source', () => {
     );
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain(
+      'recognizes object-spread and assigned Playwright modifier objects before inventory checks run',
+    );
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain(
+      'recognizes object-spread and assigned page debug and fixed-wait helpers before inventory checks run',
+    );
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('testRest[skipKey]');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
@@ -5071,6 +5087,15 @@ describe('stabilization source', () => {
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('timingRest[waitKey].apply');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('spreadTest[skipKey]');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('assignedDescribe[configureKey]');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('assignedPage[waitKey].apply');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('split-modifiers.spec.ts');
@@ -5128,6 +5153,22 @@ describe('stabilization source', () => {
     expect(inventory).toContain('timingRest[waitKey].apply(...)');
     expect(inventory).toContain(
       'skipped, focused, runtime-altered, debug, or fixed-wait coverage changes',
+    );
+    expect(inventory).toContain(
+      'Object-spread and `Object.assign` copied Playwright/page helper objects',
+    );
+    expect(inventory).toContain('const spreadTest = { ...test }');
+    expect(inventory).toContain(
+      'const assignedDescribe = Object.assign({}, test.describe)',
+    );
+    expect(inventory).toContain('const spreadPage = { ...page }');
+    expect(inventory).toContain('const assignedPage = Object.assign({}, page)');
+    expect(inventory).toContain('spreadTest.skip(...)');
+    expect(inventory).toContain('assignedDescribe[configureKey](...)');
+    expect(inventory).toContain('spreadPage.pause(...)');
+    expect(inventory).toContain('assignedPage[waitKey].apply(...)');
+    expect(inventory).toContain(
+      'skip/focus/runtime/debug/fixed-wait inventory',
     );
     expect(inventory).toContain("page['pause'](...)");
     expect(inventory).toContain('local aliases of `page.pause`');
@@ -5198,6 +5239,18 @@ describe('stabilization source', () => {
     expect(source).toContain('describeRest[configureKey](...)');
     expect(source).toContain('timingRest[waitKey].apply(...)');
     expect(source).toContain('before allowlist comparison');
+    expect(source).toContain(
+      'Object-spread and `Object.assign` copied Playwright/page helper objects',
+    );
+    expect(source).toContain('const spreadTest = { ...test }');
+    expect(source).toContain(
+      'const assignedDescribe = Object.assign({}, test.describe)',
+    );
+    expect(source).toContain('const spreadPage = { ...page }');
+    expect(source).toContain('const assignedPage = Object.assign({}, page)');
+    expect(source).toContain('spreadTest[skipKey](...)');
+    expect(source).toContain('assignedDescribe[configureKey](...)');
+    expect(source).toContain('assignedPage[waitKey].apply(...)');
     expect(source).toContain("page['pause'](...)");
     expect(source).toContain('local `page.pause` aliases');
     expect(source).toContain('direct\n`page.pause.call/apply/bind(...)`');
@@ -5646,28 +5699,27 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toContain(
-      'object-rest copied Playwright modifier and page\nhelper objects',
+      'object-spread and `Object.assign` copied Playwright\nmodifier/page helper objects',
     );
     expect(source).toContain(
-      'classified before the skip/focus/runtime/debug/fixed-wait\ninventory',
+      'classified beside object-rest copied\nhelpers before the skip/focus/runtime/debug/fixed-wait inventory',
     );
-    expect(source).toContain('const { skip: ignoredSkip, ...testRest } = test');
+    expect(source).toContain('const spreadTest = { ...test }');
     expect(source).toContain(
-      'const { only: ignoredOnly, ...describeRest } = test.describe',
+      'const assignedDescribe = Object.assign({}, test.describe)',
     );
+    expect(source).toContain('const spreadPage = { ...page }');
+    expect(source).toContain('const assignedPage = Object.assign({}, page)');
+    expect(source).toContain('spreadTest[skipKey](...)');
+    expect(source).toContain('assignedDescribe[configureKey](...)');
+    expect(source).toContain('assignedPage[waitKey].apply(...)');
     expect(source).toContain(
-      'const { pause: ignoredPause, ...pageRest } = page',
-    );
-    expect(source).toContain('testRest[skipKey](...)');
-    expect(source).toContain('describeRest[configureKey](...)');
-    expect(source).toContain('timingRest[waitKey].apply(...)');
-    expect(source).toContain(
-      'cannot hide skipped, focused, serial/slow, interactive\ndebug, or fixed-wait coverage changes',
+      'copying the helper object\nthrough spread or `Object.assign`',
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/playwright-skip-inventory.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 88 tests');
+    expect(source).toContain('with 90 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5681,25 +5733,22 @@ describe('stabilization source', () => {
     expect(source).toContain('source-only slice');
     expect(source).toContain('`bun run dev:status`');
     expect(source).toContain(
-      'generated local app returning\nHTTP 500 for `/legal/terms`',
+      'generated database endpoint\naccepting TCP connections',
     );
-    expect(source).toContain('database validation query failed');
+    expect(source).toContain('`Connection terminated unexpectedly`');
+    expect(source).toMatch(
+      /Docker's\s+disposable start-path preflight timed out/u,
+    );
+    expect(source).toContain('project-scoped `db` container was unhealthy');
     expect(source).toContain(
-      "Docker's\ndisposable start-path preflight timed out",
+      'existing\napp route probe could not connect to `/legal/terms`',
     );
-    expect(source).toContain(
-      'project-scoped app container\ncould not be restarted',
-    );
-    expect(source).toContain('database container became unhealthy');
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=object-rest-skip-inventory-source-guard',
+      '/legal/terms?stabilizationEvidence=copied-object-skip-inventory-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
-    expect(source).toContain('`http://localhost:4218`');
-    expect(source).toContain(
-      'was not listening after the app container exited',
-    );
+    expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');
     expect(source).not.toContain(
       '`evorto-object-rest-skip-inventory-terms-390x844.png`',
     );
@@ -5992,7 +6041,7 @@ describe('stabilization source', () => {
       /from the\s+current Font Awesome install blocker/u,
     );
     expect(source).not.toContain('current local source slice');
-    expect(source).not.toContain('`net::ERR_BLOCKED_BY_CLIENT`');
+    expect(source).toContain('Earlier Browser/dev-runtime retry checkpoint');
     expect(packageJson.scripts['dev:check']).toBe(
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts dev',
     );
