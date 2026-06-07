@@ -2112,7 +2112,10 @@ the current working direction until a product decision overrides them.
   no-wrap, truncate, and line-clamp utilities so mobile labels wrap instead of
   disappearing behind clipped text, and rejects full viewport-width sizing so
   app layouts do not reintroduce `w-screen`-style horizontal overflow on narrow
-  mobile viewports. The same local app-source guard now keeps diagnostics on
+  mobile viewports. It also rejects legacy full viewport-height sizing such as
+  `h-screen` or exact `100vh`/`100svh`/`100lvh` app-shell heights, keeping
+  mobile app surfaces on dynamic viewport units like `dvh` where full-height
+  shell sizing is needed. The same local app-source guard now keeps diagnostics on
   scoped `consola/browser` loggers instead of direct `console.*` calls or
   `debugger` statements, and it keeps repeated app card surfaces on semantic
   Material/Tailwind containers instead of reintroducing Angular Material card
@@ -2124,12 +2127,13 @@ the current working direction until a product decision overrides them.
   A fresh June 7, 2026 focused app-source design-token guard run in this
   worktree passed
   `bunx --bun ng test --include src/app/shared/components/design-token-usage.spec.ts`
-  with 10 tests. This is source-level Material/mobile drift coverage, not fresh
+  with 11 tests. This is source-level Material/mobile drift coverage, not fresh
   Browser-rendered page evidence: it keeps app UI files off hardcoded
   hex/rgb/hsl colors, arbitrary color utilities, Material-token bridge drift,
   viewport-scaled typography, no-wrap/truncate/line-clamp text clipping,
-  viewport-width containers, direct `console.*`/`debugger`, Angular Material
-  card shells, and decorative gradient/orb/large-blur backgrounds plus
+  viewport-width containers, legacy full-height mobile sizing, direct
+  `console.*`/`debugger`, Angular Material card shells, and decorative
+  gradient/orb/large-blur backgrounds plus
   shadow/drop-shadow/box-shadow/mat-elevation surface treatments.
 - **Addressed in stabilization pass:** `specs/seed/seed-baseline.test.ts` now treats the reset-from-zero seed as a runtime contract: default user/organizer roles, every template seed family, paid/free registration options, paid tax-rate wiring, open/closed/draft/past scenario handles, confirmed registrations, and scanner aggregate data must all exist after seeding.
 - **Addressed in stabilization pass:** `.env.example` is now a checked-in

@@ -72,6 +72,22 @@ const viewportWidthPatterns = [
     pattern: /\b(?:width|min-width|max-width)\s*:[^;]*(?:vw|dvw|svw|lvw)/u,
   },
 ] as const;
+const legacyViewportHeightPatterns = [
+  {
+    label: 'legacy full viewport height utility',
+    pattern:
+      /(?:^|[\s"'`{])(?:h-screen|min-h-screen|max-h-screen)(?=$|[\s"'`}])/u,
+  },
+  {
+    label: 'legacy full viewport height arbitrary utility',
+    pattern: /\b(?:h|min-h|max-h)-\[[^\]]*(?:100vh|100svh|100lvh)[^\]]*\]/u,
+  },
+  {
+    label: 'legacy full viewport height declaration',
+    pattern:
+      /\b(?:height|min-height|max-height)\s*:[^;]*(?:100vh|100svh|100lvh)/u,
+  },
+] as const;
 const debugPatterns = [
   {
     label: 'direct console usage',
@@ -304,6 +320,24 @@ describe('design token usage', () => {
       const source = readFileSync(filePath, 'utf8');
 
       return viewportWidthPatterns.flatMap(({ label, pattern }) => {
+        const matches = source.match(pattern);
+
+        return matches
+          ? [
+              `${filePath.replace(sourceRoot, 'src/app')}: ${label} (${matches[0]})`,
+            ]
+          : [];
+      });
+    });
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps app shell heights on dynamic viewport units', () => {
+    const offenders = appSourceFiles(sourceRoot).flatMap((filePath) => {
+      const source = readFileSync(filePath, 'utf8');
+
+      return legacyViewportHeightPatterns.flatMap(({ label, pattern }) => {
         const matches = source.match(pattern);
 
         return matches
