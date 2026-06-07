@@ -6923,6 +6923,22 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'Events/Login navigation remains visible and fixed as bottom navigation on\n    mobile and side navigation on desktop',
     );
+    expect(inventory).toContain('Browser refresh on pushed head `aef3ccdc`');
+    expect(inventory).toContain(
+      'same anonymous\n  General route set at 320x740 and 390x844',
+    );
+    expect(inventory).toContain(
+      'no horizontal overflow, top/side\n  clipped visible controls',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-public-general-aef3ccdc-narrow-mobile-events.jpg',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-public-general-aef3ccdc-mobile-legal-privacy.jpg',
+    );
+    expect(inventory).toContain(
+      'actual\n  seeded Material event cards and the privacy legal fallback page',
+    );
     expect(adminSettingsSpec).toContain(
       'const collectBrowserLogFailures = (page: Page): string[]',
     );
