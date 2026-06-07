@@ -2315,7 +2315,19 @@ describe('stabilization source', () => {
       'templateLiteralDirectHelper',
     );
     expect(generatedDocumentationSource).toContain(
-      'const moduleSpecifier = getLiteralText(node.arguments[0])',
+      'const moduleSpecifier = getLiteralText(\n          node.arguments[0],\n          staticStringAliases,',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects constant-backed property raw capture spellings',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const screenshotKey = 'screen' + 'shot'",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await documentationReporter[helperKey](',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'await import(reporterPath)',
     );
     expect(generatedDocumentationSource).toContain(
       'isIndirectTakeScreenshotCall',

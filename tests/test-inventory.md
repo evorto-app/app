@@ -648,7 +648,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `testInfo['attach']`, and `documentationReporter['takeScreenshot']` the same
   as dot-property access, resolves computed static property spellings such as
   `page['screen' + 'shot']`, `testInfo['att' + 'ach']`, and
-  `documentationReporter['take' + 'Screenshot']`, rejects direct screenshots through simple,
+  `documentationReporter['take' + 'Screenshot']`, and resolves
+  constant-backed property spellings such as `page[screenshotKey]`,
+  `testInfo[attachKey]`, `documentationReporter[helperKey]`, and
+  `import(reporterPath)`, rejects direct screenshots through simple,
   destructured, or nested destructured screenshot-function aliases,
   binding-default screenshot-function aliases,
   grouped screenshot-function properties, shorthand or alias-valued grouped
@@ -1031,6 +1034,12 @@ provider outcomes without live identifiers.
     The E2E cache warmer also runs TTL-conservative Neon branch cleanup before
     dependency installs when Neon credentials are available, keeping stale-branch
     recovery separate from Font Awesome bandwidth mitigation.
+    CI E2E also sets `MINIO_HOST_PORT=0` and `MINIO_CONSOLE_HOST_PORT=0`; the
+    runtime env generator preserves those MinIO-only ephemeral host ports so
+    Docker can avoid runner port collisions while app readiness still uses
+    `APP_HOST_PORT=4200`, Neon Local still uses `NEON_LOCAL_HOST_PORT=55432`,
+    and the app talks to MinIO over the Compose network at
+    `http://minio:9000`.
     The E2E workflow keeps a same-ref concurrency group with
     `cancel-in-progress: true`; the stabilization source guard ties that setting
     to observed PR #62 cancellation behavior where a previous-head hosted

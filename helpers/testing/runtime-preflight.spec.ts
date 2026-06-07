@@ -426,6 +426,10 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'helpers/README.md'),
       'utf8',
     );
+    const workflow = fs.readFileSync(
+      path.join(process.cwd(), '.github/workflows/e2e-baseline.yml'),
+      'utf8',
+    );
     const runtimeEnvironment = fs.readFileSync(
       path.join(process.cwd(), 'helpers/testing/runtime-environment.ts'),
       'utf8',
@@ -1525,12 +1529,37 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'helpers/README.md'),
       'utf8',
     );
+    const workflow = fs.readFileSync(
+      path.join(process.cwd(), '.github/workflows/e2e-baseline.yml'),
+      'utf8',
+    );
 
     expect(runtimeEnvironment).toContain(
       'const existingRuntimeEnvironment = readExistingRuntimeEnvironment();',
     );
     expect(runtimeEnvironment).toContain(
-      'const parsed = parsePort(existingRuntimeEnvironment[name]);',
+      'const parsed = parsePort(existingRuntimeEnvironment[name], options);',
+    );
+    expect(runtimeEnvironment).toContain(
+      'options: { allowEphemeralHostPort?: boolean } = {}',
+    );
+    expect(runtimeEnvironment).toContain(
+      'options.allowEphemeralHostPort === true && parsed === 0',
+    );
+    expect(runtimeEnvironment).toContain('{ allowEphemeralHostPort: true },');
+    expect(runtimeEnvironment).toContain('MINIO_HOST_PORT: String');
+    expect(runtimeEnvironment).toContain('MINIO_CONSOLE_HOST_PORT: String');
+    expect(workflow).toContain('MINIO_HOST_PORT: 0');
+    expect(workflow).toContain('MINIO_CONSOLE_HOST_PORT: 0');
+    expect(workflow).toContain('S3_ENDPOINT: http://minio:9000');
+    expect(workflow).toContain('NEON_LOCAL_HOST_PORT: 55432');
+    expect(workflow).toContain('APP_HOST_PORT: 4200');
+    expect(workflow).toContain('BASE_URL: http://localhost:4200');
+    expect(workflow).toContain('COMPOSE_PROJECT_NAME: evorto-ci');
+    expect(workflow).not.toContain('MINIO_HOST_PORT: 9307');
+    expect(workflow).not.toContain('MINIO_CONSOLE_HOST_PORT: 9308');
+    expect(workflow.indexOf('MINIO_HOST_PORT: 0')).toBeLessThan(
+      workflow.indexOf('NEON_DATABASE_NAME: appdb'),
     );
     expect(testsReadme).toContain(
       'later package scripts preserve its generated local',

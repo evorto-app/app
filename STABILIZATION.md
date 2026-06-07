@@ -6083,6 +6083,15 @@ Focused helper coverage now executes the metadata recorder against temporary
 Neon Local metadata, checking unique branch-id summary output, GitHub
 step-summary writing, artifact creation, and the no-metadata success path
 without requiring Docker or Neon credentials.
+CI run `27083233133` then exposed a separate Docker-start collision before
+Playwright ran: `functional-1` could not bind the generated MinIO host port
+`9307` even after the retry cleanup. The E2E workflow now sets
+`MINIO_HOST_PORT=0` and `MINIO_CONSOLE_HOST_PORT=0`, and the runtime env
+generator preserves those MinIO-only ephemeral host-port requests while keeping
+`APP_HOST_PORT=4200` and `NEON_LOCAL_HOST_PORT=55432` explicit for Auth0,
+readiness, and Neon Local access. The app still talks to MinIO through the
+Compose network at `http://minio:9000`, so tests do not depend on a fixed MinIO
+host port.
 Generated-doc source coverage also rejects generic page-shell screenshot focus
 targets such as `locator('main')`; screenshot evidence must focus a meaningful
 product control, form, component, row, or state while still capturing visible
@@ -6297,6 +6306,13 @@ spellings such as `testInfo['att' + 'ach'](...)`,
 `documentationReporter['take' + 'Screenshot'](...)` are resolved the same way,
 so splitting a sensitive method name across literals cannot bypass the shared
 docs screenshot helper or raw-image attachment guards.
+Constant-backed static property spellings are resolved the same way too, so
+generated-doc sources cannot hide raw screenshots, raw image attachments, raw
+Markdown image attachments, documentation-reporter helper calls, dynamic helper
+imports, computed raw payload keys, or destructured/grouped raw helper aliases
+behind local strings such as `const key = 'screenshot'` before using
+`page[key](...)`, `testInfo[attachKey](...)`,
+`documentationReporter[helperKey](...)`, or `import(reporterPath)`.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.

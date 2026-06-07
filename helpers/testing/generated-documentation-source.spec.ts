@@ -355,6 +355,7 @@ const collectDestructuredPropertyAliases = (
   sourceFile: ts.SourceFile,
   propertyAliases: ReadonlySet<string>,
   aliases: Set<string>,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
 ): void => {
   if (
     !node.initializer ||
@@ -377,11 +378,14 @@ const collectDestructuredPropertyAliases = (
 
       const propertyName = element.propertyName ?? element.name;
 
-      const staticPropertyName = getStaticPropertyNameFromName(propertyName);
+      const aliasedStaticPropertyName = getStaticPropertyNameFromName(
+        propertyName,
+        stringAliases,
+      );
 
       if (
-        staticPropertyName &&
-        propertyAliases.has(`${sourceObject.text}.${staticPropertyName}`)
+        aliasedStaticPropertyName &&
+        propertyAliases.has(`${sourceObject.text}.${aliasedStaticPropertyName}`)
       ) {
         aliases.add(element.name.text);
       }
@@ -437,6 +441,7 @@ const collectPropertyBindingAliases = (
   name: ts.BindingName,
   propertyName: string,
   aliases: Set<string>,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
 ): void => {
   if (ts.isIdentifier(name)) {
     return;
@@ -448,12 +453,18 @@ const collectPropertyBindingAliases = (
     }
 
     if (ts.isArrayBindingPattern(name)) {
-      collectPropertyBindingAliases(element.name, propertyName, aliases);
+      collectPropertyBindingAliases(
+        element.name,
+        propertyName,
+        aliases,
+        stringAliases,
+      );
       continue;
     }
 
     const staticPropertyName = getStaticPropertyNameFromName(
       element.propertyName ?? element.name,
+      stringAliases,
     );
 
     if (staticPropertyName === propertyName) {
@@ -461,7 +472,12 @@ const collectPropertyBindingAliases = (
       continue;
     }
 
-    collectPropertyBindingAliases(element.name, propertyName, aliases);
+    collectPropertyBindingAliases(
+      element.name,
+      propertyName,
+      aliases,
+      stringAliases,
+    );
   }
 };
 
@@ -506,6 +522,7 @@ const collectGroupedPropertyAliases = (
   isTrackedReference: (node: ts.Expression) => boolean,
   aliases: ReadonlySet<string>,
   propertyAliases: Set<string>,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
 ): void => {
   const groupedInitializer = unwrapExpression(initializer);
 
@@ -519,7 +536,10 @@ const collectGroupedPropertyAliases = (
           aliases,
         )
       ) {
-        const propertyName = getStaticPropertyNameFromName(property.name);
+        const propertyName = getStaticPropertyNameFromName(
+          property.name,
+          stringAliases,
+        );
 
         if (propertyName) {
           propertyAliases.add(`${ownerName}.${propertyName}`);
@@ -552,7 +572,10 @@ const isTakeScreenshotCall = (node: ts.CallExpression): boolean => {
   return ts.isIdentifier(callee) && callee.text === 'takeScreenshot';
 };
 
-const resolveStaticStringValue = (node: ts.Expression): null | string => {
+const resolveStaticStringValue = (
+  node: ts.Expression,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
+): null | string => {
   const expression = unwrapExpression(node);
 
   if (
@@ -562,12 +585,16 @@ const resolveStaticStringValue = (node: ts.Expression): null | string => {
     return expression.text;
   }
 
+  if (ts.isIdentifier(expression)) {
+    return stringAliases.get(expression.text) ?? null;
+  }
+
   if (
     ts.isBinaryExpression(expression) &&
     expression.operatorToken.kind === ts.SyntaxKind.PlusToken
   ) {
-    const left = resolveStaticStringValue(expression.left);
-    const right = resolveStaticStringValue(expression.right);
+    const left = resolveStaticStringValue(expression.left, stringAliases);
+    const right = resolveStaticStringValue(expression.right, stringAliases);
 
     return left !== null && right !== null ? `${left}${right}` : null;
   }
@@ -576,7 +603,10 @@ const resolveStaticStringValue = (node: ts.Expression): null | string => {
     let value = expression.head.text;
 
     for (const span of expression.templateSpans) {
-      const spanValue = resolveStaticStringValue(span.expression);
+      const spanValue = resolveStaticStringValue(
+        span.expression,
+        stringAliases,
+      );
 
       if (spanValue === null) {
         return null;
@@ -591,7 +621,42 @@ const resolveStaticStringValue = (node: ts.Expression): null | string => {
   return null;
 };
 
-const getStaticPropertyName = (node: ts.Expression): null | string => {
+const collectStaticStringAliases = (
+  sourceFile: ts.SourceFile,
+): ReadonlyMap<string, string> => {
+  const aliases = new Map<string, string>();
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer
+      ) {
+        const value = resolveStaticStringValue(node.initializer, aliases);
+
+        if (value !== null && aliases.get(node.name.text) !== value) {
+          aliases.set(node.name.text, value);
+          changed = true;
+        }
+      }
+
+      ts.forEachChild(node, visit);
+    };
+
+    visit(sourceFile);
+  }
+
+  return aliases;
+};
+
+const getStaticPropertyName = (
+  node: ts.Expression,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
+): null | string => {
   const expression = unwrapExpression(node);
 
   if (ts.isPropertyAccessExpression(expression)) {
@@ -600,7 +665,7 @@ const getStaticPropertyName = (node: ts.Expression): null | string => {
 
   if (ts.isElementAccessExpression(expression)) {
     const argument = unwrapExpression(expression.argumentExpression);
-    const staticStringValue = resolveStaticStringValue(argument);
+    const staticStringValue = resolveStaticStringValue(argument, stringAliases);
 
     if (staticStringValue !== null) {
       return staticStringValue;
@@ -614,8 +679,11 @@ const getStaticPropertyName = (node: ts.Expression): null | string => {
   return null;
 };
 
-const getLiteralText = (node: ts.Expression): null | string => {
-  return resolveStaticStringValue(node);
+const getLiteralText = (
+  node: ts.Expression,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
+): null | string => {
+  return resolveStaticStringValue(node, stringAliases);
 };
 
 const getIdentifierText = (node: ts.Expression): null | string => {
@@ -626,6 +694,7 @@ const getIdentifierText = (node: ts.Expression): null | string => {
 
 const getStaticPropertyNameFromName = (
   node: ts.PropertyName,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
 ): null | string => {
   if (
     ts.isIdentifier(node) ||
@@ -636,7 +705,7 @@ const getStaticPropertyNameFromName = (
   }
 
   if (ts.isComputedPropertyName(node)) {
-    return resolveStaticStringValue(node.expression);
+    return resolveStaticStringValue(node.expression, stringAliases);
   }
 
   return null;
@@ -681,8 +750,9 @@ const isReflectApplyCallee = (node: ts.Expression): boolean => {
 const getStaticPropertyReference = (
   node: ts.Expression,
   sourceFile: ts.SourceFile,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
 ): null | string => {
-  const propertyName = getStaticPropertyName(node);
+  const propertyName = getStaticPropertyName(node, stringAliases);
   const receiver = getStaticPropertyReceiver(node);
 
   if (!propertyName || !receiver) {
@@ -695,6 +765,7 @@ const getStaticPropertyReference = (
 const getStaticArrayMethodReference = (
   node: ts.Expression,
   sourceFile: ts.SourceFile,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
 ): null | string => {
   const expression = unwrapExpression(node);
 
@@ -714,7 +785,11 @@ const getStaticArrayMethodReference = (
   const receiver = getStaticPropertyReceiver(callee);
   const index = getStaticIntegerIndex(expression.arguments[0]);
 
-  if (!receiver || getStaticPropertyName(callee) !== 'at' || index === null) {
+  if (
+    !receiver ||
+    getStaticPropertyName(callee, stringAliases) !== 'at' ||
+    index === null
+  ) {
     return null;
   }
 
@@ -822,6 +897,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     true,
     ts.ScriptKind.TS,
   );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
   const rawImages: string[] = [];
   const markdownAttachmentNameAliases = new Set<string>();
   const markdownAttachmentNamePropertyAliases = new Set<string>();
@@ -847,7 +923,8 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     for (const property of objectLiteral.properties) {
       if (
         ts.isPropertyAssignment(property) &&
-        getStaticPropertyNameFromName(property.name) === propertyName
+        getStaticPropertyNameFromName(property.name, staticStringAliases) ===
+          propertyName
       ) {
         return property.initializer;
       }
@@ -865,7 +942,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
 
   const getStaticStringValue = (node: ts.Expression): null | string => {
     const expression = unwrapExpression(node);
-    const literalText = getLiteralText(expression);
+    const literalText = getLiteralText(expression, staticStringAliases);
 
     if (literalText !== null) {
       return literalText;
@@ -892,9 +969,17 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     const propertyReference =
       ts.isPropertyAccessExpression(expression) ||
       ts.isElementAccessExpression(expression)
-        ? getStaticPropertyReference(expression, sourceFile)
+        ? getStaticPropertyReference(
+            expression,
+            sourceFile,
+            staticStringAliases,
+          )
         : ts.isCallExpression(expression)
-          ? getStaticArrayMethodReference(expression, sourceFile)
+          ? getStaticArrayMethodReference(
+              expression,
+              sourceFile,
+              staticStringAliases,
+            )
           : null;
 
     return propertyReference ? propertyAliases.has(propertyReference) : false;
@@ -947,7 +1032,11 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       ((ts.isPropertyAccessExpression(expression) ||
         ts.isElementAccessExpression(expression)) &&
         rawMarkdownBodyPropertyAliases.has(
-          getStaticPropertyReference(expression, sourceFile) ?? '',
+          getStaticPropertyReference(
+            expression,
+            sourceFile,
+            staticStringAliases,
+          ) ?? '',
         )) ||
       rawMarkdownImagePattern.test(expression.getText(sourceFile))
     );
@@ -1030,17 +1119,19 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     if (
       (ts.isPropertyAccessExpression(expression) ||
         ts.isElementAccessExpression(expression)) &&
-      getStaticPropertyName(expression) === 'attach'
+      getStaticPropertyName(expression, staticStringAliases) === 'attach'
     ) {
       return true;
     }
 
     if (
       ts.isCallExpression(expression) &&
-      getStaticPropertyName(expression.expression) === 'bind' &&
+      getStaticPropertyName(expression.expression, staticStringAliases) ===
+        'bind' &&
       getStaticPropertyName(
         getStaticPropertyReceiver(expression.expression) ??
           expression.expression,
+        staticStringAliases,
       ) === 'attach'
     ) {
       return true;
@@ -1079,7 +1170,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     ) {
       const initializer = unwrapExpression(node.initializer);
 
-      if (getLiteralText(initializer) === 'markdown') {
+      if (getLiteralText(initializer, staticStringAliases) === 'markdown') {
         markdownAttachmentNameAliases.add(node.name.text);
       }
 
@@ -1097,7 +1188,10 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
 
       if (ts.isObjectLiteralExpression(initializer)) {
         for (const property of initializer.properties) {
-          const propertyName = getStaticPropertyNameFromName(property.name);
+          const propertyName = getStaticPropertyNameFromName(
+            property.name,
+            staticStringAliases,
+          );
           const propertyInitializer = ts.isPropertyAssignment(property)
             ? unwrapExpression(property.initializer)
             : null;
@@ -1201,6 +1295,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -1218,6 +1313,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -1235,6 +1331,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -1252,6 +1349,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -1284,6 +1382,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         node.name,
         'attach',
         markdownAttachFunctionAliases,
+        staticStringAliases,
       );
     }
 
@@ -1293,24 +1392,28 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         sourceFile,
         markdownAttachmentNamePropertyAliases,
         markdownAttachmentNameAliases,
+        staticStringAliases,
       );
       collectDestructuredPropertyAliases(
         node,
         sourceFile,
         rawMarkdownBodyPropertyAliases,
         rawMarkdownBodyAliases,
+        staticStringAliases,
       );
       collectDestructuredPropertyAliases(
         node,
         sourceFile,
         markdownAttachFunctionPropertyAliases,
         markdownAttachFunctionAliases,
+        staticStringAliases,
       );
       collectDestructuredPropertyAliases(
         node,
         sourceFile,
         rawMarkdownPayloadPropertyAliases,
         rawMarkdownPayloadAliases,
+        staticStringAliases,
       );
     }
 
@@ -1352,7 +1455,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     const receiver = getStaticPropertyReceiver(bindCallee);
 
     return (
-      getStaticPropertyName(bindCallee) === 'bind' &&
+      getStaticPropertyName(bindCallee, staticStringAliases) === 'bind' &&
       !!receiver &&
       isTrackedAttachFunctionReference(receiver)
     );
@@ -1369,7 +1472,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       return false;
     }
 
-    const methodName = getStaticPropertyName(callee);
+    const methodName = getStaticPropertyName(callee, staticStringAliases);
     const receiver = getStaticPropertyReceiver(callee);
 
     if (
@@ -2596,6 +2699,7 @@ const findScreenshotHelperBypasses = (
     true,
     ts.ScriptKind.TS,
   );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
   const bypasses: string[] = [];
 
   const describeNode = (node: ts.Node): string => {
@@ -2647,7 +2751,7 @@ const findScreenshotHelperBypasses = (
     }
 
     const receiver = unwrapExpression(getStaticPropertyReceiver(node) ?? node);
-    const propertyName = getStaticPropertyName(node);
+    const propertyName = getStaticPropertyName(node, staticStringAliases);
 
     return (
       ts.isIdentifier(receiver) &&
@@ -2705,7 +2809,10 @@ const findScreenshotHelperBypasses = (
       const callee = unwrapExpression(node.expression);
 
       if (callee.kind === ts.SyntaxKind.ImportKeyword && node.arguments[0]) {
-        const moduleSpecifier = getLiteralText(node.arguments[0]);
+        const moduleSpecifier = getLiteralText(
+          node.arguments[0],
+          staticStringAliases,
+        );
 
         if (
           moduleSpecifier ===
@@ -2719,7 +2826,7 @@ const findScreenshotHelperBypasses = (
       if (
         (ts.isPropertyAccessExpression(callee) ||
           ts.isElementAccessExpression(callee)) &&
-        getStaticPropertyName(callee) === 'takeScreenshot'
+        getStaticPropertyName(callee, staticStringAliases) === 'takeScreenshot'
       ) {
         bypasses.push(describeNode(node.expression));
       }
@@ -2781,6 +2888,7 @@ const findDirectImageAttachmentCalls = (
     true,
     ts.ScriptKind.TS,
   );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
   const imageAttachments: string[] = [];
   const imageAttachmentNameAliases = new Set<string>();
   const imageAttachmentNamePropertyAliases = new Set<string>();
@@ -2799,16 +2907,7 @@ const findDirectImageAttachmentCalls = (
   };
 
   const getStringLiteralText = (node: ts.Expression): null | string => {
-    const expression = unwrapExpression(node);
-
-    if (
-      ts.isStringLiteral(expression) ||
-      ts.isNoSubstitutionTemplateLiteral(expression)
-    ) {
-      return expression.text;
-    }
-
-    return null;
+    return getLiteralText(node, staticStringAliases);
   };
 
   const getStaticStringValue = (node: ts.Expression): null | string => {
@@ -2840,9 +2939,17 @@ const findDirectImageAttachmentCalls = (
     const propertyReference =
       ts.isPropertyAccessExpression(expression) ||
       ts.isElementAccessExpression(expression)
-        ? getStaticPropertyReference(expression, sourceFile)
+        ? getStaticPropertyReference(
+            expression,
+            sourceFile,
+            staticStringAliases,
+          )
         : ts.isCallExpression(expression)
-          ? getStaticArrayMethodReference(expression, sourceFile)
+          ? getStaticArrayMethodReference(
+              expression,
+              sourceFile,
+              staticStringAliases,
+            )
           : null;
 
     return propertyReference ? propertyAliases.has(propertyReference) : false;
@@ -2986,7 +3093,10 @@ const findDirectImageAttachmentCalls = (
         return false;
       }
 
-      const propertyName = getStaticPropertyNameFromName(property.name);
+      const propertyName = getStaticPropertyNameFromName(
+        property.name,
+        staticStringAliases,
+      );
 
       if (propertyName !== 'contentType' && propertyName !== 'path') {
         return false;
@@ -3006,17 +3116,19 @@ const findDirectImageAttachmentCalls = (
     if (
       (ts.isPropertyAccessExpression(expression) ||
         ts.isElementAccessExpression(expression)) &&
-      getStaticPropertyName(expression) === 'attach'
+      getStaticPropertyName(expression, staticStringAliases) === 'attach'
     ) {
       return true;
     }
 
     if (
       ts.isCallExpression(expression) &&
-      getStaticPropertyName(expression.expression) === 'bind' &&
+      getStaticPropertyName(expression.expression, staticStringAliases) ===
+        'bind' &&
       getStaticPropertyName(
         getStaticPropertyReceiver(expression.expression) ??
           expression.expression,
+        staticStringAliases,
       ) === 'attach'
     ) {
       return true;
@@ -3080,7 +3192,10 @@ const findDirectImageAttachmentCalls = (
                 ts.isIdentifier(initializer) &&
                 attachFunctionAliases.has(initializer.text)))
           ) {
-            const propertyName = getStaticPropertyNameFromName(property.name);
+            const propertyName = getStaticPropertyNameFromName(
+              property.name,
+              staticStringAliases,
+            );
 
             if (propertyName) {
               attachFunctionPropertyAliases.add(
@@ -3102,7 +3217,10 @@ const findDirectImageAttachmentCalls = (
             ts.isPropertyAssignment(property) &&
             isImageAttachmentName(property.initializer)
           ) {
-            const propertyName = getStaticPropertyNameFromName(property.name);
+            const propertyName = getStaticPropertyNameFromName(
+              property.name,
+              staticStringAliases,
+            );
 
             if (propertyName) {
               imageAttachmentNamePropertyAliases.add(
@@ -3124,7 +3242,10 @@ const findDirectImageAttachmentCalls = (
             ts.isPropertyAssignment(property) &&
             isImageAttachmentPayloadValue(property.initializer)
           ) {
-            const propertyName = getStaticPropertyNameFromName(property.name);
+            const propertyName = getStaticPropertyNameFromName(
+              property.name,
+              staticStringAliases,
+            );
 
             if (propertyName) {
               imageAttachmentPayloadValuePropertyAliases.add(
@@ -3184,6 +3305,7 @@ const findDirectImageAttachmentCalls = (
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -3201,6 +3323,7 @@ const findDirectImageAttachmentCalls = (
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -3218,6 +3341,7 @@ const findDirectImageAttachmentCalls = (
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -3246,7 +3370,12 @@ const findDirectImageAttachmentCalls = (
         isTrackedAttachFunctionReference,
         attachFunctionAliases,
       );
-      collectPropertyBindingAliases(node.name, 'attach', attachFunctionAliases);
+      collectPropertyBindingAliases(
+        node.name,
+        'attach',
+        attachFunctionAliases,
+        staticStringAliases,
+      );
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -3255,18 +3384,21 @@ const findDirectImageAttachmentCalls = (
         sourceFile,
         imageAttachmentNamePropertyAliases,
         imageAttachmentNameAliases,
+        staticStringAliases,
       );
       collectDestructuredPropertyAliases(
         node,
         sourceFile,
         imageAttachmentPayloadValuePropertyAliases,
         imageAttachmentPayloadValueAliases,
+        staticStringAliases,
       );
       collectDestructuredPropertyAliases(
         node,
         sourceFile,
         attachFunctionPropertyAliases,
         attachFunctionAliases,
+        staticStringAliases,
       );
     }
 
@@ -3296,7 +3428,10 @@ const findDirectImageAttachmentCalls = (
 
       if (ts.isObjectLiteralExpression(objectInitializer)) {
         for (const property of objectInitializer.properties) {
-          const propertyName = getStaticPropertyNameFromName(property.name);
+          const propertyName = getStaticPropertyNameFromName(
+            property.name,
+            staticStringAliases,
+          );
 
           if (!propertyName) {
             continue;
@@ -3335,6 +3470,7 @@ const findDirectImageAttachmentCalls = (
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -3348,6 +3484,7 @@ const findDirectImageAttachmentCalls = (
         sourceFile,
         imageAttachmentPayloadPropertyAliases,
         imageAttachmentPayloadAliases,
+        staticStringAliases,
       );
     }
 
@@ -3392,7 +3529,7 @@ const findDirectImageAttachmentCalls = (
     const receiver = getStaticPropertyReceiver(bindCallee);
 
     return (
-      getStaticPropertyName(bindCallee) === 'bind' &&
+      getStaticPropertyName(bindCallee, staticStringAliases) === 'bind' &&
       !!receiver &&
       isTrackedAttachFunctionReference(receiver)
     );
@@ -3409,7 +3546,7 @@ const findDirectImageAttachmentCalls = (
       return false;
     }
 
-    const methodName = getStaticPropertyName(callee);
+    const methodName = getStaticPropertyName(callee, staticStringAliases);
     const receiver = getStaticPropertyReceiver(callee);
 
     if (
@@ -3513,6 +3650,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     true,
     ts.ScriptKind.TS,
   );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
   const screenshotCalls: string[] = [];
   const screenshotFunctionAliases = new Set<string>();
   const screenshotFunctionPropertyAliases = new Set<string>();
@@ -3530,17 +3668,19 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     if (
       (ts.isPropertyAccessExpression(expression) ||
         ts.isElementAccessExpression(expression)) &&
-      getStaticPropertyName(expression) === 'screenshot'
+      getStaticPropertyName(expression, staticStringAliases) === 'screenshot'
     ) {
       return true;
     }
 
     if (
       ts.isCallExpression(expression) &&
-      getStaticPropertyName(expression.expression) === 'bind' &&
+      getStaticPropertyName(expression.expression, staticStringAliases) ===
+        'bind' &&
       getStaticPropertyName(
         getStaticPropertyReceiver(expression.expression) ??
           expression.expression,
+        staticStringAliases,
       ) === 'screenshot'
     ) {
       return true;
@@ -3554,9 +3694,17 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     const propertyReference =
       ts.isPropertyAccessExpression(expression) ||
       ts.isElementAccessExpression(expression)
-        ? getStaticPropertyReference(expression, sourceFile)
+        ? getStaticPropertyReference(
+            expression,
+            sourceFile,
+            staticStringAliases,
+          )
         : ts.isCallExpression(expression)
-          ? getStaticArrayMethodReference(expression, sourceFile)
+          ? getStaticArrayMethodReference(
+              expression,
+              sourceFile,
+              staticStringAliases,
+            )
           : null;
 
     return propertyReference
@@ -3607,7 +3755,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     const receiver = getStaticPropertyReceiver(bindCallee);
 
     return (
-      getStaticPropertyName(bindCallee) === 'bind' &&
+      getStaticPropertyName(bindCallee, staticStringAliases) === 'bind' &&
       !!receiver &&
       isTrackedScreenshotFunctionReference(receiver)
     );
@@ -3647,7 +3795,10 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
                 ts.isIdentifier(initializer) &&
                 screenshotFunctionAliases.has(initializer.text)))
           ) {
-            const propertyName = getStaticPropertyNameFromName(property.name);
+            const propertyName = getStaticPropertyNameFromName(
+              property.name,
+              staticStringAliases,
+            );
 
             if (propertyName) {
               screenshotFunctionPropertyAliases.add(
@@ -3695,6 +3846,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       const propertyReference = getStaticPropertyReference(
         node.left,
         sourceFile,
+        staticStringAliases,
       );
 
       if (propertyReference) {
@@ -3712,6 +3864,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
         node.name,
         'screenshot',
         screenshotFunctionAliases,
+        staticStringAliases,
       );
     }
 
@@ -3721,6 +3874,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
         sourceFile,
         screenshotFunctionPropertyAliases,
         screenshotFunctionAliases,
+        staticStringAliases,
       );
     }
 
@@ -3737,8 +3891,8 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
           : null;
       const isIndirectScreenshotCall =
         !!receiver &&
-        (getStaticPropertyName(callee) === 'call' ||
-          getStaticPropertyName(callee) === 'apply') &&
+        (getStaticPropertyName(callee, staticStringAliases) === 'call' ||
+          getStaticPropertyName(callee, staticStringAliases) === 'apply') &&
         isTrackedScreenshotFunctionReference(receiver);
       const isReflectApplyScreenshotCall =
         isReflectApplyCallee(callee) &&
@@ -4058,6 +4212,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-image.doc.ts:2:13',
       'tests/docs/example/direct-image.doc.ts:3:13',
       'tests/docs/example/direct-image.doc.ts:5:13',
+      'tests/docs/example/direct-image.doc.ts:13:13',
+      'tests/docs/example/direct-image.doc.ts:17:13',
       'tests/docs/example/direct-image.doc.ts:23:13',
       'tests/docs/example/direct-image.doc.ts:24:13',
       'tests/docs/example/direct-image.doc.ts:25:13',
@@ -4580,6 +4736,84 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/computed-static-property-capture.doc.ts:6:15',
       'tests/docs/example/computed-static-property-capture.doc.ts:11:15',
       'tests/docs/example/computed-static-property-capture.doc.ts:17:15',
+    ]);
+  });
+
+  it('detects constant-backed property raw capture spellings', () => {
+    const constantBackedPropertySource = `
+      async function captureDocsEvidence() {
+        const screenshotKey = 'screen' + 'shot';
+        const attachKey = \`attach\`;
+        const helperKey = 'takeScreenshot';
+        const contentTypeKey = 'contentType';
+        const markdownBodyKey = 'body';
+        const markdownName = 'mark' + 'down';
+        const reporterPath = '../../support/reporters/documentation-reporter';
+        const rawImagePayload = { [contentTypeKey]: 'image/png' };
+        const rawMarkdownPayload = { [markdownBodyKey]: '![raw](raw.png)' };
+        await page[screenshotKey]({ path: 'page.png' });
+        const capturePageScreenshot = page[screenshotKey].bind(page);
+        await capturePageScreenshot({ path: 'page-alias.png' });
+        const screenshotHelpers = { [screenshotKey]: page[screenshotKey] };
+        const { [screenshotKey]: groupedCapture } = screenshotHelpers;
+        await groupedCapture({ path: 'page-destructured-alias.png' });
+        await testInfo[attachKey]('image', { body: imageBuffer });
+        await testInfo.attach('raw evidence', rawImagePayload);
+        await testInfo[attachKey](markdownName, rawMarkdownPayload);
+        const attachHelpers = { [attachKey]: testInfo[attachKey] };
+        await attachHelpers[attachKey]('raw evidence', { contentType: 'image/webp' });
+        await documentationReporter[helperKey](
+          testInfo,
+          settingsSurface,
+          page,
+          'Constant property helper bypass with descriptive caption',
+        );
+        await import(reporterPath);
+      }
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/constant-backed-property-capture.doc.ts',
+        constantBackedPropertySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/constant-backed-property-capture.doc.ts:12:15',
+      'tests/docs/example/constant-backed-property-capture.doc.ts:14:15',
+      'tests/docs/example/constant-backed-property-capture.doc.ts:17:15',
+    ]);
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/constant-backed-property-capture.doc.ts',
+        constantBackedPropertySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/constant-backed-property-capture.doc.ts:18:15',
+      'tests/docs/example/constant-backed-property-capture.doc.ts:19:15',
+      'tests/docs/example/constant-backed-property-capture.doc.ts:22:15',
+    ]);
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/constant-backed-property-capture.doc.ts',
+        constantBackedPropertySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/constant-backed-property-capture.doc.ts:20:15',
+    ]);
+
+    expect(
+      findScreenshotHelperBypasses(
+        'tests/docs/example/constant-backed-property-capture.doc.ts',
+        constantBackedPropertySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/constant-backed-property-capture.doc.ts:3:15',
+      'tests/docs/example/constant-backed-property-capture.doc.ts:13:15',
+      'tests/docs/example/constant-backed-property-capture.doc.ts:15:15',
+      'tests/docs/example/constant-backed-property-capture.doc.ts:23:15',
+      'tests/docs/example/constant-backed-property-capture.doc.ts:29:15',
     ]);
   });
 

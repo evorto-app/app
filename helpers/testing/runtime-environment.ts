@@ -64,8 +64,15 @@ const deriveSeed = (): string => {
 const seed = deriveSeed();
 const digest = new Bun.CryptoHasher('sha256').update(seed).digest('hex');
 
-const parsePort = (value: string | undefined): number | undefined => {
+const parsePort = (
+  value: string | undefined,
+  options: { allowEphemeralHostPort?: boolean } = {},
+): number | undefined => {
   const parsed = Number.parseInt(value ?? '', 10);
+  if (options.allowEphemeralHostPort === true && parsed === 0) {
+    return 0;
+  }
+
   if (!Number.isInteger(parsed) || parsed < 1024 || parsed > 65_535) {
     return undefined;
   }
@@ -78,16 +85,20 @@ const readHexChunk = (start: number): number =>
 const derivePort = (base: number, span: number, chunkStart: number): number =>
   base + (readHexChunk(chunkStart) % span);
 
-const resolvePort = (names: readonly string[], fallback: number): number => {
+const resolvePort = (
+  names: readonly string[],
+  fallback: number,
+  options: { allowEphemeralHostPort?: boolean } = {},
+): number => {
   for (const name of names) {
-    const parsed = parsePort(process.env[name]);
+    const parsed = parsePort(process.env[name], options);
     if (parsed !== undefined) {
       return parsed;
     }
   }
 
   for (const name of names) {
-    const parsed = parsePort(existingRuntimeEnvironment[name]);
+    const parsed = parsePort(existingRuntimeEnvironment[name], options);
     if (parsed !== undefined) {
       return parsed;
     }
@@ -107,10 +118,12 @@ const neonLocalHostPort = resolvePort(
 const minioHostPort = resolvePort(
   ['MINIO_HOST_PORT'],
   derivePort(DEFAULT_MINIO_HOST_PORT, 400, 16),
+  { allowEphemeralHostPort: true },
 );
 const minioConsoleHostPort = resolvePort(
   ['MINIO_CONSOLE_HOST_PORT'],
   derivePort(DEFAULT_MINIO_CONSOLE_HOST_PORT, 400, 24),
+  { allowEphemeralHostPort: true },
 );
 
 const sanitizeProjectName = (value: string): string =>
