@@ -1783,9 +1783,35 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'computed-destructured-target.doc.ts',
     );
+    expect(generatedDocumentationSource).toContain(
+      'detects parameter computed destructured weak documentation screenshot target groups',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'parameter-computed-destructured-target.doc.ts',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'async function documentWeakTargets',
+    );
+    expect(generatedDocumentationSource).toContain('[singleKey]: singleTarget');
+    expect(generatedDocumentationSource).toContain(
+      'Parameter computed icon target with a descriptive caption',
+    );
+    expect(generatedDocumentationSource).toMatch(
+      /collectDestructuredPropertyAliases\(\s*node,\s*sourceFile,\s*genericTargetPropertyAliases,\s*genericTargetAliases,\s*staticStringAliases/u,
+    );
+    expect(generatedDocumentationSource).toMatch(
+      /collectDestructuredPropertyAliases\(\s*node,\s*sourceFile,\s*broadTargetPropertyAliases,\s*broadTargetAliases,\s*staticStringAliases/u,
+    );
+    expect(generatedDocumentationSource).toMatch(
+      /collectDestructuredPropertyAliases\(\s*node,\s*sourceFile,\s*singleControlPropertyAliases,\s*singleControlAliases,\s*staticStringAliases/u,
+    );
+    expect(generatedDocumentationSource).toMatch(
+      /collectDestructuredPropertyAliases\(\s*node,\s*sourceFile,\s*iconOrMediaPropertyAliases,\s*iconOrMediaAliases,\s*staticStringAliases/u,
+    );
     expect(source).toContain('constant-backed computed keys');
     expect(source).toContain('{ [shellKey]: page.locator');
     expect(source).toContain('[shellKey]: shellTarget');
+    expect(inventory).toContain('parameter computed destructuring');
     expect(source).toContain(
       'stabilizationEvidence=spread-grouped-target-source-guard',
     );
@@ -1914,8 +1940,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('`satisfies` grouped target');
     expect(inventory).toMatch(/objects before alias\s+collection/u);
     expect(inventory).toContain(
-      'constant-backed computed object keys, computed destructuring, and\n  bracket references',
+      'constant-backed computed object keys, computed destructuring,\n  parameter computed destructuring',
     );
+    expect(inventory).toContain('and bracket references');
     expect(inventory).toContain('shorthand properties');
     expect(inventory).toContain('alias-valued\n  properties');
     expect(inventory).toContain(
@@ -5797,35 +5824,30 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toContain(
-      'generated-doc raw Markdown image detection now\ntracks parameter-destructured markdown names',
+      'generated-doc weak screenshot target detection now\ntracks parameter-destructured generic shell',
     );
-    expect(source).toContain('raw Markdown\npayloads, and attach helpers');
-    expect(source).toContain('rejecting unsupported image markup');
-    expect(source).toContain("`[markdownNameKey]: 'markdown'`");
-    expect(source).toContain("`[rawBodyKey]: '![raw](raw.png)'`");
+    expect(source).toContain('single-control, and\nicon/media targets');
+    expect(source).toContain('meaningful-target checks run');
+    expect(source).toContain("`[shellKey]: page.locator('main')`");
+    expect(source).toContain("`[broadKey]: page.locator('section')`");
     expect(source).toContain(
-      '`[rawPayloadKey]: { body: \'<img src="../raw.png" alt="Raw">\' }`',
+      "`[singleKey]: page.getByRole('button', { name: 'Save' })`",
     );
-    expect(source).toContain('`[markdownNameKey]: markdownName`');
-    expect(source).toContain('`[rawBodyKey]: rawMarkdownBody`');
-    expect(source).toContain('`[rawPayloadKey]: rawMarkdownPayload`');
-    expect(source).toContain('`[attachKey]: attachMarkdown`');
+    expect(source).toContain("`[iconKey]: page.locator('svg')`");
+    expect(source).toContain('`[shellKey]: shellTarget`');
+    expect(source).toContain('`[broadKey]: broadTarget`');
+    expect(source).toContain('`[singleKey]: singleTarget`');
+    expect(source).toContain('`[iconKey]: iconTarget`');
     expect(source).toContain(
-      '`testInfo.attach(markdownName, { body: rawMarkdownBody })`',
-    );
-    expect(source).toContain(
-      "`testInfo.attach('markdown', rawMarkdownPayload)`",
+      '`takeScreenshot(...)` calls that use those weak targets',
     );
     expect(source).toContain(
-      '`attachMarkdown(markdownName, rawMarkdownPayload)`',
-    );
-    expect(source).toContain(
-      'hide unrelated or uncaptioned raw Markdown imagery by moving the attachment\nname, body, payload, or helper into a computed-key parameter object',
+      'hide generic page shells, broad sections, button-only crops, or icon-only\nimages by moving the screenshot target through a computed-key parameter object',
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 204 tests');
+    expect(source).toContain('with 205 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5850,7 +5872,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=parameter-computed-raw-markdown-image-source-guard',
+      '/legal/terms?stabilizationEvidence=parameter-computed-weak-target-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');

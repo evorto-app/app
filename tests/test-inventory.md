@@ -692,8 +692,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   inspecting screenshot calls so later declarations cannot bypass those
   meaningful-target checks, includes object-property target aliases so grouped
   screenshot target objects cannot hide weak locator targets, including computed
-  object keys, constant-backed computed object keys, computed destructuring, and
-  bracket references, shorthand properties, alias-valued
+  object keys, constant-backed computed object keys, computed destructuring,
+  parameter computed destructuring, and bracket references, shorthand properties, alias-valued
   properties, object-spread, `Object.assign(...)`, and object-rest copied
   grouped target objects including copied helper-returned weak target groups,
   static indexed target lists, and positive or negative static `.at(...)` array

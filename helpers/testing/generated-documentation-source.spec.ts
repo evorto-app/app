@@ -3616,6 +3616,13 @@ const findGenericScreenshotTargets = (
         returnsGenericLocator,
         genericTargetFunctions,
       );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        genericTargetPropertyAliases,
+        genericTargetAliases,
+        staticStringAliases,
+      );
     }
 
     ts.forEachChild(node, collectAliases);
@@ -3898,6 +3905,13 @@ const findUnfilteredBroadScreenshotTargets = (
         node,
         returnsUnfilteredBroadLocator,
         broadTargetFunctions,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        broadTargetPropertyAliases,
+        broadTargetAliases,
+        staticStringAliases,
       );
     }
 
@@ -4249,6 +4263,13 @@ const findSingleControlScreenshotTargets = (
         returnsSingleControlLocator,
         singleControlFunctions,
       );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        singleControlPropertyAliases,
+        singleControlAliases,
+        staticStringAliases,
+      );
     }
 
     ts.forEachChild(node, collectAliases);
@@ -4559,6 +4580,13 @@ const findIconOrMediaScreenshotTargets = (
         node,
         returnsIconOrMediaLocator,
         iconOrMediaFunctions,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        iconOrMediaPropertyAliases,
+        iconOrMediaAliases,
+        staticStringAliases,
       );
     }
 
@@ -12099,6 +12127,88 @@ describe('generated docs source current behavior', () => {
         computedDestructuredTargetSource,
       ),
     ).toEqual(['tests/docs/example/computed-destructured-target.doc.ts:37:13']);
+  });
+
+  it('detects parameter computed destructured weak documentation screenshot target groups', () => {
+    const parameterComputedDestructuredTargetSource = `
+      const shellKey = 'shell';
+      const broadKey = 'broad';
+      const singleKey = 'single';
+      const iconKey = 'icon';
+      const groupedTargets = {
+        [shellKey]: page.locator('main'),
+        [broadKey]: page.locator('section'),
+        [singleKey]: page.getByRole('button', { name: 'Save' }),
+        [iconKey]: page.locator('svg'),
+      };
+      async function documentWeakTargets({
+        [shellKey]: shellTarget,
+        [broadKey]: broadTarget,
+        [singleKey]: singleTarget,
+        [iconKey]: iconTarget,
+      } = groupedTargets) {
+        await takeScreenshot(
+          testInfo,
+          shellTarget,
+          page,
+          'Parameter computed generic shell target with a descriptive caption',
+        );
+        await takeScreenshot(
+          testInfo,
+          broadTarget,
+          page,
+          'Parameter computed broad section target with a descriptive caption',
+        );
+        await takeScreenshot(
+          testInfo,
+          singleTarget,
+          page,
+          'Parameter computed single control target with a descriptive caption',
+        );
+        await takeScreenshot(
+          testInfo,
+          iconTarget,
+          page,
+          'Parameter computed icon target with a descriptive caption',
+        );
+      }
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/parameter-computed-destructured-target.doc.ts',
+        parameterComputedDestructuredTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-computed-destructured-target.doc.ts:18:15',
+    ]);
+
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/parameter-computed-destructured-target.doc.ts',
+        parameterComputedDestructuredTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-computed-destructured-target.doc.ts:24:15',
+    ]);
+
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/parameter-computed-destructured-target.doc.ts',
+        parameterComputedDestructuredTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-computed-destructured-target.doc.ts:30:15',
+    ]);
+
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/parameter-computed-destructured-target.doc.ts',
+        parameterComputedDestructuredTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-computed-destructured-target.doc.ts:36:15',
+    ]);
   });
 
   it('detects copied helper-returned weak documentation screenshot target groups', () => {
