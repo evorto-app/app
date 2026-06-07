@@ -7847,10 +7847,14 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'actual\n  seeded Material event cards and the privacy legal fallback page',
     );
-    expect(adminSettingsSpec).toContain(
-      'const collectBrowserLogFailures = (page: Page): string[]',
+    expect(pageLayoutHelper).toContain(
+      'export const collectBrowserLogFailures = (page: Page): string[]',
     );
-    expect(adminSettingsSpec).toContain('blockedConsoleTypes');
+    expect(pageLayoutHelper).toContain('blockedConsoleTypes');
+    expect(pageLayoutHelper).toContain("page.on('console'");
+    expect(pageLayoutHelper).toContain('message.type()');
+    expect(pageLayoutHelper).toContain('message.location()');
+    expect(adminSettingsSpec).toContain('collectBrowserLogFailures');
     expect(adminSettingsSpec).toContain('browserLogFailures.length = 0');
     expect(adminSettingsSpec).toContain(
       'tenant General settings should not emit browser warning/error logs',
@@ -7884,6 +7888,14 @@ describe('stabilization source', () => {
     for (const durableViewportSpec of durableViewportSpecs) {
       expect(durableViewportSpec).toContain(
         "from '../../support/utils/page-layout'",
+      );
+      expect(durableViewportSpec).toContain('collectBrowserLogFailures');
+      expect(durableViewportSpec).toContain(
+        'const browserLogFailures = collectBrowserLogFailures(page)',
+      );
+      expect(durableViewportSpec).toContain('browserLogFailures.length = 0');
+      expect(durableViewportSpec).toContain(
+        'should not emit browser warning/error logs',
       );
       expect(durableViewportSpec).toContain(
         "{ height: 740, label: 'narrow mobile', width: 320 }",
@@ -8226,9 +8238,9 @@ describe('stabilization source', () => {
       'no overflowing visible text or panel elements',
     );
     expect(viewportSpec).toContain('collectBrowserLogFailures');
-    expect(viewportSpec).toContain("page.on('console'");
-    expect(viewportSpec).toContain("'error'");
-    expect(viewportSpec).toContain("'warning'");
+    expect(pageLayoutHelper).toContain("page.on('console'");
+    expect(pageLayoutHelper).toContain("'error'");
+    expect(pageLayoutHelper).toContain("'warning'");
     expect(viewportSpec).toContain(
       'should not emit browser warning/error logs',
     );
@@ -8408,7 +8420,7 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'tenant-admin General settings viewport coverage checkpoint',
     );
-    expect(source).toContain('horizontally clipped visible controls with');
+    expect(source).toMatch(/horizontally\s+clipped visible controls with/u);
     expect(source).toContain('actionable labels');
     expect(source).toContain('controls covered by another visible layer');
     expect(source).toContain('overflowing visible text or\n  panel elements');

@@ -313,7 +313,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     coverage pins the exact active durable viewport spec inventory, every
     durable viewport spec to the shared 320x740 narrow mobile, 390x844 mobile,
     and 1440x900 desktop matrix, then also requires each spec to loop that
-    matrix through labelled viewport steps.
+    matrix through labelled viewport steps. Every durable viewport spec also
+    uses the shared browser-log collector and fails on warning/error console logs
+    while each covered route or tab state is opened.
     `bun run test:e2e:authenticated-viewports` is the focused authenticated
     rerun for the durable logged-in viewport pack; it keeps the tenant admin,
     global-admin, role/user-management, profile, template, event, finance,
@@ -322,8 +324,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/admin/admin-viewports.spec.ts` checks the authenticated tenant admin
     overview, tax-rate table, and event-review queue routes at narrow mobile,
     mobile, and desktop viewports for expected headings/content through the
-    shared viewport layout guard, and fails on browser console warning/error
-    logs while each route is opened.
+    shared viewport layout and browser-log guards.
   - `specs/admin/global-admin-tenants.spec.ts` also checks authenticated
     global-admin overview, tenant list, create, detail, and edit pages at
     narrow mobile, mobile, and desktop viewports for expected headings/content,
@@ -339,28 +340,29 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/profile/user-profile-viewports.spec.ts` checks authenticated profile
     overview, Events, Receipts, and Discounts sections at narrow mobile, mobile,
     and desktop viewports for seeded content through the shared viewport layout
-    guard.
+    and browser-log guards.
   - `specs/templates/template-viewports.spec.ts` checks authenticated template
     list, create, category management, category-prefilled create, detail, edit,
     and create-event pages at narrow mobile, mobile, and desktop viewports for
-    seeded template content through the shared viewport layout guard.
+    seeded template content through the shared viewport layout and browser-log
+    guards.
   - `specs/events/event-viewports.spec.ts` checks authenticated event list,
     detail, edit, and organizer overview pages at narrow mobile, mobile, and
     desktop viewports for seeded event content through the shared viewport
-    layout guard.
+    layout and browser-log guards.
   - `specs/finance/finance-viewports.spec.ts` checks authenticated finance
     overview, transaction list, receipt approval list/detail, and reimbursement
     pages at narrow mobile, mobile, and desktop viewports for seeded finance
-    content through the shared viewport layout guard while allowing intentional
-    table scroll containers.
+    content through the shared viewport layout and browser-log guards while
+    allowing intentional table scroll containers.
   - `specs/scanning/scanner-viewports.spec.ts` checks the authenticated scanner
     camera/fallback page and a seeded direct registration scan result at narrow
     mobile, mobile, and desktop viewports for expected content through the
-    shared viewport layout guard.
+    shared viewport layout and browser-log guards.
   - `specs/internal/members-hub-viewports.spec.ts` checks the authenticated
     members hub role directory at narrow mobile, mobile, and desktop viewports
     with a seeded visible hub role and member assignment through the shared
-    viewport layout guard.
+    viewport layout and browser-log guards.
 
 ## Intentional Gaps and Gates
 

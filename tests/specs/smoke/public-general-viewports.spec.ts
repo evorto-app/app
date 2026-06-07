@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 
 import { expect, test } from '../../support/fixtures/parallel-test';
 import {
+  collectBrowserLogFailures,
   expectedStablePageLayout,
   readPageLayout,
 } from '../../support/utils/page-layout';
@@ -13,26 +14,6 @@ const viewportSizes = [
   { height: 844, label: 'mobile', width: 390 },
   { height: 900, label: 'desktop', width: 1440 },
 ] as const;
-
-const blockedConsoleTypes = new Set(['error', 'warning']);
-
-const collectBrowserLogFailures = (page: Page): string[] => {
-  const browserLogFailures: string[] = [];
-
-  page.on('console', (message) => {
-    if (!blockedConsoleTypes.has(message.type())) {
-      return;
-    }
-
-    const location = message.location();
-    const source = location.url
-      ? `${location.url}:${location.lineNumber}:${location.columnNumber}`
-      : page.url();
-    browserLogFailures.push(`${message.type()}: ${message.text()} (${source})`);
-  });
-
-  return browserLogFailures;
-};
 
 const expectReadableTextOnPaintedSurface = async (
   page: Page,

@@ -3974,15 +3974,18 @@ fallback rather than a profile discount-card defect.
   focused authenticated rerun for the logged-in viewport pack; it refreshes the
   runtime env, runs the tenant-admin, global-admin, role/user-management,
   profile, template, event, finance, scanner, and members-hub viewport specs,
-  and keeps the suite on one worker for easier local reproduction.
+  and keeps the suite on one worker for easier local reproduction. The shared
+  viewport helper also owns the browser console warning/error collector now, and
+  every durable viewport spec asserts that each covered route or tab state stays
+  free of warning/error logs while it is opened.
 - Current authenticated profile viewport coverage checkpoint:
   `tests/specs/profile/user-profile-viewports.spec.ts` now covers `/profile` at
   320x740, 390x844, and 1440x900 with the regular-user storage state. The
   viewport guard asserts the profile overview, Events, Receipts, and Discounts
   sections using seeded event cards, a submitted receipt, and the seeded ESNcard
-  fixture, then rejects application-error text, horizontal overflow, and
-  horizontally clipped visible controls while allowing normal vertical scrolling
-  on mobile.
+  fixture, then rejects application-error text, horizontal overflow,
+  horizontally clipped visible controls, and browser console warning/error logs
+  while allowing normal vertical scrolling on mobile.
 - Current authenticated template viewport coverage checkpoint:
   `tests/specs/templates/template-viewports.spec.ts` now covers `/templates`,
   `/templates/create`, `/templates/categories`,
@@ -3991,8 +3994,9 @@ fallback rather than a profile discount-card defect.
   and 1440x900 with the admin storage state. The viewport guard asserts the
   template list, create form, category manager, category-prefilled create form,
   detail page, edit form, and template-to-event create form content, then
-  rejects application-error text, horizontal overflow, and horizontally clipped
-  visible controls while allowing normal vertical scrolling on mobile. This
+  rejects application-error text, horizontal overflow, horizontally clipped
+  visible controls, and browser console warning/error logs while allowing normal
+  vertical scrolling on mobile. This
   checkpoint also caught and fixed the mobile bottom navigation shell: the fixed
   navigation now spans with `left-0 right-0` instead of `w-screen`, avoiding
   scrollbar-gutter horizontal overflow on tall mobile pages. The category
@@ -4008,8 +4012,9 @@ fallback rather than a profile discount-card defect.
   320x740, 390x844, and 1440x900 with the organizer storage state. The viewport
   guard asserts event list/detail/edit/organizer content, rejects rendered
   application-error text, horizontal overflow, and horizontally clipped visible
-  controls, and ignores Angular Material's empty touch-target shim while still
-  reporting any real overflowing visible element labels for future failures.
+  controls, and browser console warning/error logs, and ignores Angular
+  Material's empty touch-target shim while still reporting any real overflowing
+  visible element labels for future failures.
 - Current authenticated finance viewport coverage checkpoint:
   `tests/specs/finance/finance-viewports.spec.ts` now covers `/finance`,
   `/finance/transactions`, receipt approval list/detail, and receipt
@@ -4017,9 +4022,10 @@ fallback rather than a profile discount-card defect.
   state and deterministic seeded receipt rows. The viewport guard asserts
   finance navigation, transaction headers, approval/review content, and
   reimbursement content; rejects rendered application-error text, page-level
-  horizontal overflow, and horizontally clipped visible controls; and treats
-  Material table horizontal scroll containers as intentional while still
-  reporting non-table overflowing element labels for future failures.
+  horizontal overflow, horizontally clipped visible controls, and browser
+  console warning/error logs; and treats Material table horizontal scroll
+  containers as intentional while still reporting non-table overflowing element
+  labels for future failures.
   The first CI run caught the mobile reimbursement table widening the route;
   the finance shell/router outlet and reimbursement cards now use `min-w-0` so
   intentional table scrolling stays inside its own container.
@@ -4030,8 +4036,9 @@ fallback rather than a profile discount-card defect.
   storage state and a deterministic seeded role. The viewport guard asserts
   read-only user-list, role-list, create-form, detail, and edit-form content;
   rejects rendered application-error text, page-level horizontal overflow, and
-  horizontally clipped visible controls; and treats the user-list table's
-  horizontal scroll container as intentional. The admin shell/router outlet,
+  horizontally clipped visible controls; rejects browser console warning/error
+  logs while each route is opened; and treats the user-list table's horizontal
+  scroll container as intentional. The admin shell/router outlet,
   user-list table container, and role cards/forms/details now use `min-w-0` or
   bounded scroll containers so long role or table content stays inside the page
   on mobile.
@@ -4041,9 +4048,9 @@ fallback rather than a profile discount-card defect.
   and 1440x900 with the admin storage state and a deterministic confirmed
   registration against the seeded past event. The viewport guard asserts the
   scanner camera/fallback instructions and scan-result guest copy, then rejects
-  rendered application-error text, horizontal overflow, and horizontally clipped
-  visible controls. The scanner camera surface now has a bounded aspect-ratio
-  video region, and the scanned-registration result panels use `min-w-0`,
+  rendered application-error text, horizontal overflow, horizontally clipped
+  visible controls, and browser console warning/error logs. The scanner camera
+  surface now has a bounded aspect-ratio video region, and the scanned-registration result panels use `min-w-0`,
   wrapping copy, and Material error-container surfaces so phone-width check-in
   flows do not widen the page.
 - Current authenticated members-hub viewport coverage checkpoint:
@@ -4053,17 +4060,19 @@ fallback rather than a profile discount-card defect.
   The viewport guard asserts the Members Hub and Who's who headings, the seeded
   role name, and the assigned member name, then rejects rendered
   application-error text, horizontal overflow, and horizontally clipped visible
-  controls. The members-hub host, card shell, role chips, descriptions, and
-  member-name rows now use `min-w-0`, wrapping copy, and token-driven Material
-  surfaces so long directory content stays inside the page on mobile.
+  controls, and browser console warning/error logs. The members-hub host, card
+  shell, role chips, descriptions, and member-name rows now use `min-w-0`,
+  wrapping copy, and token-driven Material surfaces so long directory content
+  stays inside the page on mobile.
 - Current shared viewport guard checkpoint:
   `tests/support/utils/page-layout.ts` now centralizes the viewport layout
   guard used by the public General, tenant-admin General settings, tenant-admin
   overview/tax/review, global-admin tenant, profile, template, event, finance,
   scanner, role/user-management, and members-hub viewport specs. The shared
-  guard rejects rendered application-error text, page-level horizontal overflow
-  with real visible overflow, horizontally clipped visible controls with
-  actionable labels, horizontally clipped readable text with actionable labels,
+  guard rejects browser console warning/error logs, rendered application-error
+  text, page-level horizontal overflow with real visible overflow, horizontally
+  clipped visible controls with actionable labels, horizontally clipped readable
+  text with actionable labels,
   controls covered by another visible layer with covering element labels and
   center-point coordinates, readable text covered by another visible layer with
   covering element labels and center-point coordinates,
