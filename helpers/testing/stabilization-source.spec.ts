@@ -3779,8 +3779,12 @@ describe('stabilization source', () => {
       'rejects focused-only `.only` and\n  `test.describe.only`',
     );
     expect(inventory).toContain('bracket-property spellings');
+    expect(inventory).toContain('including local aliases');
     expect(inventory).toContain("test['skip'](...)");
     expect(inventory).toContain('split across lines');
+    expect(inventory).toContain(
+      'local aliases of `test.slow` called\n  through `slow()`',
+    );
     expect(inventory).toContain("page['pause'](...)");
     expect(inventory).toContain('split docs-helper `setTimeout(...)` calls');
     expect(inventory).toContain('Playwright `forbidOnly` remains enabled');
@@ -3788,7 +3792,10 @@ describe('stabilization source', () => {
       'Runtime-affecting modifiers such as\n  `test.describe.configure(...)` and `test.slow()`',
     );
     expect(inventory).toContain(
-      'The current runtime-modifier allowlist is\n  limited to `docs/events/register.doc.ts`',
+      'current runtime-modifier allowlist is limited to',
+    );
+    expect(inventory).toContain(
+      '`docs/events/register.doc.ts`: the registration documentation flow',
     );
     expect(inventory).toContain('mutates shared registration state');
     expect(inventory).toContain('Stripe/webhook work');
@@ -3811,8 +3818,13 @@ describe('stabilization source', () => {
     expect(source).toContain('Bracket-property\nmodifier spellings');
     expect(source).toContain("test.describe['fixme'](...)");
     expect(source).toContain('split\nacross lines');
+    expect(source).toContain('Local modifier aliases are covered too');
+    expect(source).toContain(
+      'assigning or\ndestructuring `test.skip`, `test.fixme`, `test.only`, `test.slow`, or\n`test.describe.configure`',
+    );
+    expect(source).toContain('skip/focus/runtime inventory');
     expect(source).toContain("page['pause'](...)");
-    expect(source).toContain('split\n`setTimeout(...)` calls');
+    expect(source).toContain('split `setTimeout(...)` calls');
     expect(source).toContain('rejects interactive\n`page.pause()`/`debugger`');
     expect(source).toContain('rejects fixed `.waitForTimeout(...)` waits');
     expect(source).toContain('fixed `setTimeout` sleeps');

@@ -488,9 +488,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   Each allowlisted credential skip must name the exact environment variables
   that justify it in nearby source, so vague integration placeholders cannot
   pass the inventory guard. It also rejects focused-only `.only` and
-  `test.describe.only` test declarations, including bracket-property spellings
-  such as `test['skip'](...)`, `test.describe['fixme'](...)`, and
-  `test['only'](...)` even when those modifier calls are split across lines;
+  `test.describe.only` test declarations, including local aliases and
+  bracket-property spellings such as `test['skip'](...)`,
+  `test.describe['fixme'](...)`, and `test['only'](...)` even when those
+  modifier calls are split across lines;
   interactive `page.pause()`/`debugger` hooks including `page['pause'](...)`;
   and fixed `.waitForTimeout(...)` waits in specs and generated docs, including
   split wait calls and split docs-helper `setTimeout(...)` calls,
@@ -498,12 +499,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   partial-suite commits. Playwright `forbidOnly` remains enabled in CI as the
   runner-level backstop for focused-only tests. Runtime-affecting modifiers such as
   `test.describe.configure(...)` and `test.slow()` must also be explicitly
-  allowlisted with a local reason. The current runtime-modifier allowlist is
-  limited to `docs/events/register.doc.ts`: the registration documentation flow
-  runs serially because it mutates shared registration state, and the free and
-  paid registration documentation cases are marked slow because they perform
-  Auth0 login, Stripe/webhook work, database readbacks, and generated-doc
-  attachments.
+  allowlisted with a local reason, and local aliases of `test.slow` called
+  through `slow()` are classified the same way as direct modifier calls. The
+  current runtime-modifier allowlist is limited to
+  `docs/events/register.doc.ts`: the registration documentation flow runs
+  serially because it mutates shared registration state, and the free and paid
+  registration documentation cases are marked slow because they perform Auth0
+  login, Stripe/webhook work, database readbacks, and generated-doc attachments.
 - `helpers/testing/generated-documentation-source.spec.ts` keeps tenant general-settings
   docs aligned with implemented brand-asset uploads, hosted legal routes, and
   an image-backed operations-policy section that includes participant

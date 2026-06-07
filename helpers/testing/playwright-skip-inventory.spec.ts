@@ -33,12 +33,12 @@ const allowedPlaywrightRuntimeModifierEntries = [
       'The registration documentation flow runs serially with one retry because it mutates shared event registration state while proving the full free/paid journey.',
   },
   {
-    entry: 'tests/docs/events/register.doc.ts:191:test.slow',
+    entry: 'tests/docs/events/register.doc.ts:239:test.slow',
     reason:
       'The free registration documentation flow performs Auth0 login, event navigation, database readbacks, and generated-doc attachments.',
   },
   {
-    entry: 'tests/docs/events/register.doc.ts:1002:test.slow',
+    entry: 'tests/docs/events/register.doc.ts:1051:test.slow',
     reason:
       'The paid registration documentation flow performs Stripe checkout replay, webhook delivery, database readbacks, and generated-doc attachments.',
   },
@@ -55,6 +55,21 @@ const playwrightCallablePattern = new RegExp(
 );
 const playwrightModifierAccessPattern = (names: string): string =>
   String.raw`(?:\s*\.\s*(?:${names})\b|\s*\[\s*['"](?:${names})['"]\s*\])`;
+const playwrightModifierAccessCapturePattern = (names: string): string =>
+  String.raw`(?:\s*\.\s*(?<dotModifier>${names})\b|\s*\[\s*['"](?<bracketModifier>${names})['"]\s*\])`;
+const identifierPattern = String.raw`[A-Za-z_$][\w$]*`;
+const playwrightModifierAliasPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*test(?:${playwrightDescribeAccessPattern})?${playwrightModifierAccessCapturePattern('skip|fixme|only|slow|configure')}`,
+  'g',
+);
+const playwrightDestructuredModifierAliasPattern = new RegExp(
+  String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^}]+)\}\s*=\s*test(?:${playwrightDescribeAccessPattern})?`,
+  'g',
+);
+const destructuredModifierBindingPattern = new RegExp(
+  String.raw`^(?<modifier>skip|fixme|only|slow|configure)\b(?:\s*:\s*(?<alias>${identifierPattern}))?`,
+  'u',
+);
 const skipPattern = new RegExp(
   String.raw`${playwrightCallablePattern.source}${playwrightModifierAccessPattern('skip|fixme')}`,
   'g',
@@ -137,6 +152,9 @@ const lineNumberForOffset = (source: string, offset: number): number =>
 const formatPatternMatch = (matchText: string): string =>
   matchText.replace(/\s+/gu, ' ').trim();
 
+const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+
 const collectPatternEntriesForSource = (
   relativePath: string,
   source: string,
@@ -158,13 +176,98 @@ const collectPatternEntries = (pattern: RegExp) =>
     return collectPatternEntriesForSource(relativePath, source, pattern);
   });
 
-const collectPlaywrightSkipEntries = () => collectPatternEntries(skipPattern);
+const modifierForAliasMatch = (match: RegExpExecArray): string | undefined =>
+  match.groups?.dotModifier ?? match.groups?.bracketModifier;
 
-const collectPlaywrightRuntimeModifierEntries = () =>
-  collectPatternEntries(runtimeModifierPattern);
+const collectAliasedModifierEntriesForSource = (
+  relativePath: string,
+  source: string,
+  modifiers: readonly string[],
+) => {
+  const allowedModifiers = new Set(modifiers);
+  const aliases = new Map<string, string>();
 
-const collectFocusedOnlyEntries = () =>
-  collectPatternEntries(focusedOnlyPattern);
+  for (const match of source.matchAll(playwrightModifierAliasPattern)) {
+    const alias = match.groups?.alias;
+    const modifier = modifierForAliasMatch(match);
+
+    if (
+      alias !== undefined &&
+      modifier !== undefined &&
+      allowedModifiers.has(modifier)
+    ) {
+      aliases.set(alias, modifier);
+    }
+  }
+
+  for (const match of source.matchAll(
+    playwrightDestructuredModifierAliasPattern,
+  )) {
+    const bindings = match.groups?.bindings;
+
+    if (bindings === undefined) {
+      continue;
+    }
+
+    for (const binding of bindings.split(',')) {
+      const bindingMatch = binding
+        .trim()
+        .match(destructuredModifierBindingPattern);
+      const modifier = bindingMatch?.groups?.modifier;
+      const alias = bindingMatch?.groups?.alias ?? modifier;
+
+      if (
+        alias !== undefined &&
+        modifier !== undefined &&
+        allowedModifiers.has(modifier)
+      ) {
+        aliases.set(alias, modifier);
+      }
+    }
+  }
+
+  return [...aliases.entries()].flatMap(([alias, modifier]) => {
+    const aliasCallPattern = new RegExp(
+      String.raw`\b${escapeRegExp(alias)}\s*\(`,
+      'g',
+    );
+
+    return collectPatternEntriesForSource(
+      relativePath,
+      source,
+      aliasCallPattern,
+    )
+      .filter((entry) => !entry.includes(`:${alias} =`))
+      .map((entry) => `${entry} (${modifier} alias)`);
+  });
+};
+
+const collectAliasedModifierEntries = (modifiers: readonly string[]) =>
+  collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectAliasedModifierEntriesForSource(
+      relativePath,
+      source,
+      modifiers,
+    );
+  });
+
+const collectPlaywrightSkipEntries = () => [
+  ...collectPatternEntries(skipPattern),
+  ...collectAliasedModifierEntries(['skip', 'fixme']),
+];
+
+const collectPlaywrightRuntimeModifierEntries = () => [
+  ...collectPatternEntries(runtimeModifierPattern),
+  ...collectAliasedModifierEntries(['slow', 'configure']),
+];
+
+const collectFocusedOnlyEntries = () => [
+  ...collectPatternEntries(focusedOnlyPattern),
+  ...collectAliasedModifierEntries(['only']),
+];
 
 const collectInteractiveDebugEntries = () =>
   collectPatternEntries(interactiveDebugPattern);
@@ -366,6 +469,49 @@ debugger;`,
     ).toEqual(['tests/support/utils/doc-screenshot.ts:1:setTimeout (']);
   });
 
+  it('recognizes aliased Playwright modifiers before inventory checks run', () => {
+    const aliasedModifierSource = `const hiddenSkip = test.skip;
+hiddenSkip('hidden skip', () => {});
+const { fixme: hiddenFixme } = test;
+hiddenFixme('hidden fixme', () => {});
+const hiddenFocus = test.describe.only;
+hiddenFocus('hidden focus', () => {});
+const { configure: configureSerial } = test.describe;
+configureSerial({ mode: 'serial' });
+const hiddenSlow = test.slow;
+hiddenSlow();`;
+
+    expect(
+      collectAliasedModifierEntriesForSource(
+        'tests/specs/example/aliased-modifiers.spec.ts',
+        aliasedModifierSource,
+        ['skip', 'fixme'],
+      ),
+    ).toEqual([
+      'tests/specs/example/aliased-modifiers.spec.ts:2:hiddenSkip( (skip alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:4:hiddenFixme( (fixme alias)',
+    ]);
+    expect(
+      collectAliasedModifierEntriesForSource(
+        'tests/specs/example/aliased-modifiers.spec.ts',
+        aliasedModifierSource,
+        ['only'],
+      ),
+    ).toEqual([
+      'tests/specs/example/aliased-modifiers.spec.ts:6:hiddenFocus( (only alias)',
+    ]);
+    expect(
+      collectAliasedModifierEntriesForSource(
+        'tests/specs/example/aliased-modifiers.spec.ts',
+        aliasedModifierSource,
+        ['slow', 'configure'],
+      ),
+    ).toEqual([
+      'tests/specs/example/aliased-modifiers.spec.ts:10:hiddenSlow( (slow alias)',
+      'tests/specs/example/aliased-modifiers.spec.ts:8:configureSerial( (configure alias)',
+    ]);
+  });
+
   it('keeps the active test inventory aligned with Playwright docs and specs on disk', () => {
     expect(collectActiveInventoryFiles().toSorted()).toEqual(
       collectPlaywrightSpecAndDocumentFiles().toSorted(),
@@ -386,6 +532,62 @@ debugger;`,
       'Auth0 Management credentials are required for create-account integration coverage.',
       'A Stripe webhook signing secret is required for replay coverage.',
     ]);
+  });
+
+  it('keeps every allowed runtime modifier tied to a reason', () => {
+    expect(
+      allowedPlaywrightRuntimeModifierEntries.map((entry) =>
+        entry.reason.trim(),
+      ),
+    ).toEqual([
+      'The registration documentation flow runs serially with one retry because it mutates shared event registration state while proving the full free/paid journey.',
+      'The free registration documentation flow performs Auth0 login, event navigation, database readbacks, and generated-doc attachments.',
+      'The paid registration documentation flow performs Stripe checkout replay, webhook delivery, database readbacks, and generated-doc attachments.',
+    ]);
+  });
+
+  it('keeps every allowed runtime modifier documented in the inventory', () => {
+    const inventory = readFileSync(testInventoryPath, 'utf8');
+
+    for (const entry of allowedPlaywrightRuntimeModifierEntries) {
+      expect(inventory).toContain(pathForSkipEntry(entry.entry));
+    }
+
+    expect(inventory).toContain(
+      'current runtime-modifier allowlist is limited to',
+    );
+    expect(inventory).toContain(
+      '`docs/events/register.doc.ts`: the registration documentation flow',
+    );
+    expect(inventory).toContain('mutates shared registration state');
+    expect(inventory).toContain(
+      'free and paid\n  registration documentation cases are marked slow',
+    );
+    expect(inventory).toContain('Auth0 login');
+    expect(inventory).toContain('Stripe/webhook work');
+    expect(inventory).toContain('generated-doc attachments');
+  });
+
+  it('keeps every allowed skip tied to the credential variables that justify it', () => {
+    for (const entry of allowedPlaywrightSkipEntries) {
+      const sourceContext = sourceContextForEntry(entry.entry);
+
+      for (const environmentVariable of entry.requiredEnvironment) {
+        expect(sourceContext).toContain(environmentVariable);
+      }
+    }
+  });
+
+  it('keeps every allowed skip documented with its credential variables in the inventory', () => {
+    const inventory = readFileSync(testInventoryPath, 'utf8');
+
+    for (const entry of allowedPlaywrightSkipEntries) {
+      expect(inventory).toContain(pathForSkipEntry(entry.entry));
+
+      for (const environmentVariable of entry.requiredEnvironment) {
+        expect(inventory).toContain(environmentVariable);
+      }
+    }
   });
 
   it('keeps real Playwright titles free of placeholder metadata', () => {
