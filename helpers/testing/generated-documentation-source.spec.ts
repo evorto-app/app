@@ -7529,6 +7529,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('const deferredSettingsSummary =');
     expect(source).toContain('const tenantIdentitySummary =');
     expect(source).toContain('const operationsPolicySettingsFields =');
+    expect(source).toContain('const operationsPolicySettingsSurface =');
     expect(source).toContain('const brandAndSearchSettingsControls =');
     expect(source).toContain('const brandAndSearchSettingsSurface =');
     expect(source).toContain('const legalPageSettingsFields =');
@@ -7543,6 +7544,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'for (const field of operationsPolicySettingsFields)',
+    );
+    expect(source).toContain(
+      'await expect(operationsPolicySettingsSurface).toBeVisible()',
     );
     expect(source).toContain(
       'for (const control of brandAndSearchSettingsControls)',
@@ -7583,6 +7587,14 @@ describe('generated docs source current behavior', () => {
       'Operations policy settings with participant registration limits',
     );
     expect(source).toContain(
+      'takeScreenshot(\n    testInfo,\n    operationsPolicySettingsSurface,',
+    );
+    expect(source).toContain(".filter({ hasText: 'Operations policy' })");
+    expect(source).toContain(
+      ".filter({ hasText: 'Configure tenant-level operational defaults.' })",
+    );
+    expect(source).toContain(".filter({ hasText: 'Registration limit' })");
+    expect(source).not.toContain(
       'takeScreenshot(\n    testInfo,\n    operationsPolicySettingsFields,',
     );
     expect(source).toContain(

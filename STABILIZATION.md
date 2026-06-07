@@ -6320,6 +6320,11 @@ buttons together with Logo URL, Favicon URL, SEO title, and SEO description
 fields, and it asserts the hidden logo/favicon file-input accept lists, so the
 tenant-branding guide image and upload-format prose stay pinned to the
 implemented UI wiring.
+It now screenshots the Operations policy surface containing the section heading,
+operational-defaults copy, review policy, Stripe account-management policy,
+email sender, and registration-limit fields instead of passing only individual
+field locators, so the generated image shows enough surrounding settings context
+to judge the workflow.
 It now also screenshots the tenant legal-pages surface containing the external
 URL and hosted-text fields for imprint, privacy, and terms instead of passing
 only the individual field locators, so the generated image keeps the legal page

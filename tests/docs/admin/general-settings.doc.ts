@@ -168,9 +168,20 @@ Tax rates are managed on the separate **Tax Rates** page.
   for (const field of operationsPolicySettingsFields) {
     await expect(field).toBeVisible();
   }
+  const operationsPolicySettingsSurface = generalSettings
+    .locator('form')
+    .filter({ hasText: 'Operations policy' })
+    .filter({ hasText: 'Configure tenant-level operational defaults.' })
+    .filter({ hasText: 'Event review policy' })
+    .filter({ hasText: 'Stripe account management' })
+    .filter({ hasText: 'Email sender name' })
+    .filter({ hasText: 'Registration limit' })
+    .filter({ hasText: 'Limit window days' })
+    .first();
+  await expect(operationsPolicySettingsSurface).toBeVisible();
   await takeScreenshot(
     testInfo,
-    operationsPolicySettingsFields,
+    operationsPolicySettingsSurface,
     page,
     'Operations policy settings with participant registration limits',
   );
