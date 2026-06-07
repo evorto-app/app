@@ -8489,8 +8489,14 @@ describe('stabilization source', () => {
     expect(inventory).toContain('global-admin overview, tenant list, create');
     expect(source).toContain('global-admin overview shell plus');
     expect(source).toContain('overflowing\n  visible text or panel elements');
+    expect(source).toContain('browser console warning/error logs');
     expect(inventory).toContain(
       'no overflowing visible text or panel elements',
+    );
+    expect(inventory).toContain('browser console\n    warning/error logs');
+    expect(globalAdminSpec).toContain('collectBrowserLogFailures');
+    expect(globalAdminSpec).toContain(
+      'should not emit browser warning/error logs',
     );
     expect(source).toContain(
       'authenticated profile viewport coverage checkpoint',

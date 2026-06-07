@@ -328,7 +328,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     narrow mobile, mobile, and desktop viewports for expected headings/content,
     no application-error text, no horizontal overflow, no horizontally clipped
     visible controls, and no overflowing visible text or panel elements outside
-    intentional horizontal scroll containers.
+    intentional horizontal scroll containers. It also fails on browser console
+    warning/error logs while each route is opened.
   - `src/app/app.routes.server.spec.ts` guards that authenticated route groups
     stay client-rendered in production SSR, so direct deep links such as
     `/admin/settings`, `/create-account`, `/global-admin/tenants`, `/profile`,

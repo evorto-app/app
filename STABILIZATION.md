@@ -3898,7 +3898,8 @@ fallback rather than a profile discount-card defect.
   rejects application-error text,
   horizontal overflow, horizontally clipped visible controls, and overflowing
   visible text or panel elements outside intentional horizontal scroll
-  containers while allowing normal vertical scrolling on mobile. A current
+  containers, and browser console warning/error logs while each route is opened,
+  while allowing normal vertical scrolling on mobile. A current
   in-app Browser pass also opened
   `/global-admin/tenants` at 390x844 after normal Auth0 login with
   `stabilizationEvidence=global-admin-viewport-coverage`, rendered the Tenants
