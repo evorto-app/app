@@ -6295,6 +6295,10 @@ MIME/path string values plus object shorthand properties such as
 interpolation, conditionals, nullish/logical expressions, and concatenation is
 covered too, including `.at(...)` indexed MIME/path lists, keeping direct image
 attachment guards independent of simple local variable extraction.
+Spread copies of tracked raw image and raw Markdown payload objects are covered
+too, so generated docs cannot rebuild `{ ...rawImagePayload }` or
+`{ ...rawMarkdownPayload }` to bypass the shared screenshot helper and markdown
+image boundary.
 Tracked direct image attachment calls with spread arguments or opaque
 `apply(...)` argument lists are rejected too, and `.at(...)` indexed attach
 helper lists are tracked as direct attachment callees, so
