@@ -823,6 +823,42 @@ const collectStaticStringAliases = (
   return aliases;
 };
 
+const collectReflectAliases = (
+  sourceFile: ts.SourceFile,
+): ReadonlySet<string> => {
+  const aliases = new Set<string>();
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer
+      ) {
+        const initializer = unwrapExpression(node.initializer);
+
+        if (
+          ts.isIdentifier(initializer) &&
+          (initializer.text === 'Reflect' || aliases.has(initializer.text)) &&
+          !aliases.has(node.name.text)
+        ) {
+          aliases.add(node.name.text);
+          changed = true;
+        }
+      }
+
+      ts.forEachChild(node, visit);
+    };
+
+    visit(sourceFile);
+  }
+
+  return aliases;
+};
+
 const getStaticPropertyName = (
   node: ts.Expression,
   stringAliases: ReadonlyMap<string, string> = new Map(),
@@ -896,7 +932,11 @@ const getStaticPropertyReceiver = (
   return null;
 };
 
-const isReflectApplyCallee = (node: ts.Expression): boolean => {
+const isReflectApplyCallee = (
+  node: ts.Expression,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
+  reflectAliases: ReadonlySet<string> = new Set(),
+): boolean => {
   const callee = unwrapExpression(node);
 
   if (
@@ -912,8 +952,8 @@ const isReflectApplyCallee = (node: ts.Expression): boolean => {
 
   return (
     ts.isIdentifier(receiver) &&
-    receiver.text === 'Reflect' &&
-    getStaticPropertyName(callee) === 'apply'
+    (receiver.text === 'Reflect' || reflectAliases.has(receiver.text)) &&
+    getStaticPropertyName(callee, stringAliases) === 'apply'
   );
 };
 
@@ -921,6 +961,7 @@ const isReflectGetPropertyReference = (
   node: ts.Expression,
   propertyName: string,
   stringAliases: ReadonlyMap<string, string> = new Map(),
+  reflectAliases: ReadonlySet<string> = new Set(),
 ): boolean => {
   const expression = unwrapExpression(node);
 
@@ -943,7 +984,7 @@ const isReflectGetPropertyReference = (
 
   return (
     ts.isIdentifier(receiver) &&
-    receiver.text === 'Reflect' &&
+    (receiver.text === 'Reflect' || reflectAliases.has(receiver.text)) &&
     getStaticPropertyName(callee, stringAliases) === 'get' &&
     resolveStaticStringValue(expression.arguments[1], stringAliases) ===
       propertyName
@@ -1131,6 +1172,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     ts.ScriptKind.TS,
   );
   const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const reflectAliases = collectReflectAliases(sourceFile);
   const rawImages: string[] = [];
   const markdownAttachmentNameAliases = new Set<string>();
   const markdownAttachmentNamePropertyAliases = new Set<string>();
@@ -1384,7 +1426,12 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     }
 
     if (
-      isReflectGetPropertyReference(expression, 'attach', staticStringAliases)
+      isReflectGetPropertyReference(
+        expression,
+        'attach',
+        staticStringAliases,
+        reflectAliases,
+      )
     ) {
       return true;
     }
@@ -1812,7 +1859,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     args: ts.NodeArray<ts.Expression>,
   ): boolean => {
     if (
-      !isReflectApplyCallee(callee) ||
+      !isReflectApplyCallee(callee, staticStringAliases, reflectAliases) ||
       !args[0] ||
       !isTrackedAttachFunctionReference(args[0])
     ) {
@@ -3053,6 +3100,7 @@ const findScreenshotHelperBypasses = (
     ts.ScriptKind.TS,
   );
   const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const reflectAliases = collectReflectAliases(sourceFile);
   const bypasses: string[] = [];
 
   const describeNode = (node: ts.Node): string => {
@@ -3072,7 +3120,12 @@ const findScreenshotHelperBypasses = (
 
     if (
       ts.isCallExpression(node) &&
-      isReflectGetPropertyReference(node, 'takeScreenshot', staticStringAliases)
+      isReflectGetPropertyReference(
+        node,
+        'takeScreenshot',
+        staticStringAliases,
+        reflectAliases,
+      )
     ) {
       return true;
     }
@@ -3221,13 +3274,14 @@ const findScreenshotHelperBypasses = (
           callee,
           'takeScreenshot',
           staticStringAliases,
+          reflectAliases,
         )
       ) {
         bypasses.push(describeNode(node.expression));
       }
 
       if (
-        isReflectApplyCallee(callee) &&
+        isReflectApplyCallee(callee, staticStringAliases, reflectAliases) &&
         node.arguments[0] &&
         expressionReferencesTakeScreenshot(node.arguments[0])
       ) {
@@ -3295,6 +3349,7 @@ const findDirectImageAttachmentCalls = (
     ts.ScriptKind.TS,
   );
   const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const reflectAliases = collectReflectAliases(sourceFile);
   const imageAttachments: string[] = [];
   const imageAttachmentNameAliases = new Set<string>();
   const imageAttachmentNamePropertyAliases = new Set<string>();
@@ -3551,7 +3606,12 @@ const findDirectImageAttachmentCalls = (
     }
 
     if (
-      isReflectGetPropertyReference(expression, 'attach', staticStringAliases)
+      isReflectGetPropertyReference(
+        expression,
+        'attach',
+        staticStringAliases,
+        reflectAliases,
+      )
     ) {
       return true;
     }
@@ -4072,7 +4132,7 @@ const findDirectImageAttachmentCalls = (
     args: ts.NodeArray<ts.Expression>,
   ): boolean => {
     if (
-      !isReflectApplyCallee(callee) ||
+      !isReflectApplyCallee(callee, staticStringAliases, reflectAliases) ||
       !args[0] ||
       !isTrackedAttachFunctionReference(args[0])
     ) {
@@ -4139,6 +4199,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     ts.ScriptKind.TS,
   );
   const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const reflectAliases = collectReflectAliases(sourceFile);
   const screenshotCalls: string[] = [];
   const screenshotFunctionAliases = new Set<string>();
   const screenshotFunctionPropertyAliases = new Set<string>();
@@ -4179,6 +4240,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
         expression,
         'screenshot',
         staticStringAliases,
+        reflectAliases,
       )
     ) {
       return true;
@@ -4407,7 +4469,7 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
           getStaticPropertyName(callee, staticStringAliases) === 'apply') &&
         isTrackedScreenshotFunctionReference(receiver);
       const isReflectApplyScreenshotCall =
-        isReflectApplyCallee(callee) &&
+        isReflectApplyCallee(callee, staticStringAliases, reflectAliases) &&
         !!node.arguments[0] &&
         isTrackedScreenshotFunctionReference(node.arguments[0]);
 
@@ -4579,6 +4641,20 @@ describe('generated docs source current behavior', () => {
         page,
         'Aliased reflected helper bypass with descriptive caption',
       );
+      const reflectMirror = Reflect;
+      await reflectMirror.get(documentationReporter, 'takeScreenshot')(
+        testInfo,
+        settingsSurface,
+        page,
+        'Global Reflect alias helper bypass with descriptive caption',
+      );
+      const nestedReflectMirror = reflectMirror;
+      await nestedReflectMirror.apply(takeScreenshot, undefined, [
+        testInfo,
+        settingsSurface,
+        page,
+        'Nested Reflect alias helper bypass with descriptive caption',
+      ]);
     `;
 
     expect(
@@ -4590,6 +4666,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/reflect-get-helper.doc.ts:2:13',
       'tests/docs/example/reflect-get-helper.doc.ts:9:13',
       'tests/docs/example/reflect-get-helper.doc.ts:16:13',
+      'tests/docs/example/reflect-get-helper.doc.ts:23:13',
+      'tests/docs/example/reflect-get-helper.doc.ts:30:13',
     ]);
   });
 
@@ -4885,6 +4963,9 @@ describe('generated docs source current behavior', () => {
       await Reflect.get(testInfo, 'attach')('raw evidence', { contentType: 'image/png' });
       const attachMethodName = 'attach';
       await Reflect.get(testInfo, attachMethodName)('image', { body: imageBuffer });
+      const reflectMirror = Reflect;
+      await reflectMirror.get(testInfo, 'attach')('image', { body: imageBuffer });
+      await reflectMirror.apply(testInfo.attach, testInfo, ['raw evidence', { contentType: 'image/png' }]);
     `;
 
     expect(
@@ -4896,6 +4977,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/reflect-get-image.doc.ts:3:13',
       'tests/docs/example/reflect-get-image.doc.ts:4:13',
       'tests/docs/example/reflect-get-image.doc.ts:6:13',
+      'tests/docs/example/reflect-get-image.doc.ts:8:13',
+      'tests/docs/example/reflect-get-image.doc.ts:9:13',
     ]);
   });
 
@@ -5258,6 +5341,9 @@ describe('generated docs source current behavior', () => {
       await Reflect.get(page, 'screenshot')({ path: 'direct-reflected-page.png' });
       const screenshotMethodName = 'screenshot';
       await Reflect.get(page, screenshotMethodName)({ path: 'aliased-reflected-page.png' });
+      const reflectMirror = Reflect;
+      await reflectMirror.get(page, 'screenshot')({ path: 'mirror-reflected-page.png' });
+      await reflectMirror.apply(page.screenshot, page, [{ path: 'mirror-applied-page.png' }]);
     `;
 
     expect(
@@ -5269,6 +5355,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/reflect-get-screenshot.doc.ts:3:13',
       'tests/docs/example/reflect-get-screenshot.doc.ts:4:13',
       'tests/docs/example/reflect-get-screenshot.doc.ts:6:13',
+      'tests/docs/example/reflect-get-screenshot.doc.ts:8:13',
+      'tests/docs/example/reflect-get-screenshot.doc.ts:9:13',
     ]);
   });
 
@@ -6138,6 +6226,9 @@ describe('generated docs source current behavior', () => {
       await Reflect.get(testInfo, 'attach')('markdown', rawMarkdownPayload);
       const attachMethodName = 'attach';
       await Reflect.get(testInfo, attachMethodName)('markdown', rawMarkdownPayload);
+      const reflectMirror = Reflect;
+      await reflectMirror.get(testInfo, 'attach')('markdown', rawMarkdownPayload);
+      await reflectMirror.apply(testInfo.attach, testInfo, ['markdown', rawMarkdownPayload]);
     `;
 
     expect(
@@ -6149,6 +6240,8 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/reflect-get-markdown-image.doc.ts:4:13',
       'tests/docs/example/reflect-get-markdown-image.doc.ts:5:13',
       'tests/docs/example/reflect-get-markdown-image.doc.ts:7:13',
+      'tests/docs/example/reflect-get-markdown-image.doc.ts:9:13',
+      'tests/docs/example/reflect-get-markdown-image.doc.ts:10:13',
     ]);
   });
 

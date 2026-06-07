@@ -1532,6 +1532,10 @@ describe('stabilization source', () => {
     expect(source).toContain('`takeScreenshot`, `page.screenshot`, and');
     expect(source).toMatch(/string-alias property\s+names/u);
     expect(source).toContain(
+      'tracks local aliases of the global `Reflect` object',
+    );
+    expect(inventory).toContain('local `Reflect` aliases');
+    expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`',
     );
     expect(source).toContain('85 source-guard tests');

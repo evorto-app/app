@@ -6377,6 +6377,11 @@ Static `Reflect.get(...)` lookups of `takeScreenshot`, `page.screenshot`, and
 `testInfo.attach` are treated as shared-helper or raw screenshot/image helpers
 too, including string-alias property names, so generated docs cannot hide direct
 captures behind reflection before calling or aliasing the returned function. The
+same source guard now tracks local aliases of the global `Reflect` object before
+checking `Reflect.get(...)` and `Reflect.apply(...)`, so `const mirror =
+Reflect; mirror.get(...)` or `mirror.apply(...)` cannot bypass the shared
+helper, raw screenshot, raw image attachment, or raw Markdown-image attachment
+checks either. The
 focused
 `bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`
 run passed with 85 source-guard tests after adding the synthetic reflected
