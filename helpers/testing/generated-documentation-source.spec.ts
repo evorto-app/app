@@ -5006,6 +5006,15 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       ts.isIdentifier(node.name) &&
       node.initializer
     ) {
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isScreenshotFunctionReference,
+        screenshotFunctionAliases,
+        screenshotFunctionPropertyAliases,
+        staticStringAliases,
+      );
+
       const objectInitializer = unwrapExpression(node.initializer);
 
       if (ts.isObjectLiteralExpression(objectInitializer)) {
@@ -6189,6 +6198,30 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/object-rest-grouped-screenshot.doc.ts:7:13',
       'tests/docs/example/object-rest-grouped-screenshot.doc.ts:8:13',
+    ]);
+  });
+
+  it('detects direct screenshots hidden behind copied grouped aliases', () => {
+    const copiedGroupedScreenshotSource = `
+      const capture = page.screenshot.bind(page);
+      const screenshotHelpers = {
+        capture,
+        captureElement: locator.screenshot.bind(locator),
+      };
+      const spreadScreenshotHelpers = { ...screenshotHelpers };
+      const assignedScreenshotHelpers = Object.assign({}, screenshotHelpers);
+      await spreadScreenshotHelpers.capture({ path: 'spread-page.png' });
+      await assignedScreenshotHelpers.captureElement({ path: 'assigned-element.png' });
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/copied-grouped-screenshot.doc.ts',
+        copiedGroupedScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-grouped-screenshot.doc.ts:9:13',
+      'tests/docs/example/copied-grouped-screenshot.doc.ts:10:13',
     ]);
   });
 

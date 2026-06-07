@@ -6633,6 +6633,10 @@ Object-rest copied grouped screenshot helpers are also tracked, so generated
 docs cannot destructure `{ ...copiedScreenshotHelpers }` from a helper group and
 then call `copiedScreenshotHelpers.capture(...)` as an unvalidated raw
 screenshot.
+Object-spread and `Object.assign(...)` copied screenshot-helper groups now use
+the same alias propagation, so `spreadScreenshotHelpers.capture(...)` and
+`assignedScreenshotHelpers.captureElement(...)` cannot bypass generated-doc
+screenshot validation either.
 Generated-doc screenshot captions now also require at least 32 characters and
 five words at runtime and in source coverage, so a screenshot cannot pass with a
 terse section/list label that does not explain what the image proves. The

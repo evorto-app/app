@@ -725,7 +725,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   destructured, or nested destructured screenshot-function aliases,
   binding-default and parameter-default screenshot-function aliases,
   grouped screenshot-function properties, shorthand or alias-valued grouped
-  screenshot helpers, object-rest copied grouped screenshot helpers, and
+  screenshot helpers, object-spread, `Object.assign(...)`, and object-rest
+  copied grouped screenshot helpers, and
   direct or alias-valued tuple/array screenshot-function entries including
   `.at(...)` indexed raw screenshot-helper lists, rejects direct
   image attachments through simple or grouped attachment-name aliases, wrapped

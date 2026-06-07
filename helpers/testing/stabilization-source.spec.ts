@@ -1625,6 +1625,12 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('copiedScreenshotHelpers.capture(...)');
     expect(source).toContain(
+      'Object-spread and `Object.assign(...)` copied screenshot-helper groups now use\n' +
+        'the same alias propagation',
+    );
+    expect(source).toContain('spreadScreenshotHelpers.capture(...)');
+    expect(source).toContain('assignedScreenshotHelpers.captureElement(...)');
+    expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
     expect(source).toContain('rebuilt the Docker docs stack');
@@ -1859,7 +1865,7 @@ describe('stabilization source', () => {
       /shorthand or alias-valued grouped\s+screenshot helpers/u,
     );
     expect(inventory).toContain(
-      'object-rest copied grouped screenshot helpers',
+      'object-spread, `Object.assign(...)`, and object-rest\n  copied grouped screenshot helpers',
     );
     expect(inventory).toMatch(
       /direct or alias-valued tuple\/array screenshot-function\s+entries/u,
