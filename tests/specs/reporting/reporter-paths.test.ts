@@ -353,7 +353,7 @@ test('documentation reporter rejects raw markdown image syntax', async ({}, test
   expect(() =>
     reporter.onTestEnd({ title: 'Raw markdown image' } as any, result),
   ).toThrow(
-    'Documentation markdown attachment in Raw markdown image must not include raw Markdown image syntax, including reference-style images, or HTML <img> tags.',
+    'Documentation markdown attachment in Raw markdown image must not include raw Markdown image syntax, including reference-style images, or raw HTML visual/media tags.',
   );
 });
 
@@ -382,7 +382,7 @@ test('documentation reporter rejects reference-style markdown image syntax', asy
   expect(() =>
     reporter.onTestEnd({ title: 'Reference markdown image' } as any, result),
   ).toThrow(
-    'Documentation markdown attachment in Reference markdown image must not include raw Markdown image syntax, including reference-style images, or HTML <img> tags.',
+    'Documentation markdown attachment in Reference markdown image must not include raw Markdown image syntax, including reference-style images, or raw HTML visual/media tags.',
   );
 });
 
@@ -438,7 +438,36 @@ test('documentation reporter rejects raw HTML image tags', async ({}, testInfo) 
   expect(() =>
     reporter.onTestEnd({ title: 'Raw HTML image' } as any, result),
   ).toThrow(
-    'Documentation markdown attachment in Raw HTML image must not include raw Markdown image syntax, including reference-style images, or HTML <img> tags.',
+    'Documentation markdown attachment in Raw HTML image must not include raw Markdown image syntax, including reference-style images, or raw HTML visual/media tags.',
+  );
+});
+
+test('documentation reporter rejects raw HTML visual media tags', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-raw-html-visual');
+  const imgsRoot = testInfo.outputPath('docs-img-raw-html-visual');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from(
+          'This product guide must not embed <picture><source srcset="../raw.png"></picture> outside the screenshot helper.',
+        ),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Raw HTML visual media' } as any, result),
+  ).toThrow(
+    'Documentation markdown attachment in Raw HTML visual media must not include raw Markdown image syntax, including reference-style images, or raw HTML visual/media tags.',
   );
 });
 

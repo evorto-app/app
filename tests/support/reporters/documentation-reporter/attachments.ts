@@ -15,7 +15,7 @@ const minimumImageWidth = 320;
 const minimumImageHeight = 240;
 const minimumMarkdownBodyLength = 60;
 const rawMarkdownImagePattern =
-  /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<img(?:\s|>)/iu;
+  /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<(?:img|picture|source|svg|image|object|embed|iframe|video|canvas)(?:\s|>|\/)/iu;
 
 const readAttachmentBody = (
   attachment: ResultAttachment,
@@ -169,7 +169,7 @@ const assertNoRawMarkdownImages = (
 ): void => {
   if (rawMarkdownImagePattern.test(markdown)) {
     throw new Error(
-      `Documentation markdown attachment in ${testTitle} must not include raw Markdown image syntax, including reference-style images, or HTML <img> tags. Use the shared screenshot helper so captions, highlights, and content checks stay enforced.`,
+      `Documentation markdown attachment in ${testTitle} must not include raw Markdown image syntax, including reference-style images, or raw HTML visual/media tags. Use the shared screenshot helper so captions, highlights, and content checks stay enforced.`,
     );
   }
 };

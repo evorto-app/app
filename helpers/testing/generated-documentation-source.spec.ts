@@ -1183,7 +1183,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
   const markdownAttachFunctionAliases = new Set<string>();
   const markdownAttachFunctionPropertyAliases = new Set<string>();
   const rawMarkdownImagePattern =
-    /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<img(?:\s|>)/iu;
+    /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<(?:img|picture|source|svg|image|object|embed|iframe|video|canvas)(?:\s|>|\/)/iu;
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -6159,6 +6159,24 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/reference-markdown-image.doc.ts:2:13']);
   });
 
+  it('detects raw HTML visual media tags before generated docs can use them', () => {
+    const rawHtmlVisualSource = `
+      await testInfo.attach('markdown', {
+        body: \`
+          This guide cannot bypass screenshot checks with raw HTML visual markup.
+          <picture><source srcset="../raw-reference.png"></picture>
+        \`,
+      });
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/raw-html-visual.doc.ts',
+        rawHtmlVisualSource,
+      ),
+    ).toEqual(['tests/docs/example/raw-html-visual.doc.ts:2:13']);
+  });
+
   it('detects raw markdown images hidden behind binding default attach aliases', () => {
     const bindingDefaultMarkdownImageSource = `
       const rawMarkdownPayload = { body: '![raw](raw.png)' };
@@ -8566,7 +8584,11 @@ describe('generated docs source current behavior', () => {
     ).toContain(
       'documentation reporter rejects reference-style markdown image syntax',
     );
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain('documentation reporter rejects raw HTML visual media tags');
     expect(reporterAttachments).toContain('reference-style images');
+    expect(reporterAttachments).toContain('raw HTML visual/media tags');
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(
