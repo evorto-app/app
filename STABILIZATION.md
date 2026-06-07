@@ -21,25 +21,28 @@ and useful for small cleanup batches.
 
 Latest coverage checkpoint: generated-doc weak screenshot target detection now
 resolves constant-backed computed grouped target keys before target-quality
-checks run. The guard covers grouped objects such as
-`{ [shellKey]: page.locator('main') }` and corresponding reads such as
-`groupedTargets[shellKey]`, `groupedTargets[broadKey]`,
-`groupedTargets[singleKey]`, and `groupedTargets[iconKey]`, so a docs test
-cannot hide generic page shells, broad sections, single controls, or icon-only
-targets behind computed object keys. Local validation for the slice passed
+checks run, including destructured aliases from those computed keys. The guard
+covers grouped objects such as `{ [shellKey]: page.locator('main') }`,
+corresponding reads such as `groupedTargets[shellKey]`,
+`groupedTargets[broadKey]`, `groupedTargets[singleKey]`, and
+`groupedTargets[iconKey]`, and destructuring such as
+`const { [shellKey]: shellTarget } = groupedTargets`, so a docs test cannot
+hide generic page shells, broad sections, single controls, or icon-only targets
+behind computed object keys or computed destructuring. Local validation for the
+slice passed
 `bun run format:write`, `bun run lint`,
 `bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
-with 200 tests, and `git diff --check`; WebStorm errors-only diagnostics remain
+with 201 tests, and `git diff --check`; WebStorm errors-only diagnostics remain
 blocked because this worktree is not one of the IDE's open projects. Browser
 verification was attempted, but no positive visual evidence is claimed for this
 source-only slice: `bun run dev:status` found the generated database endpoint
 accepting TCP connections but failing the validation query with
-`Connection terminated unexpectedly`; Docker's disposable start-path preflight
-passed, but the existing app route probe still could not connect to
-`/legal/terms`. The in-app Browser probe at 390x844 tried
-`/legal/terms?stabilizationEvidence=computed-grouped-target-source-guard`
-and failed before rendering the page with `net::ERR_BLOCKED_BY_CLIENT`. The
-live PR checks are tracked separately; the latest fully green E2E evidence
+`spawnSync bun ETIMEDOUT`; Docker's disposable start-path preflight passed, but
+the existing app route probe still could not connect to `/legal/terms`. The
+in-app Browser probe at 390x844 tried
+`/legal/terms?stabilizationEvidence=computed-destructured-target-source-guard`
+and failed before rendering the page with `net::ERR_BLOCKED_BY_CLIENT`. The live
+PR checks are tracked separately; the latest fully green E2E evidence
 remains the older completed pushed head until the new CI run finishes.
 
 ## Product Decision Draft
@@ -7964,3 +7967,26 @@ passed, but the existing app route probe still could not connect to
 `/legal/terms`. The in-app Browser probe at 390x844 tried
 `/legal/terms?stabilizationEvidence=computed-grouped-target-source-guard` and
 failed before rendering the page with `net::ERR_BLOCKED_BY_CLIENT`.
+
+Generated-doc weak screenshot target detection now also resolves
+constant-backed computed destructuring from grouped target objects before
+target-quality checks run. The guard covers destructured aliases such as
+`const { [shellKey]: shellTarget, [broadKey]: broadTarget } = groupedTargets`
+after the grouped object was created with computed keys, then rejects
+`shellTarget`, `broadTarget`, `singleTarget`, and `iconTarget` when they point to
+generic page shells, broad sections, single controls, or icon-only targets. The
+implementation now passes the shared static-string alias map into destructured
+weak-target alias collection, so computed property names are resolved the same
+way for destructured aliases, bracket reads, and grouped object keys. Validation
+for this slice passed `bun run format:write`, `bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 201 tests, and `git diff --check`; WebStorm errors-only diagnostics
+remained blocked because this worktree is not one of the IDE's open projects.
+Browser verification was attempted for this source-only slice, but no positive
+visual evidence is claimed: `bun run dev:status` found the generated database
+endpoint accepting TCP connections but the validation query timed out with
+`spawnSync bun ETIMEDOUT`, Docker's disposable start-path preflight passed, and
+the existing app route probe still could not connect to `/legal/terms`. The
+in-app Browser probe at 390x844 tried
+`/legal/terms?stabilizationEvidence=computed-destructured-target-source-guard`
+and failed before rendering the page with `net::ERR_BLOCKED_BY_CLIENT`.

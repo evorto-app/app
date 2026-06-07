@@ -1775,8 +1775,17 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'computed-grouped-target.doc.ts',
     );
+    expect(generatedDocumentationSource).toContain(
+      'detects computed destructured weak documentation screenshot target groups',
+    );
+    expect(generatedDocumentationSource).toContain('[shellKey]: shellTarget');
+    expect(generatedDocumentationSource).toContain('shellTarget');
+    expect(generatedDocumentationSource).toContain(
+      'computed-destructured-target.doc.ts',
+    );
     expect(source).toContain('constant-backed computed keys');
     expect(source).toContain('{ [shellKey]: page.locator');
+    expect(source).toContain('[shellKey]: shellTarget');
     expect(source).toContain(
       'stabilizationEvidence=spread-grouped-target-source-guard',
     );
@@ -1905,7 +1914,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('`satisfies` grouped target');
     expect(inventory).toMatch(/objects before alias\s+collection/u);
     expect(inventory).toContain(
-      'constant-backed computed object keys and bracket references',
+      'constant-backed computed object keys, computed destructuring, and\n  bracket references',
     );
     expect(inventory).toContain('shorthand properties');
     expect(inventory).toContain('alias-valued\n  properties');
@@ -5739,6 +5748,7 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'generated-doc weak screenshot target detection now\nresolves constant-backed computed grouped target keys',
     );
+    expect(source).toContain('including destructured aliases');
     expect(source).toContain('before target-quality\nchecks run');
     expect(source).toContain('{ [shellKey]: page.locator');
     expect(source).toContain('groupedTargets[shellKey]');
@@ -5746,12 +5756,15 @@ describe('stabilization source', () => {
     expect(source).toContain('groupedTargets[singleKey]');
     expect(source).toContain('groupedTargets[iconKey]');
     expect(source).toContain(
-      'generic page shells, broad sections, single controls, or icon-only\ntargets',
+      'const { [shellKey]: shellTarget } = groupedTargets',
+    );
+    expect(source).toContain(
+      'generic page shells, broad sections, single controls, or icon-only targets\nbehind computed object keys or computed destructuring',
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 200 tests');
+    expect(source).toContain('with 201 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5767,7 +5780,7 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'generated database endpoint\naccepting TCP connections',
     );
-    expect(source).toContain('`Connection terminated unexpectedly`');
+    expect(source).toContain('`spawnSync bun ETIMEDOUT`');
     expect(source).toContain(
       "Docker's disposable start-path preflight\npassed",
     );
@@ -5776,7 +5789,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=computed-grouped-target-source-guard',
+      '/legal/terms?stabilizationEvidence=computed-destructured-target-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');
@@ -5786,7 +5799,7 @@ describe('stabilization source', () => {
     expect(source).not.toContain(
       '`evorto-object-rest-skip-inventory-events-390x844.png`',
     );
-    expect(source).toMatch(/The\s+live PR checks are tracked\s+separately/u);
+    expect(source).toMatch(/live\s+PR checks are tracked\s+separately/u);
     expect(source).toMatch(/latest\s+fully\s+green\s+E2E/u);
     expect(source).toMatch(/older\s+completed\s+pushed\s+head/u);
     expect(source).toContain('actual Material overlay panel');
