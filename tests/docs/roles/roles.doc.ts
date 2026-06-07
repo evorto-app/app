@@ -25,11 +25,11 @@ const readOnlyUserListSurface = (page: Page): Locator =>
     .filter({ hasText: 'Admin' })
     .first();
 
-const roleFormPermissionGroupSurface = (page: Page): Locator =>
+const filledRoleFormSurface = (page: Page): Locator =>
   page
-    .locator('app-role-form div')
+    .locator('app-role-form')
     .filter({
-      has: page.getByRole('checkbox', { exact: true, name: 'Events' }),
+      has: page.getByRole('button', { name: 'Save role' }),
     })
     .filter({ hasText: 'Includes: View templates' })
     .first();
@@ -166,13 +166,13 @@ Permissions that are required by another permission are automatically included a
     await expect(
       page.getByRole('checkbox', { name: 'View templates' }),
     ).toBeChecked();
-    const rolePermissionGroup = roleFormPermissionGroupSurface(page);
-    await expect(rolePermissionGroup).toBeVisible();
+    const filledRoleForm = filledRoleFormSurface(page);
+    await expect(filledRoleForm).toBeVisible();
     await takeScreenshot(
       testInfo,
-      rolePermissionGroup,
+      filledRoleForm,
       page,
-      'Role form with permission groups',
+      'Role form with filled identity fields and dependent permission selection',
     );
     await page.getByRole('button', { name: 'Save role' }).click();
     await expect(page.getByRole('heading', { name: roleName })).toBeVisible();

@@ -13734,7 +13734,7 @@ describe('generated docs source current behavior', () => {
         productArea: 'configuring roles and capabilities',
         terms: [
           'tenant-scoped capabilities',
-          'Role form with permission groups',
+          'Role form with filled identity fields and dependent permission selection',
         ],
       },
       {
@@ -13891,7 +13891,10 @@ describe('generated docs source current behavior', () => {
           'tests/docs/roles/about-permissions.doc.ts',
           'tests/docs/roles/roles.doc.ts',
         ],
-        terms: ['About permissions', 'Role form with permission groups'],
+        terms: [
+          'About permissions',
+          'Role form with filled identity fields and dependent permission selection',
+        ],
         topic: 'roles and permissions',
       },
       {
@@ -15828,12 +15831,21 @@ describe('generated docs source current behavior', () => {
     expect(rolesSource).toContain(
       'Saved role detail page with dependent permissions visible',
     );
-    expect(rolesSource).toContain('const roleFormPermissionGroupSurface =');
-    expect(rolesSource).toContain("locator('app-role-form div')");
+    expect(rolesSource).toContain('const filledRoleFormSurface =');
+    expect(rolesSource).toContain("locator('app-role-form')");
+    expect(rolesSource).toContain(
+      "has: page.getByRole('button', { name: 'Save role' })",
+    );
     expect(rolesSource).toContain(
       "getByRole('checkbox', { exact: true, name: 'Events' })",
     );
     expect(rolesSource).toContain('Includes: View templates');
+    expect(rolesSource).toContain(
+      'const filledRoleForm = filledRoleFormSurface',
+    );
+    expect(rolesSource).toContain(
+      'Role form with filled identity fields and dependent permission selection',
+    );
     expect(rolesSource).toContain(
       '**Default user role**: This role will be assigned to all new users.',
     );

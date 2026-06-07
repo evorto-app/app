@@ -1,5 +1,10 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import type { APIRequestContext, Locator, Page } from '@playwright/test';
+import type {
+  APIRequestContext,
+  BrowserContext,
+  Locator,
+  Page,
+} from '@playwright/test';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import Stripe from 'stripe';
@@ -24,6 +29,37 @@ const waitForRegistrationStatus = async (page: Page) => {
     .getByText('Loading registration status')
     .first()
     .waitFor({ state: 'detached' });
+};
+
+const installDeterministicDate = async (
+  context: BrowserContext,
+  fixedNow: number,
+) => {
+  await context.addInitScript((value) => {
+    const hostname = globalThis.location?.hostname ?? '';
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return;
+    }
+    const realDate = Date;
+    class FixedDate extends realDate {
+      constructor(...args: [] | ConstructorParameters<typeof realDate>) {
+        if (args.length === 0) {
+          super(value);
+          return;
+        }
+        super(...args);
+      }
+
+      static override now() {
+        return value;
+      }
+    }
+
+    FixedDate.parse = realDate.parse;
+    FixedDate.UTC = realDate.UTC;
+    // @ts-expect-error Browser runtime override for deterministic tests.
+    globalThis.Date = FixedDate;
+  }, fixedNow);
 };
 
 const gotoEventDetail = async (page: Page, eventId: string) => {
@@ -198,12 +234,24 @@ test.describe('Register for events', () => {
   test('Review anonymous registration entry point', async ({
     browser,
     seeded,
+    tenantDomain,
+    testClock,
   }, testInfo) => {
     const freeEventId = seeded.scenario.events.freeOpen.eventId;
     const anonymousContext = await browser.newContext({ storageState: {} });
-    const anonymousPage = await anonymousContext.newPage();
 
     try {
+      await installDeterministicDate(anonymousContext, testClock.toMillis());
+      await anonymousContext.addCookies([
+        {
+          domain: 'localhost',
+          expires: -1,
+          name: 'evorto-tenant',
+          path: '/',
+          value: tenantDomain,
+        },
+      ]);
+      const anonymousPage = await anonymousContext.newPage();
       await gotoEventDetail(anonymousPage, freeEventId);
       await waitForRegistrationStatus(anonymousPage);
 
