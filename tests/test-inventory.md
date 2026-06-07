@@ -1539,6 +1539,27 @@ provider outcomes without live identifiers.
   `test-results/stabilization-browser/797e51dd-terms-390x844.png` show seeded
   Material event cards with meaningful icons/times and the readable Terms
   fallback legal page with fixed Events/Login bottom navigation.
+  The latest recorded current-head Browser evidence, pinned on PR head
+  `8e0bc8ad`, reset the stale Docker stack, confirmed
+  `bun run dev:status` passed at `BASE_URL=http://localhost:4218`, reran
+  `bun run test:e2e:public-general-viewports -- --no-deps` with both General
+  viewport tests passing, and used the in-app Browser to check all 10 anonymous
+  General routes at 320x740, 390x844, and 1440x900. Browser covered the root
+  redirect, events list, seeded event detail, hosted legal pages, 403, 500,
+  explicit 404, and wildcard 404; it found expected content, no visible clipped
+  controls, no persistent loading labels, no application-error text, fixed
+  Events/Login mobile navigation, fixed Events/Scanner/Login desktop
+  navigation, and zero warning/error logs. The inspected screenshots
+  `/tmp/evorto-current-general-browser-evidence/events-320x740.png`,
+  `/tmp/evorto-current-general-browser-evidence/terms-390x844.png`,
+  `/tmp/evorto-current-general-browser-evidence/events-1440x900.png`, and
+  `/tmp/evorto-current-general-browser-evidence/event-detail-1440x900.png` show
+  seeded event cards, legal fallback copy, desktop side navigation, and the
+  selected event detail registration surface rather than unrelated or
+  heading-only images. A Browser-only documentElement scroll-width reading on
+  simple legal/error pages included the scrollbar gutter; follow-up inspection
+  found `body.scrollWidth` equal to the rendered document width and no visible
+  offending element, matching the green Playwright layout result.
   Generated documentation screenshot capture now rejects ambiguous runtime
   targets before highlighting or attaching an image. The shared
   `takeScreenshot(...)` helper requires each focus locator to resolve to exactly

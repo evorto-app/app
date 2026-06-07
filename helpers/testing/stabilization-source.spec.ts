@@ -8749,6 +8749,56 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'actual\n  seeded Material event cards and the privacy legal fallback page',
     );
+    expect(inventory).toContain(
+      'latest recorded current-head Browser evidence, pinned on PR head\n  `8e0bc8ad`',
+    );
+    expect(inventory).toContain('reset the stale Docker stack');
+    expect(inventory).toContain(
+      '`bun run dev:status` passed at `BASE_URL=http://localhost:4218`',
+    );
+    expect(inventory).toContain(
+      '`bun run test:e2e:public-general-viewports -- --no-deps` with both General\n  viewport tests passing',
+    );
+    expect(inventory).toContain(
+      'all 10 anonymous\n  General routes at 320x740, 390x844, and 1440x900',
+    );
+    expect(inventory).toContain(
+      'root\n  redirect, events list, seeded event detail, hosted legal pages, 403, 500',
+    );
+    expect(inventory).toContain('explicit 404, and wildcard 404');
+    expect(inventory).toContain('no visible clipped\n  controls');
+    expect(inventory).toContain('no persistent loading labels');
+    expect(inventory).toContain('no application-error text');
+    expect(inventory).toContain('fixed\n  Events/Login mobile navigation');
+    expect(inventory).toContain(
+      'fixed Events/Scanner/Login desktop\n  navigation',
+    );
+    expect(inventory).toContain('zero warning/error logs');
+    expect(inventory).toContain(
+      '/tmp/evorto-current-general-browser-evidence/events-320x740.png',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-current-general-browser-evidence/terms-390x844.png',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-current-general-browser-evidence/events-1440x900.png',
+    );
+    expect(inventory).toContain(
+      '/tmp/evorto-current-general-browser-evidence/event-detail-1440x900.png',
+    );
+    expect(inventory).toContain(
+      'seeded event cards, legal fallback copy, desktop side navigation, and the\n  selected event detail registration surface',
+    );
+    expect(inventory).toContain(
+      'rather than unrelated or\n  heading-only images',
+    );
+    expect(inventory).toContain('documentElement scroll-width reading');
+    expect(inventory).toContain('scrollbar gutter');
+    expect(inventory).toContain(
+      '`body.scrollWidth` equal to the rendered document width',
+    );
+    expect(inventory).toContain('no visible\n  offending element');
+    expect(inventory).toContain('green Playwright layout result');
     expect(pageLayoutHelper).toContain(
       'export const collectBrowserLogFailures = (page: Page): string[]',
     );
