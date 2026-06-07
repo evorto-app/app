@@ -6016,12 +6016,15 @@ guard also inspects screenshot target arrays, spread target arrays, array
 helper calls such as `Array.of(...)`, `Array.from(...)`, `.concat(...)`,
 `.map(...)`, `.flatMap(...)`, `.toSpliced(...)`, `.with(...)`, `.fill(...)`,
 `.slice()`, `.reverse()`, `.sort()`, `.toReversed()`, `.toSorted()`, `.flat()`,
-`.find(...)`, `.findLast(...)`, `.pop()`, `.shift()`, `.reduce(...)`, and
-`.reduceRight(...)`, and helper-returned targets for direct generic, broad,
-single-control, and icon/media screenshot targets. `.concat(...)` receiver
-arrays, direct arguments, and array arguments are inspected recursively, so weak
-targets cannot be hidden by merging a prebuilt target list. `map`, `flatMap`,
-and `Array.from(...)` callback return values are checked too, including named or
+`.copyWithin(...)`, `.find(...)`, `.findLast(...)`, `.filter(...)`, `.pop()`,
+`.shift()`, `.splice(...)`, `.reduce(...)`, and `.reduceRight(...)`, and
+helper-returned targets for direct generic, broad, single-control, and
+icon/media screenshot targets. `.concat(...)` receiver arrays, direct arguments,
+and array arguments are inspected recursively, so weak targets cannot be hidden
+by merging a prebuilt target list. Returned arrays from `copyWithin(...)` and
+`splice(...)` are inspected too, so a mutating array helper cannot return a weak
+target collection as screenshot evidence. `map`, `flatMap`, and
+`Array.from(...)` callback return values are checked too, including named or
 locally aliased callback helpers; reducer callbacks and reducer initial values
 are checked too, so a safe receiver array cannot manufacture or seed a weak
 screenshot target in the callback.

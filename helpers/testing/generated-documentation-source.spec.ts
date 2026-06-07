@@ -256,6 +256,7 @@ const isTrackedArrayTarget = (
 
     if (
       methodName === 'flat' ||
+      methodName === 'copyWithin' ||
       methodName === 'find' ||
       methodName === 'findLast' ||
       methodName === 'filter' ||
@@ -263,6 +264,7 @@ const isTrackedArrayTarget = (
       methodName === 'reverse' ||
       methodName === 'shift' ||
       methodName === 'slice' ||
+      methodName === 'splice' ||
       methodName === 'sort' ||
       methodName === 'toReversed' ||
       methodName === 'toSorted'
@@ -4765,6 +4767,60 @@ describe('generated docs source current behavior', () => {
         concatArgumentTargetSource,
       ),
     ).toEqual(['tests/docs/example/concat-argument-target.doc.ts:20:13']);
+  });
+
+  it('detects weak documentation screenshot targets returned by mutating array helpers', () => {
+    const mutatingArrayTargetSource = `
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('main')].copyWithin(0, 1),
+        page,
+        'CopyWithin generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('section')].splice(1),
+        page,
+        'Splice broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.getByRole('button', { name: 'Save' })].copyWithin(0, 1),
+        page,
+        'CopyWithin single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface, page.locator('svg')].splice(1),
+        page,
+        'Splice icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/mutating-array-target.doc.ts',
+        mutatingArrayTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/mutating-array-target.doc.ts:2:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/mutating-array-target.doc.ts',
+        mutatingArrayTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/mutating-array-target.doc.ts:8:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/mutating-array-target.doc.ts',
+        mutatingArrayTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/mutating-array-target.doc.ts:14:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/mutating-array-target.doc.ts',
+        mutatingArrayTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/mutating-array-target.doc.ts:20:13']);
   });
 
   it('detects weak documentation screenshot targets inserted through toSpliced calls', () => {

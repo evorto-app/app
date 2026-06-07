@@ -1537,7 +1537,7 @@ describe('stabilization source', () => {
     expect(source).toContain('icon-only and media-only screenshot targets');
     expect(source).toContain("getByRole('img')");
     expect(source).toMatch(
-      /targets for direct generic, broad,\s+single-control, and icon\/media screenshot targets/u,
+      /targets for direct generic, broad,\s+single-control, and\s+icon\/media screenshot targets/u,
     );
     expect(source).toContain('`.flat()`');
     expect(source).toContain('spread target arrays');
@@ -1619,11 +1619,15 @@ describe('stabilization source', () => {
     expect(inventory).toContain('.toReversed()');
     expect(inventory).toContain('.toSorted()');
     expect(inventory).toContain('.flat()');
+    expect(inventory).toContain('.copyWithin(...)');
+    expect(inventory).toContain('.filter(...)');
+    expect(inventory).toContain('.splice(...)');
     expect(inventory).toContain('.reduce(...)');
     expect(inventory).toContain('.reduceRight(...)');
     expect(inventory).toContain(
-      'weak `.concat(...)` receiver arrays, direct\n  arguments, and array arguments',
+      'weak\n  `.concat(...)` receiver arrays, direct arguments, and array arguments',
     );
+    expect(inventory).toContain('mutating helper-returned weak arrays');
     expect(inventory).toContain(
       'weak\n  targets produced by inline, named, or locally aliased `map` and `flatMap`\n  callbacks, by `Array.from(...)` mapper callbacks, and by reducer callbacks or\n  reducer initial values',
     );
@@ -2006,6 +2010,15 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       "[settingsSurface].concat([page.locator('section')])",
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets returned by mutating array helpers',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('main')].copyWithin(0, 1)",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "[settingsSurface, page.locator('section')].splice(1)",
     );
     expect(generatedDocumentationSource).toContain(
       "[settingsSurface].map(() => page.locator('main'))",
