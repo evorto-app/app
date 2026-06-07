@@ -3035,6 +3035,30 @@ describe('stabilization source', () => {
       'detects raw markdown images hidden behind parameter default body and payload aliases',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind parameter computed destructuring',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'parameter-computed-destructured-markdown-image.doc.ts',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const markdownNameKey = 'name'",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const rawPayloadKey = 'payload'",
+    );
+    expect(generatedDocumentationSource).toContain(
+      '[rawBodyKey]: rawMarkdownBody',
+    );
+    expect(generatedDocumentationSource).toContain(
+      '[attachKey]: attachMarkdown',
+    );
+    expect(generatedDocumentationSource).toMatch(
+      /collectDestructuredPropertyAliases\(\s*node,\s*sourceFile,\s*rawMarkdownBodyPropertyAliases,\s*rawMarkdownBodyAliases,\s*staticStringAliases/u,
+    );
+    expect(generatedDocumentationSource).toMatch(
+      /collectDestructuredPropertyAliases\(\s*node,\s*sourceFile,\s*rawMarkdownPayloadPropertyAliases,\s*rawMarkdownPayloadAliases,\s*staticStringAliases/u,
+    );
+    expect(generatedDocumentationSource).toContain(
       "const { rawMarkdownBody = '![raw](raw.png)' } = {}",
     );
     expect(generatedDocumentationSource).toContain(
@@ -3136,6 +3160,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('aliased body variables');
     expect(inventory).toContain(
       'grouped/indexed/destructured/assigned body variables',
+    );
+    expect(inventory).toContain(
+      'including parameter destructuring with constant-backed computed keys',
     );
     expect(inventory).toMatch(/`\.at\(\.\.\.\)` indexed\s+payload lists/u);
     expect(inventory).toMatch(/`\.at\(\.\.\.\)`\s+indexed helper lists/u);
@@ -5770,27 +5797,35 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toContain(
-      'generated-doc weak Markdown body detection now\ntracks parameter-destructured markdown names',
+      'generated-doc raw Markdown image detection now\ntracks parameter-destructured markdown names',
     );
-    expect(source).toContain('attach helpers from\nconstant-backed computed');
-    expect(source).toContain('120-character explanatory body minimum');
-    expect(source).toContain("`const markdownNameKey = 'name'`");
+    expect(source).toContain('raw Markdown\npayloads, and attach helpers');
+    expect(source).toContain('rejecting unsupported image markup');
     expect(source).toContain("`[markdownNameKey]: 'markdown'`");
+    expect(source).toContain("`[rawBodyKey]: '![raw](raw.png)'`");
+    expect(source).toContain(
+      '`[rawPayloadKey]: { body: \'<img src="../raw.png" alt="Raw">\' }`',
+    );
     expect(source).toContain('`[markdownNameKey]: markdownName`');
+    expect(source).toContain('`[rawBodyKey]: rawMarkdownBody`');
+    expect(source).toContain('`[rawPayloadKey]: rawMarkdownPayload`');
     expect(source).toContain('`[attachKey]: attachMarkdown`');
     expect(source).toContain(
-      "`testInfo.attach(markdownName, { body: 'Too short.' })`",
+      '`testInfo.attach(markdownName, { body: rawMarkdownBody })`',
     );
     expect(source).toContain(
-      "`attachMarkdown(markdownName, { body: 'Also short.' })`",
+      "`testInfo.attach('markdown', rawMarkdownPayload)`",
     );
     expect(source).toContain(
-      'hide thin generated-doc prose by moving the Markdown attachment name or\nattach helper into a computed-key parameter object',
+      '`attachMarkdown(markdownName, rawMarkdownPayload)`',
+    );
+    expect(source).toContain(
+      'hide unrelated or uncaptioned raw Markdown imagery by moving the attachment\nname, body, payload, or helper into a computed-key parameter object',
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 203 tests');
+    expect(source).toContain('with 204 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5815,7 +5850,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=parameter-destructured-markdown-body-source-guard',
+      '/legal/terms?stabilizationEvidence=parameter-computed-raw-markdown-image-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');

@@ -3149,6 +3149,34 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
         markdownAttachFunctionAliases,
         staticStringAliases,
       );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachmentNamePropertyAliases,
+        markdownAttachmentNameAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        rawMarkdownBodyPropertyAliases,
+        rawMarkdownBodyAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachFunctionPropertyAliases,
+        markdownAttachFunctionAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        rawMarkdownPayloadPropertyAliases,
+        rawMarkdownPayloadAliases,
+        staticStringAliases,
+      );
     }
 
     if (ts.isVariableDeclaration(node)) {
@@ -10059,6 +10087,42 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/computed-destructured-markdown-image.doc.ts:14:13',
       'tests/docs/example/computed-destructured-markdown-image.doc.ts:15:13',
       'tests/docs/example/computed-destructured-markdown-image.doc.ts:16:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind parameter computed destructuring', () => {
+    const parameterComputedDestructuredMarkdownImageSource = `
+      const markdownNameKey = 'name';
+      const rawBodyKey = 'body';
+      const rawPayloadKey = 'payload';
+      const attachKey = 'attach';
+      const markdownPieces = {
+        [markdownNameKey]: 'markdown',
+        [rawBodyKey]: '![raw](raw.png)',
+        [rawPayloadKey]: { body: '<img src="../raw.png" alt="Raw">' },
+        [attachKey]: testInfo.attach.bind(testInfo),
+      };
+      async function renderRawMarkdownEvidence({
+        [markdownNameKey]: markdownName,
+        [rawBodyKey]: rawMarkdownBody,
+        [rawPayloadKey]: rawMarkdownPayload,
+        [attachKey]: attachMarkdown,
+      } = markdownPieces) {
+        await testInfo.attach(markdownName, { body: rawMarkdownBody });
+        await testInfo.attach('markdown', rawMarkdownPayload);
+        await attachMarkdown(markdownName, rawMarkdownPayload);
+      }
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/parameter-computed-destructured-markdown-image.doc.ts',
+        parameterComputedDestructuredMarkdownImageSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-computed-destructured-markdown-image.doc.ts:18:15',
+      'tests/docs/example/parameter-computed-destructured-markdown-image.doc.ts:19:15',
+      'tests/docs/example/parameter-computed-destructured-markdown-image.doc.ts:20:15',
     ]);
   });
 

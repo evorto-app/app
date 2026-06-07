@@ -612,7 +612,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   rejects raw `page.screenshot`, raw image `testInfo.attach`, and raw Markdown
   image attachment calls even when they are hidden behind computed destructuring
   aliases such as `{ ['screenshot']: capture }`,
-  `{ ['attach']: attachEvidence }`, or `{ ['body']: rawMarkdownBody }`, and
+  `{ ['attach']: attachEvidence }`, or `{ ['body']: rawMarkdownBody }`,
+  including parameter destructuring with constant-backed computed keys, and
   rejects raw Markdown image bodies and Markdown attachment names rebuilt
   through array literals and array/call receivers before attachment, while it
   tracks raw image attachment-name, payload, content-type, and path properties,
