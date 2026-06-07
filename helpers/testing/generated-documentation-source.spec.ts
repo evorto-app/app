@@ -1594,6 +1594,16 @@ const findWeakMarkdownBodyAttachments = (
       return true;
     }
 
+    if (
+      ts.isCallExpression(expression) &&
+      getStaticPropertyName(expression.expression, staticStringAliases) ===
+        'bind'
+    ) {
+      const receiver = getStaticPropertyReceiver(expression.expression);
+
+      return receiver ? isTrackedAttachFunctionReference(receiver) : false;
+    }
+
     if (ts.isIdentifier(expression)) {
       return markdownAttachFunctionAliases.has(expression.text);
     }
@@ -1891,6 +1901,16 @@ const findDenseScreenshotRunsBetweenMarkdown = (
 
     if (isAttachFunctionReference(expression)) {
       return true;
+    }
+
+    if (
+      ts.isCallExpression(expression) &&
+      getStaticPropertyName(expression.expression, staticStringAliases) ===
+        'bind'
+    ) {
+      const receiver = getStaticPropertyReceiver(expression.expression);
+
+      return receiver ? isTrackedAttachFunctionReference(receiver) : false;
     }
 
     if (ts.isIdentifier(expression)) {
@@ -7320,12 +7340,15 @@ describe('generated docs source current behavior', () => {
     const indirectMarkdownBodySource = `
       const markdownName = 'markdown';
       const attachMarkdown = testInfo.attach.bind(testInfo);
+      const attachMarkdownGroup = { attachMarkdown };
       await testInfo.attach.call(testInfo, markdownName, { body: 'Too short.' });
       await testInfo.attach.apply(testInfo, [markdownName, { body: 'Still too short.' }]);
       await Reflect.apply(testInfo.attach, testInfo, [markdownName, { body: 'Short.' }]);
       await attachMarkdown.call(testInfo, markdownName, { body: 'Also short.' });
       await attachMarkdown.apply(testInfo, [markdownName, { body: 'Thin.' }]);
       await Reflect.apply(attachMarkdown, testInfo, [markdownName, { body: 'Brief.' }]);
+      await attachMarkdown.bind(testInfo)(markdownName, { body: 'Bound.' });
+      await attachMarkdownGroup.attachMarkdown.bind(testInfo)(markdownName, { body: 'Grouped bind.' });
     `;
 
     expect(
@@ -7334,12 +7357,14 @@ describe('generated docs source current behavior', () => {
         indirectMarkdownBodySource,
       ),
     ).toEqual([
-      'tests/docs/example/indirect-markdown-body.doc.ts:4:13',
       'tests/docs/example/indirect-markdown-body.doc.ts:5:13',
       'tests/docs/example/indirect-markdown-body.doc.ts:6:13',
       'tests/docs/example/indirect-markdown-body.doc.ts:7:13',
       'tests/docs/example/indirect-markdown-body.doc.ts:8:13',
       'tests/docs/example/indirect-markdown-body.doc.ts:9:13',
+      'tests/docs/example/indirect-markdown-body.doc.ts:10:13',
+      'tests/docs/example/indirect-markdown-body.doc.ts:11:13',
+      'tests/docs/example/indirect-markdown-body.doc.ts:12:13',
     ]);
   });
 
@@ -7556,6 +7581,46 @@ describe('generated docs source current behavior', () => {
       ),
     ).toEqual([
       'tests/docs/example/indirect-dense-screenshot-run.doc.ts:61:13',
+    ]);
+  });
+
+  it('keeps screenshots close to inline-bound explanatory markdown attachments', () => {
+    const inlineBoundDenseScreenshotSource = `
+      const markdownName = 'markdown';
+      const attachMarkdown = testInfo.attach.bind(testInfo);
+      const attachMarkdownGroup = { attachMarkdown };
+      await attachMarkdownGroup.attachMarkdown.bind(testInfo)(markdownName, {
+        body: \`
+          This inline-bound documentation section explains the next screenshots with enough product context.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        settingsSurface,
+        page,
+        'First inline-bound markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        legalSurface,
+        page,
+        'Second inline-bound markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        overflowSurface,
+        page,
+        'Third inline-bound markdown cluster screenshot should require text',
+      );
+    `;
+
+    expect(
+      findDenseScreenshotRunsBetweenMarkdown(
+        'tests/docs/example/inline-bound-dense-screenshot-run.doc.ts',
+        inlineBoundDenseScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/inline-bound-dense-screenshot-run.doc.ts:22:13',
     ]);
   });
 

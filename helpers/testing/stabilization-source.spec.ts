@@ -1658,10 +1658,13 @@ describe('stabilization source', () => {
       'still only treats real Playwright `testInfo.attach`-backed',
     );
     expect(source).toContain(
-      'Both guards now also inspect `call(...)`, `apply(...)`, and',
+      'Both guards now also inspect `call(...)`, `apply(...)`, inline',
     );
     expect(source).toContain(
       '`testInfo.attach.call(testInfo, markdownName, ...)`',
+    );
+    expect(source).toContain(
+      '`attachMarkdown.bind(testInfo)(markdownName, ...)`',
     );
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
@@ -1973,10 +1976,10 @@ describe('stabilization source', () => {
     expect(inventory).toContain('weak Markdown body text');
     expect(inventory).toContain('explanatory body text');
     expect(inventory).toContain(
-      'tracks aliased Markdown attachment\n  helpers and names through copied groups, indexed lists, `call(...)`,\n  `apply(...)`, and `Reflect.apply(...)`',
+      'tracks aliased Markdown attachment\n  helpers and names through copied groups, indexed lists, `call(...)`,\n  `apply(...)`, inline `bind(...)(...)`, and `Reflect.apply(...)`',
     );
     expect(inventory).toContain(
-      'follows aliased Markdown attachment helpers and names for\n  that screenshot-density reset including `call(...)`, `apply(...)`, and\n  `Reflect.apply(...)`',
+      'follows aliased Markdown\n  attachment helpers and names for that screenshot-density reset including\n  `call(...)`, `apply(...)`, inline `bind(...)(...)`, and\n  `Reflect.apply(...)`',
     );
     expect(inventory).toContain(
       'only real Playwright `testInfo.attach`-backed\n  Markdown calls count as explanatory generated-doc sections',
