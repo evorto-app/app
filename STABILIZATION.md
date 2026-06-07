@@ -7028,3 +7028,14 @@ viewport spec now filters only those known camera fallback console messages for
 the `/scan` route and still requires every seeded
 `/scan/registration/:registrationId` route to have no unexpected browser
 warning/error logs while preserving the shared stable-layout assertion.
+
+A follow-up local Browser-readiness check on pushed head `83f56b21` kept the
+same blocker shape: `bun run dev:status` regenerated `.env.dev`, reported the
+database endpoint accepting TCP connections but failing the validation query,
+reported `evorto-91c45a89-db-1` as unhealthy, timed out starting a disposable
+Alpine container, and saw `/legal/terms` return HTTP 500. The documented
+bounded cleanup path `bun run docker:clean-stale` then failed to remove the
+generated unhealthy DB container because Docker could not kill it and did not
+receive an exit event. No new Browser visual/layout evidence is claimed for
+this follow-up; the next Browser refresh still needs a Docker Desktop/engine
+restart before app-level verification can be trusted.

@@ -362,7 +362,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/scanning/scanner-viewports.spec.ts` checks the authenticated scanner
     camera/fallback page and a seeded direct registration scan result at narrow
     mobile, mobile, and desktop viewports for expected content through the
-    shared viewport layout and browser-log guards.
+    shared viewport layout and browser-log guards. The `/scan` camera fallback
+    route filters only the known plain-HTTP/no-camera browser policy messages
+    and expected app fallback warning; the seeded direct registration scan
+    result keeps the normal zero-unexpected-browser-log contract.
   - `specs/internal/members-hub-viewports.spec.ts` checks the authenticated
     members hub role directory at narrow mobile, mobile, and desktop viewports
     with a seeded visible hub role and member assignment through the shared
@@ -1482,6 +1485,13 @@ provider outcomes without live identifiers.
   warning. The spec now filters only those known camera fallback console
   messages for `/scan`, while seeded `/scan/registration/:registrationId`
   viewports still have the normal zero-unexpected-browser-log contract.
+  A follow-up `bun run dev:status` on pushed head `83f56b21` still reported the
+  generated Docker DB container as unhealthy, `/legal/terms` returning HTTP
+  500, and Docker disposable container startup timing out. The documented
+  bounded recovery command `bun run docker:clean-stale` then failed to remove
+  `evorto-91c45a89-db-1` because Docker could not kill the container and did
+  not receive an exit event, so no fresh Browser evidence is claimed until the
+  Docker engine/Desktop is restarted outside the app tooling.
 - `tests/setup/mcp-browser-authenticated.seed.ts` is the authenticated MCP
   Browser planner seed for the dedicated `mcp-browser-authenticated-planner`
   project. It depends on the normal `setup` project, then opens
