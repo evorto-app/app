@@ -1247,14 +1247,35 @@ const getStaticPropertyReference = (
   sourceFile: ts.SourceFile,
   stringAliases: ReadonlyMap<string, string> = new Map(),
 ): null | string => {
-  const propertyName = getStaticPropertyName(node, stringAliases);
-  const receiver = getStaticPropertyReceiver(node);
+  const expression = unwrapExpression(node);
+
+  if (
+    !ts.isPropertyAccessExpression(expression) &&
+    !ts.isElementAccessExpression(expression)
+  ) {
+    return ts.isIdentifier(expression) ? expression.text : null;
+  }
+
+  const propertyName = getStaticPropertyName(expression, stringAliases);
+  const receiver = getStaticPropertyReceiver(expression);
 
   if (!propertyName || !receiver) {
     return null;
   }
 
-  return `${unwrapExpression(receiver).getText(sourceFile)}.${propertyName}`;
+  const receiverExpression = unwrapExpression(receiver);
+  const receiverReference =
+    ts.isIdentifier(receiverExpression) ||
+    ts.isPropertyAccessExpression(receiverExpression) ||
+    ts.isElementAccessExpression(receiverExpression)
+      ? getStaticPropertyReference(
+          receiverExpression,
+          sourceFile,
+          stringAliases,
+        )
+      : receiverExpression.getText(sourceFile);
+
+  return receiverReference ? `${receiverReference}.${propertyName}` : null;
 };
 
 const getReflectGetPropertyReference = (
@@ -9371,6 +9392,64 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/computed-destructured-markdown-image.doc.ts:14:13',
       'tests/docs/example/computed-destructured-markdown-image.doc.ts:15:13',
       'tests/docs/example/computed-destructured-markdown-image.doc.ts:16:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind nested grouped aliases', () => {
+    const nestedGroupedMarkdownImageSource = `
+      const rawMarkdownBody = '![raw](raw.png)';
+      const rawMarkdownPayload = { body: '<img src="../raw.png" alt="Raw">' };
+      const attachMarkdown = testInfo.attach.bind(testInfo);
+      const markdownEvidence = {
+        names: {
+          raw: 'markdown',
+        },
+        bodies: {
+          raw: rawMarkdownBody,
+        },
+        payloads: [
+          {
+            raw: rawMarkdownPayload,
+          },
+        ],
+        helpers: {
+          attach: {
+            raw: attachMarkdown,
+          },
+        },
+      };
+      await testInfo.attach(markdownEvidence.names.raw, rawMarkdownPayload);
+      await testInfo.attach('markdown', { body: markdownEvidence.bodies.raw });
+      await testInfo.attach('markdown', markdownEvidence.payloads[0].raw);
+      await markdownEvidence.helpers.attach.raw('markdown', rawMarkdownPayload);
+      const {
+        names: { raw: nestedMarkdownName },
+        bodies: { raw: nestedRawMarkdownBody },
+        payloads: [{ raw: nestedRawMarkdownPayload }],
+        helpers: {
+          attach: { raw: nestedAttachMarkdown },
+        },
+      } = markdownEvidence;
+      await testInfo.attach(nestedMarkdownName, rawMarkdownPayload);
+      await testInfo.attach('markdown', { body: nestedRawMarkdownBody });
+      await testInfo.attach('markdown', nestedRawMarkdownPayload);
+      await nestedAttachMarkdown(nestedMarkdownName, rawMarkdownPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/nested-grouped-markdown-image.doc.ts',
+        nestedGroupedMarkdownImageSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:23:13',
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:24:13',
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:25:13',
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:26:13',
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:35:13',
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:36:13',
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:37:13',
+      'tests/docs/example/nested-grouped-markdown-image.doc.ts:38:13',
     ]);
   });
 

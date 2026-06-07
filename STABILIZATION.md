@@ -7672,3 +7672,27 @@ screenshots show readable Terms fallback copy and the current Events empty
 state with fixed Events/Login bottom navigation, no loading or
 application-error text, no horizontal overflow, no clipped visible controls,
 and zero Browser warning/error logs.
+
+Nested grouped raw Markdown image aliases are now pinned beside the raw
+screenshot and raw image attachment guards. Static property-reference
+normalization resolves nested array paths such as
+`markdownEvidence.payloads[0].raw` to the same dotted alias path recorded by the
+grouped collector, and the focused regression covers nested Markdown attachment
+names, raw Markdown bodies, payload objects, and attach helpers through both
+direct property calls and nested destructuring. This keeps generated docs from
+embedding unrelated Markdown images outside the shared screenshot helper even
+when the raw image markup is hidden in nested helper bags. Validation and
+Browser evidence for this slice passed `bun run format:write`, `bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 197 tests, and `git diff --check`. WebStorm errors-only diagnostics
+remained blocked because this worktree is not one of the IDE's open projects.
+Browser rechecked
+`/legal/terms?stabilizationEvidence=nested-grouped-markdown-source-guard` and
+`/events?stabilizationEvidence=nested-grouped-markdown-source-guard` at
+390x844 and saved
+`/tmp/evorto-nested-grouped-markdown-source-guard-legal-terms-390x844.png` plus
+`/tmp/evorto-nested-grouped-markdown-source-guard-events-settled-390x844.png`;
+the inspected screenshots show readable Terms fallback copy and the current
+empty Events state with fixed Events/Login bottom navigation, no loading or
+application-error text after settle, no horizontal overflow, no clipped visible
+controls, and zero Browser warning/error logs.

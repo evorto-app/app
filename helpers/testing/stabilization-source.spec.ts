@@ -2884,6 +2884,18 @@ describe('stabilization source', () => {
       'const { evidence: groupedRawMarkdownBody } = rawMarkdownBodies',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind nested grouped aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'markdownEvidence.payloads[0].raw',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'nestedAttachMarkdown(nestedMarkdownName, rawMarkdownPayload)',
+    );
+    expect(generatedDocumentationSource).toMatch(
+      /getStaticPropertyReference\(\s*receiverExpression,\s*sourceFile,\s*stringAliases/u,
+    );
+    expect(generatedDocumentationSource).toContain(
       'detects raw markdown images hidden behind assigned local aliases',
     );
     expect(generatedDocumentationSource).toContain(
@@ -3028,7 +3040,7 @@ describe('stabilization source', () => {
       /binding-default,\s+or parameter-default body\/payload aliases/u,
     );
     expect(inventory).toMatch(
-      /bound,\s+destructured,\s+grouped,\s+indexed,\s+assigned,\s+binding-default,\s+or\s+parameter-default/u,
+      /bound,\s+destructured,\s+grouped,\s+nested grouped,\s+indexed,\s+assigned,\s+binding-default,\s+or\s+parameter-default/u,
     );
     expect(inventory).toMatch(
       /returned raw Markdown attach-helper factories including copied returned helper\s+groups/u,
@@ -3211,6 +3223,7 @@ describe('stabilization source', () => {
     );
     expect(inventory).toContain('returned\n  attach-function factories');
     expect(inventory).toContain('assigned local raw Markdown names');
+    expect(inventory).toContain('nested grouped raw Markdown names');
     expect(inventory).toContain(
       'returned raw Markdown attach-helper factories',
     );
