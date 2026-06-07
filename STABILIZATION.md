@@ -6536,7 +6536,7 @@ helper, raw screenshot, raw image attachment, or raw Markdown-image attachment
 checks either. The
 focused
 `bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`
-run passed with 96 source-guard tests after adding the synthetic reflected
+run passed with 97 source-guard tests after adding the synthetic reflected
 helper, raw screenshot, raw image attachment, raw image payload, and raw
 markdown-image cases.
 Inline `bind(...)(...)` invocations of raw screenshot and image-attachment
@@ -6949,3 +6949,9 @@ Page not found heading and supporting copy on the Material surface with no
 horizontal overflow and zero Browser warning/error logs. The measured contrast
 was 14.74:1 for the heading and 8.04:1 for the supporting copy; the inspected
 screenshot is `/tmp/evorto-general-readability-404-1440x900.png`.
+
+Generated-doc source coverage now has a direct self-test for caption literals:
+caption variables and interpolated template captions are rejected as weak even
+when their runtime text would be long enough. Only static descriptive screenshot
+captions enter the duplicate-caption review, so generated docs cannot hide
+repeated or unrelated images behind runtime-generated labels.

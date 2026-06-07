@@ -568,6 +568,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   the shared `takeScreenshot` helper imported from the documentation reporter
   barrel with a meaningful literal caption, requires screenshot captions to stay
   unique across generated docs so one caption cannot describe unrelated states,
+  rejects variable or interpolated screenshot captions so that uniqueness check
+  can review the exact generated-doc image label,
   requires screenshot captions to have at least 32 characters and five words so
   terse section/list labels do not pass as meaningful evidence,
   rejects raw `page.screenshot`, raw image `testInfo.attach`, and raw Markdown

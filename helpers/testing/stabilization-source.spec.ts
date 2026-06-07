@@ -1504,6 +1504,15 @@ describe('stabilization source', () => {
     expect(source).toContain('documentation reporter barrel');
     expect(source).toContain('literal');
     expect(source).toContain('screenshot caption');
+    expect(source).toContain(
+      'caption variables and interpolated template captions are rejected as weak',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'requires documentation screenshot captions to be literal descriptive text',
+    );
+    expect(inventory).toContain(
+      'rejects variable or interpolated screenshot captions',
+    );
     expect(source).toContain('at least 32 characters and\nfive words');
     expect(source).toMatch(/terse\s+section\/list label/u);
     expect(source).toContain('captured image');
@@ -1564,7 +1573,7 @@ describe('stabilization source', () => {
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('96 source-guard tests');
+    expect(source).toContain('97 source-guard tests');
     expect(source).toContain('synthetic reflected\nhelper');
     expect(source).toContain('raw image payload');
     expect(inventory).toContain('raw image attachment-name');

@@ -6429,6 +6429,49 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/optional-call-image-capture.doc.ts:19:15']);
   });
 
+  it('requires documentation screenshot captions to be literal descriptive text', () => {
+    const captionSource = `
+      const caption = 'Runtime generated caption with enough words to hide repeated image labels';
+      const state = 'checkout';
+      async function captureEvidence() {
+        await takeScreenshot(
+          testInfo,
+          settingsSurface,
+          page,
+          caption,
+        );
+        await takeScreenshot(
+          testInfo,
+          settingsSurface,
+          page,
+          \`Interpolated \${state} caption with enough words to hide duplicates\`,
+        );
+        await takeScreenshot(
+          testInfo,
+          settingsSurface,
+          page,
+          'Static section caption showing the exact product state',
+        );
+      }
+    `;
+
+    expect(
+      findWeakScreenshotCaptions(
+        'tests/docs/example/dynamic-caption.doc.ts',
+        captionSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/dynamic-caption.doc.ts:5:15',
+      'tests/docs/example/dynamic-caption.doc.ts:11:15',
+    ]);
+    expect([
+      ...collectScreenshotCaptions(
+        'tests/docs/example/dynamic-caption.doc.ts',
+        captionSource,
+      ).keys(),
+    ]).toEqual(['Static section caption showing the exact product state']);
+  });
+
   it('detects raw markdown image markup before generated docs can use it', () => {
     const rawMarkdownImageSource = `
       const markdownAttachmentName = 'markdown';
