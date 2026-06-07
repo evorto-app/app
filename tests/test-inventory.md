@@ -1311,7 +1311,7 @@ provider outcomes without live identifiers.
   detail/registration state. The matching focused
   `bun run test:e2e:public-general-viewports` run passed against the same
   running Docker app.
-  The current PR-head Browser refresh at `449108fc` reused the generated Docker
+  An earlier PR-head Browser refresh at `449108fc` reused the generated Docker
   app on `http://localhost:4218`, derived the seeded public event detail link
   from `/events`, and rechecked the same 10 anonymous General routes at
   320x740, 390x844, and 1440x900 after waiting for hydration/loading text to

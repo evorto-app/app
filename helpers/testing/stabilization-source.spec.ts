@@ -7476,6 +7476,12 @@ describe('stabilization source', () => {
       '/tmp/evorto-public-general-aef3ccdc-mobile-legal-privacy.jpg',
     );
     expect(inventory).toContain(
+      'An earlier PR-head Browser refresh at `449108fc`',
+    );
+    expect(inventory).not.toContain(
+      'The current PR-head Browser refresh at `449108fc`',
+    );
+    expect(inventory).toContain(
       'actual\n  seeded Material event cards and the privacy legal fallback page',
     );
     expect(adminSettingsSpec).toContain(
