@@ -5917,13 +5917,48 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toMatch(
-      /current-head local runtime and Browser evidence are\s+positive again after resetting the stale Docker stack/u,
+      /Latest coverage checkpoint: current pushed head `7fcbeecd`\s+now makes the\s+finance and profile\/account Docker-backed runtime evidence\s+reviewable from the\s+test inventory/u,
+    );
+    expect(source).toContain('only from the stabilization narrative');
+    expect(source).toContain(
+      '`tests/test-inventory.md` names the\nexact finance specs/docs',
+    );
+    expect(source).toContain('finance overview permissions');
+    expect(source).toContain('receipt flows');
+    expect(source).toContain('Stripe webhook replay');
+    expect(source).toContain('inclusive tax-rate import');
+    expect(source).toContain('three\nfinance generated-doc journeys');
+    expect(source).toContain('exact profile/account\nspecs/docs');
+    expect(source).toContain('profile edit');
+    expect(source).toContain('event cards');
+    expect(source).toContain('receipts');
+    expect(source).toContain('discounts');
+    expect(source).toContain('deterministic ESNcard provider\noutcomes');
+    expect(source).toContain('profile\ngenerated-doc journeys');
+    expect(source).toContain(
+      'runtime evidence cannot stay broad while the discoverable inventory loses the\ncovered paths',
+    );
+    expect(source).toContain('finance-profile-inventory-guard');
+    expect(source).toContain(
+      '/tmp/evorto-finance-profile-inventory-guard-terms-390x844.png',
+    );
+    expect(source).toContain('readable\nTerms fallback copy');
+    expect(source).toContain('fixed Events/Login bottom navigation');
+    expect(source).toContain(
+      'rather than an\nunrelated or heading-only artifact',
+    );
+    expect(source).toContain('Scanner hidden on mobile');
+    expect(source).toContain('no loading text');
+    expect(source).toContain('no\napplication-error text');
+    expect(source).toContain('E2E run `27101593864` is still in progress');
+    expect(source).toMatch(
+      /[Cc]urrent-head local runtime and Browser evidence are\s+positive again after\s+resetting the stale Docker stack/u,
     );
     expect(source).toContain('`bun run docker:start`');
     expect(source).toContain('`BASE_URL=http://localhost:4218`');
-    expect(source).toContain('`bun run dev:status` then\npassed');
+    expect(source).toContain('`bun run dev:status` then passed');
     expect(source).toContain('healthy database validation query');
-    expect(source).toContain('passing `/legal/terms` route\nprobe');
+    expect(source).toContain('passing `/legal/terms` route probe');
     expect(source).toContain('fresh active-test Neon branch');
     expect(source).toContain(
       '`bun run test:e2e:public-general-viewports -- --no-deps`',

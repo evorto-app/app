@@ -19,33 +19,34 @@ and useful for small cleanup batches.
 | Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, generated-doc evidence-quality rules, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Local runtime/developer workflow                | Stabilized | high       | Env preflight, Neon Local cleanup, public Font Awesome install paths, CI teardown cleanup, and the first in-app Browser queue pass are covered. Historical Docker start-path and unhealthy-container blockers remain recorded as diagnostics, but later current-state Browser evidence supersedes them: the public General viewport Playwright browser sweep passed locally, direct in-app Browser tab API sweeps rechecked the full anonymous General route set at 320x740, 390x844, and 1440x900 through local head `1ab95b1c5`, a focused in-app Browser mobile refresh rechecked all anonymous General routes at 320x740 and 390x844 on local head `a2c1d2e70`, the current-head direct in-app Browser sweep at local head `6b975474c` rechecked all anonymous General routes at 320x740, 390x844, and 1440x900 with no horizontal overflow, top/side clipped visible controls, rendered application-error text, or Browser warning/error logs, the current authenticated in-app Browser probe at local head `c0c83ce2b` checked `/admin/settings`, `/global-admin/tenants`, and `/profile` at 320x740, 390x844, and 1440x900 with no horizontal overflow, clipped visible controls, rendered application-error text, Browser warning/error logs, or Auth0 redirect, pushed-head Docker/Browser refreshes through PR head `19e5bb0bc` rechecked all anonymous General routes at 320x740, 390x844, and 1440x900 with no horizontal overflow, top/side clipped visible controls, rendered application-error text, or Browser warning/error logs, the June 7, 2026 pushed-head Browser refresh at PR head `aef3ccdc` rechecked the same anonymous General route set at 320x740 and 390x844 with no horizontal overflow, top/side clipped visible controls, persistent loading placeholders, or rendered application-error text while visually inspecting representative event-list and privacy legal screenshots, and the earlier pushed-head Browser spot check at PR head `cab7f1fe` reused the generated Docker app at its generated `BASE_URL` to verify `/events`, `/legal/terms`, and `/404` at 320x740 and 390x844 with expected content, no loading or application-error text, no horizontal overflow, no top/side clipped visible controls, zero Browser warning/error logs, and inspected event-list, terms, and not-found screenshots showing seeded Material cards, legal fallback content, and fixed Events/Login navigation. Subsequent pushed head `76335498` records the same Browser evidence in `tests/test-inventory.md` and source guards without changing the fully green E2E baseline. Playwright config now uses the repo runtime config provider, so direct config importers can initialize from generated `.env.dev` when `DATABASE_URL` and `BASE_URL` are absent from `process.env`; the Playwright-test MCP Browser planner now recognizes the dedicated `mcp-browser-planner` project and `tests/setup/mcp-browser.seed.ts`, opens the seeded `/legal/terms` public General page, and captures the 320x740 mobile screenshot path after config import. A dedicated authenticated MCP Browser planner project now depends on the normal setup project and opens `/admin/settings`, `/global-admin/tenants`, and `/profile` from their admin, global-admin, and regular-user storage states so Browser planning has stable logged-in starting points without running the full viewport pack. GitHub E2E now uses Neon Local's documented default project branch when `PARENT_BRANCH_ID` is absent, sets a two-hour Neon Local branch TTL, prunes stale branches before/after E2E, and timeout-bounds project-label discovery and force-removal for leftover Compose containers during shutdown. Neon branch audits now have `bun run neon:cleanup:dry-run`, and confirmed local cleanup has `bun run neon:cleanup`, so operators do not need to remember the helper path or dotenv cascade. Local runtime diagnosis now also has `bun run dev:status`, a combined non-mutating status command that refreshes `.env.dev`, runs the development and Docker preflights, and still reports the Neon dry-run when the database port or Docker engine is blocked. Local Playwright package scripts now use guarded `env:copy-main --if-missing` before refreshing `.env.dev`, so focused local E2E reruns can inherit main-checkout developer secrets when a worktree `.env` is missing while CI still uses Actions env, vars, and secrets directly. The latest fully green PR E2E evidence is pushed head `2667494b`: CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` were green. E2E run `27068078693` completed all three serialized worker shards on pushed head `2667494b` with warmed Bun, Docker, and Playwright caches; each worker confirmed Neon branch expiration, recorded Neon Local metadata, passed its shard, stopped Docker, and ran the final Neon prune. Newer source-guard pushes are tracked separately by the live PR checks instead of being claimed as fully green here. Repo-local Neon cleanup dry-run after the completed current-head finalizers returned `total=1`, `protected=1`, `active_test=0`, `stale_deleted=0`, and `ttl=2h`, so only protected `main` remained once every worker released Neon Local. |
 
-Latest coverage checkpoint: current-head local runtime and Browser evidence are
-positive again after resetting the stale Docker stack. `bun run docker:start`
-rebuilt the app, recreated the worktree-local Neon Local branch, and started
-the generated `BASE_URL=http://localhost:4218`; `bun run dev:status` then
-passed with a healthy database validation query, a passing `/legal/terms` route
-probe, and only the fresh active-test Neon branch inside the two-hour TTL.
-`bun run test:e2e:public-general-viewports -- --no-deps` passed both General
-viewport tests against the running app. The in-app Browser checked the full
-anonymous General route set at 320x740, 390x844, and 1440x900 on current head,
-including root redirect, events list, seeded event detail, hosted legal pages,
-403, 500, explicit 404, and wildcard 404. The Browser pass found expected
-content, no visible clipped controls, no persistent loading labels, no
-application-error text, fixed Events/Login mobile navigation, fixed
-Events/Scanner/Login desktop navigation, and zero warning/error Browser logs.
-Representative screenshots were inspected at
-`/tmp/evorto-current-general-browser-evidence/events-320x740.png`,
-`/tmp/evorto-current-general-browser-evidence/terms-390x844.png`,
-`/tmp/evorto-current-general-browser-evidence/events-1440x900.png`, and
-`/tmp/evorto-current-general-browser-evidence/event-detail-1440x900.png`; they
-show seeded event cards, legal fallback copy, desktop side navigation, and the
-selected event detail registration surface rather than unrelated or heading-only
-images. A Browser-only documentElement scroll-width reading on simple legal and
-error pages included the browser scrollbar gutter, but follow-up inspection
-found `body.scrollWidth` equal to the rendered document width and no visible
-offending element, matching the green Playwright layout result. The live PR
-checks are tracked separately; the latest fully green E2E evidence remains the
-older completed pushed head until the new CI run finishes.
+Latest coverage checkpoint: current pushed head `7fcbeecd` now makes the
+finance and profile/account Docker-backed runtime evidence reviewable from the
+test inventory instead of only from the stabilization narrative.
+`tests/test-inventory.md` names the exact finance specs/docs that passed in the
+Docker-backed system-Chrome run, including finance overview permissions,
+receipt flows, Stripe webhook replay, inclusive tax-rate import, and the three
+finance generated-doc journeys. It also names the exact profile/account
+specs/docs that passed in the Docker-backed system-Chrome run, including
+profile edit, event cards, receipts, discounts, deterministic ESNcard provider
+outcomes, and the profile generated-doc journeys. The stabilization source
+guard now pins those file lists to both the inventory and this document so the
+runtime evidence cannot stay broad while the discoverable inventory loses the
+covered paths. Focused validation for this slice passed `bun run format:write`,
+`bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 210 tests, and `git diff --check`; WebStorm errors-only diagnostics remain
+blocked because this worktree is not one of the IDE's open projects. The
+same-slice in-app Browser mobile check opened
+`/legal/terms?stabilizationEvidence=finance-profile-inventory-guard` at
+390x844 on the running Docker app. The inspected screenshot
+`/tmp/evorto-finance-profile-inventory-guard-terms-390x844.png` shows readable
+Terms fallback copy and fixed Events/Login bottom navigation rather than an
+unrelated or heading-only artifact; Browser metrics found no clipped controls,
+Scanner hidden on mobile, zero warning/error logs, no loading text, and no
+application-error text. The live PR checks are tracked separately; current-head
+E2E run `27101593864` is still in progress after this pushed checkpoint, and
+the latest fully green E2E evidence remains the older completed pushed head
+until the new CI run finishes.
 
 ## Product Decision Draft
 
@@ -8273,3 +8274,30 @@ images. A Browser-only documentElement scroll-width reading on simple legal and
 error pages included the browser scrollbar gutter, but follow-up inspection
 found `body.scrollWidth` equal to the rendered document width and no visible
 offending element, matching the green Playwright layout result.
+
+Current pushed head `7fcbeecd` now makes the finance and profile/account
+Docker-backed runtime evidence reviewable from the test inventory instead of
+only from the stabilization narrative. `tests/test-inventory.md` names the
+exact finance specs/docs that passed in the Docker-backed system-Chrome run,
+including finance overview permissions, receipt flows, Stripe webhook replay,
+inclusive tax-rate import, and the three finance generated-doc journeys. It
+also names the exact profile/account specs/docs that passed in the
+Docker-backed system-Chrome run, including profile edit, event cards, receipts,
+discounts, deterministic ESNcard provider outcomes, and the profile
+generated-doc journeys. The stabilization source guard now pins those file
+lists to both the inventory and this document so the runtime evidence cannot
+stay broad while the discoverable inventory loses the covered paths. Focused
+validation for this slice passed `bun run format:write`, `bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 210 tests, and `git diff --check`; WebStorm errors-only diagnostics remain
+blocked because this worktree is not one of the IDE's open projects. The
+same-slice in-app Browser mobile check opened
+`/legal/terms?stabilizationEvidence=finance-profile-inventory-guard` at
+390x844 on the running Docker app. The inspected screenshot
+`/tmp/evorto-finance-profile-inventory-guard-terms-390x844.png` shows readable
+Terms fallback copy and fixed Events/Login bottom navigation rather than an
+unrelated or heading-only artifact; Browser metrics found no clipped controls,
+Scanner hidden on mobile, zero warning/error logs, no loading text, and no
+application-error text. Current-head E2E run `27101593864` is still in progress
+after this pushed checkpoint, and the latest fully green E2E evidence remains
+the older completed pushed head until the new CI run finishes.
