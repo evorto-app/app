@@ -1000,6 +1000,31 @@ test('documentation screenshot helper rejects captures without visible page cont
   }
 });
 
+test('documentation screenshot helper rejects captures without readable viewport text', async ({
+  page,
+}, testInfo) => {
+  await page.setContent(`
+    <main>
+      <section
+        id="target"
+        aria-label="Decorative color evidence"
+        style="margin: 48px; width: 360px; height: 240px; background: rgb(30, 64, 175);"
+      ></section>
+    </main>
+  `);
+
+  await expect(
+    takeScreenshot(
+      testInfo,
+      page.locator('#target'),
+      page,
+      'Decorative color patch should fail readable text guard',
+    ),
+  ).rejects.toThrow(
+    'Documentation screenshots must include readable visible UI text in the viewport.',
+  );
+});
+
 test('documentation screenshot helper rejects captures without the highlighted target', async ({
   page,
 }, testInfo) => {

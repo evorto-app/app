@@ -6656,6 +6656,11 @@ Generated-doc image attachments now also have to be at least 320x240 at
 reporter runtime, so a tiny valid PNG with a highlight and colored pixels cannot
 stand in for a screenshot that shows enough UI context to judge the captured
 state.
+Generated-doc screenshots now also require readable visible UI text in the
+viewport before attachment, so a decorative colored patch with a highlight
+cannot pass as meaningful product evidence even if it has enough non-white
+pixels; that unreadable/no-text screenshot case is covered at the reporter
+output boundary.
 Generated-doc markdown attachments now also need at least 60 characters of
 explanatory body text at reporter runtime, so placeholder prose cannot publish
 as evidence that reviewers can judge without clicking through the app.

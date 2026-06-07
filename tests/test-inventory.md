@@ -220,8 +220,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/reporting/reporter-paths.test.ts`
     checks documentation reporter output paths, caption pairing, weak
     image-caption rejection, generated figure escaping, highlighted screenshot
-    targets, visible page-content detection, and zero-box host screenshots
-    without app startup. It also rejects unsupported `image/*` attachment names
+    targets, visible page-content detection, readable viewport text, and
+    zero-box host screenshots without app startup. It also rejects unsupported `image/*` attachment names
     when documentation content is otherwise being emitted and rejects undersized
     generated-doc image attachments, so tiny valid PNGs cannot stand in for
     screenshot evidence with enough UI context, and rejects weak Markdown body
@@ -612,8 +612,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   tied to concrete UI state,
   keeps the helper's runtime caption parameter required with the same minimum
   caption length, verifies generated
-  screenshots include the highlighted focus target and visible non-highlight
-  page content before attachment, rejects generic page-root screenshot targets
+  screenshots include the highlighted focus target, visible non-highlight
+  page content, and readable visible viewport text before attachment, rejects generic page-root screenshot targets
   such as `body`, `html`, or `app-root`, including aliased generic locators and
   helper-returned generic locators inside screenshot arguments and arrays plus
   chained generic page-shell locators such as `.first()` or `.filter(...)`,
@@ -673,16 +673,16 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `const [capture = takeScreenshot] = []`, rejects parameter-default helper
   aliases such as `function render(capture = takeScreenshot)`, covers
   the weak-caption,
-  invalid-image, missing-highlight, and blank/context-free highlighted-image
-  runtime failures in reporter-path tests, rejects uncaptioned image attachments
+  invalid-image, missing-highlight, blank/context-free highlighted-image, and
+  unreadable/no-text screenshot runtime failures in reporter-path tests, rejects uncaptioned image attachments
   and orphan or weak image-caption attachments before generated markdown is
   written, rejects unsupported `image/*` attachment names when documentation
   content is otherwise being emitted, rejects duplicate figure image sources and
   duplicate figure captions on one generated page, rejects duplicate figure
   captions and duplicate figure image hashes across generated pages, requires reporter-written image
   attachments to be valid PNG
-  screenshots with highlighted focus-target pixels and visible surrounding page
-  content, rejects inline and reference-style raw Markdown image syntax and
+  screenshots with highlighted focus-target pixels, visible surrounding page
+  content, and readable viewport text, rejects inline and reference-style raw Markdown image syntax and
   raw HTML visual/media tags, style-attribute CSS image URLs, or style-block CSS
   image declarations in generated docs markdown attachments at reporter runtime
   and in source coverage,

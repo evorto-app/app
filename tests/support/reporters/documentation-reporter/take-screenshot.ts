@@ -7,6 +7,7 @@ const snackbarSettleTimeoutMs = 750;
 const highlightedTargetColor = { b: 153, g: 72, r: 236 };
 const minimumHighlightedPixelCount = 16;
 const minimumVisibleContentPixelCount = 128;
+const minimumVisibleTextCharacterCount = 16;
 
 export const countDocumentationHighlightPixels = (image: Buffer): number => {
   const png = (() => {
@@ -104,6 +105,65 @@ const assertVisibleContentCaptured = (image: Buffer): void => {
   if (contentPixels < minimumVisibleContentPixelCount) {
     throw new Error(
       'Documentation screenshots must include visible page content outside the highlighted focus target.',
+    );
+  }
+};
+
+const countVisibleViewportTextCharacters = async (
+  page: Page,
+): Promise<number> =>
+  page.locator('body').evaluate((body) => {
+    const isVisibleInViewport = (element: Element): boolean => {
+      const bounds = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+
+      return (
+        bounds.width > 0 &&
+        bounds.height > 0 &&
+        bounds.bottom > 0 &&
+        bounds.right > 0 &&
+        bounds.top < window.innerHeight &&
+        bounds.left < window.innerWidth &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        style.opacity !== '0'
+      );
+    };
+    const textWalker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const text = node.textContent?.replace(/\s+/gu, ' ').trim() ?? '';
+        const parent = node.parentElement;
+
+        if (
+          !text ||
+          !parent ||
+          parent.closest('script, style, [data-docs-highlight-overlay]')
+        ) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        return isVisibleInViewport(parent)
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_REJECT;
+      },
+    });
+    let visibleText = '';
+    let current = textWalker.nextNode();
+
+    while (current) {
+      visibleText = `${visibleText} ${current.textContent ?? ''}`;
+      current = textWalker.nextNode();
+    }
+
+    return visibleText.replace(/\s+/gu, ' ').trim().length;
+  });
+
+const assertVisibleTextContentCaptured = async (page: Page): Promise<void> => {
+  const visibleTextCharacters = await countVisibleViewportTextCharacters(page);
+
+  if (visibleTextCharacters < minimumVisibleTextCharacterCount) {
+    throw new Error(
+      'Documentation screenshots must include readable visible UI text in the viewport.',
     );
   }
 };
@@ -426,6 +486,7 @@ export async function takeScreenshot(
   }
 
   await settleFiniteAnimations(page);
+  await assertVisibleTextContentCaptured(page);
   for (const [index, locator] of focusPoints.entries()) {
     const highlightId = `docs-highlight-${index}`;
     await runWithRetry(async () => {

@@ -10782,6 +10782,11 @@ describe('generated docs source current behavior', () => {
     expect(screenshotHelper).toContain(
       'Documentation screenshots must include visible page content outside the highlighted focus target.',
     );
+    expect(screenshotHelper).toContain(
+      'Documentation screenshots must include readable visible UI text in the viewport.',
+    );
+    expect(screenshotHelper).toContain('countVisibleViewportTextCharacters');
+    expect(screenshotHelper).toContain('minimumVisibleTextCharacterCount');
     expect(screenshotHelper).toContain('caption: string');
     expect(screenshotHelper).toContain('caption.trim().length < 32');
     expect(screenshotHelper).toContain('captionWords.length < 5');
@@ -10851,6 +10856,11 @@ describe('generated docs source current behavior', () => {
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(
       'documentation screenshot helper rejects captures without visible page content',
+    );
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation screenshot helper rejects captures without readable viewport text',
     );
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),

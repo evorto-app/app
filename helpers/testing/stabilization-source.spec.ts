@@ -1517,10 +1517,13 @@ describe('stabilization source', () => {
     expect(source).toMatch(/terse\s+section\/list label/u);
     expect(source).toContain('captured image');
     expect(source).toContain('highlighted focus-target\n  pixels');
+    expect(source).toContain('readable visible UI text');
+    expect(source).toContain('decorative colored patch with a highlight');
     expect(source).toContain('proves');
     expect(source).toContain('actual PNG with highlighted focus-target pixels');
     expect(source).toContain('invalid image attachments');
     expect(source).toContain('context-free highlighted-image');
+    expect(source).toContain('unreadable/no-text screenshot');
     expect(source).toContain('reporter output boundary');
     expect(source).toContain('paired `image-caption` attachments');
     expect(source).toContain('terse or content-free caption');
@@ -1987,7 +1990,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('tiny valid PNGs');
     expect(inventory).toMatch(/valid\s+PNG\s+screenshots/u);
     expect(inventory).toMatch(
-      /highlighted\s+focus-target\s+pixels\s+and\s+visible\s+surrounding\s+page\s+content/u,
+      /highlighted\s+focus-target\s+pixels,\s+visible\s+surrounding\s+page\s+content,\s+and\s+readable\s+viewport\s+text/u,
     );
     expect(inventory).toContain('runtime');
     expect(inventory).toContain('failure');
@@ -2952,6 +2955,12 @@ describe('stabilization source', () => {
     );
     expect(reporterPathsSpec).toContain(
       'documentation reporter rejects images without surrounding page content',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation screenshot helper rejects captures without readable viewport text',
+    );
+    expect(reporterPathsSpec).toContain(
+      'Documentation screenshots must include readable visible UI text in the viewport.',
     );
     expect(reporterPathsSpec).toContain(
       'documentation reporter rejects orphan image-caption attachments',
