@@ -625,7 +625,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   indirect call/apply/bind helper invocations that would evade normal
   screenshot counting and target-quality checks, rejects binding-default helper
   aliases such as `const { capture = takeScreenshot } = {}` and
-  `const [capture = takeScreenshot] = []`, covers
+  `const [capture = takeScreenshot] = []`, rejects parameter-default helper
+  aliases such as `function render(capture = takeScreenshot)`, covers
   the weak-caption,
   invalid-image, missing-highlight, and blank/context-free highlighted-image
   runtime failures in reporter-path tests, rejects uncaptioned image attachments

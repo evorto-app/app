@@ -2310,8 +2310,14 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'captureDefault = takeScreenshot',
     );
+    expect(generatedDocumentationSource).toContain(
+      'captureParameter = takeScreenshot',
+    );
     expect(inventory).toContain(
       'binding-default helper\n  aliases such as `const { capture = takeScreenshot } = {}`',
+    );
+    expect(inventory).toContain(
+      'parameter-default helper\n  aliases such as `function render(capture = takeScreenshot)`',
     );
     expect(generatedDocumentationSource).toContain(
       'documentation-reporter/take-screenshot',

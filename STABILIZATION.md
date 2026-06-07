@@ -3667,9 +3667,10 @@ fallback rather than a profile discount-card defect.
   docs edit cannot quietly drop meaningful images while leaving one remaining
   screenshot behind or add a new UI doc without count coverage. It also rejects
   aliased `takeScreenshot` imports, direct imports from the helper implementation
-  path, local screenshot wrapper declarations, and binding-default aliases such
-  as `const { capture = takeScreenshot } = {}`, so docs cannot route around the
-  meaningful-image checks while still appearing to use the shared helper.
+  path, local screenshot wrapper declarations, binding-default aliases such as
+  `const { capture = takeScreenshot } = {}`, and parameter-default aliases such
+  as `function render(capture = takeScreenshot)`, so docs cannot route around
+  the meaningful-image checks while still appearing to use the shared helper.
   It also rejects raw markdown image syntax and raw HTML `<img>` bodies even
   when the markdown attachment name or body is hidden behind a local alias, a
   bracketed `attach` call, an aliased payload object, or shorthand `{ body }`,
@@ -6248,6 +6249,10 @@ Binding-default aliases of the shared helper are rejected too, so destructuring
 fallbacks such as `const { capture = takeScreenshot } = {}` or
 `const [capture = takeScreenshot] = []` cannot hide docs screenshots from the
 same count, caption, and meaningful-target checks.
+Parameter-default aliases of the shared helper are covered as well, including
+destructured parameter defaults, so function parameters such as
+`capture = takeScreenshot` or `{ capture = takeScreenshot } = {}` cannot hide
+docs screenshots from the same helper-quality checks.
 A same-slice in-app Browser smoke opened `/events` at 390x844 on the rebuilt
 Docker app with `stabilizationEvidence=helper-binding-default-source-guard`,
 settled past the loading placeholder, and rendered seeded Material event cards
