@@ -512,7 +512,7 @@ the current working direction until a product decision overrides them.
 - Current Browser runtime evidence: Browser plugin Node-backed in-app Browser
   runtime, generated `.env.dev` `BASE_URL`, `/events` route, `Upcoming Events`
   tenant feed, and public event-link DOM snapshots.
-- Current PR-head General viewport evidence: on June 7, 2026, in-app Browser
+- Earlier PR-head General viewport evidence: on June 7, 2026, in-app Browser
   control opened the running Docker app at `http://localhost:4218` on head
   `ac8286a28`, used the Browser viewport capability for 320x740, 390x844, and
   1440x900, and rechecked all 10 anonymous General routes: `/`, `/events`, the
