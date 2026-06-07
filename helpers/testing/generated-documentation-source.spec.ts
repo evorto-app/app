@@ -1183,7 +1183,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
   const markdownAttachFunctionAliases = new Set<string>();
   const markdownAttachFunctionPropertyAliases = new Set<string>();
   const rawMarkdownImagePattern =
-    /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<(?:img|picture|source|svg|image|object|embed|iframe|video|canvas)(?:\s|>|\/)/iu;
+    /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<(?:img|picture|source|svg|image|object|embed|iframe|video|canvas)(?:\s|>|\/)|style\s*=\s*(?:"[^"]*url\s*\(|'[^']*url\s*\(|[^\s>]*url\s*\()|(?:background(?:-image)?|list-style-image|border-image(?:-source)?|content)\s*:\s*url\s*\(/iu;
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -6175,6 +6175,24 @@ describe('generated docs source current behavior', () => {
         rawHtmlVisualSource,
       ),
     ).toEqual(['tests/docs/example/raw-html-visual.doc.ts:2:13']);
+  });
+
+  it('detects raw CSS image urls before generated docs can use them', () => {
+    const rawCssImageSource = `
+      await testInfo.attach('markdown', {
+        body: \`
+          This guide cannot bypass screenshot checks with inline CSS imagery.
+          <section style="background-image: url('../raw-reference.png')">Raw visual proof</section>
+        \`,
+      });
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/raw-css-image.doc.ts',
+        rawCssImageSource,
+      ),
+    ).toEqual(['tests/docs/example/raw-css-image.doc.ts:2:13']);
   });
 
   it('detects raw markdown images hidden behind binding default attach aliases', () => {

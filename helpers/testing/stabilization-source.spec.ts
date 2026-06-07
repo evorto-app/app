@@ -1423,12 +1423,13 @@ describe('stabilization source', () => {
       'inline and reference-style raw\nMarkdown image syntax',
     );
     expect(source).toContain('reference-style raw\nMarkdown image syntax');
+    expect(source).toContain('raw CSS image URLs');
     expect(source).toContain('bracketed `attach` call');
     expect(source).toContain('aliased payload object');
     expect(source).toContain('shorthand `{ body }`');
     expect(source).toContain('pushed head `dfcd0cce`');
     expect(source).toContain('bun run test:e2e:reporter-paths');
-    expect(source).toContain('29 passed (3.1s)');
+    expect(source).toContain('30 passed (3.5s)');
     expect(source).toContain('cross-document image-hash guard');
     expect(source).toContain('head `e3bc251e`');
     expect(source).toContain(
@@ -1517,6 +1518,7 @@ describe('stabilization source', () => {
     expect(source).toContain('concatenation');
     expect(source).toContain('reference-style raw\nMarkdown image syntax');
     expect(source).toContain('raw HTML visual/media tags');
+    expect(source).toContain('raw CSS image URLs');
     expect(source).toContain(
       'binding-default and parameter-default markdown names',
     );
@@ -2727,6 +2729,7 @@ describe('stabilization source', () => {
       'inline and reference-style raw Markdown image syntax',
     );
     expect(inventory).toContain('raw HTML visual/media tags');
+    expect(inventory).toContain('raw CSS image URLs');
     expect(inventory).toContain('aliased markdown names');
     expect(inventory).toContain(
       'binding-default and parameter-default markdown names',
