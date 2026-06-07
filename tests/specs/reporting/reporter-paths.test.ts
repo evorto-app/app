@@ -860,6 +860,32 @@ test('documentation screenshot helper captures the highlighted target', async ({
   ).toBeGreaterThanOrEqual(128);
 });
 
+test('documentation screenshot helper rejects ambiguous targets', async ({
+  page,
+}, testInfo) => {
+  await page.setContent(`
+    <main>
+      <section class="doc-card" style="margin: 48px; padding: 24px;">
+        First repeated documentation card
+      </section>
+      <section class="doc-card" style="margin: 48px; padding: 24px;">
+        Second repeated documentation card
+      </section>
+    </main>
+  `);
+
+  await expect(
+    takeScreenshot(
+      testInfo,
+      page.locator('.doc-card'),
+      page,
+      'Ambiguous documentation card target should fail before capture',
+    ),
+  ).rejects.toThrow(
+    'Documentation screenshots must target exactly one element per focus point',
+  );
+});
+
 test('documentation screenshot helper waits for all visible loading text', async ({
   page,
 }, testInfo) => {

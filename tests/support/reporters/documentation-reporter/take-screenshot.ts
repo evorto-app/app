@@ -297,6 +297,21 @@ const waitForStableLocator = async (
   }
 };
 
+const assertUniqueScreenshotTarget = async (
+  locator: Locator,
+  index: number,
+): Promise<void> => {
+  await locator.first().waitFor({ state: 'attached' });
+
+  const matchCount = await locator.count();
+
+  if (matchCount !== 1) {
+    throw new Error(
+      `Documentation screenshots must target exactly one element per focus point; target ${index + 1} matched ${matchCount} elements. Narrow the locator before taking generated-doc screenshots so image evidence cannot silently capture an unrelated repeated card, row, or control.`,
+    );
+  }
+};
+
 export async function takeScreenshot(
   testInfo: TestInfo,
   locators: Locator | Locator[],
@@ -337,6 +352,10 @@ export async function takeScreenshot(
     }
     if (lastError) throw lastError;
   };
+
+  for (const [index, locator] of focusPoints.entries()) {
+    await runWithRetry(() => assertUniqueScreenshotTarget(locator, index));
+  }
 
   for (const [index, locator] of focusPoints.entries()) {
     const highlightId = `docs-highlight-${index}`;

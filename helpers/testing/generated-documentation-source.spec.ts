@@ -9797,6 +9797,13 @@ describe('generated docs source current behavior', () => {
       'Documentation screenshots require a descriptive caption',
     );
     expect(screenshotHelper).toContain('at least 32 characters and five words');
+    expect(screenshotHelper).toContain('assertUniqueScreenshotTarget');
+    expect(screenshotHelper).toContain(
+      'Documentation screenshots must target exactly one element per focus point',
+    );
+    expect(screenshotHelper).toContain(
+      'image evidence cannot silently capture an unrelated repeated card, row, or control',
+    );
     expect(reporterAttachments).toContain(
       'assertDescriptiveDocumentationCaption',
     );
@@ -9841,6 +9848,9 @@ describe('generated docs source current behavior', () => {
     ).toContain(
       'documentation screenshot helper highlights a visible child for zero-box hosts',
     );
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain('documentation screenshot helper rejects ambiguous targets');
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(

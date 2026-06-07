@@ -1456,6 +1456,32 @@ provider outcomes without live identifiers.
   `test-results/stabilization-browser/797e51dd-terms-390x844.png` show seeded
   Material event cards with meaningful icons/times and the readable Terms
   fallback legal page with fixed Events/Login bottom navigation.
+  Generated documentation screenshot capture now rejects ambiguous runtime
+  targets before highlighting or attaching an image. The shared
+  `takeScreenshot(...)` helper requires each focus locator to resolve to exactly
+  one element, so a repeated card, row, control, or other broad match cannot
+  silently produce unrelated image evidence. The focused
+  `tests/specs/reporting/reporter-paths.test.ts` guard covers the runtime
+  failure case, and `helpers/testing/generated-documentation-source.spec.ts`
+  pins the helper/error text and runtime test. The same slice could not add a
+  new Browser General-route claim because the local generated Docker app on
+  `BASE_URL=http://localhost:4218` returned HTTP 500 from stale Neon Local
+  metadata; `bun run neon:cleanup` removed the stale branch and the follow-up
+  dry-run was clean with only protected `main`, but Docker container
+  start/restart remained blocked below the app layer.
+  E2E run `27091017112` then failed `functional-1` on the narrow-mobile
+  `/global-admin/tenants` viewport because the strict layout helper sampled the
+  page while a visible `Loading ...` heading was still present. The global-admin
+  viewport spec now retries the existing `expectedStablePageLayout` assertion
+  with `expect(...).toPass(...)`, preserving the final layout contract while
+  waiting for transient loading text to clear.
+  The same E2E run failed `functional-2` on
+  `tests/specs/scanning/scanner-viewports.spec.ts` because `/scan` correctly
+  exercised the QR scanner's plain-HTTP/no-camera fallback and emitted the
+  browser camera-policy warnings plus the app's expected scanner fallback
+  warning. The spec now filters only those known camera fallback console
+  messages for `/scan`, while seeded `/scan/registration/:registrationId`
+  viewports still have the normal zero-unexpected-browser-log contract.
 - `tests/setup/mcp-browser-authenticated.seed.ts` is the authenticated MCP
   Browser planner seed for the dedicated `mcp-browser-authenticated-planner`
   project. It depends on the normal `setup` project, then opens

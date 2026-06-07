@@ -31,6 +31,37 @@ const viewportSizes = [
   { height: 900, label: 'desktop', width: 1440 },
 ] as const;
 
+const expectedScannerCameraBrowserLogPatterns = [
+  /camera stream is only accessible if the page is transferred via https/u,
+  /Permissions policy violation: camera is not allowed in this document/u,
+  /Failed to start QR scanner camera/u,
+] as const;
+
+const expectNoUnexpectedBrowserLogs = ({
+  browserLogFailures,
+  routePath,
+  viewportLabel,
+}: {
+  browserLogFailures: string[];
+  routePath: string;
+  viewportLabel: string;
+}) => {
+  const unexpectedBrowserLogFailures =
+    routePath === '/scan'
+      ? browserLogFailures.filter(
+          (failure) =>
+            !expectedScannerCameraBrowserLogPatterns.some((pattern) =>
+              pattern.test(failure),
+            ),
+        )
+      : browserLogFailures;
+
+  expect(
+    unexpectedBrowserLogFailures,
+    `${viewportLabel} ${routePath} should not emit browser warning/error logs except the expected scanner camera fallback`,
+  ).toEqual([]);
+};
+
 const requireScannerFixture = async ({
   database,
   seeded,
@@ -139,10 +170,11 @@ test('scanner pages have stable layouts across viewports @scanning', async ({
             await expect(readPageLayout(page)).resolves.toEqual(
               expectedStablePageLayout,
             );
-            expect(
+            expectNoUnexpectedBrowserLogs({
               browserLogFailures,
-              `${viewport.label} ${route.path} should not emit browser warning/error logs`,
-            ).toEqual([]);
+              routePath: route.path,
+              viewportLabel: viewport.label,
+            });
           });
         }
       });

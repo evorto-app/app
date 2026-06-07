@@ -6983,3 +6983,48 @@ warning/error logs. The authenticated MCP Browser planner could not seed
 `/admin/settings` on the generated worktree port because Auth0 rejected
 `http://localhost:4218/callback`; durable authenticated General mobile coverage
 remains pinned by `tests/specs/admin/general-settings.spec.ts`.
+
+Generated-doc screenshot capture now rejects ambiguous runtime targets before
+highlighting or attaching an image. The shared `takeScreenshot(...)` helper
+requires each focus locator to resolve to exactly one element, so docs cannot
+accidentally photograph the first repeated event card, table row, form control,
+or other unrelated repeated surface while still satisfying the image-size,
+highlight-pixel, content-pixel, and caption checks. The focused
+`tests/specs/reporting/reporter-paths.test.ts` runtime check covers the failure
+case, and `helpers/testing/generated-documentation-source.spec.ts` pins the
+helper and runtime test so the guard remains part of generated-documentation
+quality coverage. A same-slice attempt to refresh full in-app Browser General
+evidence on pushed head `c1eb33de` was blocked below the app layer: the running
+generated Docker app at `BASE_URL=http://localhost:4218` returned HTTP 500 for
+`/events` and `/legal/terms` after Neon Local metadata still referenced deleted
+branch `br-blue-fire-a98xkpkh`; `bun run dev:status` reported the database
+validation query failure plus Docker's disposable Alpine start-path timeout,
+and a direct disposable `docker run --rm alpine:3.20 true` probe also hung in
+`Created` state before being removed. `bun run neon:cleanup` deleted the stale
+branch, the follow-up dry-run reported only protected `main`, but Docker could
+not restart the generated DB container (`did not receive an exit event`) and
+subsequent health checks reported namespace execution failures. No new Browser
+layout claim is made for this slice; use a Docker Desktop/engine restart before
+the next Browser/mobile General refresh.
+
+The same pushed-head E2E run `27091017112` failed `functional-1` on
+`tests/specs/admin/global-admin-tenants.spec.ts` because the narrow-mobile
+`/global-admin/tenants` viewport sampled the shared layout helper while a
+visible `h2` `Loading ...` placeholder was still present. The route content had
+already rendered and the failure was the strict layout helper's
+`visibleLoadingTextCount` check, not horizontal overflow or clipped controls.
+The viewport spec now keeps the same `expectedStablePageLayout` contract but
+uses Playwright's retrying `expect(...).toPass(...)` around `readPageLayout`, so
+the check waits for transient loading text to clear before asserting the final
+Material layout.
+
+The same E2E run also failed `functional-2` on
+`tests/specs/scanning/scanner-viewports.spec.ts`: the `/scan` camera fallback
+route intentionally starts the QR scanner under the CI runner's plain HTTP/no
+camera environment, which emits the browser's camera-policy warnings plus the
+app's expected "Failed to start QR scanner camera" fallback warning before the
+visible "Please allow access to your camera" state renders. The scanner
+viewport spec now filters only those known camera fallback console messages for
+the `/scan` route and still requires every seeded
+`/scan/registration/:registrationId` route to have no unexpected browser
+warning/error logs while preserving the shared stable-layout assertion.

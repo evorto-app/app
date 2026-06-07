@@ -8748,6 +8748,13 @@ describe('stabilization source', () => {
     expect(scannerViewportSpec).toContain(
       'path: `/scan/registration/${registrationId}`',
     );
+    expect(scannerViewportSpec).toContain(
+      'expectedScannerCameraBrowserLogPatterns',
+    );
+    expect(scannerViewportSpec).toContain("routePath === '/scan'");
+    expect(scannerViewportSpec).toContain(
+      'except the expected scanner camera fallback',
+    );
     expect(scannerViewportSpec).toContain('eventRegistrations');
     expect(scannerTemplate).toContain(
       'class="aspect-video max-h-[70vh] w-full rounded bg-surface-container object-cover"',
