@@ -5992,8 +5992,9 @@ helper calls such as `Array.of(...)`, `.concat(...)`, `.map(...)`,
 `.reverse()`, `.sort()`, `.toReversed()`, `.toSorted()`, and `.flat()`, and
 helper-returned targets for direct generic, broad, single-control, and
 icon/media screenshot targets. `map` and `flatMap` callback return values are
-checked too, so a safe receiver array cannot manufacture a weak screenshot
-target in the callback. Conditional, nullish-coalesced, and logical target
+checked too, including named or locally aliased callback helpers, so a safe
+receiver array cannot manufacture a weak screenshot target in the callback.
+Conditional, nullish-coalesced, and logical target
 expressions are checked too, so selecting between a good surface and a weak
 fallback cannot hide generic, broad, single-control, or icon/media screenshot
 evidence. Non-null assertion wrappers are unwrapped before screenshot
@@ -6001,6 +6002,13 @@ counting, target inspection, direct raw-image attachment checks, and direct
 screenshot-helper checks run, so `target!`, `takeScreenshot!(...)`,
 `testInfo.attach!(...)`, and
 `page.screenshot!(...)` cannot hide the same weak evidence paths.
+A focused in-app Browser refresh for this source-guard slice opened `/events`
+at 390x844 with `stabilizationEvidence=named-array-callback-source-guard`.
+The page rendered seeded event-card content and meaningful event icons such as
+`user-manual`, `bus`, `mountain`, and `football2`; reported no horizontal
+overflow, clipped visible controls, loading placeholder, rendered application
+error text, or Browser warning/error logs; and saved the viewport screenshot to
+`/tmp/evorto-named-callback-events-390.png`.
 The generated-doc source guard now collects screenshot target aliases and helper
 functions before it inspects screenshot calls, so generic shell, broad,
 single-control, and icon/media-only targets are still rejected when the alias or

@@ -47,8 +47,13 @@ const unwrapArrayElement = (node: ts.Expression): ts.Expression =>
 const returnsTrackedTarget = (
   node: ts.Expression,
   isTrackedTarget: (node: ts.Expression) => boolean,
+  options: { trackedCallbackNames?: ReadonlySet<string> } = {},
 ): boolean => {
   const expression = unwrapExpression(node);
+
+  if (ts.isIdentifier(expression)) {
+    return options.trackedCallbackNames?.has(expression.text) === true;
+  }
 
   if (ts.isArrowFunction(expression) && !ts.isBlock(expression.body)) {
     return isTrackedTarget(expression.body);
@@ -113,7 +118,10 @@ const getStaticIntegerIndex = (node: ts.Expression): null | number => {
 const isTrackedArrayTarget = (
   node: ts.Expression,
   isTrackedTarget: (node: ts.Expression) => boolean,
-  options: { emptyArrayIsTracked?: boolean } = {},
+  options: {
+    emptyArrayIsTracked?: boolean;
+    trackedCallbackNames?: ReadonlySet<string>;
+  } = {},
 ): boolean => {
   const target = unwrapExpression(node);
 
@@ -204,7 +212,7 @@ const isTrackedArrayTarget = (
           ? isTrackedArrayTarget(receiver, isTrackedTarget, options)
           : false) ||
         target.arguments.some((argument) =>
-          returnsTrackedTarget(argument, isTrackedTarget),
+          returnsTrackedTarget(argument, isTrackedTarget, options),
         )
       );
     }
@@ -474,6 +482,12 @@ const getLiteralText = (node: ts.Expression): null | string => {
   }
 
   return null;
+};
+
+const getIdentifierText = (node: ts.Expression): null | string => {
+  const expression = unwrapExpression(node);
+
+  return ts.isIdentifier(expression) ? expression.text : null;
 };
 
 const getStaticPropertyNameFromName = (
@@ -1189,6 +1203,7 @@ const findGenericScreenshotTargets = (
     if (
       isTrackedArrayTarget(target, isGenericLocatorTarget, {
         emptyArrayIsTracked: true,
+        trackedCallbackNames: genericTargetFunctions,
       })
     ) {
       return true;
@@ -1295,6 +1310,15 @@ const findGenericScreenshotTargets = (
       isGenericLocatorTarget(unwrapExpression(node.initializer))
     ) {
       genericTargetAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      genericTargetFunctions.has(getIdentifierText(node.initializer) ?? '')
+    ) {
+      genericTargetFunctions.add(node.name.text);
     }
 
     if (
@@ -1413,7 +1437,11 @@ const findUnfilteredBroadScreenshotTargets = (
   const isUnfilteredBroadLocatorTarget = (node: ts.Expression): boolean => {
     const target = unwrapExpression(node);
 
-    if (isTrackedArrayTarget(target, isUnfilteredBroadLocatorTarget)) {
+    if (
+      isTrackedArrayTarget(target, isUnfilteredBroadLocatorTarget, {
+        trackedCallbackNames: broadTargetFunctions,
+      })
+    ) {
       return true;
     }
 
@@ -1523,6 +1551,15 @@ const findUnfilteredBroadScreenshotTargets = (
       isUnfilteredBroadLocatorTarget(unwrapExpression(node.initializer))
     ) {
       broadTargetAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      broadTargetFunctions.has(getIdentifierText(node.initializer) ?? '')
+    ) {
+      broadTargetFunctions.add(node.name.text);
     }
 
     if (
@@ -1692,7 +1729,11 @@ const findSingleControlScreenshotTargets = (
   const isSingleControlLocatorTarget = (node: ts.Expression): boolean => {
     const target = unwrapExpression(node);
 
-    if (isTrackedArrayTarget(target, isSingleControlLocatorTarget)) {
+    if (
+      isTrackedArrayTarget(target, isSingleControlLocatorTarget, {
+        trackedCallbackNames: singleControlFunctions,
+      })
+    ) {
       return true;
     }
 
@@ -1823,6 +1864,15 @@ const findSingleControlScreenshotTargets = (
       isSingleControlLocatorTarget(unwrapExpression(node.initializer))
     ) {
       singleControlAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      singleControlFunctions.has(getIdentifierText(node.initializer) ?? '')
+    ) {
+      singleControlFunctions.add(node.name.text);
     }
 
     if (
@@ -1960,7 +2010,11 @@ const findIconOrMediaScreenshotTargets = (
   const isIconOrMediaLocatorTarget = (node: ts.Expression): boolean => {
     const target = unwrapExpression(node);
 
-    if (isTrackedArrayTarget(target, isIconOrMediaLocatorTarget)) {
+    if (
+      isTrackedArrayTarget(target, isIconOrMediaLocatorTarget, {
+        trackedCallbackNames: iconOrMediaFunctions,
+      })
+    ) {
       return true;
     }
 
@@ -2081,6 +2135,15 @@ const findIconOrMediaScreenshotTargets = (
       isIconOrMediaLocatorTarget(unwrapExpression(node.initializer))
     ) {
       iconOrMediaAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      iconOrMediaFunctions.has(getIdentifierText(node.initializer) ?? '')
+    ) {
+      iconOrMediaFunctions.add(node.name.text);
     }
 
     if (
@@ -4584,6 +4647,70 @@ describe('generated docs source current behavior', () => {
         arrayCallbackTargetSource,
       ),
     ).toEqual(['tests/docs/example/array-callback-target.doc.ts:20:13']);
+  });
+
+  it('detects weak documentation screenshot targets produced by named array callbacks', () => {
+    const namedArrayCallbackTargetSource = `
+      function returnsGenericTarget() {
+        return page.locator('main');
+      }
+      const returnsBroadTarget = () => [page.locator('section')];
+      const returnsSingleControlTarget = () => page.getByRole('button', { name: 'Save' });
+      const returnsIconTarget = function () {
+        return [page.locator('svg')];
+      };
+      const aliasedIconTarget = returnsIconTarget;
+
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].map(returnsGenericTarget),
+        page,
+        'Named callback generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].flatMap(returnsBroadTarget),
+        page,
+        'Named callback broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].map(returnsSingleControlTarget),
+        page,
+        'Named callback single control target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        [settingsSurface].flatMap(aliasedIconTarget),
+        page,
+        'Aliased callback icon target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/named-array-callback-target.doc.ts',
+        namedArrayCallbackTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/named-array-callback-target.doc.ts:12:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/named-array-callback-target.doc.ts',
+        namedArrayCallbackTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/named-array-callback-target.doc.ts:18:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/named-array-callback-target.doc.ts',
+        namedArrayCallbackTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/named-array-callback-target.doc.ts:24:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/named-array-callback-target.doc.ts',
+        namedArrayCallbackTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/named-array-callback-target.doc.ts:30:13']);
   });
 
   it('detects weak documentation screenshot targets hidden behind branching expressions', () => {

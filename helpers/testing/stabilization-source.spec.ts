@@ -1607,7 +1607,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('.toSorted()');
     expect(inventory).toContain('.flat()');
     expect(inventory).toContain(
-      'weak targets produced\n  by `map` or `flatMap` callbacks',
+      'weak targets produced\n  by inline, named, or locally aliased `map` and `flatMap` callbacks',
     );
     expect(inventory).toContain(
       'conditional, nullish-coalesced, and logical target\n  expressions',
@@ -1922,6 +1922,9 @@ describe('stabilization source', () => {
       'detects weak documentation screenshot targets produced by array map callbacks',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets produced by named array callbacks',
+    );
+    expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets inserted through toSpliced calls',
     );
     expect(generatedDocumentationSource).toContain(
@@ -1955,6 +1958,12 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       "[settingsSurface].flatMap(() => [page.locator('section')])",
+    );
+    expect(generatedDocumentationSource).toContain(
+      '[settingsSurface].map(returnsGenericTarget)',
+    );
+    expect(generatedDocumentationSource).toContain(
+      '[settingsSurface].flatMap(aliasedIconTarget)',
     );
     expect(generatedDocumentationSource).toContain('returnsTrackedTarget');
     expect(generatedDocumentationSource).toContain(
