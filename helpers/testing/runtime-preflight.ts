@@ -132,11 +132,17 @@ const isPresent = (env: NodeJS.ProcessEnv, name: string): boolean => {
 
 const defaultRunCommand = (
   command: string,
-  args: readonly string[],
+  commandArguments: readonly string[],
+  environment: NodeJS.ProcessEnv = process.env,
 ): CommandResult => {
-  const result = spawnSync(command, [...args], {
+  const timeout =
+    command === 'sh' && commandArguments[2] === 'docker-container-start-check'
+      ? commandTimeoutMs * 2
+      : commandTimeoutMs;
+  const result = spawnSync(command, [...commandArguments], {
     encoding: 'utf8',
-    timeout: commandTimeoutMs,
+    env: environment,
+    timeout,
   });
 
   return {
@@ -458,10 +464,50 @@ const databaseConnectivityCheck = (
     };
   }
 
-  const result = runCommand('nc', ['-z', host, port]);
-  if (result.status === 0) {
+  const portProbeResult = runCommand('nc', ['-z', host, port]);
+  if (portProbeResult.status === 0) {
+    const queryResult = runCommand('bun', [
+      '--eval',
+      `
+const { Client } = await import('pg');
+const { createNodePgPoolConfig } = await import('./src/db/pg-connection-config.ts');
+const client = new Client(createNodePgPoolConfig({
+  databaseUrl: process.env.DATABASE_URL,
+  neonLocalProxy: true,
+}));
+try {
+  await client.connect();
+  await client.query('select 1');
+} catch (error) {
+  console.error(
+    error instanceof Error ? \`\${error.name}: \${error.message}\` : String(error),
+  );
+  process.exitCode = 1;
+} finally {
+  await client.end().catch(() => {});
+}
+`.trim(),
+    ]);
+
+    if (queryResult.status !== 0) {
+      return {
+        details: [
+          `DATABASE_URL endpoint ${host}:${port} accepts TCP connections, but a validation query failed.`,
+          'Neon Local metadata may point at a deleted or unavailable branch; restart this worktree Docker stack with bun run docker:start after Docker container startup works.',
+          firstLine(queryResult.stderr) ??
+            firstLine(queryResult.stdout) ??
+            queryResult.errorMessage ??
+            'Validation query failed.',
+        ],
+        label,
+        severity: 'failure',
+      };
+    }
+
     return {
-      details: [`DATABASE_URL endpoint ${host}:${port} is reachable.`],
+      details: [
+        `DATABASE_URL endpoint ${host}:${port} is reachable and accepts a validation query.`,
+      ],
       label,
       severity: 'ok',
     };
@@ -471,8 +517,8 @@ const databaseConnectivityCheck = (
     details: [
       `DATABASE_URL points at ${host}:${port}, but no local database endpoint is reachable.`,
       'Start the generated Docker stack with bun run docker:start, or set DATABASE_URL to a reachable database before bun run dev:start.',
-      firstLine(result.stderr) ??
-        firstLine(result.stdout) ??
+      firstLine(portProbeResult.stderr) ??
+        firstLine(portProbeResult.stdout) ??
         'Port probe failed.',
     ],
     label,
@@ -733,7 +779,10 @@ export const evaluateRuntimePreflight = (
   const cwd = options.cwd ?? process.cwd();
   const env = options.env ?? process.env;
   const fileExists = options.fileExists ?? fs.existsSync;
-  const runCommand = options.runCommand ?? defaultRunCommand;
+  const runCommand =
+    options.runCommand ??
+    ((command, commandArguments) =>
+      defaultRunCommand(command, commandArguments, env));
   const missingVariables = requiredByTarget[target].filter(
     ({ name }) => !isPresent(env, name),
   );
@@ -751,7 +800,7 @@ export const evaluateRuntimePreflight = (
     {
       details: missingRequiredVariableDetails(
         cwd,
-        environment,
+        env,
         fileExists,
         missingVariables,
       ),

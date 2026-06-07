@@ -1526,10 +1526,14 @@ provider outcomes without live identifiers.
   It refreshes `.env.dev`, runs the development preflight, runs the Docker
   preflight, probes the configured public app route when an app is already
   listening, and still runs the Neon Local cleanup dry-run before returning a
-  combined failed-check summary. The app route probe skips a closed `BASE_URL`
-  port but fails loudly when an already-running local app returns HTTP 500 for a
-  public page, making stale or broken port-4200 stacks visible before Browser
-  planner runs are treated as current worktree evidence. That HTTP-error
+  combined failed-check summary. The database endpoint preflight runs a
+  validation query after the local TCP port probe succeeds, so stale Neon Local
+  metadata pointing at a deleted or unavailable branch fails before the app
+  starts returning SSR HTTP 500 pages during Browser verification. The app route
+  probe skips a closed `BASE_URL` port but fails loudly when an already-running
+  local app returns HTTP 500 for a public page, making stale or broken port-4200
+  stacks visible before Browser planner runs are treated as current worktree
+  evidence. That HTTP-error
   message points at `bun run docker:check` so operators can identify a different
   Evorto Compose project on the selected port without stopping it. The route
   probe and Docker preflight share one Compose port-owner parser; the route

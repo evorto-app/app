@@ -237,6 +237,10 @@ already-running app fails the status command so stale or broken port-4200 stacks
 do not get mistaken for current Browser evidence. The HTTP-error message points
 at `bun run docker:check` so you can identify whether another Evorto Compose
 project owns the selected port before trusting that route for Browser evidence.
+The database endpoint preflight also runs a lightweight validation query after
+the local TCP port probe succeeds, so stale Neon Local metadata pointing at a
+deleted or unavailable branch fails before the app starts returning SSR HTTP 500
+pages during Browser verification.
 When Docker already shows another `evorto-*` Compose project publishing that
 local port, the route probe skips the HTTP request, prints the owning
 `COMPOSE_PROJECT_NAME=<owning-project> docker compose down` command, and leaves

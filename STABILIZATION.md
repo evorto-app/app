@@ -6713,6 +6713,10 @@ generated local app, but no positive visual evidence is claimed for that pass:
 `/legal/terms` returned HTTP 500, and the in-app Browser rejected the loopback
 navigation before rendering the page. The source-level and reporter-level
 checks remain the evidence for this screenshot-count cleanup.
+The runtime preflight now also validates a real database query after the local
+TCP endpoint check succeeds, so stale Neon Local metadata pointing at a deleted
+or unavailable branch fails before the app starts returning SSR HTTP 500 pages
+during Browser verification.
 The receipt review generated doc now uses concrete approval queue receipt,
 review decision, reimbursement group, and post-recording reimbursement state
 targets instead of broad receipt component hosts.

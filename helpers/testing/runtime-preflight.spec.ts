@@ -31,6 +31,24 @@ const successfulCommand = (
     };
   }
 
+  if (command === 'bun' && commandArguments[0] === '--eval') {
+    expect(commandArguments[1]).toContain("await client.query('select 1')");
+    expect(commandArguments[1]).toContain('createNodePgPoolConfig');
+    return {
+      status: 0,
+      stderr: '',
+      stdout: '',
+    };
+  }
+
+  if (joined === 'nc -z localhost 55432') {
+    return {
+      status: 0,
+      stderr: '',
+      stdout: '',
+    };
+  }
+
   if (joined === 'docker compose version') {
     return {
       status: 0,
@@ -1013,7 +1031,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(inventory).toContain(
       'probes the configured public app route when an app is already\n  listening',
     );
-    expect(inventory).toContain('HTTP 500 for a\n  public page');
+    expect(inventory.replaceAll(/\s+/g, ' ')).toContain(
+      'HTTP 500 for a public page',
+    );
     expect(helpersReadme).toContain(
       'probes the configured\npublic app route if something is already serving `BASE_URL`',
     );
@@ -2474,9 +2494,63 @@ describe('evaluateRuntimePreflight', () => {
           severity: 'ok',
         }),
         expect.objectContaining({
-          details: ['DATABASE_URL endpoint localhost:55432 is reachable.'],
+          details: [
+            'DATABASE_URL endpoint localhost:55432 is reachable and accepts a validation query.',
+          ],
           label: 'Database endpoint',
           severity: 'ok',
+        }),
+      ]),
+    );
+  });
+
+  it('fails dev preflight when the local database port is open but queries fail', () => {
+    const result = evaluateRuntimePreflight('dev', {
+      cwd: '/repo',
+      env: {
+        ...requiredDevelopmentEnvironment,
+        DATABASE_URL:
+          'postgresql://neon:npg@localhost:55432/appdb?sslmode=require',
+      },
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: (command, commandArguments) => {
+        if (command === 'nc') {
+          expect(commandArguments).toEqual(['-z', 'localhost', '55432']);
+          return {
+            status: 0,
+            stderr: '',
+            stdout: '',
+          };
+        }
+
+        if (command === 'bun' && commandArguments[0] === '--eval') {
+          expect(commandArguments[1]).toContain(
+            "await client.query('select 1')",
+          );
+          expect(commandArguments[1]).toContain('createNodePgPoolConfig');
+          return {
+            status: 1,
+            stderr:
+              "error: The requested endpoint could not be found, or you don't have access to it.\n",
+            stdout: '',
+          };
+        }
+
+        return successfulCommand(command, commandArguments);
+      },
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'DATABASE_URL endpoint localhost:55432 accepts TCP connections, but a validation query failed.',
+            'Neon Local metadata may point at a deleted or unavailable branch; restart this worktree Docker stack with bun run docker:start after Docker container startup works.',
+            "error: The requested endpoint could not be found, or you don't have access to it.",
+          ]),
+          label: 'Database endpoint',
+          severity: 'failure',
         }),
       ]),
     );
