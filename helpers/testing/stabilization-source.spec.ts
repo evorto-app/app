@@ -2775,7 +2775,13 @@ describe('stabilization source', () => {
       'requires returned and assigned documentation markdown helpers to include explanatory body text',
     );
     expect(generatedDocumentationSource).toContain(
+      'requires copied returned documentation markdown helper groups to include explanatory body text',
+    );
+    expect(generatedDocumentationSource).toContain(
       'keeps screenshots close to returned and assigned explanatory markdown helpers',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'keeps screenshots close to copied returned explanatory markdown helper groups',
     );
     expect(generatedDocumentationSource).toContain('resolveAttachMarkdown');
     expect(generatedDocumentationSource).toContain(
@@ -2973,6 +2979,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/`\.at\(\.\.\.\)`\s+indexed helper lists/u);
     expect(inventory).toContain('assigned local aliases');
     expect(inventory).toContain('returned attach-helper factories');
+    expect(inventory).toContain('copied returned attach-helper groups');
     expect(inventory).toContain('copied returned helper\n  groups');
     expect(inventory).toMatch(/simple body\s+forwarding/u);
     expect(inventory).toContain('`Buffer.from(...)`');

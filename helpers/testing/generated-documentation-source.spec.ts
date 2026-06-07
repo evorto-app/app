@@ -8033,6 +8033,29 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('requires copied returned documentation markdown helper groups to include explanatory body text', () => {
+    const copiedReturnedMarkdownBodySource = `
+      function resolveAttachMarkdown() {
+        return testInfo.attach.bind(testInfo);
+      }
+      const attachHelpers = { attachMarkdownEvidence: resolveAttachMarkdown() };
+      const spreadAttachHelpers = { ...attachHelpers };
+      const assignedAttachHelpers = Object.assign({}, attachHelpers);
+      await spreadAttachHelpers.attachMarkdownEvidence('markdown', { body: 'Too short.' });
+      await assignedAttachHelpers.attachMarkdownEvidence('markdown', { body: 'Brief.' });
+    `;
+
+    expect(
+      findWeakMarkdownBodyAttachments(
+        'tests/docs/example/copied-returned-markdown-body.doc.ts',
+        copiedReturnedMarkdownBodySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-returned-markdown-body.doc.ts:8:13',
+      'tests/docs/example/copied-returned-markdown-body.doc.ts:9:13',
+    ]);
+  });
+
   it('keeps generated documentation screenshots close to explanatory markdown', () => {
     const denseScreenshotSource = `
       await takeScreenshot(
@@ -8373,6 +8396,73 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/returned-dense-screenshot-run.doc.ts:23:13',
       'tests/docs/example/returned-dense-screenshot-run.doc.ts:68:13',
+    ]);
+  });
+
+  it('keeps screenshots close to copied returned explanatory markdown helper groups', () => {
+    const copiedReturnedDenseScreenshotSource = `
+      function resolveAttachMarkdown() {
+        return testInfo.attach.bind(testInfo);
+      }
+      const attachHelpers = { attachMarkdownEvidence: resolveAttachMarkdown() };
+      const spreadAttachHelpers = { ...attachHelpers };
+      const assignedAttachHelpers = Object.assign({}, attachHelpers);
+      await spreadAttachHelpers.attachMarkdownEvidence('markdown', {
+        body: \`
+          This copied returned helper section explains the next screenshot pair with enough product context for generated docs.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        copiedReturnedFirstSurface,
+        page,
+        'First copied returned-helper markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        copiedReturnedSecondSurface,
+        page,
+        'Second copied returned-helper markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        copiedReturnedOverflowSurface,
+        page,
+        'Third copied returned-helper markdown cluster screenshot should require text',
+      );
+      await assignedAttachHelpers.attachMarkdownEvidence('markdown', {
+        body: \`
+          This Object.assign copied returned helper section explains the next screenshot pair with enough product context.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        assignedCopiedReturnedFirstSurface,
+        page,
+        'First assigned copied returned-helper markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        assignedCopiedReturnedSecondSurface,
+        page,
+        'Second assigned copied returned-helper markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        assignedCopiedReturnedOverflowSurface,
+        page,
+        'Third assigned copied returned-helper markdown cluster screenshot should require text',
+      );
+    `;
+
+    expect(
+      findDenseScreenshotRunsBetweenMarkdown(
+        'tests/docs/example/copied-returned-dense-screenshot-run.doc.ts',
+        copiedReturnedDenseScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/copied-returned-dense-screenshot-run.doc.ts:25:13',
+      'tests/docs/example/copied-returned-dense-screenshot-run.doc.ts:48:13',
     ]);
   });
 

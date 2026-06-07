@@ -7392,3 +7392,23 @@ images show readable Terms fallback copy and real seeded Events cards with
 Material surfaces/icons/times, fixed Events/Login bottom navigation, no loading
 or application-error text, no clipped visible controls on the Terms route, and
 zero warning/error Browser logs.
+
+Copied returned explanatory Markdown helper groups are now pinned in the
+weak-body and screenshot-density source guards as well. That covers the
+remaining generated-doc prose bypass where a returned `testInfo.attach` helper
+could be placed in an object, copied through spread or `Object.assign(...)`,
+and then used either to attach a thin Markdown body or to reset the nearby
+screenshot counter before unrelated images. The focused generated-doc source
+coverage now includes copied returned-helper group regressions for both
+explanatory Markdown body length and screenshot proximity, and the test
+inventory records copied returned attach-helper groups in both explanatory
+Markdown guard descriptions.
+Validation for this slice passed `bun run format:write`, `bun run lint`, the
+focused generated-documentation/stabilization source suite with 192 passing
+tests, and `git diff --check`. Browser verification at 390x844 captured
+`/tmp/evorto-copied-returned-explanatory-markdown-terms-390x844.png` and
+`/tmp/evorto-copied-returned-explanatory-markdown-events-390x844.png`; the
+images show readable Terms fallback copy and real seeded Events cards with
+Material surfaces/icons/times, fixed Events/Login bottom navigation, no loading
+or application-error text, no clipped visible controls on the Terms route, and
+zero warning/error Browser logs.
