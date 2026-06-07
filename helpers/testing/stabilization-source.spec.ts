@@ -1478,7 +1478,10 @@ describe('stabilization source', () => {
     expect(source).toContain('nullish/logical expressions');
     expect(source).toMatch(/shorthand\s+`\{ body \}`,\s+bound/u);
     expect(source).toMatch(/destructured,\s+grouped,\s+indexed/u);
-    expect(source).toContain('assigned `attach` helpers');
+    expect(source).toMatch(
+      /assigned,\s+or binding-default\s+`attach`\s+helpers/u,
+    );
+    expect(source).toContain('binding-default `attach`');
     expect(source).toMatch(
       /and spread,\s+`call`,\s+`apply`,\s+`Reflect\.apply`,\s+or inline `bind`/u,
     );
@@ -2340,6 +2343,15 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       "await attachHelpers.assignedEvidence('markdown', rawMarkdownPayload)",
     );
+    expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind binding default attach aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'const { capture = testInfo.attach.bind(testInfo) } = {}',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const [attachEvidence = testInfo['attach'].bind(testInfo)] = []",
+    );
     expect(generatedDocumentationSource).toContain('const rawMarkdownArgs = [');
     expect(generatedDocumentationSource).toContain(
       'await testInfo.attach(...rawMarkdownArgs)',
@@ -2396,7 +2408,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('nullish/logical expressions');
     expect(inventory).toMatch(/aliased payload\s+objects/u);
     expect(inventory).toMatch(
-      /bound,\s+destructured,\s+grouped,\s+indexed,\s+or assigned/u,
+      /bound,\s+destructured,\s+grouped,\s+indexed,\s+assigned,\s+or binding-default/u,
     );
     expect(inventory).toMatch(
       /spread,\s+`call`,\s+`apply`,\s+or inline `bind`\s+forwarding/u,

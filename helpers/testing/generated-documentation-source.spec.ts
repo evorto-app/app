@@ -1067,6 +1067,11 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     }
 
     if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+      collectBindingInitializerAliases(
+        node.name,
+        isTrackedAttachFunctionReference,
+        markdownAttachFunctionAliases,
+      );
       collectPropertyBindingAliases(
         node.name,
         'attach',
@@ -4515,6 +4520,26 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/raw-markdown-image.doc.ts:107:13',
       'tests/docs/example/raw-markdown-image.doc.ts:111:13',
       'tests/docs/example/raw-markdown-image.doc.ts:112:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind binding default attach aliases', () => {
+    const bindingDefaultMarkdownImageSource = `
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      const { capture = testInfo.attach.bind(testInfo) } = {};
+      await capture('markdown', rawMarkdownPayload);
+      const [attachEvidence = testInfo['attach'].bind(testInfo)] = [];
+      await attachEvidence('markdown', rawMarkdownPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/binding-default-markdown-image.doc.ts',
+        bindingDefaultMarkdownImageSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/binding-default-markdown-image.doc.ts:4:13',
+      'tests/docs/example/binding-default-markdown-image.doc.ts:6:13',
     ]);
   });
 

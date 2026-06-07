@@ -6180,10 +6180,10 @@ aliased body variables wrapped directly or through simple body forwarding such
 as `Buffer.from(...)`, `String(...)`, template interpolation, conditionals, or
 nullish/logical expressions, aliased payload objects,
 grouped/indexed/destructured or assigned payload objects, shorthand `{ body }`,
-bound, destructured, grouped, indexed, or assigned `attach` helpers, and spread,
-`call`, `apply`, `Reflect.apply`, or inline `bind` forwarding, so product docs
-cannot add unrelated or unhighlighted images outside the shared screenshot
-helper, caption, highlight, and content-pixel checks.
+bound, destructured, grouped, indexed, assigned, or binding-default `attach`
+helpers, and spread, `call`, `apply`, `Reflect.apply`, or inline `bind`
+forwarding, so product docs cannot add unrelated or unhighlighted images outside
+the shared screenshot helper, caption, highlight, and content-pixel checks.
 Generated-doc source coverage now also maps the root product docs' important
 documentation areas to generated doc files and concrete source terms, so
 essential flows like browsing events, registering, account-required tenant
