@@ -1908,6 +1908,44 @@ const findWeakMarkdownBodyAttachments = (
       markdownAttachFunctionFactoryAliases.add(node.left.text);
     }
 
+    if (ts.isParameter(node)) {
+      collectParameterInitializerAliases(
+        node,
+        isMarkdownAttachmentName,
+        markdownAttachmentNameAliases,
+      );
+      collectParameterInitializerAliases(
+        node,
+        isTrackedAttachFunctionReference,
+        markdownAttachFunctionAliases,
+      );
+      collectParameterInitializerFunctionAliases(
+        node,
+        returnsAttachFunctionReference,
+        markdownAttachFunctionFactoryAliases,
+      );
+      collectPropertyBindingAliases(
+        node.name,
+        'attach',
+        markdownAttachFunctionAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachmentNamePropertyAliases,
+        markdownAttachmentNameAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachFunctionPropertyAliases,
+        markdownAttachFunctionAliases,
+        staticStringAliases,
+      );
+    }
+
     ts.forEachChild(node, collectAliases);
   };
 
@@ -8727,6 +8765,34 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/aliased-markdown-body.doc.ts:4:13',
       'tests/docs/example/aliased-markdown-body.doc.ts:9:13',
       'tests/docs/example/aliased-markdown-body.doc.ts:12:13',
+    ]);
+  });
+
+  it('requires parameter-destructured documentation markdown attachments to include explanatory body text', () => {
+    const parameterDestructuredMarkdownBodySource = `
+      const markdownNameKey = 'name';
+      const attachKey = 'attach';
+      const markdownPieces = {
+        [markdownNameKey]: 'markdown',
+        [attachKey]: testInfo.attach.bind(testInfo),
+      };
+      async function renderDocumentationSections({
+        [markdownNameKey]: markdownName,
+        [attachKey]: attachMarkdown,
+      } = markdownPieces) {
+        await testInfo.attach(markdownName, { body: 'Too short.' });
+        await attachMarkdown(markdownName, { body: 'Also short.' });
+      }
+    `;
+
+    expect(
+      findWeakMarkdownBodyAttachments(
+        'tests/docs/example/parameter-destructured-markdown-body.doc.ts',
+        parameterDestructuredMarkdownBodySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-destructured-markdown-body.doc.ts:12:15',
+      'tests/docs/example/parameter-destructured-markdown-body.doc.ts:13:15',
     ]);
   });
 

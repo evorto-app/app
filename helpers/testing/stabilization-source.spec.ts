@@ -2025,7 +2025,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('weak Markdown body text');
     expect(inventory).toContain('explanatory body text');
     expect(inventory).toMatch(
-      /tracks aliased Markdown attachment\s+helpers and names through copied groups,\s+indexed lists,\s+parameter destructuring\s+with constant-backed computed keys,\s+assigned local aliases/u,
+      /tracks aliased Markdown attachment\s+helpers and names through copied groups,\s+indexed lists,\s+parameter destructuring\s+with constant-backed computed keys for both the weak-body and markdown-count\s+guards,\s+assigned local aliases/u,
     );
     expect(inventory).toMatch(
       /follows aliased Markdown attachment helpers and\s+names for that screenshot-density reset including assigned local aliases/u,
@@ -2069,6 +2069,9 @@ describe('stabilization source', () => {
       'counts parameter-destructured generated documentation markdown attachments for the manifest guard',
     );
     expect(generatedDocumentationSource).toContain(
+      'requires parameter-destructured documentation markdown attachments to include explanatory body text',
+    );
+    expect(generatedDocumentationSource).toContain(
       'const { attach: destructuredAttachMarkdown } = testInfo',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2083,8 +2086,14 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       '[markdownNameKey]: markdownName',
     );
+    expect(generatedDocumentationSource).toContain(
+      'parameter-destructured-markdown-body.doc.ts',
+    );
     expect(generatedDocumentationSource).toMatch(
       /collectDestructuredPropertyAliases\(\s*node,\s*sourceFile,\s*markdownAttachmentNamePropertyAliases,\s*markdownAttachmentNameAliases,\s*staticStringAliases/u,
+    );
+    expect(generatedDocumentationSource).toMatch(
+      /collectPropertyBindingAliases\(\s*node\.name,\s*'attach',\s*markdownAttachFunctionAliases,\s*staticStringAliases/u,
     );
     expect(generatedDocumentationSource).toContain(
       'keeps product-important documentation areas represented by generated docs',
@@ -5761,22 +5770,27 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toContain(
-      'generated-doc markdown attachment counting now\ntracks parameter-destructured markdown names',
+      'generated-doc weak Markdown body detection now\ntracks parameter-destructured markdown names',
     );
-    expect(source).toContain('constant-backed computed\nproperties');
-    expect(source).toContain('before the manifest guard decides');
+    expect(source).toContain('attach helpers from\nconstant-backed computed');
+    expect(source).toContain('120-character explanatory body minimum');
     expect(source).toContain("`const markdownNameKey = 'name'`");
     expect(source).toContain("`[markdownNameKey]: 'markdown'`");
     expect(source).toContain('`[markdownNameKey]: markdownName`');
-    expect(source).toContain('`testInfo.attach(markdownName, ...)`');
-    expect(source).toContain('`attachMarkdown(markdownName, ...)`');
+    expect(source).toContain('`[attachKey]: attachMarkdown`');
     expect(source).toContain(
-      'hide under-documented flows by moving the\nMarkdown attachment name into a computed-key parameter object',
+      "`testInfo.attach(markdownName, { body: 'Too short.' })`",
+    );
+    expect(source).toContain(
+      "`attachMarkdown(markdownName, { body: 'Also short.' })`",
+    );
+    expect(source).toContain(
+      'hide thin generated-doc prose by moving the Markdown attachment name or\nattach helper into a computed-key parameter object',
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 202 tests');
+    expect(source).toContain('with 203 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5801,7 +5815,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=parameter-destructured-markdown-count-source-guard',
+      '/legal/terms?stabilizationEvidence=parameter-destructured-markdown-body-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');
