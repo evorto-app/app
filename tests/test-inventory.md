@@ -561,7 +561,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   rejects raw `page.screenshot`, raw image `testInfo.attach`, and raw Markdown
   image attachment calls even when they are hidden behind computed destructuring
   aliases such as `{ ['screenshot']: capture }`,
-  `{ ['attach']: attachEvidence }`, or `{ ['body']: rawMarkdownBody }`,
+  `{ ['attach']: attachEvidence }`, or `{ ['body']: rawMarkdownBody }`, and
+  tracks raw Markdown body/payload properties read through `Reflect.get(...)`
+  before attachment,
   parses the root Product documentation-expectations list and maps every
   important documentation area to generated docs files plus concrete source
   terms, so new Product bullets fail until the generated-doc mapping is updated.

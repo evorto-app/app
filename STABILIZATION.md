@@ -6412,6 +6412,10 @@ Static `Reflect.get(...)` lookups of `takeScreenshot`, `page.screenshot`, and
 `testInfo.attach` are treated as shared-helper or raw screenshot/image helpers
 too, including string-alias property names, so generated docs cannot hide direct
 captures behind reflection before calling or aliasing the returned function. The
+raw Markdown-image guard now also resolves `Reflect.get(...)` reads of tracked
+markdown body and payload properties, including local `Reflect` aliases and
+constant-backed keys, so raw Markdown image bodies cannot be reflected out of a
+helper object before being attached.
 same source guard now tracks local aliases of the global `Reflect` object before
 checking `Reflect.get(...)` and `Reflect.apply(...)`, so `const mirror =
 Reflect; mirror.get(...)` or `mirror.apply(...)` cannot bypass the shared

@@ -1045,6 +1045,51 @@ const getStaticPropertyReference = (
   return `${unwrapExpression(receiver).getText(sourceFile)}.${propertyName}`;
 };
 
+const getReflectGetPropertyReference = (
+  node: ts.Expression,
+  sourceFile: ts.SourceFile,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
+  reflectAliases: ReadonlySet<string> = new Set(),
+): null | string => {
+  const expression = unwrapExpression(node);
+
+  if (
+    !ts.isCallExpression(expression) ||
+    !expression.arguments[0] ||
+    !expression.arguments[1]
+  ) {
+    return null;
+  }
+
+  const callee = unwrapExpression(expression.expression);
+
+  if (
+    !ts.isPropertyAccessExpression(callee) &&
+    !ts.isElementAccessExpression(callee)
+  ) {
+    return null;
+  }
+
+  const receiver = unwrapExpression(
+    getStaticPropertyReceiver(callee) ?? callee,
+  );
+  const propertyName = resolveStaticStringValue(
+    expression.arguments[1],
+    stringAliases,
+  );
+
+  if (
+    !ts.isIdentifier(receiver) ||
+    (receiver.text !== 'Reflect' && !reflectAliases.has(receiver.text)) ||
+    getStaticPropertyName(callee, stringAliases) !== 'get' ||
+    propertyName === null
+  ) {
+    return null;
+  }
+
+  return `${unwrapExpression(expression.arguments[0]).getText(sourceFile)}.${propertyName}`;
+};
+
 const getStaticArrayMethodReference = (
   node: ts.Expression,
   sourceFile: ts.SourceFile,
@@ -1260,11 +1305,17 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
             staticStringAliases,
           )
         : ts.isCallExpression(expression)
-          ? getStaticArrayMethodReference(
+          ? (getStaticArrayMethodReference(
               expression,
               sourceFile,
               staticStringAliases,
-            )
+            ) ??
+            getReflectGetPropertyReference(
+              expression,
+              sourceFile,
+              staticStringAliases,
+              reflectAliases,
+            ))
           : null;
 
     return propertyReference ? propertyAliases.has(propertyReference) : false;
@@ -6545,6 +6596,37 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/reflect-get-markdown-image.doc.ts:7:13',
       'tests/docs/example/reflect-get-markdown-image.doc.ts:9:13',
       'tests/docs/example/reflect-get-markdown-image.doc.ts:10:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind Reflect.get body and payload aliases', () => {
+    const reflectGetMarkdownBodyPayloadSource = `
+      const markdownPieces = {
+        body: '![raw](raw.png)',
+        payload: { body: '<img src="../raw.png" alt="Raw">' },
+      };
+      const reflectedBody = Reflect.get(markdownPieces, 'body');
+      await testInfo.attach('markdown', { body: reflectedBody });
+      const reflectedPayload = Reflect.get(markdownPieces, 'payload');
+      await testInfo.attach('markdown', reflectedPayload);
+      const reflectMirror = Reflect;
+      await testInfo.attach('markdown', {
+        body: reflectMirror.get(markdownPieces, 'body'),
+      });
+      const payloadKey = 'payload';
+      await testInfo.attach('markdown', reflectMirror.get(markdownPieces, payloadKey));
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/reflect-get-markdown-body-payload.doc.ts',
+        reflectGetMarkdownBodyPayloadSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/reflect-get-markdown-body-payload.doc.ts:7:13',
+      'tests/docs/example/reflect-get-markdown-body-payload.doc.ts:9:13',
+      'tests/docs/example/reflect-get-markdown-body-payload.doc.ts:11:13',
+      'tests/docs/example/reflect-get-markdown-body-payload.doc.ts:15:13',
     ]);
   });
 
