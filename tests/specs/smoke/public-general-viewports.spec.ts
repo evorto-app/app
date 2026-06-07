@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { expect, test } from '../../support/fixtures/parallel-test';
 import {
@@ -17,10 +17,13 @@ const viewportSizes = [
 
 const expectReadableTextOnPaintedSurface = async (
   page: Page,
-  selector: string,
+  target: Locator | string,
   context: string,
 ) => {
-  const contrastReport = await page.locator(selector).evaluate((element) => {
+  const targetLocator =
+    typeof target === 'string' ? page.locator(target) : target;
+  const targetLabel = typeof target === 'string' ? target : 'visible target';
+  const contrastReport = await targetLocator.evaluate((element) => {
     const parseRgb = (value: string) => {
       const match = value.match(
         /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([.\d]+))?\)$/u,
@@ -93,11 +96,11 @@ const expectReadableTextOnPaintedSurface = async (
 
   expect(
     contrastReport.background,
-    `${context} ${selector} should render on a painted Material surface`,
+    `${context} ${targetLabel} should render on a painted Material surface`,
   ).toBeDefined();
   expect(
     contrastReport.contrast,
-    `${context} ${selector} should stay readable in the General page`,
+    `${context} ${targetLabel} should stay readable in the General page`,
   ).toBeGreaterThanOrEqual(4.5);
 };
 
@@ -106,9 +109,21 @@ const expectAnonymousNavigation = async (
   viewport: (typeof viewportSizes)[number],
 ) => {
   const navigation = page.locator('.navigation');
+  const eventsLink = navigation.getByRole('link', { name: 'Events' });
+  const loginLink = navigation.getByRole('link', { name: 'Login' });
   await expect(navigation).toBeVisible();
-  await expect(navigation.getByRole('link', { name: 'Events' })).toBeVisible();
-  await expect(navigation.getByRole('link', { name: 'Login' })).toBeVisible();
+  await expect(eventsLink).toBeVisible();
+  await expect(loginLink).toBeVisible();
+  await expectReadableTextOnPaintedSurface(
+    page,
+    eventsLink.locator('span'),
+    `${viewport.label} General navigation Events link`,
+  );
+  await expectReadableTextOnPaintedSurface(
+    page,
+    loginLink.locator('span'),
+    `${viewport.label} General navigation Login link`,
+  );
   if (viewport.width < 1024) {
     await expect(
       navigation.getByRole('link', { name: 'Scanner' }),
@@ -332,6 +347,7 @@ test('public simple General pages remain readable across viewport rendering', as
                 page.getByRole('heading', { name: route.heading }),
               ).toBeVisible();
               await expect(page.getByText(route.extraText)).toBeVisible();
+              await expectAnonymousNavigation(page, viewport);
               await expectReadableTextOnPaintedSurface(
                 page,
                 route.titleSelector,

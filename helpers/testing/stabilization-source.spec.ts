@@ -5873,20 +5873,22 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toMatch(
-      /generated-doc raw Markdown image source coverage now\s+explicitly pins optional-call attach-helper invocations/u,
+      /public General viewport coverage now checks fixed\s+Events\/Login navigation label readability/u,
     );
-    expect(source).toContain('`attachMarkdown?.(markdownName, ...)`');
-    expect(source).toContain('`helperGroup[attachKey]?.(markdownName, ...)`');
-    expect(source).toMatch(/raw Markdown image\s+body/u);
-    expect(source).toMatch(/raw HTML image\s+body/u);
-    expect(source).toContain('ignores a non-Playwright');
+    expect(source).toContain('painted Material surfaces');
+    expect(source).toContain('CSS\nselectors or locators');
+    expect(source).toContain('visible Events and Login navigation\nlabels');
+    expect(source).toContain('light/dark\nsimple-page loop');
     expect(source).toMatch(
-      /Generated docs cannot embed unrelated\s+images by switching a tracked attach\s+helper to optional-call syntax/u,
+      /General pages cannot keep readable headings while the fixed\s+mobile navigation silently regresses to low-contrast text/u,
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
     expect(source).toContain('with 210 tests');
+    expect(source).toContain(
+      '`bun run test:e2e:public-general-viewports -- --list`',
+    );
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5897,7 +5899,7 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'Browser\nverification was attempted, but no positive visual evidence is claimed',
     );
-    expect(source).toContain('source-only slice');
+    expect(source).toContain('source/spec\nslice');
     expect(source).toContain('`bun run dev:status`');
     expect(source).toContain(
       'generated database endpoint\naccepting TCP connections',
@@ -5911,7 +5913,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=optional-call-raw-markdown-helper-source-guard',
+      '/legal/terms?stabilizationEvidence=general-navigation-contrast-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');
@@ -9495,6 +9497,21 @@ describe('stabilization source', () => {
     expect(viewportSpec).toContain(
       "test('public simple General pages remain readable across viewport rendering'",
     );
+    expect(viewportSpec).toContain(
+      "import type { Locator, Page } from '@playwright/test'",
+    );
+    expect(viewportSpec).toContain('target: Locator | string');
+    expect(viewportSpec).toContain(
+      "navigation.getByRole('link', { name: 'Events' })",
+    );
+    expect(viewportSpec).toContain(
+      "navigation.getByRole('link', { name: 'Login' })",
+    );
+    expect(viewportSpec).toContain('General navigation Events link');
+    expect(viewportSpec).toContain('General navigation Login link');
+    expect(viewportSpec).toContain(
+      'await expectAnonymousNavigation(page, viewport)',
+    );
     expect(viewportSpec).toContain("heading: 'Imprint'");
     expect(viewportSpec).toContain("path: '/legal/imprint'");
     expect(viewportSpec).toContain("heading: 'Privacy policy'");
@@ -9514,6 +9531,8 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /wildcard not-found redirect under\s+light and dark rendering/u,
     );
+    expect(inventory).toMatch(/visible Events\/Login\s+navigation labels/u);
+    expect(inventory).toMatch(/fixed navigation text stay readable/u);
     expect(viewportSpec).not.toContain('test.describe');
     expect(viewportSpec).not.toMatch(
       /test\(`\$\{route\.name\} has stable \$\{viewport\.label\} layout`/u,
