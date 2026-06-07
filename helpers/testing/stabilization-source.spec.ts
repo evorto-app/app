@@ -1465,7 +1465,7 @@ describe('stabilization source', () => {
     expect(source).toContain('reporter output boundary');
     expect(source).toContain('paired `image-caption` attachments');
     expect(source).toContain('terse or content-free caption');
-    expect(source).toContain('simple MIME/path forwarding');
+    expect(source).toMatch(/simple MIME\/path\s+forwarding/u);
     expect(source).toContain('concatenation');
     expect(source).toContain('raw Markdown image syntax');
     expect(source).toContain('HTML `<img>` tags');
@@ -1673,6 +1673,8 @@ describe('stabilization source', () => {
       /[Aa]liased,\s+grouped,\s+indexed,\s+destructured,\s+and\s+assigned raw image payload\s+objects/u,
     );
     expect(inventory).toMatch(/grouped or indexed\s+MIME\/path\s+values/u);
+    expect(inventory).toContain('binding-default attachment names');
+    expect(inventory).toContain('MIME/path values, and raw image payload');
     expect(inventory).toContain('simple MIME/path forwarding');
     expect(inventory).toContain('template interpolation');
     expect(inventory).toContain('nullish/logical expressions');
@@ -1800,6 +1802,15 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       "const [attachEvidence = testInfo['attach'].bind(testInfo)] = []",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const { attachmentName = 'image' } = {}",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const [imageMime = 'image/png'] = []",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const { rawImagePayload = { body: imageBuffer, contentType: 'image/webp' } } = {}",
     );
     expect(generatedDocumentationSource).toContain(
       'const interpolatedAttachmentName = \\`\\${attachmentName}\\`',

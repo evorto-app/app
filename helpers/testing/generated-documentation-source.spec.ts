@@ -3022,6 +3022,21 @@ const findDirectImageAttachmentCalls = (
     if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
       collectBindingInitializerAliases(
         node.name,
+        isImageAttachmentName,
+        imageAttachmentNameAliases,
+      );
+      collectBindingInitializerAliases(
+        node.name,
+        isImageAttachmentPayloadValue,
+        imageAttachmentPayloadValueAliases,
+      );
+      collectBindingInitializerAliases(
+        node.name,
+        isImageAttachmentPayload,
+        imageAttachmentPayloadAliases,
+      );
+      collectBindingInitializerAliases(
+        node.name,
         isTrackedAttachFunctionReference,
         attachFunctionAliases,
       );
@@ -3937,6 +3952,12 @@ describe('generated docs source current behavior', () => {
       await capture('image', { body: imageBuffer });
       const [attachEvidence = testInfo['attach'].bind(testInfo)] = [];
       await attachEvidence('raw evidence', { contentType: 'image/png' });
+      const { attachmentName = 'image' } = {};
+      await testInfo.attach(attachmentName, { body: imageBuffer });
+      const [imageMime = 'image/png'] = [];
+      await testInfo.attach('raw evidence', { contentType: imageMime });
+      const { rawImagePayload = { body: imageBuffer, contentType: 'image/webp' } } = {};
+      await testInfo.attach('raw payload evidence', rawImagePayload);
     `;
 
     expect(
@@ -3947,6 +3968,9 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/binding-default-image-attachment.doc.ts:3:13',
       'tests/docs/example/binding-default-image-attachment.doc.ts:5:13',
+      'tests/docs/example/binding-default-image-attachment.doc.ts:7:13',
+      'tests/docs/example/binding-default-image-attachment.doc.ts:9:13',
+      'tests/docs/example/binding-default-image-attachment.doc.ts:11:13',
     ]);
   });
 

@@ -627,7 +627,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   nullish/logical expressions, and static concatenation, raw image
   MIME/file-extension payloads, aliased, grouped, indexed, destructured, and
   assigned raw image payload objects, aliased grouped or indexed MIME/path values,
-  simple MIME/path forwarding through calls, template interpolation,
+  binding-default attachment names, MIME/path values, and raw image payload
+  objects, simple MIME/path forwarding through calls, template interpolation,
   conditionals, nullish/logical expressions, and concatenation, object shorthand
   image payloads, computed raw image payload keys, spread direct attachment
   arguments, opaque attachment `apply(...)` lists, raw screenshot and image

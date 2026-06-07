@@ -6146,12 +6146,13 @@ interpolation, conditionals, nullish/logical expressions, and static
 concatenation is covered too. Aliased, grouped, indexed, destructured, and
 assigned raw image payload objects are covered as well, so moving the MIME type
 or image file path into a variable, object property, or tuple entry does not
-bypass the same helper requirement. Raw-image payloads also follow aliased,
-grouped, indexed, and destructured MIME/path string values plus object shorthand
-properties such as `{ contentType }`; simple MIME/path forwarding through calls,
-template interpolation, conditionals, nullish/logical expressions, and
-concatenation is covered too, keeping direct image attachment guards independent
-of simple local variable extraction.
+bypass the same helper requirement. Binding-default attachment names, MIME/path
+values, and raw image payload objects are covered too. Raw-image payloads also
+follow aliased, grouped, indexed, and destructured MIME/path string values plus
+object shorthand properties such as `{ contentType }`; simple MIME/path
+forwarding through calls, template interpolation, conditionals, nullish/logical
+expressions, and concatenation is covered too, keeping direct image attachment
+guards independent of simple local variable extraction.
 Tracked direct image attachment calls with spread arguments or opaque
 `apply(...)` argument lists are rejected too, so `testInfo.attach(...args)` or
 `attachEvidence.apply(testInfo, args)` cannot hide raw image evidence from the
