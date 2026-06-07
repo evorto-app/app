@@ -3,8 +3,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import {
   collectBrowserLogFailures,
-  expectedStablePageLayout,
-  readPageLayout,
+  expectStablePageLayout,
 } from '../../support/utils/page-layout';
 
 test.setTimeout(120_000);
@@ -161,11 +160,7 @@ const expectAnonymousNavigation = async (
 };
 
 const expectStableLayout = async (page: Page) => {
-  await expect(async () => {
-    await expect(readPageLayout(page)).resolves.toEqual(
-      expectedStablePageLayout,
-    );
-  }).toPass({ timeout: 15_000 });
+  await expectStablePageLayout(page);
 };
 
 test('public General pages have stable layouts across viewports', async ({

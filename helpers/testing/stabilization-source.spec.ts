@@ -8797,7 +8797,7 @@ describe('stabilization source', () => {
       `${authenticatedViewportSpecPaths.join(' ')} --project=local-chrome-baseline --workers=1`;
     const discoveredViewportSpecPaths = listFiles('tests/specs', '.ts')
       .filter((sourcePath) =>
-        readSource(sourcePath).includes('expectedStablePageLayout'),
+        readSource(sourcePath).includes('expectStablePageLayout'),
       )
       .filter(
         (sourcePath) =>
@@ -8821,7 +8821,7 @@ describe('stabilization source', () => {
     expect(discoveredViewportSpecPaths).toEqual(durableViewportSpecPaths);
     expect(viewportSpec).toContain('expectAnonymousNavigation');
     expect(viewportSpec).toContain('const expectStableLayout = async');
-    expect(viewportSpec).toContain('toPass({ timeout: 15_000 })');
+    expect(viewportSpec).toContain('expectStablePageLayout(page)');
     expect(viewportSpec).toContain(
       "navigation.getByRole('link', { name: 'Events' })",
     );
@@ -9056,8 +9056,7 @@ describe('stabilization source', () => {
       );
       expect(durableViewportSpec).toContain('test.step(`${viewport.label}');
       expect(durableViewportSpec).toContain('page.setViewportSize(viewport)');
-      expect(durableViewportSpec).toContain('expectedStablePageLayout');
-      expect(durableViewportSpec).toContain('readPageLayout(page)');
+      expect(durableViewportSpec).toContain('expectStablePageLayout(page)');
       expect(durableViewportSpec).not.toContain('const readPageLayout = async');
     }
 
@@ -9069,6 +9068,11 @@ describe('stabilization source', () => {
     expect(pageLayoutHelper).toContain('coveredTextCount');
     expect(pageLayoutHelper).toContain('coveredTextLabels');
     expect(pageLayoutHelper).toContain('CoveredTextLabel');
+    expect(pageLayoutHelper).toContain('export const expectStablePageLayout');
+    expect(pageLayoutHelper).toContain('.poll(() => readPageLayout(page)');
+    expect(pageLayoutHelper).toContain(
+      'page layout should settle without visible loading text or glitches',
+    );
     expect(pageLayoutHelper).toContain('readableTextElements');
     expect(pageLayoutHelper).toContain('[data-layout-readable-text]');
     expect(pageLayoutHelper).toContain('!controlElements.has(element)');

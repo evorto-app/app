@@ -6,8 +6,7 @@ import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import {
   collectBrowserLogFailures,
-  expectedStablePageLayout,
-  readPageLayout,
+  expectStablePageLayout,
 } from '../../support/utils/page-layout';
 import {
   seedProfileEventCards,
@@ -85,9 +84,7 @@ test('profile sections have stable layouts across viewports @profile', async ({
         await expect(
           page.getByRole('button', { name: 'Edit profile' }),
         ).toBeVisible();
-        await expect(readPageLayout(page)).resolves.toEqual(
-          expectedStablePageLayout,
-        );
+        await expectStablePageLayout(page);
         expect(
           browserLogFailures,
           `${viewport.label} profile overview should not emit browser warning/error logs`,
@@ -103,9 +100,7 @@ test('profile sections have stable layouts across viewports @profile', async ({
             hasText: profileEventCards.confirmed.addOnTitle,
           }),
         ).toBeVisible();
-        await expect(readPageLayout(page)).resolves.toEqual(
-          expectedStablePageLayout,
-        );
+        await expectStablePageLayout(page);
         expect(
           browserLogFailures,
           `${viewport.label} profile events should not emit browser warning/error logs`,
@@ -121,9 +116,7 @@ test('profile sections have stable layouts across viewports @profile', async ({
         });
         await expect(receiptCard).toBeVisible();
         await expect(receiptCard.getByText(event.title)).toBeVisible();
-        await expect(readPageLayout(page)).resolves.toEqual(
-          expectedStablePageLayout,
-        );
+        await expectStablePageLayout(page);
         expect(
           browserLogFailures,
           `${viewport.label} profile receipts should not emit browser warning/error logs`,
@@ -135,9 +128,7 @@ test('profile sections have stable layouts across viewports @profile', async ({
           page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
         ).toBeVisible({ timeout: 15_000 });
         await expect(page.getByText(seededEsnCardIdentifier)).toBeVisible();
-        await expect(readPageLayout(page)).resolves.toEqual(
-          expectedStablePageLayout,
-        );
+        await expectStablePageLayout(page);
         expect(
           browserLogFailures,
           `${viewport.label} profile discounts should not emit browser warning/error logs`,

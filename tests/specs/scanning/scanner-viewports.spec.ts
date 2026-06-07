@@ -15,8 +15,7 @@ import {
 import { expect, test } from '../../support/fixtures/parallel-test';
 import {
   collectBrowserLogFailures,
-  expectedStablePageLayout,
-  readPageLayout,
+  expectStablePageLayout,
 } from '../../support/utils/page-layout';
 
 test.setTimeout(120_000);
@@ -167,9 +166,7 @@ test('scanner pages have stable layouts across viewports @scanning', async ({
             await expect(
               page.getByText(route.extraText, { exact: false }).first(),
             ).toBeVisible();
-            await expect(readPageLayout(page)).resolves.toEqual(
-              expectedStablePageLayout,
-            );
+            await expectStablePageLayout(page);
             expectNoUnexpectedBrowserLogs({
               browserLogFailures,
               routePath: route.path,

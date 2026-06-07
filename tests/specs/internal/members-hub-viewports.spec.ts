@@ -9,8 +9,7 @@ import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import {
   collectBrowserLogFailures,
-  expectedStablePageLayout,
-  readPageLayout,
+  expectStablePageLayout,
 } from '../../support/utils/page-layout';
 
 test.setTimeout(120_000);
@@ -100,9 +99,7 @@ test('members hub has stable layouts across viewports @internal', async ({
         await expect(
           page.getByText(`${user.firstName} ${user.lastName}`),
         ).toBeVisible();
-        await expect(readPageLayout(page)).resolves.toEqual(
-          expectedStablePageLayout,
-        );
+        await expectStablePageLayout(page);
         expect(
           browserLogFailures,
           `${viewport.label} /internal/members-hub should not emit browser warning/error logs`,

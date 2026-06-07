@@ -2,8 +2,7 @@ import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import {
   collectBrowserLogFailures,
-  expectedStablePageLayout,
-  readPageLayout,
+  expectStablePageLayout,
 } from '../../support/utils/page-layout';
 
 test.setTimeout(120_000);
@@ -87,9 +86,7 @@ test('template pages have stable layouts across viewports @templates', async ({
           await expect(
             page.getByText(route.extraText, { exact: false }).first(),
           ).toBeVisible();
-          await expect(readPageLayout(page)).resolves.toEqual(
-            expectedStablePageLayout,
-          );
+          await expectStablePageLayout(page);
           expect(
             browserLogFailures,
             `${viewport.label} ${route.path} should not emit browser warning/error logs`,
