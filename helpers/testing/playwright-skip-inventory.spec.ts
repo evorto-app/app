@@ -66,6 +66,11 @@ const pageMethodAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*page${playwrightModifierAccessCapturePattern('pause|waitForTimeout')}`,
   'g',
 );
+const pageMethodIndirectInvocationPattern = (names: string): RegExp =>
+  new RegExp(
+    String.raw`\bpage${playwrightModifierAccessPattern(names)}\s*(?:\.\s*(?:call|apply|bind)\b|\[\s*['"](?:call|apply|bind)['"]\s*\])`,
+    'g',
+  );
 const playwrightDestructuredModifierAliasPattern = new RegExp(
   String.raw`\b(?:const|let|var)\s*\{(?<bindings>[^}]+)\}\s*=\s*test(?:${playwrightDescribeAccessPattern})?`,
   'g',
@@ -356,6 +361,7 @@ const collectFocusedOnlyEntries = () => [
 
 const collectInteractiveDebugEntries = () => [
   ...collectPatternEntries(interactiveDebugPattern),
+  ...collectPatternEntries(pageMethodIndirectInvocationPattern('pause')),
   ...collectAliasedPageMethodEntries(['pause']),
 ];
 
@@ -408,6 +414,9 @@ const collectPlaceholderMetadataEntries = () =>
 
 const collectFixedWaitEntries = () => [
   ...collectPatternEntries(fixedWaitPattern),
+  ...collectPatternEntries(
+    pageMethodIndirectInvocationPattern('waitForTimeout'),
+  ),
   ...collectAliasedPageMethodEntries(['waitForTimeout']),
 ];
 
@@ -631,6 +640,34 @@ await waitForTimeout(100);`;
     ).toEqual([
       'tests/specs/example/aliased-page-methods.spec.ts:6:waitByAlias( (page.waitForTimeout alias)',
       'tests/specs/example/aliased-page-methods.spec.ts:8:waitForTimeout( (page.waitForTimeout alias)',
+    ]);
+  });
+
+  it('recognizes indirect page debug and fixed-wait helper invocations before inventory checks run', () => {
+    const indirectPageMethodSource = `await page.pause.bind(page)();
+await page['pause']['call'](page);
+await page.waitForTimeout.bind(page)(100);
+await page['waitForTimeout'].apply(page, [100]);`;
+
+    expect(
+      collectPatternEntriesForSource(
+        'tests/specs/example/indirect-page-methods.spec.ts',
+        indirectPageMethodSource,
+        pageMethodIndirectInvocationPattern('pause'),
+      ),
+    ).toEqual([
+      'tests/specs/example/indirect-page-methods.spec.ts:1:page.pause.bind',
+      "tests/specs/example/indirect-page-methods.spec.ts:2:page['pause']['call']",
+    ]);
+    expect(
+      collectPatternEntriesForSource(
+        'tests/specs/example/indirect-page-methods.spec.ts',
+        indirectPageMethodSource,
+        pageMethodIndirectInvocationPattern('waitForTimeout'),
+      ),
+    ).toEqual([
+      'tests/specs/example/indirect-page-methods.spec.ts:3:page.waitForTimeout.bind',
+      "tests/specs/example/indirect-page-methods.spec.ts:4:page['waitForTimeout'].apply",
     ]);
   });
 

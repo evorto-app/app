@@ -6226,9 +6226,11 @@ destructuring `test.skip`, `test.fixme`, `test.only`, `test.slow`, or
 `test.describe.configure` before calling the alias is classified by the same
 skip/focus/runtime inventory. Interactive debug hooks and fixed waits use the
 same whole-file source scan, so `page['pause'](...)`, local `page.pause`
-aliases, split `.waitForTimeout(...)`, local `page.waitForTimeout` aliases, and
-split `setTimeout(...)` calls in docs screenshot helpers are rejected instead
-of depending on single-line formatting.
+aliases, direct `page.pause.call/apply/bind(...)` forwarding, split
+`.waitForTimeout(...)`, local `page.waitForTimeout` aliases, direct
+`page.waitForTimeout.call/apply/bind(...)` forwarding, and split
+`setTimeout(...)` calls in docs screenshot helpers are rejected instead of
+depending on single-line formatting.
 
 Registration confirmation, cancellation, transfer, and waitlist spot-available
 now record durable email outbox rows with notification-email details, and paid
