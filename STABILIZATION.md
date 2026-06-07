@@ -4117,6 +4117,19 @@ fallback rather than a profile discount-card defect.
   Browser viewport override was reset after the pass. The matching durable
   `bun run test:e2e:public-general-viewports` run also passed against the same
   running Docker app.
+  A June 7, 2026 in-app Browser refresh on pushed PR head `aef3ccdc` rechecked
+  the same anonymous General route set at 320x740 and 390x844 after deriving
+  the seeded public event detail link `/events/5cac49d1935b7f3c9bbe` from the
+  current `/events` list. All 20 route/viewport checks rendered their expected
+  route and fallback text, reported no horizontal overflow, top/side clipped
+  visible controls, persistent loading placeholders, or rendered application
+  error text, and confirmed the fixed bottom navigation fit both mobile
+  viewports. Representative Browser screenshots were visually inspected and
+  saved as
+  `/tmp/evorto-public-general-aef3ccdc-narrow-mobile-events.jpg`, showing
+  seeded Material event cards with icons, dates, times, and bottom navigation,
+  and `/tmp/evorto-public-general-aef3ccdc-mobile-legal-privacy.jpg`, showing
+  the Privacy policy fallback text and bottom Events/Login navigation.
 - Current live Browser route refresh checkpoint: the Docker stack stayed healthy
   on the generated `BASE_URL`, the in-app Browser opened `/events`, found the
   seeded `Soccer Match 1` event link, and loaded that event detail page. The

@@ -3485,6 +3485,27 @@ describe('stabilization source', () => {
     expect(normalizedCheckpoint).toContain(
       'evorto-current-head-71c08ed-general-mobile-events.png',
     );
+    expect(normalizedCheckpoint).toContain('pushed PR head `aef3ccdc`');
+    expect(normalizedCheckpoint).toContain(
+      'same anonymous General route set at 320x740 and 390x844',
+    );
+    expect(normalizedCheckpoint).toContain('/events/5cac49d1935b7f3c9bbe');
+    expect(normalizedCheckpoint).toContain('All 20 route/viewport checks');
+    expect(normalizedCheckpoint).toContain(
+      'no horizontal overflow, top/side clipped visible controls',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-public-general-aef3ccdc-narrow-mobile-events.jpg',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'seeded Material event cards with icons, dates, times, and bottom navigation',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'evorto-public-general-aef3ccdc-mobile-legal-privacy.jpg',
+    );
+    expect(normalizedCheckpoint).toContain(
+      'Privacy policy fallback text and bottom Events/Login navigation',
+    );
     expect(normalizedCheckpoint).toContain(
       'Browser viewport override was reset',
     );
