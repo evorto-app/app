@@ -6007,8 +6007,9 @@ normalizes static computed keys such as `targets['shell']` and
 `{ ['shell']: page.locator('main') }`, so bracketed grouped targets do not
 bypass meaningful-image enforcement. It also resolves grouped target shorthand,
 alias-valued grouped properties, and static indexed target lists such as
-`targetList[0]`, so `targets.shell` and `targetList[0]` cannot hide weak
-screenshot targets behind an intermediate collection. It also
+`targetList[0]` or `targetList.at(0)`, so `targets.shell`, `targetList[0]`, and
+`targetList.at(0)` cannot hide weak screenshot targets behind an intermediate
+collection. It also
 rejects local aliases, assigned helper properties, indexed helper entries, and
 wrapper functions that reference `takeScreenshot`, so future docs cannot route
 screenshots through a differently named helper such as

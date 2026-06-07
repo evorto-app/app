@@ -44,6 +44,28 @@ const unwrapArrayElement = (node: ts.Expression): ts.Expression =>
     ? unwrapExpression(node.expression)
     : unwrapExpression(node);
 
+const getStaticIntegerIndex = (node: ts.Expression): null | number => {
+  const expression = unwrapExpression(node);
+
+  if (ts.isNumericLiteral(expression)) {
+    const index = Number(expression.text);
+
+    return Number.isInteger(index) ? index : null;
+  }
+
+  if (
+    ts.isPrefixUnaryExpression(expression) &&
+    expression.operator === ts.SyntaxKind.MinusToken &&
+    ts.isNumericLiteral(expression.operand)
+  ) {
+    const index = Number(expression.operand.text);
+
+    return Number.isInteger(index) ? -index : null;
+  }
+
+  return null;
+};
+
 const isTrackedArrayTarget = (
   node: ts.Expression,
   isTrackedTarget: (node: ts.Expression) => boolean,
@@ -87,11 +109,32 @@ const isTrackedArrayTarget = (
       );
     }
 
+    if (methodName === 'at' && receiver && target.arguments[0]) {
+      const index = getStaticIntegerIndex(target.arguments[0]);
+
+      if (index === null) {
+        return isTrackedArrayTarget(receiver, isTrackedTarget, options);
+      }
+
+      if (unwrappedReceiver && ts.isArrayLiteralExpression(unwrappedReceiver)) {
+        const resolvedIndex =
+          index >= 0 ? index : unwrappedReceiver.elements.length + index;
+        const element = unwrappedReceiver.elements[resolvedIndex];
+
+        return element ? isTrackedTarget(unwrapArrayElement(element)) : false;
+      }
+
+      return isTrackedArrayTarget(receiver, isTrackedTarget, options);
+    }
+
     if (
       methodName === 'flat' ||
       methodName === 'filter' ||
+      methodName === 'reverse' ||
       methodName === 'slice' ||
+      methodName === 'sort' ||
       methodName === 'toReversed' ||
+      methodName === 'toSpliced' ||
       methodName === 'toSorted'
     ) {
       return receiver
@@ -424,6 +467,35 @@ const getStaticPropertyReference = (
   }
 
   return `${unwrapExpression(receiver).getText(sourceFile)}.${propertyName}`;
+};
+
+const getStaticArrayMethodReference = (
+  node: ts.Expression,
+  sourceFile: ts.SourceFile,
+): null | string => {
+  const expression = unwrapExpression(node);
+
+  if (!ts.isCallExpression(expression) || !expression.arguments[0]) {
+    return null;
+  }
+
+  const callee = unwrapExpression(expression.expression);
+
+  if (
+    !ts.isPropertyAccessExpression(callee) &&
+    !ts.isElementAccessExpression(callee)
+  ) {
+    return null;
+  }
+
+  const receiver = getStaticPropertyReceiver(callee);
+  const index = getStaticIntegerIndex(expression.arguments[0]);
+
+  if (!receiver || getStaticPropertyName(callee) !== 'at' || index === null) {
+    return null;
+  }
+
+  return `${unwrapExpression(receiver).getText(sourceFile)}.${index}`;
 };
 
 const findWeakScreenshotCaptions = (path: string, source: string): string[] => {
@@ -1058,6 +1130,20 @@ const findGenericScreenshotTargets = (
         : false;
     }
 
+    if (ts.isCallExpression(target)) {
+      const propertyReference = getStaticArrayMethodReference(
+        target,
+        sourceFile,
+      );
+
+      if (
+        propertyReference &&
+        genericTargetPropertyAliases.has(propertyReference)
+      ) {
+        return true;
+      }
+    }
+
     if (
       ts.isCallExpression(target) &&
       ts.isIdentifier(target.expression) &&
@@ -1265,6 +1351,20 @@ const findUnfilteredBroadScreenshotTargets = (
       return propertyReference
         ? broadTargetPropertyAliases.has(propertyReference)
         : false;
+    }
+
+    if (ts.isCallExpression(target)) {
+      const propertyReference = getStaticArrayMethodReference(
+        target,
+        sourceFile,
+      );
+
+      if (
+        propertyReference &&
+        broadTargetPropertyAliases.has(propertyReference)
+      ) {
+        return true;
+      }
     }
 
     if (
@@ -1532,6 +1632,20 @@ const findSingleControlScreenshotTargets = (
         : false;
     }
 
+    if (ts.isCallExpression(target)) {
+      const propertyReference = getStaticArrayMethodReference(
+        target,
+        sourceFile,
+      );
+
+      if (
+        propertyReference &&
+        singleControlPropertyAliases.has(propertyReference)
+      ) {
+        return true;
+      }
+    }
+
     if (
       ts.isCallExpression(target) &&
       ts.isIdentifier(target.expression) &&
@@ -1784,6 +1898,20 @@ const findIconOrMediaScreenshotTargets = (
       return propertyReference
         ? iconOrMediaPropertyAliases.has(propertyReference)
         : false;
+    }
+
+    if (ts.isCallExpression(target)) {
+      const propertyReference = getStaticArrayMethodReference(
+        target,
+        sourceFile,
+      );
+
+      if (
+        propertyReference &&
+        iconOrMediaPropertyAliases.has(propertyReference)
+      ) {
+        return true;
+      }
     }
 
     if (
@@ -4518,6 +4646,66 @@ describe('generated docs source current behavior', () => {
         flattenedTargetSource,
       ),
     ).toEqual(['tests/docs/example/flattened-target.doc.ts:20:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind static array accessors', () => {
+    const arrayAccessorTargetSource = `
+      const targetList = [
+        page.locator('main'),
+        page.locator('section'),
+        page.getByRole('button', { name: 'Save' }),
+        page.locator('img[alt="Tenant logo"]'),
+      ];
+      await takeScreenshot(
+        testInfo,
+        targetList.at(0),
+        page,
+        'Static array generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        targetList.at(1),
+        page,
+        'Static array broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        targetList.at(2),
+        page,
+        'Static array single button target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        targetList['at'](3),
+        page,
+        'Static array image target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/array-accessor-target.doc.ts',
+        arrayAccessorTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-accessor-target.doc.ts:8:13']);
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/array-accessor-target.doc.ts',
+        arrayAccessorTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-accessor-target.doc.ts:14:13']);
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/array-accessor-target.doc.ts',
+        arrayAccessorTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-accessor-target.doc.ts:20:13']);
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/array-accessor-target.doc.ts',
+        arrayAccessorTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/array-accessor-target.doc.ts:26:13']);
   });
 
   it('detects generic documentation screenshot targets', () => {

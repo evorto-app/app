@@ -1529,6 +1529,7 @@ describe('stabilization source', () => {
     expect(source).toContain('`.flat()`');
     expect(source).toContain('spread target arrays');
     expect(source).toContain('array\nhelper calls');
+    expect(source).toContain('`targetList.at(0)`');
     expect(source).toMatch(
       /Conditional, nullish-coalesced, and logical\s+target expressions/u,
     );
@@ -1609,6 +1610,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('shorthand properties');
     expect(inventory).toContain('alias-valued\n  properties');
     expect(inventory).toContain('static indexed target lists');
+    expect(inventory).toContain('static `.at(...)` array access');
     expect(inventory).toContain('`locator.screenshot`');
     expect(inventory).toContain("direct `testInfo.attach('image', ...)`");
     expect(inventory).toContain("`page['screenshot']`");
@@ -1920,6 +1922,11 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       "[[page.locator('main')]].flat()",
     );
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets hidden behind static array accessors',
+    );
+    expect(generatedDocumentationSource).toContain('targetList.at(0)');
+    expect(generatedDocumentationSource).toContain("targetList['at'](3)");
     expect(generatedDocumentationSource).toContain(
       "useFallback ? page.locator('main') : settingsSurface",
     );
