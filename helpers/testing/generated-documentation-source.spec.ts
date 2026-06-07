@@ -747,6 +747,36 @@ const isReflectApplyCallee = (node: ts.Expression): boolean => {
   );
 };
 
+const isStaticObjectAssignCall = (
+  node: ts.Expression,
+  stringAliases: ReadonlyMap<string, string> = new Map(),
+): node is ts.CallExpression => {
+  const expression = unwrapExpression(node);
+
+  if (!ts.isCallExpression(expression)) {
+    return false;
+  }
+
+  const callee = unwrapExpression(expression.expression);
+
+  if (
+    !ts.isPropertyAccessExpression(callee) &&
+    !ts.isElementAccessExpression(callee)
+  ) {
+    return false;
+  }
+
+  const receiver = unwrapExpression(
+    getStaticPropertyReceiver(callee) ?? callee,
+  );
+
+  return (
+    ts.isIdentifier(receiver) &&
+    receiver.text === 'Object' &&
+    getStaticPropertyName(callee, stringAliases) === 'assign'
+  );
+};
+
 const getStaticPropertyReference = (
   node: ts.Expression,
   sourceFile: ts.SourceFile,
@@ -1098,6 +1128,12 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
 
     if (ts.isIdentifier(payload)) {
       return rawMarkdownPayloadAliases.has(payload.text);
+    }
+
+    if (isStaticObjectAssignCall(payload, staticStringAliases)) {
+      return payload.arguments.some((argument) =>
+        hasRawMarkdownPayload(argument),
+      );
     }
 
     if (hasPropertyAlias(payload, rawMarkdownPayloadPropertyAliases)) {
@@ -3080,6 +3116,12 @@ const findDirectImageAttachmentCalls = (
       return imageAttachmentPayloadAliases.has(payload.text);
     }
 
+    if (isStaticObjectAssignCall(payload, staticStringAliases)) {
+      return payload.arguments.some((argument) =>
+        isImageAttachmentPayload(argument),
+      );
+    }
+
     if (hasPropertyAlias(payload, imageAttachmentPayloadPropertyAliases)) {
       return true;
     }
@@ -4355,6 +4397,36 @@ describe('generated docs source current behavior', () => {
         spreadRawImagePayloadSource,
       ),
     ).toEqual(['tests/docs/example/spread-raw-image-payload.doc.ts:7:13']);
+  });
+
+  it('detects Object.assign raw image payloads before generated docs can use them', () => {
+    const objectAssignRawImagePayloadSource = `
+      const rawImagePayload = { body: imageBuffer, contentType: 'image/png' };
+      const rawImagePathPayload = { path: 'raw-evidence.webp' };
+      await testInfo.attach('raw evidence', Object.assign({}, rawImagePayload));
+      await testInfo.attach('raw file evidence', Object.assign({}, rawImagePathPayload));
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      await testInfo.attach('markdown', Object.assign({}, rawMarkdownPayload));
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/object-assign-raw-image-payload.doc.ts',
+        objectAssignRawImagePayloadSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/object-assign-raw-image-payload.doc.ts:4:13',
+      'tests/docs/example/object-assign-raw-image-payload.doc.ts:5:13',
+    ]);
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/object-assign-raw-image-payload.doc.ts',
+        objectAssignRawImagePayloadSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/object-assign-raw-image-payload.doc.ts:7:13',
+    ]);
   });
 
   it('detects direct image attachments hidden behind binding default aliases', () => {

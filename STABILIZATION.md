@@ -6299,6 +6299,9 @@ Spread copies of tracked raw image and raw Markdown payload objects are covered
 too, so generated docs cannot rebuild `{ ...rawImagePayload }` or
 `{ ...rawMarkdownPayload }` to bypass the shared screenshot helper and markdown
 image boundary.
+`Object.assign(...)` copies of tracked raw image and raw Markdown payloads are
+covered by the same guard, so generated docs cannot rebuild those payloads
+through helper-style object merging either.
 Tracked direct image attachment calls with spread arguments or opaque
 `apply(...)` argument lists are rejected too, and `.at(...)` indexed attach
 helper lists are tracked as direct attachment callees, so
