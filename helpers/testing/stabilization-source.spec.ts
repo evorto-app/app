@@ -1677,6 +1677,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /direct or alias-valued tuple\/array screenshot-function\s+entries/u,
     );
+    expect(inventory).toContain('indexed raw screenshot-helper lists');
     expect(inventory).toMatch(/simple or grouped\s+attachment-name/u);
     expect(inventory).toMatch(/wrapped\s+attachment-name forwarding/u);
     expect(inventory).toContain('static concatenation');
@@ -1812,6 +1813,15 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain('String(attachmentName)');
     expect(generatedDocumentationSource).toContain(
       'detects direct image attachments hidden behind binding default aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects at-indexed raw screenshot aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await screenshotHelperList.at(0)({ path: 'at-page.png' })",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "await Reflect.apply(screenshotHelperList.at(0), page, [{ path: 'at-reflect.png' }])",
     );
     expect(generatedDocumentationSource).toContain(
       'const { capture = testInfo.attach.bind(testInfo) } = {}',

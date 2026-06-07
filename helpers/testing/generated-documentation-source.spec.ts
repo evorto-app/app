@@ -3502,6 +3502,21 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
     return false;
   };
 
+  const isScreenshotFunctionPropertyAlias = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+    const propertyReference =
+      ts.isPropertyAccessExpression(expression) ||
+      ts.isElementAccessExpression(expression)
+        ? getStaticPropertyReference(expression, sourceFile)
+        : ts.isCallExpression(expression)
+          ? getStaticArrayMethodReference(expression, sourceFile)
+          : null;
+
+    return propertyReference
+      ? screenshotFunctionPropertyAliases.has(propertyReference)
+      : false;
+  };
+
   const isTrackedScreenshotFunctionReference = (
     node: ts.Expression,
   ): boolean => {
@@ -3515,13 +3530,8 @@ const findDirectScreenshotCalls = (path: string, source: string): string[] => {
       return screenshotFunctionAliases.has(expression.text);
     }
 
-    if (
-      ts.isPropertyAccessExpression(expression) ||
-      ts.isElementAccessExpression(expression)
-    ) {
-      return screenshotFunctionPropertyAliases.has(
-        getStaticPropertyReference(expression, sourceFile) ?? '',
-      );
+    if (isScreenshotFunctionPropertyAlias(expression)) {
+      return true;
     }
 
     return false;
@@ -4297,6 +4307,27 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/binding-default-screenshot.doc.ts:3:13',
       'tests/docs/example/binding-default-screenshot.doc.ts:5:13',
+    ]);
+  });
+
+  it('detects at-indexed raw screenshot aliases', () => {
+    const atIndexedScreenshotSource = `
+      const capturePageScreenshot = page.screenshot.bind(page);
+      const screenshotHelperList = [page.screenshot.bind(page), capturePageScreenshot];
+      await screenshotHelperList.at(0)({ path: 'at-page.png' });
+      await screenshotHelperList.at(1)({ path: 'at-alias.png' });
+      await Reflect.apply(screenshotHelperList.at(0), page, [{ path: 'at-reflect.png' }]);
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/at-indexed-screenshot.doc.ts',
+        atIndexedScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/at-indexed-screenshot.doc.ts:4:13',
+      'tests/docs/example/at-indexed-screenshot.doc.ts:5:13',
+      'tests/docs/example/at-indexed-screenshot.doc.ts:6:13',
     ]);
   });
 

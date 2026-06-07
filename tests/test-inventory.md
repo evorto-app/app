@@ -628,7 +628,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   binding-default screenshot-function aliases,
   grouped screenshot-function properties, shorthand or alias-valued grouped
   screenshot helpers, and
-  direct or alias-valued tuple/array screenshot-function entries, rejects direct
+  direct or alias-valued tuple/array screenshot-function entries including
+  `.at(...)` indexed raw screenshot-helper lists, rejects direct
   image attachments through simple or grouped attachment-name aliases, wrapped
   attachment-name forwarding through calls, template interpolation, conditionals,
   nullish/logical expressions, and static concatenation including `.at(...)`

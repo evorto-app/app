@@ -6106,9 +6106,10 @@ Grouped screenshot and attach-function aliases are rejected too, including
 object-literal helpers, static bracket-property helpers, tuple/array helper
 entries including alias-valued entries, shorthand or alias-valued grouped helper
 properties, assigned helper properties, and destructured grouped helper
-properties. This keeps generated docs from hiding raw image capture behind
-neutral helper names such as `helpers.capture(...)`, `helpers.evidence(...)`,
-or `helpers[0](...)`.
+properties. `.at(...)` indexed raw screenshot helper lists are rejected too. This
+keeps generated docs from hiding raw image capture behind neutral helper names
+such as `helpers.capture(...)`, `helpers.evidence(...)`, `helpers[0](...)`, or
+`helpers.at(0)(...)`.
 Raw screenshot and image-attachment invocations through `call(...)` or
 `apply(...)` are rejected as direct raw captures too, so `page.screenshot.call`
 and `testInfo.attach.apply` cannot sidestep the shared-helper screenshot count,
