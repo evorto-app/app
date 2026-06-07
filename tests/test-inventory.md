@@ -622,10 +622,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   assigned raw image payload objects, aliased grouped or indexed MIME/path values,
   simple MIME/path forwarding through calls, template interpolation,
   conditionals, nullish/logical expressions, and concatenation, object shorthand
-  image payloads, computed raw image payload keys, spread direct attachment arguments, opaque
-  attachment `apply(...)` lists, raw screenshot and image attach call/apply
-  invocations, `Reflect.apply(...)` raw screenshot and image attach invocations,
-  inline bound raw screenshot and image attach invocations,
+  image payloads, computed raw image payload keys, spread direct attachment
+  arguments, opaque attachment `apply(...)` lists, raw screenshot and image
+  attach call/apply invocations, `Reflect.apply(...)` raw screenshot and image
+  attach invocations, inline bound raw screenshot and image attach invocations,
+  comma-expression raw screenshot and image attach invocations,
   forward-declared raw aliases, and simple, destructured, nested destructured,
   grouped, shorthand, alias-valued, or direct/alias-valued tuple/array
   attach-function aliases, rejects

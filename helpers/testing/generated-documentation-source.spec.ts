@@ -31,9 +31,13 @@ const unwrapExpression = (node: ts.Expression): ts.Expression => {
     ts.isAsExpression(current) ||
     ts.isNonNullExpression(current) ||
     ts.isSatisfiesExpression(current) ||
-    ts.isTypeAssertionExpression(current)
+    ts.isTypeAssertionExpression(current) ||
+    (ts.isBinaryExpression(current) &&
+      current.operatorToken.kind === ts.SyntaxKind.CommaToken)
   ) {
-    current = current.expression;
+    current = ts.isBinaryExpression(current)
+      ? current.right
+      : current.expression;
   }
 
   return current;
@@ -3974,6 +3978,50 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:46:13',
       'tests/docs/example/direct-screenshot.doc.ts:47:13',
       'tests/docs/example/direct-screenshot.doc.ts:48:13',
+    ]);
+  });
+
+  it('detects raw docs image capture hidden behind comma expressions', () => {
+    const commaExpressionSource = `
+      async function captureDocsEvidence() {
+        const attachEvidence = testInfo.attach.bind(testInfo);
+        const capturePageScreenshot = page.screenshot.bind(page);
+        await (undefined, page.screenshot)({ path: 'page.png' });
+        await (undefined, page['screenshot'])({ path: 'page-bracket.png' });
+        await (undefined, capturePageScreenshot)({ path: 'page-alias.png' });
+        await (undefined, testInfo.attach)('image', { body: imageBuffer });
+        await (undefined, testInfo['attach'])('image', { body: imageBuffer });
+        await (undefined, attachEvidence)('raw evidence', { contentType: 'image/png' });
+        await takeScreenshot(
+          testInfo,
+          settingsSurface,
+          page,
+          'Shared helper screenshot remains the allowed path',
+        );
+        await testInfo.attach('markdown', { body: markdown });
+      }
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/comma-expression-image-capture.doc.ts',
+        commaExpressionSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/comma-expression-image-capture.doc.ts:5:15',
+      'tests/docs/example/comma-expression-image-capture.doc.ts:6:15',
+      'tests/docs/example/comma-expression-image-capture.doc.ts:7:15',
+    ]);
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/comma-expression-image-capture.doc.ts',
+        commaExpressionSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/comma-expression-image-capture.doc.ts:8:15',
+      'tests/docs/example/comma-expression-image-capture.doc.ts:9:15',
+      'tests/docs/example/comma-expression-image-capture.doc.ts:10:15',
     ]);
   });
 

@@ -1482,6 +1482,10 @@ describe('stabilization source', () => {
     expect(source).toMatch(
       /and spread,\s+`call`,\s+`apply`,\s+`Reflect\.apply`,\s+or inline `bind`/u,
     );
+    expect(source).toContain('Comma-expression invocations');
+    expect(inventory).toContain(
+      'comma-expression raw screenshot and image attach invocations',
+    );
     expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
@@ -1657,7 +1661,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/object shorthand\s+image payloads/u);
     expect(inventory).toMatch(/computed\s+raw\s+image\s+payload\s+keys/u);
     expect(inventory).toMatch(
-      /raw screenshot and image attach call\/apply\s+invocations/u,
+      /raw screenshot and image\s+attach call\/apply invocations/u,
     );
     expect(inventory).toContain('`Reflect.apply(...)` raw screenshot');
     expect(inventory).toContain('forward-declared raw aliases');
@@ -2336,8 +2340,8 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Inline `bind(...)(...)` invocations');
     expect(source).toContain('`Reflect.apply(...)` invocations');
-    expect(inventory).toContain('spread direct attachment arguments');
-    expect(inventory).toContain('opaque\n  attachment `apply(...)` lists');
+    expect(inventory).toMatch(/spread direct attachment\s+arguments/u);
+    expect(inventory).toMatch(/opaque attachment `apply\(\.\.\.\)` lists/u);
     expect(inventory).toContain('`Reflect.apply(...)` raw screenshot');
     expect(inventory).toContain('inline bound raw screenshot and image attach');
   });

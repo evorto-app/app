@@ -6098,6 +6098,10 @@ Inline `bind(...)(...)` invocations of raw screenshot and image-attachment
 functions are rejected as well, so generated docs cannot hide direct capture by
 binding `page.screenshot`, `testInfo.attach`, or one of their aliases at the
 call site.
+Comma-expression invocations such as `(undefined, page.screenshot)(...)` and
+`(undefined, testInfo.attach)(...)` are unwrapped before the same raw-capture
+guards run, so generated docs cannot hide direct screenshots or image
+attachments behind sequence expressions.
 Raw image attachments with image MIME types or common image file extensions are
 also rejected even when their attachment name is not `image`, so docs cannot
 smuggle screenshot evidence through a differently named `testInfo.attach(...)`
