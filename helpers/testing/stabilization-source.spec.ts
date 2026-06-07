@@ -5435,7 +5435,7 @@ describe('stabilization source', () => {
       'visually inspecting representative event-list and privacy legal screenshots',
     );
     expect(statusTable).toContain(
-      'current pushed-head Browser spot check at PR head `cab7f1fe`',
+      'earlier pushed-head Browser spot check at PR head `cab7f1fe`',
     );
     expect(statusTable).toContain(
       'reused the generated Docker app at its generated `BASE_URL`',
@@ -5456,6 +5456,21 @@ describe('stabilization source', () => {
     expect(statusTable).toContain(
       'without changing the fully green E2E baseline',
     );
+    expect(source).toContain(
+      'Latest pushed-head checkpoint: PR head `d4ea11a9`',
+    );
+    expect(source).toContain(
+      'object-rest copied grouped screenshot-helper aliases',
+    );
+    expect(source).toContain(
+      'records Browser evidence from `/legal/terms` plus `/events` at 390x844',
+    );
+    expect(source).toContain('the focused generated-doc');
+    expect(source).toContain(
+      'source and stabilization source suites with 194 tests',
+    );
+    expect(source).toContain('not yet');
+    expect(source).toContain('claimed as fully green E2E evidence');
     expect(statusTable).toContain(
       'Playwright config now uses the repo runtime config provider',
     );
