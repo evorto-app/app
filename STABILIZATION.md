@@ -3859,8 +3859,9 @@ fallback rather than a profile discount-card defect.
   1440x900 with the admin storage state and a deterministic seeded tax-rate
   row. The viewport guard asserts admin overview navigation, the tax-rate table,
   and the event-review queue route; rejects rendered application-error text,
-  page-level horizontal overflow, and horizontally clipped visible controls; and
-  treats the tax-rate table's horizontal scroll container as intentional. The
+  page-level horizontal overflow, horizontally clipped visible controls, and
+  browser console warning/error logs while each route is opened; and treats the
+  tax-rate table's horizontal scroll container as intentional. The
   admin overview links, tax-rate shell/table wrappers, and event-review cards now
   use `min-w-0`, wrapping labels/actions, or bounded scroll containers so narrow
   mobile layouts do not widen the page. A fresh June 4, 2026 Browser pass on the
@@ -3877,6 +3878,18 @@ fallback rather than a profile discount-card defect.
   bottom navigation fitting without overlap; it was saved at
   `/tmp/evorto-admin-overview-tax-review-20260604-refresh-mobile.jpg`, and the
   temporary Browser viewport override was reset after the pass.
+  A June 7, 2026 follow-up tightened this same Playwright viewport spec to fail
+  on browser console warning/error logs while opening each authenticated admin
+  route. The isolated authenticated rerun on this worktree remained blocked by
+  Auth0 rejecting the generated worktree callback URL before the edited spec
+  executed; source/lint coverage stayed green, and a same-slice
+  public in-app Browser mobile spot check opened `/legal/privacy` at 390x844
+  with `stabilizationEvidence=admin-viewport-console-guard`. The page showed
+  the Privacy policy fallback content and fixed Events/Login navigation with no
+  horizontal overflow, clipped fixed/sticky controls, loading placeholder,
+  application-error text, or Browser warning/error logs; the viewport screenshot
+  was saved to
+  `/tmp/evorto-admin-viewport-console-privacy-390x844.png`.
 - Current global-admin viewport coverage checkpoint:
   `tests/specs/admin/global-admin-tenants.spec.ts` now includes authenticated
   Docker-backed system-Chrome coverage for the global-admin overview shell plus

@@ -8430,6 +8430,13 @@ describe('stabilization source', () => {
     expect(source).toContain('`tests/specs/admin/admin-viewports.spec.ts`');
     expect(source).toContain('deterministic seeded tax-rate\n  row');
     expect(source).toContain("tax-rate table's horizontal scroll container");
+    expect(source).toContain('browser console warning/error logs');
+    expect(source).toContain(
+      'stabilizationEvidence=admin-viewport-console-guard',
+    );
+    expect(source).toContain(
+      '/tmp/evorto-admin-viewport-console-privacy-390x844.png',
+    );
     expect(source).toContain('4px mobile overflow');
     expect(source).toContain('Material icon-button touch-target spans');
     expect(source).toContain('no-pending-review content');
@@ -8445,6 +8452,10 @@ describe('stabilization source', () => {
     expect(adminViewportSpec).toContain("path: '/admin/tax-rates'");
     expect(adminViewportSpec).toContain("path: '/admin/event-reviews'");
     expect(adminViewportSpec).toContain('tenantStripeTaxRates');
+    expect(adminViewportSpec).toContain('collectBrowserLogFailures');
+    expect(adminViewportSpec).toContain(
+      'should not emit browser warning/error logs',
+    );
     expect(taxRatesSettingsComponent).toContain(
       'class="bg-surface max-w-full overflow-x-auto rounded-2xl"',
     );

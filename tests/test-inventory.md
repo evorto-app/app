@@ -321,7 +321,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/admin/admin-viewports.spec.ts` checks the authenticated tenant admin
     overview, tax-rate table, and event-review queue routes at narrow mobile,
     mobile, and desktop viewports for expected headings/content through the
-    shared viewport layout guard.
+    shared viewport layout guard, and fails on browser console warning/error
+    logs while each route is opened.
   - `specs/admin/global-admin-tenants.spec.ts` also checks authenticated
     global-admin overview, tenant list, create, detail, and edit pages at
     narrow mobile, mobile, and desktop viewports for expected headings/content,
