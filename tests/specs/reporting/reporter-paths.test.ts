@@ -289,6 +289,56 @@ test('documentation reporter rejects weak image captions at output time', async 
   );
 });
 
+test('documentation reporter rejects duplicate figure image sources', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-duplicate-image-source');
+  const imgsRoot = testInfo.outputPath('docs-img-duplicate-image-source');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const duplicatePng = createDocumentationEvidencePng();
+  const result = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: duplicatePng,
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from(
+          'First repeated screenshot caption with useful context',
+        ),
+      },
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: duplicatePng,
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from(
+          'Second repeated screenshot caption with different context',
+        ),
+      },
+    ],
+  } as any;
+
+  reporter.onTestEnd({ title: 'Duplicate figure image source' } as any, result);
+
+  expect(() =>
+    // @ts-expect-error minimal stubs for types
+    reporter.onEnd({}),
+  ).toThrow(
+    'Generated documentation page Duplicate figure image source uses duplicate figure image duplicate-figure-image-source/image-',
+  );
+});
+
 test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time', async ({}, testInfo) => {
   const previous = process.env.DOCS_IMG_OUT_DIR;
   const imgsRoot = testInfo.outputPath('docs-img-call-time');

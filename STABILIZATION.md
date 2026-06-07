@@ -6232,6 +6232,13 @@ not depend on one JavaScript property-access spelling.
 Generated-doc screenshot captions now also require at least four words at
 runtime and in source coverage, so a screenshot cannot pass with a terse
 section/list label that does not explain what the image proves.
+Generated-doc page emission now also rejects duplicate figure image sources, so
+multiple captions on one generated page cannot point at the same PNG hash and
+pretend to prove different states with repeated screenshot evidence.
+The focused reporter-path regression now exercises that failure without app
+startup. An in-app Browser attempt to inspect the generated local Markdown
+artifact directly was blocked by Browser URL policy for `file://` output, so no
+Browser artifact pass is claimed for this reporter-only guard.
 Generated-doc markdown attachments also reject raw Markdown image syntax and
 HTML `<img>` tags, including aliased markdown names, bracketed `attach` calls,
 binding-default markdown names, grouped/indexed/destructured/assigned markdown

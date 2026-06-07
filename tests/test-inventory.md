@@ -611,7 +611,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   invalid-image, missing-highlight, and blank/context-free highlighted-image
   runtime failures in reporter-path tests, rejects uncaptioned image attachments
   and orphan or weak image-caption attachments before generated markdown is
-  written, requires reporter-written image attachments to be valid PNG
+  written, rejects duplicate figure image sources on one generated page, requires
+  reporter-written image attachments to be valid PNG
   screenshots with highlighted focus-target pixels and visible surrounding page
   content, rejects raw Markdown image syntax and HTML `<img>` tags in generated
   docs markdown attachments, including aliased markdown names, bracketed

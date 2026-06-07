@@ -30,6 +30,27 @@ const readDocumentationEnvironment = () =>
     ),
   );
 
+const figureSourcePattern = /\{% figure src="([^"]+)"/gu;
+
+const assertUniqueFigureSources = (
+  pageLines: string[],
+  docTitle: string,
+): void => {
+  const seenSources = new Set<string>();
+
+  for (const line of pageLines) {
+    for (const match of line.matchAll(figureSourcePattern)) {
+      const source = match[1];
+      if (seenSources.has(source)) {
+        throw new Error(
+          `Generated documentation page ${docTitle} uses duplicate figure image ${source}. Each caption must point at distinct screenshot evidence.`,
+        );
+      }
+      seenSources.add(source);
+    }
+  }
+};
+
 class DocumentationReporter implements Reporter {
   private readonly environment = readDocumentationEnvironment();
   private readonly registry = new DocumentationGroupRegistry();
@@ -92,6 +113,7 @@ class DocumentationReporter implements Reporter {
         if (hasMultipleTests) pageLines.push(`## ${section.title}`);
         pageLines.push(...section.content);
       }
+      assertUniqueFigureSources(pageLines, mainTitle);
 
       const pageDir = ensureDirectory(
         path.join(this.docsRoot(), doc.folderName),
