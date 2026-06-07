@@ -3686,13 +3686,16 @@ fallback rather than a profile discount-card defect.
   still generates its text from `PERMISSION_GROUPS`, but it also screenshots the
   actual role-form permission group/dependency surface so the reference is tied
   to the UI labels admins see.
-  After the raw-markdown alias guard pass, pushed head `dfcd0cce` also passed
-  the no-Docker generated-doc helper checks: `bun run test:e2e:reporter-paths`
-  returned `18 passed (4.0s)` and `bun run test:e2e:doc-screenshot` returned
-  `6 passed (7.1s)` with `NO_WEBSERVER=true`, so reporter output, caption/image
-  pairing, highlighted focus-target validation, visible page-content validation,
-  and screenshot settling contracts were rechecked without claiming fresh
-  current-head Browser route evidence.
+  After the raw-markdown alias guard pass, pushed head `dfcd0cce` passed the
+  no-Docker generated-doc helper checks: `bun run test:e2e:doc-screenshot`
+  returned `6 passed (7.1s)` with `NO_WEBSERVER=true`, so screenshot settling
+  contracts were rechecked without claiming fresh current-head Browser route
+  evidence. A later reporter-boundary refresh after adding cross-doc duplicate
+  image-hash rejection ran `bun run test:e2e:reporter-paths` and returned
+  `27 passed (3.6s)`, covering reporter output, caption/image pairing,
+  highlighted focus-target validation, visible page-content validation,
+  duplicate per-page figure sources, duplicate captions, and duplicate
+  cross-document image evidence.
   The same current local helper-verification pass also ran
   `bun run test:e2e:layout-helper`, which returned `5 passed (1.9s)` with
   `NO_WEBSERVER=true`; this keeps the shared mobile layout-glitch detector
@@ -6496,8 +6499,11 @@ different screenshots cannot use the same description for unrelated UI states.
 Generated-doc page emission now validates the whole run before writing pages and
 rejects duplicate figure captions across generated pages too, matching the
 source guard's expectation that captions stay unique across generated docs.
-The focused reporter-path regression now exercises that failure without app
-startup. An in-app Browser attempt to inspect the generated local Markdown
+It now also rejects duplicate figure image hashes across generated pages, so
+two different captions cannot reuse the same PNG under different docs folders
+and claim unrelated UI states with repeated screenshot evidence. The focused
+reporter-path regressions exercise those failures without app startup. An
+in-app Browser attempt to inspect the generated local Markdown
 artifact directly was blocked by Browser URL policy for `file://` output, so no
 Browser artifact pass is claimed for this reporter-only guard.
 A same-slice Docker-backed in-app Browser check opened `/events` at 390x844

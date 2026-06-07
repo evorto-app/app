@@ -8448,6 +8448,9 @@ describe('generated docs source current behavior', () => {
     const reporterAttachments = readSource(
       'tests/support/reporters/documentation-reporter/attachments.ts',
     );
+    const reporterSource = readSource(
+      'tests/support/reporters/documentation-reporter.ts',
+    );
     const expectedImageBackedDocuments = [
       ...expectedScreenshotCounts.keys(),
     ].toSorted();
@@ -8537,6 +8540,19 @@ describe('generated docs source current behavior', () => {
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain('documentation reporter rejects weak markdown body text');
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation reporter rejects duplicate figure images across docs',
+    );
+    expect(reporterSource).toContain('runImageIds');
+    expect(reporterSource).toContain('figureImageIdPattern');
+    expect(reporterSource).toContain(
+      'Each generated-doc screenshot must be distinct',
+    );
+    expect(reporterSource).toContain(
+      'one UI capture cannot claim unrelated states',
+    );
 
     for (const path of documentFiles) {
       const source = readSource(path);

@@ -31,11 +31,13 @@ const readDocumentationEnvironment = () =>
   );
 
 const figurePattern = /\{% figure src="([^"]+)" caption="([^"]*)"/gu;
+const figureImageIdPattern = /(?:^|\/)image-(?<id>[a-f0-9]{16})\.[a-z0-9]+$/iu;
 
 const assertUniqueFigureEvidence = (
   pageLines: string[],
   docTitle: string,
   runCaptions: Map<string, string>,
+  runImageIds: Map<string, string>,
 ): void => {
   const seenSources = new Set<string>();
   const seenCaptions = new Set<string>();
@@ -54,6 +56,15 @@ const assertUniqueFigureEvidence = (
           `Generated documentation page ${docTitle} uses duplicate figure caption "${caption}". Each screenshot needs a distinct caption that describes its own UI state.`,
         );
       }
+      const imageId = source.match(figureImageIdPattern)?.groups?.id;
+      const existingImageDocTitle = imageId
+        ? runImageIds.get(imageId)
+        : undefined;
+      if (imageId && existingImageDocTitle) {
+        throw new Error(
+          `Generated documentation page ${docTitle} reuses figure image evidence image-${imageId} already used by ${existingImageDocTitle}. Each generated-doc screenshot must be distinct so one UI capture cannot claim unrelated states.`,
+        );
+      }
       const existingDocTitle = runCaptions.get(caption);
       if (existingDocTitle) {
         throw new Error(
@@ -62,6 +73,7 @@ const assertUniqueFigureEvidence = (
       }
       seenSources.add(source);
       seenCaptions.add(caption);
+      if (imageId) runImageIds.set(imageId, docTitle);
       runCaptions.set(caption, docTitle);
     }
   }
@@ -143,8 +155,14 @@ class DocumentationReporter implements Reporter {
     }
 
     const runCaptions = new Map<string, string>();
+    const runImageIds = new Map<string, string>();
     for (const page of pages) {
-      assertUniqueFigureEvidence(page.pageLines, page.title, runCaptions);
+      assertUniqueFigureEvidence(
+        page.pageLines,
+        page.title,
+        runCaptions,
+        runImageIds,
+      );
     }
 
     for (const page of pages) {

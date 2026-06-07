@@ -579,6 +579,65 @@ test('documentation reporter rejects duplicate figure captions across docs', asy
   );
 });
 
+test('documentation reporter rejects duplicate figure images across docs', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-duplicate-image-run');
+  const imgsRoot = testInfo.outputPath('docs-img-duplicate-image-run');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error stubs
+  reporter.onBegin({}, {});
+
+  const duplicatePng = createDocumentationEvidencePng();
+
+  reporter.onTestEnd(
+    { title: 'First duplicate image document' } as any,
+    {
+      attachments: [
+        {
+          name: 'image',
+          contentType: 'image/png',
+          body: duplicatePng,
+        },
+        {
+          name: 'image-caption',
+          contentType: 'text/plain',
+          body: Buffer.from(
+            'First reused screenshot caption with product context',
+          ),
+        },
+      ],
+    } as any,
+  );
+  reporter.onTestEnd(
+    { title: 'Second duplicate image document' } as any,
+    {
+      attachments: [
+        {
+          name: 'image',
+          contentType: 'image/png',
+          body: duplicatePng,
+        },
+        {
+          name: 'image-caption',
+          contentType: 'text/plain',
+          body: Buffer.from(
+            'Second reused screenshot caption with different context',
+          ),
+        },
+      ],
+    } as any,
+  );
+
+  expect(() =>
+    // @ts-expect-error minimal stubs for types
+    reporter.onEnd({}),
+  ).toThrow(
+    'Generated documentation page Second duplicate image document reuses figure image evidence image-',
+  );
+});
+
 test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time', async ({}, testInfo) => {
   const previous = process.env.DOCS_IMG_OUT_DIR;
   const imgsRoot = testInfo.outputPath('docs-img-call-time');

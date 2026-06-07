@@ -1425,11 +1425,11 @@ describe('stabilization source', () => {
     expect(source).toContain('shorthand `{ body }`');
     expect(source).toContain('pushed head `dfcd0cce`');
     expect(source).toContain('bun run test:e2e:reporter-paths');
-    expect(source).toContain('18 passed (4.0s)');
+    expect(source).toContain('27 passed (3.6s)');
     expect(source).toContain('bun run test:e2e:doc-screenshot');
     expect(source).toContain('6 passed (7.1s)');
     expect(source).toContain('NO_WEBSERVER=true');
-    expect(source).toContain('without claiming fresh\n  current-head Browser');
+    expect(source).toContain('without claiming fresh current-head Browser');
     expect(source).toContain('bun run test:e2e:layout-helper');
     expect(source).toContain('5 passed (1.9s)');
     expect(source).toContain('mobile layout-glitch detector');
@@ -1802,6 +1802,15 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /undersized\s+generated-doc\s+image\s+attachments/u,
     );
+    expect(inventory).toContain(
+      'duplicate figure captions and duplicate figure',
+    );
+    expect(inventory).toContain('image hashes across generated pages');
+    expect(source).toContain(
+      'duplicate figure image hashes across generated pages',
+    );
+    expect(source).toContain('same PNG under different docs folders');
+    expect(source).toContain('claim unrelated UI states');
     expect(inventory).toContain('weak Markdown body text');
     expect(inventory).toContain('explanatory body text');
     expect(inventory).toContain('tiny valid PNGs');

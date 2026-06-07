@@ -638,8 +638,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   runtime failures in reporter-path tests, rejects uncaptioned image attachments
   and orphan or weak image-caption attachments before generated markdown is
   written, rejects duplicate figure image sources and duplicate figure captions
-  on one generated page, rejects duplicate figure captions across generated
-  pages, requires reporter-written image attachments to be valid PNG
+  on one generated page, rejects duplicate figure captions and duplicate figure
+  image hashes across generated pages, requires reporter-written image
+  attachments to be valid PNG
   screenshots with highlighted focus-target pixels and visible surrounding page
   content, rejects raw Markdown image syntax and HTML `<img>` tags in generated
   docs markdown attachments at reporter runtime and in source coverage,
