@@ -5106,6 +5106,26 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects direct image attachments hidden behind computed destructuring', () => {
+    const computedDestructuredAttachSource = `
+      const { ['attach']: attachEvidence } = testInfo;
+      await attachEvidence('image', { body: imageBuffer });
+      async function attachFromParameter({ ['attach']: parameterAttach } = testInfo) {
+        await parameterAttach('image', { body: imageBuffer });
+      }
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/computed-destructured-attach.doc.ts',
+        computedDestructuredAttachSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/computed-destructured-attach.doc.ts:3:13',
+      'tests/docs/example/computed-destructured-attach.doc.ts:5:15',
+    ]);
+  });
+
   it('detects direct image attachments hidden behind Reflect.get attach aliases', () => {
     const reflectGetImageAttachmentSource = `
       const reflectedAttach = Reflect.get(testInfo, 'attach');
@@ -5484,6 +5504,26 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/direct-screenshot.doc.ts:47:13',
       'tests/docs/example/direct-screenshot.doc.ts:48:13',
       'tests/docs/example/direct-screenshot.doc.ts:50:13',
+    ]);
+  });
+
+  it('detects direct screenshots hidden behind computed destructuring', () => {
+    const computedDestructuredScreenshotSource = `
+      const { ['screenshot']: capturePage } = page;
+      await capturePage({ path: 'computed-page-alias.png' });
+      async function captureFromParameter({ ['screenshot']: parameterCapture } = page) {
+        await parameterCapture({ path: 'computed-parameter-page-alias.png' });
+      }
+    `;
+
+    expect(
+      findDirectScreenshotCalls(
+        'tests/docs/example/computed-destructured-screenshot.doc.ts',
+        computedDestructuredScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/computed-destructured-screenshot.doc.ts:3:13',
+      'tests/docs/example/computed-destructured-screenshot.doc.ts:5:15',
     ]);
   });
 

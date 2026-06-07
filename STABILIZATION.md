@@ -6385,6 +6385,10 @@ aliases, direct attach-function aliases, and destructured, nested destructured,
 binding-default, or parameter-default attach aliases are rejected as well. Image
 evidence has to flow through the shared helper so captions, highlights, content
 pixel checks, and generated figure output stay enforced.
+Computed destructuring aliases such as `{ ['screenshot']: capture }` and
+`{ ['attach']: attachEvidence }` are now pinned by focused source tests too, so
+bracket-property binding syntax cannot hide raw screenshots or raw image
+attachments from the shared-helper guard.
 Grouped screenshot and attach-function aliases are rejected too, including
 object-literal helpers, static bracket-property helpers, tuple/array helper
 entries including alias-valued entries, shorthand or alias-valued grouped helper
