@@ -113,6 +113,42 @@ const countVisibleViewportTextCharacters = async (
   page: Page,
 ): Promise<number> =>
   page.locator('body').evaluate((body) => {
+    const isTransparentColor = (color: string): boolean => {
+      const normalizedColor = color.replace(/\s+/gu, '').toLowerCase();
+
+      return (
+        normalizedColor === 'transparent' ||
+        /rgba\([^)]*,0(?:\.0+)?\)$/u.test(normalizedColor) ||
+        /rgb\([^)]*\/0(?:\.0+)?\)$/u.test(normalizedColor)
+      );
+    };
+    const hasVisibleStyleChain = (element: Element): boolean => {
+      let current: Element | null = element;
+
+      while (current && current !== body) {
+        const style = getComputedStyle(current);
+
+        if (
+          style.display === 'none' ||
+          style.visibility === 'hidden' ||
+          Number.parseFloat(style.opacity) <= 0
+        ) {
+          return false;
+        }
+
+        current = current.parentElement;
+      }
+
+      return true;
+    };
+    const hasReadableTextPaint = (element: Element): boolean => {
+      const style = getComputedStyle(element);
+
+      return (
+        Number.parseFloat(style.fontSize) > 0 &&
+        !isTransparentColor(style.color)
+      );
+    };
     const isVisibleInViewport = (element: Element): boolean => {
       const bounds = element.getBoundingClientRect();
       const style = getComputedStyle(element);
@@ -126,7 +162,9 @@ const countVisibleViewportTextCharacters = async (
         bounds.left < window.innerWidth &&
         style.display !== 'none' &&
         style.visibility !== 'hidden' &&
-        style.opacity !== '0'
+        Number.parseFloat(style.opacity) > 0 &&
+        hasVisibleStyleChain(element) &&
+        hasReadableTextPaint(element)
       );
     };
     const textWalker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {

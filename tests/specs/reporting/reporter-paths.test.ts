@@ -1025,6 +1025,32 @@ test('documentation screenshot helper rejects captures without readable viewport
   );
 });
 
+test('documentation screenshot helper rejects captures with transparent viewport text', async ({
+  page,
+}, testInfo) => {
+  await page.setContent(`
+    <main>
+      <section
+        id="target"
+        style="margin: 48px; width: 360px; height: 240px; background: rgb(30, 64, 175);"
+      >
+        <p style="color: transparent;">Transparent text should not count as readable documentation evidence.</p>
+      </section>
+    </main>
+  `);
+
+  await expect(
+    takeScreenshot(
+      testInfo,
+      page.locator('#target'),
+      page,
+      'Transparent text should fail readable text guard',
+    ),
+  ).rejects.toThrow(
+    'Documentation screenshots must include readable visible UI text in the viewport.',
+  );
+});
+
 test('documentation screenshot helper rejects captures without the highlighted target', async ({
   page,
 }, testInfo) => {

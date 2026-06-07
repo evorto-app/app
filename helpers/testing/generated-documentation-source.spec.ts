@@ -10787,6 +10787,8 @@ describe('generated docs source current behavior', () => {
     );
     expect(screenshotHelper).toContain('countVisibleViewportTextCharacters');
     expect(screenshotHelper).toContain('minimumVisibleTextCharacterCount');
+    expect(screenshotHelper).toContain('hasReadableTextPaint');
+    expect(screenshotHelper).toContain('isTransparentColor');
     expect(screenshotHelper).toContain('caption: string');
     expect(screenshotHelper).toContain('caption.trim().length < 32');
     expect(screenshotHelper).toContain('captionWords.length < 5');
@@ -10861,6 +10863,11 @@ describe('generated docs source current behavior', () => {
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(
       'documentation screenshot helper rejects captures without readable viewport text',
+    );
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation screenshot helper rejects captures with transparent viewport text',
     );
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),

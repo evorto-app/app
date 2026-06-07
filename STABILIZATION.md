@@ -6661,6 +6661,9 @@ viewport before attachment, so a decorative colored patch with a highlight
 cannot pass as meaningful product evidence even if it has enough non-white
 pixels; that unreadable/no-text screenshot case is covered at the reporter
 output boundary.
+The readable-text guard now also ignores transparent or zero-paint text, so
+generated docs cannot satisfy the requirement with DOM text that is present but
+not actually visible in the captured image.
 Generated-doc markdown attachments now also need at least 60 characters of
 explanatory body text at reporter runtime, so placeholder prose cannot publish
 as evidence that reviewers can judge without clicking through the app.

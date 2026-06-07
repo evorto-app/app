@@ -1519,6 +1519,7 @@ describe('stabilization source', () => {
     expect(source).toContain('highlighted focus-target\n  pixels');
     expect(source).toContain('readable visible UI text');
     expect(source).toContain('decorative colored patch with a highlight');
+    expect(source).toContain('transparent or zero-paint text');
     expect(source).toContain('proves');
     expect(source).toContain('actual PNG with highlighted focus-target pixels');
     expect(source).toContain('invalid image attachments');
@@ -2958,6 +2959,9 @@ describe('stabilization source', () => {
     );
     expect(reporterPathsSpec).toContain(
       'documentation screenshot helper rejects captures without readable viewport text',
+    );
+    expect(reporterPathsSpec).toContain(
+      'documentation screenshot helper rejects captures with transparent viewport text',
     );
     expect(reporterPathsSpec).toContain(
       'Documentation screenshots must include readable visible UI text in the viewport.',
