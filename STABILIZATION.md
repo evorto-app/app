@@ -6964,11 +6964,12 @@ template role, finance transaction-list, or template-category creation note in
 the same generated page.
 
 Generated-doc source coverage now also keeps screenshot clusters close to their
-explanatory Markdown. A docs file cannot place more than two
-`takeScreenshot(...)` calls after one Markdown attachment before adding another
-explanatory section, and the tenant General settings guide now splits brand
-assets/search metadata, hosted/external legal pages, and finance/discount
-settings into separate text-backed screenshot clusters.
+explanatory Markdown. A docs file cannot place a `takeScreenshot(...)` before
+the first Markdown attachment, or place more than two `takeScreenshot(...)`
+calls after one Markdown attachment before adding another explanatory section.
+The tenant General settings guide now splits brand assets/search metadata,
+hosted/external legal pages, and finance/discount settings into separate
+text-backed screenshot clusters.
 A same-slice in-app Browser mobile spot check opened `/legal/terms` at 390x844
 with `stabilizationEvidence=dense-doc-screenshot-markdown-guard` and verified
 the Terms fallback page with meaningful legal-page copy, fixed Events/Login

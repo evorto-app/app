@@ -1546,18 +1546,23 @@ const findDenseScreenshotRunsBetweenMarkdown = (
 
   const denseRuns: string[] = [];
   let screenshotsSinceMarkdown = 0;
+  let hasSeenMarkdown = false;
 
   for (const event of events.toSorted(
     (left, right) => left.position - right.position,
   )) {
     if (event.kind === 'markdown') {
+      hasSeenMarkdown = true;
       screenshotsSinceMarkdown = 0;
       continue;
     }
 
     screenshotsSinceMarkdown += 1;
 
-    if (screenshotsSinceMarkdown > maximumScreenshotsPerMarkdownAttachment) {
+    if (
+      !hasSeenMarkdown ||
+      screenshotsSinceMarkdown > maximumScreenshotsPerMarkdownAttachment
+    ) {
       denseRuns.push(describeCall(event.node));
     }
   }
@@ -6582,6 +6587,12 @@ describe('generated docs source current behavior', () => {
 
   it('keeps generated documentation screenshots close to explanatory markdown', () => {
     const denseScreenshotSource = `
+      await takeScreenshot(
+        testInfo,
+        unexplainedSurface,
+        page,
+        'Screenshot before the first markdown section is not explained',
+      );
       await testInfo.attach('markdown', {
         body: \`
           This section explains the generated documentation workflow and the screenshots that immediately follow it with enough product context.
@@ -6623,7 +6634,10 @@ describe('generated docs source current behavior', () => {
         'tests/docs/example/dense-screenshot-run.doc.ts',
         denseScreenshotSource,
       ),
-    ).toEqual(['tests/docs/example/dense-screenshot-run.doc.ts:19:13']);
+    ).toEqual([
+      'tests/docs/example/dense-screenshot-run.doc.ts:2:13',
+      'tests/docs/example/dense-screenshot-run.doc.ts:25:13',
+    ]);
   });
 
   it('inspects optional documentation screenshot and raw image calls', () => {
