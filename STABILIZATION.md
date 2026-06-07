@@ -6235,10 +6235,21 @@ section/list label that does not explain what the image proves.
 Generated-doc page emission now also rejects duplicate figure image sources, so
 multiple captions on one generated page cannot point at the same PNG hash and
 pretend to prove different states with repeated screenshot evidence.
+It also rejects duplicate figure captions on one generated page, so two
+different screenshots cannot use the same description for unrelated UI states.
 The focused reporter-path regression now exercises that failure without app
 startup. An in-app Browser attempt to inspect the generated local Markdown
 artifact directly was blocked by Browser URL policy for `file://` output, so no
 Browser artifact pass is claimed for this reporter-only guard.
+A same-slice Docker-backed in-app Browser check opened `/events` at 390x844
+with `stabilizationEvidence=duplicate-caption-guard`, waited past the loading
+placeholder, and visually confirmed seeded Material event cards with meaningful
+event icons and fixed bottom navigation. Browser metrics reported matching
+document/body widths inside the mobile viewport, no horizontal overflow, no
+rendered application-error text, no loading placeholder after settle, and zero
+Browser warning/error logs. The matching focused
+`bun run test:e2e:public-general-viewports` sweep passed against the same
+running Docker app.
 Generated-doc markdown attachments also reject raw Markdown image syntax and
 HTML `<img>` tags, including aliased markdown names, bracketed `attach` calls,
 binding-default markdown names, grouped/indexed/destructured/assigned markdown

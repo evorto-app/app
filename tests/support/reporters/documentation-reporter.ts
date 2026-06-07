@@ -30,23 +30,31 @@ const readDocumentationEnvironment = () =>
     ),
   );
 
-const figureSourcePattern = /\{% figure src="([^"]+)"/gu;
+const figurePattern = /\{% figure src="([^"]+)" caption="([^"]*)"/gu;
 
-const assertUniqueFigureSources = (
+const assertUniqueFigureEvidence = (
   pageLines: string[],
   docTitle: string,
 ): void => {
   const seenSources = new Set<string>();
+  const seenCaptions = new Set<string>();
 
   for (const line of pageLines) {
-    for (const match of line.matchAll(figureSourcePattern)) {
+    for (const match of line.matchAll(figurePattern)) {
       const source = match[1];
+      const caption = match[2];
       if (seenSources.has(source)) {
         throw new Error(
           `Generated documentation page ${docTitle} uses duplicate figure image ${source}. Each caption must point at distinct screenshot evidence.`,
         );
       }
+      if (seenCaptions.has(caption)) {
+        throw new Error(
+          `Generated documentation page ${docTitle} uses duplicate figure caption "${caption}". Each screenshot needs a distinct caption that describes its own UI state.`,
+        );
+      }
       seenSources.add(source);
+      seenCaptions.add(caption);
     }
   }
 };
@@ -113,7 +121,7 @@ class DocumentationReporter implements Reporter {
         if (hasMultipleTests) pageLines.push(`## ${section.title}`);
         pageLines.push(...section.content);
       }
-      assertUniqueFigureSources(pageLines, mainTitle);
+      assertUniqueFigureEvidence(pageLines, mainTitle);
 
       const pageDir = ensureDirectory(
         path.join(this.docsRoot(), doc.folderName),

@@ -339,6 +339,60 @@ test('documentation reporter rejects duplicate figure image sources', async ({},
   );
 });
 
+test('documentation reporter rejects duplicate figure captions', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-duplicate-caption');
+  const imgsRoot = testInfo.outputPath('docs-img-duplicate-caption');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const secondPng = PNG.sync.read(createDocumentationEvidencePng());
+  const offset = (48 * secondPng.width + 48) * 4;
+  secondPng.data[offset] = 20;
+  secondPng.data[offset + 1] = 20;
+  secondPng.data[offset + 2] = 20;
+  secondPng.data[offset + 3] = 255;
+
+  const repeatedCaption =
+    'Repeated caption should fail generated documentation output';
+  const result = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: createDocumentationEvidencePng(),
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from(repeatedCaption),
+      },
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: PNG.sync.write(secondPng),
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from(repeatedCaption),
+      },
+    ],
+  } as any;
+
+  reporter.onTestEnd({ title: 'Duplicate figure caption' } as any, result);
+
+  expect(() =>
+    // @ts-expect-error minimal stubs for types
+    reporter.onEnd({}),
+  ).toThrow(
+    `Generated documentation page Duplicate figure caption uses duplicate figure caption "${repeatedCaption}"`,
+  );
+});
+
 test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time', async ({}, testInfo) => {
   const previous = process.env.DOCS_IMG_OUT_DIR;
   const imgsRoot = testInfo.outputPath('docs-img-call-time');
