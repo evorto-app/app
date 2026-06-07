@@ -1804,6 +1804,9 @@ describe('stabilization source', () => {
       /pins the current per-flow\s+Markdown section counts/u,
     );
     expect(inventory).toMatch(/Markdown section counts and screenshot counts/u);
+    expect(inventory).toContain(
+      'Markdown-count guard follows direct,\n  destructured, bound, grouped, and indexed `testInfo.attach` aliases',
+    );
     expect(inventory).toMatch(
       /manifests? that must include\s+every image-backed docs/u,
     );
@@ -1813,8 +1816,8 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(
       /supplemental high-value quality journeys\s+such as paid registration,\s+waitlists,\s+registration cancellation,\s+transfer\/resale,\s+registration confirmation with QR ticket availability,\s+and\s+direct QR email-delivery boundaries/u,
     );
-    expect(inventory).toContain(
-      'quietly drop explanatory sections\n  or image-backed states',
+    expect(inventory).toMatch(
+      /quietly drop explanatory sections[\s\S]+image-backed states/u,
     );
     expect(inventory).toContain('shared `takeScreenshot` helper');
     expect(inventory).toMatch(/documentation\s+reporter\s+barrel/u);
@@ -2031,6 +2034,15 @@ describe('stabilization source', () => {
       'keeps generated documentation pages explanatory and image-backed',
     );
     expect(generatedDocumentationSource).toContain(
+      'counts aliased generated documentation markdown attachments for the manifest guard',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'const { attach: destructuredAttachMarkdown } = testInfo',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'attachMarkdownHelpers.at(0)',
+    );
+    expect(generatedDocumentationSource).toContain(
       'keeps product-important documentation areas represented by generated docs',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2083,8 +2095,12 @@ describe('stabilization source', () => {
       'findWeakMarkdownBodyAttachments',
     );
     expect(generatedDocumentationSource).toContain(
-      'isTestInfoMarkdownAttachmentCall',
+      'countGeneratedMarkdownAttachments',
     );
+    expect(generatedDocumentationSource).toContain(
+      'markdownAttachFunctionPropertyAliases = new Set<string>',
+    );
+    expect(generatedDocumentationSource).toContain("'testInfo.attach'");
     expect(generatedDocumentationSource).toContain(
       'minimumSourceMarkdownBodyLength = 120',
     );
@@ -5567,15 +5583,19 @@ describe('stabilization source', () => {
       'generated-doc explanatory Markdown section counts',
     );
     expect(source).toContain('pinned beside screenshot counts');
+    expect(source).toContain(
+      'the section-count guard follows direct, destructured, bound, grouped, and\nindexed `testInfo.attach` aliases',
+    );
+    expect(source).toContain('local helper names');
     expect(source).toMatch(
-      /15 explanatory\s+sections and 14 image-backed states in `tests\/docs\/events\/register\.doc\.ts`/u,
+      /15 explanatory\s+sections and 14 image-backed states in\s+`tests\/docs\/events\/register\.doc\.ts`/u,
     );
     expect(source).toContain('eight plus eight in');
     expect(source).toContain('tests/docs/templates/templates.doc.ts');
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 197 tests');
+    expect(source).toContain('with 198 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5585,14 +5605,20 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Browser\nreused the local app');
     expect(source).toContain('`http://localhost:4218`');
-    expect(source).toContain('`/legal/terms`,\n`/events`, and `/404`');
+    expect(source).toContain('`/legal/terms` and\n`/events` at 390x844');
     expect(source).toContain(
-      'settled expected content, no\nvisible loading text, no application-error text, no overflow',
+      'settled expected content, no visible loading text, no\napplication-error text, no horizontal overflow',
     );
-    expect(source).toContain('fixed General\nnavigation');
-    expect(source).toContain('zero warning/error logs');
+    expect(source).toMatch(/fixed General\s+navigation/u);
+    expect(source).toContain(
+      'The Events console report returned zero warning/error messages',
+    );
+    expect(source).toContain('`evorto-markdown-alias-count-terms-390x844.png`');
+    expect(source).toContain(
+      '`evorto-markdown-alias-count-events-390x844.png`',
+    );
     expect(source).toMatch(/The\s+live PR checks are tracked\s+separately/u);
-    expect(source).toContain('latest fully green E2E');
+    expect(source).toMatch(/latest fully green\s+E2E/u);
     expect(source).toMatch(/older completed\s+pushed head/u);
     expect(source).toContain('actual Material overlay panel');
     expect(source).toMatch(/No active inclusive tax rates\s+available/u);

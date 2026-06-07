@@ -827,38 +827,6 @@ const isTakeScreenshotCall = (node: ts.CallExpression): boolean => {
   return ts.isIdentifier(callee) && callee.text === 'takeScreenshot';
 };
 
-const isTestInfoMarkdownAttachmentCall = (
-  node: ts.CallExpression,
-  stringAliases: ReadonlyMap<string, string>,
-): boolean => {
-  const attachmentName = node.arguments[0]
-    ? resolveStaticStringValue(node.arguments[0], stringAliases)
-    : null;
-
-  if (attachmentName !== 'markdown') {
-    return false;
-  }
-
-  const callee = unwrapExpression(node.expression);
-
-  if (
-    !ts.isPropertyAccessExpression(callee) &&
-    !ts.isElementAccessExpression(callee)
-  ) {
-    return false;
-  }
-
-  const receiver = unwrapExpression(
-    getStaticPropertyReceiver(callee) ?? callee,
-  );
-
-  return (
-    ts.isIdentifier(receiver) &&
-    receiver.text === 'testInfo' &&
-    getStaticPropertyName(callee, stringAliases) === 'attach'
-  );
-};
-
 const resolveStaticStringValue = (
   node: ts.Expression,
   stringAliases: ReadonlyMap<string, string> = new Map(),
@@ -4572,12 +4540,461 @@ const countGeneratedMarkdownAttachments = (
     ts.ScriptKind.TS,
   );
   const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const reflectAliases = collectReflectAliases(sourceFile);
+  const markdownAttachmentNameAliases = new Set<string>();
+  const markdownAttachmentNamePropertyAliases = new Set<string>();
+  const markdownAttachFunctionAliases = new Set<string>();
+  const markdownAttachFunctionFactoryAliases = new Set<string>();
+  const markdownAttachFunctionPropertyAliases = new Set<string>([
+    'testInfo.attach',
+  ]);
   let markdownCount = 0;
+
+  const hasPropertyAlias = (
+    node: ts.Expression,
+    propertyAliases: ReadonlySet<string>,
+  ): boolean => {
+    const propertyReference = getStaticOrReflectedPropertyReference(
+      node,
+      sourceFile,
+      staticStringAliases,
+      reflectAliases,
+    );
+
+    return propertyReference ? propertyAliases.has(propertyReference) : false;
+  };
+
+  const isMarkdownAttachmentName = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (
+      resolveStaticStringValue(expression, staticStringAliases) === 'markdown'
+    ) {
+      return true;
+    }
+
+    if (hasPropertyAlias(expression, markdownAttachmentNamePropertyAliases)) {
+      return true;
+    }
+
+    return (
+      ts.isIdentifier(expression) &&
+      markdownAttachmentNameAliases.has(expression.text)
+    );
+  };
+
+  const isTestInfoAttachReference = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (
+      isReflectGetPropertyReference(
+        expression,
+        'attach',
+        staticStringAliases,
+        reflectAliases,
+      )
+    ) {
+      const reflectedTarget = unwrapExpression(
+        (expression as ts.CallExpression).arguments[0],
+      );
+
+      return (
+        ts.isIdentifier(reflectedTarget) && reflectedTarget.text === 'testInfo'
+      );
+    }
+
+    if (
+      !ts.isPropertyAccessExpression(expression) &&
+      !ts.isElementAccessExpression(expression)
+    ) {
+      return false;
+    }
+
+    const receiver = unwrapExpression(
+      getStaticPropertyReceiver(expression) ?? expression,
+    );
+
+    return (
+      ts.isIdentifier(receiver) &&
+      receiver.text === 'testInfo' &&
+      getStaticPropertyName(expression, staticStringAliases) === 'attach'
+    );
+  };
+
+  const isAttachFunctionReference = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (isTestInfoAttachReference(expression)) {
+      return true;
+    }
+
+    if (
+      ts.isCallExpression(expression) &&
+      getStaticPropertyName(expression.expression, staticStringAliases) ===
+        'bind'
+    ) {
+      const receiver = getStaticPropertyReceiver(expression.expression);
+
+      return receiver ? isTestInfoAttachReference(receiver) : false;
+    }
+
+    return false;
+  };
+
+  const isTrackedAttachFunctionReference = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (isAttachFunctionReference(expression)) {
+      return true;
+    }
+
+    if (
+      ts.isCallExpression(expression) &&
+      getStaticPropertyName(expression.expression, staticStringAliases) ===
+        'bind'
+    ) {
+      const receiver = getStaticPropertyReceiver(expression.expression);
+
+      return receiver ? isTrackedAttachFunctionReference(receiver) : false;
+    }
+
+    if (ts.isIdentifier(expression)) {
+      return markdownAttachFunctionAliases.has(expression.text);
+    }
+
+    if (ts.isCallExpression(expression)) {
+      const callee = unwrapExpression(expression.expression);
+
+      if (
+        ts.isIdentifier(callee) &&
+        markdownAttachFunctionFactoryAliases.has(callee.text)
+      ) {
+        return true;
+      }
+    }
+
+    return hasPropertyAlias(expression, markdownAttachFunctionPropertyAliases);
+  };
+
+  const returnsAttachFunctionReference = (
+    node: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression,
+  ): boolean => {
+    if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+      return isTrackedAttachFunctionReference(node.body);
+    }
+
+    if (!ts.isBlock(node.body)) {
+      return false;
+    }
+
+    let returnsAttachFunction = false;
+
+    const visitReturn = (child: ts.Node): void => {
+      if (
+        child !== node.body &&
+        (ts.isArrowFunction(child) ||
+          ts.isFunctionDeclaration(child) ||
+          ts.isFunctionExpression(child))
+      ) {
+        return;
+      }
+
+      if (
+        ts.isReturnStatement(child) &&
+        child.expression &&
+        isTrackedAttachFunctionReference(child.expression)
+      ) {
+        returnsAttachFunction = true;
+      }
+
+      ts.forEachChild(child, visitReturn);
+    };
+
+    visitReturn(node.body);
+
+    return returnsAttachFunction;
+  };
+
+  const getStaticCallArgumentList = (
+    node: ts.Expression | undefined,
+  ): null | ts.Expression[] => {
+    if (!node) {
+      return null;
+    }
+
+    const expression = unwrapExpression(node);
+
+    if (!ts.isArrayLiteralExpression(expression)) {
+      return null;
+    }
+
+    return expression.elements.map((element) => unwrapArrayElement(element));
+  };
+
+  const isMarkdownAttachmentCall = (node: ts.CallExpression): boolean => {
+    const attachmentName = node.arguments[0];
+
+    return (
+      !!attachmentName &&
+      isMarkdownAttachmentName(attachmentName) &&
+      isTrackedAttachFunctionReference(node.expression)
+    );
+  };
+
+  const isIndirectMarkdownAttachmentCall = (
+    node: ts.CallExpression,
+  ): boolean => {
+    const callee = unwrapExpression(node.expression);
+
+    if (
+      ts.isPropertyAccessExpression(callee) ||
+      ts.isElementAccessExpression(callee)
+    ) {
+      const methodName = getStaticPropertyName(callee, staticStringAliases);
+      const receiver = getStaticPropertyReceiver(callee);
+
+      if (
+        methodName === 'call' &&
+        receiver &&
+        isTrackedAttachFunctionReference(receiver)
+      ) {
+        return (
+          !!node.arguments[1] && isMarkdownAttachmentName(node.arguments[1])
+        );
+      }
+
+      if (
+        methodName === 'apply' &&
+        receiver &&
+        isTrackedAttachFunctionReference(receiver)
+      ) {
+        const args = getStaticCallArgumentList(node.arguments[1]);
+
+        return !!args?.[0] && isMarkdownAttachmentName(args[0]);
+      }
+    }
+
+    if (
+      isReflectApplyCallee(
+        node.expression,
+        staticStringAliases,
+        reflectAliases,
+      ) &&
+      node.arguments[0] &&
+      isTrackedAttachFunctionReference(node.arguments[0])
+    ) {
+      const args = getStaticCallArgumentList(node.arguments[2]);
+
+      return !!args?.[0] && isMarkdownAttachmentName(args[0]);
+    }
+
+    return false;
+  };
+
+  const collectAliases = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
+      const initializer = unwrapExpression(node.initializer);
+
+      if (isMarkdownAttachmentName(initializer)) {
+        markdownAttachmentNameAliases.add(node.name.text);
+      }
+
+      if (isTrackedAttachFunctionReference(initializer)) {
+        markdownAttachFunctionAliases.add(node.name.text);
+      }
+
+      if (
+        (ts.isArrowFunction(initializer) ||
+          ts.isFunctionExpression(initializer)) &&
+        returnsAttachFunctionReference(initializer)
+      ) {
+        markdownAttachFunctionFactoryAliases.add(node.name.text);
+      }
+
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isMarkdownAttachmentName,
+        markdownAttachmentNameAliases,
+        markdownAttachmentNamePropertyAliases,
+        staticStringAliases,
+      );
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isTrackedAttachFunctionReference,
+        markdownAttachFunctionAliases,
+        markdownAttachFunctionPropertyAliases,
+        staticStringAliases,
+      );
+
+      if (ts.isArrayLiteralExpression(initializer)) {
+        collectIndexedPropertyAliases(
+          node.name.text,
+          initializer.elements,
+          isMarkdownAttachmentName,
+          markdownAttachmentNamePropertyAliases,
+        );
+        collectIndexedPropertyAliases(
+          node.name.text,
+          initializer.elements,
+          isTrackedAttachFunctionReference,
+          markdownAttachFunctionPropertyAliases,
+        );
+      }
+    }
+
+    if (ts.isVariableDeclaration(node)) {
+      collectObjectRestPropertyAliases(
+        node,
+        markdownAttachmentNamePropertyAliases,
+      );
+      collectObjectRestPropertyAliases(
+        node,
+        markdownAttachFunctionPropertyAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachmentNamePropertyAliases,
+        markdownAttachmentNameAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachFunctionPropertyAliases,
+        markdownAttachFunctionAliases,
+        staticStringAliases,
+      );
+    }
+
+    if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+      collectBindingInitializerAliases(
+        node.name,
+        isMarkdownAttachmentName,
+        markdownAttachmentNameAliases,
+      );
+      collectBindingInitializerAliases(
+        node.name,
+        isTrackedAttachFunctionReference,
+        markdownAttachFunctionAliases,
+      );
+      collectBindingInitializerFunctionAliases(
+        node.name,
+        returnsAttachFunctionReference,
+        markdownAttachFunctionFactoryAliases,
+      );
+    }
+
+    if (ts.isParameter(node)) {
+      collectParameterInitializerAliases(
+        node,
+        isMarkdownAttachmentName,
+        markdownAttachmentNameAliases,
+      );
+      collectParameterInitializerAliases(
+        node,
+        isTrackedAttachFunctionReference,
+        markdownAttachFunctionAliases,
+      );
+      collectParameterInitializerFunctionAliases(
+        node,
+        returnsAttachFunctionReference,
+        markdownAttachFunctionFactoryAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachFunctionPropertyAliases,
+        markdownAttachFunctionAliases,
+        staticStringAliases,
+      );
+    }
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      returnsAttachFunctionReference(node)
+    ) {
+      markdownAttachFunctionFactoryAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isMarkdownAttachmentName(node.right)
+    ) {
+      markdownAttachmentNameAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isTrackedAttachFunctionReference(node.right)
+    ) {
+      markdownAttachFunctionAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      (ts.isArrowFunction(node.right) || ts.isFunctionExpression(node.right)) &&
+      returnsAttachFunctionReference(node.right)
+    ) {
+      markdownAttachFunctionFactoryAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
+      isMarkdownAttachmentName(node.right)
+    ) {
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+        staticStringAliases,
+      );
+
+      if (propertyReference) {
+        markdownAttachmentNamePropertyAliases.add(propertyReference);
+      }
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      (ts.isPropertyAccessExpression(node.left) ||
+        ts.isElementAccessExpression(node.left)) &&
+      isTrackedAttachFunctionReference(node.right)
+    ) {
+      const propertyReference = getStaticPropertyReference(
+        node.left,
+        sourceFile,
+        staticStringAliases,
+      );
+
+      if (propertyReference) {
+        markdownAttachFunctionPropertyAliases.add(propertyReference);
+      }
+    }
+
+    ts.forEachChild(node, collectAliases);
+  };
 
   const visit = (node: ts.Node): void => {
     if (
       ts.isCallExpression(node) &&
-      isTestInfoMarkdownAttachmentCall(node, staticStringAliases)
+      (isMarkdownAttachmentCall(node) || isIndirectMarkdownAttachmentCall(node))
     ) {
       markdownCount += 1;
     }
@@ -4585,8 +5002,26 @@ const countGeneratedMarkdownAttachments = (
     ts.forEachChild(node, visit);
   };
 
-  visit(sourceFile);
+  let previousAliasCount = -1;
 
+  while (
+    previousAliasCount !==
+    markdownAttachmentNameAliases.size +
+      markdownAttachmentNamePropertyAliases.size +
+      markdownAttachFunctionAliases.size +
+      markdownAttachFunctionFactoryAliases.size +
+      markdownAttachFunctionPropertyAliases.size
+  ) {
+    previousAliasCount =
+      markdownAttachmentNameAliases.size +
+      markdownAttachmentNamePropertyAliases.size +
+      markdownAttachFunctionAliases.size +
+      markdownAttachFunctionFactoryAliases.size +
+      markdownAttachFunctionPropertyAliases.size;
+    collectAliases(sourceFile);
+  }
+
+  visit(sourceFile);
   return markdownCount;
 };
 
@@ -8274,6 +8709,29 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/aliased-markdown-body.doc.ts:9:13',
       'tests/docs/example/aliased-markdown-body.doc.ts:12:13',
     ]);
+  });
+
+  it('counts aliased generated documentation markdown attachments for the manifest guard', () => {
+    const aliasedMarkdownCountSource = `
+      const markdownName = 'mark' + 'down';
+      const { attach: destructuredAttachMarkdown } = testInfo;
+      await testInfo.attach('markdown', { body: 'Direct section body.' });
+      await destructuredAttachMarkdown(markdownName, { body: 'Destructured section body.' });
+      const attachMarkdown = testInfo.attach.bind(testInfo);
+      await attachMarkdown(markdownName, { body: 'Bound section body.' });
+      const attachMarkdownGroup = { attachMarkdown };
+      await attachMarkdownGroup.attachMarkdown('markdown', { body: 'Grouped section body.' });
+      const attachMarkdownHelpers = [attachMarkdown];
+      await attachMarkdownHelpers.at(0)('markdown', { body: 'Indexed section body.' });
+      await recordDocumentationNote('markdown', { body: 'Not a Playwright docs section.' });
+    `;
+
+    expect(
+      countGeneratedMarkdownAttachments(
+        'tests/docs/example/aliased-markdown-count.doc.ts',
+        aliasedMarkdownCountSource,
+      ),
+    ).toBe(5);
   });
 
   it('requires indirect documentation markdown attachments to include explanatory body text', () => {
