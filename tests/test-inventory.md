@@ -1747,3 +1747,21 @@ provider outcomes without live identifiers.
   generated docs into ignored `test-results/docs` paths and invoke the local
   `node_modules/.bin/playwright` binary, while only `test:e2e:docs:publish` may
   target the sibling `evorto-pages` checkout.
+- A pushed-head General Browser refresh on PR head `533cf16b` keeps the public
+  General/mobile evidence current. `bun run dev:status` passed first, then a
+  fresh in-app Browser tab used the Browser `viewport` capability to recheck
+  all 10 anonymous General routes at 320x740, 390x844, and 1440x900: `/`,
+  `/events`, the first seeded public event detail, `/legal/imprint`,
+  `/legal/privacy`, `/legal/terms`, `/403`, `/500`, `/404`, and
+  `/missing-general-page`. All 30 route/viewport checks passed with the current
+  product copy for root and `/403`, expected content present, no loading or
+  application-error text, no horizontal overflow, no blocking overlays, and zero
+  Browser warning/error logs. The inspected screenshots
+  `/tmp/evorto-general-browser-533cf16b-events-list-320x740.png`,
+  `/tmp/evorto-general-browser-533cf16b-event-detail-320x740.png`,
+  `/tmp/evorto-general-browser-533cf16b-terms-legal-page-390x844.png`,
+  `/tmp/evorto-general-browser-533cf16b-wildcard-not-found-redirect-390x844.png`,
+  and `/tmp/evorto-general-browser-533cf16b-events-list-1440x900.png` show
+  seeded Material event cards with real icons/times, event-detail registration
+  content, legal fallback text, wildcard not-found fallback text, fixed
+  Events/Login mobile navigation, and the desktop event-list layout.

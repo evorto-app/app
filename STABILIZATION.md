@@ -7120,3 +7120,28 @@ the not-found fallback instead of unrelated or blank evidence. The matching
 focused `bun run test:e2e:public-general-viewports` run passed against the same
 running app with 2 tests, covering all anonymous General routes at 320x740,
 390x844, and 1440x900.
+
+A later pushed-head General Browser refresh on PR head `533cf16b` kept the
+recovered runtime evidence current without waiting for the full E2E matrix:
+`bun run dev:status` passed for `BASE_URL=http://localhost:4218`, including the
+database validation query, Docker/Compose preflights, `/legal/terms` route
+probe, and Neon dry-run. A fresh in-app Browser tab then set the Browser
+`viewport` capability for 320x740, 390x844, and 1440x900 and rechecked all 10
+anonymous General routes: `/`, `/events`, the first seeded public event detail,
+`/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`, `/500`, `/404`, and
+`/missing-general-page`. All 30 route/viewport checks passed after correcting
+the runtime text expectations to the current product copy (`/` renders the
+seeded public events list with `Login`, and `/403` renders `Access not
+allowed`). The Browser audit reported expected content, no visible loading
+placeholders, no rendered application-error text, no horizontal overflow, no
+blocking overlays, and zero Browser warning/error logs. The inspected
+screenshots
+`/tmp/evorto-general-browser-533cf16b-events-list-320x740.png`,
+`/tmp/evorto-general-browser-533cf16b-event-detail-320x740.png`,
+`/tmp/evorto-general-browser-533cf16b-terms-legal-page-390x844.png`,
+`/tmp/evorto-general-browser-533cf16b-wildcard-not-found-redirect-390x844.png`,
+and `/tmp/evorto-general-browser-533cf16b-events-list-1440x900.png` show
+meaningful seeded Material event cards with icons/times, event-detail
+registration content, hosted legal fallback copy, the wildcard not-found
+fallback, fixed Events/Login navigation on mobile, and the desktop event-list
+screenshot.

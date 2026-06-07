@@ -6905,9 +6905,13 @@ describe('stabilization source', () => {
     const currentHeadRecovery = source.match(
       /A current-head recovery on PR head `14fe958b`[\s\S]*?390x844, and 1440x900\./u,
     )?.[0];
+    const pushedHeadGeneralRefresh = source.match(
+      /A later pushed-head General Browser refresh on PR head `533cf16b`[\s\S]*?desktop event-list\s+screenshot\./u,
+    )?.[0];
 
     expect(checkpoint).toBeDefined();
     expect(currentHeadRecovery).toBeDefined();
+    expect(pushedHeadGeneralRefresh).toBeDefined();
     expect(checkpoint).toContain('serving the current local branch');
     expect(checkpoint).toContain('local\n  head `db7845e5e`');
     expect(checkpoint).toContain(
@@ -7161,6 +7165,80 @@ describe('stabilization source', () => {
     expect(currentHeadRecovery).toMatch(
       /covering all anonymous General routes at 320x740,\s+390x844, and 1440x900/u,
     );
+    expect(pushedHeadGeneralRefresh).toContain('PR head `533cf16b`');
+    expect(pushedHeadGeneralRefresh).toContain('`bun run dev:status` passed');
+    expect(pushedHeadGeneralRefresh).toContain(
+      '`BASE_URL=http://localhost:4218`',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      'database validation query, Docker/Compose preflights, `/legal/terms` route\nprobe, and Neon dry-run',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      'fresh in-app Browser tab then set the Browser\n`viewport` capability',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      '320x740, 390x844, and 1440x900',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      'all 10\nanonymous General routes',
+    );
+    expect(pushedHeadGeneralRefresh).toContain('`/`, `/events`');
+    expect(pushedHeadGeneralRefresh).toContain(
+      'first seeded public event detail',
+    );
+    expect(pushedHeadGeneralRefresh).toContain('/legal/imprint');
+    expect(pushedHeadGeneralRefresh).toContain('/legal/privacy');
+    expect(pushedHeadGeneralRefresh).toContain('/legal/terms');
+    expect(pushedHeadGeneralRefresh).toContain('/403');
+    expect(pushedHeadGeneralRefresh).toContain('/500');
+    expect(pushedHeadGeneralRefresh).toContain('/404');
+    expect(pushedHeadGeneralRefresh).toContain('/missing-general-page');
+    expect(pushedHeadGeneralRefresh).toMatch(
+      /All 30 route\/viewport checks passed/u,
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      '`/` renders the\nseeded public events list with `Login`',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      '/403` renders `Access not\nallowed`',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      'no visible loading\nplaceholders',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      'no rendered application-error text',
+    );
+    expect(pushedHeadGeneralRefresh).toContain('no horizontal overflow');
+    expect(pushedHeadGeneralRefresh).toContain('no\nblocking overlays');
+    expect(pushedHeadGeneralRefresh).toContain(
+      'zero Browser warning/error logs',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      '/tmp/evorto-general-browser-533cf16b-events-list-320x740.png',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      '/tmp/evorto-general-browser-533cf16b-event-detail-320x740.png',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      '/tmp/evorto-general-browser-533cf16b-terms-legal-page-390x844.png',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      '/tmp/evorto-general-browser-533cf16b-wildcard-not-found-redirect-390x844.png',
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      '/tmp/evorto-general-browser-533cf16b-events-list-1440x900.png',
+    );
+    expect(pushedHeadGeneralRefresh).toMatch(
+      /meaningful seeded Material event cards/u,
+    );
+    expect(pushedHeadGeneralRefresh).toContain(
+      'event-detail\nregistration content',
+    );
+    expect(pushedHeadGeneralRefresh).toContain('hosted legal fallback copy');
+    expect(pushedHeadGeneralRefresh).toContain('wildcard not-found\nfallback');
+    expect(pushedHeadGeneralRefresh).toContain(
+      'fixed Events/Login navigation on mobile',
+    );
     expect(testInventory).toContain(
       'A current-head recovery on PR head `14fe958b`',
     );
@@ -7171,6 +7249,17 @@ describe('stabilization source', () => {
     expect(testInventory).toContain(
       '`bun run test:e2e:public-general-viewports` run passed',
     );
+    expect(testInventory).toContain(
+      'A pushed-head General Browser refresh on PR head `533cf16b`',
+    );
+    expect(testInventory).toContain('All 30 route/viewport checks passed');
+    expect(testInventory).toContain(
+      '/tmp/evorto-general-browser-533cf16b-event-detail-320x740.png',
+    );
+    expect(testInventory).toContain(
+      'seeded Material event cards with real icons/times',
+    );
+    expect(testInventory).toContain('wildcard not-found fallback text');
     expect(checkpoint).toContain('Playwright-test MCP Browser planner');
     expect(checkpoint).toMatch(/`DATABASE_URL` was\s+undefined/u);
     expect(checkpoint).toContain(
