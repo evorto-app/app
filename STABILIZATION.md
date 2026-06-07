@@ -6698,8 +6698,12 @@ skip/focus/runtime inventory. Constant-backed modifier spellings are resolved
 too, so `const key = 'skip'; test[key](...)`,
 `test.describe[configureKey](...)`, `page[pauseKey](...)`, and
 `page[waitForTimeoutKey](...)` cannot hide skipped, focused, slowed, serial,
-debug, or fixed-wait coverage changes behind local strings. Interactive debug
-hooks and fixed waits use the same whole-file source scan, so
+debug, or fixed-wait coverage changes behind local strings. Reflection-based
+modifier access is covered too, so `Reflect.get(...)`, `Reflect.apply(...)`,
+and local `Reflect` aliases cannot hide `test.skip`/`fixme`/`only`/`slow`,
+`test.describe.configure`, `page.pause`, or `page.waitForTimeout` behind the
+global reflection API. Interactive debug hooks and fixed waits use the same
+whole-file source scan, so
 `page['pause'](...)`, local `page.pause` aliases, direct
 `page.pause.call/apply/bind(...)` forwarding, split `.waitForTimeout(...)`,
 local `page.waitForTimeout` aliases, direct

@@ -523,7 +523,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `const key = 'skip'; test[key](...)`, `test.describe[configureKey](...)`,
   `page[pauseKey](...)`, and `page[waitForTimeoutKey](...)` are resolved before
   inventory comparison, so aliases cannot hide skipped, focused, slowed, serial,
-  debug, or fixed-wait coverage changes. The
+  debug, or fixed-wait coverage changes. Reflection-based modifier access
+  through `Reflect.get(...)`, `Reflect.apply(...)`, and local `Reflect` aliases
+  is covered for `test.skip`/`fixme`/`only`/`slow`,
+  `test.describe.configure`, `page.pause`, and `page.waitForTimeout` as well.
+  The
   current runtime-modifier allowlist is limited to
   `docs/events/register.doc.ts`: the registration documentation flow runs
   serially because it mutates shared registration state, and the free and paid

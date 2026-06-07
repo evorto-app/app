@@ -259,6 +259,36 @@ const collectStaticStringAliases = (
   return aliases;
 };
 
+const collectReflectAliases = (source: string): ReadonlySet<string> => {
+  const aliases = new Set<string>();
+  const reflectAliasPattern = new RegExp(
+    String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*(?<source>${identifierPattern})\b`,
+    'g',
+  );
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (const match of source.matchAll(reflectAliasPattern)) {
+      const alias = match.groups?.alias;
+      const sourceName = match.groups?.source;
+
+      if (
+        alias !== undefined &&
+        sourceName !== undefined &&
+        (sourceName === 'Reflect' || aliases.has(sourceName)) &&
+        !aliases.has(alias)
+      ) {
+        aliases.add(alias);
+        changed = true;
+      }
+    }
+  }
+
+  return aliases;
+};
+
 const collectStaticPropertyEntriesForSource = (
   relativePath: string,
   source: string,
@@ -288,6 +318,119 @@ const collectStaticPropertyEntriesForSource = (
       '/',
     );
   });
+};
+
+const collectReflectPropertyEntriesForSource = (
+  relativePath: string,
+  source: string,
+  ownerPattern: string,
+  names: readonly string[],
+) => {
+  const allowedNames = new Set(names);
+  const staticStringAliases = collectStaticStringAliases(source);
+  const reflectAliases = collectReflectAliases(source);
+  const reflectOwnerPattern = String.raw`(?:Reflect${
+    reflectAliases.size > 0
+      ? `|${[...reflectAliases].map(escapeRegExp).join('|')}`
+      : ''
+  })`;
+  const reflectGetAccessPattern = String.raw`${reflectOwnerPattern}\s*(?:\.\s*get\b|\[\s*['"]get['"]\s*\])`;
+  const reflectApplyAccessPattern = String.raw`${reflectOwnerPattern}\s*(?:\.\s*apply\b|\[\s*['"]apply['"]\s*\])`;
+  const reflectedPropertyExpressionPattern = String.raw`(?<property>(?:'[^']*'|"[^"]*"|${identifierPattern}(?:\s*\+\s*(?:'[^']*'|"[^"]*"|${identifierPattern}))*))`;
+  const directReflectGetPattern = new RegExp(
+    String.raw`\b${reflectGetAccessPattern}\s*\(\s*${ownerPattern}\s*,\s*${reflectedPropertyExpressionPattern}\s*\)\s*(?:\(|\.\s*(?:call|apply|bind)\b|\[\s*['"](?:call|apply|bind)['"]\s*\])`,
+    'g',
+  );
+  const reflectGetAliasPattern = new RegExp(
+    String.raw`\b(?:const|let|var)\s+(?<alias>${identifierPattern})\s*=\s*${reflectGetAccessPattern}\s*\(\s*${ownerPattern}\s*,\s*${reflectedPropertyExpressionPattern}\s*\)`,
+    'g',
+  );
+  const reflectApplyPropertyPattern = new RegExp(
+    String.raw`\b${reflectApplyAccessPattern}\s*\(\s*${ownerPattern}${playwrightModifierAccessPattern(
+      names.map(escapeRegExp).join('|'),
+    )}`,
+    'g',
+  );
+  const reflectApplyGetPattern = new RegExp(
+    String.raw`\b${reflectApplyAccessPattern}\s*\(\s*${reflectGetAccessPattern}\s*\(\s*${ownerPattern}\s*,\s*${reflectedPropertyExpressionPattern}\s*\)`,
+    'g',
+  );
+
+  const resolvePropertyName = (expression: string): string | undefined =>
+    resolveStaticStringExpression(expression, staticStringAliases);
+
+  const directEntries = [
+    ...[...source.matchAll(directReflectGetPattern)].flatMap((match) => {
+      const propertyName = resolvePropertyName(match.groups?.property ?? '');
+
+      if (propertyName === undefined || !allowedNames.has(propertyName)) {
+        return [];
+      }
+
+      const offset = match.index ?? 0;
+
+      return `${relativePath}:${lineNumberForOffset(source, offset)}:${formatPatternMatch(match[0])} (${propertyName} Reflect.get)`.replaceAll(
+        '\\',
+        '/',
+      );
+    }),
+    ...[...source.matchAll(reflectApplyPropertyPattern)].map((match) => {
+      const offset = match.index ?? 0;
+
+      return `${relativePath}:${lineNumberForOffset(source, offset)}:${formatPatternMatch(match[0])} (Reflect.apply)`.replaceAll(
+        '\\',
+        '/',
+      );
+    }),
+    ...[...source.matchAll(reflectApplyGetPattern)].flatMap((match) => {
+      const propertyName = resolvePropertyName(match.groups?.property ?? '');
+
+      if (propertyName === undefined || !allowedNames.has(propertyName)) {
+        return [];
+      }
+
+      const offset = match.index ?? 0;
+
+      return `${relativePath}:${lineNumberForOffset(source, offset)}:${formatPatternMatch(match[0])} (${propertyName} Reflect.apply get)`.replaceAll(
+        '\\',
+        '/',
+      );
+    }),
+  ];
+
+  const reflectedAliases = new Map<string, string>();
+
+  for (const match of source.matchAll(reflectGetAliasPattern)) {
+    const alias = match.groups?.alias;
+    const propertyName = resolvePropertyName(match.groups?.property ?? '');
+
+    if (
+      alias !== undefined &&
+      propertyName !== undefined &&
+      allowedNames.has(propertyName)
+    ) {
+      reflectedAliases.set(alias, propertyName);
+    }
+  }
+
+  const aliasEntries = [...reflectedAliases.entries()].flatMap(
+    ([alias, propertyName]) => {
+      const aliasCallPattern = new RegExp(
+        String.raw`\b${escapeRegExp(alias)}\s*\(`,
+        'g',
+      );
+
+      return collectPatternEntriesForSource(
+        relativePath,
+        source,
+        aliasCallPattern,
+      )
+        .filter((entry) => !entry.includes(`:${alias} =`))
+        .map((entry) => `${entry} (${propertyName} Reflect.get alias)`);
+    },
+  );
+
+  return [...directEntries, ...aliasEntries];
 };
 
 const collectPatternEntries = (pattern: RegExp) =>
@@ -500,6 +643,17 @@ const collectPlaywrightSkipEntries = () => [
       ['skip', 'fixme'],
     );
   }),
+  ...collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectReflectPropertyEntriesForSource(
+      relativePath,
+      source,
+      playwrightCallablePattern.source,
+      ['skip', 'fixme'],
+    );
+  }),
   ...collectAliasedModifierEntries(['skip', 'fixme']),
 ];
 
@@ -510,6 +664,17 @@ const collectPlaywrightRuntimeModifierEntries = () => [
     const relativePath = path.relative(repositoryRoot, filePath);
 
     return collectStaticPropertyEntriesForSource(
+      relativePath,
+      source,
+      String.raw`\b(?:test${playwrightDescribeAccessPattern}|test)`,
+      ['slow', 'configure'],
+    );
+  }),
+  ...collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectReflectPropertyEntriesForSource(
       relativePath,
       source,
       String.raw`\b(?:test${playwrightDescribeAccessPattern}|test)`,
@@ -532,6 +697,17 @@ const collectFocusedOnlyEntries = () => [
       ['only'],
     );
   }),
+  ...collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectReflectPropertyEntriesForSource(
+      relativePath,
+      source,
+      playwrightCallablePattern.source,
+      ['only'],
+    );
+  }),
   ...collectAliasedModifierEntries(['only']),
 ];
 
@@ -543,6 +719,17 @@ const collectInteractiveDebugEntries = () => [
     const relativePath = path.relative(repositoryRoot, filePath);
 
     return collectStaticPropertyEntriesForSource(
+      relativePath,
+      source,
+      String.raw`\bpage`,
+      ['pause'],
+    );
+  }),
+  ...collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectReflectPropertyEntriesForSource(
       relativePath,
       source,
       String.raw`\bpage`,
@@ -609,6 +796,17 @@ const collectFixedWaitEntries = () => [
     const relativePath = path.relative(repositoryRoot, filePath);
 
     return collectStaticPropertyEntriesForSource(
+      relativePath,
+      source,
+      String.raw`\bpage`,
+      ['waitForTimeout'],
+    );
+  }),
+  ...collectTypeScriptFiles(testsRoot).flatMap((filePath) => {
+    const source = readFileSync(filePath, 'utf8');
+    const relativePath = path.relative(repositoryRoot, filePath);
+
+    return collectReflectPropertyEntriesForSource(
       relativePath,
       source,
       String.raw`\bpage`,
@@ -957,6 +1155,85 @@ await page['waitForTimeout'].apply(page, [100]);`;
     ).toEqual([
       'tests/specs/example/indirect-page-methods.spec.ts:3:page.waitForTimeout.bind',
       "tests/specs/example/indirect-page-methods.spec.ts:4:page['waitForTimeout'].apply",
+    ]);
+  });
+
+  it('recognizes reflected Playwright modifiers and page wait helpers', () => {
+    const reflectedModifierSource = `const skipKey = 'skip';
+Reflect.get(test, skipKey)('hidden skip', () => {});
+const reflectedFixme = Reflect.get(test.describe, 'fixme');
+reflectedFixme('hidden fixme', () => {});
+const reflectMirror = Reflect;
+reflectMirror.get(test.describe, 'only')('hidden focus', () => {});
+const configureKey = 'configure';
+reflectMirror.get(test.describe, configureKey)({ mode: 'serial' });
+const reflectedSlow = reflectMirror.get(test, 'slow');
+reflectedSlow();
+Reflect.apply(test.skip, test, ['hidden apply skip', () => {}]);
+reflectMirror.apply(Reflect.get(test.describe, 'only'), test.describe, ['hidden apply focus', () => {}]);
+const pauseKey = 'pause';
+reflectMirror.get(page, pauseKey)();
+Reflect.apply(page.pause, page, []);
+const waitKey = 'waitFor' + 'Timeout';
+const reflectedWait = Reflect.get(page, waitKey);
+await reflectedWait(100);
+reflectMirror.apply(Reflect.get(page, waitKey), page, [100]);`;
+
+    expect(
+      collectReflectPropertyEntriesForSource(
+        'tests/specs/example/reflected-modifiers.spec.ts',
+        reflectedModifierSource,
+        playwrightCallablePattern.source,
+        ['skip', 'fixme'],
+      ),
+    ).toEqual([
+      'tests/specs/example/reflected-modifiers.spec.ts:2:Reflect.get(test, skipKey)( (skip Reflect.get)',
+      'tests/specs/example/reflected-modifiers.spec.ts:11:Reflect.apply(test.skip (Reflect.apply)',
+      'tests/specs/example/reflected-modifiers.spec.ts:4:reflectedFixme( (fixme Reflect.get alias)',
+    ]);
+    expect(
+      collectReflectPropertyEntriesForSource(
+        'tests/specs/example/reflected-modifiers.spec.ts',
+        reflectedModifierSource,
+        playwrightCallablePattern.source,
+        ['only'],
+      ),
+    ).toEqual([
+      "tests/specs/example/reflected-modifiers.spec.ts:6:reflectMirror.get(test.describe, 'only')( (only Reflect.get)",
+      "tests/specs/example/reflected-modifiers.spec.ts:12:reflectMirror.apply(Reflect.get(test.describe, 'only') (only Reflect.apply get)",
+    ]);
+    expect(
+      collectReflectPropertyEntriesForSource(
+        'tests/specs/example/reflected-modifiers.spec.ts',
+        reflectedModifierSource,
+        String.raw`\b(?:test${playwrightDescribeAccessPattern}|test)`,
+        ['slow', 'configure'],
+      ),
+    ).toEqual([
+      'tests/specs/example/reflected-modifiers.spec.ts:8:reflectMirror.get(test.describe, configureKey)( (configure Reflect.get)',
+      'tests/specs/example/reflected-modifiers.spec.ts:10:reflectedSlow( (slow Reflect.get alias)',
+    ]);
+    expect(
+      collectReflectPropertyEntriesForSource(
+        'tests/specs/example/reflected-modifiers.spec.ts',
+        reflectedModifierSource,
+        String.raw`\bpage`,
+        ['pause'],
+      ),
+    ).toEqual([
+      'tests/specs/example/reflected-modifiers.spec.ts:14:reflectMirror.get(page, pauseKey)( (pause Reflect.get)',
+      'tests/specs/example/reflected-modifiers.spec.ts:15:Reflect.apply(page.pause (Reflect.apply)',
+    ]);
+    expect(
+      collectReflectPropertyEntriesForSource(
+        'tests/specs/example/reflected-modifiers.spec.ts',
+        reflectedModifierSource,
+        String.raw`\bpage`,
+        ['waitForTimeout'],
+      ),
+    ).toEqual([
+      'tests/specs/example/reflected-modifiers.spec.ts:19:reflectMirror.apply(Reflect.get(page, waitKey) (waitForTimeout Reflect.apply get)',
+      'tests/specs/example/reflected-modifiers.spec.ts:18:reflectedWait( (waitForTimeout Reflect.get alias)',
     ]);
   });
 

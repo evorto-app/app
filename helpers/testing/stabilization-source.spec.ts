@@ -4521,6 +4521,15 @@ describe('stabilization source', () => {
     ).toContain('page[waitKey]');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('reflected-modifiers.spec.ts');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('Reflect.get(test, skipKey)');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
+    ).toContain('reflectMirror.apply(Reflect.get(page, waitKey)');
+    expect(
+      readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
     ).toContain('split-modifiers.spec.ts');
     expect(
       readSource('helpers/testing/playwright-skip-inventory.spec.ts'),
@@ -4550,6 +4559,10 @@ describe('stabilization source', () => {
     expect(inventory).toContain('test.describe[configureKey](...)');
     expect(inventory).toContain('page[pauseKey](...)');
     expect(inventory).toContain('page[waitForTimeoutKey](...)');
+    expect(inventory).toContain('Reflection-based modifier access');
+    expect(inventory).toContain('Reflect.get(...)');
+    expect(inventory).toContain('Reflect.apply(...)');
+    expect(inventory).toContain('local `Reflect` aliases');
     expect(inventory).toContain("page['pause'](...)");
     expect(inventory).toContain('local aliases of `page.pause`');
     expect(inventory).toContain('direct `page.pause.call/apply/bind(...)`');
@@ -4598,6 +4611,10 @@ describe('stabilization source', () => {
     expect(source).toContain('test.describe[configureKey](...)');
     expect(source).toContain('page[pauseKey](...)');
     expect(source).toContain('page[waitForTimeoutKey](...)');
+    expect(source).toContain('Reflection-based\nmodifier access');
+    expect(source).toContain('Reflect.get(...)');
+    expect(source).toContain('Reflect.apply(...)');
+    expect(source).toContain('local `Reflect` aliases');
     expect(source).toContain('skip/focus/runtime inventory');
     expect(source).toContain("page['pause'](...)");
     expect(source).toContain('local `page.pause` aliases');
