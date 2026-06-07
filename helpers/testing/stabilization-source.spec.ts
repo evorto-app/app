@@ -2052,7 +2052,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('weak Markdown body text');
     expect(inventory).toContain('explanatory body text');
     expect(inventory).toMatch(
-      /tracks aliased Markdown attachment\s+helpers and names through copied groups,\s+indexed lists,\s+parameter destructuring\s+with constant-backed computed keys for both the weak-body and markdown-count\s+guards,\s+assigned local aliases/u,
+      /tracks aliased Markdown attachment\s+helpers and names through copied groups,\s+indexed lists,\s+parameter destructuring\s+with constant-backed computed keys for the weak-body,\s+markdown-count,\s+and\s+screenshot-density\s+guards,\s+assigned local aliases/u,
     );
     expect(inventory).toMatch(
       /follows aliased Markdown attachment helpers and\s+names for that screenshot-density reset including assigned local aliases/u,
@@ -2099,6 +2099,9 @@ describe('stabilization source', () => {
       'requires parameter-destructured documentation markdown attachments to include explanatory body text',
     );
     expect(generatedDocumentationSource).toContain(
+      'keeps screenshots close to parameter-computed explanatory markdown attachments',
+    );
+    expect(generatedDocumentationSource).toContain(
       'const { attach: destructuredAttachMarkdown } = testInfo',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2116,8 +2119,20 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'parameter-destructured-markdown-body.doc.ts',
     );
+    expect(generatedDocumentationSource).toContain(
+      'parameter-computed-dense-screenshot-run.doc.ts',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'async function renderDensitySections',
+    );
+    expect(generatedDocumentationSource).toContain(
+      '[attachKey]: attachMarkdown',
+    );
     expect(generatedDocumentationSource).toMatch(
       /collectDestructuredPropertyAliases\(\s*node,\s*sourceFile,\s*markdownAttachmentNamePropertyAliases,\s*markdownAttachmentNameAliases,\s*staticStringAliases/u,
+    );
+    expect(generatedDocumentationSource).toMatch(
+      /collectDestructuredPropertyAliases\(\s*node,\s*sourceFile,\s*markdownAttachFunctionPropertyAliases,\s*markdownAttachFunctionAliases,\s*staticStringAliases/u,
     );
     expect(generatedDocumentationSource).toMatch(
       /collectPropertyBindingAliases\(\s*node\.name,\s*'attach',\s*markdownAttachFunctionAliases,\s*staticStringAliases/u,
@@ -5824,30 +5839,24 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toContain(
-      'generated-doc weak screenshot target detection now\ntracks parameter-destructured generic shell',
+      'generated-doc screenshot-density detection now tracks\nparameter-destructured Markdown names',
     );
-    expect(source).toContain('single-control, and\nicon/media targets');
-    expect(source).toContain('meaningful-target checks run');
-    expect(source).toContain("`[shellKey]: page.locator('main')`");
-    expect(source).toContain("`[broadKey]: page.locator('section')`");
-    expect(source).toContain(
-      "`[singleKey]: page.getByRole('button', { name: 'Save' })`",
+    expect(source).toContain('attach helpers from constant-backed computed');
+    expect(source).toContain('two-screenshots-per-explanatory-section limit');
+    expect(source).toContain("`[markdownNameKey]: 'markdown'`");
+    expect(source).toContain('`[attachKey]: testInfo.attach.bind(testInfo)`');
+    expect(source).toContain('`[markdownNameKey]: markdownName`');
+    expect(source).toContain('`[attachKey]: attachMarkdown`');
+    expect(source).toMatch(
+      /rejects the third screenshots at lines\s+29 and 52/u,
     );
-    expect(source).toContain("`[iconKey]: page.locator('svg')`");
-    expect(source).toContain('`[shellKey]: shellTarget`');
-    expect(source).toContain('`[broadKey]: broadTarget`');
-    expect(source).toContain('`[singleKey]: singleTarget`');
-    expect(source).toContain('`[iconKey]: iconTarget`');
-    expect(source).toContain(
-      '`takeScreenshot(...)` calls that use those weak targets',
-    );
-    expect(source).toContain(
-      'hide generic page shells, broad sections, button-only crops, or icon-only\nimages by moving the screenshot target through a computed-key parameter object',
+    expect(source).toMatch(
+      /hide screenshot clusters without nearby\s+explanatory prose by moving Markdown attachment names or helpers into\s+computed-key parameter objects/u,
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 205 tests');
+    expect(source).toContain('with 206 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5872,7 +5881,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=parameter-computed-weak-target-source-guard',
+      '/legal/terms?stabilizationEvidence=parameter-computed-density-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');

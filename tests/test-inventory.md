@@ -725,10 +725,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   rejects weak Markdown body text so generated docs keep explanatory body text
   before generated markdown is written, tracks aliased Markdown attachment
   helpers and names through copied groups, indexed lists, parameter destructuring
-  with constant-backed computed keys for both the weak-body and markdown-count
-  guards, assigned local aliases, returned attach-helper factories, copied
-  returned attach-helper groups including object-rest copies, `call(...)`,
-  `apply(...)`, inline `bind(...)(...)`, and
+  with constant-backed computed keys for the weak-body, markdown-count, and
+  screenshot-density guards, assigned local aliases, returned attach-helper
+  factories, copied returned attach-helper groups including object-rest copies,
+  `call(...)`, `apply(...)`, inline `bind(...)(...)`, and
   `Reflect.apply(...)`, and rejects per-section source bodies shorter than 120
   static characters so one long section cannot mask a thin generated-doc
   section in the same file. It also rejects screenshots

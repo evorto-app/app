@@ -2352,6 +2352,61 @@ const findDenseScreenshotRunsBetweenMarkdown = (
       markdownAttachFunctionFactoryAliases.add(node.left.text);
     }
 
+    if (ts.isParameter(node)) {
+      collectParameterInitializerAliases(
+        node,
+        isMarkdownAttachmentName,
+        markdownAttachmentNameAliases,
+      );
+      collectParameterInitializerAliases(
+        node,
+        isTrackedAttachFunctionReference,
+        markdownAttachFunctionAliases,
+      );
+      collectParameterInitializerFunctionAliases(
+        node,
+        returnsAttachFunctionReference,
+        markdownAttachFunctionFactoryAliases,
+      );
+      collectPropertyBindingAliases(
+        node.name,
+        'attach',
+        markdownAttachFunctionAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachmentNamePropertyAliases,
+        markdownAttachmentNameAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachFunctionPropertyAliases,
+        markdownAttachFunctionAliases,
+        staticStringAliases,
+      );
+    }
+
+    if (ts.isVariableDeclaration(node)) {
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachmentNamePropertyAliases,
+        markdownAttachmentNameAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
+        markdownAttachFunctionPropertyAliases,
+        markdownAttachFunctionAliases,
+        staticStringAliases,
+      );
+    }
+
     ts.forEachChild(node, collectAliases);
   };
 
@@ -9269,6 +9324,78 @@ describe('generated docs source current behavior', () => {
       ),
     ).toEqual([
       'tests/docs/example/inline-bound-dense-screenshot-run.doc.ts:22:13',
+    ]);
+  });
+
+  it('keeps screenshots close to parameter-computed explanatory markdown attachments', () => {
+    const parameterComputedDenseScreenshotSource = `
+      const markdownNameKey = 'name';
+      const attachKey = 'attach';
+      const markdownPieces = {
+        [markdownNameKey]: 'markdown',
+        [attachKey]: testInfo.attach.bind(testInfo),
+      };
+      async function renderDensitySections({
+        [markdownNameKey]: markdownName,
+        [attachKey]: attachMarkdown,
+      } = markdownPieces) {
+        await testInfo.attach(markdownName, {
+          body: \`
+            This parameter-computed documentation section explains the next screenshot pair with enough product context for generated docs.
+          \`,
+        });
+        await takeScreenshot(
+          testInfo,
+          firstParameterComputedSurface,
+          page,
+          'First parameter computed markdown cluster screenshot with descriptive caption',
+        );
+        await takeScreenshot(
+          testInfo,
+          secondParameterComputedSurface,
+          page,
+          'Second parameter computed markdown cluster screenshot with descriptive caption',
+        );
+        await takeScreenshot(
+          testInfo,
+          thirdParameterComputedSurface,
+          page,
+          'Third parameter computed markdown cluster screenshot should require text',
+        );
+        await attachMarkdown(markdownName, {
+          body: \`
+            This parameter-computed helper documentation section explains the next screenshot pair with enough product context.
+          \`,
+        });
+        await takeScreenshot(
+          testInfo,
+          firstParameterComputedHelperSurface,
+          page,
+          'First parameter computed helper markdown cluster screenshot with descriptive caption',
+        );
+        await takeScreenshot(
+          testInfo,
+          secondParameterComputedHelperSurface,
+          page,
+          'Second parameter computed helper markdown cluster screenshot with descriptive caption',
+        );
+        await takeScreenshot(
+          testInfo,
+          thirdParameterComputedHelperSurface,
+          page,
+          'Third parameter computed helper markdown cluster screenshot should require text',
+        );
+      }
+    `;
+
+    expect(
+      findDenseScreenshotRunsBetweenMarkdown(
+        'tests/docs/example/parameter-computed-dense-screenshot-run.doc.ts',
+        parameterComputedDenseScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-computed-dense-screenshot-run.doc.ts:29:15',
+      'tests/docs/example/parameter-computed-dense-screenshot-run.doc.ts:52:15',
     ]);
   });
 
