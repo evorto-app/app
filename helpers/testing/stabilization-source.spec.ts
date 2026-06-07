@@ -1419,13 +1419,16 @@ describe('stabilization source', () => {
     expect(source).toContain('uncaptioned raw markdown image');
     expect(source).toContain('misplaced caption');
     expect(source).toContain('escaped caption attributes');
-    expect(source).toContain('raw markdown image syntax');
+    expect(source).toContain(
+      'inline and reference-style raw\nMarkdown image syntax',
+    );
+    expect(source).toContain('reference-style raw\nMarkdown image syntax');
     expect(source).toContain('bracketed `attach` call');
     expect(source).toContain('aliased payload object');
     expect(source).toContain('shorthand `{ body }`');
     expect(source).toContain('pushed head `dfcd0cce`');
     expect(source).toContain('bun run test:e2e:reporter-paths');
-    expect(source).toContain('27 passed (3.6s)');
+    expect(source).toContain('28 passed (3.0s)');
     expect(source).toContain('cross-document image-hash guard');
     expect(source).toContain('head `e3bc251e`');
     expect(source).toContain(
@@ -1512,7 +1515,7 @@ describe('stabilization source', () => {
     expect(source).toContain('terse or content-free caption');
     expect(source).toMatch(/simple MIME\/path\s+forwarding/u);
     expect(source).toContain('concatenation');
-    expect(source).toContain('raw Markdown image syntax');
+    expect(source).toContain('reference-style raw\nMarkdown image syntax');
     expect(source).toContain('HTML `<img>` tags');
     expect(source).toContain(
       'binding-default and parameter-default markdown names',
@@ -2720,7 +2723,9 @@ describe('stabilization source', () => {
     expect(reporterAttachmentsSource).toContain(
       'generated docs can be judged without clicking through the app',
     );
-    expect(inventory).toContain('raw Markdown image syntax');
+    expect(inventory).toContain(
+      'inline and reference-style raw Markdown image syntax',
+    );
     expect(inventory).toContain('HTML `<img>` tags');
     expect(inventory).toContain('aliased markdown names');
     expect(inventory).toContain(

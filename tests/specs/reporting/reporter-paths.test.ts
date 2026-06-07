@@ -353,7 +353,36 @@ test('documentation reporter rejects raw markdown image syntax', async ({}, test
   expect(() =>
     reporter.onTestEnd({ title: 'Raw markdown image' } as any, result),
   ).toThrow(
-    'Documentation markdown attachment in Raw markdown image must not include raw Markdown image syntax or HTML <img> tags.',
+    'Documentation markdown attachment in Raw markdown image must not include raw Markdown image syntax, including reference-style images, or HTML <img> tags.',
+  );
+});
+
+test('documentation reporter rejects reference-style markdown image syntax', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-reference-markdown-image');
+  const imgsRoot = testInfo.outputPath('docs-img-reference-markdown-image');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const result = {
+    attachments: [
+      {
+        name: 'markdown',
+        contentType: 'text/markdown',
+        body: Buffer.from(
+          'This product guide must not embed ![referenced evidence][raw-shot].\n\n[raw-shot]: ../raw.png',
+        ),
+      },
+    ],
+  } as any;
+
+  expect(() =>
+    reporter.onTestEnd({ title: 'Reference markdown image' } as any, result),
+  ).toThrow(
+    'Documentation markdown attachment in Reference markdown image must not include raw Markdown image syntax, including reference-style images, or HTML <img> tags.',
   );
 });
 
@@ -409,7 +438,7 @@ test('documentation reporter rejects raw HTML image tags', async ({}, testInfo) 
   expect(() =>
     reporter.onTestEnd({ title: 'Raw HTML image' } as any, result),
   ).toThrow(
-    'Documentation markdown attachment in Raw HTML image must not include raw Markdown image syntax or HTML <img> tags.',
+    'Documentation markdown attachment in Raw HTML image must not include raw Markdown image syntax, including reference-style images, or HTML <img> tags.',
   );
 });
 

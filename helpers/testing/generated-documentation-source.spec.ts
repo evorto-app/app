@@ -1182,7 +1182,8 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
   const rawMarkdownPayloadPropertyAliases = new Set<string>();
   const markdownAttachFunctionAliases = new Set<string>();
   const markdownAttachFunctionPropertyAliases = new Set<string>();
-  const rawMarkdownImagePattern = /!\[[^\]]*\]\([^)]+\)|<img(?:\s|>)/iu;
+  const rawMarkdownImagePattern =
+    /!\[[^\]]*\](?:\([^)]+\)|\[[^\]]*\])?|<img(?:\s|>)/iu;
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -6138,6 +6139,26 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('detects reference-style raw markdown images before generated docs can use them', () => {
+    const referenceStyleMarkdownImageSource = `
+      await testInfo.attach('markdown', {
+        body: \`
+          This guide cannot bypass screenshot checks with reference-style image syntax.
+          ![Referenced raw screenshot][raw-shot]
+
+          [raw-shot]: ../raw-reference.png
+        \`,
+      });
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/reference-markdown-image.doc.ts',
+        referenceStyleMarkdownImageSource,
+      ),
+    ).toEqual(['tests/docs/example/reference-markdown-image.doc.ts:2:13']);
+  });
+
   it('detects raw markdown images hidden behind binding default attach aliases', () => {
     const bindingDefaultMarkdownImageSource = `
       const rawMarkdownPayload = { body: '![raw](raw.png)' };
@@ -8540,6 +8561,12 @@ describe('generated docs source current behavior', () => {
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain('documentation reporter rejects weak markdown body text');
+    expect(
+      readSource('tests/specs/reporting/reporter-paths.test.ts'),
+    ).toContain(
+      'documentation reporter rejects reference-style markdown image syntax',
+    );
+    expect(reporterAttachments).toContain('reference-style images');
     expect(
       readSource('tests/specs/reporting/reporter-paths.test.ts'),
     ).toContain(

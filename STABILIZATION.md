@@ -3675,12 +3675,13 @@ fallback rather than a profile discount-card defect.
   `const { capture = takeScreenshot } = {}`, and parameter-default aliases such
   as `function render(capture = takeScreenshot)`, so docs cannot route around
   the meaningful-image checks while still appearing to use the shared helper.
-  It also rejects raw markdown image syntax and raw HTML `<img>` bodies even
-  when the markdown attachment name or body is hidden behind a local alias, a
-  bracketed `attach` call, an aliased payload object, or shorthand `{ body }`,
-  so docs cannot bypass the captioned screenshot helper with unrelated image
-  markup. Synthetic failing examples now exercise those bypass patterns
-  directly so the guard is protected even when the current docs remain clean.
+  It also rejects inline and reference-style raw Markdown image syntax and raw
+  HTML `<img>` bodies even when the markdown attachment name or body is hidden
+  behind a local alias, a bracketed `attach` call, an aliased payload object, or
+  shorthand `{ body }`, so docs cannot bypass the captioned screenshot helper
+  with unrelated image markup. Synthetic failing examples now exercise those
+  bypass patterns directly so the guard is protected even when the current docs
+  remain clean.
   The permission
   reference is now image-backed too: `tests/docs/roles/about-permissions.doc.ts`
   still generates its text from `PERMISSION_GROUPS`, but it also screenshots the
@@ -3691,11 +3692,12 @@ fallback rather than a profile discount-card defect.
   returned `6 passed (7.1s)` with `NO_WEBSERVER=true`, so screenshot settling
   contracts were rechecked without claiming fresh current-head Browser route
   evidence. A later reporter-boundary refresh after adding cross-doc duplicate
-  image-hash rejection ran `bun run test:e2e:reporter-paths` and returned
-  `27 passed (3.6s)`, covering reporter output, caption/image pairing,
-  highlighted focus-target validation, visible page-content validation,
-  duplicate per-page figure sources, duplicate captions, and duplicate
-  cross-document image evidence.
+  image-hash rejection and reference-style raw Markdown image rejection ran
+  `bun run test:e2e:reporter-paths` and returned `28 passed (3.0s)`, covering
+  reporter output, caption/image pairing, highlighted focus-target validation,
+  visible page-content validation, duplicate per-page figure sources, duplicate
+  captions, duplicate cross-document image evidence, and runtime rejection for
+  raw image markup outside the shared screenshot helper.
   The same current local helper-verification pass also ran
   `bun run test:e2e:layout-helper`, which returned `5 passed (1.9s)` with
   `NO_WEBSERVER=true`; this keeps the shared mobile layout-glitch detector
@@ -6526,9 +6528,9 @@ Events/Scanner/Login mobile navigation. The full local
 390x844, and 1440x900 for expected content, fixed anonymous navigation,
 stable layout metrics, and zero browser warning/error logs on the current
 pushed head.
-Generated-doc markdown attachments also reject raw Markdown image syntax and
-HTML `<img>` tags, including aliased markdown names, bracketed `attach` calls,
-binding-default and parameter-default markdown names,
+Generated-doc markdown attachments also reject inline and reference-style raw
+Markdown image syntax and HTML `<img>` tags, including aliased markdown names,
+bracketed `attach` calls, binding-default and parameter-default markdown names,
 grouped/indexed/destructured/assigned markdown names including `.at(...)`
 indexed lists, simple markdown-name forwarding through calls, template
 interpolation, conditionals, nullish/logical expressions, and static
