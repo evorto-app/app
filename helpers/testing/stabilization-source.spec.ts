@@ -4963,6 +4963,28 @@ describe('stabilization source', () => {
       'visually inspecting representative event-list and privacy legal screenshots',
     );
     expect(statusTable).toContain(
+      'current pushed-head Browser spot check at PR head `cab7f1fe`',
+    );
+    expect(statusTable).toContain(
+      'reused the generated Docker app at its generated `BASE_URL`',
+    );
+    expect(statusTable).toContain(
+      'verify `/events`, `/legal/terms`, and `/404` at 320x740 and 390x844',
+    );
+    expect(statusTable).toContain(
+      'expected content, no loading or application-error text, no horizontal overflow',
+    );
+    expect(statusTable).toContain('zero Browser warning/error logs');
+    expect(statusTable).toContain(
+      'event-list, terms, and not-found screenshots showing seeded Material cards, legal fallback content, and fixed Events/Login navigation',
+    );
+    expect(statusTable).toContain(
+      'Subsequent pushed head `76335498` records the same Browser evidence in `tests/test-inventory.md` and source guards',
+    );
+    expect(statusTable).toContain(
+      'without changing the fully green E2E baseline',
+    );
+    expect(statusTable).toContain(
       'Playwright config now uses the repo runtime config provider',
     );
     expect(statusTable).toContain(
