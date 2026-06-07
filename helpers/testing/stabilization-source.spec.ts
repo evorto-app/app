@@ -1564,8 +1564,10 @@ describe('stabilization source', () => {
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('86 source-guard tests');
+    expect(source).toContain('96 source-guard tests');
     expect(source).toContain('synthetic reflected\nhelper');
+    expect(source).toContain('raw image payload');
+    expect(inventory).toContain('raw image attachment-name');
     expect(source).toContain('Comma-expression invocations');
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);

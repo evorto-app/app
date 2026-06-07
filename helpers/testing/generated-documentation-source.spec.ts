@@ -3563,11 +3563,17 @@ const findDirectImageAttachmentCalls = (
             staticStringAliases,
           )
         : ts.isCallExpression(expression)
-          ? getStaticArrayMethodReference(
+          ? (getStaticArrayMethodReference(
               expression,
               sourceFile,
               staticStringAliases,
-            )
+            ) ??
+            getReflectGetPropertyReference(
+              expression,
+              sourceFile,
+              staticStringAliases,
+              reflectAliases,
+            ))
           : null;
 
     return propertyReference ? propertyAliases.has(propertyReference) : false;
@@ -3623,6 +3629,17 @@ const findDirectImageAttachmentCalls = (
     }
 
     return false;
+  };
+
+  const isDefiniteImageAttachmentNameAlias = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+    const staticStringValue = getStaticStringValue(expression);
+
+    if (staticStringValue !== null) {
+      return staticStringValue === 'image';
+    }
+
+    return hasPropertyAlias(expression, imageAttachmentNamePropertyAliases);
   };
 
   const isImageAttachmentPayloadValue = (node: ts.Expression): boolean => {
@@ -3804,7 +3821,7 @@ const findDirectImageAttachmentCalls = (
       ts.isIdentifier(node.name) &&
       node.initializer
     ) {
-      if (getStringLiteralText(node.initializer) === 'image') {
+      if (isDefiniteImageAttachmentNameAlias(node.initializer)) {
         imageAttachmentNameAliases.add(node.name.text);
       }
 
@@ -4342,6 +4359,7 @@ const findDirectImageAttachmentCalls = (
   collectAliasValuesAndAttachFunctions(sourceFile);
   collectPayloadAliases(sourceFile);
   collectPayloadPropertyAliases(sourceFile);
+  collectPayloadAliases(sourceFile);
   inspectImageAttachmentCalls(sourceFile);
 
   return imageAttachments;
@@ -5200,6 +5218,39 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/reflect-get-image.doc.ts:6:13',
       'tests/docs/example/reflect-get-image.doc.ts:8:13',
       'tests/docs/example/reflect-get-image.doc.ts:9:13',
+    ]);
+  });
+
+  it('detects direct image attachments hidden behind Reflect.get name and payload aliases', () => {
+    const reflectGetImageNamePayloadSource = `
+      const imagePieces = {
+        name: 'image',
+        contentType: 'image/png',
+        path: 'raw-evidence.png',
+        payload: { contentType: 'image/png' },
+      };
+      const reflectedName = Reflect.get(imagePieces, 'name');
+      await testInfo.attach(reflectedName, { body: imageBuffer });
+      const reflectedPayload = Reflect.get(imagePieces, 'payload');
+      await testInfo.attach('raw evidence', reflectedPayload);
+      const reflectMirror = Reflect;
+      await testInfo.attach('raw evidence', {
+        contentType: reflectMirror.get(imagePieces, 'contentType'),
+      });
+      const pathKey = 'path';
+      await testInfo.attach('raw evidence', { path: reflectMirror.get(imagePieces, pathKey) });
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/reflect-get-image-name-payload.doc.ts',
+        reflectGetImageNamePayloadSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/reflect-get-image-name-payload.doc.ts:9:13',
+      'tests/docs/example/reflect-get-image-name-payload.doc.ts:11:13',
+      'tests/docs/example/reflect-get-image-name-payload.doc.ts:13:13',
+      'tests/docs/example/reflect-get-image-name-payload.doc.ts:17:13',
     ]);
   });
 

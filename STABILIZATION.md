@@ -6430,19 +6430,24 @@ Static `Reflect.get(...)` lookups of `takeScreenshot`, `page.screenshot`, and
 `testInfo.attach` are treated as shared-helper or raw screenshot/image helpers
 too, including string-alias property names, so generated docs cannot hide direct
 captures behind reflection before calling or aliasing the returned function. The
+raw image-attachment guard now resolves `Reflect.get(...)` reads of tracked
+image attachment-name, payload, content-type, and path properties too, including
+local `Reflect` aliases and constant-backed keys, so raw image names and payloads
+cannot be reflected out of helper objects before attachment. The
 raw Markdown-image guard now also resolves `Reflect.get(...)` reads of tracked
 markdown attachment-name, body, and payload properties, including local
 `Reflect` aliases and constant-backed keys, so raw Markdown image names and
 bodies cannot be reflected out of a helper object before being attached.
-same source guard now tracks local aliases of the global `Reflect` object before
+The same source guard now tracks local aliases of the global `Reflect` object before
 checking `Reflect.get(...)` and `Reflect.apply(...)`, so `const mirror =
 Reflect; mirror.get(...)` or `mirror.apply(...)` cannot bypass the shared
 helper, raw screenshot, raw image attachment, or raw Markdown-image attachment
 checks either. The
 focused
 `bunx vitest run helpers/testing/generated-documentation-source.spec.ts --reporter=verbose`
-run passed with 86 source-guard tests after adding the synthetic reflected
-helper, raw screenshot, raw image attachment, and raw markdown-image cases.
+run passed with 96 source-guard tests after adding the synthetic reflected
+helper, raw screenshot, raw image attachment, raw image payload, and raw
+markdown-image cases.
 Inline `bind(...)(...)` invocations of raw screenshot and image-attachment
 functions are rejected as well, so generated docs cannot hide direct capture by
 binding `page.screenshot`, `testInfo.attach`, or one of their aliases at the
