@@ -5860,9 +5860,11 @@ The follow-up bounded cleanup path `bun run docker:clean-stale` also failed to
 remove `evorto-91c45a89-db-1` because Docker could not kill the unhealthy
 container and did not receive an exit event. No current-head Browser
 route/layout evidence is claimed for `f6ee41ae` or the follow-up documentation
-head; the latest positive General Browser evidence remains the `8a70d36f`
-checkpoint above until Docker/Neon Local is recovered. A fresh June 7, 2026
-local recovery pass then rebuilt the generated Docker app at
+head. Later Docker/Neon Local recovery and pushed-head Browser refreshes
+supersede that temporary blocker; the current positive General Browser evidence
+continues through the later recovered full-route sweep and the pushed-head
+`cab7f1fe` spot check recorded above. A fresh June 7, 2026 local recovery pass
+then rebuilt the generated Docker app at
 `BASE_URL=http://localhost:4218`, reran
 `bun run test:e2e:public-general-viewports` with 2 passing tests, and used the
 in-app Browser to recheck all 10 anonymous General routes at 320x740, 390x844,

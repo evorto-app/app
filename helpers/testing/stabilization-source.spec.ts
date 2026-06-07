@@ -1106,6 +1106,15 @@ describe('stabilization source', () => {
       /generated project can be shut down cleanly/u,
     );
     expect(normalizedReviewNext).not.toContain('Docker Desktop is restarted');
+    expect(normalizedReviewNext).not.toContain(
+      'latest positive General Browser evidence remains the `8a70d36f` checkpoint above until Docker/Neon Local is recovered',
+    );
+    expect(normalizedReviewNext).toContain(
+      'Later Docker/Neon Local recovery and pushed-head Browser refreshes supersede that temporary blocker',
+    );
+    expect(normalizedReviewNext).toContain(
+      'current positive General Browser evidence continues through the later recovered full-route sweep and the pushed-head `cab7f1fe` spot check',
+    );
     expect(normalizedReviewNext).toContain(
       'The latest local public General viewport Playwright browser sweep passed',
     );
