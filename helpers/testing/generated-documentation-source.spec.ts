@@ -2102,11 +2102,21 @@ const findGenericScreenshotTargets = (
 
     let candidate: ts.Expression = target;
 
-    while (
-      ts.isCallExpression(candidate) &&
-      ts.isPropertyAccessExpression(candidate.expression)
-    ) {
-      const methodName = candidate.expression.name.text;
+    while (ts.isCallExpression(candidate)) {
+      const candidateCallee = unwrapExpression(candidate.expression);
+
+      if (
+        !ts.isPropertyAccessExpression(candidateCallee) &&
+        !ts.isElementAccessExpression(candidateCallee)
+      ) {
+        break;
+      }
+
+      const methodName = getStaticPropertyName(
+        candidateCallee,
+        staticStringAliases,
+      );
+      const receiver = getStaticPropertyReceiver(candidateCallee);
 
       if (methodName === 'locator') {
         const selector = candidate.arguments[0];
@@ -2119,7 +2129,11 @@ const findGenericScreenshotTargets = (
         }
       }
 
-      candidate = candidate.expression.expression;
+      if (!receiver) {
+        break;
+      }
+
+      candidate = receiver;
     }
 
     return false;
@@ -2363,11 +2377,21 @@ const findUnfilteredBroadScreenshotTargets = (
     let candidate: ts.Expression = target;
     let hasFilteringStep = false;
 
-    while (
-      ts.isCallExpression(candidate) &&
-      ts.isPropertyAccessExpression(candidate.expression)
-    ) {
-      const methodName = candidate.expression.name.text;
+    while (ts.isCallExpression(candidate)) {
+      const candidateCallee = unwrapExpression(candidate.expression);
+
+      if (
+        !ts.isPropertyAccessExpression(candidateCallee) &&
+        !ts.isElementAccessExpression(candidateCallee)
+      ) {
+        break;
+      }
+
+      const methodName = getStaticPropertyName(
+        candidateCallee,
+        staticStringAliases,
+      );
+      const receiver = getStaticPropertyReceiver(candidateCallee);
 
       if (methodName === 'filter') {
         hasFilteringStep = true;
@@ -2384,7 +2408,11 @@ const findUnfilteredBroadScreenshotTargets = (
           : false;
       }
 
-      candidate = candidate.expression.expression;
+      if (!receiver) {
+        break;
+      }
+
+      candidate = receiver;
     }
 
     return false;
@@ -2676,11 +2704,21 @@ const findSingleControlScreenshotTargets = (
 
     let candidate: ts.Expression = target;
 
-    while (
-      ts.isCallExpression(candidate) &&
-      ts.isPropertyAccessExpression(candidate.expression)
-    ) {
-      const methodName = candidate.expression.name.text;
+    while (ts.isCallExpression(candidate)) {
+      const candidateCallee = unwrapExpression(candidate.expression);
+
+      if (
+        !ts.isPropertyAccessExpression(candidateCallee) &&
+        !ts.isElementAccessExpression(candidateCallee)
+      ) {
+        break;
+      }
+
+      const methodName = getStaticPropertyName(
+        candidateCallee,
+        staticStringAliases,
+      );
+      const receiver = getStaticPropertyReceiver(candidateCallee);
 
       if (methodName === 'getByRole') {
         const role = candidate.arguments[0]
@@ -2716,7 +2754,11 @@ const findSingleControlScreenshotTargets = (
         return testId ? singleControlTestIdPattern.test(testId) : false;
       }
 
-      candidate = candidate.expression.expression;
+      if (!receiver) {
+        break;
+      }
+
+      candidate = receiver;
     }
 
     return false;
@@ -2978,11 +3020,21 @@ const findIconOrMediaScreenshotTargets = (
 
     let candidate: ts.Expression = target;
 
-    while (
-      ts.isCallExpression(candidate) &&
-      ts.isPropertyAccessExpression(candidate.expression)
-    ) {
-      const methodName = candidate.expression.name.text;
+    while (ts.isCallExpression(candidate)) {
+      const candidateCallee = unwrapExpression(candidate.expression);
+
+      if (
+        !ts.isPropertyAccessExpression(candidateCallee) &&
+        !ts.isElementAccessExpression(candidateCallee)
+      ) {
+        break;
+      }
+
+      const methodName = getStaticPropertyName(
+        candidateCallee,
+        staticStringAliases,
+      );
+      const receiver = getStaticPropertyReceiver(candidateCallee);
 
       if (methodName === 'locator') {
         const selector = candidate.arguments[0];
@@ -3009,7 +3061,11 @@ const findIconOrMediaScreenshotTargets = (
         return true;
       }
 
-      candidate = candidate.expression.expression;
+      if (!receiver) {
+        break;
+      }
+
+      candidate = receiver;
     }
 
     return false;
@@ -8098,6 +8154,91 @@ describe('generated docs source current behavior', () => {
     ).toEqual([
       'tests/docs/example/static-selector-target.doc.ts:31:13',
       'tests/docs/example/static-selector-target.doc.ts:38:13',
+    ]);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind static method aliases', () => {
+    const staticMethodTargetSource = `
+      const locatorMethod = 'locator';
+      const roleMethod = 'getByRole';
+      const testIdMethod = 'getByTestId';
+      const shellSelector = 'main';
+      const broadSelector = 'section';
+      const buttonRole = 'button';
+      const buttonTestId = 'save-button';
+      const iconSelector = 'svg';
+      const imageRole = 'img';
+
+      await takeScreenshot(
+        testInfo,
+        page[locatorMethod](shellSelector),
+        page,
+        'Static method generic shell target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page[locatorMethod](broadSelector),
+        page,
+        'Static method broad section target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page[roleMethod](buttonRole, { name: 'Save' }),
+        page,
+        'Static method button role target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page[testIdMethod](buttonTestId),
+        page,
+        'Static method button test id target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page[locatorMethod](iconSelector),
+        page,
+        'Static method icon selector target with a descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        page[roleMethod](imageRole, { name: 'Tenant logo' }),
+        page,
+        'Static method image role target with a descriptive caption',
+      );
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/static-method-target.doc.ts',
+        staticMethodTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/static-method-target.doc.ts:12:13']);
+
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/static-method-target.doc.ts',
+        staticMethodTargetSource,
+      ),
+    ).toEqual(['tests/docs/example/static-method-target.doc.ts:18:13']);
+
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/static-method-target.doc.ts',
+        staticMethodTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/static-method-target.doc.ts:24:13',
+      'tests/docs/example/static-method-target.doc.ts:30:13',
+    ]);
+
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/static-method-target.doc.ts',
+        staticMethodTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/static-method-target.doc.ts:36:13',
+      'tests/docs/example/static-method-target.doc.ts:42:13',
     ]);
   });
 

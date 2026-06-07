@@ -6353,9 +6353,12 @@ target lookups cannot bypass meaningful-image enforcement. Constant-backed
 selector, role, and test-id values now feed the same generic, broad,
 single-control, and icon/media target checks, so `page.locator(shellSelector)`,
 `page.getByRole(buttonRole)`, and `page.getByTestId(actionTestId)` cannot hide
-weak generated-doc image targets behind local string variables. It also resolves
-grouped target shorthand, alias-valued grouped properties, and static indexed
-target lists such as
+weak generated-doc image targets behind local string variables. Constant-backed
+Playwright method names are resolved in the same locator-call chain too, so
+`page[locatorMethod](shellSelector)`, `page[roleMethod](buttonRole)`, and
+`page[testIdMethod](actionTestId)` cannot hide the same weak targets behind
+static bracket-call syntax. It also resolves grouped target shorthand,
+alias-valued grouped properties, and static indexed target lists such as
 `targetList[0]`, `targetList.at(0)`, or `targetList.at(-1)`, so
 `targets.shell`, `targetList[0]`, `targetList.at(0)`, and `targetList.at(-1)`
 cannot hide weak screenshot targets behind an intermediate collection. It also
@@ -6382,6 +6385,16 @@ and no clipped fixed/sticky controls; the inspected screenshots are
 `/tmp/evorto-constant-backed-target-events-final-390x844.png`,
 `/tmp/evorto-constant-backed-target-terms-390x844.png`, and
 `/tmp/evorto-constant-backed-target-not-found-390x844.png`.
+A same-slice in-app Browser mobile spot check for the static-method source
+guard opened `/events` and `/legal/terms` at 390x844 with
+`stabilizationEvidence=static-method-target-source-guard`. The Events page
+settled to seeded Material event cards with meaningful icons and times, and the
+Terms page rendered the hosted fallback legal content. Browser metrics reported
+no visible horizontal overflow, no rendered application-error text, no loading
+placeholder after settle, zero Browser warning/error logs, and no clipped
+fixed/sticky controls; the inspected screenshots are
+`/tmp/evorto-static-method-target-events-390x844.png` and
+`/tmp/evorto-static-method-target-terms-390x844.png`.
 Parenthesized helper calls such as `(takeScreenshot)(...)` are unwrapped before
 the same screenshot counting, caption, and target-quality checks run, so
 syntactic wrapping cannot hide weak generated-doc image evidence.

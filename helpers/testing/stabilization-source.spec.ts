@@ -1660,10 +1660,20 @@ describe('stabilization source', () => {
     expect(source).toContain('page.locator(shellSelector)');
     expect(source).toContain('page.getByRole(buttonRole)');
     expect(source).toContain('page.getByTestId(actionTestId)');
+    expect(source).toContain('Constant-backed\nPlaywright method names');
+    expect(source).toContain('page[locatorMethod](shellSelector)');
+    expect(source).toContain('page[roleMethod](buttonRole)');
+    expect(source).toContain('page[testIdMethod](actionTestId)');
     expect(inventory).toContain(
       'constant-backed selector\n  aliases such as `page.locator(shellSelector)`',
     );
+    expect(inventory).toContain(
+      'constant-backed method\n  aliases such as `page[locatorMethod](shellSelector)`',
+    );
     expect(inventory).toContain('constant-backed role/test-id targets');
+    expect(inventory).toContain(
+      'constant-backed `getByRole`/`getByTestId` method aliases',
+    );
     expect(source).toContain(
       'stabilizationEvidence=constant-backed-target-source-guard',
     );
@@ -1671,6 +1681,15 @@ describe('stabilization source', () => {
       '/tmp/evorto-constant-backed-target-events-final-390x844.png',
     );
     expect(source).toContain('no clipped fixed/sticky controls');
+    expect(source).toContain(
+      'stabilizationEvidence=static-method-target-source-guard',
+    );
+    expect(source).toContain(
+      '/tmp/evorto-static-method-target-events-390x844.png',
+    );
+    expect(source).toContain(
+      '/tmp/evorto-static-method-target-terms-390x844.png',
+    );
     expect(source).toMatch(
       /[Cc]onditional, nullish-coalesced, and logical\s+target\s+expressions/u,
     );
