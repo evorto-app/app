@@ -19,34 +19,25 @@ and useful for small cleanup batches.
 | Generated documentation and Playwright coverage | Stabilized | high       | Docs/spec inventory, skip gates, source guards, list mode, generated-doc evidence-quality rules, and generated-doc runtime flows are current and fail loudly for known fixture gaps.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Local runtime/developer workflow                | Stabilized | high       | Env preflight, Neon Local cleanup, public Font Awesome install paths, CI teardown cleanup, and the first in-app Browser queue pass are covered. Historical Docker start-path and unhealthy-container blockers remain recorded as diagnostics, but later current-state Browser evidence supersedes them: the public General viewport Playwright browser sweep passed locally, direct in-app Browser tab API sweeps rechecked the full anonymous General route set at 320x740, 390x844, and 1440x900 through local head `1ab95b1c5`, a focused in-app Browser mobile refresh rechecked all anonymous General routes at 320x740 and 390x844 on local head `a2c1d2e70`, the current-head direct in-app Browser sweep at local head `6b975474c` rechecked all anonymous General routes at 320x740, 390x844, and 1440x900 with no horizontal overflow, top/side clipped visible controls, rendered application-error text, or Browser warning/error logs, the current authenticated in-app Browser probe at local head `c0c83ce2b` checked `/admin/settings`, `/global-admin/tenants`, and `/profile` at 320x740, 390x844, and 1440x900 with no horizontal overflow, clipped visible controls, rendered application-error text, Browser warning/error logs, or Auth0 redirect, pushed-head Docker/Browser refreshes through PR head `19e5bb0bc` rechecked all anonymous General routes at 320x740, 390x844, and 1440x900 with no horizontal overflow, top/side clipped visible controls, rendered application-error text, or Browser warning/error logs, the June 7, 2026 pushed-head Browser refresh at PR head `aef3ccdc` rechecked the same anonymous General route set at 320x740 and 390x844 with no horizontal overflow, top/side clipped visible controls, persistent loading placeholders, or rendered application-error text while visually inspecting representative event-list and privacy legal screenshots, and the earlier pushed-head Browser spot check at PR head `cab7f1fe` reused the generated Docker app at its generated `BASE_URL` to verify `/events`, `/legal/terms`, and `/404` at 320x740 and 390x844 with expected content, no loading or application-error text, no horizontal overflow, no top/side clipped visible controls, zero Browser warning/error logs, and inspected event-list, terms, and not-found screenshots showing seeded Material cards, legal fallback content, and fixed Events/Login navigation. Subsequent pushed head `76335498` records the same Browser evidence in `tests/test-inventory.md` and source guards without changing the fully green E2E baseline. Playwright config now uses the repo runtime config provider, so direct config importers can initialize from generated `.env.dev` when `DATABASE_URL` and `BASE_URL` are absent from `process.env`; the Playwright-test MCP Browser planner now recognizes the dedicated `mcp-browser-planner` project and `tests/setup/mcp-browser.seed.ts`, opens the seeded `/legal/terms` public General page, and captures the 320x740 mobile screenshot path after config import. A dedicated authenticated MCP Browser planner project now depends on the normal setup project and opens `/admin/settings`, `/global-admin/tenants`, and `/profile` from their admin, global-admin, and regular-user storage states so Browser planning has stable logged-in starting points without running the full viewport pack. GitHub E2E now uses Neon Local's documented default project branch when `PARENT_BRANCH_ID` is absent, sets a two-hour Neon Local branch TTL, prunes stale branches before/after E2E, and timeout-bounds project-label discovery and force-removal for leftover Compose containers during shutdown. Neon branch audits now have `bun run neon:cleanup:dry-run`, and confirmed local cleanup has `bun run neon:cleanup`, so operators do not need to remember the helper path or dotenv cascade. Local runtime diagnosis now also has `bun run dev:status`, a combined non-mutating status command that refreshes `.env.dev`, runs the development and Docker preflights, and still reports the Neon dry-run when the database port or Docker engine is blocked. Local Playwright package scripts now use guarded `env:copy-main --if-missing` before refreshing `.env.dev`, so focused local E2E reruns can inherit main-checkout developer secrets when a worktree `.env` is missing while CI still uses Actions env, vars, and secrets directly. The latest fully green PR E2E evidence is pushed head `2667494b`: CodeQL, Git Town, Copilot setup, CodeRabbit, the E2E cache warmer, `functional-1`, `functional-2`, and `docs` were green. E2E run `27068078693` completed all three serialized worker shards on pushed head `2667494b` with warmed Bun, Docker, and Playwright caches; each worker confirmed Neon branch expiration, recorded Neon Local metadata, passed its shard, stopped Docker, and ran the final Neon prune. Newer source-guard pushes are tracked separately by the live PR checks instead of being claimed as fully green here. Repo-local Neon cleanup dry-run after the completed current-head finalizers returned `total=1`, `protected=1`, `active_test=0`, `stale_deleted=0`, and `ttl=2h`, so only protected `main` remained once every worker released Neon Local. |
 
-Latest coverage checkpoint: the latest in-app Browser public General evidence
-was captured on PR head `1eaa2789`; later source-only evidence-recording pushes
-preserve that visual checkpoint instead of re-claiming fresh Browser proof. A
-forced Docker Desktop backend restart recovered the local container start path,
-`bun run docker:start` rebuilt and reseeded the generated Docker stack,
-`bun run dev:status` passed at `BASE_URL=http://localhost:4218`, and
-`bun run test:e2e:public-general-viewports` passed both local General viewport
-tests. The localhost Browser evidence shifted only local seeded demo event dates
-into the future so Browser could verify public event content without test-cookie
-injection. The refined Browser sweep checked all 10 anonymous General routes at
-320x740, 390x844, and 1440x900: `/`, `/events`, seeded event detail
-`/events/09673e60b8e35d7cdc25`, `/legal/imprint`, `/legal/privacy`,
-`/legal/terms`, `/403`, `/500`, `/404`, and `/missing-general-page`. All 30
-route/viewport checks found expected current content, no persistent loading or
-application-error text, no true horizontal overflow, no clipped fixed controls,
-correct Events/Login mobile navigation with Scanner hidden, correct desktop
-Events/Scanner/Login navigation, and zero Browser warning/error logs. The
-inspected screenshots
-`/tmp/evorto-public-general-1eaa2789/events-list-320x740.png`,
-`/tmp/evorto-public-general-1eaa2789/legal-terms-390x844.png`,
-`/tmp/evorto-public-general-1eaa2789/not-found-390x844.png`, and
-`/tmp/evorto-public-general-1eaa2789/public-event-detail-1440x900.png` show
-seeded Material event cards with icons/times and fixed bottom navigation,
-readable Terms fallback copy, readable not-found fallback copy, and the desktop
-list/detail event registration surface with the side navigation rather than
-unrelated or heading-only artifacts. The live PR checks are tracked separately
-because source-only evidence-recording pushes can supersede in-progress E2E runs
-without changing the Browser screenshots.
+Latest coverage checkpoint: the latest in-app Browser public General/mobile
+evidence was captured on PR head `af132e9d` during the event-flow docs/spec
+clock stabilization slice. Browser reused the generated Docker app at
+`BASE_URL=http://localhost:4200` and rechecked the anonymous General route set
+at 390x844 and 320x740: `/`, `/events`, `/legal/imprint`, `/legal/privacy`,
+`/legal/terms`, `/403`, `/500`, `/404`, `/missing-general-page`, and seeded
+event detail `/events/033d11cabd68960b7d61`. All 20 mobile route/viewport
+checks found expected current content, no persistent loading text, no
+application-error text, no true horizontal overflow, no side/top clipped visible
+controls, and zero Browser warning/error logs. The inspected screenshots
+`/tmp/evorto-browser-event-clock-docs-current-head/events-320x740.png`,
+`/tmp/evorto-browser-event-clock-docs-current-head/legal-terms-320x740.png`,
+and `/tmp/evorto-browser-event-clock-docs-current-head/404-320x740.png` show
+seeded Material event cards with icons/times, readable Terms fallback copy,
+the not-found page, and fixed Events/Login mobile navigation without visible
+overlap. The prior PR-head `1eaa2789` sweep remains the latest full
+320x740/390x844/1440x900 desktop-and-mobile Browser matrix; the live PR checks
+are tracked separately because evidence-recording pushes can supersede
+in-progress E2E runs without changing the last inspected screenshots.
 
 ## Product Decision Draft
 
@@ -7221,11 +7212,11 @@ registration content, hosted legal fallback copy, the wildcard not-found
 fallback, fixed Events/Login navigation on mobile, and the desktop event-list
 screenshot.
 
-The latest public General Browser refresh was captured on PR head `1eaa2789`
-after the generated-doc evidence stabilization push; later source-only
-evidence-recording pushes preserve that checkpoint instead of re-claiming fresh
-Browser proof. A forced Docker Desktop backend restart recovered the local
-container start path; `bun run docker:start` rebuilt the generated Docker app,
+A prior public General Browser refresh was captured on PR head `1eaa2789` after
+the generated-doc evidence stabilization push; later source-only
+evidence-recording pushes preserved that checkpoint until fresher Browser
+evidence was captured. A forced Docker Desktop backend restart recovered the
+local container start path; `bun run docker:start` rebuilt the generated Docker app,
 `bun run dev:status` passed at `BASE_URL=http://localhost:4218`, and
 `bun run test:e2e:public-general-viewports` passed both local General viewport
 tests. The localhost Browser evidence shifted only local seeded demo event dates
@@ -8476,15 +8467,17 @@ now recovery action**, and the real Stripe Checkout sandbox image. These images
 show the claimed product states rather than unrelated, duplicated, or
 heading-only screenshots.
 
-Same-slice in-app Browser verification rechecked the anonymous General route
-set on the generated Docker app at `BASE_URL=http://localhost:4200`. At
-390x844, Browser opened `/`, `/events`, `/legal/imprint`, `/legal/privacy`,
-`/legal/terms`, `/403`, `/500`, `/404`, `/missing-general-page`, and the first
-seeded event detail route `/events/033d11cabd68960b7d61`; at 320x740, Browser
-rechecked the same route set with side/top clipping checks. Both mobile passes
-found expected content, no true horizontal overflow, no side/top clipped
-visible controls, no persistent loading text, no application-error text, and
-zero Browser warning/error logs. The inspected screenshots
+The latest public General Browser mobile refresh was captured on PR head
+`af132e9d` during this event-flow docs/spec stabilization slice. Browser
+rechecked the anonymous General route set on the generated Docker app at
+`BASE_URL=http://localhost:4200`. At 390x844, Browser opened `/`, `/events`,
+`/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`, `/500`, `/404`,
+`/missing-general-page`, and the first seeded event detail route
+`/events/033d11cabd68960b7d61`; at 320x740, Browser rechecked the same route set
+with side/top clipping checks. All 20 mobile route/viewport checks found
+expected content, no true horizontal overflow, no side/top clipped visible
+controls, no persistent loading text, no application-error text, and zero
+Browser warning/error logs. The inspected screenshots
 `/tmp/evorto-browser-event-clock-docs-current-head/events-320x740.png`,
 `/tmp/evorto-browser-event-clock-docs-current-head/legal-terms-320x740.png`,
 and `/tmp/evorto-browser-event-clock-docs-current-head/404-320x740.png` show

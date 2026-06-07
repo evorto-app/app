@@ -5926,44 +5926,37 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toMatch(
-      /Latest coverage checkpoint: the latest in-app Browser public General evidence\s+was captured on PR head `1eaa2789`/u,
+      /Latest coverage checkpoint: the latest in-app Browser public General\/mobile\s+evidence was captured on PR head `af132e9d`/u,
     );
     expect(source).toMatch(
-      /later source-only evidence-recording pushes\s+preserve that visual checkpoint instead of re-claiming fresh Browser proof/u,
+      /Browser reused the generated Docker app at\s+`BASE_URL=http:\/\/localhost:4200`/u,
     );
-    expect(source).toMatch(/forced Docker Desktop\s+backend restart/u);
-    expect(source).toContain('`bun run test:e2e:public-general-viewports`');
-    expect(source).toContain('`BASE_URL=http://localhost:4218`');
-    expect(source).toContain('all 10 anonymous General routes');
+    expect(source).toContain('at 390x844 and 320x740');
     expect(source).toContain(
-      'seeded event detail\n`/events/09673e60b8e35d7cdc25`',
+      'seeded\nevent detail `/events/033d11cabd68960b7d61`',
     );
     expect(source).toContain('/missing-general-page');
-    expect(source).toContain('All 30 route/viewport checks');
+    expect(source).toContain('All 20 mobile route/viewport\nchecks');
     expect(source).toContain('no true horizontal overflow');
-    expect(source).toContain('no clipped fixed controls');
-    expect(source).toContain('correct Events/Login mobile navigation');
-    expect(source).toContain(
-      'correct desktop\nEvents/Scanner/Login navigation',
-    );
+    expect(source).toContain('no side/top clipped visible\ncontrols');
     expect(source).toContain('zero Browser warning/error logs');
     expect(source).toContain(
-      '/tmp/evorto-public-general-1eaa2789/events-list-320x740.png',
+      '/tmp/evorto-browser-event-clock-docs-current-head/events-320x740.png',
     );
     expect(source).toContain(
-      '/tmp/evorto-public-general-1eaa2789/legal-terms-390x844.png',
+      '/tmp/evorto-browser-event-clock-docs-current-head/legal-terms-320x740.png',
     );
     expect(source).toContain(
-      '/tmp/evorto-public-general-1eaa2789/not-found-390x844.png',
+      '/tmp/evorto-browser-event-clock-docs-current-head/404-320x740.png',
     );
     expect(source).toContain(
-      '/tmp/evorto-public-general-1eaa2789/public-event-detail-1440x900.png',
+      'fixed Events/Login mobile navigation without visible\noverlap',
     );
     expect(source).toContain(
-      'rather than\nunrelated or heading-only artifacts',
+      'prior PR-head `1eaa2789` sweep remains the latest full\n320x740/390x844/1440x900',
     );
     expect(source).toContain(
-      'source-only evidence-recording pushes can supersede in-progress E2E runs',
+      'evidence-recording pushes can supersede\nin-progress E2E runs',
     );
     expect(source).toMatch(
       /[Cc]urrent-head local runtime and Browser evidence are\s+positive again after\s+resetting the stale Docker stack/u,
@@ -6019,7 +6012,7 @@ describe('stabilization source', () => {
     expect(source).not.toContain(
       '`evorto-object-rest-skip-inventory-events-390x844.png`',
     );
-    expect(source).toMatch(/live\s+PR\s+checks are tracked\s+separately/u);
+    expect(source).toMatch(/live\s+PR\s+checks\s+are tracked\s+separately/u);
     expect(source).toMatch(/latest\s+fully\s+green\s+E2E/u);
     expect(source).toMatch(/older\s+completed\s+pushed\s+head/u);
     expect(source).toContain('actual Material overlay panel');
@@ -7646,7 +7639,7 @@ describe('stabilization source', () => {
       /A later pushed-head General Browser refresh on PR head `533cf16b`[\s\S]*?desktop event-list\s+screenshot\./u,
     )?.[0];
     const latestCapturedGeneralRefresh = source.match(
-      /The latest public General Browser refresh was captured on PR head `1eaa2789`[\s\S]*?heading-only images\./u,
+      /The latest public General Browser mobile refresh was captured on PR head\s+`af132e9d`[\s\S]*?visible\s+overlap\./u,
     )?.[0];
 
     expect(checkpoint).toBeDefined();
@@ -7980,40 +7973,19 @@ describe('stabilization source', () => {
     expect(pushedHeadGeneralRefresh).toContain(
       'fixed Events/Login navigation on mobile',
     );
-    expect(latestCapturedGeneralRefresh).toContain('PR head `1eaa2789`');
+    expect(latestCapturedGeneralRefresh).toContain('PR head\n`af132e9d`');
     expect(latestCapturedGeneralRefresh).toContain(
-      'generated-doc evidence stabilization push',
-    );
-    expect(latestCapturedGeneralRefresh).toContain(
-      'later source-only\nevidence-recording pushes preserve that checkpoint',
+      'event-flow docs/spec stabilization slice',
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      'forced Docker Desktop backend restart',
+      'generated Docker app at\n`BASE_URL=http://localhost:4200`',
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      '`bun run docker:start` rebuilt',
-    );
-    expect(latestCapturedGeneralRefresh).toMatch(
-      /`bun run\s+dev:status` passed/u,
-    );
-    expect(latestCapturedGeneralRefresh).toContain(
-      '`bun run test:e2e:public-general-viewports` passed both local General viewport\ntests',
-    );
-    expect(latestCapturedGeneralRefresh).toContain(
-      'without test-cookie\ninjection',
-    );
-    expect(latestCapturedGeneralRefresh).toContain(
-      '`BASE_URL=http://localhost:4218`',
-    );
-    expect(latestCapturedGeneralRefresh).toMatch(
-      /all 10 anonymous General\s+routes/u,
-    );
-    expect(latestCapturedGeneralRefresh).toContain(
-      '320x740, 390x844, and 1440x900',
+      'anonymous General route set',
     );
     expect(latestCapturedGeneralRefresh).toContain('`/`, `/events`');
     expect(latestCapturedGeneralRefresh).toContain(
-      'seeded event detail\n`/events/09673e60b8e35d7cdc25`',
+      'event detail route\n`/events/033d11cabd68960b7d61`',
     );
     expect(latestCapturedGeneralRefresh).toContain('/legal/imprint');
     expect(latestCapturedGeneralRefresh).toContain('/legal/privacy');
@@ -8023,47 +7995,38 @@ describe('stabilization source', () => {
     expect(latestCapturedGeneralRefresh).toContain('/404');
     expect(latestCapturedGeneralRefresh).toContain('/missing-general-page');
     expect(latestCapturedGeneralRefresh).toMatch(
-      /All 30\s+route\/viewport checks/u,
+      /All 20 mobile\s+route\/viewport checks/u,
+    );
+    expect(latestCapturedGeneralRefresh).toContain('expected content');
+    expect(latestCapturedGeneralRefresh).toMatch(
+      /no true horizontal\s+overflow/u,
+    );
+    expect(latestCapturedGeneralRefresh).toContain(
+      'no side/top clipped visible\ncontrols',
     );
     expect(latestCapturedGeneralRefresh).toMatch(
-      /no persistent loading or\s+application-error text/u,
-    );
-    expect(latestCapturedGeneralRefresh).toContain(
-      'no true horizontal overflow',
-    );
-    expect(latestCapturedGeneralRefresh).toContain('no clipped fixed controls');
-    expect(latestCapturedGeneralRefresh).toMatch(
-      /correct Events\/Login mobile navigation with Scanner\s+hidden/u,
+      /no persistent loading text,\s+no application-error text/u,
     );
     expect(latestCapturedGeneralRefresh).toMatch(
-      /correct\s+Events\/Scanner\/Login desktop navigation/u,
-    );
-    expect(latestCapturedGeneralRefresh).toMatch(
-      /zero Browser\s+warning\/error logs/u,
+      /zero\s+Browser\s+warning\/error logs/u,
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      '/tmp/evorto-public-general-1eaa2789/events-list-320x740.png',
+      '/tmp/evorto-browser-event-clock-docs-current-head/events-320x740.png',
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      '/tmp/evorto-public-general-1eaa2789/legal-terms-390x844.png',
+      '/tmp/evorto-browser-event-clock-docs-current-head/legal-terms-320x740.png',
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      '/tmp/evorto-public-general-1eaa2789/not-found-390x844.png',
+      '/tmp/evorto-browser-event-clock-docs-current-head/404-320x740.png',
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      '/tmp/evorto-public-general-1eaa2789/public-event-detail-1440x900.png',
-    );
-    expect(latestCapturedGeneralRefresh).toContain(
-      'meaningful seeded Material event cards',
+      'seeded Material event cards with icons/times',
     );
     expect(latestCapturedGeneralRefresh).toContain(
       'readable Terms fallback copy',
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      'readable not-found fallback copy',
-    );
-    expect(latestCapturedGeneralRefresh).toMatch(
-      /rather\s+than unrelated or heading-only images/u,
+      'fixed Events/Login mobile navigation without visible\noverlap',
     );
     expect(testInventory).toContain(
       'A current-head recovery on PR head `14fe958b`',
@@ -8087,13 +8050,13 @@ describe('stabilization source', () => {
     );
     expect(testInventory).toContain('wildcard not-found fallback text');
     expect(testInventory).toContain(
-      'The latest in-app Browser public General refresh was captured on PR head\n  `1eaa2789`',
+      'A prior full-matrix in-app Browser public General refresh was captured on PR\n  head `1eaa2789`',
     );
     expect(testInventory).toContain(
-      'later source-only evidence-recording pushes preserve that\n  checkpoint',
+      'later source-only evidence-recording pushes preserved that\n  checkpoint until fresher Browser evidence was captured',
     );
     expect(testInventory).toMatch(
-      /forced Docker Desktop\s+backend restart recovered the local container start\s+path/u,
+      /forced Docker\s+Desktop\s+backend\s+restart\s+recovered the local container start\s+path/u,
     );
     expect(testInventory).toContain(
       '`bun run test:e2e:public-general-viewports` passed both local General\n  viewport tests',
@@ -8124,6 +8087,30 @@ describe('stabilization source', () => {
     );
     expect(testInventory).toContain(
       'desktop list/detail event registration surface with side navigation rather\n  than unrelated or heading-only images',
+    );
+    expect(testInventory).toContain(
+      'The latest in-app Browser public General mobile refresh was captured on PR\n  head `af132e9d`',
+    );
+    expect(testInventory).toContain(
+      'event-flow docs/spec clock stabilization slice',
+    );
+    expect(testInventory).toContain(
+      'generated Docker app at `BASE_URL=http://localhost:4200`',
+    );
+    expect(testInventory).toContain('`/events/033d11cabd68960b7d61`');
+    expect(testInventory).toMatch(/All 20\s+mobile route\/viewport checks/u);
+    expect(testInventory).toMatch(/no\s+side\/top clipped visible controls/u);
+    expect(testInventory).toContain(
+      '/tmp/evorto-browser-event-clock-docs-current-head/events-320x740.png',
+    );
+    expect(testInventory).toContain(
+      '/tmp/evorto-browser-event-clock-docs-current-head/legal-terms-320x740.png',
+    );
+    expect(testInventory).toContain(
+      '/tmp/evorto-browser-event-clock-docs-current-head/404-320x740.png',
+    );
+    expect(testInventory).toContain(
+      'fixed Events/Login mobile navigation without visible\n  overlap',
     );
     expect(checkpoint).toContain('Playwright-test MCP Browser planner');
     expect(checkpoint).toMatch(/`DATABASE_URL` was\s+undefined/u);

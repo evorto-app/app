@@ -1888,10 +1888,10 @@ provider outcomes without live identifiers.
   seeded Material event cards with real icons/times, event-detail registration
   content, legal fallback text, wildcard not-found fallback text, fixed
   Events/Login mobile navigation, and the desktop event-list layout.
-- The latest in-app Browser public General refresh was captured on PR head
-  `1eaa2789`; later source-only evidence-recording pushes preserve that
-  checkpoint instead of re-claiming fresh Browser proof. A forced Docker Desktop
-  backend restart recovered the local container start path;
+- A prior full-matrix in-app Browser public General refresh was captured on PR
+  head `1eaa2789`; later source-only evidence-recording pushes preserved that
+  checkpoint until fresher Browser evidence was captured. A forced Docker
+  Desktop backend restart recovered the local container start path;
   `bun run docker:start` rebuilt the generated Docker app,
   `bun run dev:status` passed at `BASE_URL=http://localhost:4218`, and
   `bun run test:e2e:public-general-viewports` passed both local General
@@ -1934,3 +1934,19 @@ provider outcomes without live identifiers.
   `/tmp/evorto-browser-nav-layer-ecf3fe57/legal-terms-390x844.png` show seeded
   Material event cards with icons/times and readable Terms fallback copy with
   fixed Events/Login bottom navigation in front of the page content.
+- The latest in-app Browser public General mobile refresh was captured on PR
+  head `af132e9d` during the event-flow docs/spec clock stabilization slice.
+  Browser reused the generated Docker app at `BASE_URL=http://localhost:4200`
+  and rechecked `/`, `/events`, `/legal/imprint`, `/legal/privacy`,
+  `/legal/terms`, `/403`, `/500`, `/404`, `/missing-general-page`, and seeded
+  event detail `/events/033d11cabd68960b7d61` at 390x844 and 320x740. All 20
+  mobile route/viewport checks found expected current content, no persistent
+  loading text, no application-error text, no true horizontal overflow, no
+  side/top clipped visible controls, and zero Browser warning/error logs. The
+  inspected screenshots
+  `/tmp/evorto-browser-event-clock-docs-current-head/events-320x740.png`,
+  `/tmp/evorto-browser-event-clock-docs-current-head/legal-terms-320x740.png`,
+  and `/tmp/evorto-browser-event-clock-docs-current-head/404-320x740.png` show
+  seeded Material event cards with icons/times, readable Terms fallback copy,
+  the not-found page, and fixed Events/Login mobile navigation without visible
+  overlap.
