@@ -815,6 +815,27 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
     return null;
   };
 
+  const getStaticStringValue = (node: ts.Expression): null | string => {
+    const expression = unwrapExpression(node);
+    const literalText = getLiteralText(expression);
+
+    if (literalText !== null) {
+      return literalText;
+    }
+
+    if (
+      ts.isBinaryExpression(expression) &&
+      expression.operatorToken.kind === ts.SyntaxKind.PlusToken
+    ) {
+      const left = getStaticStringValue(expression.left);
+      const right = getStaticStringValue(expression.right);
+
+      return left !== null && right !== null ? `${left}${right}` : null;
+    }
+
+    return null;
+  };
+
   const hasRawMarkdownImage = (node: ts.Expression): boolean => {
     const expression = unwrapExpression(node);
 
@@ -861,9 +882,46 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
 
   const isMarkdownAttachmentName = (node: ts.Expression): boolean => {
     const expression = unwrapExpression(node);
+    const staticStringValue = getStaticStringValue(expression);
+
+    if (staticStringValue !== null) {
+      return staticStringValue === 'markdown';
+    }
+
+    if (ts.isCallExpression(expression)) {
+      return expression.arguments.some((argument) =>
+        isMarkdownAttachmentName(argument),
+      );
+    }
+
+    if (ts.isTemplateExpression(expression)) {
+      return expression.templateSpans.some((span) =>
+        isMarkdownAttachmentName(span.expression),
+      );
+    }
+
+    if (ts.isConditionalExpression(expression)) {
+      return (
+        isMarkdownAttachmentName(expression.whenTrue) ||
+        isMarkdownAttachmentName(expression.whenFalse)
+      );
+    }
+
+    if (
+      ts.isBinaryExpression(expression) &&
+      [
+        ts.SyntaxKind.BarBarToken,
+        ts.SyntaxKind.AmpersandAmpersandToken,
+        ts.SyntaxKind.QuestionQuestionToken,
+      ].includes(expression.operatorToken.kind)
+    ) {
+      return (
+        isMarkdownAttachmentName(expression.left) ||
+        isMarkdownAttachmentName(expression.right)
+      );
+    }
 
     return (
-      getLiteralText(expression) === 'markdown' ||
       (ts.isIdentifier(expression) &&
         markdownAttachmentNameAliases.has(expression.text)) ||
       ((ts.isPropertyAccessExpression(expression) ||
@@ -4679,6 +4737,31 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/grouped-markdown-name.doc.ts:11:13',
       'tests/docs/example/grouped-markdown-name.doc.ts:13:13',
       'tests/docs/example/grouped-markdown-name.doc.ts:15:13',
+    ]);
+  });
+
+  it('detects raw markdown images hidden behind forwarded markdown names', () => {
+    const forwardedMarkdownNameSource = `
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      const markdownAttachmentName = 'markdown';
+      await testInfo.attach(String(markdownAttachmentName), rawMarkdownPayload);
+      await testInfo.attach(\`\${markdownAttachmentName}\`, rawMarkdownPayload);
+      await testInfo.attach(useMarkdown ? markdownAttachmentName : 'html', rawMarkdownPayload);
+      await testInfo.attach(safeMarkdownName ?? markdownAttachmentName, rawMarkdownPayload);
+      await testInfo.attach('mark' + 'down', rawMarkdownPayload);
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/forwarded-markdown-name.doc.ts',
+        forwardedMarkdownNameSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/forwarded-markdown-name.doc.ts:4:13',
+      'tests/docs/example/forwarded-markdown-name.doc.ts:5:13',
+      'tests/docs/example/forwarded-markdown-name.doc.ts:6:13',
+      'tests/docs/example/forwarded-markdown-name.doc.ts:7:13',
+      'tests/docs/example/forwarded-markdown-name.doc.ts:8:13',
     ]);
   });
 
