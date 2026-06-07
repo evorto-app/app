@@ -9109,26 +9109,34 @@ describe('generated docs source current behavior', () => {
       const markdownPayloadGroup = { rawMarkdownPayload };
       const spreadMarkdownPayloadGroup = { ...markdownPayloadGroup };
       const assignedMarkdownPayloadGroup = Object.assign({}, markdownPayloadGroup);
+      const { rawMarkdownPayload: ignoredRawMarkdownPayload, ...restMarkdownPayloadGroup } = markdownPayloadGroup;
       await testInfo.attach('markdown', spreadMarkdownPayloadGroup.rawMarkdownPayload);
       await testInfo.attach('markdown', assignedMarkdownPayloadGroup.rawMarkdownPayload);
+      await testInfo.attach('markdown', restMarkdownPayloadGroup.rawMarkdownPayload);
       const markdownName = 'markdown';
       const markdownNameGroup = { markdownName };
       const spreadMarkdownNameGroup = { ...markdownNameGroup };
       const assignedMarkdownNameGroup = Object.assign({}, markdownNameGroup);
+      const { markdownName: ignoredMarkdownName, ...restMarkdownNameGroup } = markdownNameGroup;
       await testInfo.attach(spreadMarkdownNameGroup.markdownName, rawMarkdownPayload);
       await testInfo.attach(assignedMarkdownNameGroup.markdownName, rawMarkdownPayload);
+      await testInfo.attach(restMarkdownNameGroup.markdownName, rawMarkdownPayload);
       const rawMarkdownBody = '<img src="../raw.png" alt="Raw">';
       const rawMarkdownBodyGroup = { rawMarkdownBody };
       const spreadMarkdownBodyGroup = { ...rawMarkdownBodyGroup };
       const assignedMarkdownBodyGroup = Object.assign({}, rawMarkdownBodyGroup);
+      const { rawMarkdownBody: ignoredRawMarkdownBody, ...restMarkdownBodyGroup } = rawMarkdownBodyGroup;
       await testInfo.attach('markdown', { body: spreadMarkdownBodyGroup.rawMarkdownBody });
       await testInfo.attach('markdown', { body: assignedMarkdownBodyGroup.rawMarkdownBody });
+      await testInfo.attach('markdown', { body: restMarkdownBodyGroup.rawMarkdownBody });
       const attachMarkdownEvidence = testInfo.attach.bind(testInfo);
       const attachGroup = { attachMarkdownEvidence };
       const spreadAttachGroup = { ...attachGroup };
       const assignedAttachGroup = Object.assign({}, attachGroup);
+      const { attachMarkdownEvidence: ignoredAttachMarkdown, ...restAttachGroup } = attachGroup;
       await spreadAttachGroup.attachMarkdownEvidence('markdown', rawMarkdownPayload);
       await assignedAttachGroup.attachMarkdownEvidence('markdown', rawMarkdownPayload);
+      await restAttachGroup.attachMarkdownEvidence('markdown', rawMarkdownPayload);
     `;
 
     expect(
@@ -9137,14 +9145,18 @@ describe('generated docs source current behavior', () => {
         copiedGroupedMarkdownImageSource,
       ),
     ).toEqual([
-      'tests/docs/example/copied-grouped-markdown-image.doc.ts:6:13',
       'tests/docs/example/copied-grouped-markdown-image.doc.ts:7:13',
-      'tests/docs/example/copied-grouped-markdown-image.doc.ts:12:13',
-      'tests/docs/example/copied-grouped-markdown-image.doc.ts:13:13',
-      'tests/docs/example/copied-grouped-markdown-image.doc.ts:18:13',
-      'tests/docs/example/copied-grouped-markdown-image.doc.ts:19:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:8:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:9:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:15:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:16:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:17:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:23:13',
       'tests/docs/example/copied-grouped-markdown-image.doc.ts:24:13',
       'tests/docs/example/copied-grouped-markdown-image.doc.ts:25:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:31:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:32:13',
+      'tests/docs/example/copied-grouped-markdown-image.doc.ts:33:13',
     ]);
   });
 

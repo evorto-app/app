@@ -7512,3 +7512,24 @@ mobile viewport, and zero warning/error Browser logs. The inspected screenshots
 `/tmp/evorto-general-df439746-wildcard-390x844.png` show seeded Material event
 cards, the event-detail registration surface, and readable 500/not-found
 fallback pages with fixed bottom navigation.
+
+Object-rest copied grouped raw Markdown-image aliases are now explicitly pinned
+beside the existing spread and `Object.assign(...)` copied grouped alias cases.
+The focused generated-doc source regression now exercises copied Markdown
+payload, Markdown attachment-name, raw body, and attach-helper groups copied
+through object-rest destructuring before raw Markdown image evidence is attached
+outside the shared screenshot helper. The existing detector already rejected
+those object-rest shapes, and the test inventory now records object-rest copied
+grouped raw Markdown-image aliases so future source-guard changes cannot drop
+that image-quality coverage silently.
+Validation for this slice passed `bun run format:write`, `bun run lint`, the
+focused generated-documentation/stabilization source suite with 194 passing
+tests, and `git diff --check`. WebStorm diagnostics remained blocked because
+this worktree is not one of the open IDE projects. Browser verification at
+390x844 captured
+`/tmp/evorto-object-rest-grouped-markdown-image-terms-390x844.png` and
+`/tmp/evorto-object-rest-grouped-markdown-image-events-390x844.png`; the images
+show readable Terms fallback copy and real seeded Events cards with Material
+surfaces/icons/times, fixed Events/Login bottom navigation, no loading or
+application-error text, document/body widths inside the mobile viewport, and
+zero warning/error Browser logs.

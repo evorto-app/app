@@ -3127,6 +3127,12 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'Copied returned raw Markdown attach helper groups',
     );
+    expect(generatedDocumentationSource).toContain(
+      '...restMarkdownPayloadGroup',
+    );
+    expect(generatedDocumentationSource).toContain('...restMarkdownNameGroup');
+    expect(generatedDocumentationSource).toContain('...restMarkdownBodyGroup');
+    expect(generatedDocumentationSource).toContain('...restAttachGroup');
     expect(generatedDocumentationSource).toContain('...restScreenshotHelpers');
     expect(generatedDocumentationSource).toContain(
       "await restAttachHelpers.attachEvidence('raw rest evidence'",
@@ -3144,7 +3150,7 @@ describe('stabilization source', () => {
     expect(inventory).toMatch(/opaque attachment `apply\(\.\.\.\)` lists/u);
     expect(inventory).toMatch(/`Reflect\.apply\(\.\.\.\)`\s+raw screenshot/u);
     expect(inventory).toContain(
-      'object-spread and `Object.assign(...)` copied grouped raw Markdown image\n  aliases',
+      'object-spread, `Object.assign(...)`, and object-rest copied grouped raw\n  Markdown image aliases',
     );
     expect(inventory).toContain(
       'copied returned screenshot-helper groups\n  with object-rest copies',

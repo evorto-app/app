@@ -786,8 +786,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   comma-expression raw screenshot and image attach invocations, conditional,
   logical, and nested raw screenshot and image attach callees,
   optional-call screenshot-helper, raw screenshot, and image attach invocations,
-  object-spread and `Object.assign(...)` copied grouped raw Markdown image
-  aliases,
+  object-spread, `Object.assign(...)`, and object-rest copied grouped raw
+  Markdown image aliases,
   forward-declared raw aliases, binding-pattern default raw function aliases,
   and simple, destructured, nested destructured, grouped, shorthand,
   alias-valued, or direct/alias-valued tuple/array
