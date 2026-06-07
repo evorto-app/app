@@ -168,6 +168,7 @@ test('shared page layout helper labels overflow, coverage, and clipped controls'
       </div>
       <p class="fixed-clipped-text">Fixed clipped readable copy</p>
       <p class="loading-placeholder">Loading profile settings...</p>
+      <p class="unicode-loading-placeholder">Loading…</p>
       <button class="fixed-clipped-action" type="button">
         Fixed clipped action
       </button>
@@ -283,6 +284,10 @@ test('shared page layout helper labels overflow, coverage, and clipped controls'
       expect.objectContaining({
         className: 'loading-placeholder',
         text: 'Loading profile settings...',
+      }),
+      expect.objectContaining({
+        className: 'unicode-loading-placeholder',
+        text: 'Loading…',
       }),
     ]),
   );

@@ -8256,6 +8256,8 @@ describe('stabilization source', () => {
 
     expect(discoveredViewportSpecPaths).toEqual(durableViewportSpecPaths);
     expect(viewportSpec).toContain('expectAnonymousNavigation');
+    expect(viewportSpec).toContain('const expectStableLayout = async');
+    expect(viewportSpec).toContain('toPass({ timeout: 15_000 })');
     expect(viewportSpec).toContain(
       "navigation.getByRole('link', { name: 'Events' })",
     );
@@ -8564,6 +8566,8 @@ describe('stabilization source', () => {
     expect(pageLayoutHelperSpec).toContain('Focusable action');
     expect(pageLayoutHelperSpec).toContain('unlabeled-icon-action');
     expect(pageLayoutHelperSpec).toContain('unlabeledControlLabels');
+    expect(pageLayoutHelperSpec).toContain('unicode-loading-placeholder');
+    expect(pageLayoutHelperSpec).toContain('Loading…');
     expect(pageLayoutHelperSpec).toContain('table-scroll');
     expect(pageLayoutHelperSpec).toContain(
       'shared page layout helper ignores Material paginator touch target overlap',

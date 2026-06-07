@@ -7775,3 +7775,26 @@ and zero warning/error logs. The inspected screenshots
 `/tmp/evorto-negative-at-doc-guard-final-events-1440x900.png` show the current
 empty Events state, readable Terms fallback copy, the not-found fallback, and
 the desktop empty Events layout on Material surfaces with stable navigation.
+
+The public General viewport spec now retries the shared `readPageLayout(page)`
+assertion before accepting the final layout state, matching the existing
+global-admin viewport retry and preventing transient `Loading...` or `Loading…`
+text from creating false CI failures or being missed by one-shot layout reads.
+The no-app layout-helper smoke test also pins the Unicode `Loading…` case that
+appears in the public Events empty/loading transition, so the shared helper
+continues to classify that visible text as an unstable layout state until it
+settles. Validation for this slice passed `bun run format:write`,
+`bun run lint`, `bun run test:e2e:layout-helper`,
+`bunx vitest run helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 66 tests, and Browser verification against the already-running app at
+`http://localhost:4218`. WebStorm errors-only diagnostics remained blocked
+because this worktree is not one of the IDE's open projects. Browser checked
+`/events`, `/legal/terms`, and `/404` at 320x740, 390x844, and 1440x900 with
+settled expected content, no visible loading text, no application-error text,
+no overflowing elements, no clipped visible controls, and zero warning/error
+logs. The inspected screenshots
+`/tmp/evorto-layout-retry-events-320x740.png`,
+`/tmp/evorto-layout-retry-legal-terms-320x740.png`, and
+`/tmp/evorto-layout-retry-events-1440x900.png` show the current empty Events
+state, readable Terms fallback copy, and desktop empty Events layout with
+stable Events/Login/Scanner navigation.

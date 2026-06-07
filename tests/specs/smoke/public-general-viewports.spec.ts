@@ -143,6 +143,14 @@ const expectAnonymousNavigation = async (
   }
 };
 
+const expectStableLayout = async (page: Page) => {
+  await expect(async () => {
+    await expect(readPageLayout(page)).resolves.toEqual(
+      expectedStablePageLayout,
+    );
+  }).toPass({ timeout: 15_000 });
+};
+
 test('public General pages have stable layouts across viewports', async ({
   page,
   seeded,
@@ -238,9 +246,7 @@ test('public General pages have stable layouts across viewports', async ({
           ).toBeVisible({ timeout: 15_000 });
           await expectAnonymousNavigation(page, viewport);
 
-          await expect(readPageLayout(page)).resolves.toEqual(
-            expectedStablePageLayout,
-          );
+          await expectStableLayout(page);
           expect(
             browserLogFailures,
             `${viewport.label} ${route.name} should not emit browser warning/error logs`,
@@ -336,9 +342,7 @@ test('public simple General pages remain readable across viewport rendering', as
                 route.paragraphSelector,
                 context,
               );
-              await expect(readPageLayout(page)).resolves.toEqual(
-                expectedStablePageLayout,
-              );
+              await expectStableLayout(page);
               expect(
                 browserLogFailures,
                 `${context} should not emit browser warning/error logs`,
