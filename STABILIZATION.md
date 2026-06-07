@@ -8369,3 +8369,34 @@ screenshots `/tmp/evorto-browser-nav-layer-ecf3fe57/events-320x740.png` and
 `/tmp/evorto-browser-nav-layer-ecf3fe57/legal-terms-390x844.png` show seeded
 Material event cards with icons/times and readable Terms fallback copy with the
 fixed bottom navigation visually in front of page content.
+
+The generated Register-for-events docs no longer reuse the same paid-option
+image for two different payment states. The paid-registration journey now keeps
+the first screenshot on the paid option before checkout, then clicks the payment
+action, waits for the pending Stripe checkout transaction, and screenshots the
+actual pending registration recovery card with **Pay now**, cancellation copy,
+and transfer/resale-unavailable copy before opening Stripe Checkout. Focused
+validation passed
+`APP_HOST_PORT=4200 BASE_URL=http://localhost:4200 bun run test:e2e:docs -- tests/docs/events/register.doc.ts --no-deps`
+with 7 tests, and the full generated-doc baseline passed
+`APP_HOST_PORT=4200 BASE_URL=http://localhost:4200 bun run test:e2e:docs` with
+32 tests and no duplicate-figure reporter error. The generated page now uses
+distinct paid-registration figures:
+`test-results/docs/images/register-for-events/image-5cc3f7749a3a6fc8.png` for
+the pre-checkout paid option,
+`test-results/docs/images/register-for-events/image-b1e34df3617e59dd.png` for
+the pending recovery card,
+`test-results/docs/images/register-for-events/image-6bb707914f660f97.png` for
+Stripe Checkout, and
+`test-results/docs/images/register-for-events/image-9f049459695e0870.png` for
+the confirmed paid ticket. The inspected images are 1280x720 and show the
+expected Soccer Match registration surfaces rather than unrelated or duplicated
+artifacts. Source validation passed `bun run format:write`, `bun run lint`,
+`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 210 tests, and `git diff --check`. WebStorm errors-only diagnostics remain
+blocked because this worktree is not one of the IDE's open projects. Browser
+verification against the local Docker app opened
+`http://localhost:4200/events/ecbb5a46c399a5b4843e` and found the paid Soccer
+Match detail with registration and login-required paid-option copy, no
+persistent loading text, no application-error text, no horizontal overflow, and
+zero Browser warning/error logs.

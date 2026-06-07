@@ -1221,12 +1221,6 @@ test.describe('Register for events', () => {
   Afterwards, you can either finish the registration by paying or cancel your payment and registration in case you changed your mind. Cancelling a pending payment registration releases every selected buyer and guest spot and expires the pending checkout when possible.
   Payment success, payment failure, and checkout expiry do not send separate email notifications in the current relaunch scope.`,
     });
-    await takeScreenshot(
-      testInfo,
-      registrationOptionCard(page, 'Pay'),
-      page,
-      'Paid registration card before the pending checkout recovery state',
-    );
     const findCheckoutTransaction = async () => {
       if (checkoutTransactionId) {
         return database.query.transactions.findFirst({
@@ -1275,6 +1269,24 @@ test.describe('Register for events', () => {
       checkoutTransactionId = pendingTransaction?.id ?? null;
       checkoutUrl = pendingTransaction?.stripeCheckoutUrl ?? null;
     }
+    const pendingCheckoutRegistrationCard = activeRegistrationCard(
+      page,
+      'Pay now',
+    );
+    await expect(pendingCheckoutRegistrationCard).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(
+      pendingCheckoutRegistrationCard.getByText(
+        'To finalize your registration you have to pay the registration fee.',
+      ),
+    ).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      pendingCheckoutRegistrationCard,
+      page,
+      'Paid registration card before the pending checkout recovery state',
+    );
     const checkoutPagePromise = page.context().waitForEvent('page', {
       timeout: 5_000,
     });
