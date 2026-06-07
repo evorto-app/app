@@ -3814,6 +3814,10 @@ describe('stabilization source', () => {
       'evorto-general-privacy-legal-page-390x844-896d57e9.png',
     );
     expect(normalizedCheckpoint).toContain(
+      'bun run test:e2e:public-general-viewports',
+    );
+    expect(normalizedCheckpoint).toContain('1 passed (14.8s)');
+    expect(normalizedCheckpoint).toContain(
       'Browser viewport override was reset',
     );
     expect(normalizedCheckpoint).toContain(

@@ -4147,7 +4147,9 @@ fallback rather than a profile discount-card defect.
   Material event cards with icons, dates, times, and fixed Events/Login bottom
   navigation, and
   `/tmp/evorto-general-privacy-legal-page-390x844-896d57e9.png`, showing the
-  Privacy policy fallback text and fixed bottom navigation.
+  Privacy policy fallback text and fixed bottom navigation. The matching
+  durable `bun run test:e2e:public-general-viewports` run passed against the
+  same recovered Docker app with `1 passed (14.8s)`.
 - Current live Browser route refresh checkpoint: the Docker stack stayed healthy
   on the generated `BASE_URL`, the in-app Browser opened `/events`, found the
   seeded `Soccer Match 1` event link, and loaded that event detail page. The
