@@ -8412,3 +8412,31 @@ guard passed `bun run format:write`, `bun run lint`,
 `bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
 with 210 tests, and `git diff --check`. WebStorm errors-only diagnostics remain
 blocked because this worktree is not one of the IDE's open projects.
+
+Public General Browser evidence no longer depends on a stale Playwright-only
+clock. A current-head in-app Browser sweep at 390x844 first exposed that the
+plain localhost tenant still rendered `/events` as **No events found** even
+after `bun run docker:start` and the standard database setup, because
+`src/server/config/test-runtime-config.ts` defaulted `E2E_NOW_ISO` to
+`2026-02-01T12:00:00.000Z` while real Browser time is June 2026. The test
+runtime default now matches the documented deterministic default
+`2026-09-15T12:00:00.000Z`, `src/server/config/test-runtime-config.spec.ts`
+asserts the fallback value, and stabilization source coverage compares the
+runtime default with `helpers/testing/deterministic-test-defaults.ts` and
+`tests/README.md`. Validation passed `bun run format:write`, `bun run lint`,
+`bunx vitest run src/server/config/test-runtime-config.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`
+with 84 tests, `git diff --check`, `APP_HOST_PORT=4200 bun run docker:start`,
+`APP_HOST_PORT=4200 BASE_URL=http://localhost:4200 bun helpers/testing/run-playwright.ts tests/setup/database.setup.ts --project=database-setup --workers=1 --no-deps`,
+and the sequential
+`APP_HOST_PORT=4200 BASE_URL=http://localhost:4200 bun run test:e2e:public-general-viewports`
+rerun with 2 tests. A final in-app Browser 390x844 sweep rechecked `/`,
+`/events`, `/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`, `/500`,
+`/404`, `/missing-general-page`, and the first event detail route on the
+reseeded localhost tenant. The `/events` screenshot now shows meaningful
+Material event-card content with dated seeded events including Augsburg Trip,
+Murnau City Tour, Bavarian Forest Trip, Hörnle hike, and Soccer Match, the fixed
+Events/Login bottom navigation, no horizontal overflow, no clipped visible
+controls, no persistent loading text, no application-error text, navigation
+layer 30 above sticky event-date layer 10, and zero Browser warning/error logs.
+WebStorm errors-only diagnostics remain blocked because this worktree is not
+one of the IDE's open projects.

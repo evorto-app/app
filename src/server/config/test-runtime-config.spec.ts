@@ -177,6 +177,20 @@ describe('test-runtime-config', () => {
     }),
   );
 
+  it.effect(
+    'uses the documented deterministic clock default when E2E_NOW_ISO is absent',
+    () =>
+      Effect.gen(function* () {
+        const provider = providerFromEntries([
+          ...requiredPlaywrightEntries,
+          ['BASE_URL', 'http://localhost:4200'],
+        ]);
+        const environment = yield* readPlaywrightEnvironment(provider);
+
+        expect(environment.E2E_NOW_ISO).toBe('2026-09-15T12:00:00.000Z');
+      }),
+  );
+
   it.effect('allows opt-in system Chrome for local exploratory runs', () =>
     Effect.gen(function* () {
       const provider = providerFromEntries([

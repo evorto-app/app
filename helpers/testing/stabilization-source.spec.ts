@@ -8715,6 +8715,29 @@ describe('stabilization source', () => {
     expect(checkpointText).toContain('source-guard tests pass');
   });
 
+  it('keeps the Playwright runtime clock default aligned with deterministic test defaults', () => {
+    const testRuntimeConfig = readSource(
+      'src/server/config/test-runtime-config.ts',
+    );
+    const deterministicDefaults = readSource(
+      'helpers/testing/deterministic-test-defaults.ts',
+    );
+    const testsReadme = readSource('tests/README.md');
+    const runtimeClock = testRuntimeConfig.match(
+      /DEFAULT_TEST_CLOCK_ISO = '([^']+)'/u,
+    )?.[1];
+    const documentedClock = deterministicDefaults.match(
+      /DEFAULT_E2E_NOW_ISO = '([^']+)'/u,
+    )?.[1];
+
+    expect(runtimeClock).toBeDefined();
+    expect(runtimeClock).toBe(documentedClock);
+    expect(testsReadme).toContain(`E2E_NOW_ISO=${runtimeClock}`);
+    expect(testsReadme).toContain(
+      'Keep `E2E_NOW_ISO` ahead of the real current date',
+    );
+  });
+
   it('keeps public General viewport coverage durable and compact', () => {
     const source = readSource('STABILIZATION.md');
     const inventory = readSource('tests/test-inventory.md');
