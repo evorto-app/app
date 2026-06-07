@@ -2025,7 +2025,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain('weak Markdown body text');
     expect(inventory).toContain('explanatory body text');
     expect(inventory).toMatch(
-      /tracks aliased Markdown attachment\s+helpers and names through copied groups,\s+indexed lists,\s+assigned local aliases/u,
+      /tracks aliased Markdown attachment\s+helpers and names through copied groups,\s+indexed lists,\s+parameter destructuring\s+with constant-backed computed keys,\s+assigned local aliases/u,
     );
     expect(inventory).toMatch(
       /follows aliased Markdown attachment helpers and\s+names for that screenshot-density reset including assigned local aliases/u,
@@ -2037,6 +2037,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain('`Reflect.apply(...)`');
     expect(inventory).toMatch(
       /only real Playwright\s+`testInfo\.attach`-backed\s+Markdown calls count as explanatory generated-doc\s+sections/u,
+    );
+    expect(inventory).toContain(
+      'parameter destructuring\n  with constant-backed computed keys',
     );
     expect(inventory).toContain('tiny valid PNGs');
     expect(inventory).toMatch(/valid\s+PNG\s+screenshots/u);
@@ -2063,6 +2066,9 @@ describe('stabilization source', () => {
       'counts returned and indirect generated documentation markdown attachments for the manifest guard',
     );
     expect(generatedDocumentationSource).toContain(
+      'counts parameter-destructured generated documentation markdown attachments for the manifest guard',
+    );
+    expect(generatedDocumentationSource).toContain(
       'const { attach: destructuredAttachMarkdown } = testInfo',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2070,6 +2076,15 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'Reflect.apply(assignedAttachMarkdown, testInfo',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "const markdownNameKey = 'name'",
+    );
+    expect(generatedDocumentationSource).toContain(
+      '[markdownNameKey]: markdownName',
+    );
+    expect(generatedDocumentationSource).toMatch(
+      /collectDestructuredPropertyAliases\(\s*node,\s*sourceFile,\s*markdownAttachmentNamePropertyAliases,\s*markdownAttachmentNameAliases,\s*staticStringAliases/u,
     );
     expect(generatedDocumentationSource).toContain(
       'keeps product-important documentation areas represented by generated docs',
@@ -5746,25 +5761,22 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toContain(
-      'generated-doc weak screenshot target detection now\nresolves constant-backed computed grouped target keys',
+      'generated-doc markdown attachment counting now\ntracks parameter-destructured markdown names',
     );
-    expect(source).toContain('including destructured aliases');
-    expect(source).toContain('before target-quality\nchecks run');
-    expect(source).toContain('{ [shellKey]: page.locator');
-    expect(source).toContain('groupedTargets[shellKey]');
-    expect(source).toContain('groupedTargets[broadKey]');
-    expect(source).toContain('groupedTargets[singleKey]');
-    expect(source).toContain('groupedTargets[iconKey]');
+    expect(source).toContain('constant-backed computed\nproperties');
+    expect(source).toContain('before the manifest guard decides');
+    expect(source).toContain("`const markdownNameKey = 'name'`");
+    expect(source).toContain("`[markdownNameKey]: 'markdown'`");
+    expect(source).toContain('`[markdownNameKey]: markdownName`');
+    expect(source).toContain('`testInfo.attach(markdownName, ...)`');
+    expect(source).toContain('`attachMarkdown(markdownName, ...)`');
     expect(source).toContain(
-      'const { [shellKey]: shellTarget } = groupedTargets',
-    );
-    expect(source).toContain(
-      'generic page shells, broad sections, single controls, or icon-only targets\nbehind computed object keys or computed destructuring',
+      'hide under-documented flows by moving the\nMarkdown attachment name into a computed-key parameter object',
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 201 tests');
+    expect(source).toContain('with 202 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5780,7 +5792,7 @@ describe('stabilization source', () => {
     expect(source).toContain(
       'generated database endpoint\naccepting TCP connections',
     );
-    expect(source).toContain('`spawnSync bun ETIMEDOUT`');
+    expect(source).toContain('`Connection terminated unexpectedly`');
     expect(source).toContain(
       "Docker's disposable start-path preflight\npassed",
     );
@@ -5789,7 +5801,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=computed-destructured-target-source-guard',
+      '/legal/terms?stabilizationEvidence=parameter-destructured-markdown-count-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');

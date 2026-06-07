@@ -4922,6 +4922,13 @@ const countGeneratedMarkdownAttachments = (
       collectDestructuredPropertyAliases(
         node,
         sourceFile,
+        markdownAttachmentNamePropertyAliases,
+        markdownAttachmentNameAliases,
+        staticStringAliases,
+      );
+      collectDestructuredPropertyAliases(
+        node,
+        sourceFile,
         markdownAttachFunctionPropertyAliases,
         markdownAttachFunctionAliases,
         staticStringAliases,
@@ -8774,6 +8781,31 @@ describe('generated docs source current behavior', () => {
         returnedMarkdownCountSource,
       ),
     ).toBe(7);
+  });
+
+  it('counts parameter-destructured generated documentation markdown attachments for the manifest guard', () => {
+    const parameterDestructuredMarkdownCountSource = `
+      const markdownNameKey = 'name';
+      const attachKey = 'attach';
+      const markdownPieces = {
+        [markdownNameKey]: 'markdown',
+        [attachKey]: testInfo.attach.bind(testInfo),
+      };
+      async function renderDocumentationSections({
+        [markdownNameKey]: markdownName,
+        [attachKey]: attachMarkdown,
+      } = markdownPieces) {
+        await testInfo.attach(markdownName, { body: 'Parameter destructured section body.' });
+        await attachMarkdown(markdownName, { body: 'Parameter destructured helper body.' });
+      }
+    `;
+
+    expect(
+      countGeneratedMarkdownAttachments(
+        'tests/docs/example/parameter-destructured-markdown-count.doc.ts',
+        parameterDestructuredMarkdownCountSource,
+      ),
+    ).toBe(2);
   });
 
   it('requires indirect documentation markdown attachments to include explanatory body text', () => {
