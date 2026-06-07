@@ -1643,6 +1643,12 @@ describe('stabilization source', () => {
       '`assignedMarkdownGroup.attachMarkdownEvidence(...)`',
     );
     expect(source).toContain(
+      'The same source guard now follows aliased Markdown attachment helpers',
+    );
+    expect(source).toContain(
+      "`attachMarkdown(markdownName, { body: 'Too short.' })`",
+    );
+    expect(source).toContain(
       'full `bun run test:e2e:docs` retry on pushed head `34c0f1f8`',
     );
     expect(source).toContain('rebuilt the Docker docs stack');
@@ -1951,6 +1957,9 @@ describe('stabilization source', () => {
     expect(source).toContain('claim unrelated UI states');
     expect(inventory).toContain('weak Markdown body text');
     expect(inventory).toContain('explanatory body text');
+    expect(inventory).toContain(
+      'tracks aliased Markdown attachment\n  helpers and names through copied groups and indexed lists',
+    );
     expect(inventory).toContain('tiny valid PNGs');
     expect(inventory).toMatch(/valid\s+PNG\s+screenshots/u);
     expect(inventory).toMatch(

@@ -687,9 +687,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   image declarations in generated docs markdown attachments at reporter runtime
   and in source coverage,
   rejects weak Markdown body text so generated docs keep explanatory body text
-  before generated markdown is written, and rejects per-section source bodies
-  shorter than 120 static characters so one long section cannot mask a thin
-  generated-doc section in the same file. It also rejects screenshots before
+  before generated markdown is written, tracks aliased Markdown attachment
+  helpers and names through copied groups and indexed lists, and rejects
+  per-section source bodies shorter than 120 static characters so one long
+  section cannot mask a thin generated-doc section in the same file. It also
+  rejects screenshots before
   the first Markdown section and more than two screenshots after one Markdown
   section so generated images stay close to the explanatory text that gives
   them product context, and only real `testInfo.attach('markdown', ...)` calls

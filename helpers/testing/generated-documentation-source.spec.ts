@@ -1428,7 +1428,12 @@ const findWeakMarkdownBodyAttachments = (
     ts.ScriptKind.TS,
   );
   const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const reflectAliases = collectReflectAliases(sourceFile);
   const weakBodies: string[] = [];
+  const markdownAttachmentNameAliases = new Set<string>();
+  const markdownAttachmentNamePropertyAliases = new Set<string>();
+  const markdownAttachFunctionAliases = new Set<string>();
+  const markdownAttachFunctionPropertyAliases = new Set<string>();
 
   const describeCall = (node: ts.CallExpression): string => {
     const position = sourceFile.getLineAndCharacterOfPosition(
@@ -1491,13 +1496,180 @@ const findWeakMarkdownBodyAttachments = (
     return null;
   };
 
+  const hasPropertyAlias = (
+    node: ts.Expression,
+    propertyAliases: ReadonlySet<string>,
+  ): boolean => {
+    const propertyReference = getStaticOrReflectedPropertyReference(
+      node,
+      sourceFile,
+      staticStringAliases,
+      reflectAliases,
+    );
+
+    return propertyReference ? propertyAliases.has(propertyReference) : false;
+  };
+
+  const isMarkdownAttachmentName = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (
+      resolveStaticStringValue(expression, staticStringAliases) === 'markdown'
+    ) {
+      return true;
+    }
+
+    if (hasPropertyAlias(expression, markdownAttachmentNamePropertyAliases)) {
+      return true;
+    }
+
+    return (
+      ts.isIdentifier(expression) &&
+      markdownAttachmentNameAliases.has(expression.text)
+    );
+  };
+
+  const isTestInfoAttachReference = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (
+      isReflectGetPropertyReference(
+        expression,
+        'attach',
+        staticStringAliases,
+        reflectAliases,
+      )
+    ) {
+      const reflectedTarget = unwrapExpression(
+        (expression as ts.CallExpression).arguments[0],
+      );
+
+      return (
+        ts.isIdentifier(reflectedTarget) && reflectedTarget.text === 'testInfo'
+      );
+    }
+
+    if (
+      !ts.isPropertyAccessExpression(expression) &&
+      !ts.isElementAccessExpression(expression)
+    ) {
+      return false;
+    }
+
+    const receiver = unwrapExpression(
+      getStaticPropertyReceiver(expression) ?? expression,
+    );
+
+    return (
+      ts.isIdentifier(receiver) &&
+      receiver.text === 'testInfo' &&
+      getStaticPropertyName(expression, staticStringAliases) === 'attach'
+    );
+  };
+
+  const isAttachFunctionReference = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (isTestInfoAttachReference(expression)) {
+      return true;
+    }
+
+    if (
+      ts.isCallExpression(expression) &&
+      getStaticPropertyName(expression.expression, staticStringAliases) ===
+        'bind'
+    ) {
+      const receiver = getStaticPropertyReceiver(expression.expression);
+
+      return receiver ? isTestInfoAttachReference(receiver) : false;
+    }
+
+    return false;
+  };
+
+  const isTrackedAttachFunctionReference = (node: ts.Expression): boolean => {
+    const expression = unwrapExpression(node);
+
+    if (isAttachFunctionReference(expression)) {
+      return true;
+    }
+
+    if (ts.isIdentifier(expression)) {
+      return markdownAttachFunctionAliases.has(expression.text);
+    }
+
+    return hasPropertyAlias(expression, markdownAttachFunctionPropertyAliases);
+  };
+
+  const isMarkdownAttachmentCall = (node: ts.CallExpression): boolean => {
+    const attachmentName = node.arguments[0];
+
+    return (
+      !!attachmentName &&
+      isMarkdownAttachmentName(attachmentName) &&
+      isTrackedAttachFunctionReference(node.expression)
+    );
+  };
+
+  const collectAliases = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
+      const initializer = unwrapExpression(node.initializer);
+
+      if (isMarkdownAttachmentName(initializer)) {
+        markdownAttachmentNameAliases.add(node.name.text);
+      }
+
+      if (isAttachFunctionReference(initializer)) {
+        markdownAttachFunctionAliases.add(node.name.text);
+      }
+
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isMarkdownAttachmentName,
+        markdownAttachmentNameAliases,
+        markdownAttachmentNamePropertyAliases,
+        staticStringAliases,
+      );
+      collectGroupedPropertyAliases(
+        node.name.text,
+        node.initializer,
+        isAttachFunctionReference,
+        markdownAttachFunctionAliases,
+        markdownAttachFunctionPropertyAliases,
+        staticStringAliases,
+      );
+
+      if (ts.isArrayLiteralExpression(initializer)) {
+        collectIndexedPropertyAliases(
+          node.name.text,
+          initializer.elements,
+          isMarkdownAttachmentName,
+          markdownAttachmentNamePropertyAliases,
+        );
+        collectIndexedPropertyAliases(
+          node.name.text,
+          initializer.elements,
+          isAttachFunctionReference,
+          markdownAttachFunctionPropertyAliases,
+        );
+      }
+    }
+
+    ts.forEachChild(node, collectAliases);
+  };
+
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const payload = node.arguments[1]
         ? unwrapExpression(node.arguments[1])
         : null;
 
-      if (isTestInfoMarkdownAttachmentCall(node, staticStringAliases)) {
+      if (isMarkdownAttachmentCall(node)) {
         const body =
           payload && ts.isObjectLiteralExpression(payload)
             ? getObjectPropertyValue(payload, 'body')
@@ -1515,6 +1687,7 @@ const findWeakMarkdownBodyAttachments = (
     ts.forEachChild(node, visit);
   };
 
+  collectAliases(sourceFile);
   visit(sourceFile);
 
   return weakBodies;
@@ -6799,6 +6972,33 @@ describe('generated docs source current behavior', () => {
       'tests/docs/example/markdown-body.doc.ts:7:13',
       'tests/docs/example/markdown-body.doc.ts:10:13',
       'tests/docs/example/markdown-body.doc.ts:19:13',
+    ]);
+  });
+
+  it('requires aliased documentation markdown attachments to include explanatory body text', () => {
+    const aliasedMarkdownBodySource = `
+      const markdownName = 'markdown';
+      const attachMarkdown = testInfo.attach.bind(testInfo);
+      await attachMarkdown(markdownName, { body: 'Too short.' });
+      const markdownNameGroup = { markdownName };
+      const attachMarkdownGroup = { attachMarkdown };
+      const spreadMarkdownNameGroup = { ...markdownNameGroup };
+      const assignedAttachMarkdownGroup = Object.assign({}, attachMarkdownGroup);
+      await assignedAttachMarkdownGroup.attachMarkdown(spreadMarkdownNameGroup.markdownName, { body: 'Still too short.' });
+      const markdownNames = [markdownName];
+      const attachMarkdownHelpers = [attachMarkdown];
+      await attachMarkdownHelpers[0](markdownNames[0], { body: 'Short.' });
+    `;
+
+    expect(
+      findWeakMarkdownBodyAttachments(
+        'tests/docs/example/aliased-markdown-body.doc.ts',
+        aliasedMarkdownBodySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/aliased-markdown-body.doc.ts:4:13',
+      'tests/docs/example/aliased-markdown-body.doc.ts:9:13',
+      'tests/docs/example/aliased-markdown-body.doc.ts:12:13',
     ]);
   });
 

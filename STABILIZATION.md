@@ -6984,6 +6984,11 @@ Markdown section must carry at least 120 static characters of explanatory text,
 so a long section cannot mask a thin paid-registration, event-management,
 template role, finance transaction-list, or template-category creation note in
 the same generated page.
+The same source guard now follows aliased Markdown attachment helpers and
+attachment names, including object-spread, `Object.assign(...)`, and indexed
+grouped copies, so `attachMarkdown(markdownName, { body: 'Too short.' })` and
+copied helper/name collections cannot publish thin generated-doc sections
+outside the explanatory-body check.
 
 Generated-doc source coverage now also keeps screenshot clusters close to their
 explanatory Markdown. A docs file cannot place a `takeScreenshot(...)` before
