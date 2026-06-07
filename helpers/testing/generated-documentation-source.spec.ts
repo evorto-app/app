@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 // Source guard: generated documentation is product-facing, so these checks keep
 // the docs tied to implemented flows instead of stale aspirational copy.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
+const minimumSourceMarkdownBodyLength = 120;
 
 const readSource = (path: string): string =>
   readFileSync(nodePath.join(repositoryRoot, path), 'utf8');
@@ -1380,6 +1381,113 @@ const collectScreenshotCaptions = (
   visit(sourceFile);
 
   return captions;
+};
+
+const findWeakMarkdownBodyAttachments = (
+  path: string,
+  source: string,
+): string[] => {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const staticStringAliases = collectStaticStringAliases(sourceFile);
+  const weakBodies: string[] = [];
+
+  const describeCall = (node: ts.CallExpression): string => {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.expression.getStart(sourceFile),
+    );
+    return `${path}:${position.line + 1}:${position.character + 1}`;
+  };
+
+  const getObjectPropertyValue = (
+    objectLiteral: ts.ObjectLiteralExpression,
+    propertyName: string,
+  ): null | ts.Expression => {
+    for (const property of objectLiteral.properties) {
+      if (
+        ts.isPropertyAssignment(property) &&
+        getStaticPropertyNameFromName(property.name, staticStringAliases) ===
+          propertyName
+      ) {
+        return property.initializer;
+      }
+
+      if (
+        ts.isShorthandPropertyAssignment(property) &&
+        property.name.text === propertyName
+      ) {
+        return property.name;
+      }
+    }
+
+    return null;
+  };
+
+  const getMarkdownBodyText = (node: ts.Expression): null | string => {
+    const expression = unwrapExpression(node);
+
+    if (
+      ts.isStringLiteral(expression) ||
+      ts.isNoSubstitutionTemplateLiteral(expression)
+    ) {
+      return expression.text;
+    }
+
+    if (ts.isTemplateExpression(expression)) {
+      return expression.templateSpans.reduce(
+        (body, span) => `${body}${span.literal.text}`,
+        expression.head.text,
+      );
+    }
+
+    if (
+      ts.isBinaryExpression(expression) &&
+      expression.operatorToken.kind === ts.SyntaxKind.PlusToken
+    ) {
+      const left = getMarkdownBodyText(expression.left);
+      const right = getMarkdownBodyText(expression.right);
+
+      return left !== null && right !== null ? `${left}${right}` : null;
+    }
+
+    return null;
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const attachmentName = node.arguments[0]
+        ? resolveStaticStringValue(node.arguments[0], staticStringAliases)
+        : null;
+      const payload = node.arguments[1]
+        ? unwrapExpression(node.arguments[1])
+        : null;
+
+      if (attachmentName === 'markdown') {
+        const body =
+          payload && ts.isObjectLiteralExpression(payload)
+            ? getObjectPropertyValue(payload, 'body')
+            : null;
+        const bodyText = body ? getMarkdownBodyText(body) : null;
+        const normalizedBodyLength =
+          bodyText?.replace(/\s+/gu, ' ').trim().length ?? 0;
+
+        if (normalizedBodyLength < minimumSourceMarkdownBodyLength) {
+          weakBodies.push(describeCall(node));
+        }
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return weakBodies;
 };
 
 const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
@@ -6362,6 +6470,41 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/parenthesized-helper.doc.ts:9:15']);
   });
 
+  it('requires each documentation markdown attachment to include explanatory body text', () => {
+    const markdownBodySource = `
+      await testInfo.attach('markdown', {
+        body: \`
+          This section explains the complete generated documentation state with enough concrete product context to review the result without opening the application.
+        \`,
+      });
+      await testInfo.attach('markdown', {
+        body: \`Too short to explain the generated page.\`,
+      });
+      await testInfo.attach('markdown', {
+        body: \`
+          \${dynamicOnly}
+        \`,
+      });
+      const markdownName = 'markdown';
+      await testInfo.attach(markdownName, {
+        body:
+          'Another short generated documentation section ' +
+          'still does not explain enough context.',
+      });
+    `;
+
+    expect(
+      findWeakMarkdownBodyAttachments(
+        'tests/docs/example/markdown-body.doc.ts',
+        markdownBodySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/markdown-body.doc.ts:7:13',
+      'tests/docs/example/markdown-body.doc.ts:10:13',
+      'tests/docs/example/markdown-body.doc.ts:16:13',
+    ]);
+  });
+
   it('inspects optional documentation screenshot and raw image calls', () => {
     const optionalCallSource = `
       async function captureEvidence() {
@@ -9582,19 +9725,9 @@ describe('generated docs source current behavior', () => {
 
     for (const path of documentFiles) {
       const source = readSource(path);
-      const markdownBodies = source.match(/body:\s*`[\s\S]*?`/gu) ?? [];
-      const markdownTextLength = markdownBodies
-        .map((body) =>
-          body
-            .replaceAll('`', '')
-            .replaceAll(/\$\{[\s\S]*?\}/gu, '')
-            .replaceAll(/\s+/gu, ' ')
-            .trim(),
-        )
-        .join(' ').length;
 
       expect(source, path).toContain("testInfo.attach('markdown'");
-      expect(markdownTextLength, path).toBeGreaterThanOrEqual(120);
+      expect(findWeakMarkdownBodyAttachments(path, source), path).toEqual([]);
       expect(source, path).not.toContain('waitForTimeout(');
       expect(source, path).not.toContain('.waitForTimeout(');
 

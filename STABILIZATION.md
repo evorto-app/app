@@ -6955,3 +6955,10 @@ caption variables and interpolated template captions are rejected as weak even
 when their runtime text would be long enough. Only static descriptive screenshot
 captions enter the duplicate-caption review, so generated docs cannot hide
 repeated or unrelated images behind runtime-generated labels.
+
+Generated-doc source coverage now checks explanatory Markdown per attachment
+instead of only totaling body text per documentation file. Each generated
+Markdown section must carry at least 120 static characters of explanatory text,
+so a long section cannot mask a thin paid-registration, event-management,
+template role, finance transaction-list, or template-category creation note in
+the same generated page.

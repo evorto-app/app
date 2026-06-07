@@ -562,7 +562,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   emitted, and template simple-mode default-title assertions are aligned with
   the form model defaults. It also requires every current documentation source
   file in the screenshot-count manifest to attach
-  at least 120 characters of explanatory markdown, pins the current per-flow
+  at least 120 characters of explanatory markdown in every generated Markdown
+  attachment, pins the current per-flow
   screenshot counts with a manifest that must include every image-backed docs
   file so docs cannot quietly drop image-backed states, requires UI docs to use
   the shared `takeScreenshot` helper imported from the documentation reporter
@@ -682,7 +683,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   image declarations in generated docs markdown attachments at reporter runtime
   and in source coverage,
   rejects weak Markdown body text so generated docs keep explanatory body text
-  before generated markdown is written,
+  before generated markdown is written, and rejects per-section source bodies
+  shorter than 120 static characters so one long section cannot mask a thin
+  generated-doc section in the same file,
   including aliased markdown names, bracketed `attach` calls,
   binding-default and parameter-default markdown names,
   grouped/indexed/destructured/assigned markdown names including `.at(...)`

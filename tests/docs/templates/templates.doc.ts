@@ -225,7 +225,7 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
 
   await testInfo.attach('markdown', {
     body: `
-Role selection also avoids duplicate entries by hiding already selected roles from the autocomplete list.
+Role selection also avoids duplicate entries by hiding already selected roles from the autocomplete list. That keeps organizer and participant responsibility choices clear while editing reusable registration options.
 `,
   });
   const organizerRoleInput = page.getByPlaceholder('Add Role...').first();

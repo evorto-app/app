@@ -382,7 +382,7 @@ For a full walkthrough of the review and approval lifecycle, see the dedicated E
   } catch {
     await testInfo.attach('markdown', {
       body: `
-_Note: Event status is not displayed in this view in the current build._
+_Note: Event status is not displayed in this view in the current build._ The rest of the management guide still captures the organizer actions that are available from the implemented event surface.
 `,
     });
   }

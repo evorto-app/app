@@ -1978,9 +1978,11 @@ describe('stabilization source', () => {
     expect(generatedDocumentationSource).toContain(
       'expect(documentFiles).toEqual(expectedImageBackedDocuments)',
     );
-    expect(generatedDocumentationSource).toContain('markdownTextLength');
     expect(generatedDocumentationSource).toContain(
-      'toBeGreaterThanOrEqual(120)',
+      'findWeakMarkdownBodyAttachments',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'minimumSourceMarkdownBodyLength = 120',
     );
     expect(generatedDocumentationSource).toContain('countTakeScreenshotCalls');
     expect(generatedDocumentationSource).toContain('expectedScreenshotCounts');

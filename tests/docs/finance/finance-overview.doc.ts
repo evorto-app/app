@@ -195,7 +195,7 @@ The finance overview is a navigation surface. It shows links only for the financ
       body: `
 ## Transaction List
 
-You can view a detailed list of all transactions by clicking on the **Transactions** tab.
+You can view a detailed list of all transactions by clicking on the **Transactions** tab. The table is the implemented finance ledger surface for reviewing tenant money movement and exported transaction context.
 `,
     });
 

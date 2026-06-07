@@ -80,7 +80,7 @@ Click on _Create category_ to create a new category.`,
     );
     await testInfo.attach('markdown', {
       body: `
-You can now enter the name for your category and save it. The new category will be created and added to the list.`,
+You can now enter the name for your category and save it. The new category is created immediately and appears in the template category list for later template organization.`,
     });
     await page
       .getByRole('textbox', { name: 'Category title' })

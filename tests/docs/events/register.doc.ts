@@ -1155,7 +1155,7 @@ test.describe('Register for events', () => {
     await page.goto('.');
     await testInfo.attach('markdown', {
       body: `
-  To register for a paid event, you have to pay the registration fee.`,
+  Paid events show the registration option, total price, and payment action before checkout starts. You have to pay the registration fee before the registration can become confirmed.`,
     });
     await gotoEventDetail(page, paidEvent.id);
     await waitForRegistrationStatus(page);
