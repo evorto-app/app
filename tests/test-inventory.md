@@ -674,9 +674,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   MIME/path forwarding through calls, template interpolation, conditionals,
   nullish/logical expressions, and concatenation, object shorthand image
   payloads, computed raw image payload keys, spread raw image payload objects,
-  `Object.assign(...)` raw image payload objects, spread direct attachment
-  arguments, opaque attachment `apply(...)` lists, and `.at(...)`
-  indexed attach-helper lists,
+  `Object.assign(...)` raw image payload objects, object-rest raw image payload
+  aliases, spread direct attachment arguments, opaque attachment `apply(...)` lists,
+  and `.at(...)` indexed attach-helper lists,
   raw screenshot and image attach call/apply invocations, `Reflect.apply(...)`
   raw screenshot and image attach invocations, inline bound raw screenshot and
   image attach invocations,

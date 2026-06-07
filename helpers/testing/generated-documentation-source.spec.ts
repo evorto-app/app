@@ -503,6 +503,26 @@ const collectBindingInitializerAliases = (
   }
 };
 
+const collectObjectRestBindingAliases = (
+  node: ts.VariableDeclaration,
+  isTrackedReference: (node: ts.Expression) => boolean,
+  aliases: Set<string>,
+): void => {
+  if (
+    !node.initializer ||
+    !ts.isObjectBindingPattern(node.name) ||
+    !isTrackedReference(node.initializer)
+  ) {
+    return;
+  }
+
+  for (const element of node.name.elements) {
+    if (element.dotDotDotToken) {
+      addBindingIdentifiers(element.name, aliases);
+    }
+  }
+};
+
 const isTrackedReferenceOrAlias = (
   node: ts.Expression,
   isTrackedReference: (node: ts.Expression) => boolean,
@@ -1413,6 +1433,11 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       );
       collectBindingInitializerAliases(
         node.name,
+        hasRawMarkdownPayload,
+        rawMarkdownPayloadAliases,
+      );
+      collectObjectRestBindingAliases(
+        node,
         hasRawMarkdownPayload,
         rawMarkdownPayloadAliases,
       );
@@ -3468,6 +3493,14 @@ const findDirectImageAttachmentCalls = (
       imageAttachmentPayloadAliases.add(node.name.text);
     }
 
+    if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+      collectObjectRestBindingAliases(
+        node,
+        isImageAttachmentPayload,
+        imageAttachmentPayloadAliases,
+      );
+    }
+
     ts.forEachChild(node, collectPayloadAliases);
   };
 
@@ -4426,6 +4459,39 @@ describe('generated docs source current behavior', () => {
       ),
     ).toEqual([
       'tests/docs/example/object-assign-raw-image-payload.doc.ts:7:13',
+    ]);
+  });
+
+  it('detects object-rest raw image payloads before generated docs can use them', () => {
+    const objectRestRawImagePayloadSource = `
+      const rawImagePayload = { body: imageBuffer, contentType: 'image/png' };
+      const rawImagePathPayload = { path: 'raw-evidence.webp' };
+      const { ...copiedRawImagePayload } = rawImagePayload;
+      await testInfo.attach('raw evidence', copiedRawImagePayload);
+      const { ...copiedRawImagePathPayload } = rawImagePathPayload;
+      await testInfo.attach('raw file evidence', copiedRawImagePathPayload);
+      const rawMarkdownPayload = { body: '![raw](raw.png)' };
+      const { ...copiedRawMarkdownPayload } = rawMarkdownPayload;
+      await testInfo.attach('markdown', copiedRawMarkdownPayload);
+    `;
+
+    expect(
+      findDirectImageAttachmentCalls(
+        'tests/docs/example/object-rest-raw-image-payload.doc.ts',
+        objectRestRawImagePayloadSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/object-rest-raw-image-payload.doc.ts:5:13',
+      'tests/docs/example/object-rest-raw-image-payload.doc.ts:7:13',
+    ]);
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/object-rest-raw-image-payload.doc.ts',
+        objectRestRawImagePayloadSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/object-rest-raw-image-payload.doc.ts:10:13',
     ]);
   });
 

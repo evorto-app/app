@@ -6302,6 +6302,9 @@ image boundary.
 `Object.assign(...)` copies of tracked raw image and raw Markdown payloads are
 covered by the same guard, so generated docs cannot rebuild those payloads
 through helper-style object merging either.
+Object-rest copies of tracked raw image and raw Markdown payloads are covered
+as aliases too, so generated docs cannot destructure `{ ...copiedPayload }`
+before attaching raw image evidence outside the shared helper.
 Tracked direct image attachment calls with spread arguments or opaque
 `apply(...)` argument lists are rejected too, and `.at(...)` indexed attach
 helper lists are tracked as direct attachment callees, so
