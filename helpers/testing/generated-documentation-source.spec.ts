@@ -1433,6 +1433,7 @@ const findWeakMarkdownBodyAttachments = (
   const markdownAttachmentNameAliases = new Set<string>();
   const markdownAttachmentNamePropertyAliases = new Set<string>();
   const markdownAttachFunctionAliases = new Set<string>();
+  const markdownAttachFunctionFactoryAliases = new Set<string>();
   const markdownAttachFunctionPropertyAliases = new Set<string>();
 
   const describeCall = (node: ts.CallExpression): string => {
@@ -1608,7 +1609,57 @@ const findWeakMarkdownBodyAttachments = (
       return markdownAttachFunctionAliases.has(expression.text);
     }
 
+    if (ts.isCallExpression(expression)) {
+      const callee = unwrapExpression(expression.expression);
+
+      if (
+        ts.isIdentifier(callee) &&
+        markdownAttachFunctionFactoryAliases.has(callee.text)
+      ) {
+        return true;
+      }
+    }
+
     return hasPropertyAlias(expression, markdownAttachFunctionPropertyAliases);
+  };
+
+  const returnsAttachFunctionReference = (
+    node: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression,
+  ): boolean => {
+    if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+      return isTrackedAttachFunctionReference(node.body);
+    }
+
+    if (!ts.isBlock(node.body)) {
+      return false;
+    }
+
+    let returnsAttachFunction = false;
+
+    const visitReturn = (child: ts.Node): void => {
+      if (
+        child !== node.body &&
+        (ts.isArrowFunction(child) ||
+          ts.isFunctionDeclaration(child) ||
+          ts.isFunctionExpression(child))
+      ) {
+        return;
+      }
+
+      if (
+        ts.isReturnStatement(child) &&
+        child.expression &&
+        isTrackedAttachFunctionReference(child.expression)
+      ) {
+        returnsAttachFunction = true;
+      }
+
+      ts.forEachChild(child, visitReturn);
+    };
+
+    visitReturn(node.body);
+
+    return returnsAttachFunction;
   };
 
   const isMarkdownAttachmentCall = (node: ts.CallExpression): boolean => {
@@ -1711,6 +1762,14 @@ const findWeakMarkdownBodyAttachments = (
         markdownAttachFunctionAliases.add(node.name.text);
       }
 
+      if (
+        (ts.isArrowFunction(initializer) ||
+          ts.isFunctionExpression(initializer)) &&
+        returnsAttachFunctionReference(initializer)
+      ) {
+        markdownAttachFunctionFactoryAliases.add(node.name.text);
+      }
+
       collectGroupedPropertyAliases(
         node.name.text,
         node.initializer,
@@ -1722,7 +1781,7 @@ const findWeakMarkdownBodyAttachments = (
       collectGroupedPropertyAliases(
         node.name.text,
         node.initializer,
-        isAttachFunctionReference,
+        isTrackedAttachFunctionReference,
         markdownAttachFunctionAliases,
         markdownAttachFunctionPropertyAliases,
         staticStringAliases,
@@ -1738,10 +1797,46 @@ const findWeakMarkdownBodyAttachments = (
         collectIndexedPropertyAliases(
           node.name.text,
           initializer.elements,
-          isAttachFunctionReference,
+          isTrackedAttachFunctionReference,
           markdownAttachFunctionPropertyAliases,
         );
       }
+    }
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      returnsAttachFunctionReference(node)
+    ) {
+      markdownAttachFunctionFactoryAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isMarkdownAttachmentName(node.right)
+    ) {
+      markdownAttachmentNameAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isTrackedAttachFunctionReference(node.right)
+    ) {
+      markdownAttachFunctionAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      (ts.isArrowFunction(node.right) || ts.isFunctionExpression(node.right)) &&
+      returnsAttachFunctionReference(node.right)
+    ) {
+      markdownAttachFunctionFactoryAliases.add(node.left.text);
     }
 
     ts.forEachChild(node, collectAliases);
@@ -1796,6 +1891,7 @@ const findDenseScreenshotRunsBetweenMarkdown = (
   const markdownAttachmentNameAliases = new Set<string>();
   const markdownAttachmentNamePropertyAliases = new Set<string>();
   const markdownAttachFunctionAliases = new Set<string>();
+  const markdownAttachFunctionFactoryAliases = new Set<string>();
   const markdownAttachFunctionPropertyAliases = new Set<string>();
 
   const describeCall = (node: ts.CallExpression): string => {
@@ -1917,7 +2013,57 @@ const findDenseScreenshotRunsBetweenMarkdown = (
       return markdownAttachFunctionAliases.has(expression.text);
     }
 
+    if (ts.isCallExpression(expression)) {
+      const callee = unwrapExpression(expression.expression);
+
+      if (
+        ts.isIdentifier(callee) &&
+        markdownAttachFunctionFactoryAliases.has(callee.text)
+      ) {
+        return true;
+      }
+    }
+
     return hasPropertyAlias(expression, markdownAttachFunctionPropertyAliases);
+  };
+
+  const returnsAttachFunctionReference = (
+    node: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression,
+  ): boolean => {
+    if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+      return isTrackedAttachFunctionReference(node.body);
+    }
+
+    if (!ts.isBlock(node.body)) {
+      return false;
+    }
+
+    let returnsAttachFunction = false;
+
+    const visitReturn = (child: ts.Node): void => {
+      if (
+        child !== node.body &&
+        (ts.isArrowFunction(child) ||
+          ts.isFunctionDeclaration(child) ||
+          ts.isFunctionExpression(child))
+      ) {
+        return;
+      }
+
+      if (
+        ts.isReturnStatement(child) &&
+        child.expression &&
+        isTrackedAttachFunctionReference(child.expression)
+      ) {
+        returnsAttachFunction = true;
+      }
+
+      ts.forEachChild(child, visitReturn);
+    };
+
+    visitReturn(node.body);
+
+    return returnsAttachFunction;
   };
 
   const isMarkdownAttachmentCall = (node: ts.CallExpression): boolean => {
@@ -2012,6 +2158,14 @@ const findDenseScreenshotRunsBetweenMarkdown = (
         markdownAttachFunctionAliases.add(node.name.text);
       }
 
+      if (
+        (ts.isArrowFunction(initializer) ||
+          ts.isFunctionExpression(initializer)) &&
+        returnsAttachFunctionReference(initializer)
+      ) {
+        markdownAttachFunctionFactoryAliases.add(node.name.text);
+      }
+
       collectGroupedPropertyAliases(
         node.name.text,
         node.initializer,
@@ -2023,7 +2177,7 @@ const findDenseScreenshotRunsBetweenMarkdown = (
       collectGroupedPropertyAliases(
         node.name.text,
         node.initializer,
-        isAttachFunctionReference,
+        isTrackedAttachFunctionReference,
         markdownAttachFunctionAliases,
         markdownAttachFunctionPropertyAliases,
         staticStringAliases,
@@ -2039,10 +2193,46 @@ const findDenseScreenshotRunsBetweenMarkdown = (
         collectIndexedPropertyAliases(
           node.name.text,
           initializer.elements,
-          isAttachFunctionReference,
+          isTrackedAttachFunctionReference,
           markdownAttachFunctionPropertyAliases,
         );
       }
+    }
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      returnsAttachFunctionReference(node)
+    ) {
+      markdownAttachFunctionFactoryAliases.add(node.name.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isMarkdownAttachmentName(node.right)
+    ) {
+      markdownAttachmentNameAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      isTrackedAttachFunctionReference(node.right)
+    ) {
+      markdownAttachFunctionAliases.add(node.left.text);
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      (ts.isArrowFunction(node.right) || ts.isFunctionExpression(node.right)) &&
+      returnsAttachFunctionReference(node.right)
+    ) {
+      markdownAttachFunctionFactoryAliases.add(node.left.text);
     }
 
     ts.forEachChild(node, collectAliases);
@@ -7789,6 +7979,34 @@ describe('generated docs source current behavior', () => {
     ]);
   });
 
+  it('requires returned and assigned documentation markdown helpers to include explanatory body text', () => {
+    const returnedMarkdownBodySource = `
+      let markdownName;
+      markdownName = 'markdown';
+      let attachMarkdown;
+      attachMarkdown = testInfo.attach.bind(testInfo);
+      await attachMarkdown(markdownName, { body: 'Too short.' });
+      function resolveAttachMarkdown() {
+        return testInfo.attach.bind(testInfo);
+      }
+      const resolveAttachMarkdownAlias = () => testInfo.attach.bind(testInfo);
+      await resolveAttachMarkdown()('markdown', { body: 'Still too short.' });
+      const returnedAttachMarkdown = resolveAttachMarkdownAlias();
+      await returnedAttachMarkdown('markdown', { body: 'Brief.' });
+    `;
+
+    expect(
+      findWeakMarkdownBodyAttachments(
+        'tests/docs/example/returned-markdown-body.doc.ts',
+        returnedMarkdownBodySource,
+      ),
+    ).toEqual([
+      'tests/docs/example/returned-markdown-body.doc.ts:6:13',
+      'tests/docs/example/returned-markdown-body.doc.ts:11:13',
+      'tests/docs/example/returned-markdown-body.doc.ts:13:13',
+    ]);
+  });
+
   it('keeps generated documentation screenshots close to explanatory markdown', () => {
     const denseScreenshotSource = `
       await takeScreenshot(
@@ -8042,6 +8260,93 @@ describe('generated docs source current behavior', () => {
       ),
     ).toEqual([
       'tests/docs/example/inline-bound-dense-screenshot-run.doc.ts:22:13',
+    ]);
+  });
+
+  it('keeps screenshots close to returned and assigned explanatory markdown helpers', () => {
+    const returnedDenseScreenshotSource = `
+      let markdownName;
+      markdownName = 'markdown';
+      let attachMarkdown;
+      attachMarkdown = testInfo.attach.bind(testInfo);
+      await attachMarkdown(markdownName, {
+        body: \`
+          This assigned documentation section explains the next screenshot pair with enough product context for generated docs.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        assignedFirstSurface,
+        page,
+        'First assigned markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        assignedSecondSurface,
+        page,
+        'Second assigned markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        assignedOverflowSurface,
+        page,
+        'Third assigned markdown cluster screenshot should require text',
+      );
+      function resolveAttachMarkdown() {
+        return testInfo.attach.bind(testInfo);
+      }
+      const resolveAttachMarkdownAlias = () => testInfo.attach.bind(testInfo);
+      await resolveAttachMarkdown()('markdown', {
+        body: \`
+          This returned documentation section explains the next screenshot pair with enough product context for generated docs.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        returnedFirstSurface,
+        page,
+        'First returned markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        returnedSecondSurface,
+        page,
+        'Second returned markdown cluster screenshot with descriptive caption',
+      );
+      const returnedAttachMarkdown = resolveAttachMarkdownAlias();
+      await returnedAttachMarkdown('markdown', {
+        body: \`
+          This assigned returned-helper documentation section explains the next screenshot pair with enough product context.
+        \`,
+      });
+      await takeScreenshot(
+        testInfo,
+        returnedAliasFirstSurface,
+        page,
+        'First assigned returned-helper markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        returnedAliasSecondSurface,
+        page,
+        'Second assigned returned-helper markdown cluster screenshot with descriptive caption',
+      );
+      await takeScreenshot(
+        testInfo,
+        returnedAliasOverflowSurface,
+        page,
+        'Third assigned returned-helper markdown cluster screenshot should require text',
+      );
+    `;
+
+    expect(
+      findDenseScreenshotRunsBetweenMarkdown(
+        'tests/docs/example/returned-dense-screenshot-run.doc.ts',
+        returnedDenseScreenshotSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/returned-dense-screenshot-run.doc.ts:23:13',
+      'tests/docs/example/returned-dense-screenshot-run.doc.ts:68:13',
     ]);
   });
 

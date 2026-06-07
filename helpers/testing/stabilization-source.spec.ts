@@ -1979,14 +1979,19 @@ describe('stabilization source', () => {
     expect(source).toContain('claim unrelated UI states');
     expect(inventory).toContain('weak Markdown body text');
     expect(inventory).toContain('explanatory body text');
-    expect(inventory).toContain(
-      'tracks aliased Markdown attachment\n  helpers and names through copied groups, indexed lists, `call(...)`,\n  `apply(...)`, inline `bind(...)(...)`, and `Reflect.apply(...)`',
+    expect(inventory).toMatch(
+      /tracks aliased Markdown attachment\s+helpers and names through copied groups,\s+indexed lists,\s+assigned local aliases/u,
     );
-    expect(inventory).toContain(
-      'follows aliased Markdown\n  attachment helpers and names for that screenshot-density reset including\n  `call(...)`, `apply(...)`, inline `bind(...)(...)`, and\n  `Reflect.apply(...)`',
+    expect(inventory).toMatch(
+      /follows aliased Markdown attachment helpers and\s+names for that screenshot-density reset including assigned local aliases/u,
     );
-    expect(inventory).toContain(
-      'only real Playwright `testInfo.attach`-backed\n  Markdown calls count as explanatory generated-doc sections',
+    expect(inventory).toContain('returned attach-helper factories');
+    expect(inventory).toContain('`call(...)`');
+    expect(inventory).toContain('`apply(...)`');
+    expect(inventory).toContain('`bind(...)(...)`');
+    expect(inventory).toContain('`Reflect.apply(...)`');
+    expect(inventory).toMatch(
+      /only real Playwright\s+`testInfo\.attach`-backed\s+Markdown calls count as explanatory generated-doc\s+sections/u,
     );
     expect(inventory).toContain('tiny valid PNGs');
     expect(inventory).toMatch(/valid\s+PNG\s+screenshots/u);
@@ -2761,6 +2766,13 @@ describe('stabilization source', () => {
       'await attachHelperList[0](markdownAttachmentName, shorthandMarkdownPayload)',
     );
     expect(generatedDocumentationSource).toContain(
+      'requires returned and assigned documentation markdown helpers to include explanatory body text',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'keeps screenshots close to returned and assigned explanatory markdown helpers',
+    );
+    expect(generatedDocumentationSource).toContain('resolveAttachMarkdown');
+    expect(generatedDocumentationSource).toContain(
       "await attachHelpers.assignedEvidence('markdown', rawMarkdownPayload)",
     );
     expect(generatedDocumentationSource).toContain(
@@ -2953,6 +2965,8 @@ describe('stabilization source', () => {
     );
     expect(inventory).toMatch(/`\.at\(\.\.\.\)` indexed\s+payload lists/u);
     expect(inventory).toMatch(/`\.at\(\.\.\.\)`\s+indexed helper lists/u);
+    expect(inventory).toContain('assigned local aliases');
+    expect(inventory).toContain('returned attach-helper factories');
     expect(inventory).toMatch(/simple body\s+forwarding/u);
     expect(inventory).toContain('`Buffer.from(...)`');
     expect(inventory).toContain('template interpolation');
@@ -3078,6 +3092,9 @@ describe('stabilization source', () => {
     expect(source).toContain('Assigned local raw capture aliases');
     expect(source).toContain('Assigned local raw Markdown-image aliases');
     expect(source).toMatch(/Returned raw\s+Markdown attach helpers/u);
+    expect(source).toContain(
+      'Assigned and returned explanatory Markdown helpers',
+    );
     expect(source).toContain('Conditional and logical callees');
     expect(source).toMatch(/Nested\s+branching callees/u);
     expect(source).toContain('Optional-call invocations');

@@ -7332,3 +7332,23 @@ verified readable Terms fallback copy, seeded Material event cards with
 icons/times, fixed Events/Login bottom navigation, no loading or
 application-error text, zero Browser warning/error logs, and no clipped visible
 controls.
+
+Assigned and returned explanatory Markdown helpers now count the same way in the
+weak-body and screenshot-density source guards. That closes the matching docs
+quality bypass where a source could attach short Markdown prose, or reset the
+nearby-screenshot counter, through `let attachMarkdown; attachMarkdown =
+testInfo.attach.bind(testInfo)`, `resolveAttachMarkdown()('markdown', ...)`, or
+a local assigned from the returned helper. Focused generated-doc source coverage
+now includes both weak-body and screenshot-density regression cases for those
+helpers, and the test inventory records assigned local aliases plus returned
+attach-helper factories as part of generated-documentation evidence quality.
+Validation for this slice passed `bun run format:write`, `bun run lint`, the
+focused generated-documentation/stabilization source suite with 187 passing
+tests, and `git diff --check`; WebStorm errors-only diagnostics stayed blocked
+because this worktree is not open in the IDE. Browser verification at
+390x844 captured `/tmp/evorto-explanatory-markdown-helper-source-guard-terms-390x844-viewport.png`
+and `/tmp/evorto-explanatory-markdown-helper-source-guard-events-390x844-viewport.png`;
+the images show readable Terms fallback copy and a real seeded Events list with
+Material event cards/icons/times, fixed Events/Login bottom navigation, no
+loading or application-error text, no clipped visible controls on the Terms
+route, and zero warning/error Browser logs.
