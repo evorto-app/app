@@ -7504,8 +7504,8 @@ application-error text, document/body widths inside the mobile viewport, and
 zero warning/error Browser logs. WebStorm diagnostics remained blocked because
 this worktree is not one of the open IDE projects.
 
-The current pushed head `df439746` also refreshed public General mobile
-evidence after the Docker stack recovery. The focused
+Pushed head `df439746` also refreshed public General mobile evidence after the
+Docker stack recovery. The focused
 `bun run test:e2e:public-general-viewports -- --no-deps` run passed against the
 running app with both tests green, covering the full anonymous General route
 matrix at narrow mobile, mobile, and desktop viewports. A same-head in-app
