@@ -1981,6 +1981,24 @@ const findGenericScreenshotTargets = (
       genericTargetFunctions.add(node.name.text);
     }
 
+    if (ts.isParameter(node)) {
+      collectParameterInitializerAliases(
+        node,
+        isGenericLocatorTarget,
+        genericTargetAliases,
+      );
+
+      if (
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        (ts.isArrowFunction(node.initializer) ||
+          ts.isFunctionExpression(node.initializer)) &&
+        returnsGenericLocator(node.initializer)
+      ) {
+        genericTargetFunctions.add(node.name.text);
+      }
+    }
+
     ts.forEachChild(node, collectAliases);
   };
 
@@ -2220,6 +2238,24 @@ const findUnfilteredBroadScreenshotTargets = (
       returnsUnfilteredBroadLocator(node)
     ) {
       broadTargetFunctions.add(node.name.text);
+    }
+
+    if (ts.isParameter(node)) {
+      collectParameterInitializerAliases(
+        node,
+        isUnfilteredBroadLocatorTarget,
+        broadTargetAliases,
+      );
+
+      if (
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        (ts.isArrowFunction(node.initializer) ||
+          ts.isFunctionExpression(node.initializer)) &&
+        returnsUnfilteredBroadLocator(node.initializer)
+      ) {
+        broadTargetFunctions.add(node.name.text);
+      }
     }
 
     ts.forEachChild(node, collectAliases);
@@ -2535,6 +2571,24 @@ const findSingleControlScreenshotTargets = (
       singleControlFunctions.add(node.name.text);
     }
 
+    if (ts.isParameter(node)) {
+      collectParameterInitializerAliases(
+        node,
+        isSingleControlLocatorTarget,
+        singleControlAliases,
+      );
+
+      if (
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        (ts.isArrowFunction(node.initializer) ||
+          ts.isFunctionExpression(node.initializer)) &&
+        returnsSingleControlLocator(node.initializer)
+      ) {
+        singleControlFunctions.add(node.name.text);
+      }
+    }
+
     ts.forEachChild(node, collectAliases);
   };
 
@@ -2804,6 +2858,24 @@ const findIconOrMediaScreenshotTargets = (
       returnsIconOrMediaLocator(node)
     ) {
       iconOrMediaFunctions.add(node.name.text);
+    }
+
+    if (ts.isParameter(node)) {
+      collectParameterInitializerAliases(
+        node,
+        isIconOrMediaLocatorTarget,
+        iconOrMediaAliases,
+      );
+
+      if (
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        (ts.isArrowFunction(node.initializer) ||
+          ts.isFunctionExpression(node.initializer)) &&
+        returnsIconOrMediaLocator(node.initializer)
+      ) {
+        iconOrMediaFunctions.add(node.name.text);
+      }
     }
 
     ts.forEachChild(node, collectAliases);
@@ -6879,6 +6951,80 @@ describe('generated docs source current behavior', () => {
         nonNullAssertionSource,
       ),
     ).toEqual(['tests/docs/example/non-null-target.doc.ts:27:13']);
+  });
+
+  it('detects weak documentation screenshot targets hidden behind parameter default aliases', () => {
+    const parameterDefaultWeakTargetSource = `
+      async function genericParameter(genericShell = page.locator('main')) {
+        await takeScreenshot(testInfo, genericShell, page, 'Parameter generic target with a descriptive caption');
+      }
+      async function genericHelperParameter(resolveShell = (page) => page.locator('main')) {
+        await takeScreenshot(testInfo, resolveShell(page), page, 'Parameter generic helper target with a descriptive caption');
+      }
+      async function groupedGenericParameter({ groupedGenericShell = page.locator('app-root') } = {}) {
+        await takeScreenshot(testInfo, groupedGenericShell, page, 'Parameter grouped generic target with a descriptive caption');
+      }
+      async function broadParameter(section = page.locator('section')) {
+        await takeScreenshot(testInfo, section, page, 'Parameter broad section target with a descriptive caption');
+      }
+      async function broadHelperParameter(resolveSection = (page) => page.locator('form')) {
+        await takeScreenshot(testInfo, resolveSection(page), page, 'Parameter broad helper target with a descriptive caption');
+      }
+      async function singleControlParameter(action = page.getByRole('button', { name: 'Save' })) {
+        await takeScreenshot(testInfo, action, page, 'Parameter single control target with a descriptive caption');
+      }
+      async function singleControlHelperParameter(resolveAction = (page) => page.getByText('Save')) {
+        await takeScreenshot(testInfo, resolveAction(page), page, 'Parameter single helper target with a descriptive caption');
+      }
+      async function iconParameter(icon = page.locator('svg')) {
+        await takeScreenshot(testInfo, icon, page, 'Parameter icon target with a descriptive caption');
+      }
+      async function mediaHelperParameter(resolveImage = (page) => page.getByAltText('Tenant logo')) {
+        await takeScreenshot(testInfo, resolveImage(page), page, 'Parameter image helper target with a descriptive caption');
+      }
+    `;
+
+    expect(
+      findGenericScreenshotTargets(
+        'tests/docs/example/parameter-default-weak-target.doc.ts',
+        parameterDefaultWeakTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-default-weak-target.doc.ts:3:15',
+      'tests/docs/example/parameter-default-weak-target.doc.ts:6:15',
+      'tests/docs/example/parameter-default-weak-target.doc.ts:9:15',
+    ]);
+
+    expect(
+      findUnfilteredBroadScreenshotTargets(
+        'tests/docs/example/parameter-default-weak-target.doc.ts',
+        parameterDefaultWeakTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-default-weak-target.doc.ts:9:15',
+      'tests/docs/example/parameter-default-weak-target.doc.ts:12:15',
+      'tests/docs/example/parameter-default-weak-target.doc.ts:15:15',
+    ]);
+
+    expect(
+      findSingleControlScreenshotTargets(
+        'tests/docs/example/parameter-default-weak-target.doc.ts',
+        parameterDefaultWeakTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-default-weak-target.doc.ts:18:15',
+      'tests/docs/example/parameter-default-weak-target.doc.ts:21:15',
+    ]);
+
+    expect(
+      findIconOrMediaScreenshotTargets(
+        'tests/docs/example/parameter-default-weak-target.doc.ts',
+        parameterDefaultWeakTargetSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/parameter-default-weak-target.doc.ts:24:15',
+      'tests/docs/example/parameter-default-weak-target.doc.ts:27:15',
+    ]);
   });
 
   it('detects computed weak documentation screenshot target aliases', () => {

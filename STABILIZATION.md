@@ -6187,6 +6187,11 @@ target collection as screenshot evidence. `map`, `flatMap`, and
 locally aliased callback helpers; reducer callbacks and reducer initial values
 are checked too, so a safe receiver array cannot manufacture or seed a weak
 screenshot target in the callback.
+Parameter-default target aliases are tracked for the same weak target classes,
+so helper parameters such as `target = page.locator('main')` or
+`resolveTarget = (page) => page.getByText('Save')` cannot hide generic, broad,
+single-control, or icon/media-only screenshot focus from the generated-doc
+image-quality guard.
 Conditional, nullish-coalesced, and logical target expressions are checked
 recursively too, so selecting between a good surface and a weak fallback cannot
 hide generic, broad, single-control, or icon/media screenshot evidence even when

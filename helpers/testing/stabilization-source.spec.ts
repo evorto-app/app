@@ -1594,6 +1594,9 @@ describe('stabilization source', () => {
       /[Cc]onditional, nullish-coalesced, and logical\s+target\s+expressions/u,
     );
     expect(source).toMatch(/Non-null assertion\s+wrappers/u);
+    expect(source).toContain(
+      'Parameter-default target aliases are tracked for the same weak target classes',
+    );
     expect(source).toContain('aliased `takeScreenshot` imports');
     expect(source).toMatch(/local screenshot\s+wrapper declarations/u);
     expect(source).toContain('captureDocumentationImage');
@@ -1677,6 +1680,7 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'weak\n  targets produced by inline, named, or locally aliased `map` and `flatMap`\n  callbacks, by `Array.from(...)` mapper callbacks, and by reducer callbacks or\n  reducer initial values',
     );
+    expect(inventory).toContain('parameter-default weak target aliases');
     expect(inventory).toContain(
       'conditional, nullish-coalesced, and logical\n  target expressions recursively',
     );
@@ -2120,6 +2124,15 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'detects weak documentation screenshot targets hidden behind non-null assertions',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'detects weak documentation screenshot targets hidden behind parameter default aliases',
+    );
+    expect(generatedDocumentationSource).toContain(
+      "genericParameter(genericShell = page.locator('main'))",
+    );
+    expect(generatedDocumentationSource).toContain(
+      "singleControlParameter(action = page.getByRole('button'",
     );
     expect(generatedDocumentationSource).toContain('...genericTargets');
     expect(generatedDocumentationSource).toContain('...broadTargets');
