@@ -1453,7 +1453,7 @@ const findRawMarkdownImageMarkup = (path: string, source: string): string[] => {
       return left !== null && right !== null ? `${left}${right}` : null;
     }
 
-    return null;
+    return resolveStaticStringValue(expression, staticStringAliases);
   };
 
   const hasPropertyAlias = (
@@ -6606,12 +6606,16 @@ describe('generated docs source current behavior', () => {
       const arrayConcatenatedBody = [
         'Introductory copy.',
       ].concat(['<img src="../array-concat.png" alt="Array concat">']).join('\\n');
+      const arrayBuiltMarkdownName = ['mark', 'down'].join('');
+      const arrayConcatenatedMarkdownName = ['mark'].concat(['down']).join('');
       const arrayPayload = {
         body: ['Introductory copy.', '<svg viewBox="0 0 10 10"></svg>'].join('\\n'),
       };
       await testInfo.attach('markdown', { body: arrayJoinedBody });
       await testInfo.attach('markdown', { body: arrayConcatenatedBody });
       await testInfo.attach('markdown', arrayPayload);
+      await testInfo.attach(arrayBuiltMarkdownName, { body: arrayJoinedBody });
+      await testInfo.attach(arrayConcatenatedMarkdownName, arrayPayload);
     `;
 
     expect(
@@ -6620,9 +6624,11 @@ describe('generated docs source current behavior', () => {
         arrayBuiltRawMarkdownImageSource,
       ),
     ).toEqual([
-      'tests/docs/example/array-built-raw-markdown-image.doc.ts:12:13',
-      'tests/docs/example/array-built-raw-markdown-image.doc.ts:13:13',
       'tests/docs/example/array-built-raw-markdown-image.doc.ts:14:13',
+      'tests/docs/example/array-built-raw-markdown-image.doc.ts:15:13',
+      'tests/docs/example/array-built-raw-markdown-image.doc.ts:16:13',
+      'tests/docs/example/array-built-raw-markdown-image.doc.ts:17:13',
+      'tests/docs/example/array-built-raw-markdown-image.doc.ts:18:13',
     ]);
   });
 

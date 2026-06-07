@@ -6519,6 +6519,16 @@ raw Markdown-image guard now also resolves `Reflect.get(...)` reads of tracked
 markdown attachment-name, body, and payload properties, including local
 `Reflect` aliases and constant-backed keys, so raw Markdown image names and
 bodies cannot be reflected out of a helper object before being attached.
+Markdown attachment names now also use the shared static array-built string
+resolution, so `['mark', 'down'].join('')` and
+`['mark'].concat(['down']).join('')` cannot hide raw Markdown image payloads
+from the shared screenshot helper boundary.
+A same-slice in-app Browser mobile spot check opened `/events` at 390x844 with
+`stabilizationEvidence=array-built-markdown-name-source-guard`, waited past the
+initial loading card, and verified the settled empty Events state plus fixed
+Events/Login navigation with no horizontal overflow, no application-error text,
+and zero Browser warning/error logs. The inspected screenshot is
+`/tmp/evorto-array-built-markdown-name-events-settled-390x844.png`.
 The same source guard now tracks local aliases of the global `Reflect` object before
 checking `Reflect.get(...)` and `Reflect.apply(...)`, so `const mirror =
 Reflect; mirror.get(...)` or `mirror.apply(...)` cannot bypass the shared
