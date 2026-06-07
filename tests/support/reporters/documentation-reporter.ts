@@ -185,6 +185,9 @@ class DocumentationReporter implements Reporter {
     if (this.listOnly) {
       return;
     }
+    if (result.status !== undefined && result.status !== 'passed') {
+      return;
+    }
 
     const relevantAttachments = result.attachments.filter((attachment) =>
       DOCUMENTATION_ATTACHMENT_NAMES.has(attachment.name),

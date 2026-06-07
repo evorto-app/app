@@ -110,6 +110,120 @@ test('documentation reporter respects DOCS_* env and writes files', async ({}, t
   expect(imgs.some((f) => f.endsWith('.png'))).toBeTruthy();
 });
 
+test('documentation reporter ignores failed retry attempts', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-failed-retry');
+  const imgsRoot = testInfo.outputPath('docs-img-failed-retry');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const png = createDocumentationEvidencePng();
+  const failedResult = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: png,
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from('Failed attempt screenshot should not be written'),
+      },
+    ],
+    status: 'failed',
+  } as any;
+  const passedResult = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: createDocumentationEvidencePng({ includeHighlight: true }),
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from('Passed retry screenshot with stable final state'),
+      },
+    ],
+    status: 'passed',
+  } as any;
+
+  const testCase = { title: 'Retry Journey' } as any;
+  reporter.onTestEnd(testCase, failedResult);
+  reporter.onTestEnd(testCase, passedResult);
+  // @ts-expect-error minimal stubs for types
+  reporter.onEnd({});
+
+  const md = fs.readFileSync(
+    path.join(docsRoot, 'retry-journey', 'page.md'),
+    'utf-8',
+  );
+  expect(md).toContain('Passed retry screenshot with stable final state');
+  expect(md).not.toContain('Failed attempt screenshot should not be written');
+});
+
+test('documentation reporter replaces successful retry reruns', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out-passed-rerun');
+  const imgsRoot = testInfo.outputPath('docs-img-passed-rerun');
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  // @ts-expect-error minimal stubs for types
+  reporter.onBegin({}, {});
+
+  const firstPassedResult = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: createDocumentationEvidencePng(),
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from('First successful serial attempt screenshot'),
+      },
+    ],
+    status: 'passed',
+  } as any;
+  const rerunPassedResult = {
+    attachments: [
+      {
+        name: 'image',
+        contentType: 'image/png',
+        body: createDocumentationEvidencePng({ includeContent: true }),
+      },
+      {
+        name: 'image-caption',
+        contentType: 'text/plain',
+        body: Buffer.from('Rerun successful serial attempt screenshot'),
+      },
+    ],
+    status: 'passed',
+  } as any;
+
+  const testCase = {
+    id: 'stable-retry-test-id',
+    title: 'Serial Retry Journey',
+  } as any;
+  reporter.onTestEnd(testCase, firstPassedResult);
+  reporter.onTestEnd(testCase, rerunPassedResult);
+  // @ts-expect-error minimal stubs for types
+  reporter.onEnd({});
+
+  const md = fs.readFileSync(
+    path.join(docsRoot, 'serial-retry-journey', 'page.md'),
+    'utf-8',
+  );
+  expect(md).toContain('Rerun successful serial attempt screenshot');
+  expect(md).not.toContain('First successful serial attempt screenshot');
+});
+
 test('documentation reporter rejects uncaptioned image attachments', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out-uncaptioned');
   const imgsRoot = testInfo.outputPath('docs-img-uncaptioned');

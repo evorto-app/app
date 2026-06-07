@@ -1,6 +1,7 @@
 import { organizerStateFile } from '../../../helpers/user-data';
 import { DateTime } from 'luxon';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 test.setTimeout(120_000);
 
@@ -41,7 +42,10 @@ test.skip('create event form template', async ({
   await expect(page.getByLabel('Event title')).toHaveValue(template.title);
 
   const eventForm = page.locator('app-event-general-form');
-  const futureStart = DateTime.now().plus({ months: 2 });
+  const futureStart = DateTime.fromJSDate(
+    futureServerEventWindow({ startInDays: 60 }).start,
+    { zone: 'utc' },
+  );
   await eventForm
     .getByRole('textbox', { name: 'Start date' })
     .fill(futureStart.toFormat('M/d/yyyy'));

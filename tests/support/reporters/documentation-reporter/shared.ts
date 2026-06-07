@@ -67,6 +67,7 @@ export const DOCUMENTATION_ATTACHMENT_NAMES = new Set([
 export type TestSection = {
   content: string[];
   line: number;
+  testLookupKey?: string;
   title: string;
 };
 

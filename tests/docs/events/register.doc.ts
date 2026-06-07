@@ -19,6 +19,10 @@ import {
   seedFreeRegistrationAddon,
   seedRequiredRegistrationQuestion,
 } from '../../support/utils/seed-registration-addons';
+import {
+  futureServerEventWindow,
+  serverNowUnixSeconds,
+} from '../../support/utils/server-test-clock';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
@@ -98,16 +102,6 @@ const requireUserFixture = (
   return user;
 };
 
-const resolveServerNow = (): Date => {
-  const deterministicNow = process.env['E2E_NOW_ISO']?.trim();
-  const serverNow = deterministicNow ? new Date(deterministicNow) : new Date();
-  if (Number.isNaN(serverNow.getTime())) {
-    throw new Error('Invalid E2E_NOW_ISO value for registration docs');
-  }
-
-  return serverNow;
-};
-
 const registrationOptionCard = (page: Page, text: string) =>
   page
     .locator('app-event-registration-option')
@@ -177,7 +171,7 @@ const replayCheckoutCompletedWebhook = async ({
 
   const payload = JSON.stringify({
     api_version: '2024-11-20.acacia',
-    created: Math.floor(Date.now() / 1000),
+    created: serverNowUnixSeconds(),
     data: {
       object: {
         id: transaction.stripeCheckoutSessionId,
@@ -312,14 +306,7 @@ test.describe('Register for events', () => {
       'regular',
     );
     const addOnId = `addon-${getId().slice(0, 14)}`;
-    const serverNow = resolveServerNow();
-    const serverOpenUntil = new Date(serverNow.getTime() + 24 * 60 * 60 * 1000);
-    const serverFutureEventStart = new Date(
-      serverNow.getTime() + 48 * 60 * 60 * 1000,
-    );
-    const serverFutureEventEnd = new Date(
-      serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
-    );
+    const serverEventWindow = futureServerEventWindow();
 
     await database
       .delete(schema.eventRegistrations)
@@ -333,8 +320,9 @@ test.describe('Register for events', () => {
     await database
       .update(schema.eventRegistrationOptions)
       .set({
-        closeRegistrationTime: serverOpenUntil,
+        closeRegistrationTime: serverEventWindow.closeRegistrationTime,
         confirmedSpots: 0,
+        openRegistrationTime: serverEventWindow.openRegistrationTime,
         reservedSpots: 0,
         waitlistSpots: 0,
       })
@@ -342,8 +330,8 @@ test.describe('Register for events', () => {
     await database
       .update(schema.eventInstances)
       .set({
-        end: serverFutureEventEnd,
-        start: serverFutureEventStart,
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
       })
       .where(eq(schema.eventInstances.id, freeEventId));
     await seedFreeRegistrationAddon({
@@ -495,8 +483,7 @@ test.describe('Register for events', () => {
     const closedEventId = seeded.scenario.events.closedReg.eventId;
     const fullEventId = seeded.scenario.events.freeOpen.eventId;
     const fullOptionId = seeded.scenario.events.freeOpen.optionId;
-    const serverNow = resolveServerNow();
-    const serverOpenUntil = new Date(serverNow.getTime() + 24 * 60 * 60 * 1000);
+    const serverEventWindow = futureServerEventWindow();
     const fullOption = await database.query.eventRegistrationOptions.findFirst({
       where: { eventId: fullEventId, id: fullOptionId },
     });
@@ -511,12 +498,6 @@ test.describe('Register for events', () => {
     if (!fullEvent) {
       throw new Error('Expected seeded free registration event');
     }
-    const serverFutureEventStart = new Date(
-      serverNow.getTime() + 48 * 60 * 60 * 1000,
-    );
-    const serverFutureEventEnd = new Date(
-      serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
-    );
 
     await testInfo.attach('markdown', {
       body: `
@@ -566,8 +547,9 @@ test.describe('Register for events', () => {
     await database
       .update(schema.eventRegistrationOptions)
       .set({
-        closeRegistrationTime: serverOpenUntil,
+        closeRegistrationTime: serverEventWindow.closeRegistrationTime,
         confirmedSpots: fullOption.spots,
+        openRegistrationTime: serverEventWindow.openRegistrationTime,
         reservedSpots: 0,
         waitlistSpots: 0,
       })
@@ -575,8 +557,8 @@ test.describe('Register for events', () => {
     await database
       .update(schema.eventInstances)
       .set({
-        end: serverFutureEventEnd,
-        start: serverFutureEventStart,
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
       })
       .where(eq(schema.eventInstances.id, fullEventId));
     const waitlistQuestion = await seedRequiredRegistrationQuestion({
@@ -673,6 +655,7 @@ test.describe('Register for events', () => {
       .set({
         closeRegistrationTime: fullOption.closeRegistrationTime,
         confirmedSpots: fullOption.confirmedSpots,
+        openRegistrationTime: fullOption.openRegistrationTime,
         reservedSpots: fullOption.reservedSpots,
         waitlistSpots: fullOption.waitlistSpots,
       })
@@ -705,13 +688,7 @@ test.describe('Register for events', () => {
     const freeEventId = seeded.scenario.events.freeOpen.eventId;
     const freeOptionId = seeded.scenario.events.freeOpen.optionId;
     const registrationId = getId();
-    const serverNow = resolveServerNow();
-    const serverFutureEventStart = new Date(
-      serverNow.getTime() + 48 * 60 * 60 * 1000,
-    );
-    const serverFutureEventEnd = new Date(
-      serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
-    );
+    const serverEventWindow = futureServerEventWindow();
 
     await database
       .update(schema.eventRegistrations)
@@ -737,8 +714,8 @@ test.describe('Register for events', () => {
     await database
       .update(schema.eventInstances)
       .set({
-        end: serverFutureEventEnd,
-        start: serverFutureEventStart,
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
       })
       .where(eq(schema.eventInstances.id, freeEventId));
 
@@ -811,13 +788,7 @@ test.describe('Register for events', () => {
 
     const paidEventId = seeded.scenario.events.paidOpen.eventId;
     const paidOptionId = seeded.scenario.events.paidOpen.optionId;
-    const serverNow = resolveServerNow();
-    const serverFutureEventStart = new Date(
-      serverNow.getTime() + 48 * 60 * 60 * 1000,
-    );
-    const serverFutureEventEnd = new Date(
-      serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
-    );
+    const serverEventWindow = futureServerEventWindow();
     const paidOption = await database.query.eventRegistrationOptions.findFirst({
       where: {
         eventId: paidEventId,
@@ -872,8 +843,8 @@ test.describe('Register for events', () => {
       await database
         .update(schema.eventInstances)
         .set({
-          end: serverFutureEventEnd,
-          start: serverFutureEventStart,
+          end: serverEventWindow.end,
+          start: serverEventWindow.start,
         })
         .where(eq(schema.eventInstances.id, paidEventId));
 
@@ -1152,14 +1123,7 @@ test.describe('Register for events', () => {
     if (!paidEventInstance) {
       throw new Error('Expected seeded paidOpen event instance to exist');
     }
-    const serverNow = resolveServerNow();
-    const serverOpenUntil = new Date(serverNow.getTime() + 24 * 60 * 60 * 1000);
-    const serverFutureEventStart = new Date(
-      serverNow.getTime() + 48 * 60 * 60 * 1000,
-    );
-    const serverFutureEventEnd = new Date(
-      serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
-    );
+    const serverEventWindow = futureServerEventWindow();
     let checkoutTransactionId: null | string = null;
 
     await database
@@ -1186,8 +1150,9 @@ test.describe('Register for events', () => {
     await database
       .update(schema.eventRegistrationOptions)
       .set({
-        closeRegistrationTime: serverOpenUntil,
+        closeRegistrationTime: serverEventWindow.closeRegistrationTime,
         confirmedSpots: 0,
+        openRegistrationTime: serverEventWindow.openRegistrationTime,
         reservedSpots: 0,
         waitlistSpots: 0,
       })
@@ -1195,8 +1160,8 @@ test.describe('Register for events', () => {
     await database
       .update(schema.eventInstances)
       .set({
-        end: serverFutureEventEnd,
-        start: serverFutureEventStart,
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
       })
       .where(eq(schema.eventInstances.id, paidEvent.id));
 
@@ -1285,7 +1250,7 @@ test.describe('Register for events', () => {
       testInfo,
       pendingCheckoutRegistrationCard,
       page,
-      'Paid registration card before the pending checkout recovery state',
+      'Pending paid registration card with Pay now recovery action',
     );
     const checkoutPagePromise = page.context().waitForEvent('page', {
       timeout: 5_000,
@@ -1447,6 +1412,7 @@ test.describe('Register for events', () => {
       .set({
         closeRegistrationTime: paidOption.closeRegistrationTime,
         confirmedSpots: paidOption.confirmedSpots,
+        openRegistrationTime: paidOption.openRegistrationTime,
         reservedSpots: paidOption.reservedSpots,
         waitlistSpots: paidOption.waitlistSpots,
       })

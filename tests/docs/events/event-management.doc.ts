@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { and, eq } from 'drizzle-orm';
 import type { Locator, Page } from '@playwright/test';
+import { DateTime } from 'luxon';
 
 import { getId } from '../../../helpers/get-id';
 import {
@@ -9,6 +10,7 @@ import {
   usersToAuthenticate,
 } from '../../../helpers/user-data';
 import {
+  eventInstances,
   eventRegistrationOptions,
   eventRegistrations,
 } from '../../../src/db/schema';
@@ -88,6 +90,9 @@ test('Create and manage events', async ({
   roles,
   seeded,
 }, testInfo) => {
+  test.slow();
+  test.setTimeout(300_000);
+
   const target = events.find(
     (event) => event.id === seeded.scenario.events.freeOpen.eventId,
   );
@@ -457,13 +462,27 @@ Those flows should be documented separately when they exist in the product.
     );
   }
   const initialCheckedInSpots = scannerRegistrationOption.checkedInSpots;
+  const scannerEvent = await database.query.eventInstances.findFirst({
+    where: { id: scannerEventId },
+  });
+  if (!scannerEvent) {
+    throw new Error('Expected seeded event for scanner documentation');
+  }
   const scannerUser = usersToAuthenticate.find((user) => user.roles === 'user');
   if (!scannerUser) {
     throw new Error('Expected regular user fixture for scanner documentation');
   }
   const scannerRegistrationId = getId();
+  const scannerEventStart = DateTime.utc().plus({ minutes: 30 });
 
   try {
+    await database
+      .update(eventInstances)
+      .set({
+        end: scannerEventStart.plus({ hours: 2 }).toJSDate(),
+        start: scannerEventStart.toJSDate(),
+      })
+      .where(eq(eventInstances.id, scannerEventId));
     await database.insert(eventRegistrations).values({
       checkedInGuestCount: 0,
       eventId: scannerEventId,
@@ -542,6 +561,13 @@ Those flows should be documented separately when they exist in the product.
           ),
         ),
       );
+    await database
+      .update(eventInstances)
+      .set({
+        end: scannerEvent.end,
+        start: scannerEvent.start,
+      })
+      .where(eq(eventInstances.id, scannerEventId));
   }
 
   await testInfo.attach('markdown', {

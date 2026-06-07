@@ -6,6 +6,7 @@ import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { seedFreeRegistrationAddon } from '../../support/utils/seed-registration-addons';
+import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
 

@@ -8440,3 +8440,54 @@ controls, no persistent loading text, no application-error text, navigation
 layer 30 above sticky event-date layer 10, and zero Browser warning/error logs.
 WebStorm errors-only diagnostics remain blocked because this worktree is not
 one of the IDE's open projects.
+
+Current event-flow docs/spec stabilization now anchors browser event windows to
+the deterministic server clock instead of wall-clock-only `Date.now()` offsets.
+`tests/support/utils/server-test-clock.ts` derives future event starts, open
+registration windows, close registration windows, and Stripe webhook timestamps
+from `E2E_NOW_ISO`/`DEFAULT_E2E_NOW_ISO` while still keeping generated browser
+events in the future when local wall time is later than the deterministic test
+clock. The event docs/spec sources now use that helper for free registration,
+negative registration states, registration add-ons, unpaid/paid transfer
+boundaries, register generated docs, and event create-from-template date entry.
+The event-management generated doc also moves its scanner fixture into the real
+one-hour pre-start check-in window before screenshotting the buyer-plus-guests
+scanner controls, then restores the seeded event timing.
+
+Focused validation for this slice passed `bun run format:write`,
+`bun run lint`, `bunx vitest run helpers/testing/stabilization-source.spec.ts
+--reporter=verbose` with 68 tests, `bun run test:e2e:reporter-paths` with 43
+tests, the focused event-management docs run with 8 tests, the register docs
+run with 14 tests, the combined event docs artifact run with 15 tests, the
+sequential event functional pack with 11 tests, and `git diff --check`.
+Reporter-path coverage now proves failed retry attempts are ignored and
+successful retry reruns replace the prior section instead of duplicating
+generated figures. WebStorm errors-only diagnostics remain blocked because this
+worktree is not one of the IDE's open projects.
+
+The final combined generated-doc artifact for this slice produced two Markdown
+pages and 21 PNG figures under `test-results/docs`. The inspected images
+included `test-results/docs/images/create-and-manage-events/image-b5f18a24dd9e7ed2.png`,
+which shows the scanned registration surface with two guests, the guest-count
+input, and **Confirm 3 check-ins**; the register docs include a confirmed free
+registration ticket image with selected add-ons and QR code, a pending paid
+registration recovery image captioned **Pending paid registration card with Pay
+now recovery action**, and the real Stripe Checkout sandbox image. These images
+show the claimed product states rather than unrelated, duplicated, or
+heading-only screenshots.
+
+Same-slice in-app Browser verification rechecked the anonymous General route
+set on the generated Docker app at `BASE_URL=http://localhost:4200`. At
+390x844, Browser opened `/`, `/events`, `/legal/imprint`, `/legal/privacy`,
+`/legal/terms`, `/403`, `/500`, `/404`, `/missing-general-page`, and the first
+seeded event detail route `/events/033d11cabd68960b7d61`; at 320x740, Browser
+rechecked the same route set with side/top clipping checks. Both mobile passes
+found expected content, no true horizontal overflow, no side/top clipped
+visible controls, no persistent loading text, no application-error text, and
+zero Browser warning/error logs. The inspected screenshots
+`/tmp/evorto-browser-event-clock-docs-current-head/events-320x740.png`,
+`/tmp/evorto-browser-event-clock-docs-current-head/legal-terms-320x740.png`,
+and `/tmp/evorto-browser-event-clock-docs-current-head/404-320x740.png` show
+seeded Material event cards with icons/times, readable Terms fallback copy, the
+not-found page, and fixed Events/Login mobile navigation without visible
+overlap.

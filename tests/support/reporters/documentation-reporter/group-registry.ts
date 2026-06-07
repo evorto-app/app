@@ -38,7 +38,11 @@ export class DocumentationGroupRegistry {
   appendTestSection(test: TestCase, section: TestSection) {
     const info = this.resolveForTest(test);
     const doc = this.ensureGroupDocument(info);
-    doc.sections.push(section);
+    const testLookupKey = this.getTestLookupKey(test);
+    doc.sections = doc.sections.filter(
+      (existingSection) => existingSection.testLookupKey !== testLookupKey,
+    );
+    doc.sections.push({ ...section, testLookupKey });
     return info;
   }
 

@@ -8738,6 +8738,46 @@ describe('stabilization source', () => {
     );
   });
 
+  it('keeps event e2e date windows anchored to the deterministic server clock', () => {
+    const clockHelper = readSource('tests/support/utils/server-test-clock.ts');
+    const eventFlowSources = [
+      ...listFiles('tests/docs/events', '.ts'),
+      ...listFiles('tests/specs/events', '.ts'),
+    ];
+    const wallClockFutureDatePattern =
+      /(?:DateTime\.now\(\)\.plus\(\{\s*months:\s*2\s*\}\)|Date\.now\(\)\s*\+\s*(?:24|48)\s*\*\s*60\s*\*\s*60\s*\*\s*1000)/u;
+    const eventWindowFiles = [
+      'tests/docs/events/register.doc.ts',
+      'tests/docs/events/event-management.doc.ts',
+      'tests/specs/events/events.test.ts',
+      'tests/specs/events/free-registration.test.ts',
+      'tests/specs/events/negative-registration-states.spec.ts',
+      'tests/specs/events/registration-addons.test.ts',
+      'tests/specs/events/registration-transfer.test.ts',
+    ];
+
+    expect(clockHelper).toContain('DEFAULT_E2E_NOW_ISO');
+    expect(clockHelper).toContain("process.env['E2E_NOW_ISO']");
+    expect(clockHelper).toContain('futureServerEventWindow');
+    expect(clockHelper).toContain('openRegistrationTime');
+
+    for (const sourcePath of eventFlowSources) {
+      expect(readSource(sourcePath), sourcePath).not.toMatch(
+        wallClockFutureDatePattern,
+      );
+    }
+
+    for (const sourcePath of eventWindowFiles) {
+      const source = readSource(sourcePath);
+      expect(source, sourcePath).toContain('futureServerEventWindow');
+      if (source.includes('closeRegistrationTime: serverEventWindow')) {
+        expect(source, sourcePath).toContain(
+          'openRegistrationTime: serverEventWindow.openRegistrationTime',
+        );
+      }
+    }
+  });
+
   it('keeps public General viewport coverage durable and compact', () => {
     const source = readSource('STABILIZATION.md');
     const inventory = readSource('tests/test-inventory.md');
