@@ -1613,6 +1613,9 @@ describe('stabilization source', () => {
     expect(inventory).toContain(
       'optional-call screenshot-helper, raw screenshot, and image attach invocations',
     );
+    expect(inventory).toContain(
+      'optional-call raw Markdown attach-helper invocations',
+    );
     expect(inventory).toContain('computed static property spellings');
     expect(inventory).toContain("`page['screen' + 'shot']`");
     expect(inventory).toContain("`testInfo['att' + 'ach']`");
@@ -2112,6 +2115,9 @@ describe('stabilization source', () => {
       'keeps screenshots close to optional-call explanatory markdown attachments',
     );
     expect(generatedDocumentationSource).toContain(
+      'detects raw markdown images hidden behind optional attach helper calls',
+    );
+    expect(generatedDocumentationSource).toContain(
       'const { attach: destructuredAttachMarkdown } = testInfo',
     );
     expect(generatedDocumentationSource).toContain(
@@ -2140,6 +2146,9 @@ describe('stabilization source', () => {
     );
     expect(generatedDocumentationSource).toContain(
       'optional-call-dense-screenshot-run.doc.ts',
+    );
+    expect(generatedDocumentationSource).toContain(
+      'optional-call-raw-markdown-helper.doc.ts',
     );
     expect(generatedDocumentationSource).toContain(
       'async function renderDensitySections',
@@ -5864,20 +5873,20 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toMatch(
-      /generated-doc Markdown-count source coverage now\s+explicitly pins optional-call Markdown attachment syntax/u,
+      /generated-doc raw Markdown image source coverage now\s+explicitly pins optional-call attach-helper invocations/u,
     );
-    expect(source).toContain('`testInfo.attach?.(markdownName, ...)`');
     expect(source).toContain('`attachMarkdown?.(markdownName, ...)`');
-    expect(source).toContain('manifest guard');
-    expect(source).toContain('counts both optional-call Markdown');
+    expect(source).toContain('`helperGroup[attachKey]?.(markdownName, ...)`');
+    expect(source).toMatch(/raw Markdown image\s+body/u);
+    expect(source).toMatch(/raw HTML image\s+body/u);
     expect(source).toContain('ignores a non-Playwright');
     expect(source).toMatch(
-      /Generated docs cannot silently lose explanatory sections from the manifest\s+guard by switching Markdown attachments to optional-call syntax/u,
+      /Generated docs cannot embed unrelated\s+images by switching a tracked attach\s+helper to optional-call syntax/u,
     );
     expect(source).toContain(
       '`bunx vitest run helpers/testing/generated-documentation-source.spec.ts helpers/testing/stabilization-source.spec.ts --reporter=verbose`',
     );
-    expect(source).toContain('with 209 tests');
+    expect(source).toContain('with 210 tests');
     expect(source).toContain('git diff --check');
     expect(source).toContain(
       'WebStorm errors-only diagnostics remain\nblocked',
@@ -5902,7 +5911,7 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('in-app Browser probe at 390x844');
     expect(source).toContain(
-      '/legal/terms?stabilizationEvidence=optional-call-markdown-count-source-guard',
+      '/legal/terms?stabilizationEvidence=optional-call-raw-markdown-helper-source-guard',
     );
     expect(source).toContain('failed before rendering the page');
     expect(source).toContain('`net::ERR_BLOCKED_BY_CLIENT`');

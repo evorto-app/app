@@ -9745,6 +9745,28 @@ describe('generated docs source current behavior', () => {
     ).toEqual(['tests/docs/example/optional-call-image-capture.doc.ts:19:15']);
   });
 
+  it('detects raw markdown images hidden behind optional attach helper calls', () => {
+    const optionalAttachHelperSource = `
+      const markdownName = 'markdown';
+      const attachMarkdown = testInfo.attach.bind(testInfo);
+      const attachKey = 'attachMarkdown';
+      const helperGroup = { attachMarkdown };
+      await attachMarkdown?.(markdownName, { body: '![raw optional helper](raw-helper.png)' });
+      await helperGroup[attachKey]?.(markdownName, { body: '<img src="raw-helper.png" alt="Raw helper">' });
+      await recordDocumentationNote?.(markdownName, { body: '![not generated](note.png)' });
+    `;
+
+    expect(
+      findRawMarkdownImageMarkup(
+        'tests/docs/example/optional-call-raw-markdown-helper.doc.ts',
+        optionalAttachHelperSource,
+      ),
+    ).toEqual([
+      'tests/docs/example/optional-call-raw-markdown-helper.doc.ts:6:13',
+      'tests/docs/example/optional-call-raw-markdown-helper.doc.ts:7:13',
+    ]);
+  });
+
   it('requires documentation screenshot captions to be literal descriptive text', () => {
     const captionSource = `
       const caption = 'Runtime generated caption with enough words to hide repeated image labels';
