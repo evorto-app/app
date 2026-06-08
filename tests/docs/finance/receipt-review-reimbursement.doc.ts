@@ -29,7 +29,9 @@ Finance users review submitted receipts first. Approved receipts then appear in 
 
   await page.goto('/finance/receipts-approval');
   await expect(
-    page.getByRole('heading', { name: 'Receipt approvals' }),
+    page
+      .locator('app-receipt-approval-list')
+      .getByRole('heading', { name: 'Receipt approvals' }),
   ).toBeVisible();
 
   await testInfo.attach('markdown', {
@@ -75,7 +77,9 @@ The review page shows the receipt file, normalized receipt data, tax/deposit/alc
 
   await page.goto('/finance/receipts-refunds');
   await expect(
-    page.getByRole('heading', { name: 'Receipt reimbursements' }),
+    page
+      .locator('app-receipt-refund-list')
+      .getByRole('heading', { name: 'Receipt reimbursements' }),
   ).toBeVisible();
   await expect(
     page.getByText('No approved receipts are waiting for reimbursement.'),

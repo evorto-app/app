@@ -91,7 +91,7 @@ The **Receipt approvals** tab shows all receipts waiting for finance review, gro
 Approving or rejecting records the review status in Evorto. Submitter email notification is still manual in the current relaunch scope.
 `,
   });
-  await page.getByRole('link', { name: 'Receipt approvals' }).click();
+  await page.goto('/finance/receipts-approval');
   await takeScreenshot(
     testInfo,
     page.locator('app-receipt-approval-list'),
@@ -106,7 +106,7 @@ Approving or rejecting records the review status in Evorto. Submitter email noti
 The **Receipt reimbursements** tab groups approved receipts by recipient and renders each group in a selectable table. Finance users can select one or more rows, verify payout details (IBAN/PayPal), and record the manual reimbursement transaction for the selected batch.
 `,
   });
-  await page.getByRole('link', { name: 'Receipt reimbursements' }).click();
+  await page.goto('/finance/receipts-refunds');
   await takeScreenshot(
     testInfo,
     page.locator('app-receipt-refund-list'),

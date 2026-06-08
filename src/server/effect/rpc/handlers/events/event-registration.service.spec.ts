@@ -804,7 +804,7 @@ describe('EventRegistrationService', () => {
       }),
   );
 
-  it.effect('joins the waitlist for a full participant option', () =>
+  it.effect('joins the waitlist for a full public participant option', () =>
     Effect.gen(function* () {
       const insertWaitlistRegistration = vi.fn(() => ({
         values: vi.fn((values) => ({
@@ -825,6 +825,7 @@ describe('EventRegistrationService', () => {
                 ...approvedRegistrationOption,
                 confirmedSpots: 10,
                 organizingRegistration: false,
+                roleIds: [],
               }),
           },
           eventRegistrations: {
@@ -873,7 +874,7 @@ describe('EventRegistrationService', () => {
         },
         user: {
           id: 'user-1',
-          roleIds: ['role-1'],
+          roleIds: [],
         },
       }).pipe(
         Effect.provide(EventRegistrationService.Default),
