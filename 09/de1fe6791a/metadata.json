@@ -5,11 +5,7 @@
   "branch": "codex/pr62-split-09-finance-docs-captions",
   "checkpoints_count": 5,
   "files_touched": [
-    "helpers/testing/playwright-skip-inventory.spec.ts",
-    "helpers/testing/runtime-preflight.spec.ts",
-    "helpers/testing/runtime-preflight.ts",
-    "helpers/testing/validate-ci-runtime-env.sh",
-    "package.json"
+    "helpers/testing/validate-ci-runtime-env.sh"
   ],
   "sessions": [
     {
@@ -20,10 +16,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 8225715,
+    "input_tokens": 9594280,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 440846976,
-    "output_tokens": 802912,
-    "api_call_count": 3337
+    "cache_read_tokens": 519497344,
+    "output_tokens": 934915,
+    "api_call_count": 3934
   }
 }
