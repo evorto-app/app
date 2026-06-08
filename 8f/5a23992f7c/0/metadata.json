@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "8f5a23992f7c",
+  "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-08T19:34:48.709381Z",
+  "branch": "codex/pr62-split-08-active-head-ci-cleanup",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/copilot-setup-steps.yml",
+    "helpers/testing/runtime-preflight.spec.ts",
+    "helpers/testing/stabilization-source.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "071e805c9918",
+  "checkpoint_transcript_start": 17223,
+  "transcript_lines_at_start": 17223,
+  "token_usage": {
+    "input_tokens": 291427,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 19750912,
+    "output_tokens": 42073,
+    "api_call_count": 157
+  },
+  "session_metrics": {
+    "turn_count": 13
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-08T19:34:48.24451Z",
+    "agent_lines": 6129,
+    "agent_removed": 45,
+    "human_added": 1,
+    "human_modified": 4,
+    "human_removed": 0,
+    "total_committed": 6134,
+    "total_lines_changed": 6179,
+    "agent_percentage": 99.91908075740412,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
