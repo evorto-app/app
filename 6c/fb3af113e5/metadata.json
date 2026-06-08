@@ -5,7 +5,8 @@
   "branch": "codex/pr62-split-01-registration-schema",
   "checkpoints_count": 0,
   "files_touched": [
-    "Dockerfile"
+    ".github/workflows/e2e-baseline.yml",
+    "docker-compose.yml"
   ],
   "sessions": [
     {
@@ -16,10 +17,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 42794,
+    "input_tokens": 39304,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 1451904,
-    "output_tokens": 4715,
-    "api_call_count": 17
+    "cache_read_tokens": 3202432,
+    "output_tokens": 6009,
+    "api_call_count": 25
   }
 }
