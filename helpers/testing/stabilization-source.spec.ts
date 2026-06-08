@@ -1019,12 +1019,8 @@ describe('stabilization source', () => {
     expect(packageJson.scripts['test:e2e:docs:publish']).toContain(
       'DOCS_IMG_OUT_DIR=/Users/hedde/code/evorto-pages/apps/documentation/public/docs',
     );
-    expect(documentationReporter).toContain('private get listOnly(): boolean');
     expect(documentationReporter).toContain(
-      'constructor(private readonly options: { listOnly?: boolean } = {})',
-    );
-    expect(documentationReporter).toContain(
-      "return this.options.listOnly ?? process.argv.includes('--list');",
+      "private readonly listOnly = process.argv.includes('--list')",
     );
     expect(documentationReporter).toContain('if (this.listOnly)');
     expect(documentationReporter).toContain('return;');
@@ -7239,7 +7235,7 @@ describe('stabilization source', () => {
     expect(copilotWorkflow).toContain(
       'Save Bun dependency tree from package cache',
     );
-    expect(copilotWorkflow).toContain(
+    expect(copilotWorkflow).not.toContain(
       'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
     );
     expect(copilotWorkflow).toContain('node_modules/.bin/playwright');
