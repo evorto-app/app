@@ -261,7 +261,6 @@ jobs:
         run: bash helpers/testing/ci-start-docker-stack.sh
 
       - name: Confirm Neon branch expiration
-        continue-on-error: true
         run: bun helpers/testing/set-neon-local-branch-expiration.ts
 
       - name: Record Neon Local branch metadata
