@@ -402,7 +402,15 @@ Those flows should be documented separately when they exist in the product.
     await database
       .update(eventRegistrationOptions)
       .set({ checkedInSpots: initialCheckedInSpots })
-      .where(eq(eventRegistrationOptions.id, scannerRegistrationOption.id));
+      .where(
+        and(
+          eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
+          eq(
+            eventRegistrationOptions.checkedInSpots,
+            initialCheckedInSpots + 3,
+          ),
+        ),
+      );
   }
 
   await testInfo.attach('markdown', {

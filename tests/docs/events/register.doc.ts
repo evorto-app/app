@@ -517,10 +517,7 @@ test.describe('Register for events', () => {
 
     const paidEventId = seeded.scenario.events.paidOpen.eventId;
     const paidOptionId = seeded.scenario.events.paidOpen.optionId;
-    const serverFutureEventStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
-    const serverFutureEventEnd = new Date(
-      serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
-    );
+    const serverEventWindow = futureServerEventWindow();
     const paidOption = await database.query.eventRegistrationOptions.findFirst({
       where: {
         eventId: paidEventId,
@@ -575,8 +572,8 @@ test.describe('Register for events', () => {
       await database
         .update(schema.eventInstances)
         .set({
-          end: serverFutureEventEnd,
-          start: serverFutureEventStart,
+          end: serverEventWindow.end,
+          start: serverEventWindow.start,
         })
         .where(eq(schema.eventInstances.id, paidEventId));
 

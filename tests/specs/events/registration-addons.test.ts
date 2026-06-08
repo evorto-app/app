@@ -21,19 +21,14 @@ const futureServerEventWindow = (): {
   if (Number.isNaN(serverNow.getTime())) {
     throw new Error('Invalid E2E_NOW_ISO value for registration add-on test');
   }
-  const wallNow = new Date();
-  const latestNow =
-    serverNow.getTime() > wallNow.getTime() ? serverNow : wallNow;
-  const earliestNow =
-    serverNow.getTime() < wallNow.getTime() ? serverNow : wallNow;
-  const start = new Date(latestNow.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const start = new Date(serverNow.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   return {
     closeRegistrationTime: new Date(
-      latestNow.getTime() + 5 * 24 * 60 * 60 * 1000,
+      serverNow.getTime() + 5 * 24 * 60 * 60 * 1000,
     ),
     end: new Date(start.getTime() + 2 * 60 * 60 * 1000),
-    openRegistrationTime: new Date(earliestNow.getTime() - 24 * 60 * 60 * 1000),
+    openRegistrationTime: new Date(serverNow.getTime() - 24 * 60 * 60 * 1000),
     start,
   };
 };

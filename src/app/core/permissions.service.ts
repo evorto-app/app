@@ -14,7 +14,9 @@ export class PermissionsService {
 
   public hasPermission(...permissions: Permission[]) {
     return computed(() =>
-      permissions.every((p) => includesPermission(p, this.config.permissions)),
+      permissions.every((p) =>
+        includesPermission(p, this.config.permissionsSignal()),
+      ),
     );
   }
 

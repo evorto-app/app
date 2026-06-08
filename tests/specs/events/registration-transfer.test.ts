@@ -189,6 +189,12 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
         eq(schema.eventRegistrations.userId, regularUser.id),
       ),
     );
+  const originalEventInstance = await database.query.eventInstances.findFirst({
+    where: { id: targetEventId },
+  });
+  if (!originalEventInstance) {
+    throw new Error('Expected seeded event instance');
+  }
 
   try {
     await database
@@ -285,6 +291,13 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
         .set({ status: registration.status })
         .where(eq(schema.eventRegistrations.id, registration.id));
     }
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: originalEventInstance.end,
+        start: originalEventInstance.start,
+      })
+      .where(eq(schema.eventInstances.id, targetEventId));
   }
 });
 
@@ -332,6 +345,12 @@ test('regular user cancellation records a pending manual refund for a paid confi
         eq(schema.eventRegistrations.userId, regularUser.id),
       ),
     );
+  const originalEventInstance = await database.query.eventInstances.findFirst({
+    where: { id: targetEventId },
+  });
+  if (!originalEventInstance) {
+    throw new Error('Expected seeded event instance');
+  }
 
   try {
     await database
@@ -454,5 +473,12 @@ test('regular user cancellation records a pending manual refund for a paid confi
         .set({ status: registration.status })
         .where(eq(schema.eventRegistrations.id, registration.id));
     }
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: originalEventInstance.end,
+        start: originalEventInstance.start,
+      })
+      .where(eq(schema.eventInstances.id, targetEventId));
   }
 });

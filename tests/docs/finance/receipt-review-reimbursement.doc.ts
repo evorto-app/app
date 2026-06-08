@@ -219,10 +219,14 @@ After recording the reimbursement, the selected receipt leaves the active reimbu
         status: receipt.status,
       })
       .where(eq(schema.financeReceipts.id, receipt.id));
-    if (refundTransactionId) {
+    const createdRefundTransactionId =
+      refundTransactionId && refundTransactionId !== receipt.refundTransactionId
+        ? refundTransactionId
+        : null;
+    if (createdRefundTransactionId) {
       await database
         .delete(schema.transactions)
-        .where(eq(schema.transactions.id, refundTransactionId));
+        .where(eq(schema.transactions.id, createdRefundTransactionId));
     }
   }
 });

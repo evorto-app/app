@@ -1,4 +1,4 @@
-import { and, eq, or } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
@@ -60,15 +60,9 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
     await database
       .delete(schema.userDiscountCards)
       .where(
-        or(
-          and(
-            eq(schema.userDiscountCards.userId, regularUser.id),
-            eq(schema.userDiscountCards.type, 'esnCard'),
-          ),
-          and(
-            eq(schema.userDiscountCards.identifier, liveEsnCardIdentifier!),
-            eq(schema.userDiscountCards.type, 'esnCard'),
-          ),
+        and(
+          eq(schema.userDiscountCards.userId, regularUser.id),
+          eq(schema.userDiscountCards.type, 'esnCard'),
         ),
       );
 
