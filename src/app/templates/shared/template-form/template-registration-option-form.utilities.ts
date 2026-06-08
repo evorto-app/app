@@ -15,6 +15,12 @@ export interface TemplateRegistrationFormModel {
   title: string;
 }
 
+export type TemplateRegistrationFormOverrides = Partial<
+  Omit<TemplateRegistrationFormModel, 'esnCardDiscountedPrice'>
+> & {
+  esnCardDiscountedPrice?: '' | null | number;
+};
+
 export type TemplateRegistrationSubmitData = Omit<
   TemplateRegistrationFormModel,
   'esnCardDiscountedPrice'
@@ -66,7 +72,7 @@ export const createTemplateRegistrationFormModel = (
 });
 
 export const mergeTemplateRegistrationFormOverrides = (
-  overrides: Partial<TemplateRegistrationFormModel>,
+  overrides: TemplateRegistrationFormOverrides,
   previous?: TemplateRegistrationFormModel,
 ): TemplateRegistrationFormModel => {
   const base = previous ?? createTemplateRegistrationFormModel();
@@ -75,7 +81,9 @@ export const mergeTemplateRegistrationFormOverrides = (
       overrides.closeRegistrationOffset ?? base.closeRegistrationOffset,
     description: overrides.description ?? base.description,
     esnCardDiscountedPrice:
-      overrides.esnCardDiscountedPrice ?? base.esnCardDiscountedPrice,
+      overrides.esnCardDiscountedPrice === undefined
+        ? base.esnCardDiscountedPrice
+        : (overrides.esnCardDiscountedPrice ?? ''),
     isPaid: overrides.isPaid ?? base.isPaid,
     openRegistrationOffset:
       overrides.openRegistrationOffset ?? base.openRegistrationOffset,

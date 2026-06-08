@@ -82,7 +82,14 @@ In the migrated form, payment-specific fields are conditionally shown.
 When **Enable Payment** is on, the price and tax-rate fields appear for that registration block. Tenants with ESNcard discounts enabled also see the optional ESNcard discounted price field.
 `,
   });
-  await page.getByRole('switch', { name: 'Enable Payment' }).first().click();
+  const paymentCheckbox = page
+    .locator('app-template-registration-option-form')
+    .first()
+    .getByRole('checkbox')
+    .first();
+  await paymentCheckbox.focus();
+  await paymentCheckbox.press('Space');
+  await expect(paymentCheckbox).toBeChecked();
   await expect(page.getByLabel('Price (in cents)').first()).toBeVisible();
   await expect(page.getByLabel('Tax rate').first()).toBeVisible();
   await takeScreenshot(

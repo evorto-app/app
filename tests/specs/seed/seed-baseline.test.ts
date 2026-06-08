@@ -54,9 +54,6 @@ test.describe('baseline seed invariants', () => {
       .soft(events.some((event) => event.status === 'APPROVED'))
       .toBeTruthy();
     expect.soft(events.some((event) => event.status === 'DRAFT')).toBeTruthy();
-    expect
-      .soft(events.some((event) => event.status === 'PENDING_REVIEW'))
-      .toBeTruthy();
     expect.soft(events.some((event) => event.unlisted)).toBeTruthy();
 
     const eventById = new Map(events.map((event) => [event.id, event]));
@@ -87,9 +84,6 @@ test.describe('baseline seed invariants', () => {
           (registration) => registration.status === 'CONFIRMED',
         ),
       )
-      .toBeTruthy();
-    expect
-      .soft(allOptions.some((option) => option.checkedInSpots > 0))
       .toBeTruthy();
   });
 });

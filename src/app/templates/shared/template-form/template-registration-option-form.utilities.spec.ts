@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createTemplateRegistrationFormModel,
+  mergeTemplateRegistrationFormOverrides,
   toTemplateRegistrationSubmitData,
 } from './template-registration-option-form.utilities';
 
@@ -121,6 +122,25 @@ describe('toTemplateRegistrationSubmitData', () => {
       expect.objectContaining({
         esnCardDiscountedPrice: null,
         isPaid: true,
+      }),
+    );
+  });
+});
+
+describe('mergeTemplateRegistrationFormOverrides', () => {
+  it('clears a previous ESNcard discounted price when the server value is null', () => {
+    expect(
+      mergeTemplateRegistrationFormOverrides(
+        {
+          esnCardDiscountedPrice: null,
+        },
+        createTemplateRegistrationFormModel({
+          esnCardDiscountedPrice: 1900,
+        }),
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        esnCardDiscountedPrice: '',
       }),
     );
   });
