@@ -62,7 +62,7 @@ test('Event approval workflow', async ({
   seedDate,
   tenant,
 }, testInfo) => {
-  const seedNowMs = seedDate.getTime();
+  const eventStartMs = Date.now() + 1000 * 60 * 60 * 24 * 7;
   const eventTitle = `Approval Flow ${seedDate.getTime()}`;
   const rejectionComment =
     'Please add clearer safety information for participants.';
@@ -79,7 +79,7 @@ test('Event approval workflow', async ({
     throw new Error('No template available for approval workflow docs test');
   }
   const eventId = createId();
-  const start = new Date(seedNowMs + 1000 * 60 * 60 * 24 * 7);
+  const start = new Date(eventStartMs);
   const end = new Date(start.getTime() + 1000 * 60 * 60 * 3);
 
   const readGeneratedEvent = async () => {
@@ -119,7 +119,7 @@ test('Event approval workflow', async ({
     description: 'Participant registration',
     eventId,
     isPaid: false,
-    openRegistrationTime: new Date(seedNowMs - 1000 * 60 * 60 * 24),
+    openRegistrationTime: new Date(eventStartMs - 1000 * 60 * 60 * 24),
     organizingRegistration: false,
     price: 0,
     registeredDescription: 'You are registered',
