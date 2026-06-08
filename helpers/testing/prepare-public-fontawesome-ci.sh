@@ -38,7 +38,8 @@ node --input-type=module <<'NODE'
 import { existsSync, readFileSync } from 'node:fs';
 
 const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');
-const privatePackage = /@fortawesome\/(?:duotone|pro|sharp)[^"'\s]*/u;
+const privatePackage =
+  /@fortawesome\/(?:(?:duotone-(?!regular-svg-icons))|pro|sharp)[^"'\s]*/u;
 const files = ['package.json', 'bun.lock', 'bunfig.toml', 'Dockerfile'];
 let failed = false;
 

@@ -858,7 +858,7 @@ export const evaluateRuntimePreflight = (
           ),
           dockerContainerStartCheck(runCommand),
           dockerComposeProjectContainerCheck(runCommand),
-          auth0RegisteredPortConflictCheck(environment, runCommand),
+          auth0RegisteredPortConflictCheck(env, runCommand),
           commandCheck(
             'Playwright CLI',
             'bunx',

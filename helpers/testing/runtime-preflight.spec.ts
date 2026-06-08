@@ -16,6 +16,9 @@ const requiredDockerEnvironment = Object.fromEntries(
     `${name.toLowerCase()}-value`,
   ]),
 );
+const requiredDevelopmentEnvironment = Object.fromEntries(
+  requiredByTarget.dev.map(({ name }) => [name, `${name.toLowerCase()}-value`]),
+);
 
 const successfulCommand = (
   command: string,
@@ -752,6 +755,13 @@ describe('evaluateRuntimePreflight', () => {
     expect(ciRuntimeValidationHelper).toContain(
       'Missing required Auth0 issuer URL. Set ISSUER_BASE_URL as a secret or repository variable.',
     );
+    expect(workflow).toContain(
+      "ISSUER_BASE_URL: ${{ secrets.ISSUER_BASE_URL || vars.ISSUER_BASE_URL || 'https://tumi-dev.eu.auth0.com' }}",
+    );
+    expect(workflow).toContain(
+      "SECRET: ${{ secrets.SECRET || vars.SECRET || 'ci-localtestingsecret' }}",
+    );
+    expect(ciRuntimeValidationHelper).not.toContain('reject_env_value');
     expect(ciRuntimeValidationHelper).toContain(
       'require_secret "STRIPE_API_KEY"',
     );
@@ -1144,7 +1154,7 @@ describe('evaluateRuntimePreflight', () => {
       "privateRegistry = ['npm', 'fontawesome', 'com'].join('.')",
     );
     expect(fontAwesomeCiHelper).toContain(
-      String.raw`const privatePackage = /@fortawesome\/(?:duotone|pro|sharp)[^"'\s]*/u;`,
+      String.raw`/@fortawesome\/(?:(?:duotone-(?!regular-svg-icons))|pro|sharp)[^"'\s]*/u`,
     );
     expect(fontAwesomeCiHelper).toContain(
       'Font Awesome must stay on free public npm packages in CI.',

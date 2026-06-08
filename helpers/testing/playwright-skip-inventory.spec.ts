@@ -1056,7 +1056,7 @@ const pathForSkipEntry = (entry: string): string => {
     throw new Error(`Invalid skip inventory entry: ${entry}`);
   }
 
-return relativePath.replace(/^tests\//u, '');
+  return relativePath.replace(/^tests\//u, '');
 };
 
 const collectPlaceholderMetadataEntries = () =>

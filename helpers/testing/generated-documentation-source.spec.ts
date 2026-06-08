@@ -14340,7 +14340,7 @@ describe('generated docs source current behavior', () => {
       'One-domain-per-tenant remains the current relaunch scope in the application schema.',
     );
     expect(source).toContain(
-      'keeps an in-app deferred-settings summary for custom-domain verification and multi-domain automation',
+      'keeps an in-app deferred-settings summary for custom domain verification',
     );
     expect(source).toContain(
       '**Currency**, **Locale**, and **Timezone** selection within the supported relaunch policy.',
@@ -15727,9 +15727,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       '// The remaining screenshots use a seeded event with the same event-details surface.',
     );
-    expect(source).toContain(
-      'await page.goto(`/events/${target.id}`);',
-    );
+    expect(source).toContain('await page.goto(`/events/${target.id}`);');
     expect(source).toContain(
       'Expected seeded event "${target.title}" to have a participant registration option for docs screenshots',
     );

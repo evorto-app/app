@@ -1,7 +1,7 @@
 {
   "name": "evorto",
   "version": "0.0.0",
-    "scripts": {
+  "scripts": {
     "env:runtime": "bun helpers/testing/runtime-environment.ts",
     "env:copy-main": "bun helpers/testing/copy-main-environment.ts",
     "env:bootstrap": "bun run env:copy-main -- --if-missing && bun run env:runtime",
@@ -78,6 +78,7 @@
     "@effect/platform-bun": "4.0.0-beta.60",
     "@effect/sql-pg": "4.0.0-beta.60",
     "@fortawesome/angular-fontawesome": "4.0.0",
+    "@fortawesome/duotone-regular-svg-icons": "npm:@fortawesome/free-solid-svg-icons@^7.2.0",
     "@fortawesome/free-brands-svg-icons": "^7.2.0",
     "@fortawesome/free-solid-svg-icons": "^7.2.0",
     "@googlemaps/js-api-loader": "^2.0.2",

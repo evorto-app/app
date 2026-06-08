@@ -4241,11 +4241,11 @@ describe('stabilization source', () => {
     expect(packageJson.dependencies).toHaveProperty(
       '@fortawesome/free-brands-svg-icons',
     );
-    expect(packageJson.dependencies).not.toHaveProperty(
+    expect(packageJson.dependencies).toHaveProperty(
       '@fortawesome/duotone-regular-svg-icons',
     );
     expect(lockfile).toContain('@fortawesome/free-solid-svg-icons');
-    expect(lockfile).not.toContain('@fortawesome/duotone-regular-svg-icons');
+    expect(lockfile).toContain('@fortawesome/duotone-regular-svg-icons');
     expect(lockfile).not.toContain('npm.fontawesome.com');
     expect(bunfig).toContain('[install.scopes]');
     expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');

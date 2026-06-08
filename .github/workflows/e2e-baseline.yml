@@ -122,6 +122,7 @@ jobs:
   e2e:
     name: Playwright E2E (${{ matrix.suite }})
     runs-on: ubuntu-latest
+    needs: warm-ci-caches
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -132,9 +133,11 @@ jobs:
       CI: true
       APP_HOST_PORT: 4200
       BASE_URL: http://localhost:4200
+      BUILDKIT_BUN_CACHE_DIR: buildkit-bun-cache
       APP_READY_PATH: /robots.txt
       COMPOSE_PROJECT_NAME: evorto-ci
       DELETE_BRANCH: true
+      DOCKER_BUILD_CACHE_DIR: /tmp/evorto-docker-build-cache
       MINIO_CONSOLE_HOST_PORT: 0
       MINIO_HOST_PORT: 0
       NEON_DATABASE_NAME: appdb
