@@ -99,4 +99,30 @@ describe('handleTenantBrandAssetWebRequest', () => {
       expect(response.status).toBe(404);
     }),
   );
+
+  it.effect('returns 404 for missing object storage assets', () =>
+    Effect.gen(function* () {
+      class FakeS3Client {
+        file() {
+          return {
+            arrayBuffer: vi.fn(async () => {
+              throw new Error('No such key');
+            }),
+            presign: vi.fn(() => 'https://signed.example.com/object'),
+            write: vi.fn(async () => 0),
+          };
+        }
+      }
+
+      bunRuntime.S3Client = FakeS3Client;
+
+      const response = yield* handleTenantBrandAssetWebRequest({
+        fileName: 'logo.png',
+        kind: 'logo',
+        tenantId: 'tenant-1',
+      }).pipe(Effect.provide(objectStorageProviderLayer));
+
+      expect(response.status).toBe(404);
+    }),
+  );
 });

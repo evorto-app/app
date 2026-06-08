@@ -76,6 +76,28 @@ describe('AdminTenantUpdateSettingsInput', () => {
 
     expect(decoded).toEqual(currentTenantSettingsInput);
   });
+
+  it('accepts uploaded tenant brand asset paths', () => {
+    const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+      ...currentTenantSettingsInput,
+      faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
+      logoUrl: '/tenant-assets/tenant-1/logo/logo.svg',
+    });
+
+    expect(decoded.faviconUrl).toBe(
+      '/tenant-assets/tenant-1/favicon/favicon.ico',
+    );
+    expect(decoded.logoUrl).toBe('/tenant-assets/tenant-1/logo/logo.svg');
+  });
+
+  it('keeps non-brand tenant URLs absolute', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        termsUrl: '/tenant-assets/tenant-1/terms.pdf',
+      }),
+    ).toThrow();
+  });
 });
 
 describe('AdminTenantBrandAssetKind', () => {

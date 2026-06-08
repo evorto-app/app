@@ -16,7 +16,11 @@ const isObjectNotFoundError = (error: unknown): boolean => {
   if (!(error instanceof Error)) {
     return false;
   }
-  return /not found|no such key|404/i.test(error.message);
+  if (/not found|no such key|404/i.test(error.message)) {
+    return true;
+  }
+
+  return isObjectNotFoundError(error.cause);
 };
 
 const isTenantBrandAssetKind = (
