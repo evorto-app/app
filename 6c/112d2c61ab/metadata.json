@@ -3,11 +3,8 @@
   "checkpoint_id": "6c112d2c61ab",
   "strategy": "manual-commit",
   "branch": "codex/pr62-split-09-finance-docs-captions",
-  "checkpoints_count": 0,
-  "files_touched": [
-    "tests/specs/events/free-registration.test.ts",
-    "tests/specs/events/registration-addons.test.ts"
-  ],
+  "checkpoints_count": 1,
+  "files_touched": null,
   "sessions": [
     {
       "metadata": "/6c/112d2c61ab/0/metadata.json",
@@ -17,10 +14,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 66681,
+    "input_tokens": 3758759,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 6761344,
-    "output_tokens": 10233,
-    "api_call_count": 33
+    "cache_read_tokens": 133394048,
+    "output_tokens": 299109,
+    "api_call_count": 1097
   }
 }

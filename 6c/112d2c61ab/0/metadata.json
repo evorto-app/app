@@ -3,38 +3,21 @@
   "checkpoint_id": "6c112d2c61ab",
   "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
   "strategy": "manual-commit",
-  "created_at": "2026-06-08T12:58:10.077619Z",
+  "created_at": "2026-06-08T13:31:27.872269Z",
   "branch": "codex/pr62-split-09-finance-docs-captions",
-  "checkpoints_count": 0,
-  "files_touched": [
-    "tests/specs/events/free-registration.test.ts",
-    "tests/specs/events/registration-addons.test.ts"
-  ],
+  "checkpoints_count": 1,
+  "files_touched": [],
   "agent": "Codex",
   "model": "gpt-5.5",
   "turn_id": "8ab23838705f",
-  "checkpoint_transcript_start": 6349,
-  "transcript_lines_at_start": 6349,
   "token_usage": {
-    "input_tokens": 66681,
+    "input_tokens": 3758759,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 6761344,
-    "output_tokens": 10233,
-    "api_call_count": 33
+    "cache_read_tokens": 133394048,
+    "output_tokens": 299109,
+    "api_call_count": 1097
   },
   "session_metrics": {
     "turn_count": 6
-  },
-  "initial_attribution": {
-    "calculated_at": "2026-06-08T12:58:09.887875Z",
-    "agent_lines": 434,
-    "agent_removed": 0,
-    "human_added": 2029,
-    "human_modified": 0,
-    "human_removed": 0,
-    "total_committed": 2463,
-    "total_lines_changed": 2466,
-    "agent_percentage": 17.59935117599351,
-    "metric_version": 2
   }
 }
