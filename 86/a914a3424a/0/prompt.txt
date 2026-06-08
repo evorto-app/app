@@ -1,8 +1,2 @@
-[https://github.com/evorto-app/app/actions/runs/27121714393/job/80040207591?pr=63](https://github.com/evorto-app/app/actions/runs/27121714393/job/80040207591?pr=63)
-
-I think that on the first run, or every couple of runs we have to allow this, can we not attache the cache to the package lock or something?
-
----
-
 Check if we have to act on the comments in [evorto-app/app#64](https://github.com/evorto-app/app/pull/64)
 And if so, do
