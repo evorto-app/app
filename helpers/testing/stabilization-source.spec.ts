@@ -120,7 +120,7 @@ describe('stabilization source', () => {
       const source = readSource(sourceFile);
 
       expect(source, sourceFile).not.toMatch(
-        /\b\w+Query\.status\(\) === "(pending|success|error)"/u,
+        /\b\w+Query\.status\(\)\s*===\s*['"](pending|success|error)['"]/u,
       );
     }
   });

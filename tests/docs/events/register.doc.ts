@@ -33,6 +33,16 @@ const requireUserFixture = (
   return user;
 };
 
+const resolveServerNow = (): Date => {
+  const deterministicNow = process.env['E2E_NOW_ISO']?.trim();
+  const serverNow = deterministicNow ? new Date(deterministicNow) : new Date();
+  if (Number.isNaN(serverNow.getTime())) {
+    throw new Error('Invalid E2E_NOW_ISO value for registration docs');
+  }
+
+  return serverNow;
+};
+
 test.describe('Register for events', () => {
   test.describe.configure({ mode: 'serial', retries: 1 });
 
@@ -57,8 +67,11 @@ test.describe('Register for events', () => {
       'regular',
     );
     const addOnId = `addon-${getId().slice(0, 14)}`;
-    const serverOpenUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const serverFutureEventStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const serverNow = resolveServerNow();
+    const serverOpenUntil = new Date(serverNow.getTime() + 24 * 60 * 60 * 1000);
+    const serverFutureEventStart = new Date(
+      serverNow.getTime() + 48 * 60 * 60 * 1000,
+    );
     const serverFutureEventEnd = new Date(
       serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
     );
@@ -217,7 +230,8 @@ test.describe('Register for events', () => {
     const closedEventId = seeded.scenario.events.closedReg.eventId;
     const fullEventId = seeded.scenario.events.freeOpen.eventId;
     const fullOptionId = seeded.scenario.events.freeOpen.optionId;
-    const serverOpenUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const serverNow = resolveServerNow();
+    const serverOpenUntil = new Date(serverNow.getTime() + 24 * 60 * 60 * 1000);
     const fullOption = await database.query.eventRegistrationOptions.findFirst({
       where: { eventId: fullEventId, id: fullOptionId },
     });
@@ -232,7 +246,9 @@ test.describe('Register for events', () => {
     if (!fullEvent) {
       throw new Error('Expected seeded free registration event');
     }
-    const serverFutureEventStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const serverFutureEventStart = new Date(
+      serverNow.getTime() + 48 * 60 * 60 * 1000,
+    );
     const serverFutureEventEnd = new Date(
       serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
     );
@@ -424,7 +440,10 @@ test.describe('Register for events', () => {
     const freeEventId = seeded.scenario.events.freeOpen.eventId;
     const freeOptionId = seeded.scenario.events.freeOpen.optionId;
     const registrationId = getId();
-    const serverFutureEventStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const serverNow = resolveServerNow();
+    const serverFutureEventStart = new Date(
+      serverNow.getTime() + 48 * 60 * 60 * 1000,
+    );
     const serverFutureEventEnd = new Date(
       serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
     );
@@ -526,7 +545,10 @@ test.describe('Register for events', () => {
 
     const paidEventId = seeded.scenario.events.paidOpen.eventId;
     const paidOptionId = seeded.scenario.events.paidOpen.optionId;
-    const serverFutureEventStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const serverNow = resolveServerNow();
+    const serverFutureEventStart = new Date(
+      serverNow.getTime() + 48 * 60 * 60 * 1000,
+    );
     const serverFutureEventEnd = new Date(
       serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
     );
@@ -807,8 +829,11 @@ test.describe('Register for events', () => {
         'Expected seeded paidOpen registration option to exist and be paid',
       );
     }
-    const serverOpenUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const serverFutureEventStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const serverNow = resolveServerNow();
+    const serverOpenUntil = new Date(serverNow.getTime() + 24 * 60 * 60 * 1000);
+    const serverFutureEventStart = new Date(
+      serverNow.getTime() + 48 * 60 * 60 * 1000,
+    );
     const serverFutureEventEnd = new Date(
       serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
     );

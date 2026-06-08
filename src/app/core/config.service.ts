@@ -22,6 +22,7 @@ import { AppRpc } from './effect-rpc-angular-client';
   providedIn: 'root',
 })
 export class ConfigService {
+  public readonly permissionsSignal = signal<Permission[]>([]);
   public readonly tenantSignal = signal<null | Tenant>(null);
 
   public get missingContext() {
@@ -29,7 +30,7 @@ export class ConfigService {
   }
 
   public get permissions(): Permission[] {
-    return this._permissions;
+    return this.permissionsSignal();
   }
 
   public get publicConfig() {
@@ -39,9 +40,7 @@ export class ConfigService {
   public get tenant(): Tenant {
     return this._tenant;
   }
-
   private _missingContext = false;
-  private _permissions!: Permission[];
 
   private _publicConfig: {
     googleMapsApiKey: null | string;
@@ -97,7 +96,7 @@ export class ConfigService {
 
     if (this.requestContext !== null && isPlatformServer(this.platformId)) {
       this.applyTenantConfig(this.requestContext.tenant);
-      this._permissions = [...this.requestContext.permissions];
+      this.permissionsSignal.set([...this.requestContext.permissions]);
       this._publicConfig = await this.rpc.config.public.call();
       return;
     }
@@ -109,7 +108,7 @@ export class ConfigService {
     ]);
 
     this.applyTenantConfig(tenant);
-    this._permissions = [...permissions];
+    this.permissionsSignal.set([...permissions]);
 
     this._publicConfig = pub;
   }

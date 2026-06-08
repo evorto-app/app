@@ -30,12 +30,13 @@
 
     <mat-form-field>
       <mat-label>Tenant name</mat-label>
-      <input matInput [formField]="tenantForm.name" />
+      <input #tenantNameInput matInput [formField]="tenantForm.name" />
     </mat-form-field>
 
     <mat-form-field>
       <mat-label>Primary domain</mat-label>
       <input
+        #tenantDomainInput
         matInput
         [formField]="tenantForm.domain"
         placeholder="section.example.org"
@@ -93,17 +94,20 @@
       </mat-form-field>
     </div>
 
+    @let createTenantDisabled =
+      tenantSubmitDisabled({
+        formInvalid: tenantForm().invalid(),
+        formSubmitting: tenantForm().submitting(),
+        mutationPending: createTenantMutation.isPending(),
+      }) ||
+      !tenantNameInput.value.trim() ||
+      !tenantDomainInput.value.trim();
     <div class="mt-2 flex flex-wrap gap-2">
       <button
         mat-flat-button
         type="submit"
-        [disabled]="
-          tenantSubmitDisabled({
-            formInvalid: tenantForm().invalid(),
-            formSubmitting: tenantForm().submitting(),
-            mutationPending: createTenantMutation.isPending(),
-          })
-        "
+        [attr.disabled]="createTenantDisabled ? '' : null"
+        [disabled]="createTenantDisabled"
       >
         Create tenant
       </button>
