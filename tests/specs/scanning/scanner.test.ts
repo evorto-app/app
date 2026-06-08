@@ -1,5 +1,6 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
+import { DateTime } from 'luxon';
 
 import { getId } from '../../../helpers/get-id';
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
@@ -9,6 +10,7 @@ import {
 } from '../../../helpers/user-data';
 import type { relations } from '../../../src/db/relations';
 import {
+  eventInstances,
   eventRegistrationOptions,
   eventRegistrations,
 } from '../../../src/db/schema';
@@ -55,6 +57,19 @@ const requireScannerFixture = async ({
     );
   }
 
+  const eventBefore = await database.query.eventInstances.findFirst({
+    columns: {
+      end: true,
+      start: true,
+    },
+    where: {
+      id: eventId,
+    },
+  });
+  if (!eventBefore) {
+    throw new Error(`Expected seeded scanner event "${eventId}"`);
+  }
+
   const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
   if (!regularUser) {
     throw new Error('Expected regular user fixture for scanner coverage');
@@ -62,6 +77,7 @@ const requireScannerFixture = async ({
 
   return {
     eventId,
+    eventBefore,
     optionBefore,
     registrationOptionId: registrationOption.id,
     tenantId: seeded.tenant.id,
@@ -69,7 +85,24 @@ const requireScannerFixture = async ({
   };
 };
 
-test.skip('scan confirmed registration records check-in', async ({
+const openScannerCheckInWindow = async ({
+  database,
+  eventId,
+}: {
+  database: TestDatabase;
+  eventId: string;
+}) => {
+  const scannerEventStart = DateTime.utc().plus({ minutes: 30 });
+  await database
+    .update(eventInstances)
+    .set({
+      end: scannerEventStart.plus({ hours: 2 }).toJSDate(),
+      start: scannerEventStart.toJSDate(),
+    })
+    .where(eq(eventInstances.id, eventId));
+};
+
+test('scan confirmed registration records check-in', async ({
   database,
   page,
   seeded,
@@ -78,6 +111,10 @@ test.skip('scan confirmed registration records check-in', async ({
   const registrationId = getId();
 
   try {
+    await openScannerCheckInWindow({
+      database,
+      eventId: scannerFixture.eventId,
+    });
     await database.insert(eventRegistrations).values({
       checkedInGuestCount: 0,
       eventId: scannerFixture.eventId,
@@ -147,6 +184,13 @@ test.skip('scan confirmed registration records check-in', async ({
       .where(
         eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );
+    await database
+      .update(eventInstances)
+      .set({
+        end: scannerFixture.eventBefore.end,
+        start: scannerFixture.eventBefore.start,
+      })
+      .where(eq(eventInstances.id, scannerFixture.eventId));
   }
 });
 
@@ -161,6 +205,10 @@ test('scan checked-in registration records remaining guest arrival', async ({
   const checkedInBaseline = scannerFixture.optionBefore.checkedInSpots + 2;
 
   try {
+    await openScannerCheckInWindow({
+      database,
+      eventId: scannerFixture.eventId,
+    });
     await database.insert(eventRegistrations).values({
       checkedInGuestCount: 1,
       checkInTime: seedDate,
@@ -238,5 +286,12 @@ test('scan checked-in registration records remaining guest arrival', async ({
       .where(
         eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );
+    await database
+      .update(eventInstances)
+      .set({
+        end: scannerFixture.eventBefore.end,
+        start: scannerFixture.eventBefore.start,
+      })
+      .where(eq(eventInstances.id, scannerFixture.eventId));
   }
 });

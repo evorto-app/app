@@ -4964,7 +4964,7 @@ describe('stabilization source', () => {
   it('keeps the Playwright inventory clear about watchlist versus blockers', () => {
     const source = readSource('tests/test-inventory.md');
 
-    expect(source).toContain('Updated: 2026-06-07');
+    expect(source).toContain('Updated: 2026-06-08');
     expect(source).toContain('## Stabilization Coverage Watchlist');
     expect(source).not.toContain('## Stabilization Coverage Still Needed');
     expect(source).toContain(
@@ -5490,7 +5490,7 @@ describe('stabilization source', () => {
     expect(source).toContain('rejects fixed `.waitForTimeout(...)` waits');
     expect(source).toContain('fixed `setTimeout` sleeps');
     expect(source).toContain('time-based waits');
-    expect(inventory).toContain('Updated: 2026-06-07');
+    expect(inventory).toContain('Updated: 2026-06-08');
     expect(inventory).toContain(
       'in-app Browser\n    profile refresh also verified the seeded submitted receipt card',
     );
@@ -5926,37 +5926,59 @@ describe('stabilization source', () => {
     );
     expect(source).toContain('Latest coverage checkpoint:');
     expect(source).toMatch(
-      /Latest coverage checkpoint: the latest in-app Browser public General\/mobile\s+evidence was captured on PR head `af132e9d`/u,
+      /Latest coverage checkpoint: the latest in-app Browser public General\/mobile\s+evidence was captured on PR head `7cc6dcc1`/u,
     );
     expect(source).toMatch(
-      /Browser reused the generated Docker app at\s+`BASE_URL=http:\/\/localhost:4200`/u,
+      /after reconnecting to the already\s+running worktree Docker app at `BASE_URL=http:\/\/localhost:4200`/u,
     );
-    expect(source).toContain('at 390x844 and 320x740');
+    expect(source).toMatch(/`bun run\s+dev:status` confirmed/u);
+    expect(source).toContain('app route probe passed for `/legal/terms`');
+    expect(source).toMatch(
+      /no\s+other Evorto Compose project owned port 4200/u,
+    );
+    expect(source).toMatch(
+      /Docker disposable-container start-path preflight still\s+timed out/u,
+    );
+    expect(source).toMatch(/at\s+390x844 and 320x740/u);
     expect(source).toContain(
       'seeded\nevent detail `/events/033d11cabd68960b7d61`',
     );
     expect(source).toContain('/missing-general-page');
     expect(source).toContain('All 20 mobile route/viewport\nchecks');
+    expect(source).toContain(
+      'expected current content after accounting for current route copy',
+    );
+    expect(source).toContain('`/` redirects to Events');
+    expect(source).toContain('/403` says "Access not allowed"');
+    expect(source).toContain('event details\nuse "Registration"');
     expect(source).toContain('no true horizontal overflow');
-    expect(source).toContain('no side/top clipped visible\ncontrols');
+    expect(source).toContain('visible overflow entries');
+    expect(source).toMatch(/no side\/top clipped\s+visible controls/u);
+    expect(source).toContain('fixed Events/Login mobile navigation');
     expect(source).toContain('zero Browser warning/error logs');
     expect(source).toContain(
-      '/tmp/evorto-browser-event-clock-docs-current-head/events-320x740.png',
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/events-320x740.png',
     );
     expect(source).toContain(
-      '/tmp/evorto-browser-event-clock-docs-current-head/legal-terms-320x740.png',
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/events-033d11cabd68960b7d61-320x740.png',
     );
     expect(source).toContain(
-      '/tmp/evorto-browser-event-clock-docs-current-head/404-320x740.png',
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/legal-terms-390x844.png',
     );
     expect(source).toContain(
-      'fixed Events/Login mobile navigation without visible\noverlap',
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/missing-general-page-390x844.png',
     );
-    expect(source).toContain(
-      'prior PR-head `1eaa2789` sweep remains the latest full\n320x740/390x844/1440x900',
+    expect(source).toContain('the event detail hero and\ncopy');
+    expect(source).toMatch(
+      /fixed Events\/Login\s+mobile navigation without visible\s+overlap/u,
     );
-    expect(source).toContain(
-      'evidence-recording pushes can supersede\nin-progress E2E runs',
+    expect(source).toContain('prior PR-head `1eaa2789` sweep');
+    expect(source).toContain('latest full 320x740/390x844/1440x900');
+    expect(source).toMatch(
+      /evidence-recording\s+pushes can supersede in-progress E2E runs/u,
+    );
+    expect(source).toMatch(
+      /without changing the last fully green\s+CI baseline/u,
     );
     expect(source).toMatch(
       /[Cc]urrent-head local runtime and Browser evidence are\s+positive again after\s+resetting the stale Docker stack/u,
@@ -7639,7 +7661,7 @@ describe('stabilization source', () => {
       /A later pushed-head General Browser refresh on PR head `533cf16b`[\s\S]*?desktop event-list\s+screenshot\./u,
     )?.[0];
     const latestCapturedGeneralRefresh = source.match(
-      /The latest public General Browser mobile refresh was captured on PR head\s+`af132e9d`[\s\S]*?visible\s+overlap\./u,
+      /The latest public General Browser mobile refresh was captured on PR head\s+`7cc6dcc1`[\s\S]*?visible\s+overlap\./u,
     )?.[0];
 
     expect(checkpoint).toBeDefined();
@@ -7973,19 +7995,27 @@ describe('stabilization source', () => {
     expect(pushedHeadGeneralRefresh).toContain(
       'fixed Events/Login navigation on mobile',
     );
-    expect(latestCapturedGeneralRefresh).toContain('PR head\n`af132e9d`');
+    expect(latestCapturedGeneralRefresh).toMatch(/PR head\s+`7cc6dcc1`/u);
     expect(latestCapturedGeneralRefresh).toContain(
-      'event-flow docs/spec stabilization slice',
+      'already-running worktree Docker app',
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      'generated Docker app at\n`BASE_URL=http://localhost:4200`',
+      '`BASE_URL=http://localhost:4200`',
+    );
+    expect(latestCapturedGeneralRefresh).toMatch(
+      /`bun run dev:status` passed the database\s+validation query/u,
+    );
+    expect(latestCapturedGeneralRefresh).toContain('/legal/terms` route probe');
+    expect(latestCapturedGeneralRefresh).toMatch(
+      /no other Evorto\s+Compose project owned port 4200/u,
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      'anonymous General route set',
+      'Docker disposable-container start-path',
     );
+    expect(latestCapturedGeneralRefresh).toContain('preflight still timed out');
     expect(latestCapturedGeneralRefresh).toContain('`/`, `/events`');
     expect(latestCapturedGeneralRefresh).toContain(
-      'event detail route\n`/events/033d11cabd68960b7d61`',
+      'seeded event detail\n`/events/033d11cabd68960b7d61`',
     );
     expect(latestCapturedGeneralRefresh).toContain('/legal/imprint');
     expect(latestCapturedGeneralRefresh).toContain('/legal/privacy');
@@ -7997,37 +8027,47 @@ describe('stabilization source', () => {
     expect(latestCapturedGeneralRefresh).toMatch(
       /All 20 mobile\s+route\/viewport checks/u,
     );
-    expect(latestCapturedGeneralRefresh).toContain('expected content');
+    expect(latestCapturedGeneralRefresh).toContain(
+      'expected current route copy',
+    );
     expect(latestCapturedGeneralRefresh).toMatch(
       /no true horizontal\s+overflow/u,
     );
-    expect(latestCapturedGeneralRefresh).toContain(
-      'no side/top clipped visible\ncontrols',
+    expect(latestCapturedGeneralRefresh).toMatch(/visible\s+overflow entries/u);
+    expect(latestCapturedGeneralRefresh).toMatch(
+      /no side\/top clipped visible\s+controls/u,
     );
     expect(latestCapturedGeneralRefresh).toMatch(
-      /no persistent loading text,\s+no application-error text/u,
+      /no persistent loading\s+text,\s+no application-error text/u,
     );
     expect(latestCapturedGeneralRefresh).toMatch(
       /zero\s+Browser\s+warning\/error logs/u,
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      '/tmp/evorto-browser-event-clock-docs-current-head/events-320x740.png',
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/events-320x740.png',
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      '/tmp/evorto-browser-event-clock-docs-current-head/legal-terms-320x740.png',
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/events-033d11cabd68960b7d61-320x740.png',
     );
     expect(latestCapturedGeneralRefresh).toContain(
-      '/tmp/evorto-browser-event-clock-docs-current-head/404-320x740.png',
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/legal-terms-390x844.png',
+    );
+    expect(latestCapturedGeneralRefresh).toContain(
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/missing-general-page-390x844.png',
     );
     expect(latestCapturedGeneralRefresh).toContain(
       'seeded Material event cards with icons/times',
     );
+    expect(latestCapturedGeneralRefresh).toMatch(
+      /the event detail hero and\s+copy/u,
+    );
     expect(latestCapturedGeneralRefresh).toContain(
       'readable Terms fallback copy',
     );
-    expect(latestCapturedGeneralRefresh).toContain(
-      'fixed Events/Login mobile navigation without visible\noverlap',
+    expect(latestCapturedGeneralRefresh).toMatch(
+      /fixed Events.Login\s+mobile navigation/u,
     );
+    expect(latestCapturedGeneralRefresh).toContain('without visible overlap');
     expect(testInventory).toContain(
       'A current-head recovery on PR head `14fe958b`',
     );
@@ -8089,28 +8129,35 @@ describe('stabilization source', () => {
       'desktop list/detail event registration surface with side navigation rather\n  than unrelated or heading-only images',
     );
     expect(testInventory).toContain(
-      'The latest in-app Browser public General mobile refresh was captured on PR\n  head `af132e9d`',
+      'The latest in-app Browser public General mobile refresh was captured on PR\n  head `7cc6dcc1`',
+    );
+    expect(testInventory).toContain('already-running worktree Docker app');
+    expect(testInventory).toContain('`BASE_URL=http://localhost:4200`');
+    expect(testInventory).toContain(
+      '`bun run dev:status` passed the database\n  validation query',
     );
     expect(testInventory).toContain(
-      'event-flow docs/spec clock stabilization slice',
-    );
-    expect(testInventory).toContain(
-      'generated Docker app at `BASE_URL=http://localhost:4200`',
+      'Docker disposable-container\n  start-path preflight still timed out',
     );
     expect(testInventory).toContain('`/events/033d11cabd68960b7d61`');
-    expect(testInventory).toMatch(/All 20\s+mobile route\/viewport checks/u);
+    expect(testInventory).toMatch(/All 20\s+mobile\s+route\/viewport checks/u);
+    expect(testInventory).toContain('expected current route copy');
     expect(testInventory).toMatch(/no\s+side\/top clipped visible controls/u);
+    expect(testInventory).toContain('fixed\n  Events/Login mobile navigation');
     expect(testInventory).toContain(
-      '/tmp/evorto-browser-event-clock-docs-current-head/events-320x740.png',
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/events-320x740.png',
     );
     expect(testInventory).toContain(
-      '/tmp/evorto-browser-event-clock-docs-current-head/legal-terms-320x740.png',
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/events-033d11cabd68960b7d61-320x740.png',
     );
     expect(testInventory).toContain(
-      '/tmp/evorto-browser-event-clock-docs-current-head/404-320x740.png',
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/legal-terms-390x844.png',
     );
     expect(testInventory).toContain(
-      'fixed Events/Login mobile navigation without visible\n  overlap',
+      '/tmp/evorto-browser-7cc6dcc1-current-mobile/missing-general-page-390x844.png',
+    );
+    expect(testInventory).toMatch(
+      /fixed\s+Events\/Login mobile navigation without visible\s+overlap/u,
     );
     expect(checkpoint).toContain('Playwright-test MCP Browser planner');
     expect(checkpoint).toMatch(/`DATABASE_URL` was\s+undefined/u);
@@ -8840,6 +8887,7 @@ describe('stabilization source', () => {
     const scannerViewportSpec = readSource(
       'tests/specs/scanning/scanner-viewports.spec.ts',
     );
+    const scannerSpec = readSource('tests/specs/scanning/scanner.test.ts');
     const scannerTemplate = readSource(
       'src/app/scanning/scanner/scanner.component.html',
     );
@@ -10043,6 +10091,12 @@ describe('stabilization source', () => {
       'except the expected scanner camera fallback',
     );
     expect(scannerViewportSpec).toContain('eventRegistrations');
+    expect(scannerSpec).toContain('openScannerCheckInWindow');
+    expect(scannerSpec).toContain('DateTime.utc().plus({ minutes: 30 })');
+    expect(scannerSpec).toContain('eventBefore');
+    expect(scannerSpec).toContain('eventInstances');
+    expect(scannerSpec).toContain('start: scannerFixture.eventBefore.start');
+    expect(scannerSpec).toContain('end: scannerFixture.eventBefore.end');
     expect(scannerTemplate).toContain(
       'class="aspect-video max-h-[70vh] w-full rounded bg-surface-container object-cover"',
     );

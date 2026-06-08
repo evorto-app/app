@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-06-07
+Updated: 2026-06-08
 
 ## How to Use This Inventory
 
@@ -1086,7 +1086,11 @@ provider outcomes without live identifiers.
     in, persisted scanner counters, and the organizer overview checked-in
     aggregate using explicit registrations created against the seeded past event
     instead of generated filler registration state. Local app coverage also
-    proves organizer overview stat aggregation reads the same `checkedInSpots`
+    keeps the page-backed scanner paths inside the real one-hour pre-start
+    check-in window and restores the seeded event start/end afterward, so CI
+    clock drift cannot turn the documented scanner controls into disabled
+    future-event states. Organizer overview app coverage also proves stat
+    aggregation reads the same `checkedInSpots`
     counter updated by scanner check-in mutations, and scanned-registration
     component coverage pins
     check-in button labels plus selected spot-count copy. Event-management docs
@@ -1935,18 +1939,24 @@ provider outcomes without live identifiers.
   Material event cards with icons/times and readable Terms fallback copy with
   fixed Events/Login bottom navigation in front of the page content.
 - The latest in-app Browser public General mobile refresh was captured on PR
-  head `af132e9d` during the event-flow docs/spec clock stabilization slice.
-  Browser reused the generated Docker app at `BASE_URL=http://localhost:4200`
-  and rechecked `/`, `/events`, `/legal/imprint`, `/legal/privacy`,
-  `/legal/terms`, `/403`, `/500`, `/404`, `/missing-general-page`, and seeded
-  event detail `/events/033d11cabd68960b7d61` at 390x844 and 320x740. All 20
-  mobile route/viewport checks found expected current content, no persistent
-  loading text, no application-error text, no true horizontal overflow, no
-  side/top clipped visible controls, and zero Browser warning/error logs. The
+  head `7cc6dcc1` against the already-running worktree Docker app at
+  `BASE_URL=http://localhost:4200`. `bun run dev:status` passed the database
+  validation query and `/legal/terms` route probe and confirmed no other
+  Evorto Compose project owned port 4200; the Docker disposable-container
+  start-path preflight still timed out, so this evidence uses the existing
+  healthy app instead of claiming a fresh container start. Browser rechecked
+  `/`, `/events`, `/legal/imprint`, `/legal/privacy`, `/legal/terms`, `/403`,
+  `/500`, `/404`, `/missing-general-page`, and seeded event detail
+  `/events/033d11cabd68960b7d61` at 390x844 and 320x740. All 20 mobile
+  route/viewport checks found expected current route copy, no persistent
+  loading text, no application-error text, no true horizontal overflow or
+  visible overflow entries, no side/top clipped visible controls, fixed
+  Events/Login mobile navigation, and zero Browser warning/error logs. The
   inspected screenshots
-  `/tmp/evorto-browser-event-clock-docs-current-head/events-320x740.png`,
-  `/tmp/evorto-browser-event-clock-docs-current-head/legal-terms-320x740.png`,
-  and `/tmp/evorto-browser-event-clock-docs-current-head/404-320x740.png` show
-  seeded Material event cards with icons/times, readable Terms fallback copy,
-  the not-found page, and fixed Events/Login mobile navigation without visible
-  overlap.
+  `/tmp/evorto-browser-7cc6dcc1-current-mobile/events-320x740.png`,
+  `/tmp/evorto-browser-7cc6dcc1-current-mobile/events-033d11cabd68960b7d61-320x740.png`,
+  `/tmp/evorto-browser-7cc6dcc1-current-mobile/legal-terms-390x844.png`, and
+  `/tmp/evorto-browser-7cc6dcc1-current-mobile/missing-general-page-390x844.png`
+  show seeded Material event cards with icons/times, the event detail hero and
+  copy, readable Terms fallback copy, the not-found page, and fixed
+  Events/Login mobile navigation without visible overlap.
