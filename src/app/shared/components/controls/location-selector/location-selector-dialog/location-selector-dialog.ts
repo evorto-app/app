@@ -47,9 +47,7 @@ export class LocationSelectorDialog {
 
   private readonly locationSearch = inject(LocationSearch);
 
-  protected locationOptions$ = toObservable(
-    this.searchForm['query']().value,
-  ).pipe(
+  protected locationOptions$ = toObservable(this.searchForm.query().value).pipe(
     // Use switchMap to handle the asynchronous search
     switchMap((query) => {
       if (!query) {
