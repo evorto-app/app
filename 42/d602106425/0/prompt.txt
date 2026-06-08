@@ -1,0 +1,1 @@
+/goal Your job is it to analyze [evorto-app/app#62](https://github.com/evorto-app/app/pull/62) and split it into at least three separate PRs. All of them MUST NOT have more than 150 changed files. The changes in the end have to be equal to the current PR
