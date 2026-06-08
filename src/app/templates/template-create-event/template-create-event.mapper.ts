@@ -23,6 +23,7 @@ export const createEventFormModelFromTemplate = (
           hours: option.closeRegistrationOffset,
         }),
         description: option.description ?? '',
+        esnCardDiscountedPrice: option.esnCardDiscountedPrice ?? '',
         id: option.id,
         isPaid: option.isPaid,
         openRegistrationTime: startDateTime.minus({

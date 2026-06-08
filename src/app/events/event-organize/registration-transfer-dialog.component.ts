@@ -57,9 +57,8 @@ export const transferParticipantLabel = (participant: {
   templateUrl: './registration-transfer-dialog.component.html',
 })
 export class RegistrationTransferDialogComponent {
-  protected readonly data = inject(
-    MAT_DIALOG_DATA,
-  ) as RegistrationTransferDialogData;
+  protected readonly data =
+    inject<RegistrationTransferDialogData>(MAT_DIALOG_DATA);
   protected readonly currentParticipantLabel = computed(() =>
     transferParticipantLabel(this.data.currentUser),
   );

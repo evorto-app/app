@@ -6,5 +6,5 @@ export const registrationModeLabels: Record<RegistrationMode, string> = {
   random: 'Random allocation',
 };
 
-export const registrationModeLabel = (mode: RegistrationMode): string =>
+export const registrationModeLabel = (mode: RegistrationMode) =>
   registrationModeLabels[mode];

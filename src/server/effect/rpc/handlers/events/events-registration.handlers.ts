@@ -12,7 +12,18 @@ import {
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { and, eq, gte, ilike, inArray, isNull, not, sql } from 'drizzle-orm';
+import {
+  and,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  not,
+  notExists,
+  sql,
+} from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -562,9 +573,9 @@ const transferEventRegistration = ({
       );
     }
 
-    const targetEligible = registrationOption.roleIds.some((roleId) =>
-      targetRoleIds.has(roleId),
-    );
+    const targetEligible =
+      registrationOption.roleIds.length === 0 ||
+      registrationOption.roleIds.some((roleId) => targetRoleIds.has(roleId));
     if (!targetEligible) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
@@ -595,8 +606,12 @@ const transferEventRegistration = ({
       );
     }
 
-    const transferredRegistrations = yield* databaseEffect((database) =>
-      database
+    const transferredRegistrations = yield* databaseEffect((database) => {
+      const targetRegistrations = alias(
+        eventRegistrations,
+        'target_registrations',
+      );
+      return database
         .update(eventRegistrations)
         .set({
           userId: targetUserId,
@@ -607,6 +622,19 @@ const transferEventRegistration = ({
             eq(eventRegistrations.tenantId, tenant.id),
             eq(eventRegistrations.status, 'CONFIRMED'),
             not(eq(eventRegistrations.userId, targetUserId)),
+            notExists(
+              database
+                .select({ id: targetRegistrations.id })
+                .from(targetRegistrations)
+                .where(
+                  and(
+                    eq(targetRegistrations.tenantId, tenant.id),
+                    eq(targetRegistrations.eventId, registration.eventId),
+                    eq(targetRegistrations.userId, targetUserId),
+                    not(eq(targetRegistrations.status, 'CANCELLED')),
+                  ),
+                ),
+            ),
             ...(requireOrganizerAccess
               ? []
               : [eq(eventRegistrations.userId, user.id)]),
@@ -614,8 +642,8 @@ const transferEventRegistration = ({
         )
         .returning({
           id: eventRegistrations.id,
-        }),
-    );
+        });
+    });
 
     if (transferredRegistrations.length === 0) {
       return yield* Effect.fail(
@@ -1013,9 +1041,9 @@ export const eventRegistrationHandlers = {
           }
 
           const roleIds = roleIdsByTenantUserId.get(tenantUser.id) ?? new Set();
-          const roleEligible = registrationOption.roleIds.some((roleId) =>
-            roleIds.has(roleId),
-          );
+          const roleEligible =
+            registrationOption.roleIds.length === 0 ||
+            registrationOption.roleIds.some((roleId) => roleIds.has(roleId));
           if (!roleEligible) {
             return false;
           }
@@ -1352,7 +1380,7 @@ export const eventRegistrationHandlers = {
         database
           .select({ id: users.id })
           .from(users)
-          .where(ilike(users.email, normalizedTargetEmail))
+          .where(sql`lower(${users.email}) = ${normalizedTargetEmail}`)
           .limit(1),
       );
       const targetUser = targetUsers[0];

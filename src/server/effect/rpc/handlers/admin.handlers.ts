@@ -71,6 +71,22 @@ const normalizeOptionalUrl = (
   }
 };
 
+const normalizeOptionalBrandAssetUrl = (
+  value: string | undefined,
+  fieldName: string,
+): null | string => {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  if (trimmedValue.startsWith('/tenant-assets/')) {
+    return trimmedValue;
+  }
+
+  return normalizeOptionalUrl(trimmedValue, fieldName);
+};
+
 const normalizeTenantLegalLinks = (input: {
   legalNoticeText?: string | undefined;
   legalNoticeUrl?: string | undefined;
@@ -94,8 +110,8 @@ const normalizeTenantBrandAssets = (input: {
   faviconUrl?: string | undefined;
   logoUrl?: string | undefined;
 }) => ({
-  faviconUrl: normalizeOptionalUrl(input.faviconUrl, 'faviconUrl'),
-  logoUrl: normalizeOptionalUrl(input.logoUrl, 'logoUrl'),
+  faviconUrl: normalizeOptionalBrandAssetUrl(input.faviconUrl, 'faviconUrl'),
+  logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, 'logoUrl'),
 });
 
 const normalizeHubRoleRecord = (role: {

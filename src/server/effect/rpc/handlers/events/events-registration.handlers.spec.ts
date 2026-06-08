@@ -207,6 +207,7 @@ const createTransferDatabase = ({
     transactions: [],
     userId: 'attendee-1',
   },
+  registrationOptionRoleIds = ['participant-role-1'],
   targetTenantUser = {
     id: 'target-tenant-user-1',
     roles: [{ id: 'participant-role-1' }],
@@ -234,6 +235,7 @@ const createTransferDatabase = ({
     }[];
     userId: string;
   };
+  registrationOptionRoleIds?: string[];
   targetTenantUser?: null | { id: string; roles: readonly { id: string }[] };
   targetUser?: null | { id: string };
 } = {}) => {
@@ -243,7 +245,7 @@ const createTransferDatabase = ({
       eventRegistrationOptions: {
         findFirst: () =>
           Effect.succeed({
-            roleIds: ['participant-role-1'],
+            roleIds: registrationOptionRoleIds,
           }),
       },
       eventRegistrations: {
@@ -294,7 +296,11 @@ const createTransferDatabase = ({
   return { database, updateSets };
 };
 
-const createTransferTargetsDatabase = () => {
+const createTransferTargetsDatabase = ({
+  registrationOptionRoleIds = ['participant-role-1'],
+}: {
+  registrationOptionRoleIds?: string[];
+} = {}) => {
   const tenantUserRows = [
     {
       email: 'current@example.com',
@@ -330,7 +336,7 @@ const createTransferTargetsDatabase = () => {
       eventRegistrationOptions: {
         findFirst: () =>
           Effect.succeed({
-            roleIds: ['participant-role-1'],
+            roleIds: registrationOptionRoleIds,
           }),
       },
       eventRegistrations: {
@@ -862,6 +868,46 @@ describe('event registration transfer handlers', () => {
   );
 
   it.effect(
+    'returns transfer targets for unrestricted registration options',
+    () =>
+      Effect.gen(function* () {
+        const result = yield* eventRegistrationHandlers[
+          'events.findTransferTargets'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            search: 'alex',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer({
+              database: createTransferTargetsDatabase({
+                registrationOptionRoleIds: [],
+              }),
+            }),
+          ),
+        );
+
+        expect(result).toEqual([
+          {
+            email: 'alex@example.com',
+            firstName: 'Alex',
+            id: 'target-user-1',
+            lastName: 'Able',
+          },
+          {
+            email: 'other@example.com',
+            firstName: 'Other',
+            id: 'other-user-1',
+            lastName: 'Role',
+          },
+        ]);
+      }),
+  );
+
+  it.effect(
     'allows event organizers to transfer a confirmed unpaid registration to another tenant user',
     () =>
       Effect.gen(function* () {
@@ -905,6 +951,29 @@ describe('event registration transfer handlers', () => {
 
         expect(updateSets).toEqual([{ userId: 'target-user-1' }]);
       }),
+  );
+
+  it.effect('allows transfer to unrestricted registration options', () =>
+    Effect.gen(function* () {
+      const { database, updateSets } = createTransferDatabase({
+        registrationOptionRoleIds: [],
+        targetTenantUser: {
+          id: 'target-tenant-user-1',
+          roles: [],
+        },
+      });
+
+      yield* eventRegistrationHandlers['events.transferEventRegistration'](
+        {
+          eventId: 'event-1',
+          registrationId: 'registration-1',
+          targetUserId: 'target-user-1',
+        },
+        { headers: {} } as never,
+      ).pipe(Effect.provide(createContextLayer({ database })));
+
+      expect(updateSets).toEqual([{ userId: 'target-user-1' }]);
+    }),
   );
 
   it.effect(
