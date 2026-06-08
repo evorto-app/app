@@ -1,0 +1,19 @@
+Sometimes it might be needed to check the stacking PRs and see if they fix some things
+
+---
+
+Resolve all comments that are done, add a reply in case no action was taken
+
+---
+
+Do you need info from my side on any of these?
+For now focus on 63.
+Also it would be great if we can find a small fix for [https://github.com/evorto-app/app/actions/runs/27123539297/job/80046211556?pr=63](https://github.com/evorto-app/app/actions/runs/27123539297/job/80046211556?pr=63)
+
+---
+
+[evorto-app/app#62](https://github.com/evorto-app/app/pull/62) has the final code state which could be helpful fixing this, ideally we stay close to that
+
+---
+
+Continue
