@@ -1,6 +1,11 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
-    <fa-duotone-icon [icon]="faArrowLeft" />
+  <a
+    routerLink="/templates"
+    mat-icon-button
+    aria-label="Back to templates"
+    class="lg:hidden! block"
+  >
+    <fa-icon [icon]="faArrowLeft" />
   </a>
   @if (templateQuery.isSuccess()) {
     @let template = templateQuery.data();
@@ -16,303 +21,312 @@
     <h1 class="title-large">Loading ...</h1>
   }
   <div class="grow"></div>
-  <button
-    title="menu"
-    mat-icon-button
-    [matMenuTriggerFor]="menu"
-    class="lg:hidden! block"
-  >
-    <fa-duotone-icon [icon]="faEllipsisVertical" />
-  </button>
-  <mat-menu #menu="matMenu">
-    <a mat-menu-item routerLink="edit">Edit template</a>
-  </mat-menu>
-  <button mat-button routerLink="edit" class="hidden! lg:block!">
-    Edit template
-  </button>
+  @if (templateQuery.isSuccess() && templateQuery.data()) {
+    <button
+      title="menu"
+      aria-label="Open template actions"
+      mat-icon-button
+      [matMenuTriggerFor]="menu"
+      class="lg:hidden! block"
+    >
+      <fa-icon [icon]="faEllipsisVertical" />
+    </button>
+    <mat-menu #menu="matMenu">
+      <a mat-menu-item routerLink="edit">Edit template</a>
+    </mat-menu>
+    <button mat-button routerLink="edit" class="hidden! lg:block!">
+      Edit template
+    </button>
+  }
 </div>
 
 @if (templateQuery.isError()) {
   <p>Error: {{ errorMessage(templateQuery.error()) }}</p>
 } @else if (templateQuery.isSuccess()) {
   @let template = templateQuery.data();
-  <a mat-fab extended routerLink="create-event" class="fab-fixed">
-    <fa-duotone-icon [icon]="faPlus" />
-    Create event
-  </a>
+  @if (template) {
+    <a mat-fab extended routerLink="create-event" class="fab-fixed">
+      <fa-icon [icon]="faPlus" />
+      Create event
+    </a>
 
-  <div class="flex flex-col gap-4">
-    <section class="bg-surface text-on-surface rounded-2xl p-4">
-      <div
-        class="prose dark:prose-invert max-w-none"
-        [innerHTML]="template.description"
-      ></div>
-    </section>
+    <div class="flex flex-col gap-4">
+      <section class="bg-surface text-on-surface rounded-2xl p-4">
+        <div
+          class="prose dark:prose-invert max-w-none"
+          [innerHTML]="template.description"
+        ></div>
+      </section>
 
-    <section class="bg-surface text-on-surface rounded-2xl p-4">
-      <h2 class="mb-6 text-lg font-semibold">Additional configuration</h2>
-      @if (template.location) {
-        <div>Location: {{ template.location.name }}</div>
-      }
-      @if (template.planningTips) {
-        <div class="mt-4">
-          <h3 class="title-small">Organizer planning tips</h3>
-          <p class="whitespace-pre-line text-sm">
-            {{ template.planningTips }}
-          </p>
-        </div>
-      }
-      @if (template.addOns.length > 0) {
-        <div class="mt-6">
-          <h3 class="title-small">Reusable add-ons</h3>
-          <div class="mt-3 grid gap-4">
-            @for (addOn of template.addOns; track addOn.id) {
-              <article class="border-outline-variant border-t pt-3">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h4 class="font-medium">{{ addOn.title }}</h4>
-                    @if (addOn.description) {
-                      <p class="text-on-surface-variant text-sm">
-                        {{ addOn.description }}
-                      </p>
-                    }
-                  </div>
-                  <div class="text-right">
-                    @if (addOn.isPaid) {
-                      @if (
-                        taxRatesQuery.isSuccess() &&
-                          findRateByStripeId(addOn.stripeTaxRateId);
-                        as rate
-                      ) {
-                        <app-price-with-tax
-                          [amount]="addOn.price"
-                          [taxRate]="rate"
-                        />
+      <section class="bg-surface text-on-surface rounded-2xl p-4">
+        <h2 class="mb-6 text-lg font-semibold">Additional configuration</h2>
+        @if (template.location) {
+          <div>Location: {{ template.location.name }}</div>
+        }
+        @if (template.planningTips) {
+          <div class="mt-4">
+            <h3 class="title-small">Organizer planning tips</h3>
+            <p class="whitespace-pre-line text-sm">
+              {{ template.planningTips }}
+            </p>
+          </div>
+        }
+        @if (template.addOns.length > 0) {
+          <div class="mt-6">
+            <h3 class="title-small">Reusable add-ons</h3>
+            <div class="mt-3 grid gap-4">
+              @for (addOn of template.addOns; track addOn.id) {
+                <article class="border-outline-variant border-t pt-3">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h4 class="font-medium">{{ addOn.title }}</h4>
+                      @if (addOn.description) {
+                        <p class="text-on-surface-variant text-sm">
+                          {{ addOn.description }}
+                        </p>
+                      }
+                    </div>
+                    <div class="text-right">
+                      @if (addOn.isPaid) {
+                        @if (
+                          taxRatesQuery.isSuccess() &&
+                            findRateByStripeId(addOn.stripeTaxRateId);
+                          as rate
+                        ) {
+                          <app-price-with-tax
+                            [amount]="addOn.price"
+                            [taxRate]="rate"
+                          />
+                        } @else {
+                          <app-price-with-tax [amount]="addOn.price" />
+                        }
                       } @else {
-                        <app-price-with-tax [amount]="addOn.price" />
+                        <span>Free</span>
                       }
-                    } @else {
-                      <span>Free</span>
-                    }
+                    </div>
                   </div>
-                </div>
-                <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt class="text-on-surface-variant">Available quantity</dt>
-                    <dd>{{ addOn.totalAvailableQuantity }}</dd>
-                  </div>
-                  <div>
-                    <dt class="text-on-surface-variant">Max per user</dt>
-                    <dd>{{ addOn.maxQuantityPerUser }}</dd>
-                  </div>
-                  <div>
-                    <dt class="text-on-surface-variant">Purchase timing</dt>
-                    <dd>{{ templateAddonPurchaseTiming(addOn) }}</dd>
-                  </div>
-                  <div>
-                    <dt class="text-on-surface-variant">
-                      Registration options
-                    </dt>
-                    <dd>
-                      @for (
-                        option of addOn.registrationOptions;
-                        track option.registrationOptionId
-                      ) {
-                        <span>
-                          {{
-                            registrationOptionTitle(
-                              template,
-                              option.registrationOptionId
-                            )
-                          }}
-                          ({{ option.quantity }})
-                        </span>
-                      } @empty {
-                        <span>None</span>
-                      }
-                    </dd>
-                  </div>
-                </dl>
-              </article>
-            }
-          </div>
-        </div>
-      }
-      @if (template.questions.length > 0) {
-        <div class="mt-6">
-          <h3 class="title-small">Registration questions</h3>
-          <div class="mt-3 grid gap-4">
-            @for (question of template.questions; track question.id) {
-              <article class="border-outline-variant border-t pt-3">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h4 class="font-medium">{{ question.title }}</h4>
-                    @if (question.description) {
-                      <p class="text-on-surface-variant text-sm">
-                        {{ question.description }}
-                      </p>
-                    }
-                  </div>
-                  <span class="text-on-surface-variant text-sm">
-                    {{ question.required ? "Required" : "Optional" }}
-                  </span>
-                </div>
-                <p class="text-on-surface-variant mt-2 text-sm">
-                  Asked during
-                  {{
-                    registrationOptionTitle(
-                      template,
-                      question.registrationOptionId
-                    )
-                  }}
-                </p>
-              </article>
-            }
-          </div>
-        </div>
-      }
-    </section>
-
-    <section
-      class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-4"
-    >
-      <h2 class="mb-6 text-lg font-semibold">Registration Options</h2>
-
-      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        @for (option of template.registrationOptions; track option.id) {
-          <div
-            class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4"
-          >
-            <div class="flex items-center gap-2">
-              <h3 class="text-lg font-medium">{{ option.title }}</h3>
-              <div
-                class="bg-primary-container flex items-center gap-1 rounded px-2 py-0.5 text-sm"
-              >
-                <span>{{ option.spots }}</span>
-                <span>spots</span>
-              </div>
-            </div>
-
-            <div class="grid gap-3">
-              @if (option.description) {
-                <div
-                  class="prose dark:prose-invert max-w-none text-sm"
-                  [innerHTML]="option.description"
-                ></div>
+                  <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt class="text-on-surface-variant">
+                        Available quantity
+                      </dt>
+                      <dd>{{ addOn.totalAvailableQuantity }}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-on-surface-variant">Max per user</dt>
+                      <dd>{{ addOn.maxQuantityPerUser }}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-on-surface-variant">Purchase timing</dt>
+                      <dd>{{ templateAddonPurchaseTiming(addOn) }}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-on-surface-variant">
+                        Registration options
+                      </dt>
+                      <dd>
+                        @for (
+                          option of addOn.registrationOptions;
+                          track option.registrationOptionId
+                        ) {
+                          <span>
+                            {{
+                              registrationOptionTitle(
+                                template,
+                                option.registrationOptionId
+                              )
+                            }}
+                            ({{ option.quantity }})
+                          </span>
+                        } @empty {
+                          <span>None</span>
+                        }
+                      </dd>
+                    </div>
+                  </dl>
+                </article>
               }
+            </div>
+          </div>
+        }
+        @if (template.questions.length > 0) {
+          <div class="mt-6">
+            <h3 class="title-small">Registration questions</h3>
+            <div class="mt-3 grid gap-4">
+              @for (question of template.questions; track question.id) {
+                <article class="border-outline-variant border-t pt-3">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h4 class="font-medium">{{ question.title }}</h4>
+                      @if (question.description) {
+                        <p class="text-on-surface-variant text-sm">
+                          {{ question.description }}
+                        </p>
+                      }
+                    </div>
+                    <span class="text-on-surface-variant text-sm">
+                      {{ question.required ? "Required" : "Optional" }}
+                    </span>
+                  </div>
+                  <p class="text-on-surface-variant mt-2 text-sm">
+                    Asked during
+                    {{
+                      registrationOptionTitle(
+                        template,
+                        question.registrationOptionId
+                      )
+                    }}
+                  </p>
+                </article>
+              }
+            </div>
+          </div>
+        }
+      </section>
 
-              @if (option.registeredDescription) {
-                <div>
-                  <span class="text-on-surface-variant text-sm">
-                    Registered-user details
-                  </span>
+      <section
+        class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-4"
+      >
+        <h2 class="mb-6 text-lg font-semibold">Registration Options</h2>
+
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          @for (option of template.registrationOptions; track option.id) {
+            <div
+              class="bg-surface text-on-surface flex flex-col gap-4 rounded-xl p-4"
+            >
+              <div class="flex items-center gap-2">
+                <h3 class="text-lg font-medium">{{ option.title }}</h3>
+                <div
+                  class="bg-primary-container flex items-center gap-1 rounded px-2 py-0.5 text-sm"
+                >
+                  <span>{{ option.spots }}</span>
+                  <span>spots</span>
+                </div>
+              </div>
+
+              <div class="grid gap-3">
+                @if (option.description) {
                   <div
                     class="prose dark:prose-invert max-w-none text-sm"
-                    [innerHTML]="option.registeredDescription"
+                    [innerHTML]="option.description"
                   ></div>
-                </div>
-              }
+                }
 
-              <div class="flex flex-col">
-                <span class="text-on-surface-variant text-sm">
-                  Registration
-                </span>
-                <div class="flex items-center gap-1">
-                  <span class="font-medium">{{
-                    registrationModeLabel(option.registrationMode)
-                  }}</span>
-                  <span class="text-on-surface-variant">·</span>
-                  @if (option.isPaid) {
-                    @if (
-                      taxRatesQuery.isSuccess() &&
-                        findRateByStripeId(option.stripeTaxRateId);
-                      as rate
-                    ) {
-                      <app-price-with-tax
-                        [amount]="option.price"
-                        [taxRate]="rate"
-                      />
-                    } @else {
-                      <app-price-with-tax [amount]="option.price" />
-                    }
-                  } @else {
-                    <span>Free</span>
-                  }
-                </div>
-                @if (option.esnCardDiscountedPrice !== null) {
-                  @if (
-                    templateEsnDiscountVisible({
-                      discountedPrice: option.esnCardDiscountedPrice,
-                      esnEnabled: esnEnabled(),
-                    })
-                  ) {
-                    <p class="text-primary text-xs">
-                      ESNcard discounted price:
+                @if (option.registeredDescription) {
+                  <div>
+                    <span class="text-on-surface-variant text-sm">
+                      Registered-user details
+                    </span>
+                    <div
+                      class="prose dark:prose-invert max-w-none text-sm"
+                      [innerHTML]="option.registeredDescription"
+                    ></div>
+                  </div>
+                }
+
+                <div class="flex flex-col">
+                  <span class="text-on-surface-variant text-sm">
+                    Registration
+                  </span>
+                  <div class="flex items-center gap-1">
+                    <span class="font-medium">{{
+                      registrationModeLabel(option.registrationMode)
+                    }}</span>
+                    <span class="text-on-surface-variant">·</span>
+                    @if (option.isPaid) {
                       @if (
                         taxRatesQuery.isSuccess() &&
                           findRateByStripeId(option.stripeTaxRateId);
                         as rate
                       ) {
                         <app-price-with-tax
-                          [amount]="option.esnCardDiscountedPrice"
+                          [amount]="option.price"
                           [taxRate]="rate"
                         />
                       } @else {
-                        <app-price-with-tax
-                          [amount]="option.esnCardDiscountedPrice"
-                        />
+                        <app-price-with-tax [amount]="option.price" />
                       }
-                    </p>
-                  }
-                }
-              </div>
-
-              <div class="grid gap-3">
-                <div class="flex flex-col">
-                  <span class="text-on-surface-variant text-sm">
-                    Allowed roles
-                  </span>
-                  <mat-chip-set role="list">
-                    @for (role of option.roles; track role.id) {
-                      <mat-chip role="listitem">{{ role.name }}</mat-chip>
+                    } @else {
+                      <span>Free</span>
                     }
-                  </mat-chip-set>
-                </div>
-              </div>
-
-              <div class="flex flex-col">
-                <span class="text-on-surface-variant text-sm">Timeline</span>
-                <div class="flex flex-col gap-1">
-                  <div class="flex items-center gap-2">
-                    <fa-duotone-icon
-                      [icon]="faClock"
-                      class="text-on-surface-variant text-sm"
-                    />
-                    <span>
-                      Opens
-                      {{
-                        option.openRegistrationOffset | registrationStartOffset
-                      }}
-                    </span>
                   </div>
-                  <div class="flex items-center gap-2">
-                    <fa-duotone-icon
-                      [icon]="faClockFour"
-                      class="text-on-surface-variant text-sm"
-                    />
-                    <span>
-                      Closes
-                      {{
-                        option.closeRegistrationOffset | registrationStartOffset
-                      }}
+                  @if (option.esnCardDiscountedPrice !== null) {
+                    @if (
+                      templateEsnDiscountVisible({
+                        discountedPrice: option.esnCardDiscountedPrice,
+                        esnEnabled: esnEnabled(),
+                      })
+                    ) {
+                      <p class="text-primary text-xs">
+                        ESNcard discounted price:
+                        @if (
+                          taxRatesQuery.isSuccess() &&
+                            findRateByStripeId(option.stripeTaxRateId);
+                          as rate
+                        ) {
+                          <app-price-with-tax
+                            [amount]="option.esnCardDiscountedPrice"
+                            [taxRate]="rate"
+                          />
+                        } @else {
+                          <app-price-with-tax
+                            [amount]="option.esnCardDiscountedPrice"
+                          />
+                        }
+                      </p>
+                    }
+                  }
+                </div>
+
+                <div class="grid gap-3">
+                  <div class="flex flex-col">
+                    <span class="text-on-surface-variant text-sm">
+                      Allowed roles
                     </span>
+                    <mat-chip-set role="list">
+                      @for (role of option.roles; track role.id) {
+                        <mat-chip role="listitem">{{ role.name }}</mat-chip>
+                      }
+                    </mat-chip-set>
+                  </div>
+                </div>
+
+                <div class="flex flex-col">
+                  <span class="text-on-surface-variant text-sm">Timeline</span>
+                  <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                      <fa-icon
+                        [icon]="faClock"
+                        class="text-on-surface-variant text-sm"
+                      />
+                      <span>
+                        Opens
+                        {{
+                          option.openRegistrationOffset
+                            | registrationStartOffset
+                        }}
+                      </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <fa-icon
+                        [icon]="faClockFour"
+                        class="text-on-surface-variant text-sm"
+                      />
+                      <span>
+                        Closes
+                        {{
+                          option.closeRegistrationOffset
+                            | registrationStartOffset
+                        }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        }
-      </div>
-    </section>
-  </div>
+          }
+        </div>
+      </section>
+    </div>
+  }
 }
