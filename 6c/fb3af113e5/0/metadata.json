@@ -3,7 +3,7 @@
   "checkpoint_id": "6cfb3af113e5",
   "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
   "strategy": "manual-commit",
-  "created_at": "2026-06-08T16:33:02.981339Z",
+  "created_at": "2026-06-08T16:44:21.505247Z",
   "branch": "codex/pr62-split-01-registration-schema",
   "checkpoints_count": 1,
   "files_touched": [],
@@ -11,11 +11,11 @@
   "model": "gpt-5.5",
   "turn_id": "8ab23838705f",
   "token_usage": {
-    "input_tokens": 4850116,
+    "input_tokens": 4941531,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 205052672,
-    "output_tokens": 411786,
-    "api_call_count": 1656
+    "cache_read_tokens": 209331584,
+    "output_tokens": 417387,
+    "api_call_count": 1688
   },
   "session_metrics": {
     "turn_count": 6
