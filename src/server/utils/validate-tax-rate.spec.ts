@@ -4,7 +4,7 @@ import { Effect } from 'effect';
 import { TAX_RATE_ERROR_CODES, validateTaxRate } from './validate-tax-rate';
 
 const createDatabase = (
-  taxRate:
+  taxRate?:
     | undefined
     | {
         active: boolean;

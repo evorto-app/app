@@ -55,23 +55,11 @@ const logger = consola.withTag('app/templates/create');
   templateUrl: './template-create.component.html',
 })
 export class TemplateCreateComponent {
-  protected readonly categoryId = input<string | undefined>();
   private readonly rpc = AppRpc.injectClient();
-  protected readonly createTemplateMutation = injectMutation(() =>
-    this.rpc.templates.createSimpleTemplate.mutationOptions(),
-  );
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
-  protected readonly esnEnabled = computed(() => {
-    const providers = this.discountProvidersQuery.data();
-    if (!providers) return false;
-    return (
-      providers.find((provider) => provider.type === 'esnCard')?.status ===
-      'enabled'
-    );
-  });
-  protected readonly faArrowLeft = faArrowLeft;
+  protected readonly categoryId = input<string | undefined>();
   private defaultOrganizerRolesQuery = injectQuery(() =>
     this.rpc.roles.findMany.queryOptions({
       defaultOrganizerRole: true,
@@ -90,9 +78,6 @@ export class TemplateCreateComponent {
       roleIds: this.defaultUserRolesQuery.data()?.map((role) => role.id) || [],
     },
   }));
-
-  protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
-
   private readonly templateModel = linkedSignal<
     TemplateFormOverrides,
     TemplateFormData
@@ -101,11 +86,32 @@ export class TemplateCreateComponent {
       mergeTemplateFormOverrides(data, previous?.value),
     source: () => this.initialFormData(),
   });
-
   protected readonly templateForm = form(
     this.templateModel,
     templateFormSchema,
   );
+  protected readonly canSubmit = computed(
+    () =>
+      this.discountProvidersQuery.isSuccess() &&
+      !this.templateForm().invalid() &&
+      !this.templateForm().submitting(),
+  );
+
+  protected readonly createTemplateMutation = injectMutation(() =>
+    this.rpc.templates.createSimpleTemplate.mutationOptions(),
+  );
+
+  protected readonly esnEnabled = computed(() => {
+    if (!this.discountProvidersQuery.isSuccess()) return false;
+    const providers = this.discountProvidersQuery.data();
+    return (
+      providers.find((provider) => provider.type === 'esnCard')?.status ===
+      'enabled'
+    );
+  });
+
+  protected readonly faArrowLeft = faArrowLeft;
+  protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
 
   private queryClient = inject(QueryClient);
   private router = inject(Router);
@@ -118,6 +124,10 @@ export class TemplateCreateComponent {
         logger.warn('Submit blocked: missing icon', {
           value: formValue,
         });
+        return;
+      }
+      if (!this.discountProvidersQuery.isSuccess()) {
+        logger.warn('Submit blocked: discount providers are not loaded');
         return;
       }
       logger.info('Submit template create form', formValue);

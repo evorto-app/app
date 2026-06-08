@@ -130,7 +130,20 @@
                 @if (option.esnCardDiscountedPrice !== null) {
                   <p class="text-primary text-xs">
                     ESNcard discounted price:
-                    {{ option.esnCardDiscountedPrice / 100 | currency }}
+                    @if (
+                      taxRatesQuery.isSuccess() &&
+                        findRateByStripeId(option.stripeTaxRateId);
+                      as rate
+                    ) {
+                      <app-price-with-tax
+                        [amount]="option.esnCardDiscountedPrice"
+                        [taxRate]="rate"
+                      />
+                    } @else {
+                      <app-price-with-tax
+                        [amount]="option.esnCardDiscountedPrice"
+                      />
+                    }
                   </p>
                 }
               </div>

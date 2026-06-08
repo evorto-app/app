@@ -36,6 +36,7 @@ export class UserListComponent {
     'role',
   ]);
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly pageIndex = signal(0);
   private readonly filterInput = signal<{
     limit?: number;
     offset?: number;
@@ -48,6 +49,7 @@ export class UserListComponent {
   );
 
   handlePageChange(event: PageEvent) {
+    this.pageIndex.set(event.pageIndex);
     this.filterInput.update((old) => ({
       ...old,
       limit: event.pageSize,
@@ -58,6 +60,7 @@ export class UserListComponent {
 
   protected handleSearchChange(value: string) {
     const search = value.trim();
+    this.pageIndex.set(0);
     this.filterInput.update((old) => {
       const { search: _search, ...rest } = old;
       return search ? { ...rest, offset: 0, search } : { ...rest, offset: 0 };

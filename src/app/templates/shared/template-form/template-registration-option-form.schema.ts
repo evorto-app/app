@@ -46,6 +46,14 @@ export const templateRegistrationOptionFormSchema =
       when: ({ valueOf }) => valueOf(form.isPaid),
     });
     required(form.title);
+    validate(form.title, ({ value }) =>
+      value().trim().length === 0
+        ? {
+            kind: 'required',
+            message: 'Title is required.',
+          }
+        : undefined,
+    );
     validate(form.esnCardDiscountedPrice, ({ value, valueOf }) => {
       const discountedPrice = value();
       if (discountedPrice === '') {
