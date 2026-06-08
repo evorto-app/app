@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "71f317e8decc",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-09-finance-docs-captions",
+  "checkpoints_count": 0,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/71/f317e8decc/0/metadata.json",
+      "transcript": "/71/f317e8decc/0/full.jsonl",
+      "content_hash": "/71/f317e8decc/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 88944,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3343104,
+    "output_tokens": 7889,
+    "api_call_count": 30
+  }
+}
