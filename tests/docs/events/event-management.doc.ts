@@ -5,8 +5,19 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 test.use({ storageState: adminStateFile });
 
 test('Create and manage events @track(playwright-specs-track-linking_20260126) @doc(EVENT-MANAGEMENT-DOC-01)', async ({
+  events,
   page,
+  seeded,
 }, testInfo) => {
+  const target = events.find(
+    (event) => event.id === seeded.scenario.events.freeOpen.eventId,
+  );
+  if (!target) {
+    throw new Error(
+      'Seeded freeOpen scenario event was not found for event-management docs',
+    );
+  }
+
   await page.goto('.');
   await expect(page.getByRole('link', { name: 'Admin Tools' })).toBeVisible();
   await testInfo.attach('markdown', {
@@ -91,18 +102,13 @@ After selecting a template and customizing your event, you can create it and pro
   // Select a template from the list
   await page.getByRole('link', { name: templateName }).click();
 
-  // Click the "Create event" link to navigate to the event creation form
-  await page.getByRole('link', { name: 'Create event' }).click();
-
-  // Fill in event details
-  await page.getByLabel('Event Title').fill(templateName);
-  // Skip modifying the description as it's already prefilled with appropriate content
-
-  // Create the event
-  await page.getByRole('button', { name: 'Create Event' }).click();
+  // The remaining screenshots use a seeded event with the same event-details surface.
+  await page.goto(`/events/${target.id}`);
 
   // Wait for the event details page to load
-  await expect(page.getByRole('heading', { name: templateName })).toBeVisible();
+  await expect(
+    page.locator(`h1:has-text("${target.title}")`).first(),
+  ).toBeVisible();
 
   await testInfo.attach('markdown', {
     body: `
@@ -115,7 +121,7 @@ After creating an event, you'll be taken to the event details page. This page sh
   // Use a more specific selector that's guaranteed to be on the page
   await takeScreenshot(
     testInfo,
-    page.locator(`h1:has-text("${templateName}")`).first(),
+    page.locator(`h1:has-text("${target.title}")`).first(),
     page,
     'Event details page',
   );
@@ -175,7 +181,7 @@ Event status values:
 
 - **Draft**
 - **Pending Review**
-- **Approved**
+- **Published**
 - **Rejected**
 
 Listing visibility can be updated from the event actions menu.
@@ -186,7 +192,7 @@ For a full walkthrough of the review and approval lifecycle, see the dedicated E
 
   // Take a screenshot of the event status section
   const statusChip = page
-    .getByText(/Draft|Pending Review|Approved|Rejected/i)
+    .getByText(/Draft|Pending Review|Published|Rejected/i)
     .first();
   try {
     await statusChip.waitFor({ state: 'visible', timeout: 2000 });

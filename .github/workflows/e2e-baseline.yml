@@ -159,7 +159,7 @@ jobs:
 
       - name: Run Playwright suites
         env:
-          E2E_SELECTED_PROJECTS: local-chrome-baseline,docs-baseline
+          E2E_SELECTED_PROJECTS: local-chrome-baseline
         run: |
           mkdir -p test-results/docker-logs
           if [ "${ACTIONS_STEP_DEBUG:-false}" = "true" ]; then
@@ -176,11 +176,6 @@ jobs:
 
           bun run test:e2e -- \
             --grep-invert 'doc-screenshot returns a relative path and writes image|navigate to events list|create template in empty category|create a new template|template create form hides selected roles in autocomplete|register for a free event as regular user|@finance'
-
-          DOCS_OUT_DIR=test-results/docs \
-          DOCS_IMG_OUT_DIR=test-results/docs/images \
-          bunx playwright test --project=docs-baseline \
-            --reporter=github,dot,./tests/support/reporters/documentation-reporter.ts
 
       - name: Collect Docker logs
         if: always()

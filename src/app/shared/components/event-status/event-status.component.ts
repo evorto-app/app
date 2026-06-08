@@ -1,6 +1,40 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-type EventStatus = 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+export type EventStatus = 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+
+export const eventStatusClass = (status: EventStatus): string => {
+  switch (status) {
+    case 'APPROVED': {
+      return 'bg-success text-on-success';
+    }
+    case 'DRAFT': {
+      return 'bg-warn-container text-on-warn-container';
+    }
+    case 'PENDING_REVIEW': {
+      return 'bg-tertiary-container text-on-tertiary-container';
+    }
+    case 'REJECTED': {
+      return 'bg-error-container text-on-error-container';
+    }
+  }
+};
+
+export const eventStatusLabel = (status: EventStatus): string => {
+  switch (status) {
+    case 'APPROVED': {
+      return 'Published';
+    }
+    case 'DRAFT': {
+      return 'Draft';
+    }
+    case 'PENDING_REVIEW': {
+      return 'Pending Review';
+    }
+    case 'REJECTED': {
+      return 'Rejected';
+    }
+  }
+};
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,42 +60,10 @@ export class EventStatusComponent {
   status = input.required<EventStatus>();
 
   protected getStatusClass(): string {
-    switch (this.status()) {
-      case 'APPROVED': {
-        return 'bg-success text-on-success';
-      }
-      case 'DRAFT': {
-        return 'bg-warn-container text-on-warn-container';
-      }
-      case 'PENDING_REVIEW': {
-        return 'bg-tertiary-container text-on-tertiary-container';
-      }
-      case 'REJECTED': {
-        return 'bg-error-container text-on-error-container';
-      }
-      default: {
-        return '';
-      }
-    }
+    return eventStatusClass(this.status());
   }
 
   protected getStatusLabel(): string {
-    switch (this.status()) {
-      case 'APPROVED': {
-        return 'Approved';
-      }
-      case 'DRAFT': {
-        return 'Draft';
-      }
-      case 'PENDING_REVIEW': {
-        return 'Pending Review';
-      }
-      case 'REJECTED': {
-        return 'Rejected';
-      }
-      default: {
-        return this.status();
-      }
-    }
+    return eventStatusLabel(this.status());
   }
 }

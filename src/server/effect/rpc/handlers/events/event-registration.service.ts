@@ -808,9 +808,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             );
           }
           if (
-            !registrationOption.roleIds.some((roleId) =>
-              user.roleIds.includes(roleId),
-            )
+            !isUserEligibleForRegistrationOption({
+              optionRoleIds: registrationOption.roleIds,
+              userRoleIds: user.roleIds,
+            })
           ) {
             return yield* Effect.fail(
               new EventRegistrationConflictError({

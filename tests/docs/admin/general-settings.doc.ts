@@ -1,5 +1,5 @@
 import { adminStateFile } from '../../../helpers/user-data';
-import { test } from '../../support/fixtures/parallel-test';
+import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
@@ -22,10 +22,12 @@ Tenant admins can manage the settings that are currently implemented for the act
   });
 
   await page.getByRole('link', { name: 'Admin Tools' }).click();
-  await page.getByRole('link', { name: 'General settings' }).click();
+  await page.goto('/admin/settings');
+  const generalSettings = page.locator('app-general-settings');
+  await expect(generalSettings).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.locator('app-general-settings'),
+    generalSettings,
     page,
     'Tenant general settings',
   );
