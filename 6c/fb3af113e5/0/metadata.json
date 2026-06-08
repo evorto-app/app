@@ -3,38 +3,37 @@
   "checkpoint_id": "6cfb3af113e5",
   "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
   "strategy": "manual-commit",
-  "created_at": "2026-06-08T11:17:32.106024Z",
+  "created_at": "2026-06-08T11:25:41.068859Z",
   "branch": "codex/pr62-split-01-registration-schema",
   "checkpoints_count": 0,
   "files_touched": [
-    ".github/workflows/e2e-baseline.yml",
     "docker-compose.yml"
   ],
   "agent": "Codex",
   "model": "gpt-5.5",
   "turn_id": "8ab23838705f",
-  "checkpoint_transcript_start": 3943,
-  "transcript_lines_at_start": 3943,
+  "checkpoint_transcript_start": 4106,
+  "transcript_lines_at_start": 4106,
   "token_usage": {
-    "input_tokens": 71533,
+    "input_tokens": 44194,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 3954176,
-    "output_tokens": 5970,
-    "api_call_count": 24
+    "cache_read_tokens": 4096000,
+    "output_tokens": 6004,
+    "api_call_count": 21
   },
   "session_metrics": {
     "turn_count": 6
   },
   "initial_attribution": {
-    "calculated_at": "2026-06-08T11:17:31.974575Z",
-    "agent_lines": 97,
-    "agent_removed": 274,
-    "human_added": 83,
+    "calculated_at": "2026-06-08T11:25:40.93345Z",
+    "agent_lines": 40,
+    "agent_removed": 18,
+    "human_added": 86,
     "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 180,
-    "total_lines_changed": 487,
-    "agent_percentage": 76.18069815195072,
+    "total_committed": 126,
+    "total_lines_changed": 186,
+    "agent_percentage": 31.182795698924732,
     "metric_version": 2
   }
 }
