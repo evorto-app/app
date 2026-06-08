@@ -142,14 +142,31 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
       const regularUser = usersToAuthenticate.find((u) => u.roles === 'user');
       if (regularUser) {
         const uniqueIdentifier = `TEST-ESN-0001-${tenant.id.slice(0, 6)}`;
-        await database.insert(schema.userDiscountCards).values({
-          identifier: uniqueIdentifier,
-          status: 'verified',
-          type: 'esnCard',
-          userId: regularUser.id,
-          validFrom: seedDate,
-          validTo: new Date(seedDate.getTime() + 1000 * 60 * 60 * 24 * 180), // ~6 months
-        });
+        const validTo = new Date(
+          seedDate.getTime() + 1000 * 60 * 60 * 24 * 180,
+        ); // ~6 months
+        await database
+          .insert(schema.userDiscountCards)
+          .values({
+            identifier: uniqueIdentifier,
+            status: 'verified',
+            type: 'esnCard',
+            userId: regularUser.id,
+            validFrom: seedDate,
+            validTo,
+          })
+          .onConflictDoUpdate({
+            set: {
+              identifier: uniqueIdentifier,
+              status: 'verified',
+              validFrom: seedDate,
+              validTo,
+            },
+            target: [
+              schema.userDiscountCards.userId,
+              schema.userDiscountCards.type,
+            ],
+          });
       }
       await use();
     },

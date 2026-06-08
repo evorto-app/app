@@ -5,7 +5,10 @@ import Stripe from 'stripe';
 
 import { Database } from '../../../../../db';
 import { StripeClient } from '../../../../stripe-client';
-import { EventRegistrationService } from './event-registration.service';
+import {
+  EventRegistrationService,
+  isUserEligibleForRegistrationOption,
+} from './event-registration.service';
 
 const stripeClient = new Stripe('sk_test_123');
 const configProviderLayer = ConfigProvider.layer(
@@ -44,6 +47,26 @@ const approvedRegistrationOption = {
 } as const;
 
 describe('EventRegistrationService', () => {
+  describe('isUserEligibleForRegistrationOption', () => {
+    it('treats an empty role list as open to all users', () => {
+      expect(
+        isUserEligibleForRegistrationOption({
+          optionRoleIds: [],
+          userRoleIds: ['role-2'],
+        }),
+      ).toBe(true);
+    });
+
+    it('requires at least one matching role when the option has role constraints', () => {
+      expect(
+        isUserEligibleForRegistrationOption({
+          optionRoleIds: ['role-1'],
+          userRoleIds: ['role-2'],
+        }),
+      ).toBe(false);
+    });
+  });
+
   it.effect(
     'rejects a second registration for the same event before looking up another option',
     () =>

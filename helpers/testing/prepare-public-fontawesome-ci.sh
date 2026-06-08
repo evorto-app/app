@@ -38,7 +38,10 @@ node --input-type=module <<'NODE'
 import { existsSync, readFileSync } from 'node:fs';
 
 const privateRegistry = ['npm', 'fontawesome', 'com'].join('.');
-const privatePackage = /@fortawesome\/(?:duotone|pro|sharp)[^"'\s]*/u;
+const privatePackage = /@fortawesome\/(?:pro|sharp)[^"'\s]*/u;
+const privateDuotonePackage = /@fortawesome\/duotone[^"'\s]*/u;
+const publicDuotoneAlias =
+  '"@fortawesome/duotone-regular-svg-icons": "npm:@fortawesome/free-solid-svg-icons@';
 const files = ['package.json', 'bun.lock', 'bunfig.toml', 'Dockerfile'];
 let failed = false;
 
@@ -48,7 +51,11 @@ for (const file of files) {
   }
 
   const source = readFileSync(file, 'utf8');
-  if (source.includes(privateRegistry) || privatePackage.test(source)) {
+  if (
+    source.includes(privateRegistry) ||
+    privatePackage.test(source) ||
+    (privateDuotonePackage.test(source) && !source.includes(publicDuotoneAlias))
+  ) {
     console.error(
       `::error file=${file}::Font Awesome must stay on free public npm packages in CI.`,
     );

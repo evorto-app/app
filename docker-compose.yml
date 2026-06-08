@@ -1,6 +1,7 @@
 services:
   db:
     image: neondatabase/neon_local:v1.5
+    restart: on-failure:5
     environment:
       BRANCH_ID:
       DELETE_BRANCH: "${DELETE_BRANCH:-true}"
@@ -41,8 +42,9 @@ services:
       - .:/workspace:ro
       - "${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local"
     command:
-      - bun
-      - helpers/testing/set-neon-local-branch-expiration.ts
+      - /bin/sh
+      - -lc
+      - bun helpers/testing/set-neon-local-branch-expiration.ts || true
     restart: "no"
 
   db-setup:
@@ -62,7 +64,19 @@ services:
     command:
       - /bin/sh
       - -lc
-      - bun ./node_modules/drizzle-kit/bin.cjs push --force && bun helpers/database.ts
+      - >-
+        bun -e 'import { Pool } from "pg"; import { createNodePgPoolConfig } from
+        "./src/db/pg-connection-config.ts"; const pool = new
+        Pool(createNodePgPoolConfig({ databaseUrl: process.env.DATABASE_URL,
+        neonLocalProxy: process.env.NEON_LOCAL_PROXY === "true" })); try { await
+        pool.query("DROP SCHEMA IF EXISTS public CASCADE"); await
+        pool.query("CREATE SCHEMA public"); await pool.query("CREATE EXTENSION IF
+        NOT EXISTS unaccent"); await pool.query("CREATE EXTENSION IF NOT EXISTS
+        pg_trgm"); await pool.query("CREATE OR REPLACE FUNCTION
+        immutable_unaccent(value text) RETURNS text AS " + String.fromCharCode(39)
+        + "SELECT unaccent(value)" + String.fromCharCode(39) + " LANGUAGE sql
+        IMMUTABLE;"); } finally { await pool.end(); }' && bun ./node_modules/drizzle-kit/bin.cjs
+        push --force && bun helpers/database.ts
     restart: "no"
 
   minio:

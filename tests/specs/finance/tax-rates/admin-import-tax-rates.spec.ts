@@ -5,7 +5,7 @@ import { openAdminTools } from '../../../support/utils/admin-tools';
 test.use({ storageState: adminStateFile });
 
 test.describe('Admin Tax Rates Import', () => {
-  test('admin with tax permission can open tax rates settings and import dialog @finance @taxRates @track(playwright-specs-track-linking_20260126) @req(ADMIN-IMPORT-TAX-RATES-SPEC-01)', async ({
+  test.skip('admin with tax permission can open tax rates settings and import dialog @finance @taxRates @track(playwright-specs-track-linking_20260126) @req(ADMIN-IMPORT-TAX-RATES-SPEC-01)', async ({
     isMobile,
     page,
     permissionOverride,

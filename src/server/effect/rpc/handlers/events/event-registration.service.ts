@@ -66,6 +66,16 @@ const noDiscountResolution = (basePrice: number): DiscountResolution => ({
   effectivePrice: basePrice,
 });
 
+export const isUserEligibleForRegistrationOption = ({
+  optionRoleIds,
+  userRoleIds,
+}: {
+  optionRoleIds: readonly string[];
+  userRoleIds: readonly string[];
+}): boolean =>
+  optionRoleIds.length === 0 ||
+  optionRoleIds.some((roleId) => userRoleIds.includes(roleId));
+
 const resolveRequestOrigin = (headers: Headers.Headers): string | undefined => {
   const forwardedProtocol = headers['x-forwarded-proto']?.split(',')[0]?.trim();
   const forwardedHost = headers['x-forwarded-host']?.split(',')[0]?.trim();
@@ -260,9 +270,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           );
         }
         if (
-          !registrationOption.roleIds.some((roleId) =>
-            user.roleIds.includes(roleId),
-          )
+          !isUserEligibleForRegistrationOption({
+            optionRoleIds: registrationOption.roleIds,
+            userRoleIds: user.roleIds,
+          })
         ) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
