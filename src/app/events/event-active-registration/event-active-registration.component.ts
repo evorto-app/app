@@ -40,6 +40,14 @@ export const registrationCancellationCopy = (registration: {
     };
   }
 
+  if (registration.status === 'WAITLIST') {
+    return {
+      buttonLabel: 'Leave waitlist',
+      helperText:
+        'This removes you from the waitlist and releases your waitlist spot.',
+    };
+  }
+
   return null;
 };
 

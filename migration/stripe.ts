@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 
-const STRIPE_API_VERSION: Stripe.LatestApiVersion = '2026-02-25.clover';
+const STRIPE_API_VERSION = Stripe.API_VERSION as Stripe.LatestApiVersion;
 
 export const createMigrationStripeClient = () => {
   const stripeApiKey = process.env['STRIPE_API_KEY'];

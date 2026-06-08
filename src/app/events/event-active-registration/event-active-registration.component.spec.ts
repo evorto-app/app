@@ -29,13 +29,20 @@ describe('registrationCancellationCopy', () => {
     });
   });
 
-  it('does not expose cancellation copy for waitlist or already-cancelled registrations', () => {
+  it('describes waitlist cancellation as leaving the waitlist', () => {
     expect(
       registrationCancellationCopy({
         paymentPending: false,
         status: 'WAITLIST',
       }),
-    ).toBeNull();
+    ).toEqual({
+      buttonLabel: 'Leave waitlist',
+      helperText:
+        'This removes you from the waitlist and releases your waitlist spot.',
+    });
+  });
+
+  it('does not expose cancellation copy for already-cancelled registrations', () => {
     expect(
       registrationCancellationCopy({
         paymentPending: false,
