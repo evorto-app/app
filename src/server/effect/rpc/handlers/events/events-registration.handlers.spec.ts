@@ -132,7 +132,7 @@ const nonConfirmedRegistrationStatuses = [
 ] as const;
 
 const cancellationEvent = {
-  start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  start: new Date('2030-01-02T12:00:00.000Z'),
   title: 'City tour',
 };
 
@@ -316,6 +316,7 @@ const sourceTransferRegistration = {
   guestCount: 0,
   id: 'source-registration-1',
   registrationOption: {
+    questions: [] as { required: boolean }[],
     roleIds: ['role-1'],
   },
   registrationOptionId: 'option-1',
@@ -326,7 +327,7 @@ const sourceTransferRegistration = {
   taxRatePercentage: null,
   transactions: [
     {
-      amount: 2500,
+      amount: 2375,
       currency: 'EUR' as const,
       method: 'stripe',
       status: 'successful',
@@ -520,6 +521,11 @@ const createTransferDatabase = ({
   });
   const tx = {
     insert: () => insertQuery,
+    select: () => ({
+      from: () => ({
+        where: () => ({}),
+      }),
+    }),
     update: updateQuery,
   };
   const database = {
@@ -894,7 +900,7 @@ describe('registration transfer code redemption handlers', () => {
         );
         expect(getInsertedTransactions()[0]).toEqual(
           expect.objectContaining({
-            amount: 2500,
+            amount: 2375,
             currency: 'EUR',
             eventId: 'event-1',
             method: 'stripe',
@@ -909,6 +915,13 @@ describe('registration transfer code redemption handlers', () => {
             cancel_url:
               'http://tenant.example.com/events/event-1?transferCode=transfer-code-1&registrationStatus=cancel',
             customer_email: 'replacement-1@example.com',
+            line_items: [
+              expect.objectContaining({
+                price_data: expect.objectContaining({
+                  unit_amount: 2375,
+                }),
+              }),
+            ],
             metadata: expect.objectContaining({
               registrationId: getInsertedRegistrations()[0]?.['id'],
               tenantId: 'tenant-1',
@@ -928,6 +941,98 @@ describe('registration transfer code redemption handlers', () => {
             stripeCheckoutUrl: 'https://checkout.example/session',
             stripePaymentIntentId: 'pi_123',
           }),
+        );
+      }),
+  );
+
+  it.effect('allows public paid transfer-code redemption', () =>
+    Effect.gen(function* () {
+      const user = createUser({ id: 'replacement-1' });
+      const { database } = createTransferCodeRedemptionDatabase({
+        sourceRegistration: {
+          ...sourceTransferRegistration,
+          registrationOption: {
+            questions: [],
+            roleIds: [],
+          },
+        },
+      });
+      const stripe = {
+        checkout: {
+          sessions: {
+            create: vi.fn(() =>
+              Promise.resolve({
+                id: 'cs_123',
+                payment_intent: 'pi_123',
+                url: 'https://checkout.example/session',
+              }),
+            ),
+            expire: vi.fn(),
+          },
+        },
+        refunds: {
+          create: vi.fn(),
+        },
+      };
+
+      yield* eventRegistrationHandlers['events.registerWithTransferCode'](
+        { code: 'transfer-code-1', eventId: 'event-1' },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.provide(
+          createContextLayer({
+            database,
+            stripe,
+            tenant: {
+              ...tenant,
+              stripeAccountId: 'acct_123',
+            },
+            user,
+          }),
+        ),
+      );
+
+      expect(stripe.checkout.sessions.create).toHaveBeenCalled();
+    }),
+  );
+
+  it.effect(
+    'rejects paid transfer-code redemption with required questions',
+    () =>
+      Effect.gen(function* () {
+        const user = createUser({ id: 'replacement-1' });
+        user.roleIds = ['role-1'];
+        const { database } = createTransferCodeRedemptionDatabase({
+          sourceRegistration: {
+            ...sourceTransferRegistration,
+            registrationOption: {
+              questions: [{ required: true }],
+              roleIds: ['role-1'],
+            },
+          },
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.registerWithTransferCode'
+        ]({ code: 'transfer-code-1', eventId: 'event-1' }, {
+          headers: {},
+        } as never).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              tenant: {
+                ...tenant,
+                stripeAccountId: 'acct_123',
+              },
+              user,
+            }),
+          ),
+          Effect.flip,
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Transfer code cannot be redeemed for registration options with required questions',
         );
       }),
   );

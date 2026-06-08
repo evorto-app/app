@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -7,12 +8,12 @@ import {
   templateCreateEventSubmitDisabled,
 } from './template-create-event.component';
 
+const thisFilePath = fileURLToPath(import.meta.url);
+const thisDirectoryPath = nodePath.dirname(thisFilePath);
+
 const templateCreateEventTemplate = (): string =>
   readFileSync(
-    nodePath.join(
-      process.cwd(),
-      'src/app/templates/template-create-event/template-create-event.component.html',
-    ),
+    nodePath.join(thisDirectoryPath, 'template-create-event.component.html'),
     'utf8',
   );
 

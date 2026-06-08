@@ -11,9 +11,13 @@ test.use({ storageState: userStateFile });
 const regularUserId =
   usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
   usersToAuthenticate[0].id;
-const organizerUserId =
-  usersToAuthenticate.find((user) => user.roles === 'organizer')?.id ??
-  usersToAuthenticate[0].id;
+const organizerUser = usersToAuthenticate.find(
+  (user) => user.roles === 'organizer',
+);
+if (!organizerUser) {
+  throw new Error('Expected organizer user fixture');
+}
+const organizerUserId = organizerUser.id;
 const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'] ?? '';
 
 test.skip(

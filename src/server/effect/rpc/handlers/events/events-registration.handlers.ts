@@ -1814,6 +1814,13 @@ export const eventRegistrationHandlers = {
               columns: {
                 roleIds: true,
               },
+              with: {
+                questions: {
+                  columns: {
+                    required: true,
+                  },
+                },
+              },
             },
             transactions: {
               columns: {
@@ -1860,6 +1867,7 @@ export const eventRegistrationHandlers = {
         );
       }
       if (
+        sourceRegistration.registrationOption.roleIds.length > 0 &&
         !sourceRegistration.registrationOption.roleIds.some((roleId) =>
           user.roleIds.includes(roleId),
         )
@@ -1867,6 +1875,18 @@ export const eventRegistrationHandlers = {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
             message: 'User is not eligible for this registration option',
+          }),
+        );
+      }
+      if (
+        sourceRegistration.registrationOption.questions.some(
+          (question) => question.required,
+        )
+      ) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message:
+              'Transfer code cannot be redeemed for registration options with required questions',
           }),
         );
       }
@@ -1917,6 +1937,7 @@ export const eventRegistrationHandlers = {
 
       const replacementRegistrationId = createId();
       const transactionId = createId();
+      const transferAmount = sourcePaidTransaction.amount;
       yield* databaseEffect((database) =>
         database.transaction((tx) =>
           Effect.gen(function* () {
@@ -1963,7 +1984,7 @@ export const eventRegistrationHandlers = {
             });
 
             yield* tx.insert(transactions).values({
-              amount: sourcePaidTransaction.amount,
+              amount: transferAmount,
               comment: `Replacement registration for transfer code ${code}`,
               currency: sourcePaidTransaction.currency,
               eventId: sourceRegistration.eventId,
@@ -2012,7 +2033,7 @@ export const eventRegistrationHandlers = {
                 product_data: {
                   name: `Transfer registration for ${sourceRegistration.event.title}`,
                 },
-                unit_amount: sourcePaidTransaction.amount,
+                unit_amount: transferAmount,
               },
               ...(sourceRegistration.stripeTaxRateId
                 ? { tax_rates: [sourceRegistration.stripeTaxRateId] }
@@ -2028,9 +2049,7 @@ export const eventRegistrationHandlers = {
           },
           mode: 'payment',
           payment_intent_data: {
-            application_fee_amount: Math.round(
-              sourcePaidTransaction.amount * 0.035,
-            ),
+            application_fee_amount: Math.round(transferAmount * 0.035),
           },
           success_url: `${eventUrl}?registrationStatus=success`,
         },

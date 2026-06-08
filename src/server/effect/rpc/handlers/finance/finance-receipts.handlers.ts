@@ -298,6 +298,11 @@ export const financeReceiptsHandlers = {
                 reason: 'receiptRefundPreconditionFailed',
               });
               yield* tx.rollback();
+              return yield* Effect.die(
+                new Error(
+                  'Receipt review rollback completed without aborting the transaction',
+                ),
+              );
             }
 
             return transaction;
@@ -677,6 +682,7 @@ export const financeReceiptsHandlers = {
         );
       }
 
+      let reviewFailure: null | RpcBadRequestError = null;
       const updated = yield* databaseEffect((database) =>
         database.transaction((tx) =>
           Effect.gen(function* () {
@@ -705,6 +711,7 @@ export const financeReceiptsHandlers = {
                 and(
                   eq(financeReceipts.tenantId, tenant.id),
                   eq(financeReceipts.id, input.id),
+                  eq(financeReceipts.status, receipt.status),
                 ),
               )
               .returning({
@@ -715,7 +722,11 @@ export const financeReceiptsHandlers = {
               });
             const updatedReceipt = updatedReceipts[0];
             if (!updatedReceipt) {
-              return null;
+              reviewFailure = new RpcBadRequestError({
+                message: 'Receipt review preconditions failed',
+                reason: 'receiptReviewPreconditionFailed',
+              });
+              yield* tx.rollback();
             }
 
             const submitters = yield* tx
@@ -780,6 +791,19 @@ export const financeReceiptsHandlers = {
             return updatedReceipt;
           }),
         ),
+      ).pipe(
+        Effect.catchDefect((defect) => {
+          if (!isTransactionRollbackError(defect)) {
+            return Effect.die(defect);
+          }
+          return reviewFailure === null
+            ? Effect.die(
+                new Error(
+                  'Receipt review rollback triggered without a tracked failure',
+                ),
+              )
+            : Effect.fail(reviewFailure);
+        }),
       );
       if (!updated) {
         return yield* Effect.fail(

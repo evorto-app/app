@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         suite: [functional-1, functional-2, docs]
     env:

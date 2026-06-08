@@ -19,6 +19,7 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
   newUser,
   page,
   roles,
+  tenant,
 }) => {
   test.skip(
     !hasManagementEnvironment,

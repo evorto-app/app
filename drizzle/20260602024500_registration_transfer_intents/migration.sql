@@ -19,6 +19,10 @@ CREATE TABLE "registration_transfer_intents" (
   CONSTRAINT "registration_transfer_intents_code_unique" UNIQUE("code")
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX "registration_transfer_intents_pending_source_registration_unique"
+ON "registration_transfer_intents" ("source_registration_id")
+WHERE "status" = 'pending';
+--> statement-breakpoint
 ALTER TABLE "registration_transfer_intents"
 ADD CONSTRAINT "registration_transfer_intents_tenantId_tenants_id_fk"
 FOREIGN KEY ("tenantId") REFERENCES "public"."tenants"("id")

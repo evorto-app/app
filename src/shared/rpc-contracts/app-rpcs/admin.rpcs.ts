@@ -42,6 +42,8 @@ const TenantBrandAssetUrlString = Schema.Union([
   ),
 ]);
 
+const PositiveInteger = Schema.Int.check(Schema.isGreaterThan(0));
+
 export const AdminRoleRecord = Schema.Struct({
   collapseMembersInHup: Schema.Boolean,
   defaultOrganizerRole: Schema.Boolean,
@@ -240,8 +242,8 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   privacyPolicyText: Schema.optional(Schema.String),
   privacyPolicyUrl: Schema.optional(UrlString),
   receiptCountries: Schema.Array(Schema.NonEmptyString),
-  registrationLimitCount: Schema.optional(Schema.Int),
-  registrationLimitWindowDays: Schema.optional(Schema.Int),
+  registrationLimitCount: Schema.optional(PositiveInteger),
+  registrationLimitWindowDays: Schema.optional(PositiveInteger),
   seoDescription: Schema.optional(Schema.String),
   seoTitle: Schema.optional(Schema.String),
   stripeAccountManagement: Tenant.fields.stripeAccountManagement,

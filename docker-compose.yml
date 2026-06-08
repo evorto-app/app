@@ -51,8 +51,6 @@ services:
     build:
       context: .
       target: build
-      secrets:
-        - FONT_AWESOME_TOKEN
     depends_on:
       db-expiration:
         condition: service_completed_successfully
@@ -104,8 +102,6 @@ services:
   evorto:
     build:
       context: .
-      secrets:
-        - FONT_AWESOME_TOKEN
     depends_on:
       db:
         condition: service_healthy
@@ -164,10 +160,5 @@ services:
     volumes:
       - ./helpers/testing/stripe-listen-docker.sh:/usr/local/bin/stripe-listen-docker:ro
       - stripe-webhook:/run/stripe-webhook
-
-secrets:
-  FONT_AWESOME_TOKEN:
-    environment: FONT_AWESOME_TOKEN
-
 volumes:
   stripe-webhook:

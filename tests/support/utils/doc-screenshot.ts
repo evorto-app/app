@@ -5,6 +5,20 @@ import * as path from 'node:path';
 const animationSettleTimeoutMs = 2_000;
 const snackbarSettleTimeoutMs = 750;
 
+const isTimeoutError = (error: unknown): boolean =>
+  error instanceof Error &&
+  (error.name === 'TimeoutError' || error.message.includes('Timeout'));
+
+const ignoreTimeout =
+  <T>(fallback: T) =>
+  (error: unknown): T => {
+    if (isTimeoutError(error)) {
+      return fallback;
+    }
+
+    throw error;
+  };
+
 function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
@@ -32,7 +46,7 @@ const waitForLoadingIndicators = async (page: Page): Promise<void> => {
   const loadingIndicator = page.getByText(/^Loading\b.*$/).first();
   const isLoading = await loadingIndicator
     .isVisible({ timeout: 250 })
-    .catch(() => false);
+    .catch(ignoreTimeout(false));
 
   if (isLoading) {
     await loadingIndicator.waitFor({ state: 'hidden', timeout: 15_000 });
@@ -45,7 +59,7 @@ const waitForSnackbars = async (page: Page): Promise<void> => {
     .first();
   const isVisible = await snackbar
     .isVisible({ timeout: 250 })
-    .catch(() => false);
+    .catch(ignoreTimeout(false));
 
   if (isVisible) {
     await snackbar
@@ -53,7 +67,7 @@ const waitForSnackbars = async (page: Page): Promise<void> => {
         state: 'hidden',
         timeout: snackbarSettleTimeoutMs,
       })
-      .catch(() => undefined);
+      .catch(ignoreTimeout(undefined));
   }
 };
 

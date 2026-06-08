@@ -118,6 +118,21 @@ describe('AdminTenantUpdateSettingsInput', () => {
       }),
     ).toThrow();
   });
+
+  it('rejects invalid registration limit policy values', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        registrationLimitCount: -1,
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        registrationLimitWindowDays: 0,
+      }),
+    ).toThrow();
+  });
 });
 
 describe('AdminTenantBrandAssetKind', () => {

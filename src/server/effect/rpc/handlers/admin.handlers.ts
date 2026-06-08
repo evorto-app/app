@@ -19,11 +19,7 @@ import { Effect, Schema } from 'effect';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import {
-  roles,
-  tenants,
-  tenantStripeTaxRates,
-} from '../../../../db/schema';
+import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
 import {
   includesPermission,
   type Permission,
@@ -138,6 +134,8 @@ const normalizeRegistrationLimitPolicy = (input: {
   if (
     registrationLimitCount === null ||
     registrationLimitWindowDays === null ||
+    !Number.isInteger(registrationLimitCount) ||
+    !Number.isInteger(registrationLimitWindowDays) ||
     registrationLimitCount < 1 ||
     registrationLimitWindowDays < 1
   ) {

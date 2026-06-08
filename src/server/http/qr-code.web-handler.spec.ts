@@ -53,17 +53,24 @@ const createUser = ({
 
 const createRequestContext = ({
   authenticated = true,
+  permissions = [],
+  tenantId = tenant.id,
   userId = 'user-1',
 }: {
   authenticated?: boolean;
+  permissions?: RequestContext['permissions'];
+  tenantId?: string;
   userId?: string;
 } = {}): RequestContext =>
   ({
     authentication: {
       isAuthenticated: authenticated,
     },
-    permissions: [],
-    tenant,
+    permissions,
+    tenant: {
+      ...tenant,
+      id: tenantId,
+    },
     user: authenticated ? createUser({ id: userId }) : undefined,
   }) as RequestContext;
 
@@ -91,8 +98,10 @@ const runQrRequest = ({
   ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
 const createDatabase = ({
+  organizerRegistration = false,
   registration = confirmedRegistration,
 }: {
+  organizerRegistration?: boolean;
   registration?: null | typeof confirmedRegistration;
 } = {}) => ({
   query: {
@@ -106,11 +115,23 @@ const createDatabase = ({
         }),
     },
   },
+  select: () => ({
+    from: () => ({
+      innerJoin: () => ({
+        where: () => ({
+          limit: () =>
+            Effect.succeed(
+              organizerRegistration ? [{ id: 'organizer-1' }] : [],
+            ),
+        }),
+      }),
+    }),
+  }),
 });
 
 describe('handleQrRegistrationCodeWebRequest', () => {
   it.effect(
-    'allows ticket possession to fetch a confirmed registration QR image',
+    'does not allow anonymous ticket possession to fetch a confirmed registration QR image',
     () =>
       Effect.gen(function* () {
         const response = yield* runQrRequest({
@@ -118,11 +139,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
           requestContext: createRequestContext({ authenticated: false }),
         });
 
-        expect(response.status).toBe(200);
-        expect(response.headers.get('Content-Type')).toBe('image/png');
-        expect(
-          (yield* Effect.promise(() => response.arrayBuffer())).byteLength,
-        ).toBeGreaterThan(0);
+        expect(response.status).toBe(404);
       }),
   );
 
@@ -162,12 +179,42 @@ describe('handleQrRegistrationCodeWebRequest', () => {
   );
 
   it.effect(
-    'does not require the requester to own another user confirmed registration',
+    'does not allow another tenant user to fetch a confirmed registration QR image',
     () =>
       Effect.gen(function* () {
         const response = yield* runQrRequest({
           database: createDatabase(),
           requestContext: createRequestContext({ userId: 'other-user' }),
+        });
+
+        expect(response.status).toBe(404);
+      }),
+  );
+
+  it.effect(
+    'allows a confirmed event organizer to fetch another registration QR image',
+    () =>
+      Effect.gen(function* () {
+        const response = yield* runQrRequest({
+          database: createDatabase({ organizerRegistration: true }),
+          requestContext: createRequestContext({ userId: 'organizer-user' }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('Content-Type')).toBe('image/png');
+      }),
+  );
+
+  it.effect(
+    'allows organize-all permission to fetch another registration QR image',
+    () =>
+      Effect.gen(function* () {
+        const response = yield* runQrRequest({
+          database: createDatabase(),
+          requestContext: createRequestContext({
+            permissions: ['events:organizeAll'],
+            userId: 'organizer-user',
+          }),
         });
 
         expect(response.status).toBe(200);

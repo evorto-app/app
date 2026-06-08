@@ -215,23 +215,30 @@ const databaseWithSuccessfulReceiptReview = () => {
       return Effect.succeed();
     },
   };
-  const selectRows = [
-    [
-      {
-        communicationEmail: 'notify@example.com',
-        email: 'login@example.com',
-        firstName: 'Alice',
-      },
-    ],
-    [
-      {
-        title: 'City Walk',
-      },
-    ],
-  ];
+  let selectCallCount = 0;
   const selectQuery = {
     from: () => selectQuery,
-    limit: () => Effect.succeed(selectRows.shift() ?? []),
+    limit: () => {
+      selectCallCount += 1;
+      if (selectCallCount === 1) {
+        return Effect.succeed([
+          {
+            communicationEmail: 'notify@example.com',
+            email: 'login@example.com',
+            firstName: 'Alice',
+          },
+        ]);
+      }
+      if (selectCallCount === 2) {
+        return Effect.succeed([
+          {
+            title: 'City Walk',
+          },
+        ]);
+      }
+
+      return Effect.succeed([]);
+    },
     where: () => selectQuery,
   };
   const tx = {
@@ -255,6 +262,35 @@ const databaseWithSuccessfulReceiptReview = () => {
         run(tx),
     },
     insertedNotification: () => insertedNotification,
+  };
+};
+
+const databaseWithReceiptReviewPreconditionRace = () => {
+  const updateQuery = {
+    returning: () => Effect.succeed([]),
+    set: () => updateQuery,
+    where: () => updateQuery,
+  };
+  const tx = {
+    insert: () => {
+      throw new Error('notification insert should not run');
+    },
+    rollback: () => Effect.die(new TransactionRollbackError()),
+    update: () => updateQuery,
+  };
+
+  return {
+    query: {
+      financeReceipts: {
+        findFirst: () =>
+          Effect.succeed({
+            id: 'receipt-1',
+            status: 'submitted' as const,
+          }),
+      },
+    },
+    transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+      run(tx),
   };
 };
 
@@ -793,6 +829,31 @@ describe('finance receipt amount validation', () => {
             tenantId: 'tenant-1',
           }),
         );
+      }),
+  );
+
+  it.effect(
+    'rejects receipt review updates when status changes concurrently',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.review'](
+          {
+            ...receiptFieldsInput,
+            id: 'receipt-1',
+            status: 'approved',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], {
+              database: databaseWithReceiptReviewPreconditionRace(),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('receiptReviewPreconditionFailed');
       }),
   );
 

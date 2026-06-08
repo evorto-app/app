@@ -190,4 +190,46 @@ describe('EmailNotificationDispatcher', () => {
       ]);
     }),
   );
+
+  it.effect('times out hung provider requests as retryable failures', () =>
+    Effect.gen(function* () {
+      const { database, updates } = createOutboxDatabase({});
+      let requestSignal: AbortSignal | undefined;
+
+      const dispatcher = makeEmailNotificationDispatcher({
+        config: enabledConfig,
+        database,
+        emailFetch: (_input, init) => {
+          requestSignal = init.signal ?? undefined;
+          return new Promise<never>(() => {
+            requestSignal?.addEventListener(
+              'abort',
+              () => {
+                requestSignal = init.signal ?? undefined;
+              },
+              { once: true },
+            );
+          });
+        },
+        resendRequestTimeoutMs: 1,
+      });
+
+      const summary = yield* dispatcher.runOnce;
+
+      expect(summary).toEqual({
+        attempted: 1,
+        failed: 1,
+        sent: 0,
+        skipped: false,
+      } satisfies EmailNotificationDispatchSummary);
+      expect(requestSignal?.aborted).toBe(true);
+      expect(updates).toEqual([
+        expect.objectContaining({
+          failedAt: expect.any(Date),
+          failureMessage: 'Resend email send timed out after 1ms',
+          status: 'failed',
+        }),
+      ]);
+    }),
+  );
 });

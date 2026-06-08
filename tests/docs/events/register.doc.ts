@@ -73,14 +73,18 @@ const resolveServerNow = (): Date => {
 };
 
 const readStripeWebhookSecret = async (): Promise<string> => {
-  const dockerSecret = await execFileAsync('docker', [
-    'compose',
-    'exec',
-    '-T',
-    'stripe',
-    'cat',
-    '/run/stripe-webhook/signing-secret',
-  ])
+  const dockerSecret = await execFileAsync(
+    'docker',
+    [
+      'compose',
+      'exec',
+      '-T',
+      'stripe',
+      'cat',
+      '/run/stripe-webhook/signing-secret',
+    ],
+    { maxBuffer: 64 * 1024, timeout: 5_000 },
+  )
     .then(({ stdout }) => stdout.trim())
     .catch(() => '');
   if (dockerSecret) {

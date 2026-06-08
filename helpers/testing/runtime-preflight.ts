@@ -37,11 +37,6 @@ const commandTimeoutMs = 15_000;
 export const requiredByTarget = {
   docker: [
     {
-      description:
-        'Font Awesome package registry access for premium and brand icons',
-      name: 'FONT_AWESOME_TOKEN',
-    },
-    {
       description: 'Neon Local branch creation',
       name: 'NEON_API_KEY',
     },

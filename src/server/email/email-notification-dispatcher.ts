@@ -45,6 +45,7 @@ interface EmailNotificationDispatcherOptions {
   config: EmailNotificationsConfig;
   database: EmailNotificationOutboxDatabase;
   emailFetch?: EmailFetch;
+  resendRequestTimeoutMs?: number;
 }
 
 interface EmailNotificationRow {
@@ -61,6 +62,7 @@ interface ResendEmailSettings {
 }
 
 const resendEmailsEndpoint = 'https://api.resend.com/emails';
+const defaultResendRequestTimeoutMs = 15_000;
 
 const dispatchFailureMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -68,35 +70,60 @@ const dispatchFailureMessage = (error: unknown) =>
 const sendWithResend = ({
   emailFetch = fetch,
   notification,
+  requestTimeoutMs = defaultResendRequestTimeoutMs,
   settings,
 }: {
   emailFetch?: EmailFetch | undefined;
   notification: EmailNotificationRow;
+  requestTimeoutMs?: number | undefined;
   settings: ResendEmailSettings;
 }) =>
   Effect.tryPromise({
     catch: dispatchFailureMessage,
     try: async () => {
-      const response = await emailFetch(resendEmailsEndpoint, {
-        body: JSON.stringify({
-          from: settings.fromAddress,
-          subject: notification.subject,
-          text: notification.textBody,
-          to: [notification.recipientEmail],
-        }),
-        headers: {
-          Authorization: `Bearer ${settings.apiKey}`,
-          'Content-Type': 'application/json',
-          'User-Agent': 'evorto-email-outbox/1.0',
-        },
-        method: 'POST',
+      const controller = new AbortController();
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const timeoutPromise = new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => {
+          controller.abort();
+          reject(
+            new Error(
+              `Resend email send timed out after ${requestTimeoutMs}ms`,
+            ),
+          );
+        }, requestTimeoutMs);
       });
 
-      if (!response.ok) {
-        const responseText = await response.text();
-        throw new Error(
-          `Resend email send failed with status ${response.status}: ${responseText}`,
-        );
+      try {
+        const response = await Promise.race([
+          emailFetch(resendEmailsEndpoint, {
+            body: JSON.stringify({
+              from: settings.fromAddress,
+              subject: notification.subject,
+              text: notification.textBody,
+              to: [notification.recipientEmail],
+            }),
+            headers: {
+              Authorization: `Bearer ${settings.apiKey}`,
+              'Content-Type': 'application/json',
+              'User-Agent': 'evorto-email-outbox/1.0',
+            },
+            method: 'POST',
+            signal: controller.signal,
+          }),
+          timeoutPromise,
+        ]);
+
+        if (!response.ok) {
+          const responseText = await response.text();
+          throw new Error(
+            `Resend email send failed with status ${response.status}: ${responseText}`,
+          );
+        }
+      } finally {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
       }
     },
   });
@@ -160,6 +187,7 @@ export const makeEmailNotificationDispatcher = ({
   config,
   database,
   emailFetch,
+  resendRequestTimeoutMs,
 }: EmailNotificationDispatcherOptions) => {
   const runOnce = Effect.gen(function* () {
     const settings = resolveResendSettings(config);
@@ -182,6 +210,7 @@ export const makeEmailNotificationDispatcher = ({
       const result = yield* sendWithResend({
         emailFetch,
         notification,
+        requestTimeoutMs: resendRequestTimeoutMs,
         settings,
       }).pipe(
         Effect.map(() => ({ _tag: 'Sent' as const })),

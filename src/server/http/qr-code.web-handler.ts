@@ -1,9 +1,12 @@
+import { includesPermission } from '@shared/permissions/permissions';
+import { and, eq } from 'drizzle-orm';
 import { Effect } from 'effect';
 import QRCode from 'qrcode';
 
 import type { Context as RequestContext } from '../../types/custom/context';
 
 import { Database, type DatabaseClient } from '../../db';
+import { eventRegistrationOptions, eventRegistrations } from '../../db/schema';
 
 const responseText = (body: string, status = 200): Response =>
   new Response(body, { status });
@@ -15,7 +18,7 @@ const databaseEffect = <A, E>(
 export const handleQrRegistrationCodeWebRequest = (
   request: Request,
   registrationId: string,
-  _requestContext: RequestContext,
+  requestContext: RequestContext,
 ) =>
   Effect.gen(function* () {
     yield* Effect.logDebug('Generating QR code for registration').pipe(
@@ -40,6 +43,48 @@ export const handleQrRegistrationCodeWebRequest = (
     }
 
     if (registration.status !== 'CONFIRMED') {
+      return responseText('Registration not found', 404);
+    }
+
+    const requestUser = requestContext.user;
+    if (
+      !requestContext.authentication.isAuthenticated ||
+      !requestUser ||
+      requestContext.tenant.id !== registration.tenantId
+    ) {
+      return responseText('Registration not found', 404);
+    }
+
+    const hasOrganizerRegistration = yield* databaseEffect((database) =>
+      database
+        .select({ id: eventRegistrations.id })
+        .from(eventRegistrations)
+        .innerJoin(
+          eventRegistrationOptions,
+          eq(
+            eventRegistrationOptions.id,
+            eventRegistrations.registrationOptionId,
+          ),
+        )
+        .where(
+          and(
+            eq(eventRegistrations.tenantId, registration.tenantId),
+            eq(eventRegistrations.eventId, registration.eventId),
+            eq(eventRegistrations.userId, requestUser.id),
+            eq(eventRegistrations.status, 'CONFIRMED'),
+            eq(eventRegistrationOptions.organizingRegistration, true),
+          ),
+        )
+        .limit(1),
+    ).pipe(
+      Effect.map((organizerRegistrations) => organizerRegistrations.length > 0),
+    );
+    const canAccessRegistration =
+      registration.userId === requestUser.id ||
+      includesPermission('events:organizeAll', requestContext.permissions) ||
+      hasOrganizerRegistration;
+
+    if (!canAccessRegistration) {
       return responseText('Registration not found', 404);
     }
 

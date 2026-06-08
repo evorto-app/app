@@ -87,26 +87,31 @@ const serviceBlock = (composeFile: string, service: string): string => {
 };
 
 describe('evaluateRuntimePreflight', () => {
-  it('keeps Docker and local Font Awesome registry scopes aligned', () => {
+  it('keeps Docker and local Font Awesome installs on the public registry', () => {
     const dockerfile = fs.readFileSync(
       path.join(process.cwd(), 'Dockerfile'),
       'utf8',
     );
-    const npmrc = fs.readFileSync(path.join(process.cwd(), '.npmrc'), 'utf8');
+    const bunfig = fs.readFileSync(
+      path.join(process.cwd(), 'bunfig.toml'),
+      'utf8',
+    );
 
-    for (const registryScope of [
-      '@fortawesome:registry=https://npm.fontawesome.com/',
-      '@awesome.me:registry=https://npm.fontawesome.com/',
-    ]) {
-      expect(dockerfile).toContain(registryScope);
-      expect(npmrc).toContain(registryScope);
-    }
+    expect(fs.existsSync(path.join(process.cwd(), '.npmrc'))).toBe(false);
+    expect(dockerfile).not.toContain('FONT_AWESOME_TOKEN');
+    expect(dockerfile).not.toContain('npm.fontawesome.com');
+    expect(dockerfile).toContain(
+      'NPM_CONFIG_USERCONFIG=/tmp/npmrc-public-fontawesome',
+    );
+    expect(dockerfile).toContain(
+      "'@fortawesome:registry=https://registry.npmjs.org/'",
+    );
 
-    expect(dockerfile).toContain('//npm.fontawesome.com/:_authToken=%s');
-    expect(npmrc).toContain('//npm.fontawesome.com/:_authToken=');
+    expect(bunfig).toContain('[install.scopes]');
+    expect(bunfig).toContain('"@fortawesome" = "https://registry.npmjs.org/"');
   });
 
-  it('keeps premium and brand icon packages on the Font Awesome registry path', () => {
+  it('keeps Font Awesome packages on public npm artifacts', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
     ) as { dependencies: Record<string, string> };
@@ -121,15 +126,18 @@ describe('evaluateRuntimePreflight', () => {
         '@fortawesome/free-brands-svg-icons': expect.any(String),
       }),
     );
+    expect(
+      packageJson.dependencies['@fortawesome/duotone-regular-svg-icons'],
+    ).toBe('npm:@fortawesome/free-solid-svg-icons@^7.2.0');
 
     for (const packageName of [
       '@fortawesome/duotone-regular-svg-icons',
       '@fortawesome/free-brands-svg-icons',
     ]) {
-      expect(lockfile).toContain(
-        `https://npm.fontawesome.com/${packageName}/-/`,
-      );
+      expect(lockfile).toContain(`"${packageName}"`);
     }
+    expect(lockfile).toContain('@fortawesome/free-solid-svg-icons@7.2.0');
+    expect(lockfile).not.toContain('npm.fontawesome.com');
   });
 
   it('keeps Docker startup scripts behind the non-mutating preflight', () => {
@@ -338,8 +346,8 @@ describe('evaluateRuntimePreflight', () => {
     expect(databaseService).toContain('NEON_API_KEY:');
     expect(databaseService).toContain('NEON_PROJECT_ID:');
 
-    expect(databaseSetupService).toContain('secrets:');
-    expect(databaseSetupService).toContain('- FONT_AWESOME_TOKEN');
+    expect(databaseSetupService).not.toContain('secrets:');
+    expect(databaseSetupService).not.toContain('FONT_AWESOME_TOKEN');
     expect(databaseSetupService).toContain('STRIPE_TEST_ACCOUNT_ID:');
     expect(databaseSetupService).toContain(
       'bun helpers/reset-database-schema.ts',
@@ -361,8 +369,8 @@ describe('evaluateRuntimePreflight', () => {
     ]) {
       expect(evortoService).toContain(`${variable}:`);
     }
-    expect(evortoService).toContain('secrets:');
-    expect(evortoService).toContain('- FONT_AWESOME_TOKEN');
+    expect(evortoService).not.toContain('secrets:');
+    expect(evortoService).not.toContain('FONT_AWESOME_TOKEN');
     expect(evortoService).toContain(
       'STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret',
     );
@@ -377,8 +385,8 @@ describe('evaluateRuntimePreflight', () => {
       './helpers/testing/stripe-listen-docker.sh',
     );
 
-    expect(composeFile).toContain('FONT_AWESOME_TOKEN:');
-    expect(composeFile).toContain('environment: FONT_AWESOME_TOKEN');
+    expect(composeFile).not.toContain('FONT_AWESOME_TOKEN');
+    expect(composeFile).not.toContain('environment: FONT_AWESOME_TOKEN');
   });
 
   it('reports all docker startup blockers before mutating containers', () => {
@@ -401,7 +409,6 @@ describe('evaluateRuntimePreflight', () => {
           details: expect.arrayContaining([
             'NEON_API_KEY: Neon Local branch creation',
             'CLIENT_SECRET: Auth0 application secret',
-            'FONT_AWESOME_TOKEN: Font Awesome package registry access for premium and brand icons',
             'STRIPE_API_KEY: Stripe API access for paid registration flows',
             'STRIPE_TEST_ACCOUNT_ID: Stripe connected account id for seeded paid flows',
           ]),

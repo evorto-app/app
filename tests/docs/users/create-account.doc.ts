@@ -92,6 +92,7 @@ test('Create your account @needs-auth0-management', async ({
   newUser,
   page,
   roles,
+  tenant,
 }, testInfo) => {
   test.skip(
     !hasManagementEnvironment,
@@ -202,7 +203,7 @@ If the same global login already exists for another tenant, this step joins the 
     });
 
     const tenantUser = await database.query.usersToTenants.findFirst({
-      where: { userId: createdUser.id },
+      where: { tenantId: tenant.id, userId: createdUser.id },
     });
     if (!tenantUser) {
       throw new Error('Expected account creation docs to join current tenant');
@@ -222,7 +223,7 @@ You should now be on your profile page for the current tenant. From here you can
     if (createdUserId) {
       const tenantUsers = await database.query.usersToTenants.findMany({
         columns: { id: true },
-        where: { userId: createdUserId },
+        where: { tenantId: tenant.id, userId: createdUserId },
       });
       const tenantUserIds = tenantUsers.map((tenantUser) => tenantUser.id);
 
@@ -234,7 +235,12 @@ You should now be on your profile page for the current tenant. From here you can
           );
         await database
           .delete(schema.usersToTenants)
-          .where(eq(schema.usersToTenants.userId, createdUserId));
+          .where(
+            and(
+              eq(schema.usersToTenants.tenantId, tenant.id),
+              eq(schema.usersToTenants.userId, createdUserId),
+            ),
+          );
       }
     } else if (createdTenantUserId) {
       await database

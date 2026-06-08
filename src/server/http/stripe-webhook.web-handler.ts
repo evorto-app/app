@@ -14,6 +14,7 @@ import {
 import { StripeClient } from '../stripe-client';
 const MAX_WEBHOOK_SIZE_BYTES = 200 * 1024;
 const STALE_WEBHOOK_CLAIM_AGE_MS = 5 * 60 * 1000;
+const STRIPE_REFUND_CREATE_TIMEOUT_MS = 5000;
 
 const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
@@ -155,15 +156,10 @@ const recordTransferRefund = ({
   }
 
   return Effect.tryPromise(() =>
-    Promise.race([
-      stripe.refunds.create(stripeRefundParameters, { stripeAccount }),
-      new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new Error('Stripe refund creation timed out')),
-          5000,
-        );
-      }),
-    ]),
+    stripe.refunds.create(stripeRefundParameters, {
+      stripeAccount,
+      timeout: STRIPE_REFUND_CREATE_TIMEOUT_MS,
+    }),
   ).pipe(
     Effect.flatMap((stripeRefund) =>
       databaseEffect((database) =>

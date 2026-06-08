@@ -326,6 +326,31 @@ describe('adminHandlers tenant settings', () => {
     }),
   );
 
+  it.effect('rejects fractional tenant registration limit values', () =>
+    Effect.gen(function* () {
+      const database = {
+        update: () => {
+          throw new Error('database should not be touched');
+        },
+      };
+
+      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+        {
+          ...createSettingsInput(),
+          registrationLimitCount: 1.5,
+          registrationLimitWindowDays: 30,
+        },
+        { headers: createSettingsAdminHeaders() } as never,
+      ).pipe(
+        Effect.provide(Layer.succeed(Database, database as never)),
+        Effect.flip,
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.message).toBe('Invalid tenant registration limit policy');
+    }),
+  );
+
   it.effect(
     'rejects locale and money setting changes when tenant events exist',
     () =>

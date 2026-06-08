@@ -30,16 +30,8 @@ export const normalizeEsnCardConfig = (
     return {};
   }
 
-  const maybeBuyUrl = (
-    config as {
-      buyEsnCardUrl?: unknown;
-    }
-  ).buyEsnCardUrl;
-  const maybeValidationMode = (
-    config as {
-      validationMode?: unknown;
-    }
-  ).validationMode;
+  const maybeBuyUrl = Reflect.get(config, 'buyEsnCardUrl');
+  const maybeValidationMode = Reflect.get(config, 'validationMode');
   const validationMode =
     maybeValidationMode === 'test' ? { validationMode: 'test' as const } : {};
   if (maybeBuyUrl === undefined || maybeBuyUrl === null) {

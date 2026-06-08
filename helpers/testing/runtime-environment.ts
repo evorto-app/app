@@ -34,7 +34,13 @@ const readExistingRuntimeEnvironment = (): Record<string, string> => {
       const rawValue = line.slice(separatorIndex + 1);
 
       try {
-        return [[key, JSON.parse(rawValue) as string] as const];
+        const parsedValue = JSON.parse(rawValue);
+        return [
+          [
+            key,
+            typeof parsedValue === 'string' ? parsedValue : rawValue,
+          ] as const,
+        ];
       } catch {
         return [[key, rawValue] as const];
       }

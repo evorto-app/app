@@ -1,13 +1,10 @@
 import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const userListTemplate = (): string =>
   readFileSync(
-    nodePath.join(
-      process.cwd(),
-      'src/app/admin/user-list/user-list.component.html',
-    ),
+    fileURLToPath(new URL('user-list.component.html', import.meta.url)),
     'utf8',
   );
 

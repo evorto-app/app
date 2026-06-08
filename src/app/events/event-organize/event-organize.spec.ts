@@ -53,9 +53,18 @@ describe('event organize participants query state', () => {
     const template = readSource(
       'src/app/events/event-organize/event-organize.html',
     );
+    const participantsStart = template.indexOf(
+      '<h2 class="title-large">Participants</h2>',
+    );
+    const participantsEnd = template.indexOf(
+      '<h2 class="title-large">Receipts</h2>',
+      participantsStart,
+    );
+    expect(participantsStart).toBeGreaterThan(-1);
+    expect(participantsEnd).toBeGreaterThan(participantsStart);
     const participantSection = template.slice(
-      template.indexOf('<h2 class="title-large">Participants</h2>'),
-      template.indexOf('<!--        <table mat-table'),
+      participantsStart,
+      participantsEnd,
     );
 
     expect(participantSection).toContain('organizerOverviewQuery.isPending()');
