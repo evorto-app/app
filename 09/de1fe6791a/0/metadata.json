@@ -1,0 +1,71 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "09de1fe6791a",
+  "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-08T21:05:33.64097Z",
+  "branch": "codex/pr62-split-09-finance-docs-captions",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "helpers/testing/playwright-skip-inventory.spec.ts",
+    "helpers/testing/runtime-preflight.spec.ts",
+    "helpers/testing/runtime-preflight.ts",
+    "helpers/testing/validate-ci-runtime-env.sh",
+    "package.json"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "071e805c9918",
+  "token_usage": {
+    "input_tokens": 8225715,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 440846976,
+    "output_tokens": 802912,
+    "api_call_count": 3337
+  },
+  "session_metrics": {
+    "turn_count": 17
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-08T21:05:33.055705Z",
+    "agent_lines": 3235,
+    "agent_removed": 396,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 3235,
+    "total_lines_changed": 3631,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

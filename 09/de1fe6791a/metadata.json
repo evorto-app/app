@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "09de1fe6791a",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-09-finance-docs-captions",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "helpers/testing/playwright-skip-inventory.spec.ts",
+    "helpers/testing/runtime-preflight.spec.ts",
+    "helpers/testing/runtime-preflight.ts",
+    "helpers/testing/validate-ci-runtime-env.sh",
+    "package.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/09/de1fe6791a/0/metadata.json",
+      "transcript": "/09/de1fe6791a/0/full.jsonl",
+      "content_hash": "/09/de1fe6791a/0/content_hash.txt",
+      "prompt": "/09/de1fe6791a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8225715,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 440846976,
+    "output_tokens": 802912,
+    "api_call_count": 3337
+  }
+}
