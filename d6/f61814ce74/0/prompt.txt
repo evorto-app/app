@@ -1,0 +1,2 @@
+Check if we have to act on the comments in [evorto-app/app#64](https://github.com/evorto-app/app/pull/64)
+And if so, do
