@@ -22,10 +22,10 @@
         (click)="openFilterPanel()"
         *appIfAnyPermission="['events:seeDrafts', 'events:seeUnlisted']"
       >
-        <fa-duotone-icon [icon]="faFilter" />
+        <fa-icon [icon]="faFilter" />
       </button>
       <button mat-icon-button [matMenuTriggerFor]="menu">
-        <fa-duotone-icon [icon]="faEllipsisVertical" />
+        <fa-icon [icon]="faEllipsisVertical" />
       </button>
       <mat-menu #menu="matMenu">
         <a
@@ -104,12 +104,12 @@
                   <h2 class="headline-small">{{ event.title }}</h2>
                   <div class="flex flex-row flex-wrap items-center gap-4">
                     <div class="flex flex-row items-center gap-2">
-                      <fa-duotone-icon [icon]="faClock" />
+                      <fa-icon [icon]="faClock" />
                       <p>{{ event.start | date: "shortTime" }}</p>
                     </div>
                     @if (event.unlisted) {
                       <div class="flex flex-row items-center gap-2">
-                        <fa-duotone-icon [icon]="faEyeSlash" />
+                        <fa-icon [icon]="faEyeSlash" />
                         <p>unlisted</p>
                       </div>
                     }
