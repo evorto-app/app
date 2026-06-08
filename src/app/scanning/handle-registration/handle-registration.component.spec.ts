@@ -8,11 +8,10 @@ import {
 } from './handle-registration.component';
 
 describe('scanCheckInActionDisabled', () => {
-  it('blocks check-in when unavailable, already completed, pending, or empty', () => {
+  it('blocks check-in when unavailable, pending, or empty', () => {
     expect(
       scanCheckInActionDisabled({
         allowCheckin: false,
-        checkInCompleted: false,
         mutationPending: false,
         spotCount: 1,
       }),
@@ -20,15 +19,6 @@ describe('scanCheckInActionDisabled', () => {
     expect(
       scanCheckInActionDisabled({
         allowCheckin: true,
-        checkInCompleted: true,
-        mutationPending: false,
-        spotCount: 1,
-      }),
-    ).toBe(true);
-    expect(
-      scanCheckInActionDisabled({
-        allowCheckin: true,
-        checkInCompleted: false,
         mutationPending: true,
         spotCount: 1,
       }),
@@ -36,7 +26,6 @@ describe('scanCheckInActionDisabled', () => {
     expect(
       scanCheckInActionDisabled({
         allowCheckin: true,
-        checkInCompleted: false,
         mutationPending: false,
         spotCount: 0,
       }),
@@ -44,7 +33,6 @@ describe('scanCheckInActionDisabled', () => {
     expect(
       scanCheckInActionDisabled({
         allowCheckin: true,
-        checkInCompleted: false,
         mutationPending: false,
         spotCount: 1,
       }),

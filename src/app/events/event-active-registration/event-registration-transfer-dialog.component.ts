@@ -5,7 +5,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { form, FormField, required } from '@angular/forms/signals';
+import { email, form, FormField, required } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import {
   MatDialogActions,
@@ -43,6 +43,7 @@ export class EventRegistrationTransferDialogComponent {
   protected readonly errorMessage = signal('');
   protected readonly transferModel = signal({ targetEmail: '' });
   protected readonly transferForm = form(this.transferModel, (schema) => {
+    email(schema.targetEmail);
     required(schema.targetEmail);
   });
   protected readonly normalizedTargetEmail = computed(() =>
@@ -62,8 +63,10 @@ export class EventRegistrationTransferDialogComponent {
     this.errorMessage.set('');
 
     const targetEmail = this.normalizedTargetEmail();
-    if (!targetEmail) {
-      this.errorMessage.set('Enter the email address of the new participant.');
+    if (!targetEmail || this.transferForm.targetEmail().invalid()) {
+      this.errorMessage.set(
+        'Enter a valid email address for the new participant.',
+      );
       return;
     }
 

@@ -120,7 +120,7 @@
       <p class="title-small">Check-in failed</p>
       <p>{{ errorMessage(checkInMutation.error()) }}</p>
     </div>
-  } @else if (checkInCompleted()) {
+  } @else if (checkInMutation.isSuccess()) {
     <div
       class="bg-primary-container text-on-primary-container mt-4 rounded p-4"
     >
@@ -131,7 +131,6 @@
     [disabled]="
       scanCheckInActionDisabled({
         allowCheckin: scanResultQuery.data().allowCheckin,
-        checkInCompleted: checkInCompleted(),
         mutationPending: checkInMutation.isPending(),
         spotCount: selectedSpotCheckInCount(),
       })

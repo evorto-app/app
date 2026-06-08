@@ -1,4 +1,5 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { notificationEmailPattern } from '@shared/notification-email';
 import { literalUnion, nonNegativeNumber } from '@shared/schema-utilities';
 import { Effect, Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
@@ -22,6 +23,10 @@ import {
   EventsUpdateListingRpcError,
   EventsUpdateRpcError,
 } from './events.errors';
+
+const TransferTargetEmail = Schema.NonEmptyString.check(
+  Schema.isPattern(notificationEmailPattern),
+);
 
 export const EventReviewStatus = literalUnion(
   'APPROVED',
@@ -101,7 +106,7 @@ export const EventsTransferMyRegistration = asRpcMutation(
     error: EventsCheckInRegistrationError,
     payload: Schema.Struct({
       registrationId: Schema.NonEmptyString,
-      targetEmail: Schema.NonEmptyString,
+      targetEmail: TransferTargetEmail,
     }),
     success: Schema.Void,
   }),

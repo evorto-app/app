@@ -1,4 +1,11 @@
-import { afterEach, describe, expect, it, vi } from '@effect/vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from '@effect/vitest';
 import { ConfigProvider, Effect } from 'effect';
 
 import { handleTenantBrandAssetWebRequest } from './tenant-brand-asset.web-handler';
@@ -22,6 +29,15 @@ if (!originalBunRuntime) {
   });
 }
 
+beforeEach(() => {
+  if (!originalBunRuntime) {
+    Object.defineProperty(runtimeGlobal, 'Bun', {
+      configurable: true,
+      value: bunRuntime,
+    });
+  }
+});
+
 const objectStorageProviderLayer = ConfigProvider.layer(
   ConfigProvider.fromEnv({
     env: Object.fromEntries([
@@ -40,7 +56,7 @@ afterEach(() => {
     return;
   }
 
-  bunRuntime.S3Client = originalS3Client;
+  delete runtimeGlobal.Bun;
 });
 
 describe('handleTenantBrandAssetWebRequest', () => {

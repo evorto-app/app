@@ -12,6 +12,13 @@ import {
 const response = (body: BodyInit, status: number) =>
   new Response(body, { status });
 
+const isObjectNotFoundError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return /not found|no such key|404/i.test(error.message);
+};
+
 const isTenantBrandAssetKind = (
   value: string,
 ): value is AdminTenantBrandAssetKind =>
@@ -23,7 +30,7 @@ export const handleTenantBrandAssetWebRequest = (input: {
   tenantId: string;
 }) =>
   Effect.gen(function* () {
-    if (!input.tenantId || !isTenantBrandAssetKind(input.kind)) {
+    if (!input.tenantId.trim() || !isTenantBrandAssetKind(input.kind)) {
       return response('Asset not found', 404);
     }
 
@@ -39,6 +46,7 @@ export const handleTenantBrandAssetWebRequest = (input: {
       tenantId: input.tenantId,
     });
     const body = yield* getObjectFromR2({ key: storageKey }).pipe(
+      Effect.catchIf(isObjectNotFoundError, () => Effect.succeed(null)),
       Effect.mapError(
         (cause) =>
           new RpcInternalServerError({
@@ -46,7 +54,6 @@ export const handleTenantBrandAssetWebRequest = (input: {
             message: 'Failed to load tenant brand asset',
           }),
       ),
-      Effect.catch(() => Effect.succeed(null)),
     );
     if (!body) {
       return response('Asset not found', 404);

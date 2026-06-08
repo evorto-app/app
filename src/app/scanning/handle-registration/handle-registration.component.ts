@@ -42,16 +42,13 @@ export const scanSpotCountLabel = (spotCount: number): string =>
 
 export const scanCheckInActionDisabled = ({
   allowCheckin,
-  checkInCompleted,
   mutationPending,
   spotCount,
 }: {
   allowCheckin: boolean;
-  checkInCompleted: boolean;
   mutationPending: boolean;
   spotCount: number;
-}): boolean =>
-  !allowCheckin || checkInCompleted || mutationPending || spotCount < 1;
+}): boolean => !allowCheckin || mutationPending || spotCount < 1;
 
 export const scanGuestCheckInCountFromInput = ({
   inputValue,
@@ -86,7 +83,6 @@ export const scanGuestCheckInCountFromInput = ({
 })
 export class HandleRegistrationComponent {
   public readonly registrationId = input.required<string>();
-  protected readonly checkInCompleted = signal(false);
   private readonly rpc = AppRpc.injectClient();
   protected readonly checkInMutation = injectMutation(() =>
     this.rpc.events.checkInRegistration.mutationOptions(),
@@ -129,7 +125,6 @@ export class HandleRegistrationComponent {
     if (
       scanCheckInActionDisabled({
         allowCheckin: scanResult?.allowCheckin ?? false,
-        checkInCompleted: this.checkInCompleted(),
         mutationPending: this.checkInMutation.isPending(),
         spotCount: this.selectedSpotCheckInCount(),
       })
@@ -143,7 +138,6 @@ export class HandleRegistrationComponent {
       },
       {
         onSuccess: async () => {
-          this.checkInCompleted.set(true);
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['events', 'registrationScanned']),
           );
