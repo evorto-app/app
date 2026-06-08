@@ -1,0 +1,18 @@
+services:
+  db-setup:
+    build:
+      cache_from:
+        - type=gha,scope=evorto-db-setup
+        - type=local,src=${DOCKER_BUILD_CACHE_DIR:-/tmp/evorto-docker-build-cache}
+      cache_to:
+        - type=gha,scope=evorto-db-setup,mode=max
+        - type=local,dest=${DOCKER_BUILD_CACHE_DIR:-/tmp/evorto-docker-build-cache},mode=max
+
+  evorto:
+    build:
+      cache_from:
+        - type=gha,scope=evorto-app
+        - type=local,src=${DOCKER_BUILD_CACHE_DIR:-/tmp/evorto-docker-build-cache}
+      cache_to:
+        - type=gha,scope=evorto-app,mode=max
+        - type=local,dest=${DOCKER_BUILD_CACHE_DIR:-/tmp/evorto-docker-build-cache},mode=max
