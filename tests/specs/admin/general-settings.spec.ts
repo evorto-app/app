@@ -23,9 +23,10 @@ test('tenant admin updates relaunch general settings @admin', async ({
   const receiptCountries = ['ES', 'FR'];
 
   await page.goto('/admin/settings');
+  const generalSettings = page.locator('app-general-settings');
 
   await expect(
-    page.getByRole('heading', { name: 'General settings' }),
+    generalSettings.getByRole('heading', { name: 'General settings' }),
   ).toBeVisible();
   await expect(
     page.getByRole('heading', { name: 'Deferred settings' }),

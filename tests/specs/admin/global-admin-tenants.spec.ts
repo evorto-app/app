@@ -55,9 +55,11 @@ const expectTenantFormScope = async (page: Page) => {
 test('global tenant admin reviews tenant list, detail, and forms @admin @globalAdmin', async ({
   page,
 }) => {
-  await page.goto('/global-admin');
+  await page.goto('/global-admin/tenants');
 
-  await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
+  await expect(
+    page.locator('app-tenant-list').getByRole('heading', { name: 'Tenants' }),
+  ).toBeVisible();
   await expect(
     page.getByRole('link', { name: 'Create tenant' }),
   ).toHaveAttribute('href', '/global-admin/tenants/create');

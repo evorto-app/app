@@ -83,6 +83,12 @@ test.describe('Negative registration states', () => {
         throw new Error('Expected seeded freeOpen event');
       }
       const serverEventWindow = futureServerEventWindow();
+      const registrationQuestion = await seedRequiredRegistrationQuestion({
+        database,
+        eventId: targetEventId,
+        registrationOptionId: targetOptionId,
+        title: 'Anything organizers should know?',
+      });
 
       try {
         await database
@@ -111,12 +117,6 @@ test.describe('Negative registration states', () => {
             start: serverEventWindow.start,
           })
           .where(eq(schema.eventInstances.id, targetEventId));
-        const registrationQuestion = await seedRequiredRegistrationQuestion({
-          database,
-          eventId: targetEventId,
-          registrationOptionId: targetOptionId,
-          title: 'Anything organizers should know?',
-        });
         await page.goto(`/events/${targetEventId}`);
         await waitForRegistrationStatus(page);
 
@@ -199,7 +199,9 @@ test.describe('Negative registration states', () => {
             },
           });
         if (!cancelledWaitlistRegistration) {
-          throw new Error('Expected leaving waitlist to cancel the registration');
+          throw new Error(
+            'Expected leaving waitlist to cancel the registration',
+          );
         }
 
         const optionAfterLeaving =
@@ -220,6 +222,14 @@ test.describe('Negative registration states', () => {
               eq(schema.eventRegistrations.eventId, targetEventId),
               eq(schema.eventRegistrations.tenantId, tenant.id),
               eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+        await database
+          .delete(schema.eventRegistrationQuestions)
+          .where(
+            eq(
+              schema.eventRegistrationQuestions.id,
+              registrationQuestion.questionId,
             ),
           );
         await database

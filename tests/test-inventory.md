@@ -396,7 +396,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     Generated event-management docs also seed a confirmed registration with
     guests and capture the scanned-registration page, so docs assert guest
     progress and the buyer-plus-guests check-in action instead of only
-    describing it in markdown.
+    describing it in Markdown.
   - Keep scanned-registration action guards aligned with the write/refetch
     lifecycle. Local app coverage now pins that the check-in action is disabled
     when scan state disallows it, no spots are selected, the write is pending,

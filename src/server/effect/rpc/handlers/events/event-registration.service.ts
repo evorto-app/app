@@ -559,123 +559,135 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             )
           : undefined;
 
-        const reservationResult = yield* databaseEffect((database) =>
-          database.transaction((tx) =>
-            Effect.gen(function* () {
-              const activeRegistrations =
-                yield* tx.query.eventRegistrations.findMany({
-                  columns: {
-                    id: true,
-                  },
-                  where: {
-                    eventId,
-                    status: { NOT: 'CANCELLED' },
-                    tenantId: tenant.id,
-                    userId: user.id,
-                  },
-                });
-              if (activeRegistrations.length > 0) {
-                return { _tag: 'AlreadyRegistered' } as const;
-              }
+        const reservationResult = yield* Database.use((database) =>
+          database
+            .transaction((tx) =>
+              Effect.gen(function* () {
+                const activeRegistrations =
+                  yield* tx.query.eventRegistrations.findMany({
+                    columns: {
+                      id: true,
+                    },
+                    where: {
+                      eventId,
+                      status: { NOT: 'CANCELLED' },
+                      tenantId: tenant.id,
+                      userId: user.id,
+                    },
+                  });
+                if (activeRegistrations.length > 0) {
+                  return { _tag: 'AlreadyRegistered' } as const;
+                }
 
-              const updatedOptions = yield* tx
-                .update(eventRegistrationOptions)
-                .set(
-                  requiresCheckout
-                    ? {
-                        reservedSpots: sql`${eventRegistrationOptions.reservedSpots} + ${requestedSpotCount}`,
-                      }
-                    : {
-                        confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + ${requestedSpotCount}`,
-                      },
-                )
-                .where(
-                  and(
-                    eq(eventRegistrationOptions.id, registrationOption.id),
-                    eq(eventRegistrationOptions.eventId, eventId),
-                    sql`${eventRegistrationOptions.confirmedSpots} + ${eventRegistrationOptions.reservedSpots} + ${requestedSpotCount} <= ${eventRegistrationOptions.spots}`,
-                  ),
-                )
-                .returning({
-                  id: eventRegistrationOptions.id,
-                });
-              if (updatedOptions.length === 0) {
-                return { _tag: 'CapacityFull' } as const;
-              }
-
-              const createdRegistrations = yield* tx
-                .insert(eventRegistrations)
-                .values({
-                  eventId,
-                  guestCount,
-                  registrationOptionId: registrationOption.id,
-                  status: requiresCheckout ? 'PENDING' : 'CONFIRMED',
-                  ...(selectedTaxRateId
-                    ? {
-                        stripeTaxRateId: selectedTaxRateId,
-                        taxRateDisplayName: selectedTaxRate?.displayName,
-                        taxRateInclusive: selectedTaxRate?.inclusive,
-                        taxRatePercentage: selectedTaxRate?.percentage,
-                      }
-                    : {}),
-                  tenantId: tenant.id,
-                  userId: user.id,
-                })
-                .returning({
-                  id: eventRegistrations.id,
-                });
-              const userRegistration = createdRegistrations[0];
-              if (!userRegistration) {
-                return { _tag: 'CapacityFull' } as const;
-              }
-
-              if (answerInserts.length > 0) {
-                yield* tx.insert(eventRegistrationQuestionAnswers).values(
-                  answerInserts.map((answer) => ({
-                    answer: answer.answer,
-                    questionId: answer.questionId,
-                    registrationId: userRegistration.id,
-                  })),
-                );
-              }
-
-              for (const addOn of selectedAddOns) {
-                const updatedAddOns = yield* tx
-                  .update(eventAddons)
-                  .set({
-                    totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} - ${addOn.selectedQuantity}`,
-                  })
+                const updatedOptions = yield* tx
+                  .update(eventRegistrationOptions)
+                  .set(
+                    requiresCheckout
+                      ? {
+                          reservedSpots: sql`${eventRegistrationOptions.reservedSpots} + ${requestedSpotCount}`,
+                        }
+                      : {
+                          confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + ${requestedSpotCount}`,
+                        },
+                  )
                   .where(
                     and(
-                      eq(eventAddons.id, addOn.addOnId),
-                      eq(eventAddons.eventId, eventId),
-                      sql`${eventAddons.totalAvailableQuantity} >= ${addOn.selectedQuantity}`,
+                      eq(eventRegistrationOptions.id, registrationOption.id),
+                      eq(eventRegistrationOptions.eventId, eventId),
+                      sql`${eventRegistrationOptions.confirmedSpots} + ${eventRegistrationOptions.reservedSpots} + ${requestedSpotCount} <= ${eventRegistrationOptions.spots}`,
                     ),
                   )
                   .returning({
-                    id: eventAddons.id,
+                    id: eventRegistrationOptions.id,
                   });
-                if (updatedAddOns.length === 0) {
-                  return { _tag: 'AddonUnavailable' } as const;
+                if (updatedOptions.length === 0) {
+                  return { _tag: 'CapacityFull' } as const;
                 }
 
-                yield* tx.insert(eventRegistrationAddonPurchases).values({
-                  addonId: addOn.addOnId,
-                  quantity: addOn.selectedQuantity,
-                  registrationId: userRegistration.id,
-                  taxRateDisplayName: addOn.taxRateDisplayName,
-                  taxRateInclusive: addOn.taxRateInclusive,
-                  taxRatePercentage: addOn.taxRatePercentage,
-                  unitPrice: addOn.price,
-                });
-              }
+                const createdRegistrations = yield* tx
+                  .insert(eventRegistrations)
+                  .values({
+                    eventId,
+                    guestCount,
+                    registrationOptionId: registrationOption.id,
+                    status: requiresCheckout ? 'PENDING' : 'CONFIRMED',
+                    ...(selectedTaxRateId
+                      ? {
+                          stripeTaxRateId: selectedTaxRateId,
+                          taxRateDisplayName: selectedTaxRate?.displayName,
+                          taxRateInclusive: selectedTaxRate?.inclusive,
+                          taxRatePercentage: selectedTaxRate?.percentage,
+                        }
+                      : {}),
+                    tenantId: tenant.id,
+                    userId: user.id,
+                  })
+                  .returning({
+                    id: eventRegistrations.id,
+                  });
+                const userRegistration = createdRegistrations[0];
+                if (!userRegistration) {
+                  return { _tag: 'CapacityFull' } as const;
+                }
 
-              return {
-                _tag: 'Reserved',
-                registrationId: userRegistration.id,
-              } as const;
-            }),
-          ),
+                if (answerInserts.length > 0) {
+                  yield* tx.insert(eventRegistrationQuestionAnswers).values(
+                    answerInserts.map((answer) => ({
+                      answer: answer.answer,
+                      questionId: answer.questionId,
+                      registrationId: userRegistration.id,
+                    })),
+                  );
+                }
+
+                for (const addOn of selectedAddOns) {
+                  const updatedAddOns = yield* tx
+                    .update(eventAddons)
+                    .set({
+                      totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} - ${addOn.selectedQuantity}`,
+                    })
+                    .where(
+                      and(
+                        eq(eventAddons.id, addOn.addOnId),
+                        eq(eventAddons.eventId, eventId),
+                        sql`${eventAddons.totalAvailableQuantity} >= ${addOn.selectedQuantity}`,
+                      ),
+                    )
+                    .returning({
+                      id: eventAddons.id,
+                    });
+                  if (updatedAddOns.length === 0) {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message: 'Add-on quantity is no longer available',
+                      }),
+                    );
+                  }
+
+                  yield* tx.insert(eventRegistrationAddonPurchases).values({
+                    addonId: addOn.addOnId,
+                    quantity: addOn.selectedQuantity,
+                    registrationId: userRegistration.id,
+                    taxRateDisplayName: addOn.taxRateDisplayName,
+                    taxRateInclusive: addOn.taxRateInclusive,
+                    taxRatePercentage: addOn.taxRatePercentage,
+                    unitPrice: addOn.price,
+                  });
+                }
+
+                return {
+                  _tag: 'Reserved',
+                  registrationId: userRegistration.id,
+                } as const;
+              }),
+            )
+            .pipe(
+              Effect.catch((error) =>
+                error instanceof EventRegistrationConflictError
+                  ? Effect.fail(error)
+                  : Effect.die(error),
+              ),
+            ),
         );
         if (reservationResult._tag === 'AlreadyRegistered') {
           return yield* Effect.fail(
@@ -691,14 +703,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
           );
         }
-        if (reservationResult._tag === 'AddonUnavailable') {
-          return yield* Effect.fail(
-            new EventRegistrationConflictError({
-              message: 'Add-on quantity is no longer available',
-            }),
-          );
-        }
-
         if (!requiresCheckout) {
           return;
         }
