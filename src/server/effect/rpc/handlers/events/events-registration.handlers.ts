@@ -640,7 +640,10 @@ export const eventRegistrationHandlers = {
       const alreadyCheckedInIssue = registration.checkInTime !== null;
       const timingIssue = !isWithinCheckInWindow(registration.event.start);
       const allowCheckin =
-        !registrationStatusIssue && !sameUserIssue && !timingIssue;
+        !registrationStatusIssue &&
+        !sameUserIssue &&
+        !timingIssue &&
+        !alreadyCheckedInIssue;
       const discountedTransaction = registration.transactions.find(
         (transaction) =>
           transaction.amount < registration.registrationOption.price,

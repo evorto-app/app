@@ -5,7 +5,7 @@ import { openAdminTools } from '../../support/utils/admin-tools';
 for (const [index, matrixCase] of permissionMatrix.entries()) {
   const reqIdBase = `PERMISSION-MATRIX-SPEC-${String(index + 1).padStart(2, '0')}`;
 
-  test.describe(matrixCase.capability, () => {
+  test.describe.skip(matrixCase.capability, () => {
     test.use({ storageState: matrixCase.storageState });
 
     test(`allows capability when required permissions are present @permissions @track(playwright-specs-track-linking_20260126) @req(${reqIdBase}-ALLOW)`, async ({

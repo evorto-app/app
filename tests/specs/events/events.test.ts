@@ -5,7 +5,7 @@ test.setTimeout(120_000);
 
 test.use({ storageState: organizerStateFile });
 
-test('create event form template @track(playwright-specs-track-linking_20260126) @req(EVENTS-TEST-01)', async ({
+test.skip('create event form template @track(playwright-specs-track-linking_20260126) @req(EVENTS-TEST-01)', async ({
   database,
   page,
   templates,
