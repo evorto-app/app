@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "86a914a3424a",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-02-esncard-coverage",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "migration/index.ts",
+    "migration/steps/007_add_tenant_public_settings.ts",
+    "migration/stripe.ts",
+    "src/app/events/event-active-registration/event-active-registration.component.spec.ts",
+    "src/app/events/event-active-registration/event-active-registration.component.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/86/a914a3424a/0/metadata.json",
+      "transcript": "/86/a914a3424a/0/full.jsonl",
+      "content_hash": "/86/a914a3424a/0/content_hash.txt",
+      "prompt": "/86/a914a3424a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 259042,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 2402176,
+    "output_tokens": 8868,
+    "api_call_count": 30
+  }
+}
