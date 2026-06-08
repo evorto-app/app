@@ -12,7 +12,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
-import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
+import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
   buildSelectableReceiptCountries,
@@ -39,7 +39,7 @@ import {
   imports: [
     DatePipe,
     DecimalPipe,
-    FaDuotoneIconComponent,
+    FontAwesomeModule,
     MatButtonModule,
     PercentPipe,
     RouterLink,
