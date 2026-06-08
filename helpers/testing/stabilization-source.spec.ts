@@ -987,7 +987,7 @@ describe('stabilization source', () => {
       "DOCS_IMG_OUT_DIR: 'test-results/docs/images'",
     );
     expect(readSource('helpers/testing/run-playwright.ts')).toContain(
-      "spawn('bun', ['run', 'env:bootstrap']",
+      "noWebserverIndex === -1 ? 'env:bootstrap' : 'env:runtime'",
     );
     expect(readSource('helpers/testing/run-playwright.ts')).toContain(
       "'node_modules/.bin/dotenv'",

@@ -54,8 +54,7 @@ jobs:
         env:
           BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-caches.outputs.dependency-tree-cache-hit }}
           BUN_PACKAGE_CACHE_HIT: ${{ steps.bun-dependency-caches.outputs.package-cache-hit }}
-          CI_DEPENDENCY_INSTALL_MISSING_CACHE_MESSAGE: Bun dependency tree cache was not restored for Copilot setup. Refusing a registry install to avoid repeated Font Awesome package downloads.
-          CI_DEPENDENCY_INSTALL_MODE: offline-required
+          CI_DEPENDENCY_INSTALL_MODE: warm
         run: bash helpers/testing/install-ci-dependencies.sh
 
       - name: Save Bun package cache

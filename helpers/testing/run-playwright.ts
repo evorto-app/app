@@ -43,7 +43,9 @@ export const runPlaywright = (options: RunPlaywrightOptions = {}): number => {
     environment['NO_WEBSERVER'] = 'true';
   }
 
-  const bootstrapResult = spawn('bun', ['run', 'env:bootstrap'], {
+  const environmentScript =
+    noWebserverIndex === -1 ? 'env:bootstrap' : 'env:runtime';
+  const bootstrapResult = spawn('bun', ['run', environmentScript], {
     env: baseEnvironment,
     stdio: 'inherit',
   });

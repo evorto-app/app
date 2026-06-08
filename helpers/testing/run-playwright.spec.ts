@@ -89,7 +89,7 @@ describe('runPlaywright', () => {
     });
   });
 
-  it('maps the helper no-webserver flag to the Playwright environment', () => {
+  it('maps the helper no-webserver flag to the Playwright environment without developer secrets', () => {
     const calls: SpawnCall[] = [];
 
     runPlaywright({
@@ -102,6 +102,10 @@ describe('runPlaywright', () => {
       spawn: createSpawn(calls),
     });
 
+    expect(calls[0]).toMatchObject({
+      args: ['run', 'env:runtime'],
+      command: 'bun',
+    });
     expect(calls[1].args).toEqual([
       '-c',
       'dev',

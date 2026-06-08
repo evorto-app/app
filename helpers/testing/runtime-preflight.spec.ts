@@ -1269,12 +1269,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(copilotSetupWorkflow).toContain(
       'run: bash helpers/testing/install-ci-dependencies.sh',
     );
-    expect(copilotSetupWorkflow).toContain(
-      'CI_DEPENDENCY_INSTALL_MODE: offline-required',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      'Refusing a registry install to avoid repeated Font Awesome package downloads.',
-    );
+    expect(copilotSetupWorkflow).toContain('CI_DEPENDENCY_INSTALL_MODE: warm');
     expect(installDependenciesHelper).toContain(
       'Bun dependency tree cache restored; skipping registry install.',
     );
@@ -1312,9 +1307,7 @@ describe('evaluateRuntimePreflight', () => {
       'key: ${{ runner.os }}-playwright-1.59.1-chromium',
     );
     expect(copilotSetupWorkflow).not.toContain('bunx playwright');
-    expect(copilotSetupWorkflow).toContain(
-      'Refusing a registry install to avoid repeated Font Awesome package downloads.',
-    );
+    expect(copilotSetupWorkflow).toContain('CI_DEPENDENCY_INSTALL_MODE: warm');
     expect(copilotSetupWorkflow).not.toContain('bun pm cache rm');
     expect(copilotSetupWorkflow).not.toContain(
       'Configure Font Awesome registry auth',
@@ -1807,7 +1800,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(runPlaywright).toContain(
       "DOCS_IMG_OUT_DIR: 'test-results/docs/images'",
     );
-    expect(runPlaywright).toContain("spawn('bun', ['run', 'env:bootstrap']");
+    expect(runPlaywright).toContain(
+      "noWebserverIndex === -1 ? 'env:bootstrap' : 'env:runtime'",
+    );
     expect(runPlaywright).toContain('Runtime environment bootstrap');
     expect(runPlaywright).toContain("'node_modules/.bin/dotenv'");
     expect(runPlaywright).toContain("'node_modules/.bin/playwright'");
