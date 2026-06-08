@@ -35,7 +35,13 @@
         </mat-menu>
       </div>
       <h1 class="display-small">
-        {{ eventQuery.data()?.title ?? "…" }}
+        @if (eventQuery.isSuccess()) {
+          {{ eventQuery.data().title }}
+        } @else if (eventQuery.isPending()) {
+          Loading event ...
+        } @else {
+          Event unavailable
+        }
       </h1>
     </div>
     <div class="flex justify-center">
@@ -134,7 +140,15 @@
     }
   </div>
   <div class="flex flex-col gap-4">
-    @if (eventQuery.isSuccess()) {
+    @if (eventQuery.isPending()) {
+      <div class="bg-surface text-on-surface rounded-2xl p-4">
+        <h2 class="title-medium">Loading event ...</h2>
+      </div>
+    } @else if (eventQuery.isError()) {
+      <div class="bg-error-container text-on-error-container rounded-2xl p-4">
+        Failed to load event.
+      </div>
+    } @else if (eventQuery.isSuccess()) {
       <div class="flex flex-col gap-4">
         <section
           class="bg-surface text-on-surface description rounded-b-lg p-4"
@@ -150,6 +164,12 @@
           @if (registrationStatusQuery.isPending()) {
             <div class="bg-surface text-on-surface rounded-2xl p-4">
               <h3 class="title-small">Loading registration status…</h3>
+            </div>
+          } @else if (registrationStatusQuery.isError()) {
+            <div
+              class="bg-error-container text-on-error-container rounded-2xl p-4"
+            >
+              <h3 class="title-small">Failed to load registration status.</h3>
             </div>
           } @else if (registrationStatusQuery.isSuccess()) {
             @if (registrationStatusQuery.data().isRegistered) {
