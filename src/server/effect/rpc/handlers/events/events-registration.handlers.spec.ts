@@ -573,8 +573,6 @@ const createTransferDatabase = ({
         };
       },
     }),
-    transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
-      run(tx),
   };
 
   return {
