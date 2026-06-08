@@ -3,21 +3,44 @@
   "checkpoint_id": "6edd60b326fc",
   "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
   "strategy": "manual-commit",
-  "created_at": "2026-06-08T08:15:27.898106Z",
+  "created_at": "2026-06-08T09:53:17.830697Z",
   "branch": "codex/pr62-split-01-registration-schema",
   "checkpoints_count": 1,
   "files_touched": [],
   "agent": "Codex",
   "model": "gpt-5.5",
-  "turn_id": "f4698076b0d1",
+  "turn_id": "8ab23838705f",
   "token_usage": {
-    "input_tokens": 1597926,
+    "input_tokens": 1982960,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 40374016,
-    "output_tokens": 114335,
-    "api_call_count": 337
+    "cache_read_tokens": 50861440,
+    "output_tokens": 145759,
+    "api_call_count": 417
   },
   "session_metrics": {
     "turn_count": 6
-  }
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 38,
+      "user_lines_removed": 62,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "Dockerfile": 16,
+        "bun.lock": 7,
+        "bunfig.toml": 3,
+        "helpers/testing/prepare-public-fontawesome-ci.sh": 11,
+        "package.json": 1
+      },
+      "user_removed_per_file": {
+        ".npmrc": 3,
+        "Dockerfile": 19,
+        "bun.lock": 7,
+        "helpers/testing/prepare-public-fontawesome-ci.sh": 32,
+        "package.json": 1
+      }
+    }
+  ]
 }
