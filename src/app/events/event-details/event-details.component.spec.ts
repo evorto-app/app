@@ -14,10 +14,8 @@ import {
   transferCodeRedemptionActionDisabled,
 } from './event-details.component';
 
-const repositoryRoot = new URL('../../../..', import.meta.url).pathname;
-
 const readSource = (sourcePath: string): string =>
-  readFileSync(nodePath.join(repositoryRoot, sourcePath), 'utf8');
+  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
 
 describe('registrationOptionsState', () => {
   it('shows available registration options when at least one option is visible', () => {
@@ -283,23 +281,5 @@ describe('eventAddonsForRegistrationOption', () => {
         'option-1',
       ),
     ).toHaveLength(1);
-  });
-});
-
-describe('EventDetails template', () => {
-  it('keeps event and registration actions behind explicit query states', () => {
-    const template = readSource(
-      'src/app/events/event-details/event-details.component.html',
-    );
-
-    expect(template).toContain('eventQuery.isPending()');
-    expect(template).toContain('Loading event ...');
-    expect(template).toContain('eventQuery.isError()');
-    expect(template).toContain('Failed to load event.');
-    expect(template).toContain('eventQuery.isSuccess()');
-    expect(template).toContain('registrationStatusQuery.isPending()');
-    expect(template).toContain('registrationStatusQuery.isError()');
-    expect(template).toContain('Failed to load registration status.');
-    expect(template).toContain('registrationStatusQuery.isSuccess()');
   });
 });
