@@ -112,4 +112,5 @@ export const templateWriteSubmitDisabled = (input: {
   formInvalid: boolean;
   formSubmitting: boolean;
   mutationPending: boolean;
-}) => input.formInvalid || input.formSubmitting || input.mutationPending;
+}): boolean =>
+  input.formInvalid || input.formSubmitting || input.mutationPending;

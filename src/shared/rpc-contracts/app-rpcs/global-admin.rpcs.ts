@@ -35,7 +35,7 @@ export const GlobalAdminTenantWriteInput = Schema.Struct({
   domain: Schema.NonEmptyString,
   locale: Tenant.fields.locale,
   name: Schema.NonEmptyString,
-  stripeAccountId: Schema.optional(Schema.String),
+  stripeAccountId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   theme: Tenant.fields.theme,
   timezone: Tenant.fields.timezone,
 });
@@ -77,7 +77,7 @@ export const GlobalAdminTenantsUpdate = asRpcMutation(
       id: Schema.NonEmptyString,
       locale: Tenant.fields.locale,
       name: Schema.NonEmptyString,
-      stripeAccountId: Schema.optional(Schema.String),
+      stripeAccountId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
       theme: Tenant.fields.theme,
       timezone: Tenant.fields.timezone,
     }),

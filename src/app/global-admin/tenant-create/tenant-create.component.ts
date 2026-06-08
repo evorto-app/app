@@ -77,24 +77,23 @@ export class TenantCreateComponent {
       return;
     }
     await submit(this.tenantForm, async (formState) => {
-      try {
-        const tenant = await this.createTenantMutation.mutateAsync(
-          globalAdminTenantPayloadFromForm(formState().value()),
-          {
-            onSuccess: async () => {
-              await this.queryClient.invalidateQueries(
-                this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
-              );
-            },
+      this.createTenantMutation.mutate(
+        globalAdminTenantPayloadFromForm(formState().value()),
+        {
+          onError: (error) => {
+            this.notifications.showError(
+              getErrorMessage(error, 'Failed to create tenant'),
+            );
           },
-        );
-        this.notifications.showSuccess('Tenant created');
-        await this.router.navigate(['/global-admin/tenants', tenant.id]);
-      } catch (error) {
-        this.notifications.showError(
-          getErrorMessage(error, 'Failed to create tenant'),
-        );
-      }
+          onSuccess: async (tenant) => {
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
+            );
+            this.notifications.showSuccess('Tenant created');
+            await this.router.navigate(['/global-admin/tenants', tenant.id]);
+          },
+        },
+      );
     });
   }
 }

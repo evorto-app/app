@@ -102,30 +102,32 @@ export class TenantEditComponent {
       return;
     }
     await submit(this.tenantForm, async (formState) => {
-      try {
-        await this.updateTenantMutation.mutateAsync(
-          {
-            ...globalAdminTenantPayloadFromForm(formState().value()),
-            id: this.tenantId(),
+      this.updateTenantMutation.mutate(
+        {
+          ...globalAdminTenantPayloadFromForm(formState().value()),
+          id: this.tenantId(),
+        },
+        {
+          onError: (error) => {
+            this.notifications.showError(
+              getErrorMessage(error, 'Failed to update tenant'),
+            );
           },
-          {
-            onSuccess: async () => {
-              await this.queryClient.invalidateQueries(
-                this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
-              );
-              await this.queryClient.invalidateQueries(
-                this.rpc.queryFilter(['globalAdmin', 'tenants.findOne']),
-              );
-            },
+          onSuccess: async () => {
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
+            );
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['globalAdmin', 'tenants.findOne']),
+            );
+            this.notifications.showSuccess('Tenant updated');
+            await this.router.navigate([
+              '/global-admin/tenants',
+              this.tenantId(),
+            ]);
           },
-        );
-        this.notifications.showSuccess('Tenant updated');
-        await this.router.navigate(['/global-admin/tenants', this.tenantId()]);
-      } catch (error) {
-        this.notifications.showError(
-          getErrorMessage(error, 'Failed to update tenant'),
-        );
-      }
+        },
+      );
     });
   }
 }
