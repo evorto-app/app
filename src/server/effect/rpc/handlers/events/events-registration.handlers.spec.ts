@@ -387,44 +387,63 @@ describe('event registration cancellation handlers', () => {
     }),
   );
 
-  it.effect(
-    'rejects waitlist cancellation until a waitlist action exists',
-    () =>
-      Effect.gen(function* () {
-        const database = {
-          query: {
-            eventRegistrations: {
-              findFirst: () =>
-                Effect.succeed({
-                  checkedInGuestCount: 0,
-                  checkInTime: null,
-                  event: {
-                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
-                  },
-                  guestCount: 0,
-                  id: 'registration-1',
-                  registrationOptionId: 'option-1',
-                  status: 'WAITLIST',
-                  transactions: [],
-                }),
-            },
+  it.effect('cancels waitlist registrations and releases a waitlist spot', () =>
+    Effect.gen(function* () {
+      const updateSets: unknown[] = [];
+      const tx = {
+        update: (table: unknown) => ({
+          set: (values: unknown) => {
+            updateSets.push(values);
+            return {
+              where: () => ({
+                returning: () => {
+                  if (
+                    table === eventRegistrations ||
+                    table === eventRegistrationOptions
+                  ) {
+                    return Effect.succeed([{ id: 'updated' }]);
+                  }
+                  return Effect.succeed([]);
+                },
+              }),
+            };
           },
-          transaction: vi.fn(),
-        };
+        }),
+      };
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                checkedInGuestCount: 0,
+                checkInTime: null,
+                event: {
+                  start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                },
+                guestCount: 0,
+                id: 'registration-1',
+                registrationOptionId: 'option-1',
+                status: 'WAITLIST',
+                transactions: [],
+              }),
+          },
+        },
+        transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+          callback(tx),
+        ),
+      };
 
-        const error = yield* eventRegistrationHandlers[
-          'events.cancelRegistration'
-        ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
-          Effect.flip,
-          Effect.provide(createContextLayer({ database })),
-        );
+      yield* eventRegistrationHandlers['events.cancelRegistration'](
+        { registrationId: 'registration-1' },
+        { headers: {} } as never,
+      ).pipe(Effect.provide(createContextLayer({ database })));
 
-        expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe(
-          'Only pending or confirmed registrations can be cancelled',
-        );
-        expect(database.transaction).not.toHaveBeenCalled();
-      }),
+      expect(updateSets).toEqual([
+        { status: 'CANCELLED' },
+        expect.objectContaining({ waitlistSpots: expect.anything() }),
+      ]);
+      expect(database.transaction).toHaveBeenCalledOnce();
+    }),
   );
 });
 

@@ -180,11 +180,13 @@ const cancelRegistration = ({
 
     if (
       registration.status !== 'PENDING' &&
-      registration.status !== 'CONFIRMED'
+      registration.status !== 'CONFIRMED' &&
+      registration.status !== 'WAITLIST'
     ) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
-          message: 'Only pending or confirmed registrations can be cancelled',
+          message:
+            'Only pending, confirmed, or waitlisted registrations can be cancelled',
         }),
       );
     }
@@ -256,32 +258,44 @@ const cancelRegistration = ({
               );
             }
 
-            const updatedOptions = yield* tx
-              .update(eventRegistrationOptions)
-              .set(
-                registration.status === 'PENDING'
+            const optionSpotUpdate =
+              registration.status === 'CONFIRMED'
+                ? {
+                    confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} - ${registeredSpotCount}`,
+                  }
+                : registration.status === 'PENDING'
                   ? {
                       reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}`,
                     }
                   : {
-                      confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} - ${registeredSpotCount}`,
-                    },
-              )
+                      waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} - ${registeredSpotCount}`,
+                    };
+            const optionSpotAvailable =
+              registration.status === 'CONFIRMED'
+                ? gte(
+                    eventRegistrationOptions.confirmedSpots,
+                    registeredSpotCount,
+                  )
+                : registration.status === 'PENDING'
+                  ? gte(
+                      eventRegistrationOptions.reservedSpots,
+                      registeredSpotCount,
+                    )
+                  : gte(
+                      eventRegistrationOptions.waitlistSpots,
+                      registeredSpotCount,
+                    );
+
+            const updatedOptions = yield* tx
+              .update(eventRegistrationOptions)
+              .set(optionSpotUpdate)
               .where(
                 and(
                   eq(
                     eventRegistrationOptions.id,
                     registration.registrationOptionId,
                   ),
-                  registration.status === 'PENDING'
-                    ? gte(
-                        eventRegistrationOptions.reservedSpots,
-                        registeredSpotCount,
-                      )
-                    : gte(
-                        eventRegistrationOptions.confirmedSpots,
-                        registeredSpotCount,
-                      ),
+                  optionSpotAvailable,
                 ),
               )
               .returning({

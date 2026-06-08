@@ -20,6 +20,7 @@ import { addAdminTaxPermission } from './steps/003_add_admin_manage_taxes_permis
 import { dropLegacyStabilizationFields } from './steps/004_drop_legacy_stabilization_fields';
 import { addEventRegistrationGuestCount } from './steps/005_add_event_registration_guest_count';
 import { addEventRegistrationCheckedInGuestCount } from './steps/006_add_event_registration_checked_in_guest_count';
+import { addTenantPublicSettings } from './steps/007_add_tenant_public_settings';
 
 type Features =
   | 'users'
@@ -81,6 +82,7 @@ async function main() {
   await dropLegacyStabilizationFields();
   await addEventRegistrationGuestCount();
   await addEventRegistrationCheckedInGuestCount();
+  await addTenantPublicSettings();
   consola.success('Global migration steps complete');
 
   consola.start('Begin migration');
