@@ -52,6 +52,25 @@ jobs:
         with:
           bun-version: "1.3.11"
 
+      - name: Prepare public Font Awesome registry
+        run: bash helpers/testing/prepare-public-fontawesome-ci.sh
+
+      - name: Restore Bun package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-1.3.11-
+
+      - name: Restore Bun dependency tree
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-bun-node-modules-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-node-modules-1.3.11-
+
       - name: Validate required configuration
         run: |
           if [ -z "${FONT_AWESOME_TOKEN}" ]; then
