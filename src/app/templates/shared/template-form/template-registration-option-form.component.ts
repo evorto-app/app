@@ -3,7 +3,6 @@ import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
@@ -24,7 +23,6 @@ import {
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-    MatSlideToggleModule,
     RoleSelectComponent,
   ],
   selector: 'app-template-registration-option-form',
@@ -41,4 +39,8 @@ export class TemplateRegistrationOptionFormComponent {
   protected readonly taxRatesQuery = injectQuery(() =>
     this.rpc.taxRates.listActive.queryOptions(),
   );
+
+  protected setPaid(checked: boolean): void {
+    this.registrationForm().isPaid().value.set(checked);
+  }
 }

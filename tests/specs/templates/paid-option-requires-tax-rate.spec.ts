@@ -2,8 +2,22 @@ import { organizerStateFile } from '../../../helpers/user-data';
 import { getId } from '../../../helpers/get-id';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { fillTemplateBasics } from '../../support/utils/template-form';
+import type { Page } from '@playwright/test';
 
 test.use({ storageState: organizerStateFile });
+
+const enablePaymentForFirstParticipantRegistrationOption = async (
+  page: Page,
+) => {
+  const paymentCheckbox = page
+    .locator('app-template-registration-option-form')
+    .last()
+    .getByRole('checkbox', { name: 'Enable Payment' })
+    .first();
+
+  await paymentCheckbox.check();
+  await expect(paymentCheckbox).toBeChecked();
+};
 
 test.describe('Template Tax Rate Validation', () => {
   test('creator must select tax rate for paid registration option', async ({
@@ -11,16 +25,16 @@ test.describe('Template Tax Rate Validation', () => {
     templateCategories,
   }) => {
     const category = templateCategories[0];
-    await page.goto('/templates/create');
+    await page.goto(`/templates/create/${category.id}`);
     await fillTemplateBasics(page, {
-      categoryTitle: category.title,
+      description: null,
       title: `Paid tax required ${getId().slice(0, 6)}`,
     });
 
     const saveButton = page.getByRole('button', { name: 'Save template' });
     await expect(page.getByLabel('Tax rate')).toHaveCount(0);
 
-    await page.getByRole('switch', { name: 'Enable Payment' }).first().click();
+    await enablePaymentForFirstParticipantRegistrationOption(page);
 
     await expect(page.getByLabel('Price (in cents)').first()).toBeVisible();
     await expect(page.getByLabel('Tax rate').first()).toBeVisible();
@@ -49,12 +63,12 @@ test.describe('Template Tax Rate Validation', () => {
     }%`;
     const templateTitle = `Paid template ${getId().slice(0, 6)}`;
 
-    await page.goto('/templates/create');
+    await page.goto(`/templates/create/${category.id}`);
     await fillTemplateBasics(page, {
-      categoryTitle: category.title,
+      description: null,
       title: templateTitle,
     });
-    await page.getByRole('switch', { name: 'Enable Payment' }).first().click();
+    await enablePaymentForFirstParticipantRegistrationOption(page);
     await page.getByLabel('Price (in cents)').first().fill('1000');
     await page.getByLabel('Tax rate').first().click();
     await expect(

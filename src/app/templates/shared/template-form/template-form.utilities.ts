@@ -10,6 +10,7 @@ import {
   createTemplateRegistrationFormModel,
   mergeTemplateRegistrationFormOverrides,
   TemplateRegistrationFormModel,
+  TemplateRegistrationFormOverrides,
   TemplateRegistrationSubmitData,
 } from './template-registration-option-form.utilities';
 
@@ -19,8 +20,8 @@ export interface TemplateFormData extends TemplateGeneralFormModel {
 }
 
 export type TemplateFormOverrides = TemplateGeneralFormOverrides & {
-  organizerRegistration?: Partial<TemplateRegistrationFormModel>;
-  participantRegistration?: Partial<TemplateRegistrationFormModel>;
+  organizerRegistration?: TemplateRegistrationFormOverrides;
+  participantRegistration?: TemplateRegistrationFormOverrides;
 };
 
 export type TemplateFormSubmitData = Omit<
@@ -47,14 +48,14 @@ export const createTemplateFormModel = (
     }),
   };
 
-  const organizerRegistration = createTemplateRegistrationFormModel({
-    ...base.organizerRegistration,
-    ...overrides.organizerRegistration,
-  });
-  const participantRegistration = createTemplateRegistrationFormModel({
-    ...base.participantRegistration,
-    ...overrides.participantRegistration,
-  });
+  const organizerRegistration = mergeTemplateRegistrationFormOverrides(
+    overrides.organizerRegistration ?? {},
+    base.organizerRegistration,
+  );
+  const participantRegistration = mergeTemplateRegistrationFormOverrides(
+    overrides.participantRegistration ?? {},
+    base.participantRegistration,
+  );
   const generalOverrides: TemplateGeneralFormOverrides = {};
   if (overrides.categoryId !== undefined) {
     generalOverrides.categoryId = overrides.categoryId;

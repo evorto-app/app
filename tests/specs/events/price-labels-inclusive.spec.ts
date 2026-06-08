@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { eq } from 'drizzle-orm';
 
 import { adminStateFile, userStateFile } from '../../../helpers/user-data';
@@ -13,6 +13,16 @@ const registrationOptionCard = (page: Page, optionTitle: string) =>
   page.locator('app-event-registration-option').filter({
     has: page.getByRole('heading', { level: 3, name: optionTitle }),
   });
+
+const templateOptionCard = (page: Page, optionTitle: string) =>
+  page.locator('.bg-surface').filter({
+    has: page.getByRole('heading', { level: 3, name: optionTitle }),
+  });
+
+const visiblePrice = (card: Locator, amountInCents: number) =>
+  card
+    .locator('app-price-with-tax')
+    .getByText(priceText(amountInCents), { exact: true });
 
 test.describe('Inclusive price labels', () => {
   test.describe('without a verified discount card', () => {
@@ -43,7 +53,7 @@ test.describe('Inclusive price labels', () => {
       await expect(page).toHaveURL(`/events/${paidEventId}`);
 
       const card = registrationOptionCard(page, paidOption.title);
-      await expect(card.getByText(priceText(paidOption.price))).toBeVisible();
+      await expect(visiblePrice(card, paidOption.price)).toBeVisible();
       await expect(
         card.getByText(formatInclusiveTaxLabel(taxRate)),
       ).toBeVisible();
@@ -107,7 +117,7 @@ test.describe('Inclusive price labels', () => {
         await expect(page).toHaveURL(`/events/${paidEventId}`);
 
         const card = registrationOptionCard(page, paidOption.title);
-        await expect(card.getByText(priceText(paidOption.price))).toBeVisible();
+        await expect(visiblePrice(card, paidOption.price)).toBeVisible();
         await expect(card.getByText('Tax free')).toBeVisible();
       } finally {
         await database
@@ -142,7 +152,7 @@ test.describe('Inclusive price labels', () => {
         await expect(page).toHaveURL(`/events/${paidEventId}`);
 
         const card = registrationOptionCard(page, paidOption.title);
-        await expect(card.getByText(priceText(paidOption.price))).toBeVisible();
+        await expect(visiblePrice(card, paidOption.price)).toBeVisible();
         await expect(card.getByText('Incl. Tax')).toBeVisible();
       } finally {
         await database
@@ -167,7 +177,7 @@ test.describe('Inclusive price labels', () => {
         await database.query.templateRegistrationOptions.findFirst({
           where: {
             isPaid: true,
-            organizingRegistration: false,
+            organizingRegistration: true,
             templateId: paidTemplate.id,
           },
         });
@@ -184,11 +194,8 @@ test.describe('Inclusive price labels', () => {
       await page.goto(`/templates/${paidTemplate.id}`);
       await expect(page).toHaveURL(`/templates/${paidTemplate.id}`);
 
-      const card = page
-        .getByRole('heading', { level: 3, name: paidOption.title })
-        .locator('..')
-        .locator('..');
-      await expect(card.getByText(priceText(paidOption.price))).toBeVisible();
+      const card = templateOptionCard(page, paidOption.title);
+      await expect(visiblePrice(card, paidOption.price)).toBeVisible();
       await expect(
         card.getByText(formatInclusiveTaxLabel(taxRate)),
       ).toBeVisible();
@@ -224,7 +231,7 @@ test.describe('Inclusive price labels', () => {
       await expect(page).toHaveURL(`/events/${paidEventId}`);
 
       const card = registrationOptionCard(page, paidOption.title);
-      await expect(card.getByText(priceText(discountedPrice))).toBeVisible();
+      await expect(visiblePrice(card, discountedPrice)).toBeVisible();
       await expect(
         card.getByText(formatInclusiveTaxLabel(taxRate)),
       ).toBeVisible();

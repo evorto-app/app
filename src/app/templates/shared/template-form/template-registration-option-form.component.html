@@ -5,13 +5,26 @@
 </mat-form-field>
 
 <section class="grid gap-3">
-  <mat-slide-toggle [formField]="form.isPaid">Enable Payment</mat-slide-toggle>
+  <label class="flex items-center gap-3 text-sm">
+    <input
+      type="checkbox"
+      class="h-5 w-5"
+      [checked]="form.isPaid().value()"
+      (change)="setPaid($any($event.target).checked)"
+    />
+    <span>Enable Payment</span>
+  </label>
 
-  @if (!form.price().hidden()) {
+  @if (form.isPaid().value()) {
     <div class="grid gap-4">
       <mat-form-field class="w-full">
         <mat-label>Price (in cents)</mat-label>
-        <input matInput type="number" [formField]="form.price" />
+        <input
+          matInput
+          type="number"
+          aria-label="Price (in cents)"
+          [formField]="form.price"
+        />
       </mat-form-field>
 
       @if (esnEnabled()) {
@@ -31,7 +44,7 @@
 
       <mat-form-field class="w-full">
         <mat-label>Tax rate</mat-label>
-        <mat-select [formField]="form.stripeTaxRateId">
+        <mat-select aria-label="Tax rate" [formField]="form.stripeTaxRateId">
           @if (taxRatesQuery.isPending()) {
             <mat-option disabled>Loading tax rates ...</mat-option>
           } @else if (taxRatesQuery.isSuccess()) {

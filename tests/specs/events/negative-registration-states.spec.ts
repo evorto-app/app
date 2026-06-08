@@ -1,18 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 import type { Page } from '@playwright/test';
 
-import {
-  emptyStateFile,
-  userStateFile,
-  usersToAuthenticate,
-} from '../../../helpers/user-data';
+import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
-const noRoleUser = usersToAuthenticate.find(
-  (user) => user.stateFile === emptyStateFile,
-);
 
 const waitForRegistrationStatus = async (page: Pick<Page, 'getByText'>) => {
   await page
@@ -68,93 +62,172 @@ test.describe('Negative registration states', () => {
 
       const targetEventId = seeded.scenario.events.freeOpen.eventId;
       const targetOptionId = seeded.scenario.events.freeOpen.optionId;
-      const targetOption =
-        await database.query.eventRegistrationOptions.findFirst({
-          where: { id: targetOptionId, tenantId: tenant.id },
-        });
+      const [targetOption] = await database
+        .select()
+        .from(schema.eventRegistrationOptions)
+        .where(
+          and(
+            eq(schema.eventRegistrationOptions.id, targetOptionId),
+            eq(schema.eventRegistrationOptions.eventId, targetEventId),
+          ),
+        )
+        .limit(1);
       if (!targetOption) {
         throw new Error('Expected seeded freeOpen registration option');
       }
-
-      await database
-        .delete(schema.eventRegistrations)
-        .where(
-          and(
-            eq(schema.eventRegistrations.eventId, targetEventId),
-            eq(schema.eventRegistrations.tenantId, tenant.id),
-            eq(schema.eventRegistrations.userId, regularUser.id),
-          ),
-        );
-      await database
-        .update(schema.eventRegistrationOptions)
-        .set({
-          confirmedSpots: targetOption.spots,
-          reservedSpots: 0,
-          waitlistSpots: 0,
-        })
-        .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-
-      await page.goto(`/events/${targetEventId}`);
-      await waitForRegistrationStatus(page);
-
-      await expect(page.getByText('This option is full.')).toBeVisible();
-      const waitlistButton = page.getByRole('button', {
-        name: 'Join waitlist',
+      const targetEvent = await database.query.eventInstances.findFirst({
+        where: { id: targetEventId, tenantId: tenant.id },
       });
-      await expect(waitlistButton).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: /^Register$/ }),
-      ).toHaveCount(0);
+      if (!targetEvent) {
+        throw new Error('Expected seeded freeOpen event');
+      }
+      const serverEventWindow = futureServerEventWindow();
 
-      await waitlistButton.click();
-      await expect(
-        page.getByText('You are currently on the waitlist'),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: 'Leave waitlist' }),
-      ).toBeVisible();
+      try {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({
+            closeRegistrationTime: serverEventWindow.closeRegistrationTime,
+            confirmedSpots: targetOption.spots,
+            openRegistrationTime: serverEventWindow.openRegistrationTime,
+            reservedSpots: 0,
+            waitlistSpots: 0,
+          })
+          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+        await database
+          .update(schema.eventInstances)
+          .set({
+            end: serverEventWindow.end,
+            start: serverEventWindow.start,
+          })
+          .where(eq(schema.eventInstances.id, targetEventId));
 
-      const waitlistRegistration =
-        await database.query.eventRegistrations.findFirst({
-          where: {
-            eventId: targetEventId,
-            registrationOptionId: targetOptionId,
-            status: 'WAITLIST',
-            tenantId: tenant.id,
-            userId: regularUser.id,
-          },
+        await page.goto(`/events/${targetEventId}`);
+        await waitForRegistrationStatus(page);
+
+        await expect(page.getByText('This option is full.')).toBeVisible();
+        const waitlistButton = page.getByRole('button', {
+          name: 'Join waitlist',
         });
-      expect(waitlistRegistration).toBeTruthy();
+        await expect(waitlistButton).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: /^Register$/ }),
+        ).toHaveCount(0);
+
+        await waitlistButton.click();
+        await expect(
+          page.getByText('You are currently on the waitlist'),
+        ).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: 'Leave waitlist' }),
+        ).toBeVisible();
+
+        const [waitlistRegistration] = await database
+          .select()
+          .from(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(
+                schema.eventRegistrations.registrationOptionId,
+                targetOptionId,
+              ),
+              eq(schema.eventRegistrations.status, 'WAITLIST'),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          )
+          .limit(1);
+        expect(waitlistRegistration).toBeTruthy();
+      } finally {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({
+            closeRegistrationTime: targetOption.closeRegistrationTime,
+            confirmedSpots: targetOption.confirmedSpots,
+            openRegistrationTime: targetOption.openRegistrationTime,
+            reservedSpots: targetOption.reservedSpots,
+            waitlistSpots: targetOption.waitlistSpots,
+          })
+          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+        await database
+          .update(schema.eventInstances)
+          .set({
+            end: targetEvent.end,
+            start: targetEvent.start,
+          })
+          .where(eq(schema.eventInstances.id, targetEventId));
+      }
     });
   });
 
   test.describe('user without eligible roles', () => {
-    test.use({ storageState: noRoleUser?.stateFile ?? emptyStateFile });
+    test.use({ storageState: userStateFile });
 
     test('keeps a direct event link visible with explicit ineligible copy', async ({
+      database,
       page,
+      roles,
       seeded,
     }) => {
-      if (!noRoleUser) {
-        throw new Error('Expected no-role user fixture');
-      }
-
       const targetEventId = seeded.scenario.events.freeOpen.eventId;
-      await page.goto(`/events/${targetEventId}`);
-      await expect(page).toHaveURL(`/events/${targetEventId}`);
-      await waitForRegistrationStatus(page);
+      const targetOptionId = seeded.scenario.events.freeOpen.optionId;
+      const targetOption =
+        await database.query.eventRegistrationOptions.findFirst({
+          where: { eventId: targetEventId, id: targetOptionId },
+        });
+      if (!targetOption) {
+        throw new Error('Expected seeded freeOpen registration option');
+      }
+      const organizerRoleIds = roles
+        .filter((role) => role.defaultOrganizerRole)
+        .map((role) => role.id);
 
-      await expect(
-        page.getByRole('heading', { name: 'Registration unavailable' }),
-      ).toBeVisible();
-      await expect(
-        page.getByText(
-          'This event is visible from the direct link, but your account is not eligible for the available registration options.',
-        ),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: /^Register$/ }),
-      ).toHaveCount(0);
+      try {
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({ roleIds: organizerRoleIds })
+          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+
+        await page.goto(`/events/${targetEventId}`);
+        await expect(page).toHaveURL(`/events/${targetEventId}`);
+        await waitForRegistrationStatus(page);
+
+        await expect(
+          page.getByRole('heading', { name: 'Registration unavailable' }),
+        ).toBeVisible();
+        await expect(
+          page.getByText(
+            'This event is visible from the direct link, but your account is not eligible for the available registration options.',
+          ),
+        ).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: /^Register$/ }),
+        ).toHaveCount(0);
+      } finally {
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({ roleIds: targetOption.roleIds })
+          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+      }
     });
   });
 });
