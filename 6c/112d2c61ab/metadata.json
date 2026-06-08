@@ -5,7 +5,8 @@
   "branch": "codex/pr62-split-09-finance-docs-captions",
   "checkpoints_count": 0,
   "files_touched": [
-    "docker-compose.yml"
+    "tests/specs/events/free-registration.test.ts",
+    "tests/specs/events/registration-addons.test.ts"
   ],
   "sessions": [
     {
@@ -16,10 +17,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 30173,
+    "input_tokens": 66681,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 1099648,
-    "output_tokens": 2094,
-    "api_call_count": 9
+    "cache_read_tokens": 6761344,
+    "output_tokens": 10233,
+    "api_call_count": 33
   }
 }
