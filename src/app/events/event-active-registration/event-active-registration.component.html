@@ -74,6 +74,7 @@
             {{ cancellation.helperText }}
           </p>
           <button
+            type="button"
             mat-stroked-button
             (click)="cancelRegistration(registration)"
             [disabled]="cancelRegistrationMutation.isPending()"

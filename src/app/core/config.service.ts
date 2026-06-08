@@ -117,7 +117,7 @@ export class ConfigService {
     if (tenant.seoDescription) {
       this.updateDescription(tenant.seoDescription);
     } else {
-      this.meta.removeTag('name="description"');
+      this.meta.removeTag("name='description'");
     }
   }
 

@@ -578,34 +578,32 @@ describe('userHandlers', () => {
     }),
   );
 
-  it('userAssigned reflects the current tenant assignment header', () => {
-    expect(
-      Effect.runSync(
-        userHandlers['users.userAssigned'](undefined, {
-          headers: {
-            [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'true',
-          },
-        } as never),
-      ),
-    ).toBe(true);
-    expect(
-      Effect.runSync(
-        userHandlers['users.userAssigned'](undefined, {
-          headers: {
-            [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'false',
-          },
-        } as never),
-      ),
-    ).toBe(false);
-  });
+  it.effect('userAssigned reflects the current tenant assignment header', () =>
+    Effect.gen(function* () {
+      const assigned = yield* userHandlers['users.userAssigned'](undefined, {
+        headers: {
+          [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'true',
+        },
+      } as never);
+      expect(assigned).toBe(true);
 
-  it('userAssigned fails closed when the assignment header is absent', () => {
-    expect(
-      Effect.runSync(
-        userHandlers['users.userAssigned'](undefined, {
+      const unassigned = yield* userHandlers['users.userAssigned'](undefined, {
+        headers: {
+          [RPC_CONTEXT_HEADERS.USER_ASSIGNED]: 'false',
+        },
+      } as never);
+      expect(unassigned).toBe(false);
+    }),
+  );
+
+  it.effect(
+    'userAssigned fails closed when the assignment header is absent',
+    () =>
+      Effect.gen(function* () {
+        const assigned = yield* userHandlers['users.userAssigned'](undefined, {
           headers: {},
-        } as never),
-      ),
-    ).toBe(false);
-  });
+        } as never);
+        expect(assigned).toBe(false);
+      }),
+  );
 });
