@@ -85,7 +85,7 @@ describe('adminHandlers role permissions', () => {
           roles: {
             findFirst: () =>
               Effect.succeed({
-                collapseMembersInHub: true,
+                collapseMembersInHup: true,
                 defaultOrganizerRole: false,
                 defaultUserRole: true,
                 description: 'Visible in the hub',

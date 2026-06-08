@@ -84,13 +84,8 @@ const assertUniqueFigureEvidence = (
 
 class DocumentationReporter implements Reporter {
   private readonly environment = readDocumentationEnvironment();
+  private readonly listOnly = process.argv.includes('--list');
   private readonly registry = new DocumentationGroupRegistry();
-
-  constructor(private readonly options: { listOnly?: boolean } = {}) {}
-
-  private get listOnly(): boolean {
-    return this.options.listOnly ?? process.argv.includes('--list');
-  }
 
   private docsRoot(options?: { empty?: boolean }): string {
     const root = this.environment.docsOutputDirectory;

@@ -315,10 +315,10 @@ Awesome dependency guard, and Bun package/dependency-tree cache restores for
 workflows that install dependencies. The Neon cleanup workflow stays
 install-free and does not need that registry setup.
 `helpers/testing/install-ci-dependencies.sh` centralizes the GitHub Actions
-Bun cache/offline install policy: `warm` mode is used by the serial E2E cache
-warmer and Copilot setup so cold cache or lockfile-key misses can bootstrap
-dependencies once, while E2E workers use `offline-required` mode and fail before
-opening another registry install path when warmed caches are missing.
+Bun cache/offline install policy: `warm` mode is reserved for the serial E2E
+cache warmer, while E2E workers and Copilot setup use `offline-required` mode
+and fail before opening another registry install path when warmed caches are
+missing.
 Docker builds also write a temporary public Font Awesome npm user config before
 container installs, writes an empty npm global config, and locks the shared
 BuildKit Bun cache mount so parallel install stages do not race the cache. CI
