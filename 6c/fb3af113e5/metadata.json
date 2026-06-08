@@ -5,7 +5,7 @@
   "branch": "codex/pr62-split-01-registration-schema",
   "checkpoints_count": 0,
   "files_touched": [
-    "src/server/effect/rpc/handlers/events/events-registration.handlers.ts"
+    "tests/support/fixtures/parallel-test.ts"
   ],
   "sessions": [
     {
@@ -16,10 +16,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 61486,
+    "input_tokens": 156352,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 5135488,
-    "output_tokens": 5659,
-    "api_call_count": 28
+    "cache_read_tokens": 2552832,
+    "output_tokens": 8786,
+    "api_call_count": 44
   }
 }
