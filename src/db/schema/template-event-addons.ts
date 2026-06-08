@@ -26,7 +26,7 @@ export const templateEventAddons = pgTable('template_event_addons', {
   stripeTaxRateId: varchar(),
   templateId: varchar({ length: 20 })
     .notNull()
-    .references(() => eventTemplates.id),
+    .references(() => eventTemplates.id, { onDelete: 'cascade' }),
   title: text().notNull(),
   totalAvailableQuantity: integer().notNull(),
   updatedAt: timestamp()

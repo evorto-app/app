@@ -19,17 +19,20 @@ export const eventRegistrationQuestions = pgTable(
     description: text(),
     eventId: varchar({ length: 20 })
       .notNull()
-      .references(() => eventInstances.id),
+      .references(() => eventInstances.id, { onDelete: 'cascade' }),
     id: varchar({ length: 20 })
       .$defaultFn(() => createId())
       .primaryKey(),
     registrationOptionId: varchar({ length: 20 })
       .notNull()
-      .references(() => eventRegistrationOptions.id),
+      .references(() => eventRegistrationOptions.id, {
+        onDelete: 'cascade',
+      }),
     required: boolean().notNull().default(true),
     sortOrder: integer().notNull().default(0),
     sourceTemplateQuestionId: varchar({ length: 20 }).references(
       () => templateRegistrationQuestions.id,
+      { onDelete: 'set null' },
     ),
     title: text().notNull(),
     updatedAt: timestamp()

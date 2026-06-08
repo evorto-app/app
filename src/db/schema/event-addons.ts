@@ -2,9 +2,9 @@ import {
   boolean,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
-  unique,
   varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -21,7 +21,7 @@ export const eventAddons = pgTable('event_addons', {
   description: text(),
   eventId: varchar({ length: 20 })
     .notNull()
-    .references(() => eventInstances.id),
+    .references(() => eventInstances.id, { onDelete: 'cascade' }),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
     .primaryKey(),
@@ -42,13 +42,15 @@ export const addonToEventRegistrationOptions = pgTable(
   {
     addonId: varchar({ length: 20 })
       .notNull()
-      .references(() => eventAddons.id),
+      .references(() => eventAddons.id, { onDelete: 'cascade' }),
     quantity: integer().notNull(),
     registrationOptionId: varchar({ length: 20 })
       .notNull()
-      .references(() => eventRegistrationOptions.id),
+      .references(() => eventRegistrationOptions.id, { onDelete: 'cascade' }),
   },
   (table) => ({
-    unique: unique().on(table.addonId, table.registrationOptionId),
+    pk: primaryKey({
+      columns: [table.addonId, table.registrationOptionId],
+    }),
   }),
 );

@@ -21,12 +21,14 @@ export const templateRegistrationQuestions = pgTable(
       .primaryKey(),
     registrationOptionId: varchar({ length: 20 })
       .notNull()
-      .references(() => templateRegistrationOptions.id),
+      .references(() => templateRegistrationOptions.id, {
+        onDelete: 'cascade',
+      }),
     required: boolean().notNull().default(true),
     sortOrder: integer().notNull().default(0),
     templateId: varchar({ length: 20 })
       .notNull()
-      .references(() => eventTemplates.id),
+      .references(() => eventTemplates.id, { onDelete: 'cascade' }),
     title: text().notNull(),
     updatedAt: timestamp()
       .notNull()

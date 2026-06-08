@@ -7,6 +7,7 @@ import {
   PLATFORM_ID,
   RendererFactory2,
   REQUEST_CONTEXT,
+  signal,
 } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { injectQuery } from '@tanstack/angular-query-experimental';
@@ -21,6 +22,8 @@ import { AppRpc } from './effect-rpc-angular-client';
   providedIn: 'root',
 })
 export class ConfigService {
+  public readonly tenantSignal = signal<null | Tenant>(null);
+
   public get missingContext() {
     return this._missingContext;
   }
@@ -69,10 +72,11 @@ export class ConfigService {
     effect(() => {
       const currentTenant = this.currentTenantQuery.data();
       if (currentTenant) {
-        if (this.tenant) {
+        const previousTenant = this.tenantSignal();
+        if (previousTenant) {
           this.renderer.removeClass(
             this.document.documentElement,
-            `theme-${this.tenant.theme}`,
+            `theme-${previousTenant.theme}`,
           );
         }
         this.applyTenantConfig(currentTenant);
@@ -112,6 +116,7 @@ export class ConfigService {
 
   private applyTenantConfig(tenant: Tenant): void {
     this._tenant = tenant;
+    this.tenantSignal.set(tenant);
     this.title.setTitle(tenant.seoTitle ?? tenant.name);
     this.updateFavicon(tenant.faviconUrl ?? 'favicon.ico');
     if (tenant.seoDescription) {

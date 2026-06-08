@@ -144,9 +144,10 @@ export class GeneralSettingsComponent {
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
   private readonly configService = inject(ConfigService);
-  protected readonly tenantIdentityRows = computed(() =>
-    tenantIdentityRows(this.configService.tenant),
-  );
+  protected readonly tenantIdentityRows = computed(() => {
+    const tenant = this.configService.tenantSignal();
+    return tenant ? tenantIdentityRows(tenant) : [];
+  });
   protected readonly timezoneOptions = supportedTenantTimezones;
   protected readonly updateSettingsMutation = injectMutation(() =>
     this.rpc.admin.tenant.updateSettings.mutationOptions(),
@@ -158,7 +159,7 @@ export class GeneralSettingsComponent {
 
   constructor() {
     effect(() => {
-      const currentTenant = this.configService.tenant;
+      const currentTenant = this.configService.tenantSignal();
       if (currentTenant) {
         const receiptCountrySettings = resolveReceiptCountrySettings(
           currentTenant.receiptSettings,

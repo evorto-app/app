@@ -151,9 +151,13 @@ test.skip('approve and record receipt reimbursements in finance', async ({
     tenantId: tenant.id,
   });
 
+  const escapedReceiptFileName = receiptFileName.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    '\\$&',
+  );
   await page.goto('/finance/receipts-approval');
   const pendingReceipt = page.getByRole('link', {
-    name: new RegExp(receiptFileName),
+    name: new RegExp(escapedReceiptFileName),
   });
   await expect(pendingReceipt).toHaveAttribute(
     'href',

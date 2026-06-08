@@ -42,47 +42,55 @@ test('regular user transfers an unpaid confirmed registration by email', async (
         ]),
       ),
     );
-  await database.insert(schema.eventRegistrations).values({
-    eventId: targetEventId,
-    id: registrationId,
-    registrationOptionId: targetOptionId,
-    status: 'CONFIRMED',
-    tenantId: tenant.id,
-    userId: regularUser.id,
-  });
-
-  await page.goto(`/events/${targetEventId}`);
-  await page
-    .getByText('Loading registration status')
-    .first()
-    .waitFor({ state: 'detached' });
-
-  await expect(page.getByText('Your registration is confirmed')).toBeVisible();
-  await expect(
-    page.getByText(
-      'You can transfer this unpaid registration to another eligible tenant member by email.',
-    ),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Transfer registration' }).click();
-
-  const dialog = page.getByRole('dialog', { name: 'Transfer registration' });
-  await expect(dialog).toBeVisible();
-  await dialog
-    .getByLabel('New participant email')
-    .fill(` ${targetUser.email} `);
-  await dialog.getByRole('button', { name: 'Transfer registration' }).click();
-  await expect(dialog).not.toBeVisible();
-
-  const transferredRegistration =
-    await database.query.eventRegistrations.findFirst({
-      where: {
-        id: registrationId,
-        tenantId: tenant.id,
-      },
+  try {
+    await database.insert(schema.eventRegistrations).values({
+      eventId: targetEventId,
+      id: registrationId,
+      registrationOptionId: targetOptionId,
+      status: 'CONFIRMED',
+      tenantId: tenant.id,
+      userId: regularUser.id,
     });
-  if (!transferredRegistration) {
-    throw new Error('Expected transferred registration after transfer flow');
+
+    await page.goto(`/events/${targetEventId}`);
+    await page
+      .getByText('Loading registration status')
+      .first()
+      .waitFor({ state: 'detached' });
+
+    await expect(
+      page.getByText('Your registration is confirmed'),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        'You can transfer this unpaid registration to another eligible tenant member by email.',
+      ),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Transfer registration' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Transfer registration' });
+    await expect(dialog).toBeVisible();
+    await dialog
+      .getByLabel('New participant email')
+      .fill(` ${targetUser.email} `);
+    await dialog.getByRole('button', { name: 'Transfer registration' }).click();
+    await expect(dialog).not.toBeVisible();
+
+    const transferredRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: registrationId,
+          tenantId: tenant.id,
+        },
+      });
+    if (!transferredRegistration) {
+      throw new Error('Expected transferred registration after transfer flow');
+    }
+    expect(transferredRegistration.userId).toBe(targetUser.id);
+    expect(transferredRegistration.status).toBe('CONFIRMED');
+  } finally {
+    await database
+      .delete(schema.eventRegistrations)
+      .where(eq(schema.eventRegistrations.id, registrationId));
   }
-  expect(transferredRegistration.userId).toBe(targetUser.id);
-  expect(transferredRegistration.status).toBe('CONFIRMED');
 });
