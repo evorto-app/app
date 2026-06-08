@@ -24,6 +24,7 @@ import { AppRpc } from './effect-rpc-angular-client';
 export class ConfigService {
   public readonly permissionsSignal = signal<Permission[]>([]);
   public readonly tenantSignal = signal<null | Tenant>(null);
+  public readonly permissionsSignal = signal<Permission[]>([]);
 
   public get missingContext() {
     return this._missingContext;
