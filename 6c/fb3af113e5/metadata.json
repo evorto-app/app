@@ -3,7 +3,7 @@
   "checkpoint_id": "6cfb3af113e5",
   "strategy": "manual-commit",
   "branch": "codex/pr62-split-01-registration-schema",
-  "checkpoints_count": 0,
+  "checkpoints_count": 1,
   "files_touched": null,
   "sessions": [
     {
@@ -14,10 +14,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 80573,
+    "input_tokens": 3970672,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 1853824,
-    "output_tokens": 5740,
-    "api_call_count": 29
+    "cache_read_tokens": 145599360,
+    "output_tokens": 320315,
+    "api_call_count": 1200
   }
 }
