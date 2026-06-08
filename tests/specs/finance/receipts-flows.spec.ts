@@ -24,39 +24,23 @@ const submitReceiptFromFirstEvent = async (
 ) => {
   await openEventOrganizePage(page, eventId);
   await expect(page.getByRole('heading', { name: 'Receipts' })).toBeVisible();
-  await expect(page.getByText('Loading receipts...')).not.toBeVisible({
-    timeout: 20_000,
-  });
-  await expect(
-    page.getByText('Receipts can be added after the event has loaded.'),
-  ).not.toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Add receipt' }).click();
-  const receiptDialog = page.locator('app-receipt-submit-dialog');
-  await expect(receiptDialog).toBeVisible();
-  await expect(
-    receiptDialog.getByLabel('Deposit amount (EUR)'),
-  ).not.toBeVisible();
-  await receiptDialog
-    .locator('mat-checkbox', { hasText: 'Deposit involved' })
-    .click();
-  await expect(receiptDialog.getByLabel('Deposit amount (EUR)')).toBeVisible();
-  await expect(
-    receiptDialog.getByLabel('Alcohol amount (EUR)'),
-  ).not.toBeVisible();
-  await receiptDialog
-    .locator('mat-checkbox', { hasText: 'Alcohol purchased' })
-    .click();
-  await expect(receiptDialog.getByLabel('Alcohol amount (EUR)')).toBeVisible();
+  await expect(page.getByLabel('Deposit amount (EUR)')).not.toBeVisible();
+  await page.getByRole('checkbox', { name: 'Deposit involved' }).check();
+  await expect(page.getByLabel('Deposit amount (EUR)')).toBeVisible();
+  await expect(page.getByLabel('Alcohol amount (EUR)')).not.toBeVisible();
+  await page.getByRole('checkbox', { name: 'Alcohol purchased' }).check();
+  await expect(page.getByLabel('Alcohol amount (EUR)')).toBeVisible();
 
-  await receiptDialog.getByLabel('Total amount (EUR)').fill('14.50');
-  await receiptDialog.getByLabel('Alcohol amount (EUR)').fill('1.50');
-  await receiptDialog.getByLabel('Purchase country').click();
+  await page.getByLabel('Total amount (EUR)').fill('14.50');
+  await page.getByLabel('Alcohol amount (EUR)').fill('1.50');
+  await page.getByLabel('Purchase country').click();
   await page.getByRole('option', { name: 'Germany (DE)' }).click();
-  await receiptDialog
+  await page
     .locator('input[type="file"][accept="image/*,application/pdf"]')
     .setInputFiles(receiptFile);
-  await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
-  await expect(receiptDialog).not.toBeVisible();
+  await page.getByRole('button', { name: 'Submit receipt' }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
 };
 
 const seedPendingReceiptForApproval = async ({
@@ -96,45 +80,13 @@ const seedPendingReceiptForApproval = async ({
   });
 };
 
-test.skip('submit receipt from event organize page', async ({
-  database,
-  page,
-  seeded,
-}) => {
+test('submit receipt from event organize page', async ({ page, seeded }) => {
   const eventId = seeded.scenario.events.past.eventId;
   const receiptFile = path.resolve('tests/fixtures/sample-receipt.pdf');
-  const [event] = await database
-    .select()
-    .from(schema.eventInstances)
-    .where(eq(schema.eventInstances.id, eventId))
-    .limit(1);
-  if (!event) {
-    throw new Error('Expected seeded past event for receipt submission flow');
-  }
-
-  try {
-    const now = new Date();
-    await database
-      .update(schema.eventInstances)
-      .set({
-        end: new Date(now.getTime() - 60 * 60 * 1000),
-        start: new Date(now.getTime() - 3 * 60 * 60 * 1000),
-      })
-      .where(eq(schema.eventInstances.id, eventId));
-
-    await submitReceiptFromFirstEvent(page, eventId, receiptFile);
-  } finally {
-    await database
-      .update(schema.eventInstances)
-      .set({
-        end: event.end,
-        start: event.start,
-      })
-      .where(eq(schema.eventInstances.id, eventId));
-  }
+  await submitReceiptFromFirstEvent(page, eventId, receiptFile);
 });
 
-test.skip('approve and record receipt reimbursements in finance', async ({
+test('approve and record receipt reimbursements in finance', async ({
   database,
   page,
   seedDate,
@@ -250,7 +202,7 @@ test.skip('approve and record receipt reimbursements in finance', async ({
   }
 });
 
-test.skip('receipt dialog shows Other option when tenant allows it', async ({
+test('receipt dialog shows Other option when tenant allows it', async ({
   database,
   page,
   seeded,

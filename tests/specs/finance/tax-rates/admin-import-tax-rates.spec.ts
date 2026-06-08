@@ -5,7 +5,7 @@ import { openAdminTools } from '../../../support/utils/admin-tools';
 test.use({ storageState: adminStateFile });
 
 test.describe('Admin Tax Rates Import', () => {
-  test.skip('admin with tax permission can open tax rates settings and import dialog @finance @taxRates', async ({
+  test('admin with tax permission can open tax rates settings and import dialog @finance @taxRates', async ({
     isMobile,
     page,
     permissionOverride,

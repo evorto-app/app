@@ -1718,7 +1718,8 @@ provider outcomes without live identifiers.
 - Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
   Free registration and registration add-on specs now assert the seeded
   `freeOpen` event option exists in the current tenant before mutating counters
-  or add-on records.
+  or add-on records, then fail explicitly if expected registration/add-on
+  readback rows are missing.
 - Playwright skip/fixme usage is locally audited; add new entries only when
   the gap is intentionally credential-gated or an honest Browser-backed
   stabilization placeholder, and record the reason in

@@ -42,9 +42,8 @@ services:
       - .:/workspace:ro
       - "${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local"
     command:
-      - /bin/sh
-      - -lc
-      - bun helpers/testing/set-neon-local-branch-expiration.ts || true
+      - bun
+      - helpers/testing/set-neon-local-branch-expiration.ts
     restart: "no"
 
   db-setup:

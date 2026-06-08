@@ -302,11 +302,9 @@ jobs:
           fi
 
           if [ "${{ matrix.suite }}" = "functional-1" ]; then
-            bunx playwright test --project=local-chrome-baseline --shard=1/2 \
-              --grep-invert 'doc-screenshot returns a relative path and writes image|navigate to events list|create template in empty category|create a new template|template create form hides selected roles in autocomplete|register for a free event as regular user|@finance'
+            node_modules/.bin/playwright test --project=local-chrome-baseline --shard=1/2
           else
-            bunx playwright test --project=local-chrome-baseline --shard=2/2 \
-              --grep-invert 'doc-screenshot returns a relative path and writes image|navigate to events list|create template in empty category|create a new template|template create form hides selected roles in autocomplete|register for a free event as regular user|@finance'
+            node_modules/.bin/playwright test --project=local-chrome-baseline --shard=2/2
           fi
 
       - name: Run Playwright docs suite
