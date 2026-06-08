@@ -1,4 +1,11 @@
-import { pgEnum, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import {
+  pgEnum,
+  pgTable,
+  timestamp,
+  uniqueIndex,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
 import { eventRegistrations } from './event-registrations';
 import { modelOfTenant } from './model';
@@ -26,4 +33,11 @@ export const registrationTransferIntents = pgTable(
       .references(() => eventRegistrations.id),
     status: registrationTransferIntentStatus().notNull().default('pending'),
   },
+  (table) => ({
+    uniquePendingSourceRegistration: uniqueIndex(
+      'registration_transfer_intents_pending_source_registration_unique',
+    )
+      .on(table.sourceRegistrationId)
+      .where(sql`${table.status} = 'pending'`),
+  }),
 );

@@ -726,6 +726,16 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                   const cancelledSourceRegistration =
                     cancelledSourceRegistrations[0];
                   if (cancelledSourceRegistration) {
+                    yield* tx
+                      .update(schema.eventRegistrationAddonPurchases)
+                      .set({ registrationId })
+                      .where(
+                        eq(
+                          schema.eventRegistrationAddonPurchases.registrationId,
+                          transferIntent.sourceRegistrationId,
+                        ),
+                      );
+
                     const sourceTransactions =
                       yield* tx.query.transactions.findMany({
                         columns: {
@@ -784,6 +794,24 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                         });
                       }
                     }
+                  } else {
+                    yield* tx
+                      .update(schema.eventRegistrationOptions)
+                      .set({
+                        confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + ${registeredSpotCount}`,
+                      })
+                      .where(
+                        and(
+                          eq(
+                            schema.eventRegistrationOptions.id,
+                            updatedRegistration.registrationOptionId,
+                          ),
+                          eq(
+                            schema.eventRegistrationOptions.eventId,
+                            updatedRegistration.eventId,
+                          ),
+                        ),
+                      );
                   }
                 } else {
                   yield* tx
@@ -932,6 +960,39 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                 const registeredSpotCount = registrationSpotCount(
                   updatedRegistration.guestCount,
                 );
+                const transferIntent =
+                  yield* tx.query.registrationTransferIntents.findFirst({
+                    columns: {
+                      id: true,
+                    },
+                    where: {
+                      replacementRegistrationId: registrationId,
+                      status: 'pending',
+                      tenantId,
+                    },
+                  });
+                if (transferIntent) {
+                  yield* tx
+                    .update(schema.registrationTransferIntents)
+                    .set({ replacementRegistrationId: null })
+                    .where(
+                      and(
+                        eq(
+                          schema.registrationTransferIntents.id,
+                          transferIntent.id,
+                        ),
+                        eq(
+                          schema.registrationTransferIntents.status,
+                          'pending',
+                        ),
+                        eq(
+                          schema.registrationTransferIntents.tenantId,
+                          tenantId,
+                        ),
+                      ),
+                    );
+                  return;
+                }
 
                 yield* tx
                   .update(schema.eventRegistrationOptions)
