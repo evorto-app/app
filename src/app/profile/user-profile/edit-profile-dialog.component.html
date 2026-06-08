@@ -17,16 +17,16 @@
         autocomplete="email"
         [formField]="profileForm.communicationEmail"
       />
+      @if (
+        profileForm.communicationEmail().touched() &&
+        profileForm.communicationEmail().invalid()
+      ) {
+        <mat-error>
+          Enter the email address where event and finance notifications should
+          be sent.
+        </mat-error>
+      }
     </mat-form-field>
-    @if (
-      profileForm.communicationEmail().touched() &&
-      profileForm.communicationEmail().invalid()
-    ) {
-      <p class="text-error text-sm">
-        Enter the email address where event and finance notifications should be
-        sent.
-      </p>
-    }
     <mat-form-field>
       <mat-label>IBAN (for reimbursements)</mat-label>
       <input matInput [formField]="profileForm.iban" />

@@ -89,16 +89,11 @@ test('documentation reporter leaves docs/image roots untouched in list-only mode
   fs.writeFileSync(staleDocPath, 'stale doc');
   fs.writeFileSync(staleImagePath, 'stale image');
 
-  process.argv.push('--list');
-  try {
-    const reporter = new DocumentationReporter();
-    // @ts-expect-error stubs
-    reporter.onBegin({}, {});
-    // @ts-expect-error minimal stubs for types
-    reporter.onEnd({});
-  } finally {
-    process.argv.pop();
-  }
+  const reporter = new DocumentationReporter({ listOnly: true });
+  // @ts-expect-error stubs
+  reporter.onBegin({}, {});
+  // @ts-expect-error minimal stubs for types
+  reporter.onEnd({});
 
   expect(fs.readFileSync(staleDocPath, 'utf-8')).toBe('stale doc');
   expect(fs.readFileSync(staleImagePath, 'utf-8')).toBe('stale image');

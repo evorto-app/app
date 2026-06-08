@@ -519,7 +519,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                         .update(schema.eventRegistrationOptions)
                         .set({
                           confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + 1`,
-                          reservedSpots: sql`${schema.eventRegistrationOptions.reservedSpots} - 1`,
+                          reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - 1, 0)`,
                         })
                         .where(
                           and(
@@ -531,7 +531,6 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                               schema.eventRegistrationOptions.eventId,
                               updatedRegistration.eventId,
                             ),
-                            sql`${schema.eventRegistrationOptions.reservedSpots} > 0`,
                           ),
                         );
                     }),
@@ -600,7 +599,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       return tx
                         .update(schema.eventRegistrationOptions)
                         .set({
-                          reservedSpots: sql`${schema.eventRegistrationOptions.reservedSpots} - 1`,
+                          reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - 1, 0)`,
                         })
                         .where(
                           and(
@@ -612,7 +611,6 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                               schema.eventRegistrationOptions.eventId,
                               updatedRegistration.eventId,
                             ),
-                            sql`${schema.eventRegistrationOptions.reservedSpots} > 0`,
                           ),
                         );
                     }),

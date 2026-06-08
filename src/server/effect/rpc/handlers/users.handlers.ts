@@ -155,9 +155,9 @@ export const userHandlers = {
                 },
               });
 
-              const userId =
-                existingUser?.id ??
-                (yield* tx
+              let userId = existingUser?.id;
+              if (!userId) {
+                const createdUsers = yield* tx
                   .insert(users)
                   .values({
                     auth0Id,
@@ -168,16 +168,15 @@ export const userHandlers = {
                   })
                   .returning({
                     id: users.id,
-                  })
-                  .pipe(
-                    Effect.map((createdUsers) => {
-                      const createdUser = createdUsers[0];
-                      if (!createdUser) {
-                        throw new Error('User insert returned no rows');
-                      }
-                      return createdUser.id;
-                    }),
-                  ));
+                  });
+                const createdUser = createdUsers[0];
+                if (!createdUser) {
+                  return yield* Effect.die(
+                    new Error('User insert returned no rows'),
+                  );
+                }
+                userId = createdUser.id;
+              }
 
               const existingTenantAssignment =
                 yield* tx.query.usersToTenants.findFirst({
