@@ -4,10 +4,7 @@
   "strategy": "manual-commit",
   "branch": "codex/pr62-split-01-registration-schema",
   "checkpoints_count": 0,
-  "files_touched": [
-    "tests/specs/events/free-registration.test.ts",
-    "tests/support/fixtures/parallel-test.ts"
-  ],
+  "files_touched": null,
   "sessions": [
     {
       "metadata": "/6c/fb3af113e5/0/metadata.json",
@@ -17,10 +14,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 79462,
+    "input_tokens": 75304,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 5079936,
-    "output_tokens": 8924,
-    "api_call_count": 37
+    "cache_read_tokens": 2040960,
+    "output_tokens": 7197,
+    "api_call_count": 32
   }
 }
