@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "4d396b7e5166",
+  "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-08T19:09:17.36539Z",
+  "branch": "codex/pr62-split-07-organizer-receipt-query",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "src/db/schema/registration-transfer-intents.ts",
+    "src/server/http/stripe-webhook.web-handler.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "071e805c9918",
+  "token_usage": {
+    "input_tokens": 6433508,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 316711936,
+    "output_tokens": 583534,
+    "api_call_count": 2472
+  },
+  "session_metrics": {
+    "turn_count": 12
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
