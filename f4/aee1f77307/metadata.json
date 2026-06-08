@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "f4aee1f77307",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-03-tenant-legal-pages",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "src/app/admin/general-settings/general-settings.identity.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f4/aee1f77307/0/metadata.json",
+      "transcript": "/f4/aee1f77307/0/full.jsonl",
+      "content_hash": "/f4/aee1f77307/0/content_hash.txt",
+      "prompt": "/f4/aee1f77307/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 5946625,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 260020480,
+    "output_tokens": 507156,
+    "api_call_count": 2100
+  }
+}
