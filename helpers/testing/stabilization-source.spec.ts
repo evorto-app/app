@@ -1021,6 +1021,9 @@ describe('stabilization source', () => {
     );
     expect(documentationReporter).toContain('private get listOnly(): boolean');
     expect(documentationReporter).toContain(
+      'constructor(private readonly options: { listOnly?: boolean } = {})',
+    );
+    expect(documentationReporter).toContain(
       "return this.options.listOnly ?? process.argv.includes('--list');",
     );
     expect(documentationReporter).toContain('if (this.listOnly)');
@@ -4037,6 +4040,9 @@ describe('stabilization source', () => {
     );
     expect(copilotSetupWorkflow).toContain('cancel-in-progress: true');
     expect(copilotSetupWorkflow).toContain('CI_DEPENDENCY_INSTALL_MODE: warm');
+    expect(copilotSetupWorkflow).not.toContain(
+      'Bun dependency tree cache was not restored for Copilot setup. Refusing a registry install',
+    );
     expect(copilotSetupWorkflow).not.toContain('FONT_AWESOME_TOKEN');
     expect(copilotSetupWorkflow).not.toContain('npm.fontawesome.com');
     expect(workflow).toContain(
@@ -4218,6 +4224,9 @@ describe('stabilization source', () => {
       'BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-caches.outputs.dependency-tree-cache-hit }}',
     );
     expect(copilotSetupWorkflow).toContain('CI_DEPENDENCY_INSTALL_MODE: warm');
+    expect(copilotSetupWorkflow).not.toContain(
+      'Bun dependency tree cache was not restored for Copilot setup. Refusing a registry install',
+    );
     expect(copilotSetupWorkflow).not.toContain('bun pm cache rm');
     expect(copilotSetupWorkflow).not.toContain(
       'Configure Font Awesome registry auth',
@@ -7220,11 +7229,12 @@ describe('stabilization source', () => {
     expect(copilotWorkflow).toContain(
       'BUN_DEPENDENCY_TREE_CACHE_HIT: ${{ steps.bun-dependency-caches.outputs.dependency-tree-cache-hit }}',
     );
-    expect(copilotWorkflow).toContain(
-      'CI_DEPENDENCY_INSTALL_MODE: warm',
-    );
+    expect(copilotWorkflow).toContain('CI_DEPENDENCY_INSTALL_MODE: warm');
     expect(copilotWorkflow).toContain(
       'run: bash helpers/testing/install-ci-dependencies.sh',
+    );
+    expect(copilotWorkflow).not.toContain(
+      'Bun dependency tree cache was not restored for Copilot setup. Refusing a registry install',
     );
     expect(copilotWorkflow).toContain(
       'Save Bun dependency tree from package cache',

@@ -1269,11 +1269,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(copilotSetupWorkflow).toContain(
       'run: bash helpers/testing/install-ci-dependencies.sh',
     );
-    expect(copilotSetupWorkflow).toContain(
-      'CI_DEPENDENCY_INSTALL_MODE: offline-required',
-    );
-    expect(copilotSetupWorkflow).toContain(
-      'Retrying once through the Copilot setup registry install.',
+    expect(copilotSetupWorkflow).toContain('CI_DEPENDENCY_INSTALL_MODE: warm');
+    expect(copilotSetupWorkflow).not.toContain(
+      'Bun dependency tree cache was not restored for Copilot setup. Refusing a registry install',
     );
     expect(installDependenciesHelper).toContain(
       'Bun dependency tree cache restored; skipping registry install.',
@@ -1312,8 +1310,8 @@ describe('evaluateRuntimePreflight', () => {
       'key: ${{ runner.os }}-playwright-1.59.1-chromium',
     );
     expect(copilotSetupWorkflow).not.toContain('bunx playwright');
-    expect(copilotSetupWorkflow).toContain(
-      'bun install --frozen-lockfile --cache-dir ~/.bun/install/cache',
+    expect(copilotSetupWorkflow).not.toContain(
+      'Bun dependency tree cache was not restored for Copilot setup. Refusing a registry install',
     );
     expect(copilotSetupWorkflow).not.toContain('bun pm cache rm');
     expect(copilotSetupWorkflow).not.toContain(
