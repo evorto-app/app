@@ -1,3 +1,4 @@
+import type { GlobalAdminTenantRecord } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import type { Headers } from 'effect/unstable/http';
 
 import {
@@ -6,7 +7,6 @@ import {
 } from '@shared/errors/rpc-errors';
 import { Effect, Schema } from 'effect';
 
-import type { GlobalAdminTenantRecord } from '../../../../shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';

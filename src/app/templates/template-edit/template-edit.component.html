@@ -40,11 +40,7 @@
         </div>
       </div>
 
-      <button
-        type="submit"
-        mat-button
-        [disabled]="templateForm().invalid() || templateForm().submitting()"
-      >
+      <button type="submit" mat-button [disabled]="!canSubmit()">
         Update template
       </button>
     </form>

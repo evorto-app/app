@@ -60,22 +60,10 @@ export class TemplateEditComponent {
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
 
-  protected readonly esnEnabled = computed(() => {
-    const providers = this.discountProvidersQuery.data();
-    if (!providers) return false;
-    return (
-      providers.find((provider) => provider.type === 'esnCard')?.status ===
-      'enabled'
-    );
-  });
-  protected readonly faArrowLeft = faArrowLeft;
-  protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
   protected readonly templateId = input.required<string>();
-
   protected readonly templateQuery = injectQuery(() =>
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
-
   protected readonly simpleTemplateData = computed(() => {
     const templateData = this.templateQuery.data();
     if (!templateData) return templateData;
@@ -93,7 +81,6 @@ export class TemplateEditComponent {
       participantRegistration,
     };
   });
-
   private readonly templateModel = linkedSignal<
     TemplateFormOverrides,
     TemplateFormData
@@ -107,6 +94,25 @@ export class TemplateEditComponent {
     this.templateModel,
     templateFormSchema,
   );
+
+  protected readonly canSubmit = computed(
+    () =>
+      this.discountProvidersQuery.isSuccess() &&
+      !this.templateForm().invalid() &&
+      !this.templateForm().submitting(),
+  );
+
+  protected readonly esnEnabled = computed(() => {
+    if (!this.discountProvidersQuery.isSuccess()) return false;
+    const providers = this.discountProvidersQuery.data();
+    return (
+      providers.find((provider) => provider.type === 'esnCard')?.status ===
+      'enabled'
+    );
+  });
+
+  protected readonly faArrowLeft = faArrowLeft;
+  protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
 
   protected readonly updateTemplateMutation = injectMutation(() =>
     this.rpc.templates.updateSimpleTemplate.mutationOptions(),
@@ -123,6 +129,10 @@ export class TemplateEditComponent {
         logger.warn('Submit blocked: missing icon', {
           value: formValue,
         });
+        return;
+      }
+      if (!this.discountProvidersQuery.isSuccess()) {
+        logger.warn('Submit blocked: discount providers are not loaded');
         return;
       }
       const id = this.templateId();

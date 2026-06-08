@@ -81,6 +81,21 @@ describe('tenantLegalPageContent', () => {
     expect(tenantLegalPageContent(tenant, 'terms')).toBe('Terms text');
   });
 
+  it('suppresses hosted page content when an external URL is configured', () => {
+    const tenant = {
+      legalNoticeText: 'Stale imprint text',
+      legalNoticeUrl: 'https://section.example.org/imprint',
+      privacyPolicyText: 'Stale privacy text',
+      privacyPolicyUrl: 'https://section.example.org/privacy',
+      termsText: 'Stale terms text',
+      termsUrl: 'https://section.example.org/terms',
+    };
+
+    expect(tenantLegalPageContent(tenant, 'imprint')).toBeUndefined();
+    expect(tenantLegalPageContent(tenant, 'privacy')).toBeUndefined();
+    expect(tenantLegalPageContent(tenant, 'terms')).toBeUndefined();
+  });
+
   it('returns readable public page titles', () => {
     expect(tenantLegalPageTitle('imprint')).toBe('Imprint');
     expect(tenantLegalPageTitle('privacy')).toBe('Privacy policy');

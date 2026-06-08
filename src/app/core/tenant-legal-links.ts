@@ -18,6 +18,11 @@ export type TenantLegalPage = 'imprint' | 'privacy' | 'terms';
 const textOrNothing = (value: null | string | undefined): string | undefined =>
   value?.trim() || undefined;
 
+const pageTextOrNothing = (
+  href: null | string | undefined,
+  text: null | string | undefined,
+): string | undefined => (href?.trim() ? undefined : textOrNothing(text));
+
 const linkOrNothing = (
   label: string,
   href: null | string | undefined,
@@ -65,13 +70,16 @@ export const tenantLegalPageContent = (
 
   switch (page) {
     case 'imprint': {
-      return textOrNothing(tenant.legalNoticeText);
+      return pageTextOrNothing(tenant.legalNoticeUrl, tenant.legalNoticeText);
     }
     case 'privacy': {
-      return textOrNothing(tenant.privacyPolicyText);
+      return pageTextOrNothing(
+        tenant.privacyPolicyUrl,
+        tenant.privacyPolicyText,
+      );
     }
     case 'terms': {
-      return textOrNothing(tenant.termsText);
+      return pageTextOrNothing(tenant.termsUrl, tenant.termsText);
     }
   }
 };

@@ -25,13 +25,35 @@ export type SupportedTenantCurrency =
 export type SupportedTenantLocale = (typeof supportedTenantLocales)[number];
 export type SupportedTenantTimezone = (typeof supportedTenantTimezones)[number];
 
-const normalizeTenantLocale = (value: string): SupportedTenantLocale =>
-  value === 'en' ? 'en-GB' : (value as SupportedTenantLocale);
+const normalizeTenantLocale = (value: string): SupportedTenantLocale => {
+  if (value === 'en') {
+    return 'en-GB';
+  }
 
-const normalizeTenantTimezone = (value: string): SupportedTenantTimezone =>
-  value === 'Europe/Amsterdam'
-    ? 'Europe/Berlin'
-    : (value as SupportedTenantTimezone);
+  const supportedLocale = supportedTenantLocales.find(
+    (locale) => locale === value,
+  );
+  if (supportedLocale) {
+    return supportedLocale;
+  }
+
+  throw new Error(`Unsupported tenant locale: ${value}`);
+};
+
+const normalizeTenantTimezone = (value: string): SupportedTenantTimezone => {
+  if (value === 'Europe/Amsterdam') {
+    return 'Europe/Berlin';
+  }
+
+  const supportedTimezone = supportedTenantTimezones.find(
+    (timezone) => timezone === value,
+  );
+  if (supportedTimezone) {
+    return supportedTimezone;
+  }
+
+  throw new Error(`Unsupported tenant timezone: ${value}`);
+};
 
 const TenantLocale = Schema.String.pipe(
   Schema.decodeTo(SupportedTenantLocale, {
