@@ -15011,6 +15011,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('const financeOverviewNavigationCard =');
     expect(source).toContain("locator('app-finance-overview nav a')");
     expect(source).toContain('const financeNavigation =');
+    expect(source).toContain(
+      'Finance overview navigation with permission-scoped child pages',
+    );
     expect(source).toContain('const transactionRow =');
     expect(source).toContain(
       "page.getByRole('row').filter({ hasText: comment })",
@@ -15054,6 +15057,9 @@ describe('generated docs source current behavior', () => {
       'receipt approval access includes transactions',
     );
     expect(source).not.toContain('single finance permission');
+    expect(source).not.toContain(
+      'Finance overview page with tenant payment and receipt summaries',
+    );
   });
 
   it('keeps template docs aligned with the simple-mode relaunch surface', () => {
@@ -15436,6 +15442,12 @@ describe('generated docs source current behavior', () => {
       "pendingCheckoutRegistrationCard.getByText(\n        'To finalize your registration you have to pay the registration fee.',",
     );
     expect(source).toContain(
+      'Paid event registration options before starting Stripe Checkout',
+    );
+    expect(source).toContain(
+      'Pending paid registration card with Pay now recovery action',
+    );
+    expect(source).not.toContain(
       'Paid registration card before the pending checkout recovery state',
     );
     expect(source).toContain(
@@ -15711,6 +15723,7 @@ describe('generated docs source current behavior', () => {
       "has: page.getByRole('heading', { name: input.optionTitle })",
     );
     expect(source).toContain("filter({ hasText: 'Participant option' })");
+    expect(source).not.toContain('const futureStart = DateTime.now().plus');
     expect(source).toContain(
       '// The remaining screenshots use a seeded event with the same event-details surface.',
     );

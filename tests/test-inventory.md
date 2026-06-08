@@ -184,7 +184,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     omitted cancelled transaction, submitted receipt, and approved receipt rows
     before screenshotting the permission-scoped finance navigation surface,
     visible transaction row, submitted receipt approval row, and approved
-    reimbursement row.
+    reimbursement row. The overview screenshot caption is pinned to the
+    permission-scoped navigation surface so the generated docs do not overclaim
+    tenant payment summaries that are covered by the child pages instead.
   - `docs/finance/inclusive-tax-rates.doc.ts` screenshots seeded compatible VAT
     tax-rate rows, the filtered Stripe import dialog with VAT/imported chips and
     the Import selected action, and the full paid registration option tax-rate

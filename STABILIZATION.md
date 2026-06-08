@@ -8479,6 +8479,19 @@ now recovery action**, and the real Stripe Checkout sandbox image. These images
 show the claimed product states rather than unrelated, duplicated, or
 heading-only screenshots.
 
+The final current-head docs artifact audit for E2E run `27109787686` downloaded
+the `e2e-docs` artifact from PR head `3aa495e8` and inspected the generated
+Markdown/image set. The artifact contains 18 generated pages and 80+ 1280x720
+PNG figures. Representative images for confirmed registration with add-ons and
+QR ticket, Stripe Checkout, scanner guest check-in, profile registration cards,
+and finance navigation showed the claimed UI states with highlighted evidence
+targets. The audit found one over-broad finance overview caption: the image
+correctly showed the permission-scoped finance navigation surface, while the
+caption claimed tenant payment and receipt summaries. The finance generated doc
+now captions that screenshot as **Finance overview navigation with
+permission-scoped child pages**, and the generated-doc source guard rejects the
+old overclaim.
+
 The latest public General Browser mobile refresh was captured on PR head
 `7cc6dcc1` after reconnecting to the already-running worktree Docker app at
 `BASE_URL=http://localhost:4200`. `bun run dev:status` passed the database

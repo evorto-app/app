@@ -180,7 +180,7 @@ To access the finance overview, navigate to the **Finances** section from the ma
       testInfo,
       financeNavigation,
       page,
-      'Finance overview page with tenant payment and receipt summaries',
+      'Finance overview navigation with permission-scoped child pages',
     );
 
     await testInfo.attach('markdown', {
