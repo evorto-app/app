@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "89f3f06c903e",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-06-browser-transport-blocker",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/workflows/e2e-baseline.yml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/89/f3f06c903e/0/metadata.json",
+      "transcript": "/89/f3f06c903e/0/full.jsonl",
+      "content_hash": "/89/f3f06c903e/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 37447,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3149568,
+    "output_tokens": 2971,
+    "api_call_count": 18
+  }
+}
