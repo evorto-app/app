@@ -123,6 +123,7 @@
         #logoAssetInput
         type="file"
         class="hidden"
+        aria-label="Upload tenant logo file"
         accept="image/png,image/jpeg,image/webp,image/gif"
         (change)="uploadBrandAsset('logo', $event)"
       />
@@ -150,6 +151,7 @@
         #faviconAssetInput
         type="file"
         class="hidden"
+        aria-label="Upload tenant favicon file"
         accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,image/vnd.microsoft.icon"
         (change)="uploadBrandAsset('favicon', $event)"
       />

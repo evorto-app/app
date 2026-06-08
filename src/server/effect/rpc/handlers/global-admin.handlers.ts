@@ -170,9 +170,7 @@ export const globalAdminHandlers = {
       );
       const createdTenant = createdTenants[0];
       if (!createdTenant) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({ message: 'Tenant could not be created' }),
-        );
+        return yield* Effect.die(new Error('Tenant creation returned no rows'));
       }
 
       return toGlobalAdminTenantRecord(createdTenant);

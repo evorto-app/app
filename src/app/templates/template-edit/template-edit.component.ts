@@ -96,6 +96,10 @@ export class TemplateEditComponent {
     templateFormSchema,
   );
 
+  protected readonly updateTemplateMutation = injectMutation(() =>
+    this.rpc.templates.updateSimpleTemplate.mutationOptions(),
+  );
+
   protected readonly canSubmit = computed(
     () =>
       this.discountProvidersQuery.isSuccess() &&
@@ -114,13 +118,9 @@ export class TemplateEditComponent {
       'enabled'
     );
   });
-
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
 
-  protected readonly updateTemplateMutation = injectMutation(() =>
-    this.rpc.templates.updateSimpleTemplate.mutationOptions(),
-  );
+  protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
   private queryClient = inject(QueryClient);
   private router = inject(Router);
 

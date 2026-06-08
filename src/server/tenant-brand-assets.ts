@@ -5,6 +5,7 @@ import {
   RpcInternalServerError,
 } from '@shared/errors/rpc-errors';
 import { Effect } from 'effect';
+import { randomUUID } from 'node:crypto';
 
 import { uploadObjectToR2 } from './integrations/cloudflare-r2';
 
@@ -55,7 +56,15 @@ export const tenantBrandAssetStorageKey = (input: {
   fileName: string;
   kind: AdminTenantBrandAssetKind;
   tenantId: string;
-}) => `tenant-assets/${input.tenantId}/${input.kind}/${input.fileName}`;
+}) => {
+  const tenantId = input.tenantId.trim();
+  if (!tenantId) {
+    throw new RpcBadRequestError({
+      message: 'Tenant id is required for brand asset storage',
+    });
+  }
+  return `tenant-assets/${tenantId}/${input.kind}/${input.fileName}`;
+};
 
 export const tenantBrandAssetUrl = (input: {
   fileName: string;
@@ -115,7 +124,7 @@ export const uploadTenantBrandAsset = (input: {
     const safeBaseName = sanitizeTenantBrandAssetFileName(input.fileName)
       .replace(/\.[^.]+$/, '')
       .slice(0, 80);
-    const fileName = `${Date.now()}-${safeBaseName}.${extension}`;
+    const fileName = `${randomUUID()}-${safeBaseName}.${extension}`;
     const storageKey = tenantBrandAssetStorageKey({
       fileName,
       kind: input.kind,

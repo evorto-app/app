@@ -67,6 +67,19 @@ export const generalSettingsBrandAssetUploadDisabled = ({
   uploadingBrandAsset: AdminTenantBrandAssetKind | null;
 }): boolean => uploadingBrandAsset !== null || mutationPending;
 
+const tenantBrandAssetClientMaxSizeBytes = 5 * 1024 * 1024;
+const tenantBrandAssetClientMimeTypes = {
+  favicon: new Set([
+    'image/gif',
+    'image/jpeg',
+    'image/png',
+    'image/vnd.microsoft.icon',
+    'image/webp',
+    'image/x-icon',
+  ]),
+  logo: new Set(['image/gif', 'image/jpeg', 'image/png', 'image/webp']),
+} satisfies Record<AdminTenantBrandAssetKind, ReadonlySet<string>>;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -243,6 +256,26 @@ export class GeneralSettingsComponent {
       return;
     }
     if (this.brandAssetUploadDisabled()) {
+      if (input) {
+        input.value = '';
+      }
+      return;
+    }
+    if (!tenantBrandAssetClientMimeTypes[kind].has(file.type)) {
+      this.notifications.showError(
+        kind === 'favicon'
+          ? 'Favicons must be PNG, JPEG, WebP, GIF, or ICO files'
+          : 'Logos must be PNG, JPEG, WebP, or GIF files',
+      );
+      if (input) {
+        input.value = '';
+      }
+      return;
+    }
+    if (file.size <= 0 || file.size > tenantBrandAssetClientMaxSizeBytes) {
+      this.notifications.showError(
+        'Brand asset file must be between 1 byte and 5 MB',
+      );
       if (input) {
         input.value = '';
       }

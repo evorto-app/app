@@ -57,6 +57,9 @@ const logger = consola.withTag('app/templates/create');
 })
 export class TemplateCreateComponent {
   private readonly rpc = AppRpc.injectClient();
+  protected readonly createTemplateMutation = injectMutation(() =>
+    this.rpc.templates.createSimpleTemplate.mutationOptions(),
+  );
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
@@ -91,6 +94,7 @@ export class TemplateCreateComponent {
     this.templateModel,
     templateFormSchema,
   );
+
   protected readonly canSubmit = computed(
     () =>
       this.discountProvidersQuery.isSuccess() &&
@@ -99,10 +103,6 @@ export class TemplateCreateComponent {
         formSubmitting: this.templateForm().submitting(),
         mutationPending: this.createTemplateMutation.isPending(),
       }),
-  );
-
-  protected readonly createTemplateMutation = injectMutation(() =>
-    this.rpc.templates.createSimpleTemplate.mutationOptions(),
   );
 
   protected readonly esnEnabled = computed(() => {

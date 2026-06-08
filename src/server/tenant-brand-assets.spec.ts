@@ -48,6 +48,12 @@ const objectStorageProviderLayer = ConfigProvider.layer(
 );
 
 beforeEach(() => {
+  if (!originalBunRuntime) {
+    Object.defineProperty(runtimeGlobal, 'Bun', {
+      configurable: true,
+      value: bunRuntime,
+    });
+  }
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-05-20T12:00:00.000Z'));
 });
@@ -59,7 +65,7 @@ afterEach(() => {
     return;
   }
 
-  bunRuntime.S3Client = originalS3Client;
+  delete runtimeGlobal.Bun;
 });
 
 describe('tenant brand assets', () => {
@@ -115,18 +121,17 @@ describe('tenant brand assets', () => {
         tenantId: 'tenant-1',
       }).pipe(Effect.provide(objectStorageProviderLayer));
 
-      expect(captured.key).toBe(
-        'tenant-assets/tenant-1/logo/1779278400000-Section-Logo.png',
+      expect(captured.key).toMatch(
+        /^tenant-assets\/tenant-1\/logo\/[0-9a-f-]{36}-Section-Logo\.png$/,
       );
       expect(new Uint8Array(write.mock.calls[0]?.[0] as Uint8Array)).toEqual(
         new Uint8Array([1, 2, 3]),
       );
       expect(write.mock.calls[0]?.[1]).toEqual({ type: 'image/png' });
       expect(result).toEqual({
-        assetUrl: '/tenant-assets/tenant-1/logo/1779278400000-Section-Logo.png',
+        assetUrl: `/${captured.key}`,
         sizeBytes: 3,
-        storageKey:
-          'tenant-assets/tenant-1/logo/1779278400000-Section-Logo.png',
+        storageKey: captured.key,
       });
     }),
   );

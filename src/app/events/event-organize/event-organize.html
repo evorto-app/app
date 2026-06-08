@@ -79,12 +79,14 @@
                   <div class="flex flex-wrap gap-2">
                     <button
                       mat-stroked-button
+                      type="button"
                       (click)="openTransferDialog(user)"
                       [disabled]="
                         organizerRegistrationActionDisabled({
                           checkedIn: user.checkedIn,
                           mutationPending:
-                            transferRegistrationMutation.isPending(),
+                            transferRegistrationMutation.isPending() ||
+                            cancelRegistrationMutation.isPending(),
                         })
                       "
                     >
@@ -92,12 +94,14 @@
                     </button>
                     <button
                       mat-stroked-button
+                      type="button"
                       (click)="cancelRegistration(user)"
                       [disabled]="
                         organizerRegistrationActionDisabled({
                           checkedIn: user.checkedIn,
                           mutationPending:
-                            cancelRegistrationMutation.isPending(),
+                            cancelRegistrationMutation.isPending() ||
+                            transferRegistrationMutation.isPending(),
                         })
                       "
                     >

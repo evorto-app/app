@@ -12,7 +12,7 @@ import {
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { and, eq, gte, isNull, not, sql } from 'drizzle-orm';
+import { and, eq, gte, ilike, inArray, isNull, not, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -21,7 +21,10 @@ import { Database } from '../../../../../db';
 import {
   eventRegistrationOptions,
   eventRegistrations,
+  rolesToTenantUsers,
   transactions,
+  users,
+  usersToTenants,
 } from '../../../../../db/schema';
 import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
@@ -58,7 +61,7 @@ const isWithinCheckInWindow = (eventStart: Date, now = new Date()): boolean =>
   eventStart.getTime() - now.getTime() <= CHECK_IN_PRE_START_WINDOW_MS;
 
 const normalizeTransferTargetSearch = (search: string | undefined) =>
-  search?.trim().toLocaleLowerCase() ?? '';
+  search?.trim().toLowerCase() ?? '';
 
 const hasSuccessfulPaidRegistrationTransaction = (
   transactionsToCheck: readonly {
@@ -959,75 +962,71 @@ export const eventRegistrationHandlers = {
       );
 
       const tenantUsers = yield* databaseEffect((database) =>
-        database.query.usersToTenants.findMany({
-          columns: {
-            id: true,
-            userId: true,
-          },
-          limit: 100,
-          where: {
-            tenantId: tenant.id,
-          },
-          with: {
-            roles: {
-              columns: {
-                id: true,
-              },
-            },
-            user: {
-              columns: {
-                email: true,
-                firstName: true,
-                id: true,
-                lastName: true,
-              },
-            },
-          },
-        }),
+        database
+          .select({
+            email: users.email,
+            firstName: users.firstName,
+            id: usersToTenants.id,
+            lastName: users.lastName,
+            userId: usersToTenants.userId,
+          })
+          .from(usersToTenants)
+          .innerJoin(users, eq(usersToTenants.userId, users.id))
+          .where(
+            normalizedSearch
+              ? and(
+                  eq(usersToTenants.tenantId, tenant.id),
+                  ilike(users.searchableInfo, `%${normalizedSearch}%`),
+                )
+              : eq(usersToTenants.tenantId, tenant.id),
+          )
+          .limit(100),
       );
+      const tenantUserIds = tenantUsers.map((tenantUser) => tenantUser.id);
+      const tenantUserRoles =
+        tenantUserIds.length > 0
+          ? yield* databaseEffect((database) =>
+              database
+                .select({
+                  roleId: rolesToTenantUsers.roleId,
+                  userTenantId: rolesToTenantUsers.userTenantId,
+                })
+                .from(rolesToTenantUsers)
+                .where(inArray(rolesToTenantUsers.userTenantId, tenantUserIds)),
+            )
+          : [];
+      const roleIdsByTenantUserId = new Map<string, Set<string>>();
+      for (const tenantUserRole of tenantUserRoles) {
+        const roleIds =
+          roleIdsByTenantUserId.get(tenantUserRole.userTenantId) ?? new Set();
+        roleIds.add(tenantUserRole.roleId);
+        roleIdsByTenantUserId.set(tenantUserRole.userTenantId, roleIds);
+      }
 
       return tenantUsers
         .filter((tenantUser) => {
-          if (!tenantUser.user || tenantUser.userId === registration.userId) {
+          if (tenantUser.userId === registration.userId) {
             return false;
           }
           if (activeUserIds.has(tenantUser.userId)) {
             return false;
           }
 
-          const roleIds = new Set(tenantUser.roles.map((role) => role.id));
+          const roleIds = roleIdsByTenantUserId.get(tenantUser.id) ?? new Set();
           const roleEligible = registrationOption.roleIds.some((roleId) =>
             roleIds.has(roleId),
           );
           if (!roleEligible) {
             return false;
           }
-
-          if (!normalizedSearch) {
-            return true;
-          }
-
-          const searchable = [
-            tenantUser.user.firstName,
-            tenantUser.user.lastName,
-            tenantUser.user.email,
-          ]
-            .join(' ')
-            .toLocaleLowerCase();
-          return searchable.includes(normalizedSearch);
+          return true;
         })
-        .flatMap((tenantUser) =>
-          tenantUser.user
-            ? [
-                {
-                  email: tenantUser.user.email,
-                  firstName: tenantUser.user.firstName,
-                  id: tenantUser.user.id,
-                  lastName: tenantUser.user.lastName,
-                },
-              ]
-            : [],
-        )
+        .map((tenantUser) => ({
+          email: tenantUser.email,
+          firstName: tenantUser.firstName,
+          id: tenantUser.userId,
+          lastName: tenantUser.lastName,
+        }))
         .toSorted((userA, userB) => {
           const lastNameCompare = userA.lastName.localeCompare(userB.lastName);
           return lastNameCompare === 0
@@ -1339,7 +1338,7 @@ export const eventRegistrationHandlers = {
   ) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
-      const normalizedTargetEmail = targetEmail.trim().toLocaleLowerCase();
+      const normalizedTargetEmail = targetEmail.trim().toLowerCase();
 
       if (!normalizedTargetEmail) {
         return yield* Effect.fail(
@@ -1349,16 +1348,14 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      const targetUser = yield* databaseEffect((database) =>
-        database.query.users.findFirst({
-          columns: {
-            id: true,
-          },
-          where: {
-            email: normalizedTargetEmail,
-          },
-        }),
+      const targetUsers = yield* databaseEffect((database) =>
+        database
+          .select({ id: users.id })
+          .from(users)
+          .where(ilike(users.email, normalizedTargetEmail))
+          .limit(1),
       );
+      const targetUser = targetUsers[0];
 
       if (!targetUser) {
         return yield* Effect.fail(

@@ -5,6 +5,9 @@ import { Database } from '../../../../../db';
 import {
   eventRegistrationOptions,
   eventRegistrations,
+  rolesToTenantUsers,
+  users,
+  usersToTenants,
 } from '../../../../../db/schema';
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
@@ -257,6 +260,20 @@ const createTransferDatabase = ({
         findFirst: () => Effect.succeed(targetTenantUser),
       },
     },
+    select: () => ({
+      from: (table: unknown) => ({
+        where: () => ({
+          limit: () => {
+            if (table === users) {
+              return Effect.succeed(targetUser ? [targetUser] : []);
+            }
+            return Effect.succeed([]);
+          },
+        }),
+      }),
+    }),
+    transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+      run(tx),
     update: (table: unknown) => ({
       set: (values: unknown) => {
         updateSets.push(values);
@@ -278,6 +295,36 @@ const createTransferDatabase = ({
 };
 
 const createTransferTargetsDatabase = () => {
+  const tenantUserRows = [
+    {
+      email: 'current@example.com',
+      firstName: 'Current',
+      id: 'tenant-user-current',
+      lastName: 'Owner',
+      userId: 'attendee-1',
+    },
+    {
+      email: 'alex@example.com',
+      firstName: 'Alex',
+      id: 'tenant-user-eligible',
+      lastName: 'Able',
+      userId: 'target-user-1',
+    },
+    {
+      email: 'registered@example.com',
+      firstName: 'Already',
+      id: 'tenant-user-active',
+      lastName: 'Registered',
+      userId: 'already-registered-user',
+    },
+    {
+      email: 'other@example.com',
+      firstName: 'Other',
+      id: 'tenant-user-ineligible',
+      lastName: 'Role',
+      userId: 'other-user-1',
+    },
+  ];
   const database = {
     query: {
       eventRegistrationOptions: {
@@ -370,6 +417,45 @@ const createTransferTargetsDatabase = () => {
           ]),
       },
     },
+    select: () => ({
+      from: (table: unknown) => {
+        if (table === usersToTenants) {
+          return {
+            innerJoin: () => ({
+              where: () => ({
+                limit: () => Effect.succeed(tenantUserRows),
+              }),
+            }),
+          };
+        }
+
+        if (table === rolesToTenantUsers) {
+          return {
+            where: () =>
+              Effect.succeed([
+                {
+                  roleId: 'participant-role-1',
+                  userTenantId: 'tenant-user-current',
+                },
+                {
+                  roleId: 'participant-role-1',
+                  userTenantId: 'tenant-user-eligible',
+                },
+                {
+                  roleId: 'participant-role-1',
+                  userTenantId: 'tenant-user-active',
+                },
+                {
+                  roleId: 'other-role-1',
+                  userTenantId: 'tenant-user-ineligible',
+                },
+              ]),
+          };
+        }
+
+        throw new Error('Unexpected select table');
+      },
+    }),
   };
 
   return database;
