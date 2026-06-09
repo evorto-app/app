@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "0a9e48e7a4c8",
+  "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-09T08:24:42.497252Z",
+  "branch": "codex/pr62-split-05-role-doc-flow",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "migration/steps/009_add_event_registration_questions.ts",
+    "migration/steps/011_add_event_registration_addon_purchases.ts",
+    "tests/specs/admin/general-settings.spec.ts",
+    "tests/specs/admin/global-admin-tenants.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "071e805c9918",
+  "token_usage": {
+    "input_tokens": 15564028,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 751054336,
+    "output_tokens": 1280151,
+    "api_call_count": 5693
+  },
+  "session_metrics": {
+    "turn_count": 38
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-09T08:24:41.528298Z",
+    "agent_lines": 210,
+    "agent_removed": 0,
+    "human_added": 462,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 672,
+    "total_lines_changed": 851,
+    "agent_percentage": 24.676850763807284,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
