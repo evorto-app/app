@@ -1,6 +1,6 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
@@ -89,7 +89,11 @@ export const seedProfileEventCards = async ({
     throw new Error('Expected seeded checked-in profile event');
   }
   const sourceEvent = await database.query.eventInstances.findFirst({
-    where: { id: profileEventId, tenantId: seeded.tenant.id },
+    where: (eventInstance) =>
+      and(
+        eq(eventInstance.id, profileEventId),
+        eq(eventInstance.tenantId, seeded.tenant.id),
+      ),
   });
   if (!sourceEvent) {
     throw new Error('Expected seeded profile source event');

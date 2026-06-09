@@ -4,7 +4,11 @@ import * as Headers from 'effect/unstable/http/Headers';
 import Stripe from 'stripe';
 
 import { Database } from '../../../../../db';
-import { eventAddons, eventRegistrations } from '../../../../../db/schema';
+import {
+  eventAddons,
+  eventRegistrationAddonPurchases,
+  eventRegistrations,
+} from '../../../../../db/schema';
 import { StripeClient } from '../../../../stripe-client';
 import {
   EventRegistrationService,
@@ -78,13 +82,13 @@ describe('EventRegistrationService', () => {
       allowMultiple: true,
       maxQuantityPerUser: 2,
       price: 500,
-      quantity: 1,
+      quantity: 2,
       stripeTaxRateId: 'txr_1',
       taxRateDisplayName: 'VAT',
       taxRateInclusive: true,
       taxRatePercentage: '19',
       title: 'Lunch',
-      totalAvailableQuantity: 3,
+      totalAvailableQuantity: 5,
     } as const;
 
     it('normalizes selected registration add-ons', () => {
@@ -105,6 +109,7 @@ describe('EventRegistrationService', () => {
       ).toEqual([
         {
           ...availableAddOn,
+          fulfilledQuantity: 4,
           selectedQuantity: 2,
         },
       ]);
@@ -149,7 +154,7 @@ describe('EventRegistrationService', () => {
             {
               ...availableAddOn,
               maxQuantityPerUser: 5,
-              totalAvailableQuantity: 1,
+              totalAvailableQuantity: 3,
             },
           ],
         }),
@@ -957,6 +962,128 @@ describe('EventRegistrationService', () => {
           'Registration option has no available spots',
         );
         expect(insertRegistration).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'persists the configured add-on attachment quantity for a selected add-on',
+    () =>
+      Effect.gen(function* () {
+        const insertAddonPurchase = vi.fn();
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () => Effect.succeed(approvedRegistrationOption),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+          select: () => ({
+            from: () => ({
+              innerJoin: () => ({
+                leftJoin: () => ({
+                  where: () =>
+                    Effect.succeed([
+                      {
+                        addOnId: 'addon-1',
+                        allowMultiple: false,
+                        maxQuantityPerUser: 1,
+                        price: 0,
+                        quantity: 2,
+                        stripeTaxRateId: null,
+                        taxRateDisplayName: null,
+                        taxRateInclusive: null,
+                        taxRatePercentage: null,
+                        title: 'Lunch',
+                        totalAvailableQuantity: 2,
+                      },
+                    ]),
+                }),
+              }),
+            }),
+          }),
+          transaction: (
+            callback: (tx: {
+              insert: (table: unknown) => {
+                values: (value: unknown) => {
+                  returning?: () => Effect.Effect<{ id: string }[]>;
+                };
+              };
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.Effect<[]>;
+                };
+              };
+              update: () => {
+                set: () => {
+                  where: () => {
+                    returning: () => Effect.Effect<{ id: string }[]>;
+                  };
+                };
+              };
+            }) => Effect.Effect<unknown, unknown>,
+          ) =>
+            callback({
+              insert: (table) => ({
+                values: (value) => {
+                  if (table === eventRegistrations) {
+                    return {
+                      returning: () =>
+                        Effect.succeed([{ id: 'registration-1' }]),
+                    };
+                  }
+                  if (table === eventRegistrationAddonPurchases) {
+                    insertAddonPurchase(value);
+                  }
+                  return Effect.void;
+                },
+              }),
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.succeed([]),
+                },
+              },
+              update: () => ({
+                set: () => ({
+                  where: () => ({
+                    returning: () => Effect.succeed([{ id: 'updated' }]),
+                  }),
+                }),
+              }),
+            }),
+        };
+
+        yield* EventRegistrationService.registerForEvent({
+          addOns: [{ addOnId: 'addon-1', quantity: 1 }],
+          eventId: 'event-1',
+          guestCount: 0,
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        expect(insertAddonPurchase).toHaveBeenCalledWith(
+          expect.objectContaining({
+            addonId: 'addon-1',
+            quantity: 2,
+            registrationId: 'registration-1',
+          }),
+        );
       }),
   );
 

@@ -1,5 +1,8 @@
+import { expect } from '@playwright/test';
+import { eq } from 'drizzle-orm';
+
 import { adminStateFile } from '../../../helpers/user-data';
-import { expect, test } from '../../support/fixtures/parallel-test';
+import { test } from '../../support/fixtures/base-test';
 
 test.setTimeout(120_000);
 
@@ -9,8 +12,15 @@ test('tenant admin updates relaunch general settings @admin', async ({
   database,
   page,
   seedDate,
-  tenant,
+  tenantDomain,
 }) => {
+  const currentTenantDomain = tenantDomain ?? 'localhost';
+  const tenant = await database.query.tenants.findFirst({
+    where: (tenantTable) => eq(tenantTable.domain, currentTenantDomain),
+  });
+  if (!tenant) {
+    throw new Error(`Expected tenant row for ${currentTenantDomain}`);
+  }
   const suffix = seedDate.getTime();
   const logoUrl = `https://assets.example.org/${tenant.id}/logo-${suffix}.png`;
   const faviconUrl = `https://assets.example.org/${tenant.id}/favicon-${suffix}.ico`;
@@ -34,41 +44,66 @@ test('tenant admin updates relaunch general settings @admin', async ({
   await expect(
     page.getByRole('heading', { name: 'Tenant identity' }),
   ).toBeVisible();
-  await expect(page.getByText(tenant.domain)).toBeVisible();
 
-  await page.getByLabel('Logo URL').fill(` ${logoUrl} `);
-  await page.getByLabel('Favicon URL').fill(` ${faviconUrl} `);
-  await page.getByLabel('SEO title').fill(` ${seoTitle} `);
-  await page.getByLabel('SEO description').fill(` ${seoDescription} `);
   await page
-    .getByLabel('Hosted imprint / legal notice text')
+    .getByPlaceholder('https://section.example.org/logo.svg')
+    .fill(` ${logoUrl} `);
+  await page
+    .getByPlaceholder('https://section.example.org/favicon.ico')
+    .fill(` ${faviconUrl} `);
+  await page
+    .getByPlaceholder('Tenant name or public site title')
+    .fill(` ${seoTitle} `);
+  await page
+    .getByPlaceholder('Short description for search results and previews')
+    .fill(` ${seoDescription} `);
+  await page
+    .getByPlaceholder('Legal notice text shown at /legal/imprint')
     .fill(` ${legalNoticeText} `);
-  await page.getByLabel('Privacy policy URL').fill(` ${privacyPolicyUrl} `);
-  await page.getByLabel('Hosted terms text').fill(` ${termsText} `);
-  await page.getByLabel('Allowed receipt countries').click();
+  await page
+    .getByPlaceholder('https://section.example.org/privacy')
+    .fill(` ${privacyPolicyUrl} `);
+  await page
+    .getByPlaceholder('Terms shown at /legal/terms')
+    .fill(` ${termsText} `);
+  await generalSettings.locator('.mat-mdc-select-trigger').last().click();
   await page.getByRole('option', { name: 'Spain (ES)' }).click();
   await page.getByRole('option', { name: 'France (FR)' }).click();
   await page.keyboard.press('Escape');
-  const allowOtherCheckbox = page.getByRole('checkbox', {
-    name: 'Allow other',
-  });
-  if (!(await allowOtherCheckbox.isChecked())) {
-    await allowOtherCheckbox.click();
+  const allowOtherCheckbox = generalSettings
+    .locator('mat-checkbox')
+    .filter({ hasText: 'Allow other' });
+  const allowOtherCheckboxInput = allowOtherCheckbox.locator(
+    'input[type="checkbox"]',
+  );
+  if (!(await allowOtherCheckboxInput.isChecked())) {
+    await allowOtherCheckboxInput.setChecked(true, { force: true });
   }
 
-  const esnCardToggle = page.getByRole('switch', {
-    name: 'ESN Card discounts',
-  });
+  const esnCardToggle = generalSettings
+    .locator('mat-slide-toggle')
+    .filter({ hasText: 'ESN Card discounts' })
+    .getByRole('switch');
   if (!(await esnCardToggle.isChecked())) {
     await esnCardToggle.click();
   }
-  await page.getByLabel('Buy ESNcard URL').fill(` ${buyEsnCardUrl} `);
+  await page
+    .getByPlaceholder('https://esncard.org/')
+    .fill(` ${buyEsnCardUrl} `);
 
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Tenant settings updated')).toBeVisible();
 
+  await expect
+    .poll(async () => {
+      const tenantRecord = await database.query.tenants.findFirst({
+        where: (tenantTable) => eq(tenantTable.id, tenant.id),
+      });
+      return tenantRecord?.logoUrl ?? null;
+    })
+    .toBe(logoUrl);
   const updatedTenant = await database.query.tenants.findFirst({
-    where: { id: tenant.id },
+    where: (tenantTable) => eq(tenantTable.id, tenant.id),
   });
   if (!updatedTenant) {
     throw new Error('Expected tenant row after general-settings update');

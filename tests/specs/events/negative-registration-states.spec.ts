@@ -266,7 +266,7 @@ test.describe('Negative registration states', () => {
       const targetOptionId = seeded.scenario.events.freeOpen.optionId;
       const targetOption =
         await database.query.eventRegistrationOptions.findFirst({
-          where: { id: targetOptionId, tenantId: tenant.id },
+          where: { eventId: targetEventId, id: targetOptionId },
         });
       if (!targetOption) {
         throw new Error('Expected seeded freeOpen registration option');
