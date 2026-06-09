@@ -167,7 +167,7 @@ test.describe('Template Tax Rate Validation', () => {
         title: `No tax rates ${getId().slice(0, 6)}`,
       });
 
-      await enablePaymentForFirstRegistrationOption(page);
+      await enablePaymentForFirstParticipantRegistrationOption(page);
       const taxRateSelect = page.getByLabel('Tax rate').first();
       await expect(taxRateSelect).toBeVisible();
       await taxRateSelect.click();
