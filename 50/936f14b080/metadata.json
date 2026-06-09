@@ -3,9 +3,12 @@
   "checkpoint_id": "50936f14b080",
   "strategy": "manual-commit",
   "branch": "codex/pr62-split-03-tenant-legal-pages",
-  "checkpoints_count": 2,
+  "checkpoints_count": 1,
   "files_touched": [
-    "tests/specs/events/price-labels-inclusive.spec.ts"
+    "src/app/templates/shared/template-form/template-registration-option-form.component.html",
+    "src/app/templates/shared/template-form/template-registration-option-form.component.ts",
+    "tests/docs/templates/templates.doc.ts",
+    "tests/specs/templates/paid-option-requires-tax-rate.spec.ts"
   ],
   "sessions": [
     {
@@ -16,10 +19,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 11428143,
+    "input_tokens": 1932378,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 599476224,
-    "output_tokens": 1074047,
-    "api_call_count": 4536
+    "cache_read_tokens": 73099264,
+    "output_tokens": 88812,
+    "api_call_count": 532
   }
 }
