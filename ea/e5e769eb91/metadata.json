@@ -5,15 +5,8 @@
   "branch": "codex/pr62-split-03-tenant-legal-pages",
   "checkpoints_count": 1,
   "files_touched": [
-    "src/app/app.routes.spec.ts",
-    "src/app/global-admin/tenant-list/tenant-list.rows.spec.ts",
-    "src/server/effect/rpc/handlers/events/events-registration.handlers.ts",
-    "src/server/effect/rpc/handlers/users.handlers.ts",
-    "src/server/http/stripe-webhook.web-handler.ts",
-    "src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.ts",
-    "tests/docs/admin/general-settings.doc.ts",
-    "tests/specs/events/price-labels-inclusive.spec.ts",
-    "tests/support/utils/template-form.ts"
+    "src/app/templates/shared/template-form/template-registration-option-form.component.html",
+    "src/app/templates/shared/template-form/template-registration-option-form.component.ts"
   ],
   "sessions": [
     {
@@ -24,10 +17,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 1443692,
+    "input_tokens": 1953593,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 59415296,
-    "output_tokens": 123629,
-    "api_call_count": 479
+    "cache_read_tokens": 63771136,
+    "output_tokens": 112882,
+    "api_call_count": 484
   }
 }
