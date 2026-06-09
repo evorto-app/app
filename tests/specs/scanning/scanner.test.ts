@@ -1,5 +1,5 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
@@ -40,16 +40,15 @@ const requireScannerFixture = async ({
     );
   }
 
-  const optionBefore = await database.query.eventRegistrationOptions.findFirst({
-    columns: {
-      checkedInSpots: true,
-    },
-    where: {
-      eventId,
-      id: registrationOption.id,
-      tenantId: seeded.tenant.id,
-    },
-  });
+  const [optionBefore] = await database
+    .select({ checkedInSpots: eventRegistrationOptions.checkedInSpots })
+    .from(eventRegistrationOptions)
+    .where(
+      and(
+        eq(eventRegistrationOptions.eventId, eventId),
+        eq(eventRegistrationOptions.id, registrationOption.id),
+      ),
+    );
   if (!optionBefore) {
     throw new Error(
       `Expected registration option "${registrationOption.id}" for seeded scanner event`,
@@ -103,19 +102,22 @@ test.skip('scan confirmed registration records check-in', async ({
 
     await expect
       .poll(async () => {
-        const registration = await database.query.eventRegistrations.findFirst({
-          columns: {
-            checkInTime: true,
-            checkedInGuestCount: true,
-          },
-          where: { id: registrationId },
-        });
-        const option = await database.query.eventRegistrationOptions.findFirst({
-          columns: {
-            checkedInSpots: true,
-          },
-          where: { id: scannerFixture.registrationOptionId },
-        });
+        const [registration] = await database
+          .select({
+            checkedInGuestCount: eventRegistrations.checkedInGuestCount,
+            checkInTime: eventRegistrations.checkInTime,
+          })
+          .from(eventRegistrations)
+          .where(eq(eventRegistrations.id, registrationId));
+        const [option] = await database
+          .select({ checkedInSpots: eventRegistrationOptions.checkedInSpots })
+          .from(eventRegistrationOptions)
+          .where(
+            eq(
+              eventRegistrationOptions.id,
+              scannerFixture.registrationOptionId,
+            ),
+          );
 
         return {
           checkedIn: registration?.checkInTime !== null,
@@ -193,19 +195,22 @@ test('scan checked-in registration records remaining guest arrival', async ({
 
     await expect
       .poll(async () => {
-        const registration = await database.query.eventRegistrations.findFirst({
-          columns: {
-            checkInTime: true,
-            checkedInGuestCount: true,
-          },
-          where: { id: registrationId },
-        });
-        const option = await database.query.eventRegistrationOptions.findFirst({
-          columns: {
-            checkedInSpots: true,
-          },
-          where: { id: scannerFixture.registrationOptionId },
-        });
+        const [registration] = await database
+          .select({
+            checkedInGuestCount: eventRegistrations.checkedInGuestCount,
+            checkInTime: eventRegistrations.checkInTime,
+          })
+          .from(eventRegistrations)
+          .where(eq(eventRegistrations.id, registrationId));
+        const [option] = await database
+          .select({ checkedInSpots: eventRegistrationOptions.checkedInSpots })
+          .from(eventRegistrationOptions)
+          .where(
+            eq(
+              eventRegistrationOptions.id,
+              scannerFixture.registrationOptionId,
+            ),
+          );
 
         return {
           checkedIn: registration?.checkInTime !== null,

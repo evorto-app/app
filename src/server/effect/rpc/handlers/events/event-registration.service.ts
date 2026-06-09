@@ -239,7 +239,10 @@ export const validateRegistrationAddons = ({
 }: {
   addOns: readonly RegistrationAddonInput[] | undefined;
   availableAddOns: readonly RegistrationAddonRecord[];
-}): readonly (RegistrationAddonRecord & { selectedQuantity: number })[] => {
+}): readonly (RegistrationAddonRecord & {
+  fulfilledQuantity: number;
+  selectedQuantity: number;
+})[] => {
   const availableAddOnById = new Map(
     availableAddOns.map((addOn) => [addOn.addOnId, addOn]),
   );
@@ -277,7 +280,8 @@ export const validateRegistrationAddons = ({
         message: 'Add-on quantity exceeds the per-user limit',
       });
     }
-    if (selectedQuantity > availableAddOn.totalAvailableQuantity) {
+    const fulfilledQuantity = selectedQuantity * availableAddOn.quantity;
+    if (fulfilledQuantity > availableAddOn.totalAvailableQuantity) {
       throw new EventRegistrationConflictError({
         message: 'Add-on quantity is no longer available',
       });
@@ -285,6 +289,7 @@ export const validateRegistrationAddons = ({
 
     return {
       ...availableAddOn,
+      fulfilledQuantity,
       selectedQuantity,
     };
   });
@@ -534,7 +539,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
         });
         const selectedAddonTotalPrice = selectedAddOns.reduce(
-          (total, addOn) => total + addOn.price * addOn.selectedQuantity,
+          (total, addOn) => total + addOn.price * addOn.fulfilledQuantity,
           0,
         );
         const requiresCheckout =
@@ -644,13 +649,13 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   const updatedAddOns = yield* tx
                     .update(eventAddons)
                     .set({
-                      totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} - ${addOn.selectedQuantity}`,
+                      totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} - ${addOn.fulfilledQuantity}`,
                     })
                     .where(
                       and(
                         eq(eventAddons.id, addOn.addOnId),
                         eq(eventAddons.eventId, eventId),
-                        sql`${eventAddons.totalAvailableQuantity} >= ${addOn.selectedQuantity}`,
+                        sql`${eventAddons.totalAvailableQuantity} >= ${addOn.fulfilledQuantity}`,
                       ),
                     )
                     .returning({
@@ -666,7 +671,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
                   yield* tx.insert(eventRegistrationAddonPurchases).values({
                     addonId: addOn.addOnId,
-                    quantity: addOn.selectedQuantity,
+                    quantity: addOn.fulfilledQuantity,
                     registrationId: userRegistration.id,
                     taxRateDisplayName: addOn.taxRateDisplayName,
                     taxRateInclusive: addOn.taxRateInclusive,
@@ -735,7 +740,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 database
                   .update(eventAddons)
                   .set({
-                    totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOn.selectedQuantity}`,
+                    totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOn.fulfilledQuantity}`,
                   })
                   .where(
                     and(
@@ -929,7 +934,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               ...(addOn.stripeTaxRateId
                 ? { tax_rates: [addOn.stripeTaxRateId] }
                 : {}),
-              quantity: addOn.selectedQuantity,
+              quantity: addOn.fulfilledQuantity,
             });
           }
 

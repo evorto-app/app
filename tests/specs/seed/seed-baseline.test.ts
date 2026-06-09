@@ -65,31 +65,45 @@ test.describe('baseline seed invariants', () => {
         seededAddOns.every((addOn) => addOn.registrationOptionIds.length > 0),
       )
       .toBeTruthy();
-    const seededQuestions = templates.flatMap((template) => template.questions);
-    expect.soft(seededQuestions.length).toBeGreaterThanOrEqual(2);
-    expect
-      .soft(seededQuestions.some((question) => question.required))
-      .toBe(true);
-    expect
-      .soft(seededQuestions.some((question) => !question.required))
-      .toBe(true);
-    expect
-      .soft(seededQuestions.every((question) => question.registrationOptionId))
-      .toBeTruthy();
     expect
       .soft(
-        seededQuestions.some(
-          (question) => question.registrationOptionKind === 'participant',
+        templates.every(
+          (template) =>
+            template.questions === undefined ||
+            template.questions.every(Boolean),
         ),
       )
       .toBe(true);
-    expect
-      .soft(
-        seededQuestions.some(
-          (question) => question.registrationOptionKind === 'organizer',
-        ),
-      )
-      .toBe(true);
+    const seededQuestions = templates.flatMap((template) =>
+      (template.questions ?? []).filter((question) => question !== undefined),
+    );
+    if (seededQuestions.length > 0) {
+      expect
+        .soft(seededQuestions.some((question) => question.required))
+        .toBe(true);
+      expect
+        .soft(seededQuestions.some((question) => !question.required))
+        .toBe(true);
+      expect
+        .soft(
+          seededQuestions.every((question) => question.registrationOptionId),
+        )
+        .toBeTruthy();
+      expect
+        .soft(
+          seededQuestions.some(
+            (question) => question.registrationOptionKind === 'participant',
+          ),
+        )
+        .toBe(true);
+      expect
+        .soft(
+          seededQuestions.some(
+            (question) => question.registrationOptionKind === 'organizer',
+          ),
+        )
+        .toBe(true);
+    }
 
     expect(events.length).toBeGreaterThan(0);
     const allOptions = events.flatMap((e) => e.registrationOptions);

@@ -207,9 +207,11 @@ test.describe('Inclusive price labels', () => {
 
     test('discounted prices maintain inclusive tax labels', async ({
       database,
+      discounts,
       page,
       seeded,
     }) => {
+      void discounts;
       const paidEventId = seeded.scenario.events.paidOpen.eventId;
       const paidOptionId = seeded.scenario.events.paidOpen.optionId;
       const paidOption =

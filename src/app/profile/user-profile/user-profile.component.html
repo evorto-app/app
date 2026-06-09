@@ -22,7 +22,7 @@
             "
             id="edit-profile-btn"
           >
-            <fa-duotone-icon [icon]="faPencil" class="mr-2" />
+            <fa-icon [icon]="faPencil" class="mr-2" />
             Edit profile
           </button>
         </div>
@@ -45,7 +45,7 @@
           (click)="setSelectedSection(section.key)"
         >
           <div class="flex items-center gap-3">
-            <fa-duotone-icon [icon]="section.icon" />
+            <fa-icon [icon]="section.icon" />
             <span class="title-medium">{{ section.label }}</span>
           </div>
         </button>
@@ -63,7 +63,7 @@
             reimbursement details, and session actions.
           </p>
           <a href="/logout" mat-stroked-button class="flex items-center gap-2">
-            <fa-duotone-icon [icon]="faRightFromBracket" class="mr-2" />
+            <fa-icon [icon]="faRightFromBracket" class="mr-2" />
             Logout
           </a>
         </div>
@@ -71,7 +71,7 @@
       @case ("events") {
         <div class="space-y-4">
           <div class="flex items-center gap-2">
-            <fa-duotone-icon [icon]="faCalendarDays" />
+            <fa-icon [icon]="faCalendarDays" />
             <h2 class="title-medium">Your Event Registrations</h2>
           </div>
           @if (userEventsQuery.isSuccess()) {

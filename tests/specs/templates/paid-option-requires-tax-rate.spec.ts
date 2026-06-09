@@ -11,15 +11,29 @@ const enablePaymentForLastRegistrationOption = async (page: Page) => {
     .locator('app-template-registration-option-form')
     .last();
   await participantOptionForm
-    .getByRole('checkbox', { name: 'Enable payment' })
-    .check();
+    .getByRole('switch', { name: 'Enable payment' })
+    .click();
   await expect(
-    participantOptionForm.getByRole('spinbutton', {
-      exact: true,
-      name: 'Price (in cents)',
-    }),
+    priceInputForRegistrationOption(participantOptionForm),
   ).toBeVisible();
 };
+
+const priceInputForRegistrationOption = (
+  participantOptionForm: ReturnType<Page['locator']>,
+) =>
+  participantOptionForm.getByRole('spinbutton', {
+    exact: true,
+    name: 'Price (in cents)',
+  });
+
+const taxRateSelectForRegistrationOption = (
+  participantOptionForm: ReturnType<Page['locator']>,
+) =>
+  participantOptionForm
+    .locator('mat-form-field')
+    .filter({ hasText: 'Tax rate' })
+    .locator('mat-select')
+    .first();
 
 const ensureLastRegistrationOptionHasRole = async (
   page: Page,
@@ -64,8 +78,15 @@ test.describe('Template Tax Rate Validation', () => {
 
     await enablePaymentForLastRegistrationOption(page);
 
-    await expect(page.getByLabel('Price (in cents)').first()).toBeVisible();
-    await expect(page.getByLabel('Tax rate').first()).toBeVisible();
+    const participantOptionForm = page
+      .locator('app-template-registration-option-form')
+      .last();
+    await expect(
+      priceInputForRegistrationOption(participantOptionForm),
+    ).toBeVisible();
+    await expect(
+      taxRateSelectForRegistrationOption(participantOptionForm),
+    ).toBeVisible();
     await expect(saveButton).toBeDisabled();
   });
 
@@ -103,12 +124,16 @@ test.describe('Template Tax Rate Validation', () => {
 
     await page.goto(`/templates/create/${category.id}`);
     await fillTemplateBasics(page, {
+      description: null,
       title: templateTitle,
     });
     await enablePaymentForLastRegistrationOption(page);
     await ensureLastRegistrationOptionHasRole(page, defaultUserRole.name);
-    await page.getByLabel('Price (in cents)').first().fill('1000');
-    await page.getByLabel('Tax rate').first().click();
+    const participantOptionForm = page
+      .locator('app-template-registration-option-form')
+      .last();
+    await priceInputForRegistrationOption(participantOptionForm).fill('1000');
+    await taxRateSelectForRegistrationOption(participantOptionForm).click();
     await expect(
       page.getByRole('option', { exact: true, name: taxRateLabel }),
     ).toBeVisible();

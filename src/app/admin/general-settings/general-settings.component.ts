@@ -40,8 +40,8 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
 import {
+  tenantIdentityRows as buildTenantIdentityRows,
   deferredTenantSettingsRows,
-  tenantIdentityRows,
 } from './general-settings.identity';
 import {
   GeneralSettingsModel,
@@ -144,9 +144,12 @@ export class GeneralSettingsComponent {
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
   private readonly configService = inject(ConfigService);
+  private readonly currentTenant = computed(
+    () => this.configService.tenantSignal() ?? this.configService.tenant,
+  );
   protected readonly tenantIdentityRows = computed(() => {
-    const tenant = this.configService.tenantSignal();
-    return tenant ? tenantIdentityRows(tenant) : [];
+    const tenant = this.currentTenant();
+    return tenant ? buildTenantIdentityRows(tenant) : [];
   });
   protected readonly timezoneOptions = supportedTenantTimezones;
   protected readonly updateSettingsMutation = injectMutation(() =>
@@ -159,7 +162,7 @@ export class GeneralSettingsComponent {
 
   constructor() {
     effect(() => {
-      const currentTenant = this.configService.tenantSignal();
+      const currentTenant = this.currentTenant();
       if (currentTenant) {
         const receiptCountrySettings = resolveReceiptCountrySettings(
           currentTenant.receiptSettings,

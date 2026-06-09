@@ -8,6 +8,7 @@ import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { registrationModeLabel } from '@shared/registration-modes';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
@@ -46,6 +47,7 @@ export const templateTaxRateOptionsMessage = ({
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    MatSlideToggleModule,
     RoleSelectComponent,
   ],
   selector: 'app-template-registration-option-form',
@@ -76,12 +78,6 @@ export class TemplateRegistrationOptionFormComponent {
     const rawValue = (event.target as HTMLInputElement).value;
     const field = this.registrationForm().esnCardDiscountedPrice();
     field.value.set(rawValue === '' ? '' : Number(rawValue));
-    field.markAsDirty();
-  }
-
-  protected setIsPaid(event: Event): void {
-    const field = this.registrationForm().isPaid();
-    field.value.set((event.target as HTMLInputElement).checked);
     field.markAsDirty();
   }
 

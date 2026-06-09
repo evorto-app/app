@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
@@ -58,13 +58,16 @@ test('profile receipts show submitted receipt status and event context', async (
     await expect(receiptCard.getByText(event.title)).toBeVisible();
     await expect(receiptCard.getByText('18.75 €')).toBeVisible();
 
-    const receipt = await database.query.financeReceipts.findFirst({
-      where: {
-        id: receiptId,
-        submittedByUserId: regularUser.id,
-        tenantId: seeded.tenant.id,
-      },
-    });
+    const [receipt] = await database
+      .select()
+      .from(schema.financeReceipts)
+      .where(
+        and(
+          eq(schema.financeReceipts.id, receiptId),
+          eq(schema.financeReceipts.submittedByUserId, regularUser.id),
+          eq(schema.financeReceipts.tenantId, seeded.tenant.id),
+        ),
+      );
     if (!receipt) {
       throw new Error('Expected seeded profile receipt after profile read');
     }

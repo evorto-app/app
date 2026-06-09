@@ -1,6 +1,6 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
@@ -89,29 +89,35 @@ export const seedProfileEventCards = async ({
     throw new Error('Expected seeded checked-in profile event');
   }
   const sourceEvent = await database.query.eventInstances.findFirst({
-    where: { id: profileEventId, tenantId: seeded.tenant.id },
+    where: (eventInstance) =>
+      and(
+        eq(eventInstance.id, profileEventId),
+        eq(eventInstance.tenantId, seeded.tenant.id),
+      ),
   });
   if (!sourceEvent) {
     throw new Error('Expected seeded profile source event');
   }
   const profileEventOption =
     await database.query.eventRegistrationOptions.findFirst({
-      where: {
-        eventId: profileEventId,
-        id: profileEventOptionId,
-        tenantId: seeded.tenant.id,
-      },
+      where: (registrationOption) =>
+        and(
+          eq(registrationOption.eventId, profileEventId),
+          eq(registrationOption.id, profileEventOptionId),
+          eq(registrationOption.tenantId, seeded.tenant.id),
+        ),
     });
   if (!profileEventOption) {
     throw new Error('Expected seeded profile source registration option');
   }
   const checkedInEventOption =
     await database.query.eventRegistrationOptions.findFirst({
-      where: {
-        eventId: checkedInEventId,
-        id: checkedInEventOptionId,
-        tenantId: seeded.tenant.id,
-      },
+      where: (registrationOption) =>
+        and(
+          eq(registrationOption.eventId, checkedInEventId),
+          eq(registrationOption.id, checkedInEventOptionId),
+          eq(registrationOption.tenantId, seeded.tenant.id),
+        ),
     });
   if (!checkedInEventOption) {
     throw new Error('Expected seeded checked-in source registration option');
