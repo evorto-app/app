@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "eae5e769eb91",
+  "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-09T13:03:05.563817Z",
+  "branch": "codex/pr62-split-03-tenant-legal-pages",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/app.routes.spec.ts",
+    "src/app/global-admin/tenant-list/tenant-list.rows.spec.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.ts",
+    "src/server/effect/rpc/handlers/users.handlers.ts",
+    "src/server/http/stripe-webhook.web-handler.ts",
+    "src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.ts",
+    "tests/docs/admin/general-settings.doc.ts",
+    "tests/specs/events/price-labels-inclusive.spec.ts",
+    "tests/support/utils/template-form.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "071e805c9918",
+  "checkpoint_transcript_start": 46551,
+  "transcript_lines_at_start": 46551,
+  "token_usage": {
+    "input_tokens": 1443692,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 59415296,
+    "output_tokens": 123629,
+    "api_call_count": 479
+  },
+  "session_metrics": {
+    "turn_count": 46
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
