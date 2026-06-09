@@ -141,14 +141,28 @@ export const registrationAddonPurchasePayload = (
     .filter((addOn) => addOn.quantity > 0);
 
 export const registrationAddonSelectedTotalPrice = (
-  addOns: readonly Pick<EventRegistrationAddonView, 'id' | 'price'>[],
+  addOns: readonly Pick<
+    EventRegistrationAddonView,
+    'id' | 'price' | 'registrationOptions'
+  >[],
   selections: Readonly<Record<string, number>>,
-): number =>
-  addOns.reduce(
-    (total, addOn) =>
-      total + addOn.price * Math.max(0, Math.trunc(selections[addOn.id] ?? 0)),
-    0,
-  );
+  registrationOptionId: string,
+): number => {
+  let total = 0;
+
+  for (const addOn of addOns) {
+    const attachedQuantity =
+      addOn.registrationOptions.find(
+        (option) => option.registrationOptionId === registrationOptionId,
+      )?.quantity ?? 0;
+    total +=
+      addOn.price *
+      attachedQuantity *
+      Math.max(0, Math.trunc(selections[addOn.id] ?? 0));
+  }
+
+  return total;
+};
 
 export const registrationQuestionAnswerPayload = (
   option: Pick<EventRegistrationOptionView, 'questions'>,
@@ -260,7 +274,11 @@ export class EventRegistrationOptionComponent {
   );
   private readonly addonSelections = signal<Record<string, number>>({});
   protected readonly selectedAddonTotalPrice = computed(() =>
-    registrationAddonSelectedTotalPrice(this.addOns(), this.addonSelections()),
+    registrationAddonSelectedTotalPrice(
+      this.addOns(),
+      this.addonSelections(),
+      this.registrationOption().id,
+    ),
   );
   protected readonly selectedGuestCount = computed(() =>
     Math.min(this.guestCount(), this.maxGuestCount()),

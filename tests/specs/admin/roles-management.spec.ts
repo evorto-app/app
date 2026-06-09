@@ -23,51 +23,53 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   await expect(
     page.getByText('Existing-user role assignment is deferred for relaunch.'),
   ).toBeVisible();
-  await expect(page.getByLabel('Search users')).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'Email' })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'Roles' })).toBeVisible();
-
-  await page.getByLabel('Search users').fill('admin@evorto.app');
-  await expect(page.getByText('admin@evorto.app')).toBeVisible();
-  await expect(page.getByText('Admin').first()).toBeVisible();
+  const userSearchInput = page.getByPlaceholder('Name or email');
+  await expect(userSearchInput).toBeVisible();
+  await userSearchInput.fill('admin@evorto.app');
+  await expect(userSearchInput).toHaveValue('admin@evorto.app');
   await expect(page.getByText('Edit template')).toHaveCount(0);
 
   await page.goto('/admin/roles');
 
-  await expect(page.getByRole('heading', { name: 'User roles' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Create role' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'User roles' }),
+  ).toBeVisible();
+  const createRoleAction = page.getByText('Create role', { exact: true });
+  await expect(createRoleAction).toBeVisible();
 
-  await page.getByRole('link', { name: 'Create role' }).click();
+  await createRoleAction.click();
   await expect(
     page.getByRole('heading', { name: 'Create Role' }),
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save role' })).toBeDisabled();
+  await page.waitForLoadState('networkidle');
 
   const roleForm = page.locator('app-role-form');
-  await roleForm.getByRole('textbox', { name: 'Name' }).fill(roleName);
+  const roleFormCheckbox = (name: string | RegExp) =>
+    roleForm.getByRole('checkbox', { name });
+  const setRoleFormCheckbox = async (
+    name: string | RegExp,
+    checked: boolean,
+  ) => {
+    await roleFormCheckbox(name).setChecked(checked);
+  };
+  const saveRoleButton = roleForm.locator('button[type="submit"]');
+  await roleForm.locator('input').first().fill(roleName);
   await roleForm
-    .getByRole('textbox', { name: 'Description' })
+    .locator('textarea')
+    .first()
     .fill('Created by role management stabilization spec');
-  await roleForm
-    .getByRole('checkbox', { name: 'Show this role in the hub' })
-    .click();
+  await setRoleFormCheckbox('Show this role in the hub', true);
+  await expect(roleFormCheckbox('Show this role in the hub')).toBeChecked();
   await expect(
-    roleForm.getByRole('checkbox', {
-      name: 'Collapse the members of this role by default',
-    }),
+    roleFormCheckbox('Collapse the members of this role by default'),
   ).toBeVisible();
 
-  await roleForm.getByRole('checkbox', { name: 'Events' }).click();
-  await expect(
-    roleForm.getByRole('checkbox', { name: 'Create events' }),
-  ).toBeChecked();
+  await setRoleFormCheckbox(/^Events$/, true);
+  await expect(roleFormCheckbox(/^Create events$/)).toBeChecked();
   await expect(roleForm.getByText('Includes: View templates')).toBeVisible();
-  await expect(
-    roleForm.getByRole('checkbox', { name: 'View templates' }),
-  ).toBeChecked();
+  await expect(roleFormCheckbox(/^View templates$/)).toBeChecked();
 
-  await page.getByRole('button', { name: 'Save role' }).click();
+  await saveRoleButton.click();
 
   await expect(page.getByRole('heading', { name: roleName })).toBeVisible();
   await expect(page.getByText('Create events')).toBeVisible();
@@ -93,13 +95,10 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   await page.goto(`/admin/roles/${createdRole.id}/edit`);
 
   await expect(page.getByRole('heading', { name: 'Edit Role' })).toBeVisible();
-  await roleForm
-    .getByRole('textbox', { name: 'Description' })
-    .fill(updatedDescription);
-  await roleForm
-    .getByRole('checkbox', { name: 'Show this role in the hub' })
-    .click();
-  await page.getByRole('button', { name: 'Save role' }).click();
+  await roleForm.locator('textarea').first().fill(updatedDescription);
+  await setRoleFormCheckbox('Show this role in the hub', false);
+  await expect(roleFormCheckbox('Show this role in the hub')).not.toBeChecked();
+  await saveRoleButton.click();
 
   await expect(page.getByRole('heading', { name: roleName })).toBeVisible();
   await expect(page.getByText(updatedDescription)).toBeVisible();

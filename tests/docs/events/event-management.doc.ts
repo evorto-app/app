@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 
 import { getId } from '../../../helpers/get-id';
@@ -6,7 +6,10 @@ import {
   adminStateFile,
   usersToAuthenticate,
 } from '../../../helpers/user-data';
-import { eventRegistrations } from '../../../src/db/schema';
+import {
+  eventRegistrationOptions,
+  eventRegistrations,
+} from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
@@ -242,14 +245,16 @@ Those flows should be documented separately when they exist in the product.
   });
 
   const scannerEventId = seeded.scenario.events.past.eventId;
-  const scannerRegistrationOption =
-    await database.query.eventRegistrationOptions.findFirst({
-      where: {
-        eventId: scannerEventId,
-        organizingRegistration: false,
-        tenantId: seeded.tenant.id,
-      },
-    });
+  const [scannerRegistrationOption] = await database
+    .select()
+    .from(eventRegistrationOptions)
+    .where(
+      and(
+        eq(eventRegistrationOptions.eventId, scannerEventId),
+        eq(eventRegistrationOptions.organizingRegistration, false),
+      ),
+    )
+    .limit(1);
   if (!scannerRegistrationOption) {
     throw new Error(
       'Expected seeded participant option for scanner documentation',

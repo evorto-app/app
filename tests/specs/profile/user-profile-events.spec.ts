@@ -39,6 +39,7 @@ test('profile event cards show implemented registration actions', async ({
     const confirmedCard = page
       .locator('article')
       .filter({ hasText: profileEventCards.confirmed.addOnTitle });
+    await expect(confirmedCard).toBeVisible({ timeout: 15_000 });
     await expect(confirmedCard.getByText('Confirmed')).toBeVisible();
     await expect(confirmedCard.getByText('Includes 1 guest')).toBeVisible();
     await expect(
@@ -54,7 +55,9 @@ test('profile event cards show implemented registration actions', async ({
     const pendingCheckoutCard = page
       .locator('article')
       .filter({ hasText: profileEventCards.pendingCheckout.title });
-    await expect(pendingCheckoutCard.getByText('Pending')).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByText('Pending', { exact: true }),
+    ).toBeVisible();
     await expect(
       pendingCheckoutCard.getByText('Payment pending'),
     ).toBeVisible();
@@ -76,7 +79,9 @@ test('profile event cards show implemented registration actions', async ({
     const waitlistCard = page
       .locator('article')
       .filter({ hasText: profileEventCards.waitlist.title });
-    await expect(waitlistCard.getByText('Waitlist')).toBeVisible();
+    await expect(
+      waitlistCard.getByText('Waitlist', { exact: true }),
+    ).toBeVisible();
     await expect(
       waitlistCard.getByText(
         'Open the event page for waitlist details and the leave-waitlist action.',

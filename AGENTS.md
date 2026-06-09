@@ -47,8 +47,6 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run test:unit` - run unit tests.
 - `bun run test:unit:server` - run server unit tests.
 - `bun run test:e2e` - run Playwright e2e.
-- `bun run test:e2e:integration` - run credential-gated Playwright
-  integration projects.
 - `bun run test:e2e:docs` - run Playwright documentation tests.
 - `bun run test:e2e:install` - install the local Playwright browser binaries.
 - `bun run lint` - lint with autofix.
@@ -59,8 +57,6 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run docker:resume` - bring back an already initialized Docker stack
   without recreating containers; use it only when preserving local Docker state
   matters.
-- `bun run docker:webserver` - foreground Docker stack command used by
-  Playwright `webServer`; it does not force `docker compose down` first.
 - `bun run db:migrate`, `bun run db:push`, `bun run db:reset` - database commands.
 
 ## Local Environment
@@ -89,7 +85,7 @@ For runtime/test details, read:
 - `helpers/README.md`
 - `src/server/config/AGENTS.md`
 
-Local `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*`
+Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*`
 package scripts refresh `.env.dev` before invoking `dotenv -c dev`; use those
 package scripts instead of bare `dotenv` shell commands.
 

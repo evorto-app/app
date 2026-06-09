@@ -216,10 +216,22 @@ describe('registration add-on selections', () => {
     {
       id: 'addon-1',
       price: 500,
+      registrationOptions: [
+        {
+          quantity: 2,
+          registrationOptionId: 'option-1',
+        },
+      ],
     },
     {
       id: 'addon-2',
       price: 0,
+      registrationOptions: [
+        {
+          quantity: 1,
+          registrationOptionId: 'option-1',
+        },
+      ],
     },
   ] as const;
 
@@ -239,11 +251,15 @@ describe('registration add-on selections', () => {
 
   it('adds selected paid add-ons to the checkout total', () => {
     expect(
-      registrationAddonSelectedTotalPrice(addOns, {
-        'addon-1': 2,
-        'addon-2': 4,
-      }),
-    ).toBe(1000);
+      registrationAddonSelectedTotalPrice(
+        addOns,
+        {
+          'addon-1': 2,
+          'addon-2': 4,
+        },
+        'option-1',
+      ),
+    ).toBe(2000);
   });
 });
 

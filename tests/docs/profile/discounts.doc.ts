@@ -12,6 +12,8 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
+const seededEsnCardIdentifier = 'TEST-ESN-0001';
+
 test('Understand ESN discount card states', async ({}, testInfo) => {
   expect(esnCardStatusLabel('verified')).toBe('Verified');
   expect(esnCardStatusLabel('expired')).toBe('Expired');
@@ -58,13 +60,12 @@ Provider outages are not treated as invalid cards. When esncard.org or the provi
 });
 
 test('Manage ESN discount card @finance', async ({
+  discounts,
   page,
-  tenant,
 }, testInfo) => {
-  const seededEsnCardIdentifier = `TEST-ESN-0001-${tenant.id.slice(0, 6)}`;
+  void discounts;
 
-  await page.goto('.');
-  await page.getByRole('link', { name: 'Profile' }).click();
+  await page.goto('/profile#discounts');
 
   const profilePage = page.locator('app-user-profile');
   await expect(profilePage).toBeVisible();
@@ -76,16 +77,10 @@ Add your ESN card to receive discounted prices on eligible events. Your card is 
 `,
   });
 
-  const discountsSectionButton = profilePage
-    .locator('nav button')
-    .filter({ hasText: 'Discounts' });
-  await expect(discountsSectionButton).toBeVisible();
-  await discountsSectionButton.click();
-
   await expect(
     page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
   ).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('ESN card')).toBeVisible();
+  await expect(page.getByText('ESN card', { exact: true })).toBeVisible();
   await expect(page.getByText(seededEsnCardIdentifier)).toBeVisible();
   await expect(page.getByText(/Status: Verified/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible();
@@ -104,6 +99,7 @@ If you already added your ESN card, you will see a readable verification status 
   });
 
   await page.getByRole('textbox', { name: 'ESN card number' }).fill('short');
+  await page.getByRole('textbox', { name: 'ESN card number' }).press('Tab');
   await expect(page.getByText(/Enter a valid ESN card number/)).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Save ESN card' }),

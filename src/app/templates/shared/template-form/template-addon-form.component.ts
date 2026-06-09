@@ -34,8 +34,9 @@ import { templateTaxRateOptionsMessage } from './template-registration-option-fo
   templateUrl: './template-addon-form.component.html',
 })
 export class TemplateAddonFormComponent {
-  public readonly addOnForm =
-    input.required<FieldTree<TemplateAddonFormModel>>();
+  public readonly addOnForm = input<FieldTree<TemplateAddonFormModel> | null>(
+    null,
+  );
   public readonly remove = output();
   protected readonly faTrashCan = faTrashCan;
 

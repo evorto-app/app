@@ -4,7 +4,16 @@ import {
   EventConflictError,
   EventNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { and, arrayOverlaps, eq, exists, gt, inArray, not } from 'drizzle-orm';
+import {
+  and,
+  arrayOverlaps,
+  asc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  not,
+} from 'drizzle-orm';
 import { Effect } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
@@ -396,6 +405,10 @@ export const eventQueryHandlers = {
                       registrationOptionIds,
                     ),
                   ),
+                )
+                .orderBy(
+                  asc(eventRegistrationQuestions.sortOrder),
+                  asc(eventRegistrationQuestions.id),
                 ),
             );
       const registrationOptionTaxRateIds = [

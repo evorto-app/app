@@ -1,5 +1,4 @@
 import {
-  hidden,
   min,
   minLength,
   required,
@@ -28,9 +27,6 @@ export const templateRegistrationOptionFormSchema =
           }
         : undefined;
     });
-    hidden(form.price, ({ valueOf }) => !valueOf(form.isPaid));
-    hidden(form.esnCardDiscountedPrice, ({ valueOf }) => !valueOf(form.isPaid));
-    hidden(form.stripeTaxRateId, ({ valueOf }) => !valueOf(form.isPaid));
     min(form.closeRegistrationOffset, 0);
     min(form.openRegistrationOffset, 0);
     min(form.price, 0);

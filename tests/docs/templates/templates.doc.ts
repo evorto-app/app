@@ -109,8 +109,23 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
     .first()
     .getByRole('checkbox', { name: 'Enable payment' });
   await paymentToggle.check();
-  await expect(page.getByLabel('Price (in cents)').first()).toBeVisible();
-  await expect(page.getByLabel('Tax rate').first()).toBeVisible();
+  const organizerOptionForm = page
+    .locator('app-template-registration-option-form')
+    .first();
+  await expect(
+    organizerOptionForm
+      .locator('mat-form-field')
+      .filter({ hasText: 'Price (in cents)' })
+      .locator('input[type="number"]')
+      .first(),
+  ).toBeVisible();
+  await expect(
+    organizerOptionForm
+      .locator('mat-form-field')
+      .filter({ hasText: 'Tax rate' })
+      .locator('mat-select')
+      .first(),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     page
@@ -119,7 +134,7 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
     page,
     'Organizer payment fields visible',
   );
-  await page.getByRole('switch', { name: 'Enable Payment' }).first().click();
+  await paymentToggle.click();
 
   await testInfo.attach('markdown', {
     body: `

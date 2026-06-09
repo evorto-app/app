@@ -52,10 +52,8 @@ test('create a new template', async ({ page, templateCategories }) => {
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
-  await page.getByRole('link', { name: 'Create template' }).click();
-  await expect(page).toHaveURL(`/templates/create`);
+  await page.goto(`/templates/create/${category.id}`);
   await fillTemplateBasics(page, {
-    categoryTitle: category.title,
     title: templateTitle,
   });
   await page.getByRole('button', { name: 'Save template' }).click();
@@ -85,27 +83,25 @@ test('create template with reusable add-ons and registration questions', async (
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
-  await page.getByRole('link', { name: 'Create template' }).click();
-  await expect(page).toHaveURL('/templates/create');
+  await page.goto(`/templates/create/${category.id}`);
 
   await fillTemplateBasics(page, {
-    categoryTitle: category.title,
     title: templateTitle,
   });
   await page.getByLabel('Organizer planning tips').fill(planningTips);
 
   await page.getByRole('button', { name: 'Add add-on' }).click();
   const addOnForm = page.locator('app-template-addon-form').first();
-  await addOnForm.getByLabel('Add-on name').fill(addOnTitle);
-  await addOnForm.getByLabel('Description').fill(addOnDescription);
-  await addOnForm.getByLabel('Included quantity').fill('2');
-  await addOnForm.getByLabel('Available quantity').fill('12');
-  await addOnForm.getByLabel('Max per user').fill('3');
+  await addOnForm.locator('input').nth(0).fill(addOnTitle);
+  await addOnForm.locator('textarea').first().fill(addOnDescription);
+  await addOnForm.locator('input').nth(1).fill('2');
+  await addOnForm.locator('input').nth(2).fill('12');
+  await addOnForm.locator('input').nth(3).fill('3');
 
   await page.getByRole('button', { name: 'Add question' }).click();
   const questionForm = page.locator('app-template-question-form').first();
-  await questionForm.getByLabel('Question').fill(questionTitle);
-  await questionForm.getByLabel('Help text').fill(questionDescription);
+  await questionForm.locator('input').first().fill(questionTitle);
+  await questionForm.locator('textarea').first().fill(questionDescription);
 
   await page.getByRole('button', { name: 'Save template' }).click();
   await expect(page).toHaveURL(/\/templates\/[^/]+$/);

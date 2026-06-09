@@ -82,12 +82,10 @@ containers before `evorto` starts. `bun run docker:start`,
 against the Docker database during stack startup. Neon Local still receives
 `DELETE_BRANCH=true` so normal `docker compose down` deletes the branch, and
 `db-expiration` immediately sets a short Neon branch expiration as a fallback
-for interrupted local or CI shutdowns. Playwright `webServer` uses
-`bun run docker:webserver`, which starts the foreground Compose stack without
-forcing `docker compose down` first. Use
-`bun run docker:resume` only for an already initialized stack when you want to
-bring stopped containers back without recreating them. The package scripts
-preload the needed environment with `dotenv -c dev` before invoking Docker.
+for interrupted local or CI shutdowns. Use `bun run docker:resume` only for an
+already initialized stack when you want to bring stopped containers back without
+recreating them. The package scripts preload the needed environment with
+`dotenv -c dev` before invoking Docker.
 
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
@@ -99,9 +97,7 @@ is installed. Required variables that are already available are listed without
 printing their values, so token paths such as Font Awesome registry access can
 be confirmed even when another required secret still blocks startup. Missing
 Playwright browsers are reported as a warning because they block local
-Playwright runs, not Docker startup. Local e2e runs use bundled Chromium by
-default; set `E2E_BROWSER_CHANNEL=chrome` for exploratory runs on a machine
-that already has Google Chrome installed.
+Playwright runs, not Docker startup.
 
 Use the tracked `.env.example` file as the no-secret checklist for values that
 belong in your untracked `.env` or exported shell environment. Do not add real

@@ -47,7 +47,7 @@ Start by navigating to **Admin tools**. The current relaunch admin surface separ
     await expect(
       page.getByText('Existing-user role assignment is deferred for relaunch.'),
     ).toBeVisible();
-    await expect(page.getByLabel('Search users')).toBeVisible();
+    await expect(page.getByPlaceholder('Name or email')).toBeVisible();
     await expect(
       page.getByRole('columnheader', { name: 'Name' }),
     ).toBeVisible();
@@ -57,7 +57,9 @@ Start by navigating to **Admin tools**. The current relaunch admin surface separ
     await expect(
       page.getByRole('columnheader', { name: 'Roles' }),
     ).toBeVisible();
-    await expect(page.getByText('admin@evorto.app')).toBeVisible();
+    await expect(
+      page.getByRole('cell', { name: 'admin@evorto.app', exact: true }),
+    ).toBeVisible();
     await expect(page.getByText('Admin').first()).toBeVisible();
     await expect(page.getByText('Edit template')).toHaveCount(0);
     await takeScreenshot(
@@ -79,10 +81,16 @@ Navigate to the **User roles** page to create or edit tenant roles.
     await expect(
       page.getByRole('heading', { name: 'User roles' }),
     ).toBeVisible();
+    const roleListCreateAction = page
+      .locator('app-role-list')
+      .filter({ has: page.getByRole('link', { name: 'Create role' }) })
+      .first();
+    await expect(roleListCreateAction).toBeVisible();
     await takeScreenshot(
       testInfo,
-      page.getByRole('link', { name: 'Create role' }),
+      roleListCreateAction,
       page,
+      'User roles page with the create-role action highlighted',
     );
     await page.getByRole('link', { name: 'Create role' }).click();
     await testInfo.attach('markdown', {

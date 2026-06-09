@@ -1,38 +1,39 @@
-@let form = questionForm();
-<div class="flex items-start gap-3">
-  <div class="grid grow gap-4">
-    <mat-form-field class="w-full">
-      <mat-label>Question</mat-label>
-      <input matInput [formField]="form.title" />
-    </mat-form-field>
+@if (questionForm(); as form) {
+  <div class="flex items-start gap-3">
+    <div class="grid grow gap-4">
+      <mat-form-field class="w-full">
+        <mat-label>Question</mat-label>
+        <input matInput [formField]="form.title" />
+      </mat-form-field>
 
-    <mat-form-field class="w-full">
-      <mat-label>Help text</mat-label>
-      <textarea matInput rows="2" [formField]="form.description"></textarea>
-    </mat-form-field>
+      <mat-form-field class="w-full">
+        <mat-label>Help text</mat-label>
+        <textarea matInput rows="2" [formField]="form.description"></textarea>
+      </mat-form-field>
+    </div>
+
+    <button
+      type="button"
+      mat-icon-button
+      aria-label="Remove question"
+      title="Remove question"
+      (click)="remove.emit()"
+    >
+      <fa-icon [icon]="faTrashCan" />
+    </button>
   </div>
 
-  <button
-    type="button"
-    mat-icon-button
-    aria-label="Remove question"
-    title="Remove question"
-    (click)="remove.emit()"
-  >
-    <fa-duotone-icon [icon]="faTrashCan" />
-  </button>
-</div>
+  <section class="grid gap-4 md:grid-cols-2">
+    <mat-form-field class="w-full">
+      <mat-label>Ask during</mat-label>
+      <mat-select [formField]="form.registrationOptionKind">
+        <mat-option value="participant">Participant registration</mat-option>
+        <mat-option value="organizer">Organizer registration</mat-option>
+      </mat-select>
+    </mat-form-field>
 
-<section class="grid gap-4 md:grid-cols-2">
-  <mat-form-field class="w-full">
-    <mat-label>Ask during</mat-label>
-    <mat-select [formField]="form.registrationOptionKind">
-      <mat-option value="participant">Participant registration</mat-option>
-      <mat-option value="organizer">Organizer registration</mat-option>
-    </mat-select>
-  </mat-form-field>
-
-  <mat-slide-toggle [formField]="form.required">
-    Require an answer
-  </mat-slide-toggle>
-</section>
+    <mat-slide-toggle [formField]="form.required">
+      Require an answer
+    </mat-slide-toggle>
+  </section>
+}

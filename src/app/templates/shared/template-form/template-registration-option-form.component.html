@@ -5,17 +5,17 @@
 </mat-form-field>
 
 <section class="grid gap-3">
-  <label class="text-on-surface flex items-center gap-2 text-sm">
+  <label class="flex items-center gap-2">
     <input
-      class="h-4 w-4"
       type="checkbox"
+      class="accent-primary h-4 w-4"
       [checked]="form.isPaid().value()"
-      (change)="setIsPaid($event)"
+      (change)="setPaid($event)"
     />
-    <span>Enable payment</span>
+    Enable payment
   </label>
 
-  @if (!form.price().hidden()) {
+  @if (form.isPaid().value()) {
     <div class="grid gap-4">
       <mat-form-field class="w-full">
         <mat-label>Price (in cents)</mat-label>
@@ -23,8 +23,7 @@
           matInput
           type="number"
           aria-label="Price (in cents)"
-          [value]="form.price().value()"
-          (input)="setPrice($event)"
+          [formField]="form.price"
         />
       </mat-form-field>
 
@@ -34,8 +33,7 @@
           <input
             matInput
             type="number"
-            [value]="form.esnCardDiscountedPrice().value()"
-            (input)="setEsnCardDiscountedPrice($event)"
+            [formField]="form.esnCardDiscountedPrice"
             placeholder="Optional"
           />
           <mat-hint>
@@ -46,11 +44,7 @@
 
       <mat-form-field class="w-full">
         <mat-label>Tax rate</mat-label>
-        <mat-select
-          aria-label="Tax rate"
-          [value]="form.stripeTaxRateId().value()"
-          (selectionChange)="setStripeTaxRateId($event.value)"
-        >
+        <mat-select aria-label="Tax rate" [formField]="form.stripeTaxRateId">
           @if (taxRateOptionsMessage(); as message) {
             <mat-option disabled>{{ message }}</mat-option>
           } @else {

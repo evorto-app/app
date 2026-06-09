@@ -31,7 +31,7 @@ import { TemplateQuestionFormModel } from './template-question-form.utilities';
 })
 export class TemplateQuestionFormComponent {
   public readonly questionForm =
-    input.required<FieldTree<TemplateQuestionFormModel>>();
+    input<FieldTree<TemplateQuestionFormModel> | null>(null);
   public readonly remove = output();
   protected readonly faTrashCan = faTrashCan;
 }
