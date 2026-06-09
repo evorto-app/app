@@ -3,47 +3,28 @@
   "checkpoint_id": "50936f14b080",
   "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
   "strategy": "manual-commit",
-  "created_at": "2026-06-09T01:58:02.883727Z",
+  "created_at": "2026-06-09T02:25:14.535851Z",
   "branch": "codex/pr62-split-03-tenant-legal-pages",
-  "checkpoints_count": 3,
+  "checkpoints_count": 2,
   "files_touched": [
-    "tests/specs/events/negative-registration-states.spec.ts"
+    "tests/specs/events/price-labels-inclusive.spec.ts"
   ],
   "agent": "Codex",
   "model": "gpt-5.5",
   "turn_id": "071e805c9918",
   "token_usage": {
-    "input_tokens": 11242774,
+    "input_tokens": 11428143,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 588844928,
-    "output_tokens": 1061915,
-    "api_call_count": 4468
+    "cache_read_tokens": 599476224,
+    "output_tokens": 1074047,
+    "api_call_count": 4536
   },
   "session_metrics": {
-    "turn_count": 27
-  },
-  "initial_attribution": {
-    "calculated_at": "2026-06-09T01:58:02.051736Z",
-    "agent_lines": 119,
-    "agent_removed": 72,
-    "human_added": 0,
-    "human_modified": 125,
-    "human_removed": 183,
-    "total_committed": 244,
-    "total_lines_changed": 515,
-    "agent_percentage": 37.0873786407767,
-    "metric_version": 2
+    "turn_count": 28
   },
   "prompt_attributions": [
     {
       "checkpoint_number": 2,
-      "user_lines_added": 0,
-      "user_lines_removed": 0,
-      "agent_lines_added": 0,
-      "agent_lines_removed": 0
-    },
-    {
-      "checkpoint_number": 3,
       "user_lines_added": 0,
       "user_lines_removed": 0,
       "agent_lines_added": 0,
