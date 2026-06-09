@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "1e294d478925",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-07-organizer-receipt-query",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts",
+    "tests/docs/events/register.doc.ts",
+    "tests/specs/finance/stripe-webhook-replay.spec.ts",
+    "tests/support/reporters/documentation-reporter/take-screenshot.ts",
+    "tests/support/utils/doc-screenshot.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1e/294d478925/0/metadata.json",
+      "transcript": "/1e/294d478925/0/full.jsonl",
+      "content_hash": "/1e/294d478925/0/content_hash.txt",
+      "prompt": "/1e/294d478925/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 16237503,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 763187840,
+    "output_tokens": 1307649,
+    "api_call_count": 5789
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "1e294d478925",
+  "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-09T08:43:06.622655Z",
+  "branch": "codex/pr62-split-07-organizer-receipt-query",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts",
+    "tests/docs/events/register.doc.ts",
+    "tests/specs/finance/stripe-webhook-replay.spec.ts",
+    "tests/support/reporters/documentation-reporter/take-screenshot.ts",
+    "tests/support/utils/doc-screenshot.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "071e805c9918",
+  "token_usage": {
+    "input_tokens": 16237503,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 763187840,
+    "output_tokens": 1307649,
+    "api_call_count": 5789
+  },
+  "session_metrics": {
+    "turn_count": 40
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
