@@ -328,12 +328,48 @@ describe('eventLifecycleHandlers', () => {
   );
 
   it.effect(
-    'events.create rejects copied ESNcard discounts when the tenant provider is disabled',
+    'events.create skips copied ESNcard discounts when the tenant provider is disabled',
     () =>
       Effect.gen(function* () {
-        const insert = vi.fn();
+        const insertedDiscountValues = vi.fn(() => Effect.succeed());
         const database = {
-          insert,
+          insert: vi.fn((table) => {
+            if (table === eventInstances) {
+              return {
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-1',
+                      },
+                    ]),
+                  ),
+                })),
+              };
+            }
+
+            if (table === eventRegistrationOptions) {
+              return {
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-option-1',
+                      },
+                    ]),
+                  ),
+                })),
+              };
+            }
+
+            if (table === eventRegistrationOptionDiscounts) {
+              return {
+                values: insertedDiscountValues,
+              };
+            }
+
+            throw new Error('Unexpected insert table');
+          }),
           query: {
             eventTemplates: {
               findFirst: vi.fn(() =>
@@ -379,7 +415,7 @@ describe('eventLifecycleHandlers', () => {
           Layer.succeed(Database, database as never),
         );
 
-        const error = yield* eventLifecycleHandlers['events.create'](
+        const result = yield* eventLifecycleHandlers['events.create'](
           {
             ...createInput,
             registrationOptions: [
@@ -393,11 +429,10 @@ describe('eventLifecycleHandlers', () => {
             ],
           },
           { headers: {} } as never,
-        ).pipe(Effect.flip, Effect.provide(layer));
+        ).pipe(Effect.provide(layer));
 
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('esnDiscountUnavailable');
-        expect(insert).not.toHaveBeenCalled();
+        expect(result).toEqual({ id: 'event-1' });
+        expect(insertedDiscountValues).not.toHaveBeenCalled();
       }),
   );
 
