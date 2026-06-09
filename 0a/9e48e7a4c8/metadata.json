@@ -6,9 +6,7 @@
   "checkpoints_count": 3,
   "files_touched": [
     "migration/steps/009_add_event_registration_questions.ts",
-    "migration/steps/011_add_event_registration_addon_purchases.ts",
-    "tests/specs/admin/general-settings.spec.ts",
-    "tests/specs/admin/global-admin-tenants.spec.ts"
+    "migration/steps/011_add_event_registration_addon_purchases.ts"
   ],
   "sessions": [
     {
@@ -19,10 +17,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 15564028,
+    "input_tokens": 18097370,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 751054336,
-    "output_tokens": 1280151,
-    "api_call_count": 5693
+    "cache_read_tokens": 812787968,
+    "output_tokens": 1401121,
+    "api_call_count": 6180
   }
 }
