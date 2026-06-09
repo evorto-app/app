@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "50936f14b080",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-03-tenant-legal-pages",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "tests/specs/events/negative-registration-states.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/50/936f14b080/0/metadata.json",
+      "transcript": "/50/936f14b080/0/full.jsonl",
+      "content_hash": "/50/936f14b080/0/content_hash.txt",
+      "prompt": "/50/936f14b080/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 10709022,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 565787520,
+    "output_tokens": 1009389,
+    "api_call_count": 4290
+  }
+}
