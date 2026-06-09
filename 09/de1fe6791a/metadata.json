@@ -3,10 +3,11 @@
   "checkpoint_id": "09de1fe6791a",
   "strategy": "manual-commit",
   "branch": "codex/pr62-split-09-finance-docs-captions",
-  "checkpoints_count": 2,
+  "checkpoints_count": 1,
   "files_touched": [
-    "helpers/testing/generated-documentation-source.spec.ts",
-    "helpers/testing/validate-ci-runtime-env.sh"
+    "bun.lock",
+    "package.json",
+    "tests/setup/mcp-browser.seed.ts"
   ],
   "sessions": [
     {
@@ -17,10 +18,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 9793236,
+    "input_tokens": 460793,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 531395840,
-    "output_tokens": 959017,
-    "api_call_count": 4030
+    "cache_read_tokens": 15065088,
+    "output_tokens": 31596,
+    "api_call_count": 125
   }
 }
