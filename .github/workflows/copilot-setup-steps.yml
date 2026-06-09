@@ -58,11 +58,11 @@ jobs:
         run: bash helpers/testing/install-ci-dependencies.sh
 
       - name: Save Bun package cache
-        if: steps.bun-package-cache.outputs.cache-hit != 'true'
+        if: steps.bun-dependency-caches.outputs.package-cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ steps.bun-package-cache.outputs.cache-primary-key }}
+          key: ${{ steps.bun-dependency-caches.outputs.package-cache-primary-key }}
 
       - name: Save Bun dependency tree from package cache
         if: steps.bun-dependency-caches.outputs.dependency-tree-cache-hit != 'true'
