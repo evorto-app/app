@@ -33,7 +33,9 @@ describe('app routes', () => {
   it.each(['legal/imprint', 'legal/privacy', 'legal/terms'])(
     'keeps /%s publicly reachable for tenant-hosted legal pages',
     (path) => {
-      expect(routeFor(path)?.canActivate).toBeUndefined();
+      const route = routeFor(path);
+      expect(route).toBeDefined();
+      expect(route?.canActivate).toBeUndefined();
     },
   );
 });

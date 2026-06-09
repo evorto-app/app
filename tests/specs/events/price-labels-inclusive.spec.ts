@@ -2,8 +2,8 @@ import type { Locator, Page } from '@playwright/test';
 import { eq } from 'drizzle-orm';
 
 import { adminStateFile, userStateFile } from '../../../helpers/user-data';
-import * as schema from '../../../src/db/schema';
-import { formatInclusiveTaxLabel } from '../../../src/shared/price/format-inclusive-tax-label';
+import * as schema from '@db/schema';
+import { formatInclusiveTaxLabel } from '@shared/price/format-inclusive-tax-label';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 const priceText = (amountInCents: number) =>

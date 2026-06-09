@@ -92,7 +92,11 @@ export const normalizeUsersFindManySearch = (
   search: string | undefined,
 ): string | undefined => {
   const trimmed = search?.trim();
-  return trimmed ? `%${trimmed}%` : undefined;
+  const escaped = trimmed
+    ?.replaceAll('\\', '\\\\')
+    .replaceAll('%', String.raw`\%`)
+    .replaceAll('_', String.raw`\_`);
+  return escaped ? `%${escaped}%` : undefined;
 };
 
 const mapCreateAccountUnexpectedError = (error: unknown) =>

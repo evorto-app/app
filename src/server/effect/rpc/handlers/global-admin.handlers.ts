@@ -1,10 +1,13 @@
-import type { GlobalAdminTenantRecord } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import type { Headers } from 'effect/unstable/http';
 
 import {
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
+import {
+  GlobalAdminTenantRecord,
+  type GlobalAdminTenantRecord as GlobalAdminTenantRecordType,
+} from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -66,13 +69,13 @@ const toGlobalAdminTenantRecord = (tenant: {
   stripeAccountId: null | string;
   theme: string;
   timezone: string;
-}): GlobalAdminTenantRecord => {
+}): GlobalAdminTenantRecordType => {
   const { stripeAccountId, ...record } = tenant;
 
-  return {
+  return Schema.decodeUnknownSync(GlobalAdminTenantRecord)({
     ...record,
     stripeConnected: !!stripeAccountId,
-  };
+  });
 };
 
 const globalAdminTenantColumns = {

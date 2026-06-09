@@ -1,3 +1,5 @@
+import type { GlobalAdminTenantRecord } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -15,7 +17,7 @@ const tenant = {
   stripeConnected: true,
   theme: 'esn',
   timezone: 'Europe/Berlin',
-};
+} as const satisfies GlobalAdminTenantRecord;
 
 describe('globalAdminTenantRows', () => {
   it('summarizes tenant operational state for global admin review', () => {
@@ -69,15 +71,15 @@ describe('filterGlobalAdminTenants', () => {
   it('matches tenant operational fields case-insensitively', () => {
     const secondTenant = {
       ...tenant,
-      currency: 'USD',
+      currency: 'AUD',
       domain: 'north.example.com',
       id: 'tenant-2',
       locale: 'en-US',
       name: 'North',
       stripeConnected: false,
-      theme: 'default',
-      timezone: 'America/New_York',
-    };
+      theme: 'evorto',
+      timezone: 'Australia/Brisbane',
+    } as const satisfies GlobalAdminTenantRecord;
 
     expect(filterGlobalAdminTenants([tenant, secondTenant], 'north')).toEqual([
       secondTenant,

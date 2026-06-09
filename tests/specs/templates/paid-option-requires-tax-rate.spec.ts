@@ -9,14 +9,13 @@ test.use({ storageState: organizerStateFile });
 const enablePaymentForFirstParticipantRegistrationOption = async (
   page: Page,
 ) => {
-  const paymentCheckbox = page
+  const participantOptionForm = page
     .locator('app-template-registration-option-form')
-    .last()
-    .getByRole('checkbox', { name: 'Enable Payment' })
-    .first();
-
-  await paymentCheckbox.check();
-  await expect(paymentCheckbox).toBeChecked();
+    .last();
+  await participantOptionForm.getByText('Enable Payment').click();
+  await expect(
+    participantOptionForm.getByLabel('Price (in cents)'),
+  ).toBeVisible();
 };
 
 test.describe('Template Tax Rate Validation', () => {

@@ -31,8 +31,7 @@ Tenant admins can manage the settings that are currently implemented for the act
   );
 
   await testInfo.attach('markdown', {
-    body:
-      `
+    body: `
 ## Current settings surface
 
 The current general settings page supports:
@@ -44,13 +43,8 @@ The current general settings page supports:
 - **Currency**, **Locale**, and **Timezone** selection within the supported relaunch policy.
 - **Logo URL** and **Favicon URL** for externally hosted tenant brand assets. The configured favicon updates the browser tab icon.
 - **SEO title** and **SEO description** for tenant-level page metadata.
-- **Legal pages** for tenant imprint/legal notice, privacy policy, and terms. Admins can use external URLs or hosted text. External URLs appear in the public footer as off-site links; hosted text appears at ` /
-      legal /
-      imprint`, ` /
-      legal /
-      privacy`, and ` /
-      legal /
-      terms`.
+- **Legal pages** for tenant imprint/legal notice, privacy policy, and terms. Admins can use external URLs or hosted text. External URLs appear in the public footer as off-site links.
+  Hosted text appears at /legal/imprint, /legal/privacy, and /legal/terms.
 - **Allowed receipt countries** and **Allow other** for receipt submission.
 - **ESN Card discounts** and optional **Buy ESNcard URL** when the tenant uses ESNcard validation.
 

@@ -1,11 +1,11 @@
 import type Stripe from 'stripe';
 
+import { registrationSpotCount } from '@shared/registration-spots';
 import { and, eq, lte, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import { Database, type DatabaseClient } from '../../db';
 import * as schema from '../../db/schema';
-import { registrationSpotCount } from '../../shared/registration-spots';
 import { stripeWebhookConfig } from '../config/stripe-config';
 import { StripeClient } from '../stripe-client';
 const MAX_WEBHOOK_SIZE_BYTES = 200 * 1024;
