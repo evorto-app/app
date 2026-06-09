@@ -142,11 +142,7 @@ const validateCopiedTemplateDiscount = ({
     return null;
   }
 
-  if (!esnCardEnabledForTenant) {
-    return unavailableEsnCardDiscountError();
-  }
-
-  if (discount.discountedPrice > option.price) {
+  if (esnCardEnabledForTenant && discount.discountedPrice > option.price) {
     return invalidEsnCardDiscountPriceError();
   }
 
@@ -362,6 +358,12 @@ export const eventLifecycleHandlers = {
             if (
               discount.registrationOptionId !==
               createdOptionSource.sourceTemplateOptionId
+            ) {
+              continue;
+            }
+            if (
+              discount.discountType === 'esnCard' &&
+              !esnCardEnabledForTenant
             ) {
               continue;
             }
