@@ -21,7 +21,7 @@ export const fillTemplateBasics = async (
 
   const changeIconButton = page.getByRole('button', { name: 'Change Icon' });
   const hasIconPicker = await changeIconButton
-    .waitFor({ state: 'visible', timeout: 1000 })
+    .waitFor({ state: 'visible', timeout: 5000 })
     .then(() => true)
     .catch(() => false);
   if (hasIconPicker) {

@@ -3,6 +3,7 @@ import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
+import { Tenant } from '../../../types/custom/tenant';
 import { ForbiddenOrUnauthorizedRpcError } from '../../errors/rpc-errors';
 
 export const GlobalAdminRpcError = ForbiddenOrUnauthorizedRpcError;
@@ -10,14 +11,14 @@ export const GlobalAdminRpcError = ForbiddenOrUnauthorizedRpcError;
 export type GlobalAdminRpcError = ForbiddenOrUnauthorizedRpcError;
 
 export const GlobalAdminTenantRecord = Schema.Struct({
-  currency: Schema.NonEmptyString,
+  currency: Tenant.fields.currency,
   domain: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
-  locale: Schema.NonEmptyString,
+  locale: Tenant.fields.locale,
   name: Schema.NonEmptyString,
   stripeConnected: Schema.Boolean,
-  theme: Schema.NonEmptyString,
-  timezone: Schema.NonEmptyString,
+  theme: Tenant.fields.theme,
+  timezone: Tenant.fields.timezone,
 });
 
 export type GlobalAdminTenantRecord = Schema.Schema.Type<

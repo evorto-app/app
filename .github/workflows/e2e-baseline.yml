@@ -117,6 +117,7 @@ jobs:
         run: docker compose pull
 
       - name: Build Docker images (compose)
+        timeout-minutes: 25
         run: docker compose build --pull
 
       - name: Start Docker stack for E2E

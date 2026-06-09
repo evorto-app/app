@@ -4,11 +4,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Create and manage events', async ({
-  events,
-  page,
-  seeded,
-}, testInfo) => {
+test('Create and manage events', async ({ events, page, seeded }, testInfo) => {
   const target = events.find(
     (event) => event.id === seeded.scenario.events.freeOpen.eventId,
   );

@@ -270,7 +270,7 @@ const cancelRegistration = ({
                         confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} - ${registeredSpotCount}`,
                       }
                     : {
-                        waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} - 1`,
+                        waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} - ${registeredSpotCount}`,
                       },
               )
               .where(
@@ -289,7 +289,10 @@ const cancelRegistration = ({
                           eventRegistrationOptions.confirmedSpots,
                           registeredSpotCount,
                         )
-                      : gte(eventRegistrationOptions.waitlistSpots, 1),
+                      : gte(
+                          eventRegistrationOptions.waitlistSpots,
+                          registeredSpotCount,
+                        ),
                 ),
               )
               .returning({
