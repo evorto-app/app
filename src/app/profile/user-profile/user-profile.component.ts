@@ -37,6 +37,8 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
+import type { User } from '../../../types/custom/user';
+
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
@@ -60,6 +62,26 @@ export const esnCardMutationErrorMessage = (
   action: EsnCardMutationAction,
   error: unknown,
 ): string => getErrorMessage(error, esnCardFallbackMessages[action]);
+
+export const profileUserAfterEdit = <
+  T extends {
+    communicationEmail?: null | string | undefined;
+    firstName: string;
+    iban?: null | string | undefined;
+    lastName: string;
+    paypalEmail?: null | string | undefined;
+  },
+>(
+  user: T,
+  result: EditProfileDialogResult,
+): T => ({
+  ...user,
+  communicationEmail: result.communicationEmail?.trim() || null,
+  firstName: result.firstName,
+  iban: result.iban ?? null,
+  lastName: result.lastName,
+  paypalEmail: result.paypalEmail ?? null,
+});
 
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
@@ -269,10 +291,17 @@ export class UserProfileComponent {
   protected readonly profileEventGuestLabel = profileEventGuestLabel;
   protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
   protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
+  protected readonly userQuery = injectQuery(() =>
+    this.rpc.users.self.queryOptions(),
+  );
+
+  private readonly profileUserOverride = signal<null | User>(null);
+  protected readonly profileUser = computed(
+    () => this.profileUserOverride() ?? this.userQuery.data(),
+  );
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
-
   protected readonly registrationPaymentLabel = registrationPaymentLabel;
   protected readonly registrationStatusLabel = registrationStatusLabel;
   protected readonly sectionEntries = computed(() =>
@@ -289,9 +318,6 @@ export class UserProfileComponent {
   );
   protected readonly userEventsQuery = injectQuery(() =>
     this.rpc.users.events.queryOptions(),
-  );
-  protected readonly userQuery = injectQuery(() =>
-    this.rpc.users.self.queryOptions(),
   );
 
   private readonly dialog = inject(MatDialog);
@@ -341,7 +367,7 @@ export class UserProfileComponent {
     );
   }
   protected async openEditProfileDialog(): Promise<void> {
-    const user = this.userQuery.data();
+    const user = this.profileUser();
     if (!user) return;
     const dialogReference = this.dialog.open<
       EditProfileDialogComponent,
@@ -367,11 +393,15 @@ export class UserProfileComponent {
         );
       },
       onSuccess: async () => {
-        await this.queryClient.invalidateQueries(
-          this.rpc.queryFilter(['users', 'self']),
+        const updatedUser = profileUserAfterEdit(user, result);
+        this.profileUserOverride.set(updatedUser);
+        this.queryClient.setQueryData(
+          this.rpc.pathKey(['users', 'self']),
+          updatedUser,
         );
-        await this.queryClient.invalidateQueries(
-          this.rpc.queryFilter(['users', 'maybeSelf']),
+        this.queryClient.setQueryData(
+          this.rpc.pathKey(['users', 'maybeSelf']),
+          updatedUser,
         );
         await this.queryClient.invalidateQueries(
           this.rpc.queryFilter([

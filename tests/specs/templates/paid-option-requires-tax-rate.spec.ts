@@ -10,9 +10,35 @@ const enablePaymentForLastRegistrationOption = async (page: Page) => {
   const participantOptionForm = page
     .locator('app-template-registration-option-form')
     .last();
-  await participantOptionForm.getByLabel('Enable payment').check();
+  await participantOptionForm
+    .getByRole('checkbox', { name: 'Enable payment' })
+    .check();
   await expect(
-    participantOptionForm.getByLabel('Price (in cents)'),
+    participantOptionForm.getByRole('spinbutton', {
+      exact: true,
+      name: 'Price (in cents)',
+    }),
+  ).toBeVisible();
+};
+
+const ensureLastRegistrationOptionHasRole = async (
+  page: Page,
+  roleName: string,
+) => {
+  const participantOptionForm = page
+    .locator('app-template-registration-option-form')
+    .last();
+  if (
+    (await participantOptionForm.getByText(roleName, { exact: true }).count()) >
+    0
+  ) {
+    return;
+  }
+
+  await participantOptionForm.getByPlaceholder('Add Role...').fill(roleName);
+  await page.getByRole('option', { exact: true, name: roleName }).click();
+  await expect(
+    participantOptionForm.getByText(roleName, { exact: true }),
   ).toBeVisible();
 };
 
@@ -41,6 +67,7 @@ test.describe('Template Tax Rate Validation', () => {
   test('creator can save paid registration option with a seeded inclusive tax rate', async ({
     database,
     page,
+    roles,
     templateCategories,
     tenant,
   }) => {
@@ -55,6 +82,10 @@ test.describe('Template Tax Rate Validation', () => {
     if (!taxRate) {
       throw new Error('Expected seeded active inclusive tax rate');
     }
+    const defaultUserRole = roles.find((role) => role.defaultUserRole);
+    if (!defaultUserRole) {
+      throw new Error('Expected seeded default user role');
+    }
     const taxRateLabel = `${taxRate.displayName || taxRate.stripeTaxRateId} — ${
       taxRate.percentage ?? '?'
     }%`;
@@ -62,10 +93,10 @@ test.describe('Template Tax Rate Validation', () => {
 
     await page.goto(`/templates/create/${category.id}`);
     await fillTemplateBasics(page, {
-      description: null,
       title: templateTitle,
     });
     await enablePaymentForLastRegistrationOption(page);
+    await ensureLastRegistrationOptionHasRole(page, defaultUserRole.name);
     await page.getByLabel('Price (in cents)').first().fill('1000');
     await page.getByLabel('Tax rate').first().click();
     await expect(

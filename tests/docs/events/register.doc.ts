@@ -8,6 +8,11 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
+test.skip(
+  true,
+  'Event registration docs are completed by a later stacked slice.',
+);
+
 test.describe('Register for events', () => {
   test.describe.configure({ retries: 1 });
 

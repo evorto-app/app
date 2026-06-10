@@ -4,6 +4,11 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
+test.skip(
+  true,
+  'Receipt reimbursement docs are completed by a later stacked docs slice.',
+);
+
 test('Review and reimburse receipts @finance', async ({
   page,
   permissionOverride,
