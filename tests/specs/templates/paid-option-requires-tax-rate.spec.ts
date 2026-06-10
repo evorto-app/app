@@ -12,7 +12,7 @@ const enablePaymentForFirstParticipantRegistrationOption = async (
   const participantOptionForm = page
     .locator('app-template-registration-option-form')
     .last();
-  await participantOptionForm.getByText('Enable Payment').click();
+  await participantOptionForm.getByLabel('Enable Payment').check();
   await expect(
     participantOptionForm.getByLabel('Price (in cents)'),
   ).toBeVisible();
