@@ -5,16 +5,7 @@
 </mat-form-field>
 
 <section class="grid gap-3">
-  <label class="flex items-center gap-2">
-    <input
-      #isPaidInput
-      type="checkbox"
-      class="accent-primary size-4"
-      [checked]="form.isPaid().value()"
-      (change)="form.isPaid().value.set(isPaidInput.checked)"
-    />
-    <span>Enable Payment</span>
-  </label>
+  <mat-slide-toggle [formField]="form.isPaid">Enable Payment</mat-slide-toggle>
 
   @if (!form.price().hidden()) {
     <div class="grid gap-4">
