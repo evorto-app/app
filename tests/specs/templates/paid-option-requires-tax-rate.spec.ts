@@ -6,15 +6,11 @@ import type { Page } from '@playwright/test';
 
 test.use({ storageState: organizerStateFile });
 
-const enablePaymentForFirstParticipantRegistrationOption = async (
-  page: Page,
-) => {
+const enablePaymentForLastRegistrationOption = async (page: Page) => {
   const participantOptionForm = page
     .locator('app-template-registration-option-form')
     .last();
-  await participantOptionForm
-    .getByRole('switch', { name: 'Enable Payment' })
-    .click();
+  await participantOptionForm.getByLabel('Enable payment').check();
   await expect(
     participantOptionForm.getByLabel('Price (in cents)'),
   ).toBeVisible();
@@ -35,7 +31,7 @@ test.describe('Template Tax Rate Validation', () => {
     const saveButton = page.getByRole('button', { name: 'Save template' });
     await expect(page.getByLabel('Tax rate')).toHaveCount(0);
 
-    await enablePaymentForFirstParticipantRegistrationOption(page);
+    await enablePaymentForLastRegistrationOption(page);
 
     await expect(page.getByLabel('Price (in cents)').first()).toBeVisible();
     await expect(page.getByLabel('Tax rate').first()).toBeVisible();
@@ -69,7 +65,7 @@ test.describe('Template Tax Rate Validation', () => {
       description: null,
       title: templateTitle,
     });
-    await enablePaymentForFirstParticipantRegistrationOption(page);
+    await enablePaymentForLastRegistrationOption(page);
     await page.getByLabel('Price (in cents)').first().fill('1000');
     await page.getByLabel('Tax rate').first().click();
     await expect(
