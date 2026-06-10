@@ -3315,20 +3315,21 @@ implement those decisions or explicitly revise them there before changing code.
   collection, stack shutdown, and artifact upload path for its own suite. The
   long Playwright phases run in parallel, and the functional project is sharded
   into two isolated Docker-backed jobs because the latest timing showed the
-  functional Playwright phase dominated the workflow wall time. The Docker
-  build step now times out after 10 minutes, so an infrastructure build hang
-  fails faster while the successful path remains unchanged. Recent green runs
-  before functional sharding completed docs in roughly ten minutes and
+  functional Playwright phase dominated the workflow wall time. Recent green
+  runs before functional sharding completed docs in roughly ten minutes and
   functional in the low-to-high teens; after sharding, the workflow should be
   gated by the slower functional shard instead of one full serial functional
-  pass. Docker Compose gives the Neon Local `db` service bounded
-  `on-failure` restarts, so transient `423 Client Error: Locked`
+  pass. The Docker build step times out after 15 minutes, which is still
+  bounded enough to fail infrastructure build hangs while avoiding false
+  failures from a single slower hosted runner. Docker Compose gives the Neon
+  Local `db` service bounded `on-failure` restarts, so transient Neon 423
+  `Client Error: Locked`
   branch-creation exits can recover inside the existing startup wait without
   serializing the split matrix or treating a temporary Neon project lock as an
   app regression. CI also gives the Neon Local metadata wait 180 seconds before
   the one-shot branch-expiration helper can fail startup, because the first
-  split-matrix run showed all shards reaching `docker compose up -d evorto`
-  before `db-expiration` timed out at the previous 60-second metadata wait. The
+  split-matrix run showed all shards reaching Compose startup before
+  `db-expiration` timed out at the previous 60-second metadata wait. The
   next run proved the timeout was masking a bind-mounted metadata permission
   problem: Neon Local was healthy, but its container user could not write
   `/tmp/.neon_local/.branches` into the runner-created host directory. CI now
@@ -3348,10 +3349,15 @@ implement those decisions or explicitly revise them there before changing code.
 - Post-main-sync checkpoint: the branch was rebased onto `origin/main` at
   `35ebb9a2` after the Neon branch-expiration cleanup landed. The E2E workflow
   now uses the regular Compose graph in CI with
-  `docker compose up -d evorto`, so `db`, `db-expiration`, `db-setup`, MinIO,
-  MinIO init, and the app start through the same dependency path as local
-  startup instead of duplicating database waits and schema setup in GitHub
-  Actions. Local verification after the rebase passed `bun run format:write`,
+  `docker compose up -d`, so `db`, `db-expiration`, `db-setup`, MinIO,
+  MinIO init, the Stripe CLI webhook listener, and the app start through the
+  same dependency path as local startup instead of duplicating database waits
+  and schema setup in GitHub Actions. This keeps the generated paid
+  registration docs path aligned with the local Docker stack: Stripe Checkout
+  completion webhooks are forwarded by the Compose-managed `stripe` service,
+  while the app reads the generated signing secret from the shared
+  `STRIPE_WEBHOOK_SECRET_FILE` when it is present. Local verification after the
+  rebase passed `bun run format:write`,
   `bun run lint`, the focused stabilization/runtime/generated-docs source guard
   suite with 42 passing tests, workflow YAML parsing, `git diff --check`, and
   project-local `docker compose config --quiet`. The refreshed worktree did not

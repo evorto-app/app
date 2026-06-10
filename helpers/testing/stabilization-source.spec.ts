@@ -3537,10 +3537,10 @@ describe('stabilization source', () => {
     expect(readinessCheckpoint).toContain('low-to-high teens');
     expect(readinessCheckpoint).toContain('functional project is sharded');
     expect(readinessCheckpoint).toContain('slower functional shard');
-    expect(readinessCheckpoint).toContain('out after 10 minutes');
+    expect(readinessCheckpoint).toContain('out after 15 minutes');
     expect(readinessCheckpoint).toMatch(/bounded\s+`on-failure` restarts/u);
-    expect(readinessCheckpoint).toContain(
-      'transient `423 Client Error: Locked`',
+    expect(readinessCheckpoint).toMatch(
+      /transient\s+Neon\s+423\s+`Client\s+Error:\s+Locked`/u,
     );
     expect(readinessCheckpoint).toContain('180 seconds');
     expect(readinessCheckpoint).toContain('60-second metadata wait');
