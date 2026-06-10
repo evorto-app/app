@@ -2,8 +2,7 @@
 set -euo pipefail
 
 run_docker_preflight() {
-  bun run env:runtime
-  timeout 2m node_modules/.bin/dotenv -c dev -- docker compose config --quiet
+  timeout 5m bun run docker:check
 }
 
 pull_compose_images() {
