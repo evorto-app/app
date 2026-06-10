@@ -24,7 +24,7 @@ build_and_start_compose() {
   start_status=1
   for attempt in 1 2; do
     set +e
-    timeout 12m node_modules/.bin/dotenv -c dev -- docker compose build --progress=plain db-setup evorto
+    timeout 12m node_modules/.bin/dotenv -c dev -- docker compose -f docker-compose.yml -f .github/docker-compose.build-cache.yml build --progress=plain db-setup evorto
     build_status=$?
     if [ "${build_status}" = "0" ]; then
       timeout 5m node_modules/.bin/dotenv -c dev -- docker compose up --no-build -d
@@ -45,12 +45,13 @@ build_and_start_compose() {
       echo "::warning::Docker Compose build/start failed with status ${start_status}. Pruning builder state and retrying once."
     fi
     timeout 90s node_modules/.bin/dotenv -c dev -- docker compose down --timeout 60 --remove-orphans || true
+    timeout 5m node_modules/.bin/dotenv -c dev -- bun helpers/testing/delete-neon-local-branches.ts || true
     docker builder prune -af || true
   done
   if [ "${start_status}" = "124" ]; then
     echo "::error::Docker Compose build/start timed out before the workflow step timeout"
   fi
-  node_modules/.bin/dotenv -c dev -- docker compose ps || true
+  bun run docker:ps || true
   node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100 db db-expiration db-setup minio minio-init evorto stripe || true
   return "${start_status}"
 }
