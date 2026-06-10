@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "af461e079bfe",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-03-tenant-legal-pages",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "src/app/templates/shared/template-form/template-registration-option-form.component.html"
+  ],
+  "sessions": [
+    {
+      "metadata": "/af/461e079bfe/0/metadata.json",
+      "transcript": "/af/461e079bfe/0/full.jsonl",
+      "content_hash": "/af/461e079bfe/0/content_hash.txt",
+      "prompt": "/af/461e079bfe/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 26577161,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1124299904,
+    "output_tokens": 1928502,
+    "api_call_count": 8578
+  }
+}
