@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "40839dc8b590",
+  "session_id": "019ea60b-1a1c-7703-b8d8-26ed57eb7f8e",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-10T04:09:33.887967Z",
+  "branch": "codex/pr62-split-09-finance-docs-captions",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "STABILIZATION.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "071e805c9918",
+  "token_usage": {
+    "input_tokens": 30089127,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1218359168,
+    "output_tokens": 2064965,
+    "api_call_count": 9302
+  },
+  "session_metrics": {
+    "turn_count": 70
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-10T04:09:32.124683Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 7058,
+    "human_modified": 192,
+    "human_removed": 0,
+    "total_committed": 7058,
+    "total_lines_changed": 7253,
+    "agent_percentage": 0,
+    "metric_version": 2
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "40839dc8b590",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-09-finance-docs-captions",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "STABILIZATION.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/40/839dc8b590/0/metadata.json",
+      "transcript": "/40/839dc8b590/0/full.jsonl",
+      "content_hash": "/40/839dc8b590/0/content_hash.txt",
+      "prompt": "/40/839dc8b590/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 30089127,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1218359168,
+    "output_tokens": 2064965,
+    "api_call_count": 9302
+  }
+}
