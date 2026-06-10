@@ -7,9 +7,11 @@
 <section class="grid gap-3">
   <label class="flex items-center gap-2">
     <input
+      #isPaidInput
       type="checkbox"
       class="accent-primary size-4"
-      [formField]="form.isPaid"
+      [checked]="form.isPaid().value()"
+      (change)="form.isPaid().value.set(isPaidInput.checked)"
     />
     <span>Enable Payment</span>
   </label>
