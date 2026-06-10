@@ -6,7 +6,12 @@
 
 <section class="grid gap-3">
   <label class="text-on-surface flex items-center gap-2 text-sm">
-    <input class="h-4 w-4" type="checkbox" [formField]="form.isPaid" />
+    <input
+      class="h-4 w-4"
+      type="checkbox"
+      [checked]="form.isPaid().value()"
+      (change)="setIsPaid($event)"
+    />
     <span>Enable payment</span>
   </label>
 
@@ -18,7 +23,8 @@
           matInput
           type="number"
           aria-label="Price (in cents)"
-          [formField]="form.price"
+          [value]="form.price().value()"
+          (input)="setPrice($event)"
         />
       </mat-form-field>
 
@@ -28,7 +34,8 @@
           <input
             matInput
             type="number"
-            [formField]="form.esnCardDiscountedPrice"
+            [value]="form.esnCardDiscountedPrice().value()"
+            (input)="setEsnCardDiscountedPrice($event)"
             placeholder="Optional"
           />
           <mat-hint>
@@ -39,7 +46,11 @@
 
       <mat-form-field class="w-full">
         <mat-label>Tax rate</mat-label>
-        <mat-select aria-label="Tax rate" [formField]="form.stripeTaxRateId">
+        <mat-select
+          aria-label="Tax rate"
+          [value]="form.stripeTaxRateId().value()"
+          (selectionChange)="setStripeTaxRateId($event.value)"
+        >
           @if (taxRatesQuery.isPending()) {
             <mat-option disabled>Loading tax rates ...</mat-option>
           } @else if (taxRatesQuery.isSuccess()) {

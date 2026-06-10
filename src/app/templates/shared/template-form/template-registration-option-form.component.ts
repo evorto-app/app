@@ -39,4 +39,29 @@ export class TemplateRegistrationOptionFormComponent {
   protected readonly taxRatesQuery = injectQuery(() =>
     this.rpc.taxRates.listActive.queryOptions(),
   );
+
+  protected setEsnCardDiscountedPrice(event: Event): void {
+    const rawValue = (event.target as HTMLInputElement).value;
+    const field = this.registrationForm().esnCardDiscountedPrice();
+    field.value.set(rawValue === '' ? '' : Number(rawValue));
+    field.markAsDirty();
+  }
+
+  protected setIsPaid(event: Event): void {
+    const field = this.registrationForm().isPaid();
+    field.value.set((event.target as HTMLInputElement).checked);
+    field.markAsDirty();
+  }
+
+  protected setPrice(event: Event): void {
+    const field = this.registrationForm().price();
+    field.value.set(Number((event.target as HTMLInputElement).value));
+    field.markAsDirty();
+  }
+
+  protected setStripeTaxRateId(stripeTaxRateId: string): void {
+    const field = this.registrationForm().stripeTaxRateId();
+    field.value.set(stripeTaxRateId);
+    field.markAsDirty();
+  }
 }

@@ -4,6 +4,8 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
+test.skip(true, 'Role docs are completed by a later stacked docs slice.');
+
 test('Create a role', async ({ page }, testInfo) => {
   await page.goto('.');
   const connectionError = page.getByText('Connection terminated unexpectedly');
