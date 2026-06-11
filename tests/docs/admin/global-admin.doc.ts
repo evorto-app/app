@@ -26,16 +26,17 @@ const readFirstTenantRowValue = async (
   return value?.trim() ?? '';
 };
 
-interface GlobalAdminTenantDocRow {
-  currency: string;
-  domain: string;
-  id: string;
-  locale: string;
-  name: string;
-  stripeAccountId: null | string;
-  theme: string;
-  timezone: string;
-}
+type GlobalAdminTenantDocRow = Pick<
+  typeof schema.tenants.$inferSelect,
+  | 'currency'
+  | 'domain'
+  | 'id'
+  | 'locale'
+  | 'name'
+  | 'stripeAccountId'
+  | 'theme'
+  | 'timezone'
+>;
 
 const expectGlobalAdminTenantRows = async (
   page: Page,
@@ -129,7 +130,6 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     await expect(
       page.getByRole('heading', { name: 'Global admin' }),
     ).toBeVisible();
-    await page.getByRole('link', { name: 'Tenants' }).click();
     await expect(
       page.getByRole('heading', { level: 1, name: 'Tenants' }),
     ).toBeVisible();

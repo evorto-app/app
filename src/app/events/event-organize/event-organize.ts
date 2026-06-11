@@ -337,7 +337,9 @@ export class EventOrganize {
     if (
       organizerRegistrationTransferDisabled({
         checkedIn: registration.checkedIn,
-        mutationPending: this.transferRegistrationMutation.isPending(),
+        mutationPending:
+          this.transferRegistrationMutation.isPending() ||
+          this.cancelRegistrationMutation.isPending(),
         transferAvailable: registration.transferAvailable,
       })
     ) {

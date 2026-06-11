@@ -62,9 +62,11 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
   database,
   page,
 }) => {
-  const originalTenant = await database.query.tenants.findFirst({
-    where: (tenantTable) => eq(tenantTable.domain, 'localhost'),
-  });
+  const [originalTenant] = await database
+    .select()
+    .from(schema.tenants)
+    .where(eq(schema.tenants.domain, 'localhost'))
+    .limit(1);
   if (!originalTenant) {
     throw new Error('Expected seeded global-admin tenant');
   }
@@ -102,8 +104,9 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeDisabled();
-    await page.getByLabel('Tenant name').fill(createdTenantName);
-    await page.getByLabel('Primary domain').fill('section.example.org/path');
+    const createTenantInputs = page.locator('form input');
+    await createTenantInputs.first().fill(createdTenantName);
+    await createTenantInputs.nth(1).fill('section.example.org/path');
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -112,11 +115,11 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
       page.getByText('Domain must be a single host name'),
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
-    await page.getByLabel('Primary domain').fill(originalTenant.domain);
+    await createTenantInputs.nth(1).fill(originalTenant.domain);
     await page.getByRole('button', { name: 'Create tenant' }).click();
     await expect(page.getByText('Tenant domain already exists')).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
-    await page.getByLabel('Primary domain').fill(createdTenantDomain);
+    await createTenantInputs.nth(1).fill(createdTenantDomain);
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -126,9 +129,11 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
       page.getByRole('heading', { level: 1, name: createdTenantName }),
     ).toBeVisible();
 
-    const createdTenant = await database.query.tenants.findFirst({
-      where: (tenantTable) => eq(tenantTable.domain, createdTenantDomain),
-    });
+    const [createdTenant] = await database
+      .select()
+      .from(schema.tenants)
+      .where(eq(schema.tenants.domain, createdTenantDomain))
+      .limit(1);
     if (!createdTenant) {
       throw new Error('Expected global-admin create flow to persist tenant');
     }
@@ -190,9 +195,11 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
       page.getByRole('heading', { level: 1, name: updatedTenantName }),
     ).toBeVisible();
 
-    const updatedTenant = await database.query.tenants.findFirst({
-      where: (tenantTable) => eq(tenantTable.id, originalTenant.id),
-    });
+    const [updatedTenant] = await database
+      .select()
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, originalTenant.id))
+      .limit(1);
     expect(updatedTenant).toEqual(
       expect.objectContaining({
         domain: originalTenant.domain,

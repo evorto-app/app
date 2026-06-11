@@ -12,8 +12,6 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
 
-const seededEsnCardIdentifier = 'TEST-ESN-0001';
-
 test('Understand ESN discount card states', async ({}, testInfo) => {
   expect(esnCardStatusLabel('verified')).toBe('Verified');
   expect(esnCardStatusLabel('expired')).toBe('Expired');
@@ -64,7 +62,6 @@ const seededEsnCardIdentifier = 'TEST-ESN-0001';
 test('Manage ESN discount card @finance', async ({
   discounts,
   database,
-  discounts,
   page,
 }, testInfo) => {
   void discounts;

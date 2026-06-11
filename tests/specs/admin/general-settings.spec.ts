@@ -43,6 +43,7 @@ test('tenant admin updates relaunch general settings @admin', async ({
   await expect(
     page.getByRole('heading', { name: 'Tenant identity' }),
   ).toBeVisible();
+  await expect(generalSettings).not.toHaveAttribute('ngh', /.*/);
 
   await page
     .getByPlaceholder('https://section.example.org/logo.svg')

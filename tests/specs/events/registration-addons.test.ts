@@ -1,41 +1,17 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
-import { DEFAULT_E2E_NOW_ISO } from '../../../helpers/testing/deterministic-test-defaults';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { seedFreeRegistrationAddon } from '../../support/utils/seed-registration-addons';
+import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
 
-const futureServerEventWindow = (): {
-  closeRegistrationTime: Date;
-  end: Date;
-  openRegistrationTime: Date;
-  start: Date;
-} => {
-  const serverNow = new Date(
-    process.env['E2E_NOW_ISO']?.trim() || DEFAULT_E2E_NOW_ISO,
-  );
-  if (Number.isNaN(serverNow.getTime())) {
-    throw new Error('Invalid E2E_NOW_ISO value for registration add-on test');
-  }
-  const start = new Date(serverNow.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-  return {
-    closeRegistrationTime: new Date(
-      serverNow.getTime() + 5 * 24 * 60 * 60 * 1000,
-    ),
-    end: new Date(start.getTime() + 2 * 60 * 60 * 1000),
-    openRegistrationTime: new Date(serverNow.getTime() - 24 * 60 * 60 * 1000),
-    start,
-  };
-};
-
 test.use({ storageState: userStateFile });
 
-test('registers with a free add-on and required registration question @track(playwright-specs-track-linking_20260126) @req(REGISTRATION-ADDONS-TEST-01)', async ({
+test('registers with a free add-on and required registration question', async ({
   database,
   page,
   seeded,
@@ -86,6 +62,31 @@ test('registers with a free add-on and required registration question @track(pla
         eq(schema.eventRegistrations.userId, regularUser.id),
       ),
     );
+  const originalRegistrationIds = originalRegistrations.map(
+    (registration) => registration.id,
+  );
+  const originalAddonPurchases = originalRegistrationIds.length
+    ? await database
+        .select()
+        .from(schema.eventRegistrationAddonPurchases)
+        .where(
+          inArray(
+            schema.eventRegistrationAddonPurchases.registrationId,
+            originalRegistrationIds,
+          ),
+        )
+    : [];
+  const originalQuestionAnswers = originalRegistrationIds.length
+    ? await database
+        .select()
+        .from(schema.eventRegistrationQuestionAnswers)
+        .where(
+          inArray(
+            schema.eventRegistrationQuestionAnswers.registrationId,
+            originalRegistrationIds,
+          ),
+        )
+    : [];
 
   try {
     await database
@@ -239,6 +240,16 @@ test('registers with a free add-on and required registration question @track(pla
       await database
         .insert(schema.eventRegistrations)
         .values(originalRegistrations);
+    }
+    if (originalAddonPurchases.length) {
+      await database
+        .insert(schema.eventRegistrationAddonPurchases)
+        .values(originalAddonPurchases);
+    }
+    if (originalQuestionAnswers.length) {
+      await database
+        .insert(schema.eventRegistrationQuestionAnswers)
+        .values(originalQuestionAnswers);
     }
     await database
       .delete(schema.eventRegistrationQuestions)

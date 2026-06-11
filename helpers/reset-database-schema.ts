@@ -15,18 +15,29 @@ const pool = new Pool(
     neonLocalProxy: process.env['NEON_LOCAL_PROXY'] === 'true',
   }),
 );
+const client = await pool.connect();
 
 try {
-  await pool.query('DROP SCHEMA IF EXISTS public CASCADE');
-  await pool.query('CREATE SCHEMA public');
-  await pool.query('CREATE EXTENSION IF NOT EXISTS unaccent');
-  await pool.query('CREATE EXTENSION IF NOT EXISTS pg_trgm');
-  await pool.query(`
+  await client.query('BEGIN');
+  await client.query('DROP SCHEMA IF EXISTS public CASCADE');
+  await client.query('CREATE SCHEMA public');
+  await client.query('CREATE EXTENSION IF NOT EXISTS unaccent');
+  await client.query('CREATE EXTENSION IF NOT EXISTS pg_trgm');
+  await client.query(`
     CREATE OR REPLACE FUNCTION immutable_unaccent(value text)
     RETURNS text AS $$
       SELECT unaccent(value)
     $$ LANGUAGE sql IMMUTABLE;
   `);
+  await client.query('COMMIT');
+} catch (error) {
+  try {
+    await client.query('ROLLBACK');
+  } catch {
+    // Preserve the schema-reset failure; rollback can fail after broken DDL.
+  }
+  throw error;
 } finally {
+  client.release();
   await pool.end();
 }

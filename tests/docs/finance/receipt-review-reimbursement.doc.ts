@@ -31,12 +31,15 @@ test('Review and reimburse receipts @finance', async ({
   const receiptSubmitter = await database.query.users.findFirst({
     columns: {
       communicationEmail: true,
+      email: true,
     },
     where: { id: receipt.submittedByUserId },
   });
   if (!receiptSubmitter) {
     throw new Error('Expected generated receipt submitter');
   }
+  const receiptSubmitterEmail =
+    receiptSubmitter.communicationEmail ?? receiptSubmitter.email;
   let refundTransactionId: null | string = null;
 
   await permissionOverride({
@@ -153,7 +156,7 @@ Approved receipts are grouped by recipient. The contact email shown for each rec
       .first();
     await expect(reimbursementGroup).toBeVisible();
     await expect(
-      reimbursementGroup.getByText(receiptSubmitter.communicationEmail),
+      reimbursementGroup.getByText(receiptSubmitterEmail),
     ).toBeVisible();
     await takeScreenshot(
       testInfo,

@@ -6,18 +6,29 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 const findApprovedListedEvent = (
   events: {
     id: string;
+    start: Date;
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
     title: string;
     unlisted: boolean;
   }[],
-) => events.find((event) => event.status === 'APPROVED' && !event.unlisted);
+  visibleAfter: Date,
+) =>
+  events.find(
+    (event) =>
+      event.status === 'APPROVED' &&
+      !event.unlisted &&
+      event.start > visibleAfter,
+  );
 
 const requireApprovedListedEvent = (
   events: Parameters<typeof findApprovedListedEvent>[0],
+  visibleAfter: Date,
 ) => {
-  const listed = findApprovedListedEvent(events);
+  const listed = findApprovedListedEvent(events, visibleAfter);
   if (!listed) {
-    throw new Error('Expected an approved listed event in the seeded events');
+    throw new Error(
+      'Expected an approved listed event after the list start filter',
+    );
   }
   return listed;
 };
@@ -29,8 +40,9 @@ test.describe('Unlisted events visibility', () => {
     database,
     events,
     page,
+    testClock,
   }) => {
-    const event = requireApprovedListedEvent(events);
+    const event = requireApprovedListedEvent(events, testClock.toJSDate());
 
     try {
       await database
@@ -57,8 +69,9 @@ test.describe('Unlisted events visibility', () => {
     database,
     events,
     page,
+    testClock,
   }) => {
-    const event = requireApprovedListedEvent(events);
+    const event = requireApprovedListedEvent(events, testClock.toJSDate());
 
     try {
       await database
@@ -86,8 +99,9 @@ test.describe('Admin can see unlisted', () => {
     database,
     events,
     page,
+    testClock,
   }) => {
-    const event = requireApprovedListedEvent(events);
+    const event = requireApprovedListedEvent(events, testClock.toJSDate());
 
     try {
       await database

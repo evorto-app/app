@@ -1611,8 +1611,8 @@ the current working direction until a product decision overrides them.
    system Chrome for closed registration windows, role-ineligible direct links,
    waitlist affordances, and paid-transfer-unavailable documentation.
 3. Keep simple-mode templates as the primary authoring UI, but expand reusable
-  template support for discounts, add-ons, and questions where practical.
-  Organizer planning tips are now exposed as the first private organizer-notes
+   template support for discounts, add-ons, and questions where practical.
+   Organizer planning tips are now exposed as the first private organizer-notes
    field, existing reusable template add-ons are now visible on template detail,
    simple template create/edit can persist reusable add-ons, and event creation
    copies reusable add-ons into event-scoped read-model records. Simple

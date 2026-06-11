@@ -84,26 +84,22 @@ const serviceBlock = (composeFile: string, service: string): string => {
 };
 
 describe('evaluateRuntimePreflight', () => {
-  it('keeps Docker and local Font Awesome registry scopes aligned', () => {
+  it('keeps Docker on the public Font Awesome registry path', () => {
     const dockerfile = fs.readFileSync(
       path.join(process.cwd(), 'Dockerfile'),
       'utf8',
     );
-    const npmrc = fs.readFileSync(path.join(process.cwd(), '.npmrc'), 'utf8');
 
-    for (const registryScope of [
-      '@fortawesome:registry=https://npm.fontawesome.com/',
-      '@awesome.me:registry=https://npm.fontawesome.com/',
-    ]) {
-      expect(dockerfile).toContain(registryScope);
-      expect(npmrc).toContain(registryScope);
-    }
-
-    expect(dockerfile).toContain('//npm.fontawesome.com/:_authToken=%s');
-    expect(npmrc).toContain('//npm.fontawesome.com/:_authToken=');
+    expect(fs.existsSync(path.join(process.cwd(), '.npmrc'))).toBe(false);
+    expect(dockerfile).toContain(
+      '@fortawesome:registry=https://registry.npmjs.org/',
+    );
+    expect(dockerfile).toContain('NPM_CONFIG_USERCONFIG');
+    expect(dockerfile).toContain('NPM_CONFIG_GLOBALCONFIG');
+    expect(dockerfile).not.toContain('npm.fontawesome.com');
   });
 
-  it('keeps premium and brand icon packages on the Font Awesome registry path', () => {
+  it('keeps icon packages on the public Font Awesome package path', () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
     ) as { dependencies: Record<string, string> };
@@ -114,19 +110,18 @@ describe('evaluateRuntimePreflight', () => {
 
     expect(packageJson.dependencies).toEqual(
       expect.objectContaining({
-        '@fortawesome/duotone-regular-svg-icons': expect.any(String),
-        '@fortawesome/free-brands-svg-icons': expect.any(String),
+        '@fortawesome/duotone-regular-svg-icons':
+          'npm:@fortawesome/free-solid-svg-icons@^7.2.0',
+        '@fortawesome/free-brands-svg-icons': '^7.2.0',
       }),
     );
 
-    for (const packageName of [
-      '@fortawesome/duotone-regular-svg-icons',
-      '@fortawesome/free-brands-svg-icons',
-    ]) {
-      expect(lockfile).toContain(
-        `https://npm.fontawesome.com/${packageName}/-/`,
-      );
-    }
+    expect(lockfile).toContain(
+      '"@fortawesome/duotone-regular-svg-icons": ["@fortawesome/free-solid-svg-icons@7.2.0"',
+    );
+    expect(lockfile).toContain(
+      '"@fortawesome/free-brands-svg-icons": ["@fortawesome/free-brands-svg-icons@7.2.0"',
+    );
   });
 
   it('keeps Docker startup scripts behind the non-mutating preflight', () => {
@@ -171,8 +166,7 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'tests/AGENTS.md'),
       'utf8',
     );
-    expect(testsGuidance).toContain('`bun run docker:webserver`');
-    expect(testsGuidance).not.toContain('`bun run docker:start:foreground`');
+    expect(testsGuidance).toContain('`bun run docker:start:foreground`');
   });
 
   it('keeps Angular SSR host validation aligned with local and seeded tenant hosts', () => {

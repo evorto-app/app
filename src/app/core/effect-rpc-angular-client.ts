@@ -19,6 +19,14 @@ import { AppRpcs } from '../../shared/rpc-contracts/app-rpcs';
 const normalizeBaseUrl = (value: string): string =>
   value.endsWith('/') ? value.slice(0, -1) : value;
 
+const normalizeConfiguredOrigin = (value: string): string => {
+  const url = new URL(value);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('SSR_RPC_ORIGIN must use http or https');
+  }
+  return normalizeBaseUrl(url.origin);
+};
+
 const injectionContextErrorPattern = /\bNG0203\b/;
 
 const isMissingInjectionContextError = (error: unknown): boolean =>
@@ -39,7 +47,9 @@ const resolveConfiguredServerRpcOrigin = (): string | undefined => {
   ).process;
   const configuredOrigin = processLike?.env?.['SSR_RPC_ORIGIN']?.trim();
 
-  return configuredOrigin ? normalizeBaseUrl(configuredOrigin) : undefined;
+  return configuredOrigin
+    ? normalizeConfiguredOrigin(configuredOrigin)
+    : undefined;
 };
 
 const resolveOriginFromHeaders = (headers?: Headers): string | undefined => {

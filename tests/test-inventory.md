@@ -55,8 +55,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/events/events.test.ts
   - specs/events/free-registration.test.ts
   - specs/events/negative-registration-states.spec.ts
+  - specs/events/registration-addons.test.ts
+  - specs/events/registration-transfer.test.ts
   - specs/events/unlisted-visibility.test.ts
   - specs/events/price-labels-inclusive.spec.ts [finance]
+  - specs/finance/finance-overview-permissions.spec.ts [finance, permissions]
   - specs/finance/receipts-flows.spec.ts [finance]
   - specs/finance/stripe-webhook-replay.spec.ts [finance, stripe]
   - specs/finance/tax-rates/admin-import-tax-rates.spec.ts [finance]

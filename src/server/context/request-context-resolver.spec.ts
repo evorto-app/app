@@ -181,10 +181,10 @@ describe('request-context-resolver', () => {
   });
 
   it('resolves local e2e global-admin permissions from configured Auth0 ids', () => {
-    const original = process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'];
-    process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'] =
-      ' auth0|global-admin , auth0|other ';
-
+    vi.stubEnv(
+      'E2E_GLOBAL_ADMIN_AUTH0_IDS',
+      ' auth0|global-admin , auth0|other ',
+    );
     try {
       expect(
         resolveRequestPermissions({
@@ -195,11 +195,7 @@ describe('request-context-resolver', () => {
         }),
       ).toContain('globalAdmin:manageTenants');
     } finally {
-      if (original === undefined) {
-        delete process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'];
-      } else {
-        process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'] = original;
-      }
+      vi.unstubAllEnvs();
     }
   });
 

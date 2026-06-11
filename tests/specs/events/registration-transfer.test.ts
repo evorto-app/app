@@ -160,10 +160,7 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
 
   const targetEventId = seeded.scenario.events.paidOpen.eventId;
   const targetOptionId = seeded.scenario.events.paidOpen.optionId;
-  const serverFutureEventStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
-  const serverFutureEventEnd = new Date(
-    serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
-  );
+  const serverEventWindow = futureServerEventWindow();
   const targetOption = await database.query.eventRegistrationOptions.findFirst({
     where: {
       eventId: targetEventId,
@@ -237,8 +234,8 @@ test('regular user cannot self-transfer a paid confirmed registration', async ({
     await database
       .update(schema.eventInstances)
       .set({
-        end: serverFutureEventEnd,
-        start: serverFutureEventStart,
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
       })
       .where(eq(schema.eventInstances.id, targetEventId));
 
@@ -316,10 +313,7 @@ test('regular user cancellation records a pending manual refund for a paid confi
 
   const targetEventId = seeded.scenario.events.paidOpen.eventId;
   const targetOptionId = seeded.scenario.events.paidOpen.optionId;
-  const serverFutureEventStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
-  const serverFutureEventEnd = new Date(
-    serverFutureEventStart.getTime() + 2 * 60 * 60 * 1000,
-  );
+  const serverEventWindow = futureServerEventWindow();
   const targetOption = await database.query.eventRegistrationOptions.findFirst({
     where: {
       eventId: targetEventId,
@@ -393,8 +387,8 @@ test('regular user cancellation records a pending manual refund for a paid confi
     await database
       .update(schema.eventInstances)
       .set({
-        end: serverFutureEventEnd,
-        start: serverFutureEventStart,
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
       })
       .where(eq(schema.eventInstances.id, targetEventId));
 

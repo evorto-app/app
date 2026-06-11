@@ -5,14 +5,15 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
-import { adminStateFile } from '../../../helpers/user-data';
+import {
+  adminStateFile,
+  usersToAuthenticate,
+} from '../../../helpers/user-data';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({ storageState: adminStateFile });
-
-const organizerUserId = 'ef7d925a3b3d9a50831a';
 
 const openEventOrganizePage = async (page: Page, eventId: string) => {
   await page.goto(`/events/${eventId}/organize`);
@@ -142,6 +143,12 @@ test.skip('approve and record receipt reimbursements in finance', async ({
   seeded,
   tenant,
 }) => {
+  const organizerUserId = usersToAuthenticate.find(
+    (user) => user.roles === 'organizer',
+  )?.id;
+  if (!organizerUserId) {
+    throw new Error('Expected seeded organizer user');
+  }
   const seededEventId = seeded.scenario.events.past.eventId;
   const receiptId = getId();
   const receiptFileName = `approval-reimbursement-${seedDate.getTime()}.pdf`;
