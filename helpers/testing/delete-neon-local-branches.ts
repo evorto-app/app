@@ -139,17 +139,7 @@ const extractStaleEphemeralBranchId = (
     return undefined;
   }
 
-  if (typeof branch.created_at !== 'string' || !branch.created_at.trim()) {
-    return undefined;
-  }
-
-  const createdAt = new Date(branch.created_at);
-  const staleAfter = new Date(now.getTime() - ttlHours * 60 * 60 * 1000);
-  if (Number.isNaN(createdAt.getTime()) || createdAt > staleAfter) {
-    return undefined;
-  }
-
-  return branch.id.trim();
+  return undefined;
 };
 
 const isString = (value: string | undefined): value is string =>

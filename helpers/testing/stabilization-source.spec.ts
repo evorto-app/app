@@ -4085,12 +4085,15 @@ describe('stabilization source', () => {
     expect(workflow).toContain(
       "key: ${{ runner.os }}-docker-bun-cache-mount-1.3.11-${{ hashFiles('package.json', 'bun.lock', 'bunfig.toml', 'patches/**') }}",
     );
-    expect(workflow).toContain('Require warmed Docker Bun cache mount');
+    expect(workflow).toContain('Report Docker Bun cache mount');
     expect(workflow).toContain(
       'Docker Bun cache mount hit: ${{ steps.docker-bun-cache-mount.outputs.cache-hit }}',
     );
     expect(workflow).toContain(
-      'Docker Bun cache mount was not restored after warm-ci-caches. Refusing Docker builds that could repeat Font Awesome package downloads inside each E2E worker.',
+      'Docker Bun cache mount was not restored after warm-ci-caches. Continuing so the first run for a new package lock can warm the cache.',
+    );
+    expect(workflow).not.toContain(
+      'Refusing Docker builds that could repeat Font Awesome package downloads inside each E2E worker.',
     );
     expect(workflow).toContain('Inject Docker Bun cache mount');
     expect(workflow).toContain(
@@ -4954,6 +4957,9 @@ describe('stabilization source', () => {
       'Failed to create Stripe refund for transferred registration',
     );
     expect(webhook).toContain('insertPendingTransferRefundRecord');
+    expect(webhook).toContain(
+      'reservedSpots: sql`greatest(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`',
+    );
     expect(eventDetailsTemplate).toContain('the source refund path');
     expect(organizerTransferDialog).toContain(
       'registrations use transfer codes for replacement checkout and source',
@@ -8675,7 +8681,7 @@ describe('stabilization source', () => {
     expect(ciDependencyCacheAction).toContain(
       'run: bash helpers/testing/prepare-public-fontawesome-ci.sh',
     );
-    expect(workflow).toContain('Require warmed Docker Bun cache mount');
+    expect(workflow).toContain('Report Docker Bun cache mount');
     expect(workflow).toContain('if: always()');
     expect(workflow).toContain('Stop Docker stack');
     expect(workflow).toContain('Prune expired Neon branches after E2E');

@@ -814,7 +814,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                     .update(schema.eventRegistrationOptions)
                     .set({
                       confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + ${registeredSpotCount}`,
-                      reservedSpots: sql`${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}`,
+                      reservedSpots: sql`greatest(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
                     })
                     .where(
                       and(
@@ -826,7 +826,6 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                           schema.eventRegistrationOptions.eventId,
                           updatedRegistration.eventId,
                         ),
-                        sql`${schema.eventRegistrationOptions.reservedSpots} >= ${registeredSpotCount}`,
                       ),
                     );
                 }

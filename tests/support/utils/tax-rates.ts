@@ -24,9 +24,7 @@ export const withNoCompatibleTaxRates = async <T>(
         id: true,
         inclusive: true,
       },
-      where: {
-        tenantId,
-      },
+      where: (table, { eq }) => eq(table.tenantId, tenantId),
     });
 
   await database

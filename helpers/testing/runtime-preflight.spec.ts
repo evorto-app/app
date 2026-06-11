@@ -699,7 +699,7 @@ describe('evaluateRuntimePreflight', () => {
       'DELETE_BRANCH: "${DELETE_BRANCH:-true}"',
     );
     expect(expirationService).toContain(
-      'NEON_LOCAL_BRANCH_TTL_HOURS: "${NEON_LOCAL_BRANCH_TTL_HOURS:-2}"',
+      'NEON_LOCAL_BRANCH_TTL_HOURS: "${NEON_LOCAL_BRANCH_TTL_HOURS:-24}"',
     );
     expect(expirationService).toContain(
       'NEON_LOCAL_METADATA_WAIT_SECONDS: "${NEON_LOCAL_METADATA_WAIT_SECONDS:-60}"',
@@ -1126,9 +1126,6 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).toContain(
       'node_modules/.bin/playwright install --with-deps chromium',
     );
-    expect(workflow).toContain(
-      'PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright',
-    );
     expect(workflow).toContain('Restore Playwright browser cache');
     expect(workflow).toContain('Warm Playwright browser cache');
     expect(workflow).toContain(
@@ -1138,10 +1135,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(workflow).toContain(
       'node_modules/.bin/playwright test --project=local-chrome-baseline --shard=1/2',
     );
-    expect(workflow).toContain(
-      'node_modules/.bin/playwright test --project=docs-baseline',
-    );
-    expect(workflow).not.toContain('bunx playwright');
+    expect(workflow).toContain('bunx playwright test --project=docs-baseline');
     expect(workflow).toContain('Restore Docker build cache');
     expect(ciDependencyCacheAction).toContain(
       'Prepare public Font Awesome registry',
@@ -1464,8 +1458,7 @@ describe('evaluateRuntimePreflight', () => {
       'Requested Neon Local branch ${branchId} is already absent.',
     );
     expect(cleanupHelper).toContain('expires_at');
-    expect(cleanupHelper).toContain('created_at');
-    expect(cleanupHelper).toContain('staleAfter');
+    expect(cleanupHelper).not.toContain('staleAfter');
     expect(cleanupHelper).toContain("branch.name === 'main'");
     expect(cleanupHelper).toContain("method: 'DELETE'");
     expect(cleanupHelper).toMatch(

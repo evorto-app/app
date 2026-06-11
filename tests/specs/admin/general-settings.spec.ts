@@ -118,12 +118,8 @@ test('tenant admin updates relaunch general settings @admin', async ({
     .getByRole('combobox')
     .click();
   await page.getByRole('option', { name: 'Tenant admins manage' }).click();
-  await page
-    .getByPlaceholder('4')
-    .fill(`${registrationLimitCount}`);
-  await page
-    .getByPlaceholder('30')
-    .fill(`${registrationLimitWindowDays}`);
+  await page.getByPlaceholder('4').fill(`${registrationLimitCount}`);
+  await page.getByPlaceholder('30').fill(`${registrationLimitWindowDays}`);
   await page
     .getByPlaceholder('Legal notice text shown at /legal/imprint')
     .fill(` ${legalNoticeText} `);

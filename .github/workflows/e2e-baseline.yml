@@ -197,12 +197,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-docker-bun-cache-mount-1.3.11-
 
-      - name: Require warmed Docker Bun cache mount
+      - name: Report Docker Bun cache mount
         run: |
           echo "Docker Bun cache mount hit: ${{ steps.docker-bun-cache-mount.outputs.cache-hit }}"
           if [ "${{ steps.docker-bun-cache-mount.outputs.cache-hit }}" != "true" ]; then
-            echo "::error::Docker Bun cache mount was not restored after warm-ci-caches. Refusing Docker builds that could repeat Font Awesome package downloads inside each E2E worker."
-            exit 1
+            echo "::warning::Docker Bun cache mount was not restored after warm-ci-caches. Continuing so the first run for a new package lock can warm the cache."
           fi
 
       - name: Inject Docker Bun cache mount
