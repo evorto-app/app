@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  registrationAddonMaxSelectableQuantity,
   registrationAddonPurchasePayload,
   registrationAddonSelectedTotalPrice,
   registrationOptionAudienceCopy,
@@ -260,6 +261,24 @@ describe('registration add-on selections', () => {
         'option-1',
       ),
     ).toBe(2000);
+  });
+
+  it('caps selectable add-ons by attached quantity and remaining stock', () => {
+    expect(
+      registrationAddonMaxSelectableQuantity(
+        {
+          maxQuantityPerUser: 5,
+          registrationOptions: [
+            {
+              quantity: 2,
+              registrationOptionId: 'option-1',
+            },
+          ],
+          totalAvailableQuantity: 3,
+        },
+        'option-1',
+      ),
+    ).toBe(1);
   });
 });
 

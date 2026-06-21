@@ -2,11 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { Page } from '@playwright/test';
 
 import { getId } from '../../../helpers/get-id';
-import {
-  emptyStateFile,
-  userStateFile,
-  usersToAuthenticate,
-} from '../../../helpers/user-data';
+import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { fillTestCard } from '../../support/utils/fill-test-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
@@ -15,6 +11,7 @@ import {
   seedFreeRegistrationAddon,
   seedRequiredRegistrationQuestion,
 } from '../../support/utils/seed-registration-addons';
+import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
@@ -61,6 +58,7 @@ test.describe('Register for events', () => {
       'regular',
     );
     const addOnId = `addon-${getId().slice(0, 14)}`;
+    const serverEventWindow = futureServerEventWindow();
 
     await database
       .delete(schema.eventRegistrations)
@@ -74,11 +72,20 @@ test.describe('Register for events', () => {
     await database
       .update(schema.eventRegistrationOptions)
       .set({
+        closeRegistrationTime: serverEventWindow.closeRegistrationTime,
         confirmedSpots: 0,
+        openRegistrationTime: serverEventWindow.openRegistrationTime,
         reservedSpots: 0,
         waitlistSpots: 0,
       })
       .where(eq(schema.eventRegistrationOptions.id, freeOptionId));
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
+      })
+      .where(eq(schema.eventInstances.id, freeEventId));
     await seedFreeRegistrationAddon({
       addonId: addOnId,
       database,
@@ -208,8 +215,9 @@ test.describe('Register for events', () => {
     const closedEventId = seeded.scenario.events.closedReg.eventId;
     const fullEventId = seeded.scenario.events.freeOpen.eventId;
     const fullOptionId = seeded.scenario.events.freeOpen.optionId;
+    const serverEventWindow = futureServerEventWindow();
     const fullOption = await database.query.eventRegistrationOptions.findFirst({
-      where: { id: fullOptionId, tenantId: tenant.id },
+      where: { eventId: fullEventId, id: fullOptionId },
     });
     if (!regularUser || !fullOption) {
       throw new Error(
@@ -265,11 +273,20 @@ test.describe('Register for events', () => {
     await database
       .update(schema.eventRegistrationOptions)
       .set({
+        closeRegistrationTime: serverEventWindow.closeRegistrationTime,
         confirmedSpots: fullOption.spots,
+        openRegistrationTime: serverEventWindow.openRegistrationTime,
         reservedSpots: 0,
         waitlistSpots: 0,
       })
       .where(eq(schema.eventRegistrationOptions.id, fullOptionId));
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
+      })
+      .where(eq(schema.eventInstances.id, fullEventId));
     const waitlistQuestion = await seedRequiredRegistrationQuestion({
       database,
       eventId: fullEventId,
@@ -345,7 +362,7 @@ test.describe('Register for events', () => {
     }
     const fullOptionAfterLeaving =
       await database.query.eventRegistrationOptions.findFirst({
-        where: { id: fullOptionId, tenantId: tenant.id },
+        where: { eventId: fullEventId, id: fullOptionId },
       });
     if (!fullOptionAfterLeaving) {
       throw new Error(
@@ -380,6 +397,7 @@ test.describe('Register for events', () => {
     const freeEventId = seeded.scenario.events.freeOpen.eventId;
     const freeOptionId = seeded.scenario.events.freeOpen.optionId;
     const registrationId = getId();
+    const serverEventWindow = futureServerEventWindow();
 
     await database
       .update(schema.eventRegistrations)
@@ -402,12 +420,17 @@ test.describe('Register for events', () => {
       tenantId: tenant.id,
       userId: regularUser.id,
     });
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
+      })
+      .where(eq(schema.eventInstances.id, freeEventId));
 
     await page.goto(`/events/${freeEventId}`);
     await waitForRegistrationStatus(page);
-    await expect(
-      page.getByText('Your registration is confirmed'),
-    ).toBeVisible();
+    await expect(page.getByText('You are registered')).toBeVisible();
 
     await testInfo.attach('markdown', {
       body: `
@@ -439,14 +462,18 @@ test.describe('Register for events', () => {
     await dialog.getByRole('button', { name: 'Transfer registration' }).click();
     await expect(dialog).not.toBeVisible();
 
-    const transferredRegistration =
-      await database.query.eventRegistrations.findFirst({
-        where: {
-          id: registrationId,
-          tenantId: tenant.id,
-        },
-      });
-    expect(transferredRegistration?.userId).toBe(targetUser.id);
+    await expect
+      .poll(async () => {
+        const transferredRegistration =
+          await database.query.eventRegistrations.findFirst({
+            where: {
+              id: registrationId,
+              tenantId: tenant.id,
+            },
+          });
+        return transferredRegistration?.userId;
+      })
+      .toBe(targetUser.id);
 
     await testInfo.attach('markdown', {
       body: `
@@ -455,38 +482,84 @@ test.describe('Register for events', () => {
   });
 
   test.describe('without eligible roles', () => {
-    test.use({ storageState: emptyStateFile });
+    test.use({ storageState: userStateFile });
 
     test('Review role-ineligible registration state', async ({
+      database,
       page,
+      roles,
       seeded,
+      tenant,
     }, testInfo) => {
-      await page.goto(`/events/${seeded.scenario.events.freeOpen.eventId}`);
-      await waitForRegistrationStatus(page);
-
-      await expect(
-        page.getByRole('heading', { name: 'Registration unavailable' }),
-      ).toBeVisible();
-      await expect(
-        page.getByText(
-          'This event is visible from the direct link, but your account is not eligible for the available registration options.',
-        ),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: /^Register$/ }),
-      ).toHaveCount(0);
-      await takeScreenshot(
-        testInfo,
-        page.locator('section').filter({ hasText: 'Registration' }),
-        page,
-        'Role-ineligible registration state',
+      const regularUser = requireUserFixture(
+        (user) => user.roles === 'user',
+        'regular',
       );
+      const organizerRoleIds = roles
+        .filter((role) => role.defaultOrganizerRole)
+        .map((role) => role.id);
+      if (organizerRoleIds.length === 0) {
+        throw new Error('Expected seeded organizer-only role');
+      }
 
-      await testInfo.attach('markdown', {
-        body: `
+      const eventId = seeded.scenario.events.freeOpen.eventId;
+      const optionId = seeded.scenario.events.freeOpen.optionId;
+      const option = await database.query.eventRegistrationOptions.findFirst({
+        where: { eventId, id: optionId },
+      });
+      if (!option) {
+        throw new Error(
+          'Expected seeded free registration option for role-ineligible docs state',
+        );
+      }
+
+      try {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, eventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({ roleIds: organizerRoleIds })
+          .where(eq(schema.eventRegistrationOptions.id, optionId));
+
+        await page.goto(`/events/${eventId}`);
+        await waitForRegistrationStatus(page);
+
+        await expect(
+          page.getByRole('heading', { name: 'Registration unavailable' }),
+        ).toBeVisible();
+        await expect(
+          page.getByText(
+            'This event is visible from the direct link, but your account is not eligible for the available registration options.',
+          ),
+        ).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: /^Register$/ }),
+        ).toHaveCount(0);
+        await takeScreenshot(
+          testInfo,
+          page.locator('section').filter({ hasText: 'Registration' }),
+          page,
+          'Role-ineligible registration state',
+        );
+
+        await testInfo.attach('markdown', {
+          body: `
   Direct event links remain readable for signed-in users without eligible tenant roles. The registration area states that the current account is not eligible instead of hiding the event or rendering an empty registration section.
 `,
-      });
+        });
+      } finally {
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({ roleIds: option.roleIds })
+          .where(eq(schema.eventRegistrationOptions.id, optionId));
+      }
     });
   });
 
@@ -510,11 +583,11 @@ test.describe('Register for events', () => {
       (user) => user.roles === 'user',
       'regular',
     ).id;
+    const serverEventWindow = futureServerEventWindow();
     const paidOption = await database.query.eventRegistrationOptions.findFirst({
       where: {
         eventId: paidEventId,
         id: paidOptionId,
-        tenantId: tenant.id,
       },
     });
     if (!paidOption?.isPaid) {
@@ -547,11 +620,20 @@ test.describe('Register for events', () => {
     await database
       .update(schema.eventRegistrationOptions)
       .set({
+        closeRegistrationTime: serverEventWindow.closeRegistrationTime,
         confirmedSpots: 0,
+        openRegistrationTime: serverEventWindow.openRegistrationTime,
         reservedSpots: 0,
         waitlistSpots: 0,
       })
       .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
+      })
+      .where(eq(schema.eventInstances.id, paidEventId));
 
     await page.goto('.');
     await testInfo.attach('markdown', {

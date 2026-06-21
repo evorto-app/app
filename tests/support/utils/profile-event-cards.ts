@@ -104,7 +104,6 @@ export const seedProfileEventCards = async ({
         and(
           eq(registrationOption.eventId, profileEventId),
           eq(registrationOption.id, profileEventOptionId),
-          eq(registrationOption.tenantId, seeded.tenant.id),
         ),
     });
   if (!profileEventOption) {
@@ -116,7 +115,6 @@ export const seedProfileEventCards = async ({
         and(
           eq(registrationOption.eventId, checkedInEventId),
           eq(registrationOption.id, checkedInEventOptionId),
-          eq(registrationOption.tenantId, seeded.tenant.id),
         ),
     });
   if (!checkedInEventOption) {

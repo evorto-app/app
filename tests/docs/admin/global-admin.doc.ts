@@ -127,10 +127,15 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     page.getByRole('heading', { level: 1, name: 'Tenants' }),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants$/);
-  const reviewTenantLink = page.getByRole('link', { name: 'Review tenant' });
-  const reviewTenantHref = await reviewTenantLink.first().getAttribute('href');
+  await page.getByLabel(tenantSearchLabel).fill(primaryDomain);
+  await expect(page.getByText(primaryDomain).first()).toBeVisible();
+  const reviewTenantLink = page
+    .locator('app-tenant-list > div')
+    .filter({ hasText: primaryDomain })
+    .getByRole('link', { name: 'Review tenant' });
+  const reviewTenantHref = await reviewTenantLink.getAttribute('href');
   expect(reviewTenantHref).toMatch(/^\/global-admin\/tenants\/[^/]+$/);
-  await reviewTenantLink.first().click();
+  await reviewTenantLink.click();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
   await expect(
     page.getByText('Read-only operational tenant review'),

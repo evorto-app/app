@@ -341,7 +341,10 @@ const validateTemplateAddon = ({
     );
   }
 
-  if (addon.maxQuantityPerUser > addon.totalAvailableQuantity) {
+  if (
+    addon.maxQuantityPerUser >
+    Math.floor(addon.totalAvailableQuantity / addon.quantity)
+  ) {
     return Effect.fail(
       new TemplateSimpleBadRequestError({
         message: 'Template add-on user quantity exceeds total quantity',

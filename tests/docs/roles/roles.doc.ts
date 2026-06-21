@@ -58,7 +58,7 @@ Start by navigating to **Admin tools**. The current relaunch admin surface separ
       page.getByRole('columnheader', { name: 'Roles' }),
     ).toBeVisible();
     await expect(
-      page.getByRole('cell', { name: 'admin@evorto.app', exact: true }),
+      page.getByRole('cell', { exact: true, name: 'admin@evorto.app' }),
     ).toBeVisible();
     await expect(page.getByText('Admin').first()).toBeVisible();
     await expect(page.getByText('Edit template')).toHaveCount(0);
@@ -77,22 +77,17 @@ The **All users** page is read-only in the relaunch surface. It supports searchi
 Navigate to the **User roles** page to create or edit tenant roles.
 `,
     });
-    await page.getByRole('link', { name: 'User roles' }).click();
+    await page.goto('/admin/roles');
     await expect(
-      page.getByRole('heading', { name: 'User roles' }),
+      page.getByRole('heading', { name: 'User roles' }).first(),
     ).toBeVisible();
-    const roleListCreateAction = page
-      .locator('app-role-list')
-      .filter({ has: page.getByRole('link', { name: 'Create role' }) })
+    const createRoleAction = page
+      .locator('app-role-list a')
+      .filter({ hasText: 'Create role' })
       .first();
-    await expect(roleListCreateAction).toBeVisible();
-    await takeScreenshot(
-      testInfo,
-      roleListCreateAction,
-      page,
-      'User roles page with the create-role action highlighted',
-    );
-    await page.getByRole('link', { name: 'Create role' }).click();
+    await expect(createRoleAction).toBeVisible();
+    await takeScreenshot(testInfo, createRoleAction, page);
+    await createRoleAction.click();
     await testInfo.attach('markdown', {
       body: `
 ## Role definition
@@ -111,7 +106,7 @@ Permissions that are required by another permission are automatically included a
     await page
       .getByRole('textbox', { name: 'Description' })
       .fill(roleDescription);
-    await page.getByRole('checkbox', { name: 'Events' }).click();
+    await page.getByRole('checkbox', { exact: true, name: 'Events' }).click();
     await expect(
       page.getByRole('checkbox', { name: 'Create events' }),
     ).toBeChecked();

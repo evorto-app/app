@@ -109,18 +109,18 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
     .first()
     .getByRole('checkbox', { name: 'Enable payment' });
   await paymentToggle.check();
-  const organizerOptionForm = page
+  const organizerRegistrationForm = page
     .locator('app-template-registration-option-form')
     .first();
   await expect(
-    organizerOptionForm
+    organizerRegistrationForm
       .locator('mat-form-field')
       .filter({ hasText: 'Price (in cents)' })
       .locator('input[type="number"]')
       .first(),
   ).toBeVisible();
   await expect(
-    organizerOptionForm
+    organizerRegistrationForm
       .locator('mat-form-field')
       .filter({ hasText: 'Tax rate' })
       .locator('mat-select')
@@ -128,9 +128,7 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
   ).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page
-      .locator('app-template-create form')
-      .locator('div', { hasText: 'Organizer Registration' }),
+    organizerRegistrationForm,
     page,
     'Organizer payment fields visible',
   );
@@ -142,12 +140,9 @@ Role selection also avoids duplicate entries by hiding already selected roles fr
 `,
   });
   const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
-  await organizerRoleInput.click();
+  await organizerRoleInput.fill('a');
   const roleOptions = page.locator('mat-option');
-  const optionsCount = await roleOptions.count();
-  if (optionsCount === 0) {
-    throw new Error('Expected seeded roles for template docs autocomplete');
-  }
+  await expect(roleOptions.first()).toBeVisible();
 
   const firstRoleOption = roleOptions.first();
   const firstRoleText = await firstRoleOption.textContent();
@@ -156,7 +151,7 @@ Role selection also avoids duplicate entries by hiding already selected roles fr
     throw new Error('Expected template docs autocomplete option to have text');
   }
   await firstRoleOption.click();
-  await organizerRoleInput.click();
+  await organizerRoleInput.fill(selectedRoleName);
   await expect(
     page.getByRole('option', {
       exact: true,
@@ -165,9 +160,7 @@ Role selection also avoids duplicate entries by hiding already selected roles fr
   ).toHaveCount(0);
   await takeScreenshot(
     testInfo,
-    page
-      .locator('app-template-create form')
-      .locator('div', { hasText: 'Organizer Registration' }),
+    organizerRegistrationForm,
     page,
     'Role autocomplete hides selected entries',
   );
@@ -197,7 +190,9 @@ Questions can include help text and can be marked as required. Event-side answer
   });
   await page.getByRole('button', { name: 'Add question' }).click();
   const questionForm = page.locator('app-template-question-form').first();
-  await expect(questionForm.getByLabel('Question')).toBeVisible();
+  await expect(
+    questionForm.getByRole('textbox', { name: 'Question' }),
+  ).toBeVisible();
   await expect(questionForm.getByLabel('Ask during')).toBeVisible();
   await expect(page.getByText('Require an answer')).toBeVisible();
   await takeScreenshot(
@@ -213,8 +208,13 @@ Once you are happy with your template, click _Save template_ to save your change
 You will be redirected to the detail page for that template.
 `,
   });
+  const categorySelect = page.getByRole('combobox', {
+    name: 'Template Category',
+  });
+  await categorySelect.focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('option', { name: category.title }).click();
   await fillTemplateBasics(page, {
-    categoryTitle: category.title,
     title: templateTitle,
   });
   await page.getByLabel('Organizer planning tips').fill(planningTips);
@@ -223,7 +223,9 @@ You will be redirected to the detail page for that template.
   await addOnForm.getByLabel('Included quantity').fill('2');
   await addOnForm.getByLabel('Available quantity').fill('8');
   await addOnForm.getByLabel('Max per user').fill('3');
-  await questionForm.getByLabel('Question').fill(questionTitle);
+  await questionForm
+    .getByRole('textbox', { name: 'Question' })
+    .fill(questionTitle);
   await questionForm.getByLabel('Help text').fill(questionDescription);
   await page.getByRole('button', { name: 'Save template' }).click();
   await expect(page).toHaveURL(/\/templates\/[^/]+$/);

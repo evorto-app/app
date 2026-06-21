@@ -649,6 +649,45 @@ describe('SimpleTemplateService', () => {
     }),
   );
 
+  it.effect(
+    'fails when reusable add-on user quantity exceeds fulfillable stock',
+    () =>
+      Effect.gen(function* () {
+        const program = SimpleTemplateService.createSimpleTemplate({
+          esnCardEnabled: true,
+          input: {
+            ...validTemplateInput,
+            addOns: [
+              {
+                ...validTemplateAddonInput,
+                maxQuantityPerUser: 2,
+                quantity: 2,
+                totalAvailableQuantity: 3,
+              },
+            ],
+          },
+          tenantId: 'tenant-1',
+        }).pipe(
+          Effect.flip,
+          Effect.provide(
+            createValidationLayer(
+              createValidationDatabase({
+                categoryFound: true,
+                roleIds: [],
+                taxRate: { active: true, inclusive: true },
+              }),
+            ),
+          ),
+        );
+
+        const error = yield* program;
+        expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+        expect(error.message).toBe(
+          'Template add-on user quantity exceeds total quantity',
+        );
+      }),
+  );
+
   it.effect('fails when a paid reusable add-on omits a tax rate', () =>
     Effect.gen(function* () {
       const program = SimpleTemplateService.createSimpleTemplate({

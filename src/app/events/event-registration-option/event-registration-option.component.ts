@@ -140,6 +140,28 @@ export const registrationAddonPurchasePayload = (
     }))
     .filter((addOn) => addOn.quantity > 0);
 
+export const registrationAddonMaxSelectableQuantity = (
+  addOn: Pick<
+    EventRegistrationAddonView,
+    'maxQuantityPerUser' | 'registrationOptions' | 'totalAvailableQuantity'
+  >,
+  registrationOptionId: string,
+): number => {
+  const attachedQuantity =
+    addOn.registrationOptions.find(
+      (option) => option.registrationOptionId === registrationOptionId,
+    )?.quantity ?? 0;
+
+  if (attachedQuantity <= 0) {
+    return 0;
+  }
+
+  return Math.min(
+    addOn.maxQuantityPerUser,
+    Math.floor(addOn.totalAvailableQuantity / attachedQuantity),
+  );
+};
+
 export const registrationAddonSelectedTotalPrice = (
   addOns: readonly Pick<
     EventRegistrationAddonView,
@@ -308,6 +330,13 @@ export class EventRegistrationOptionComponent {
 
   private queryClient = inject(QueryClient);
 
+  addonMaxQuantity(addOn: EventRegistrationAddonView): number {
+    return registrationAddonMaxSelectableQuantity(
+      addOn,
+      this.registrationOption().id,
+    );
+  }
+
   addonQuantity(addOnId: string): number {
     return this.addonSelections()[addOnId] ?? 0;
   }
@@ -410,11 +439,7 @@ export class EventRegistrationOptionComponent {
     const parsed = Number.parseInt(input.value, 10);
     const nextQuantity = Math.max(
       0,
-      Math.min(
-        Number.isNaN(parsed) ? 0 : parsed,
-        addOn.maxQuantityPerUser,
-        addOn.totalAvailableQuantity,
-      ),
+      Math.min(Number.isNaN(parsed) ? 0 : parsed, this.addonMaxQuantity(addOn)),
     );
     this.addonSelections.update((selections) => ({
       ...selections,

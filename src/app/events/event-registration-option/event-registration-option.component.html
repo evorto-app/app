@@ -37,7 +37,7 @@
     {{ audienceCopy().helperText }}
   </p>
 
-  @if (addOns().length > 0) {
+  @if (addOns().length > 0 && !waitlistAvailable()) {
     <div class="border-outline-variant flex flex-col gap-3 border-t pt-3">
       <p class="label-medium text-on-surface-variant">Add-ons</p>
       @for (addOn of addOns(); track addOn.id) {
@@ -62,11 +62,7 @@
               matInput
               type="number"
               min="0"
-              [max]="
-                addOn.maxQuantityPerUser < addOn.totalAvailableQuantity
-                  ? addOn.maxQuantityPerUser
-                  : addOn.totalAvailableQuantity
-              "
+              [max]="addonMaxQuantity(addOn)"
               [value]="addonQuantity(addOn.id)"
               (input)="updateAddonQuantity(addOn, $event)"
             />
