@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect } from '@playwright/test';
 
 import { defaultStateFile } from '../../../helpers/user-data';
+import { docScreenshot } from '../../support/utils/doc-screenshot';
 import { test } from '../../support/fixtures/parallel-test';
 
 // T023: Failing test for screenshot helper
@@ -18,33 +19,20 @@ test.use({ storageState: defaultStateFile });
 test('doc-screenshot returns a relative path and writes image @track(playwright-specs-track-linking_20260126) @req(DOC-SCREENSHOT-TEST-01)', async ({
   page,
 }, testInfo) => {
-  // Put images into a predictable temp folder for the test
-  const previousDocsImgOutDir = process.env.DOCS_IMG_OUT_DIR;
-  const imgRoot = path.join(process.cwd(), 'test-results', 'tmp-doc-images');
-  process.env.DOCS_IMG_OUT_DIR = imgRoot;
+  const imgRoot =
+    process.env.DOCS_IMG_OUT_DIR ?? path.resolve('test-results/docs/images');
+  await page.goto('.');
+  const target = page.locator('body');
 
-  try {
-    const { docScreenshot } =
-      await import('../../support/utils/doc-screenshot');
-    await page.goto('.');
-    const target = page.locator('body');
+  const relPath = await docScreenshot(testInfo, target, page, 'home-body');
 
-    const relPath = await docScreenshot(testInfo, target, page, 'home-body');
+  // Assert it returns a relative path (no leading slash or drive letter)
+  expect(typeof relPath).toBe('string');
+  expect(relPath.length).toBeGreaterThan(0);
+  expect(path.isAbsolute(relPath)).toBe(false);
+  expect(/\.png$/i.test(relPath)).toBe(true);
 
-    // Assert it returns a relative path (no leading slash or drive letter)
-    expect(typeof relPath).toBe('string');
-    expect(relPath.length).toBeGreaterThan(0);
-    expect(path.isAbsolute(relPath)).toBe(false);
-    expect(/\.png$/i.test(relPath)).toBe(true);
-
-    // And the file exists under the configured images root
-    const absPath = path.join(imgRoot, relPath);
-    expect(fs.existsSync(absPath)).toBe(true);
-  } finally {
-    if (previousDocsImgOutDir === undefined) {
-      delete process.env.DOCS_IMG_OUT_DIR;
-    } else {
-      process.env.DOCS_IMG_OUT_DIR = previousDocsImgOutDir;
-    }
-  }
+  // And the file exists under the configured images root
+  const absPath = path.join(imgRoot, relPath);
+  expect(fs.existsSync(absPath)).toBe(true);
 });
