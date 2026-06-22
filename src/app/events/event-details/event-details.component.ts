@@ -279,6 +279,7 @@ export class EventDetailsComponent {
       normalizedMessage.includes('status changed') ||
       normalizedMessage.includes('refresh and try again') ||
       normalizedMessage.includes('no longer pending review') ||
+      normalizedMessage.includes('current state') ||
       normalizedMessage.includes('conflict')
     ) {
       this.notifications.showError(
