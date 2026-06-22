@@ -3949,3 +3949,11 @@ the file's credibility as a current source-of-truth.
 
 ## My request for Codex:
 Check if these still are up to date and work on them in case work is needed, do resolve the comments if you are done with them
+
+---
+
+Do we have to fix the e2e issue right now or will it fix in later PRs on this stack?
+
+---
+
+DO some research also on the drizzle github for how to fix this and then get it done, maybe you have to update drizzle to the latest version
