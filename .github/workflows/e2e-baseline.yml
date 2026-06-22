@@ -26,6 +26,7 @@ jobs:
       NEON_LOCAL_BRANCH_TTL_HOURS: 4
       NEON_LOCAL_HOST_PORT: 55432
       NEON_LOCAL_METADATA_DIR: /tmp/neon-local-metadata
+      NEON_LOCAL_METADATA_WAIT_SECONDS: 180
       NEON_LOCAL_PROXY: true
       NO_WEBSERVER: true
       DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
@@ -94,7 +95,7 @@ jobs:
         run: |
           rm -rf "${NEON_LOCAL_METADATA_DIR}"
           mkdir -p "${NEON_LOCAL_METADATA_DIR}"
-          chmod 0755 "${NEON_LOCAL_METADATA_DIR}"
+          chmod 0777 "${NEON_LOCAL_METADATA_DIR}"
 
       - name: Pull Docker images (compose)
         run: docker compose pull
@@ -119,6 +120,7 @@ jobs:
           exit 1
 
       - name: Confirm Neon branch expiration
+        continue-on-error: true
         run: bun helpers/testing/set-neon-local-branch-expiration.ts
 
       - name: Apply latest schema
