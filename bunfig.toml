@@ -2,4 +2,4 @@
 env = false
 
 [install.scopes]
-"@fortawesome" = "https://registry.npmjs.org/"
+"@fortawesome" = { token = "$FONT_AWESOME_TOKEN", url = "https://npm.fontawesome.com/" }
