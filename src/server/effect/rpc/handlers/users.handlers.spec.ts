@@ -63,6 +63,13 @@ const createCreateAccountHeaders = (
   [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
 });
 
+const returningInsert = <A>(result: A) => ({
+  onConflictDoNothing: () => ({
+    returning: () => Effect.succeed(result),
+  }),
+  returning: () => Effect.succeed(result),
+});
+
 describe('userHandlers', () => {
   it.effect(
     'createAccount creates the user, tenant assignment, and default roles transactionally',
@@ -76,17 +83,13 @@ describe('userHandlers', () => {
               if (table === rolesToTenantUsers) {
                 return Effect.void;
               }
-              return {
-                returning: () => {
-                  if (table === users) {
-                    return Effect.succeed([{ id: 'created-user-1' }]);
-                  }
-                  if (table === usersToTenants) {
-                    return Effect.succeed([{ id: 'membership-1' }]);
-                  }
-                  return Effect.succeed([]);
-                },
-              };
+              if (table === users) {
+                return returningInsert([{ id: 'created-user-1' }]);
+              }
+              if (table === usersToTenants) {
+                return returningInsert([{ id: 'membership-1' }]);
+              }
+              return returningInsert([]);
             },
           }),
           query: {
@@ -159,14 +162,10 @@ describe('userHandlers', () => {
           insert: (table: unknown) => ({
             values: (value: unknown) => {
               inserts.push({ table, value });
-              return {
-                returning: () => {
-                  if (table === usersToTenants) {
-                    return Effect.succeed([{ id: 'membership-1' }]);
-                  }
-                  return Effect.succeed([]);
-                },
-              };
+              if (table === usersToTenants) {
+                return returningInsert([{ id: 'membership-1' }]);
+              }
+              return returningInsert([]);
             },
           }),
           query: {
@@ -203,6 +202,127 @@ describe('userHandlers', () => {
             },
           },
         ]);
+      }),
+  );
+
+  it.effect(
+    'createAccount attaches a user created by a concurrent request',
+    () =>
+      Effect.gen(function* () {
+        const inserts: unknown[] = [];
+        const findUser = vi
+          .fn()
+          .mockReturnValueOnce(Effect.succeed(null))
+          .mockReturnValueOnce(Effect.succeed({ id: 'concurrent-user-1' }));
+        const tx = {
+          insert: (table: unknown) => ({
+            values: (value: unknown) => {
+              inserts.push({ table, value });
+              if (table === users) {
+                return returningInsert([]);
+              }
+              if (table === usersToTenants) {
+                return returningInsert([{ id: 'membership-1' }]);
+              }
+              return returningInsert([]);
+            },
+          }),
+          query: {
+            roles: {
+              findMany: () => Effect.succeed([]),
+            },
+            users: {
+              findFirst: findUser,
+            },
+            usersToTenants: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+        };
+        const database = {
+          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
+        };
+
+        yield* userHandlers['users.createAccount'](
+          {
+            communicationEmail: 'notify@example.com',
+            firstName: 'Alice',
+            lastName: 'Doe',
+          },
+          { headers: createCreateAccountHeaders() } as never,
+        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+        expect(findUser).toHaveBeenCalledTimes(2);
+        expect(inserts).toEqual([
+          {
+            table: users,
+            value: {
+              auth0Id: 'auth0|alice',
+              communicationEmail: 'notify@example.com',
+              email: 'alice@example.com',
+              firstName: 'Alice',
+              lastName: 'Doe',
+            },
+          },
+          {
+            table: usersToTenants,
+            value: {
+              tenantId: 'tenant-1',
+              userId: 'concurrent-user-1',
+            },
+          },
+        ]);
+      }),
+  );
+
+  it.effect(
+    'createAccount returns a conflict when a concurrent request claims this tenant',
+    () =>
+      Effect.gen(function* () {
+        const findTenantAssignment = vi
+          .fn()
+          .mockReturnValueOnce(Effect.succeed(null))
+          .mockReturnValueOnce(Effect.succeed({ id: 'membership-1' }));
+        const tx = {
+          insert: (table: unknown) => ({
+            values: () => {
+              if (table === usersToTenants) {
+                return returningInsert([]);
+              }
+              return returningInsert([]);
+            },
+          }),
+          query: {
+            roles: {
+              findMany: () => Effect.succeed([]),
+            },
+            users: {
+              findFirst: () => Effect.succeed({ id: 'existing-user-1' }),
+            },
+            usersToTenants: {
+              findFirst: findTenantAssignment,
+            },
+          },
+        };
+        const database = {
+          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
+        };
+
+        const error = yield* userHandlers['users.createAccount'](
+          {
+            communicationEmail: 'notify@example.com',
+            firstName: 'Alice',
+            lastName: 'Doe',
+          },
+          { headers: createCreateAccountHeaders() } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(Layer.succeed(Database, database as never)),
+        );
+
+        expect(findTenantAssignment).toHaveBeenCalledTimes(2);
+        expect(error['_tag']).toBe('UserConflictError');
+        expect(error.message).toBe('User account already exists');
       }),
   );
 
@@ -291,17 +411,6 @@ describe('userHandlers', () => {
                     { status: 'successful', type: 'registration' },
                   ],
                 },
-                {
-                  checkInTime: null,
-                  event: null,
-                  eventId: 'event-missing',
-                  id: 'registration-missing',
-                  registrationOption: {
-                    title: 'Missing',
-                  },
-                  status: 'CONFIRMED',
-                  transactions: [],
-                },
               ]),
           },
         },
@@ -341,6 +450,61 @@ describe('userHandlers', () => {
         },
       ]);
     }),
+  );
+
+  it.effect(
+    'users.events defects when a registration relation is missing',
+    () =>
+      Effect.gen(function* () {
+        const tenant = createTenant();
+        const user = createUser();
+        const headers = {
+          [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+          [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
+          [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
+        };
+        const mockDatabase = {
+          query: {
+            eventRegistrations: {
+              findMany: () =>
+                Effect.succeed([
+                  {
+                    checkInTime: null,
+                    event: null,
+                    eventId: 'event-missing',
+                    id: 'registration-missing',
+                    registrationOption: {
+                      title: 'Missing',
+                    },
+                    status: 'CONFIRMED',
+                    transactions: [],
+                  },
+                ]),
+            },
+          },
+        };
+
+        const exit = yield* userHandlers['users.events'](
+          undefined as never,
+          {
+            headers,
+          } as never,
+        ).pipe(
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.exit,
+        );
+
+        expect(exit._tag).toBe('Failure');
+        if (exit._tag === 'Failure') {
+          const failure = exit.cause.reasons[0];
+          expect(failure?._tag).toBe('Die');
+          const defect = failure?._tag === 'Die' ? failure.defect : undefined;
+          expect(defect).toBeInstanceOf(Error);
+          expect(defect instanceof Error ? defect.message : undefined).toBe(
+            'Registration registration-missing references missing event or registration option for event event-missing',
+          );
+        }
+      }),
   );
 
   it.effect(

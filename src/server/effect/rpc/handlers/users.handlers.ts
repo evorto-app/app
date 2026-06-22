@@ -91,6 +91,16 @@ const requireUserHeader = (
 const mapCreateAccountUnexpectedError = (error: unknown) =>
   error instanceof UserConflictError ? Effect.fail(error) : Effect.die(error);
 
+const missingRegistrationRelationDefect = (
+  registration: Pick<
+    (typeof eventRegistrations)['$inferSelect'],
+    'eventId' | 'id'
+  >,
+) =>
+  new Error(
+    `Registration ${registration.id} references missing event or registration option for event ${registration.eventId}`,
+  );
+
 const resolveRegistrationPaymentState = (
   transactions: readonly { status: string; type: string }[],
 ): 'cancelled' | 'notRequired' | 'pending' | 'recorded' => {
@@ -166,16 +176,32 @@ export const userHandlers = {
                     firstName: input.firstName,
                     lastName: input.lastName,
                   })
+                  .onConflictDoNothing({ target: users.auth0Id })
                   .returning({
                     id: users.id,
                   });
-                const createdUser = createdUsers[0];
-                if (!createdUser) {
+                userId = createdUsers[0]?.id;
+
+                if (!userId) {
+                  const concurrentlyCreatedUser =
+                    yield* tx.query.users.findFirst({
+                      columns: {
+                        id: true,
+                      },
+                      where: {
+                        auth0Id,
+                      },
+                    });
+                  userId = concurrentlyCreatedUser?.id;
+                }
+
+                if (!userId) {
                   return yield* Effect.die(
-                    new Error('User insert returned no rows'),
+                    new Error(
+                      'User insert returned no rows and no user exists',
+                    ),
                   );
                 }
-                userId = createdUser.id;
               }
 
               const existingTenantAssignment =
@@ -210,10 +236,33 @@ export const userHandlers = {
                   tenantId: tenant.id,
                   userId,
                 })
+                .onConflictDoNothing({
+                  target: [usersToTenants.userId, usersToTenants.tenantId],
+                })
                 .returning({
                   id: usersToTenants.id,
                 });
               const createdUserTenant = userTenantCreateResponse[0];
+              if (!createdUserTenant) {
+                const concurrentlyCreatedTenantAssignment =
+                  yield* tx.query.usersToTenants.findFirst({
+                    columns: {
+                      id: true,
+                    },
+                    where: {
+                      tenantId: tenant.id,
+                      userId,
+                    },
+                  });
+                if (concurrentlyCreatedTenantAssignment) {
+                  return yield* Effect.fail(
+                    new UserConflictError({
+                      message: 'User account already exists',
+                    }),
+                  );
+                }
+              }
+
               if (!createdUserTenant) {
                 return yield* Effect.die(
                   new Error('User tenant association insert returned no rows'),
@@ -286,26 +335,27 @@ export const userHandlers = {
         return [];
       }
 
-      return registrations
-        .flatMap((registration) =>
-          registration.event &&
-          registration.registrationOption &&
-          registration.status !== 'CANCELLED'
-            ? [
-                {
-                  checkInTime: registration.checkInTime,
-                  event: registration.event,
-                  paymentState: resolveRegistrationPaymentState(
-                    registration.transactions,
-                  ),
-                  registrationId: registration.id,
-                  registrationOptionTitle:
-                    registration.registrationOption.title,
-                  status: registration.status,
-                },
-              ]
-            : [],
-        )
+      const mappedRegistrations = [];
+      for (const registration of registrations) {
+        if (!registration.event || !registration.registrationOption) {
+          return yield* Effect.die(
+            missingRegistrationRelationDefect(registration),
+          );
+        }
+
+        mappedRegistrations.push({
+          checkInTime: registration.checkInTime,
+          event: registration.event,
+          paymentState: resolveRegistrationPaymentState(
+            registration.transactions,
+          ),
+          registrationId: registration.id,
+          registrationOptionTitle: registration.registrationOption.title,
+          status: registration.status,
+        });
+      }
+
+      return mappedRegistrations
         .toSorted(
           (registrationA, registrationB) =>
             registrationA.event.start.getTime() -
