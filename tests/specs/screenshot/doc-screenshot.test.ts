@@ -20,21 +20,30 @@ test('doc-screenshot returns a relative path and writes image @track(playwright-
   page,
 }, testInfo) => {
   // Put images into a predictable temp folder for the test
-  const imgRoot = path.resolve('test-results/tmp-doc-images');
+  const previousDocsImgOutDir = process.env.DOCS_IMG_OUT_DIR;
+  const imgRoot = testInfo.outputPath('tmp-doc-images');
   process.env.DOCS_IMG_OUT_DIR = imgRoot;
 
-  await page.goto('.');
-  const target = page.locator('body');
+  try {
+    await page.goto('.');
+    const target = page.locator('body');
 
-  const relPath = await docScreenshot(testInfo, target, page, 'home-body');
+    const relPath = await docScreenshot(testInfo, target, page, 'home-body');
 
-  // Assert it returns a relative path (no leading slash or drive letter)
-  expect(typeof relPath).toBe('string');
-  expect(relPath.length).toBeGreaterThan(0);
-  expect(path.isAbsolute(relPath)).toBe(false);
-  expect(/\.png$/i.test(relPath)).toBe(true);
+    // Assert it returns a relative path (no leading slash or drive letter)
+    expect(typeof relPath).toBe('string');
+    expect(relPath.length).toBeGreaterThan(0);
+    expect(path.isAbsolute(relPath)).toBe(false);
+    expect(/\.png$/i.test(relPath)).toBe(true);
 
-  // And the file exists under the configured images root
-  const absPath = path.join(imgRoot, relPath);
-  expect(fs.existsSync(absPath)).toBe(true);
+    // And the file exists under the configured images root
+    const absPath = path.join(imgRoot, relPath);
+    expect(fs.existsSync(absPath)).toBe(true);
+  } finally {
+    if (previousDocsImgOutDir === undefined) {
+      delete process.env.DOCS_IMG_OUT_DIR;
+    } else {
+      process.env.DOCS_IMG_OUT_DIR = previousDocsImgOutDir;
+    }
+  }
 });
