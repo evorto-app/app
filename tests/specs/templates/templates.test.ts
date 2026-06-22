@@ -99,25 +99,16 @@ test('template create form hides selected roles in autocomplete @track(playwrigh
   await page.getByRole('link', { name: 'Create template' }).click();
   await expect(page).toHaveURL('/templates/create');
 
+  const selectedRoleChip = page.locator('mat-chip-row').first();
+  await expect(selectedRoleChip).toBeVisible();
+  const selectedRoleName = (await selectedRoleChip.textContent())?.trim();
+  if (!selectedRoleName) {
+    throw new Error('Expected template role chip to have role text');
+  }
+
   const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
   await organizerRoleInput.click();
 
-  const roleOptions = page.locator('mat-option');
-  const optionsCount = await roleOptions.count();
-  if (optionsCount === 0) {
-    throw new Error('Expected seeded roles for template autocomplete');
-  }
-
-  const firstOption = roleOptions.first();
-  const firstRoleText = await firstOption.textContent();
-  const selectedRoleName = firstRoleText?.trim();
-  if (!selectedRoleName) {
-    throw new Error('Expected template autocomplete option to have role text');
-  }
-
-  await firstOption.click();
-
-  await organizerRoleInput.click();
   await expect(
     page.getByRole('option', {
       exact: true,
