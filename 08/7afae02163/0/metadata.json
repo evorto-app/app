@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "087afae02163",
+  "session_id": "019eee04-186b-7b81-9d8d-04cc08e75aff",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-22T20:41:25.983376Z",
+  "branch": "codex/pr62-split-00-deploy-schema",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "9b9cbf9f5875",
+  "token_usage": {
+    "input_tokens": 3045076,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 55667200,
+    "output_tokens": 151188,
+    "api_call_count": 423
+  },
+  "session_metrics": {
+    "turn_count": 1
+  }
+}
