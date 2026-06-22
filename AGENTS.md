@@ -116,6 +116,14 @@ package scripts instead of bare `dotenv` shell commands.
 - Use Stripe as the source of truth for payment state.
 - Keep tenant isolation, auth, payments, registration, and permissions explicit.
 
+## Deployment and Schema
+
+- The Fly deploy workflow may apply the latest Drizzle schema before releasing
+  the new app image. Do not flag that ordering by itself.
+- Review schema changes for compatibility with the currently deployed app. Use
+  expand/contract steps for destructive or otherwise backward-incompatible
+  changes unless the release is explicitly coordinated as a maintenance window.
+
 ## Vendored Repositories
 
 - External source repositories are vendored under `repos/` as read-only reference material.
