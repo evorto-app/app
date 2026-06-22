@@ -3,7 +3,6 @@ import path from 'node:path';
 import { expect } from '@playwright/test';
 
 import { defaultStateFile } from '../../../helpers/user-data';
-import { docScreenshot } from '../../support/utils/doc-screenshot';
 import { test } from '../../support/fixtures/parallel-test';
 
 // T023: Failing test for screenshot helper
@@ -21,10 +20,12 @@ test('doc-screenshot returns a relative path and writes image @track(playwright-
 }, testInfo) => {
   // Put images into a predictable temp folder for the test
   const previousDocsImgOutDir = process.env.DOCS_IMG_OUT_DIR;
-  const imgRoot = testInfo.outputPath('tmp-doc-images');
+  const imgRoot = path.join(process.cwd(), 'test-results', 'tmp-doc-images');
   process.env.DOCS_IMG_OUT_DIR = imgRoot;
 
   try {
+    const { docScreenshot } =
+      await import('../../support/utils/doc-screenshot');
     await page.goto('.');
     const target = page.locator('body');
 
