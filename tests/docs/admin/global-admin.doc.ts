@@ -169,8 +169,8 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeDisabled();
-    await page.getByLabel('Tenant name').fill(createdTenantName);
-    await page.getByLabel('Primary domain').fill('section.example.org/path');
+    await tenantNameInput(page).fill(createdTenantName);
+    await tenantPrimaryDomainInput(page).fill('section.example.org/path');
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -179,11 +179,11 @@ Global admins can review, create, and edit tenants from the **Global admin** are
       page.getByText('Domain must be a single host name'),
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
-    await page.getByLabel('Primary domain').fill(documentedTenant.domain);
+    await tenantPrimaryDomainInput(page).fill(documentedTenant.domain);
     await page.getByRole('button', { name: 'Create tenant' }).click();
     await expect(page.getByText('Tenant domain already exists')).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
-    await page.getByLabel('Primary domain').fill(createdTenantDomain);
+    await tenantPrimaryDomainInput(page).fill(createdTenantDomain);
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -263,7 +263,7 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     ).toBeEnabled();
 
     const updatedTenantName = `${documentedTenant.name} documentation review`;
-    await page.getByLabel('Tenant name').fill(updatedTenantName);
+    await tenantNameInput(page).fill(updatedTenantName);
     await page.getByRole('button', { name: 'Save tenant' }).click();
     await expect(page).toHaveURL(reviewTenantHref);
     await expect(
