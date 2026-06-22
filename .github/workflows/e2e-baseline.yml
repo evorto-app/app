@@ -168,7 +168,7 @@ jobs:
             trap cleanup EXIT
           fi
 
-          bun run test:e2e
+          bun run test:e2e -- --project=local-chrome-baseline
 
           DOCS_OUT_DIR=test-results/docs \
           DOCS_IMG_OUT_DIR=test-results/docs/images \
