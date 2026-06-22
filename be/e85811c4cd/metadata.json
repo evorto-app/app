@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "bee85811c4cd",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-04-playwright-title-metadata",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/be/e85811c4cd/0/metadata.json",
+      "transcript": "/be/e85811c4cd/0/full.jsonl",
+      "content_hash": "/be/e85811c4cd/0/content_hash.txt",
+      "prompt": "/be/e85811c4cd/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4932175,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 94016640,
+    "output_tokens": 239473,
+    "api_call_count": 739
+  }
+}
