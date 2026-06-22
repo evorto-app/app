@@ -34,6 +34,13 @@ jobs:
       PARENT_BRANCH_ID: ${{ secrets.PARENT_BRANCH_ID }}
       CLIENT_ID: ${{ secrets.CLIENT_ID }}
       CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+      ISSUER_BASE_URL: ${{ secrets.ISSUER_BASE_URL || vars.ISSUER_BASE_URL || 'https://tumi-dev.eu.auth0.com' }}
+      SECRET: ${{ secrets.SECRET || vars.SECRET || 'ci-localtestingsecret' }}
+      AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID || vars.AUTH0_MANAGEMENT_CLIENT_ID || 'ci-baseline-auth0-management-client-id' }}
+      AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET || vars.AUTH0_MANAGEMENT_CLIENT_SECRET || 'ci-baseline-auth0-management-client-secret' }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID || 'ci-baseline-cloudflare-account-id' }}
+      CLOUDFLARE_IMAGES_API_TOKEN: ${{ secrets.CLOUDFLARE_IMAGES_API_TOKEN || vars.CLOUDFLARE_IMAGES_API_TOKEN || 'ci-baseline-cloudflare-images-api-token' }}
+      CLOUDFLARE_IMAGES_DELIVERY_HASH: ${{ secrets.CLOUDFLARE_IMAGES_DELIVERY_HASH || vars.CLOUDFLARE_IMAGES_DELIVERY_HASH || 'ci-baseline-cloudflare-images-delivery-hash' }}
       STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
       STRIPE_TEST_ACCOUNT_ID: ${{ secrets.STRIPE_TEST_ACCOUNT_ID || vars.STRIPE_TEST_ACCOUNT_ID }}
       STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
