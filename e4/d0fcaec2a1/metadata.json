@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "e4d0fcaec2a1",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-01-registration-schema",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.ts",
+    "src/server/effect/rpc/handlers/users.handlers.ts",
+    "tests/test-inventory.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e4/d0fcaec2a1/0/metadata.json",
+      "transcript": "/e4/d0fcaec2a1/0/full.jsonl",
+      "content_hash": "/e4/d0fcaec2a1/0/content_hash.txt",
+      "prompt": "/e4/d0fcaec2a1/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4417274,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 81710592,
+    "output_tokens": 211197,
+    "api_call_count": 643
+  }
+}
