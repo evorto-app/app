@@ -127,4 +127,40 @@ describe('evaluateRuntimePreflight', () => {
       ]),
     );
   });
+
+  it('warns when Playwright dry-run output has no install locations', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: (command, args) => {
+        if (
+          [command, ...args].join(' ') ===
+          'bunx playwright install --dry-run chromium'
+        ) {
+          return {
+            status: 0,
+            stderr: 'No browser cache details emitted\n',
+            stdout: '',
+          };
+        }
+
+        return successfulCommand(command, args);
+      },
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.warned).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'Could not detect Playwright install locations from dry-run output',
+          ],
+          label: 'Playwright Chromium browser installation',
+          severity: 'warning',
+        }),
+      ]),
+    );
+  });
 });

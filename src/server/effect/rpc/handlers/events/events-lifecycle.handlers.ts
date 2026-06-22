@@ -12,6 +12,7 @@ import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
+import { createId } from '../../../../../db/create-id';
 import {
   eventInstances,
   eventRegistrationOptionDiscounts,
@@ -234,29 +235,36 @@ export const eventLifecycleHandlers = {
         );
       }
 
-      const createdOptions = yield* databaseEffect((database) =>
+      const eventRegistrationOptionInserts = sanitizedRegistrationOptions.map(
+        (option) => ({
+          closeRegistrationTime: option.closeRegistrationTime,
+          description: option.description,
+          eventId: event.id,
+          id: createId(),
+          isPaid: option.isPaid,
+          openRegistrationTime: option.openRegistrationTime,
+          organizingRegistration: option.organizingRegistration,
+          price: option.price,
+          registeredDescription: option.registeredDescription,
+          registrationMode: option.registrationMode,
+          roleIds: [...option.roleIds],
+          sourceTemplateRegistrationOptionId:
+            option.sourceTemplateRegistrationOptionId,
+          spots: option.spots,
+          stripeTaxRateId: option.stripeTaxRateId ?? null,
+          title: option.title,
+        }),
+      );
+
+      yield* databaseEffect((database) =>
         database
           .insert(eventRegistrationOptions)
           .values(
-            sanitizedRegistrationOptions.map((option) => ({
-              closeRegistrationTime: option.closeRegistrationTime,
-              description: option.description,
-              eventId: event.id,
-              isPaid: option.isPaid,
-              openRegistrationTime: option.openRegistrationTime,
-              organizingRegistration: option.organizingRegistration,
-              price: option.price,
-              registeredDescription: option.registeredDescription,
-              registrationMode: option.registrationMode,
-              roleIds: [...option.roleIds],
-              spots: option.spots,
-              stripeTaxRateId: option.stripeTaxRateId ?? null,
-              title: option.title,
-            })),
-          )
-          .returning({
-            id: eventRegistrationOptions.id,
-          }),
+            eventRegistrationOptionInserts.map(
+              ({ sourceTemplateRegistrationOptionId: _source, ...option }) =>
+                option,
+            ),
+          ),
       );
 
       if (sourceTemplateOptionIds.length > 0) {
@@ -278,12 +286,10 @@ export const eventLifecycleHandlers = {
             ),
         );
         if (templateDiscounts.length > 0) {
-          const createdOptionSources = createdOptions.map(
-            (createdOption, index) => ({
-              createdOptionId: createdOption.id,
-              sourceTemplateOptionId:
-                sanitizedRegistrationOptions[index]
-                  ?.sourceTemplateRegistrationOptionId,
+          const createdOptionSources = eventRegistrationOptionInserts.map(
+            (option) => ({
+              createdOptionId: option.id,
+              sourceTemplateOptionId: option.sourceTemplateRegistrationOptionId,
             }),
           );
           const discountInserts: EventRegistrationOptionDiscountInsert[] = [];

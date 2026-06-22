@@ -98,7 +98,9 @@
   }
   <button
     [disabled]="
-      !scanResultQuery.data().allowCheckin || checkInMutation.isPending()
+      !scanResultQuery.data().allowCheckin ||
+      checkInMutation.isPending() ||
+      checkInCompleted()
     "
     class="mt-4 w-full"
     mat-raised-button
@@ -107,6 +109,8 @@
   >
     @if (checkInMutation.isPending()) {
       Checking in ...
+    } @else if (checkInCompleted()) {
+      Checked in
     } @else {
       Confirm Check In
     }

@@ -107,17 +107,17 @@ const resolveRegistrationPaymentState = (
   );
   if (
     registrationTransactions.some(
-      (transaction) => transaction.status === 'pending',
-    )
-  ) {
-    return 'pending';
-  }
-  if (
-    registrationTransactions.some(
       (transaction) => transaction.status === 'successful',
     )
   ) {
     return 'recorded';
+  }
+  if (
+    registrationTransactions.some(
+      (transaction) => transaction.status === 'pending',
+    )
+  ) {
+    return 'pending';
   }
   if (
     registrationTransactions.some(
