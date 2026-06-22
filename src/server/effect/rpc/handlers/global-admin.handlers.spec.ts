@@ -255,6 +255,11 @@ describe('globalAdminHandlers', () => {
       };
       const database = {
         insert: () => insertQuery,
+        query: {
+          tenants: {
+            findFirst: () => Effect.succeed(),
+          },
+        },
       };
 
       const tenant = yield* globalAdminHandlers['globalAdmin.tenants.create'](
@@ -286,6 +291,42 @@ describe('globalAdminHandlers', () => {
         stripeConnected: true,
       });
     }),
+  );
+
+  it.effect(
+    'maps duplicate tenant domains to bad requests before inserting',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          insert: () => {
+            throw new Error('insert should not run');
+          },
+          query: {
+            tenants: {
+              findFirst: () => Effect.succeed({ id: 'existing-tenant' }),
+            },
+          },
+        };
+
+        const error = yield* globalAdminHandlers['globalAdmin.tenants.create'](
+          {
+            currency: 'EUR',
+            domain: 'Tenant.Example.com',
+            locale: 'en-GB',
+            name: 'Duplicate Tenant',
+            theme: 'evorto',
+            timezone: 'Europe/Berlin',
+          },
+          { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
+        ).pipe(
+          Effect.provide(Layer.succeed(Database, database as never)),
+          Effect.flip,
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe('Tenant domain already exists');
+        expect(error.reason).toBe('tenant.example.com');
+      }),
   );
 
   it.effect('updates tenants and clears blank Stripe account ids', () =>

@@ -196,6 +196,8 @@ const createTransferDatabase = ({
     },
   ],
   registration = {
+    appliedDiscountedPrice: null,
+    appliedDiscountType: null,
     checkInTime: null,
     event: {
       start: new Date(Date.now() + 24 * 60 * 60 * 1000),
@@ -222,6 +224,8 @@ const createTransferDatabase = ({
     };
   }[];
   registration?: null | {
+    appliedDiscountedPrice: null | number;
+    appliedDiscountType: 'esnCard' | null;
     checkInTime: Date | null;
     event: null | { start: Date };
     eventId: string;
@@ -342,6 +346,8 @@ const createTransferTargetsDatabase = ({
       eventRegistrations: {
         findFirst: () =>
           Effect.succeed({
+            appliedDiscountedPrice: null,
+            appliedDiscountType: null,
             checkInTime: null,
             event: {
               start: new Date(Date.now() + 24 * 60 * 60 * 1000),
@@ -1068,6 +1074,8 @@ describe('event registration transfer handlers', () => {
       Effect.gen(function* () {
         const { database, updateSets } = createTransferDatabase({
           registration: {
+            appliedDiscountedPrice: null,
+            appliedDiscountType: null,
             checkInTime: null,
             event: {
               start: new Date(Date.now() + 24 * 60 * 60 * 1000),
@@ -1101,6 +1109,46 @@ describe('event registration transfer handlers', () => {
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
           'Paid registration transfer is not available until the refund/resale flow is implemented',
+        );
+        expect(updateSets).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    'rejects discounted registration transfer until target discount validation exists',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          registration: {
+            appliedDiscountedPrice: 0,
+            appliedDiscountType: 'esnCard',
+            checkInTime: null,
+            event: {
+              start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+            eventId: 'event-1',
+            id: 'registration-1',
+            registrationOptionId: 'option-1',
+            status: 'CONFIRMED',
+            transactions: [],
+            userId: 'attendee-1',
+          },
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferEventRegistration'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            targetUserId: 'target-user-1',
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Discounted registration transfer is not available until transfer discount validation is implemented',
         );
         expect(updateSets).toEqual([]);
       }),

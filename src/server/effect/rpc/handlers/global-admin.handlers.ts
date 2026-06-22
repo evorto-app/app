@@ -159,6 +159,25 @@ export const globalAdminHandlers = {
     Effect.gen(function* () {
       yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
       const tenantInput = yield* normalizeTenantWritePayload(input);
+      const existingDomainTenant = yield* databaseEffect((database) =>
+        database.query.tenants.findFirst({
+          columns: {
+            id: true,
+          },
+          where: {
+            domain: tenantInput.domain,
+          },
+        }),
+      );
+      if (existingDomainTenant) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: 'Tenant domain already exists',
+            reason: tenantInput.domain,
+          }),
+        );
+      }
+
       const createdTenants = yield* databaseEffect((database) =>
         database
           .insert(tenants)

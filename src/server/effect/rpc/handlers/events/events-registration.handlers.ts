@@ -88,6 +88,13 @@ const hasSuccessfulPaidRegistrationTransaction = (
       transaction.amount > 0,
   );
 
+const hasAppliedRegistrationDiscount = (registration: {
+  appliedDiscountedPrice: null | number;
+  appliedDiscountType: null | string;
+}) =>
+  registration.appliedDiscountedPrice !== null ||
+  registration.appliedDiscountType !== null;
+
 const ensureCanScanEventRegistration = ({
   eventId,
   tenantId,
@@ -428,6 +435,8 @@ const transferEventRegistration = ({
     const registration = yield* databaseEffect((database) =>
       database.query.eventRegistrations.findFirst({
         columns: {
+          appliedDiscountedPrice: true,
+          appliedDiscountType: true,
           checkInTime: true,
           eventId: true,
           id: true,
@@ -520,6 +529,15 @@ const transferEventRegistration = ({
         new EventRegistrationConflictError({
           message:
             'Paid registration transfer is not available until the refund/resale flow is implemented',
+        }),
+      );
+    }
+
+    if (hasAppliedRegistrationDiscount(registration)) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message:
+            'Discounted registration transfer is not available until transfer discount validation is implemented',
         }),
       );
     }
@@ -860,6 +878,8 @@ export const eventRegistrationHandlers = {
       const registration = yield* databaseEffect((database) =>
         database.query.eventRegistrations.findFirst({
           columns: {
+            appliedDiscountedPrice: true,
+            appliedDiscountType: true,
             checkInTime: true,
             eventId: true,
             id: true,
@@ -948,6 +968,15 @@ export const eventRegistrationHandlers = {
           new EventRegistrationConflictError({
             message:
               'Paid registration transfer is not available until the refund/resale flow is implemented',
+          }),
+        );
+      }
+
+      if (hasAppliedRegistrationDiscount(registration)) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message:
+              'Discounted registration transfer is not available until transfer discount validation is implemented',
           }),
         );
       }
@@ -1179,6 +1208,7 @@ export const eventRegistrationHandlers = {
             registration.checkInTime === null &&
             !!registration.event &&
             registration.event.start > new Date() &&
+            !hasAppliedRegistrationDiscount(registration) &&
             !hasSuccessfulPaidRegistrationTransaction(
               registration.transactions,
             ),
