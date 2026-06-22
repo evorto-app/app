@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "1fae3b75d589",
+  "strategy": "manual-commit",
+  "branch": "codex/fontawesome-pro-vendor-package",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/scripts/build-fontawesome-vendor-package.ts",
+    ".github/workflows/fontawesome-vendor-package.yml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1f/ae3b75d589/0/metadata.json",
+      "transcript": "/1f/ae3b75d589/0/full.jsonl",
+      "content_hash": "/1f/ae3b75d589/0/content_hash.txt",
+      "prompt": "/1f/ae3b75d589/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 158605,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 859520,
+    "output_tokens": 15081,
+    "api_call_count": 17
+  }
+}

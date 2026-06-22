@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "1fae3b75d589",
+  "session_id": "019ef105-b843-7472-ac4d-0f0d6212ec80",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-22T20:33:08.29199Z",
+  "branch": "codex/fontawesome-pro-vendor-package",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/scripts/build-fontawesome-vendor-package.ts",
+    ".github/workflows/fontawesome-vendor-package.yml"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "b1401e9df0ea",
+  "token_usage": {
+    "input_tokens": 158605,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 859520,
+    "output_tokens": 15081,
+    "api_call_count": 17
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-22T20:33:08.28324Z",
+    "agent_lines": 120,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 120,
+    "total_lines_changed": 120,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 225,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".github/scripts/build-fontawesome-vendor-package.ts": 225
+      }
+    }
+  ]
+}

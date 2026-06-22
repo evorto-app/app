@@ -1,0 +1,9 @@
+I'm having an issue with fontawesome, could we add a workflow that just gets the current packages, including pro and pushes is to our gh registry as a private package from where we can then download it into our e2e tests?
+
+---
+
+Actually we only have to mirror the pro package
+
+---
+
+Make sure this is opened as a separate PR
