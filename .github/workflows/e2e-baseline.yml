@@ -168,10 +168,12 @@ jobs:
             trap cleanup EXIT
           fi
 
-          bun run test:e2e -- --project=local-chrome-baseline
+          PLAYWRIGHT_SELECTED_PROJECTS=local-chrome-baseline \
+          bun run test:e2e
 
           DOCS_OUT_DIR=test-results/docs \
           DOCS_IMG_OUT_DIR=test-results/docs/images \
+          PLAYWRIGHT_SELECTED_PROJECTS=docs-baseline \
           bunx playwright test --project=docs-baseline --grep-invert "@finance" \
             --reporter=github,dot,./tests/support/reporters/documentation-reporter.ts
 
