@@ -114,9 +114,6 @@ Playwright separates external-service coverage with dedicated projects:
   - `docs-integration`
 
 CI infers whether integration-only credentials are required from the selected Playwright projects.
-When CI invokes Playwright through package scripts whose project arguments are
-not visible during config loading, set `E2E_PLAYWRIGHT_PROJECTS` to the
-comma-separated project list the job runs.
 If you select `docs-integration`, CI/runtime validation demands the extra external-service credentials.
 UI mode is intentionally unrestricted and does not force integration-only credentials at startup.
 

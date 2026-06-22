@@ -78,24 +78,6 @@ describe('test-runtime-config', () => {
     ).toBe(true);
   });
 
-  it('treats configured baseline projects as baseline-only', () => {
-    expect(
-      requiresIntegrationOnlyPlaywrightEnvironment(
-        ['node', 'playwright', 'test'],
-        'local-chrome-baseline,docs-baseline',
-      ),
-    ).toBe(false);
-  });
-
-  it('treats configured integration projects as requiring integration credentials', () => {
-    expect(
-      requiresIntegrationOnlyPlaywrightEnvironment(
-        ['node', 'playwright', 'test'],
-        'docs-integration',
-      ),
-    ).toBe(true);
-  });
-
   it.effect('requires BASE_URL and ignores PLAYWRIGHT_TEST_BASE_URL', () =>
     Effect.gen(function* () {
       const provider = providerFromEntries([

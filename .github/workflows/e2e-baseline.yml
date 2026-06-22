@@ -23,7 +23,6 @@ jobs:
       APP_READY_PATH: /robots.txt
       COMPOSE_PROJECT_NAME: evorto-ci
       DELETE_BRANCH: true
-      E2E_PLAYWRIGHT_PROJECTS: local-chrome-baseline,docs-baseline
       NEON_DATABASE_NAME: appdb
       NEON_LOCAL_BRANCH_TTL_HOURS: 4
       NEON_LOCAL_HOST_PORT: 55432

@@ -183,24 +183,14 @@ const resolveRequestedProjectNames = (argv: readonly string[]) => {
   return requestedProjectNames.filter((projectName) => projectName.length > 0);
 };
 
-const resolveConfiguredProjectNames = (configuredProjectNames: string) =>
-  configuredProjectNames
-    .split(',')
-    .map((projectName) => projectName.trim())
-    .filter((projectName) => projectName.length > 0);
-
 export const requiresIntegrationOnlyPlaywrightEnvironment = (
   argv: readonly string[] = process.argv,
-  configuredProjectNames: string = process.env['E2E_PLAYWRIGHT_PROJECTS'] ?? '',
 ) => {
   if (argv.includes('--ui')) {
     return false;
   }
 
-  const requestedProjectNames = [
-    ...resolveConfiguredProjectNames(configuredProjectNames),
-    ...resolveRequestedProjectNames(argv),
-  ];
+  const requestedProjectNames = resolveRequestedProjectNames(argv);
   if (requestedProjectNames.length === 0) {
     return true;
   }
