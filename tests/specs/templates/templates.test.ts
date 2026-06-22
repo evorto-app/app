@@ -11,8 +11,13 @@ test.use({ storageState: organizerStateFile });
 test('create template in empty category @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-01)', async ({
   database,
   page,
+  permissionOverride,
   tenant,
 }) => {
+  await permissionOverride({
+    add: ['templates:create'],
+    roleName: 'Section member',
+  });
   const icon = await database.query.icons.findFirst({
     where: { tenantId: tenant.id },
   });
@@ -45,8 +50,13 @@ test('create template in empty category @track(playwright-specs-track-linking_20
 
 test('create a new template @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-02)', async ({
   page,
+  permissionOverride,
   templateCategories,
 }) => {
+  await permissionOverride({
+    add: ['templates:create'],
+    roleName: 'Section member',
+  });
   const category = templateCategories[0];
   const templateTitle = `Historical tour ${getId().slice(0, 6)}`;
   await page.goto('.');
@@ -77,7 +87,12 @@ test('view a template @track(playwright-specs-track-linking_20260126) @req(TEMPL
 
 test('template create form hides selected roles in autocomplete @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-04)', async ({
   page,
+  permissionOverride,
 }) => {
+  await permissionOverride({
+    add: ['templates:create'],
+    roleName: 'Section member',
+  });
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
