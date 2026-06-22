@@ -1,0 +1,101 @@
+/goal Finalize the stacked split PRs for evorto-app/app#62 from lowest to highest PR number.
+
+For each PR, inspect unresolved review comments and failing CI, compare with downstream stacked PRs and the original #62 final state when useful, then make only the smallest changes needed to get that PR ready for review. Keep every PR at or below 150 changed files.
+
+For completed review comments, resolve the thread. If no code change is needed, reply with the reason. Do not over-scope fixes inside a lower PR; prefer carrying broader cleanup upward unless it blocks that PR.
+
+Once the lowest unfinished PR is green, comments are handled, and the branch is ready for review, move to the next PR in the stack.
+
+---
+
+Triple check that all of this so we are super sure that our PRs are ready to go, then replace the descriptions with explanations of the PR and isntructions on how they can be validated locally
+
+---
+
+Do all of these have coderabbit reviews?
+
+---
+
+Can you review all the PRs to make sure they are in the state that can be merged now?
+
+---
+
+Can you fix that for me?
+
+---
+
+I would rather like you to update the rules so this can stay
+
+---
+
+I would like to get started with the manual validation, get 63 running locally and tell me what I should check
+
+---
+
+Please tear it back down
+
+---
+
+Make sure that [evorto-app/app#73](https://github.com/evorto-app/app/pull/73) is good and tell me what I should check
+
+---
+
+I want to get rid of any special handling of font awesome packages. Also explain what the patch is about
+
+---
+
+I want to use the duotones from the private fortawesome registry
+
+---
+
+The tokens are available
+
+---
+
+I would also prefer if we can keep the testing workflow less complicated, we are the only ones that use this repo, we should not (generally) have so many fallbacks and instead just use what is configured in github.
+This can also mask failures and misconfig. Always make sure that we set up things the way they are supposed to be and do not mask flaws, instead we have to fix the underlying issue.
+
+---
+
+# Diff comments:
+
+## Comment 1
+File: .github/workflows/e2e-baseline.yml
+Side: R
+Lines: 97
+Comment:
+@chatgpt-codex-connector:
+**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Do not require integration-only credentials in baseline CI**
+
+In environments that provision only the documented baseline E2E variables, this validation fails before any tests run even though this workflow only executes `local-chrome-baseline` via `bun run test:e2e` and `docs-baseline` explicitly; the Playwright runtime config only requires Auth0 Management and Cloudflare Images when an integration project such as `docs-integration` is selected. Please keep these checks conditional on integration-project execution or remove them from the baseline workflow.
+
+Useful? React with 👍 / 👎.
+
+## Comment 2
+File: .github/workflows/e2e-baseline.yml
+Side: R
+Lines: 47
+Comment:
+@chatgpt-codex-connector:
+**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Restore the secret fallback for Stripe test account**
+
+If `STRIPE_TEST_ACCOUNT_ID` is still configured as a GitHub secret, this now resolves to an empty value and the validation step exits before the E2E job starts; the previous workflow explicitly supported either a secret or repository variable. Please keep the `secrets.STRIPE_TEST_ACCOUNT_ID || vars.STRIPE_TEST_ACCOUNT_ID` fallback unless all environments have been migrated to the variable.
+
+Useful? React with 👍 / 👎.
+
+## My request for Codex:
+Check if we need to take action here
+
+---
+
+Once this is done, and generally use git town sync --stack to propagate changes across the stack we have.
+I'm fine if the e2e tests do not work on this PR, it is only meant to change a schema thing anyways, let's rather keep changes minimal and make an exception here, since it works in later PRs
+
+---
+
+Sync and then locally start [evorto-app/app#63](https://github.com/evorto-app/app/pull/63)
+I want to look at the things that should be locally validated
+
+---
+
+It seems that there is still some fontawesome special handling in here that should be removed
