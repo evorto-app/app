@@ -91,12 +91,10 @@ const requireUserHeader = (
 const mapCreateAccountUnexpectedError = (error: unknown) =>
   error instanceof UserConflictError ? Effect.fail(error) : Effect.die(error);
 
-const missingRegistrationRelationDefect = (
-  registration: Pick<
-    (typeof eventRegistrations)['$inferSelect'],
-    'eventId' | 'id'
-  >,
-) =>
+const missingRegistrationRelationDefect = (registration: {
+  eventId: string;
+  id: string;
+}) =>
   new Error(
     `Registration ${registration.id} references missing event or registration option for event ${registration.eventId}`,
   );
@@ -340,6 +338,13 @@ export const userHandlers = {
         if (!registration.event || !registration.registrationOption) {
           return yield* Effect.die(
             missingRegistrationRelationDefect(registration),
+          );
+        }
+        if (registration.status === 'CANCELLED') {
+          return yield* Effect.die(
+            new Error(
+              `Cancelled registration ${registration.id} was returned by users.events`,
+            ),
           );
         }
 
