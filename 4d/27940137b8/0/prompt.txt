@@ -1,0 +1,39 @@
+/goal Finalize the stacked split PRs for evorto-app/app#62 from lowest to highest PR number.
+
+For each PR, inspect unresolved review comments and failing CI, compare with downstream stacked PRs and the original #62 final state when useful, then make only the smallest changes needed to get that PR ready for review. Keep every PR at or below 150 changed files.
+
+For completed review comments, resolve the thread. If no code change is needed, reply with the reason. Do not over-scope fixes inside a lower PR; prefer carrying broader cleanup upward unless it blocks that PR.
+
+Once the lowest unfinished PR is green, comments are handled, and the branch is ready for review, move to the next PR in the stack.
+
+---
+
+Triple check that all of this so we are super sure that our PRs are ready to go, then replace the descriptions with explanations of the PR and isntructions on how they can be validated locally
+
+---
+
+Do all of these have coderabbit reviews?
+
+---
+
+Can you review all the PRs to make sure they are in the state that can be merged now?
+
+---
+
+Can you fix that for me?
+
+---
+
+I would rather like you to update the rules so this can stay
+
+---
+
+I would like to get started with the manual validation, get 63 running locally and tell me what I should check
+
+---
+
+Please tear it back down
+
+---
+
+Make sure that [evorto-app/app#73](https://github.com/evorto-app/app/pull/73) is good and tell me what I should check
