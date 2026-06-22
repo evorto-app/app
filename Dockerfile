@@ -16,12 +16,6 @@ FROM oven/bun:1.3.11 AS base
 # RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER bun
 WORKDIR /app
-ENV NPM_CONFIG_USERCONFIG=/tmp/npmrc-public-fontawesome
-ENV npm_config_userconfig=/tmp/npmrc-public-fontawesome
-ENV NPM_CONFIG_GLOBALCONFIG=/tmp/npmrc-empty-global
-ENV npm_config_globalconfig=/tmp/npmrc-empty-global
-RUN printf '%s\n' '@fortawesome:registry=https://registry.npmjs.org/' > /tmp/npmrc-public-fontawesome
-RUN : > /tmp/npmrc-empty-global
 
 FROM base AS dependencies
 ENV NG_BUILD_PARTIAL_SSR=1
@@ -29,9 +23,9 @@ ENV NG_BUILD_MAX_WORKERS=2
 
 COPY package.json bun.lock bunfig.toml ./
 COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
-COPY patches/@fortawesome%2Ffree-solid-svg-icons@7.2.0.patch patches/@fortawesome%2Ffree-solid-svg-icons@7.2.0.patch
 RUN --mount=type=cache,id=bun-install-cache,target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
-    bun install --frozen-lockfile --cache-dir /home/bun/.bun/install/cache
+    --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444,required=true \
+    FONT_AWESOME_TOKEN="$(cat /run/secrets/FONT_AWESOME_TOKEN)" bun install --frozen-lockfile --cache-dir /home/bun/.bun/install/cache
 
 FROM dependencies AS build
 COPY . .
