@@ -16,24 +16,22 @@ FROM oven/bun:1.3.11 AS base
 # RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER bun
 WORKDIR /app
-ENV NPM_CONFIG_USERCONFIG=/tmp/npmrc-public-fontawesome
-ENV npm_config_userconfig=/tmp/npmrc-public-fontawesome
-ENV NPM_CONFIG_GLOBALCONFIG=/tmp/npmrc-empty-global
-ENV npm_config_globalconfig=/tmp/npmrc-empty-global
-RUN printf '%s\n' '@fortawesome:registry=https://registry.npmjs.org/' > /tmp/npmrc-public-fontawesome
-RUN : > /tmp/npmrc-empty-global
 
-FROM base AS dependencies
+FROM base AS build
 ENV NG_BUILD_PARTIAL_SSR=1
 ENV NG_BUILD_MAX_WORKERS=2
+ARG FONT_AWESOME_TOKEN
 
-COPY package.json bun.lock bunfig.toml ./
+COPY  package.json bun.lock bunfig.toml ./
 COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
-COPY patches/@fortawesome%2Ffree-solid-svg-icons@7.2.0.patch patches/@fortawesome%2Ffree-solid-svg-icons@7.2.0.patch
-RUN --mount=type=cache,id=bun-install-cache,target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
-    bun install --frozen-lockfile --cache-dir /home/bun/.bun/install/cache
-
-FROM dependencies AS build
+RUN --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444,required=false \
+    token="" && \
+    if [ -f /run/secrets/FONT_AWESOME_TOKEN ]; then token="$(cat /run/secrets/FONT_AWESOME_TOKEN)"; fi && \
+    if [ -z "$token" ]; then token="$FONT_AWESOME_TOKEN"; fi && \
+    if [ -z "$token" ]; then echo "Missing FONT_AWESOME_TOKEN for bun install" >&2; exit 1; fi && \
+    printf '@fortawesome:registry=https://npm.fontawesome.com/\n//npm.fontawesome.com/:_authToken=%s\nalways-auth=true\n' "$token" > "$HOME/.npmrc" && \
+    bun install --frozen-lockfile && \
+    rm -f "$HOME/.npmrc"
 COPY . .
 RUN bun run build:app
 RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN,mode=0444,required=false \
@@ -44,10 +42,18 @@ RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN,mode=0444,required=false \
         fi; \
     fi
 
-FROM dependencies AS production-dependencies
-RUN rm -rf node_modules
-RUN --mount=type=cache,id=bun-install-cache,target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
-    bun install --frozen-lockfile --production --offline --cache-dir /home/bun/.bun/install/cache
+FROM base AS production-dependencies
+ARG FONT_AWESOME_TOKEN
+COPY package.json bun.lock bunfig.toml ./
+COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
+RUN --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444,required=false \
+    token="" && \
+    if [ -f /run/secrets/FONT_AWESOME_TOKEN ]; then token="$(cat /run/secrets/FONT_AWESOME_TOKEN)"; fi && \
+    if [ -z "$token" ]; then token="$FONT_AWESOME_TOKEN"; fi && \
+    if [ -z "$token" ]; then echo "Missing FONT_AWESOME_TOKEN for bun install --production" >&2; exit 1; fi && \
+    printf '@fortawesome:registry=https://npm.fontawesome.com/\n//npm.fontawesome.com/:_authToken=%s\nalways-auth=true\n' "$token" > "$HOME/.npmrc" && \
+    bun install --frozen-lockfile --production && \
+    rm -f "$HOME/.npmrc"
 
 FROM base AS production
 
