@@ -137,8 +137,9 @@ Global admins can review, create, and edit tenants from the **Global admin** are
       page.getByRole('link', { name: 'Create tenant' }),
     ).toHaveAttribute('href', '/global-admin/tenants/create');
     await expect(page.getByLabel(tenantSearchLabel)).toBeVisible();
-    await expectGlobalAdminTenantRows(page, documentedTenant);
     const primaryDomain = documentedTenant.domain;
+    await page.getByLabel(tenantSearchLabel).fill(primaryDomain);
+    await expectGlobalAdminTenantRows(page, documentedTenant);
     expect(await readFirstTenantPrimaryDomain(page)).toBe(primaryDomain);
     await page.getByLabel(tenantSearchLabel).fill('no-such-tenant');
     await expect(
