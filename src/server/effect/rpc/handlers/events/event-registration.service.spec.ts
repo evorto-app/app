@@ -670,6 +670,7 @@ describe('EventRegistrationService', () => {
           },
           transaction: (
             callback: (tx: {
+              execute: () => Effect.Effect<unknown>;
               query: {
                 eventRegistrations: {
                   findMany: () => Effect.Effect<{ id: string }[]>;
@@ -679,6 +680,7 @@ describe('EventRegistrationService', () => {
             }) => Effect.Effect<unknown>,
           ) =>
             callback({
+              execute: () => Effect.succeed(),
               query: {
                 eventRegistrations: {
                   findMany: () =>
@@ -740,6 +742,7 @@ describe('EventRegistrationService', () => {
           },
           transaction: (
             callback: (tx: {
+              execute: () => Effect.Effect<unknown>;
               insert: ReturnType<typeof vi.fn>;
               query: {
                 eventRegistrations: {
@@ -756,6 +759,7 @@ describe('EventRegistrationService', () => {
             }) => Effect.Effect<unknown>,
           ) =>
             callback({
+              execute: () => Effect.succeed(),
               insert: insertRegistration,
               query: {
                 eventRegistrations: {
