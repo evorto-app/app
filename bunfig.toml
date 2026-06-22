@@ -1,2 +1,5 @@
 # Disable loading .env files
 env = false
+
+[install.scopes]
+"@fortawesome" = "https://registry.npmjs.org/"
