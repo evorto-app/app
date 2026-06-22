@@ -1,11 +1,9 @@
-import { sql } from 'drizzle-orm';
 import {
   boolean,
   integer,
   pgTable,
   text,
   timestamp,
-  uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -15,36 +13,26 @@ import { discountTypes, registrationStatus } from './global-enums';
 import { modelOfTenant } from './model';
 import { users } from './users';
 
-export const eventRegistrations = pgTable(
-  'event_registrations',
-  {
-    appliedDiscountedPrice: integer('applied_discounted_price'),
-    appliedDiscountType: discountTypes('applied_discount_type'),
-    basePriceAtRegistration: integer('base_price_at_registration'),
-    ...modelOfTenant,
-    checkInTime: timestamp(),
-    discountAmount: integer('discount_amount'),
-    eventId: varchar({ length: 20 })
-      .notNull()
-      .references(() => eventInstances.id),
-    paymentId: varchar({ length: 255 }),
-    registrationOptionId: varchar({ length: 20 })
-      .notNull()
-      .references(() => eventRegistrationOptions.id),
-    status: registrationStatus().notNull(),
-    stripeTaxRateId: varchar('tax_rate_id'),
-    taxRateDisplayName: text('tax_rate_name'),
-    taxRateInclusive: boolean('tax_rate_inclusive'),
-    taxRatePercentage: text('tax_rate_percentage'),
-    userId: varchar({ length: 20 })
-      .notNull()
-      .references(() => users.id),
-  },
-  (table) => ({
-    activeRegistrationPerUserEvent: uniqueIndex(
-      'event_registration_active_user_event_idx',
-    )
-      .on(table.tenantId, table.userId, table.eventId)
-      .where(sql`${table.status} <> 'CANCELLED'`),
-  }),
-);
+export const eventRegistrations = pgTable('event_registrations', {
+  appliedDiscountedPrice: integer('applied_discounted_price'),
+  appliedDiscountType: discountTypes('applied_discount_type'),
+  basePriceAtRegistration: integer('base_price_at_registration'),
+  ...modelOfTenant,
+  checkInTime: timestamp(),
+  discountAmount: integer('discount_amount'),
+  eventId: varchar({ length: 20 })
+    .notNull()
+    .references(() => eventInstances.id),
+  paymentId: varchar({ length: 255 }),
+  registrationOptionId: varchar({ length: 20 })
+    .notNull()
+    .references(() => eventRegistrationOptions.id),
+  status: registrationStatus().notNull(),
+  stripeTaxRateId: varchar('tax_rate_id'),
+  taxRateDisplayName: text('tax_rate_name'),
+  taxRateInclusive: boolean('tax_rate_inclusive'),
+  taxRatePercentage: text('tax_rate_percentage'),
+  userId: varchar({ length: 20 })
+    .notNull()
+    .references(() => users.id),
+});
