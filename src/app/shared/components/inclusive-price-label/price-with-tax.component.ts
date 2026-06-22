@@ -3,7 +3,10 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DEFAULT_CURRENCY_CODE,
+  inject,
   input,
+  LOCALE_ID,
 } from '@angular/core';
 
 import {
@@ -45,12 +48,10 @@ export class PriceWithTaxComponent {
    * Price amount in cents (smallest currency unit)
    */
   amount = input.required<number>();
-
   /**
-   * Currency code (default: EUR)
+   * Currency code (defaults to the tenant currency)
    */
-  currency = input<string>('EUR');
-
+  currency = input<string>();
   /**
    * Whether this is a free option (shows "Free" instead of formatted price)
    */
@@ -61,6 +62,15 @@ export class PriceWithTaxComponent {
    */
   taxRate = input<null | TaxRateInfo | undefined>();
 
+  private readonly defaultCurrencyCode = inject(DEFAULT_CURRENCY_CODE);
+
+  private readonly locale = inject(LOCALE_ID);
+
+  private readonly currencyPipe = new CurrencyPipe(
+    this.locale,
+    this.defaultCurrencyCode,
+  );
+
   /**
    * Computed formatted amount
    */
@@ -69,14 +79,14 @@ export class PriceWithTaxComponent {
       return 'Free';
     }
 
-    const currencyPipe = new CurrencyPipe('en-US');
     return (
-      currencyPipe.transform(
+      this.currencyPipe.transform(
         this.amount() / 100, // Convert cents to main currency unit
-        this.currency(),
+        this.currency() ?? this.defaultCurrencyCode,
         'symbol',
         '1.2-2',
-      ) || '€0.00'
+      ) ||
+      `${this.amount() / 100} ${this.currency() ?? this.defaultCurrencyCode}`
     );
   });
 
