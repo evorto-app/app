@@ -106,7 +106,7 @@ export class TemplateCreateEventComponent {
               organizingRegistration: option.organizingRegistration,
               price: option.price,
               registeredDescription: option.registeredDescription ?? '',
-              registrationMode: option.registrationMode,
+              registrationMode: 'fcfs',
               roleIds: [...(option.roleIds ?? [])],
               spots: option.spots,
               stripeTaxRateId: option.stripeTaxRateId ?? null,
@@ -186,7 +186,7 @@ export class TemplateCreateEventComponent {
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
               : null,
-            registrationMode: option.registrationMode,
+            registrationMode: 'fcfs',
             roleIds: option.roleIds,
             sourceTemplateRegistrationOptionId: option.id || undefined,
             spots: option.spots,

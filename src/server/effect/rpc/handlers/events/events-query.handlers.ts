@@ -4,7 +4,17 @@ import {
   EventConflictError,
   EventNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { and, arrayOverlaps, eq, exists, gt, inArray, not } from 'drizzle-orm';
+import {
+  and,
+  arrayOverlaps,
+  eq,
+  exists,
+  gt,
+  inArray,
+  not,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { Effect } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
@@ -168,9 +178,12 @@ export const eventQueryHandlers = {
                   .where(
                     and(
                       eq(eventRegistrationOptions.eventId, eventInstances.id),
-                      arrayOverlaps(
-                        eventRegistrationOptions.roleIds,
-                        roleFilters,
+                      or(
+                        sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
+                        arrayOverlaps(
+                          eventRegistrationOptions.roleIds,
+                          roleFilters,
+                        ),
                       ),
                     ),
                   ),
@@ -267,7 +280,10 @@ export const eventQueryHandlers = {
               },
               where: {
                 RAW: (table) =>
-                  arrayOverlaps(table.roleIds, [...rolesToFilterBy]),
+                  sql`cardinality(${table.roleIds}) = 0 or ${arrayOverlaps(
+                    table.roleIds,
+                    [...rolesToFilterBy],
+                  )}`,
               },
             },
             reviewer: {

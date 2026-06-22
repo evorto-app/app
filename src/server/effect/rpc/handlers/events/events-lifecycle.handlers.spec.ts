@@ -186,6 +186,9 @@ describe('eventLifecycleHandlers', () => {
     () =>
       Effect.gen(function* () {
         const insertedDiscountValues = vi.fn(() => Effect.succeed());
+        const insertedRegistrationOptionValues = vi.fn((values) =>
+          Effect.succeed(values),
+        );
         const database = {
           insert: vi.fn((table) => {
             if (table === eventInstances) {
@@ -204,18 +207,7 @@ describe('eventLifecycleHandlers', () => {
 
             if (table === eventRegistrationOptions) {
               return {
-                values: vi.fn(() => ({
-                  returning: vi.fn(() =>
-                    Effect.succeed([
-                      {
-                        id: 'event-option-1',
-                      },
-                      {
-                        id: 'event-option-2',
-                      },
-                    ]),
-                  ),
-                })),
+                values: insertedRegistrationOptionValues,
               };
             }
 
@@ -287,11 +279,15 @@ describe('eventLifecycleHandlers', () => {
         ).pipe(Effect.provide(layer));
 
         expect(result).toEqual({ id: 'event-1' });
+        const insertedRegistrationOptions =
+          insertedRegistrationOptionValues.mock.calls[0]?.[0] ?? [];
+        const secondInsertedOption = insertedRegistrationOptions[1];
+        expect(secondInsertedOption).toBeDefined();
         expect(insertedDiscountValues).toHaveBeenCalledWith([
           {
             discountedPrice: 500,
             discountType: 'esnCard',
-            registrationOptionId: 'event-option-2',
+            registrationOptionId: secondInsertedOption.id,
           },
         ]);
       }),

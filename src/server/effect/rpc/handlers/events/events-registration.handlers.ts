@@ -526,10 +526,38 @@ export const eventRegistrationHandlers = {
               });
 
             if (updatedRegistrations.length === 0) {
-              return {
-                alreadyCheckedIn: true,
-                checkInTime,
-              };
+              const latestRegistration =
+                yield* tx.query.eventRegistrations.findFirst({
+                  columns: {
+                    checkInTime: true,
+                    status: true,
+                  },
+                  where: {
+                    id: registration.id,
+                    tenantId: tenant.id,
+                  },
+                });
+
+              if (!latestRegistration) {
+                return yield* Effect.fail(
+                  new EventRegistrationNotFoundError({
+                    message: 'Registration not found',
+                  }),
+                );
+              }
+
+              if (latestRegistration.checkInTime) {
+                return {
+                  alreadyCheckedIn: true,
+                  checkInTime: latestRegistration.checkInTime,
+                };
+              }
+
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: 'Only confirmed registrations can be checked in',
+                }),
+              );
             }
 
             const updatedOptions = yield* tx

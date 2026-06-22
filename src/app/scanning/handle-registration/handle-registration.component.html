@@ -129,7 +129,8 @@
     [disabled]="
       !scanResultQuery.data().allowCheckin ||
       selectedSpotCheckInCount() < 1 ||
-      checkInMutation.isPending()
+      checkInMutation.isPending() ||
+      checkInCompleted()
     "
     class="mt-4 w-full"
     mat-raised-button
@@ -138,6 +139,8 @@
   >
     @if (checkInMutation.isPending()) {
       Checking in ...
+    } @else if (checkInCompleted()) {
+      Checked in
     } @else if (selectedSpotCheckInCount() > 1) {
       Confirm {{ selectedSpotCheckInCount() }} Check Ins
     } @else {

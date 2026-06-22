@@ -175,7 +175,19 @@ const playwrightBrowserCheck = (
     };
   }
 
-  const locations = readPlaywrightInstallLocations(result.stdout);
+  const locations = readPlaywrightInstallLocations(
+    `${result.stdout}\n${result.stderr}`,
+  );
+  if (locations.length === 0) {
+    return {
+      details: [
+        'Could not detect Playwright install locations from dry-run output',
+      ],
+      label: 'Playwright Chromium browser installation',
+      severity: 'warning',
+    };
+  }
+
   const missing = locations.filter((location) => !fileExists(location));
 
   if (missing.length === 0) {

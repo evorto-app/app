@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-05-19
+Updated: 2026-06-22
 
 ## How to Use This Inventory
 
