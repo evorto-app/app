@@ -158,8 +158,18 @@ const matchesProjectPattern = (pattern: string, projectName: string) => {
   return projectPattern.test(projectName);
 };
 
-const resolveRequestedProjectNames = (argv: readonly string[]) => {
+const resolveRequestedProjectNames = (
+  argv: readonly string[],
+  environment: Record<string, string | undefined> = process.env,
+) => {
   const requestedProjectNames: string[] = [];
+  const selectedProjects = environment['PLAYWRIGHT_SELECTED_PROJECTS'];
+
+  if (selectedProjects) {
+    requestedProjectNames.push(
+      ...selectedProjects.split(',').map((projectName) => projectName.trim()),
+    );
+  }
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -195,12 +205,13 @@ const resolveRequestedProjectNames = (argv: readonly string[]) => {
 
 export const requiresIntegrationOnlyPlaywrightEnvironment = (
   argv: readonly string[] = process.argv,
+  environment: Record<string, string | undefined> = process.env,
 ) => {
   if (argv.includes('--ui')) {
     return false;
   }
 
-  const requestedProjectNames = resolveRequestedProjectNames(argv);
+  const requestedProjectNames = resolveRequestedProjectNames(argv, environment);
   if (requestedProjectNames.length === 0) {
     return true;
   }

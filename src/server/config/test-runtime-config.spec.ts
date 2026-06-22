@@ -77,6 +77,15 @@ describe('test-runtime-config', () => {
     ).toBe(false);
   });
 
+  it('treats environment-selected baseline projects as baseline-only', () => {
+    expect(
+      requiresIntegrationOnlyPlaywrightEnvironment(
+        ['node', 'playwright', 'test'],
+        { PLAYWRIGHT_SELECTED_PROJECTS: 'local-chrome-baseline' },
+      ),
+    ).toBe(false);
+  });
+
   it('treats integration project selection as requiring integration credentials', () => {
     expect(
       requiresIntegrationOnlyPlaywrightEnvironment([
@@ -85,6 +94,15 @@ describe('test-runtime-config', () => {
         'test',
         '--project=docs-integration',
       ]),
+    ).toBe(true);
+  });
+
+  it('treats environment-selected integration projects as requiring integration credentials', () => {
+    expect(
+      requiresIntegrationOnlyPlaywrightEnvironment(
+        ['node', 'playwright', 'test'],
+        { PLAYWRIGHT_SELECTED_PROJECTS: 'docs-integration' },
+      ),
     ).toBe(true);
   });
 
