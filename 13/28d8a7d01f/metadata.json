@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "1328d8a7d01f",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-00-deploy-schema",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/13/28d8a7d01f/0/metadata.json",
+      "transcript": "/13/28d8a7d01f/0/full.jsonl",
+      "content_hash": "/13/28d8a7d01f/0/content_hash.txt",
+      "prompt": "/13/28d8a7d01f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3416184,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 61188992,
+    "output_tokens": 170010,
+    "api_call_count": 485
+  }
+}
