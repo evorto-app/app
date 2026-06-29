@@ -132,9 +132,6 @@ jobs:
       - name: Confirm Neon branch expiration
         run: bun helpers/testing/set-neon-local-branch-expiration.ts
 
-      - name: Apply latest schema
-        run: bun run db:push
-
       - name: Start application container
         run: docker compose up -d evorto
 
