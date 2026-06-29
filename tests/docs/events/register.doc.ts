@@ -67,7 +67,7 @@ test.describe('Register for events', () => {
     );
     await testInfo.attach('markdown', {
       body: `
-  After selecting a free event, all left to do is press the **Register** button for the option you chose. After that, you will see your confirmation and ticket QR code.`,
+  After selecting a free event, all left to do is press the **Register** button for the option you chose. After that, you will see your confirmation, ticket QR code, cancellation action, and an unpaid transfer action when the registration is still eligible for self-service transfer.`,
     });
     const participantRegistrationCard = page
       .locator('app-event-registration-option')

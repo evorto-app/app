@@ -39,6 +39,16 @@ export const receiptReviewSuccessMessage = (
 export const receiptReviewNotificationNotice =
   'Approving or rejecting this receipt records the review status only. Notify the submitter manually after saving.';
 
+export const receiptReviewActionDisabled = ({
+  formInvalid,
+  mutationPending,
+  receiptPending,
+}: {
+  formInvalid: boolean;
+  mutationPending: boolean;
+  receiptPending: boolean;
+}): boolean => formInvalid || receiptPending || mutationPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -87,6 +97,7 @@ export class ReceiptApprovalDetailComponent {
     return receipt.attachmentMimeType === 'application/pdf';
   });
 
+  protected readonly receiptReviewActionDisabled = receiptReviewActionDisabled;
   protected readonly receiptReviewNotificationNotice =
     receiptReviewNotificationNotice;
   protected readonly rejectionReason = signal('');
@@ -149,8 +160,17 @@ export class ReceiptApprovalDetailComponent {
   }
 
   private async review(status: 'approved' | 'rejected'): Promise<void> {
-    if (this.form.invalid || this.receiptQuery.isPending()) {
-      this.form.markAllAsTouched();
+    const formInvalid = this.form.invalid;
+    if (
+      receiptReviewActionDisabled({
+        formInvalid,
+        mutationPending: this.reviewMutation.isPending(),
+        receiptPending: this.receiptQuery.isPending(),
+      })
+    ) {
+      if (formInvalid || this.receiptQuery.isPending()) {
+        this.form.markAllAsTouched();
+      }
       return;
     }
 

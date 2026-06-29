@@ -3,12 +3,12 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faArrowLeft,
   faArrowUpRightFromSquare,
+  faRotateRight,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
@@ -22,15 +22,15 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
 
+export const eventReviewQueueActionDisabled = ({
+  mutationPending,
+}: {
+  mutationPending: boolean;
+}): boolean => mutationPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    MatButtonModule,
-    MatIconModule,
-    RouterLink,
-    FontAwesomeModule,
-    DatePipe,
-  ],
+  imports: [MatButtonModule, RouterLink, FontAwesomeModule, DatePipe],
   selector: 'app-event-reviews',
   standalone: true,
   template: `
@@ -50,7 +50,7 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
         (click)="pendingReviewsQuery.refetch()"
         aria-label="Refresh pending reviews"
       >
-        <mat-icon>refresh</mat-icon>
+        <fa-duotone-icon [icon]="faRotateRight" />
       </button>
     </div>
 
@@ -84,14 +84,22 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
                   <button
                     mat-stroked-button
                     (click)="reviewEvent(event.id, event.title, false)"
-                    [disabled]="reviewEventMutation.isPending()"
+                    [disabled]="
+                      eventReviewQueueActionDisabled({
+                        mutationPending: reviewEventMutation.isPending(),
+                      })
+                    "
                   >
                     Reject
                   </button>
                   <button
                     mat-flat-button
                     (click)="reviewEvent(event.id, event.title, true)"
-                    [disabled]="reviewEventMutation.isPending()"
+                    [disabled]="
+                      eventReviewQueueActionDisabled({
+                        mutationPending: reviewEventMutation.isPending(),
+                      })
+                    "
                   >
                     Approve
                   </button>
@@ -123,8 +131,11 @@ import { EventReviewDialogComponent } from '../../events/event-review-dialog/eve
   `,
 })
 export class EventReviewsComponent {
+  protected readonly eventReviewQueueActionDisabled =
+    eventReviewQueueActionDisabled;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faArrowUpRightFromSquare = faArrowUpRightFromSquare;
+  protected readonly faRotateRight = faRotateRight;
   private readonly rpc = AppRpc.injectClient();
   protected readonly pendingReviewsQuery = injectQuery(() =>
     this.rpc.events.getPendingReviews.queryOptions(),
@@ -150,6 +161,14 @@ export class EventReviewsComponent {
     eventTitle: string,
     approved: boolean,
   ): Promise<void> {
+    if (
+      eventReviewQueueActionDisabled({
+        mutationPending: this.reviewEventMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     try {
       if (approved) {
         await this.reviewEventMutation.mutateAsync({ approved, eventId });

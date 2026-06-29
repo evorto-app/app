@@ -1,6 +1,8 @@
+import type { GlobalAdminTenantWriteInput } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import type { Headers } from 'effect/unstable/http';
 
 import {
+  RpcBadRequestError,
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
@@ -8,11 +10,13 @@ import {
   GlobalAdminTenantRecord,
   type GlobalAdminTenantRecord as GlobalAdminTenantRecordType,
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
+import { eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
+import { tenants } from '../../../../db/schema';
 import {
   includesPermission,
   type Permission,
@@ -70,13 +74,63 @@ const toGlobalAdminTenantRecord = (tenant: {
   theme: string;
   timezone: string;
 }): GlobalAdminTenantRecordType => {
-  const { stripeAccountId, ...record } = tenant;
-
   return Schema.decodeUnknownSync(GlobalAdminTenantRecord)({
-    ...record,
-    stripeConnected: !!stripeAccountId,
+    ...tenant,
+    stripeConnected: !!tenant.stripeAccountId,
   });
 };
+
+const normalizeTenantDomain = (value: string): string => {
+  const trimmedValue = value.trim().toLocaleLowerCase();
+  if (!trimmedValue) {
+    throw new Error('Domain is required');
+  }
+
+  const url = new URL(
+    trimmedValue.includes('://') ? trimmedValue : `https://${trimmedValue}`,
+  );
+  if (
+    !url.hostname ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash ||
+    url.username ||
+    url.password
+  ) {
+    throw new Error('Domain must be a single host name');
+  }
+
+  return url.hostname;
+};
+
+const normalizeTenantWriteInput = (
+  input: GlobalAdminTenantWriteInput,
+): GlobalAdminTenantWriteInput => {
+  const name = input.name.trim();
+  if (!name) {
+    throw new Error('Tenant name is required');
+  }
+
+  return {
+    currency: input.currency,
+    domain: normalizeTenantDomain(input.domain),
+    locale: input.locale,
+    name,
+    stripeAccountId: input.stripeAccountId?.trim() || undefined,
+    theme: input.theme,
+    timezone: input.timezone,
+  };
+};
+
+const normalizeTenantWritePayload = (input: GlobalAdminTenantWriteInput) =>
+  Effect.try({
+    catch: (error) =>
+      new RpcBadRequestError({
+        message: 'Invalid tenant settings',
+        reason: error instanceof Error ? error.message : String(error),
+      }),
+    try: () => normalizeTenantWriteInput(input),
+  });
 
 const globalAdminTenantColumns = {
   currency: true,
@@ -89,7 +143,57 @@ const globalAdminTenantColumns = {
   timezone: true,
 } as const;
 
+const globalAdminTenantReturningColumns = {
+  currency: tenants.currency,
+  domain: tenants.domain,
+  id: tenants.id,
+  locale: tenants.locale,
+  name: tenants.name,
+  stripeAccountId: tenants.stripeAccountId,
+  theme: tenants.theme,
+  timezone: tenants.timezone,
+} as const;
+
 export const globalAdminHandlers = {
+  'globalAdmin.tenants.create': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
+      const tenantInput = yield* normalizeTenantWritePayload(input);
+      const existingDomainTenant = yield* databaseEffect((database) =>
+        database.query.tenants.findFirst({
+          columns: {
+            id: true,
+          },
+          where: {
+            domain: tenantInput.domain,
+          },
+        }),
+      );
+      if (existingDomainTenant) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: 'Tenant domain already exists',
+            reason: tenantInput.domain,
+          }),
+        );
+      }
+
+      const createdTenants = yield* databaseEffect((database) =>
+        database
+          .insert(tenants)
+          .values({
+            ...tenantInput,
+            stripeAccountId: tenantInput.stripeAccountId ?? null,
+          })
+          .returning(globalAdminTenantReturningColumns),
+      );
+      const createdTenant = createdTenants[0];
+      if (!createdTenant) {
+        return yield* Effect.die(new Error('Tenant creation returned no rows'));
+      }
+
+      return toGlobalAdminTenantRecord(createdTenant);
+    }),
   'globalAdmin.tenants.findMany': (_payload, options) =>
     Effect.gen(function* () {
       yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
@@ -115,5 +219,48 @@ export const globalAdminHandlers = {
       );
 
       return tenant ? toGlobalAdminTenantRecord(tenant) : null;
+    }),
+  'globalAdmin.tenants.update': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
+      const { id, ...writeInput } = input;
+      const tenantInput = yield* normalizeTenantWritePayload(writeInput);
+      const existingDomainTenant = yield* databaseEffect((database) =>
+        database.query.tenants.findFirst({
+          columns: {
+            id: true,
+          },
+          where: {
+            domain: tenantInput.domain,
+          },
+        }),
+      );
+      if (existingDomainTenant && existingDomainTenant.id !== id) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: 'Tenant domain already exists',
+            reason: tenantInput.domain,
+          }),
+        );
+      }
+
+      const updatedTenants = yield* databaseEffect((database) =>
+        database
+          .update(tenants)
+          .set({
+            ...tenantInput,
+            stripeAccountId: tenantInput.stripeAccountId ?? null,
+          })
+          .where(eq(tenants.id, id))
+          .returning(globalAdminTenantReturningColumns),
+      );
+      const updatedTenant = updatedTenants[0];
+      if (!updatedTenant) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({ message: 'Tenant not found' }),
+        );
+      }
+
+      return toGlobalAdminTenantRecord(updatedTenant);
     }),
 } satisfies Partial<AppRpcHandlers>;

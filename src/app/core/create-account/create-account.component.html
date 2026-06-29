@@ -56,7 +56,13 @@
         <button
           mat-flat-button
           type="submit"
-          [disabled]="accountForm().invalid() || accountForm().submitting()"
+          [disabled]="
+            createAccountSubmitDisabled({
+              formInvalid: accountForm().invalid(),
+              formSubmitting: accountForm().submitting(),
+              mutationPending: createAccountMutation.isPending(),
+            })
+          "
         >
           Create Account
         </button>

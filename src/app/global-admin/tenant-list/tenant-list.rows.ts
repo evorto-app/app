@@ -11,10 +11,23 @@ const searchableTenantFields = (tenant: GlobalAdminTenantRecord): string[] => [
   tenant.id,
   tenant.locale,
   tenant.name,
+  tenant.stripeAccountId ?? '',
   tenant.theme,
   tenant.timezone,
   tenant.stripeConnected ? 'connected' : 'not connected',
 ];
+
+export const globalAdminStripeAccountLabel = (
+  tenant: Pick<GlobalAdminTenantRecord, 'stripeAccountId' | 'stripeConnected'>,
+): string => {
+  if (!tenant.stripeConnected) {
+    return 'Not connected';
+  }
+
+  return tenant.stripeAccountId
+    ? `Connected (${tenant.stripeAccountId})`
+    : 'Connected';
+};
 
 export const filterGlobalAdminTenants = (
   tenants: readonly GlobalAdminTenantRecord[],
@@ -41,6 +54,6 @@ export const globalAdminTenantRows = (tenant: GlobalAdminTenantRecord) => [
   { label: 'Timezone', value: tenant.timezone },
   {
     label: 'Stripe account',
-    value: tenant.stripeConnected ? 'Connected' : 'Not connected',
+    value: globalAdminStripeAccountLabel(tenant),
   },
 ];

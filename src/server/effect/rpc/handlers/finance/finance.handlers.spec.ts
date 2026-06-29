@@ -137,6 +137,25 @@ const databaseWithTenantEvent = (event: { end?: Date; id?: string } = {}) => ({
   },
 });
 
+const databaseWithReceiptInsert = (event: { end?: Date; id?: string } = {}) => {
+  let insertedValues: unknown;
+  const insertQuery = {
+    returning: () => Effect.succeed([{ id: 'receipt-1' }]),
+    values: (values: unknown) => {
+      insertedValues = values;
+      return insertQuery;
+    },
+  };
+
+  return {
+    database: {
+      ...databaseWithTenantEvent(event),
+      insert: () => insertQuery,
+    },
+    insertedValues: () => insertedValues,
+  };
+};
+
 const databaseWithSubmittedReceipt = () => ({
   query: {
     financeReceipts: {
@@ -365,32 +384,32 @@ describe('finance transaction permissions', () => {
 });
 
 describe('finance receipt amount validation', () => {
-  it.effect('rejects receipt submissions before the event has ended', () =>
+  it.effect('allows receipt submissions before the event has ended', () =>
     Effect.gen(function* () {
-      const error = yield* financeHandlers['finance.receipts.submit'](
+      const receiptDatabase = databaseWithReceiptInsert({
+        end: new Date(Date.now() + 60 * 60 * 1000),
+      });
+
+      const result = yield* financeHandlers['finance.receipts.submit'](
         receiptSubmitInput,
         { headers: {} } as never,
       ).pipe(
-        Effect.flip,
         Effect.provide(
           createContextLayer(['events:organizeAll'], {
-            database: {
-              ...databaseWithTenantEvent({
-                end: new Date(Date.now() + 60 * 60 * 1000),
-              }),
-              insert: () =>
-                Effect.die(
-                  new Error(
-                    'receipt insert should not run before event end validation',
-                  ),
-                ),
-            },
+            database: receiptDatabase.database,
           }),
         ),
       );
 
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('event_not_finished');
+      expect(result).toEqual({ id: 'receipt-1' });
+      expect(receiptDatabase.insertedValues()).toEqual(
+        expect.objectContaining({
+          eventId: 'event-1',
+          status: 'submitted',
+          submittedByUserId: 'user-1',
+          tenantId: 'tenant-1',
+        }),
+      );
     }),
   );
 

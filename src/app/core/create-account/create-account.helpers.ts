@@ -33,5 +33,15 @@ export const createAccountPayloadFromModel = (
   lastName: model.lastName.trim(),
 });
 
+export const createAccountSubmitDisabled = ({
+  formInvalid,
+  formSubmitting,
+  mutationPending,
+}: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean => formInvalid || formSubmitting || mutationPending;
+
 export const createAccountErrorMessage = (error: unknown): string =>
   getErrorMessage(error, 'Failed to create account');

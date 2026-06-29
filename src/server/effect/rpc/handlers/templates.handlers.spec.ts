@@ -8,7 +8,10 @@ import {
   type RpcRequestContextShape,
 } from '../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from './shared/rpc-access.service';
-import { templateHandlers } from './templates.handlers';
+import {
+  normalizeTemplateFindOneRecord,
+  templateHandlers,
+} from './templates.handlers';
 
 const tenant = {
   currency: 'EUR' as const,
@@ -165,4 +168,92 @@ describe('templateHandlers permissions', () => {
         expect(error['_tag']).toBe('TemplateSimpleNotFoundError');
       }),
   );
+});
+
+describe('normalizeTemplateFindOneRecord', () => {
+  it('returns reusable template add-ons with registration option attachments', () => {
+    const record = normalizeTemplateFindOneRecord(
+      {
+        addOns: [
+          {
+            allowMultiple: true,
+            allowPurchaseBeforeEvent: true,
+            allowPurchaseDuringEvent: false,
+            allowPurchaseDuringRegistration: true,
+            description: 'Optional dinner ticket',
+            id: 'addon-1',
+            isPaid: true,
+            maxQuantityPerUser: 2,
+            price: 1200,
+            stripeTaxRateId: 'txr-1',
+            title: 'Dinner',
+            totalAvailableQuantity: 40,
+          },
+        ],
+        categoryId: 'category-1',
+        description: '<p>Useful event template description</p>',
+        icon: {
+          iconColor: 0,
+          iconName: 'calendar:fas',
+        },
+        id: 'template-1',
+        location: null,
+        planningTips: null,
+        registrationOptions: [
+          {
+            closeRegistrationOffset: 24,
+            description: null,
+            id: 'template-option-1',
+            isPaid: true,
+            openRegistrationOffset: 168,
+            organizingRegistration: false,
+            price: 1200,
+            registeredDescription: null,
+            registrationMode: 'fcfs',
+            roleIds: [],
+            spots: 20,
+            stripeTaxRateId: 'txr-1',
+            title: 'Participant registration',
+          },
+        ],
+        title: 'Template',
+      },
+      new Map(),
+      new Map(),
+      new Map([
+        [
+          'addon-1',
+          [
+            {
+              quantity: 1,
+              registrationOptionId: 'template-option-1',
+            },
+          ],
+        ],
+      ]),
+    );
+
+    expect(record.addOns).toEqual([
+      {
+        allowMultiple: true,
+        allowPurchaseBeforeEvent: true,
+        allowPurchaseDuringEvent: false,
+        allowPurchaseDuringRegistration: true,
+        description: 'Optional dinner ticket',
+        id: 'addon-1',
+        isPaid: true,
+        maxQuantityPerUser: 2,
+        price: 1200,
+        registrationOptions: [
+          {
+            quantity: 1,
+            registrationOptionId: 'template-option-1',
+          },
+        ],
+        stripeTaxRateId: 'txr-1',
+        title: 'Dinner',
+        totalAvailableQuantity: 40,
+      },
+    ]);
+  });
 });

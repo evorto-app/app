@@ -76,15 +76,38 @@
                   }
                 </div>
                 @if (!registrationOption.organizingRegistration) {
-                  <button
-                    mat-stroked-button
-                    (click)="cancelRegistration(user)"
-                    [disabled]="
-                      user.checkedIn || cancelRegistrationMutation.isPending()
-                    "
-                  >
-                    Cancel registration
-                  </button>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      (click)="openTransferDialog(user)"
+                      [disabled]="
+                        organizerRegistrationActionDisabled({
+                          checkedIn: user.checkedIn,
+                          mutationPending:
+                            transferRegistrationMutation.isPending() ||
+                            cancelRegistrationMutation.isPending(),
+                        })
+                      "
+                    >
+                      Transfer registration
+                    </button>
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      (click)="cancelRegistration(user)"
+                      [disabled]="
+                        organizerRegistrationActionDisabled({
+                          checkedIn: user.checkedIn,
+                          mutationPending:
+                            cancelRegistrationMutation.isPending() ||
+                            transferRegistrationMutation.isPending(),
+                        })
+                      "
+                    >
+                      Cancel registration
+                    </button>
+                  </div>
                 }
               </div>
             }
@@ -146,14 +169,17 @@
             color="primary"
             (click)="openReceiptDialog()"
             [disabled]="
-              submitReceiptMutation.isPending() ||
-              !!receiptSubmissionClosedMessage()
+              receiptSubmissionActionDisabled({
+                submissionUnavailable: !!receiptSubmissionUnavailableMessage(),
+                submitPending: submitReceiptMutation.isPending(),
+                uploadPending: receiptOriginalUploadMutation.isPending(),
+              })
             "
           >
             Add receipt
           </button>
         </div>
-        @if (receiptSubmissionClosedMessage(); as message) {
+        @if (receiptSubmissionUnavailableMessage(); as message) {
           <p class="text-on-surface-variant text-sm">
             {{ message }}
           </p>

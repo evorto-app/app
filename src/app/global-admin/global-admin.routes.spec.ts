@@ -13,10 +13,12 @@ describe('GLOBAL_ADMIN_ROUTES', () => {
     });
   });
 
-  it('keeps the tenant list and detail review routes under the guarded shell', () => {
+  it('keeps tenant list, create, detail, and edit routes under the guarded shell', () => {
     const shellRoute = GLOBAL_ADMIN_ROUTES.find((route) => route.path === '');
 
     expect(shellRoute?.children?.map((route) => route.path)).toEqual([
+      'tenants/create',
+      'tenants/:tenantId/edit',
       'tenants/:tenantId',
       'tenants',
     ]);

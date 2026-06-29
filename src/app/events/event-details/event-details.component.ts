@@ -1,3 +1,5 @@
+import type { EventReviewStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -55,6 +57,27 @@ export const registrationOptionsState = (event: {
     ? 'hiddenByEligibility'
     : 'none';
 };
+
+export const eventReviewActionDisabled = ({
+  canReview,
+  mutationPending,
+  status,
+}: {
+  canReview: boolean;
+  mutationPending: boolean;
+  status: EventReviewStatus;
+}): boolean => !canReview || status !== 'PENDING_REVIEW' || mutationPending;
+
+export const eventSubmitForReviewActionDisabled = ({
+  canEdit,
+  mutationPending,
+  status,
+}: {
+  canEdit: boolean;
+  mutationPending: boolean;
+  status: EventReviewStatus;
+}): boolean =>
+  !canEdit || (status !== 'DRAFT' && status !== 'REJECTED') || mutationPending;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -157,6 +180,9 @@ export class EventDetailsComponent {
     }
     return event.icon.iconColor;
   });
+  protected readonly eventReviewActionDisabled = eventReviewActionDisabled;
+  protected readonly eventSubmitForReviewActionDisabled =
+    eventSubmitForReviewActionDisabled;
   protected readonly faArrowLeft = faArrowLeft;
 
   protected readonly faEllipsisVertical = faEllipsisVertical;
@@ -220,6 +246,18 @@ export class EventDetailsComponent {
   }
 
   protected async reviewEvent(approved: boolean): Promise<void> {
+    const event = this.eventQuery.data();
+    if (
+      !event ||
+      eventReviewActionDisabled({
+        canReview: this.canReview(),
+        mutationPending: this.reviewMutation.isPending(),
+        status: event.status,
+      })
+    ) {
+      return;
+    }
+
     try {
       if (approved) {
         await this.reviewMutation.mutateAsync({
@@ -254,6 +292,18 @@ export class EventDetailsComponent {
   }
 
   protected async submitForReview(): Promise<void> {
+    const event = this.eventQuery.data();
+    if (
+      !event ||
+      eventSubmitForReviewActionDisabled({
+        canEdit: this.canEdit(),
+        mutationPending: this.submitForReviewMutation.isPending(),
+        status: event.status,
+      })
+    ) {
+      return;
+    }
+
     try {
       const dialogReference = this.dialog.open(SubmitEventDialogComponent);
       const confirmed = await firstValueFrom(dialogReference.afterClosed());

@@ -9,13 +9,13 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatIconModule } from '@angular/material/icon';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faArrowLeft,
   faEllipsisVertical,
+  faPlus,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
@@ -31,12 +31,19 @@ import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialo
 
 const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
 
+export const templateCategoryActionDisabled = ({
+  createPending,
+  updatePending,
+}: {
+  createPending: boolean;
+  updatePending: boolean;
+}): boolean => createPending || updatePending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     MatButtonModule,
     FontAwesomeModule,
-    MatIconModule,
     MatTableModule,
     RouterLink,
     IconComponent,
@@ -53,6 +60,7 @@ export class CategoryListComponent {
   ]);
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly faPlus = faPlus;
   protected readonly outletActive = signal(false);
   private readonly rpc = AppRpc.injectClient();
   protected templateCategoryGroupsQuery = injectQuery(() =>
@@ -73,6 +81,10 @@ export class CategoryListComponent {
   );
 
   async openCategoryCreationDialog() {
+    if (this.categoryActionDisabled()) {
+      return;
+    }
+
     const defaultIcon =
       this.templateCategoryGroupsQuery.data()?.[0]?.icon ?? fallbackIcon;
     const dialogReference = this.dialog.open<
@@ -102,6 +114,10 @@ export class CategoryListComponent {
     id: string;
     title: string;
   }) {
+    if (this.categoryActionDisabled()) {
+      return;
+    }
+
     const dialogReference = this.dialog.open(
       CreateEditCategoryDialogComponent,
       {
@@ -124,5 +140,12 @@ export class CategoryListComponent {
         this.rpc.queryFilter(['templates', 'groupedByCategory']),
       );
     }
+  }
+
+  protected categoryActionDisabled(): boolean {
+    return templateCategoryActionDisabled({
+      createPending: this.createCategoryMutation.isPending(),
+      updatePending: this.updateCategoryMutation.isPending(),
+    });
   }
 }

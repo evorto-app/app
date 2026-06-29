@@ -71,7 +71,29 @@ export const TemplateRegistrationOptionRecord = Schema.Struct({
   title: Schema.NonEmptyString,
 });
 
+export const TemplateAddonRegistrationOptionRecord = Schema.Struct({
+  quantity: Schema.Number,
+  registrationOptionId: Schema.NonEmptyString,
+});
+
+export const TemplateAddonRecord = Schema.Struct({
+  allowMultiple: Schema.Boolean,
+  allowPurchaseBeforeEvent: Schema.Boolean,
+  allowPurchaseDuringEvent: Schema.Boolean,
+  allowPurchaseDuringRegistration: Schema.Boolean,
+  description: Schema.NullOr(Schema.String),
+  id: Schema.NonEmptyString,
+  isPaid: Schema.Boolean,
+  maxQuantityPerUser: Schema.Number,
+  price: Schema.Number,
+  registrationOptions: Schema.Array(TemplateAddonRegistrationOptionRecord),
+  stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
+  title: Schema.NonEmptyString,
+  totalAvailableQuantity: Schema.Number,
+});
+
 export const TemplateFindOneRecord = Schema.Struct({
+  addOns: Schema.Array(TemplateAddonRecord),
   categoryId: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
   icon: iconSchema,
@@ -81,6 +103,9 @@ export const TemplateFindOneRecord = Schema.Struct({
   registrationOptions: Schema.Array(TemplateRegistrationOptionRecord),
   title: Schema.NonEmptyString,
 });
+export type TemplateFindOneRecord = Schema.Schema.Type<
+  typeof TemplateFindOneRecord
+>;
 
 export const TemplateListRecord = Schema.Struct({
   icon: iconSchema,

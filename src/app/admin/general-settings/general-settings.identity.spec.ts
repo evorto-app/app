@@ -22,7 +22,7 @@ describe('tenantIdentityRows', () => {
       { label: 'Currency', value: 'EUR' },
       { label: 'Locale', value: 'de-DE' },
       { label: 'Timezone', value: 'Europe/Berlin' },
-      { label: 'Stripe account', value: 'Connected' },
+      { label: 'Stripe account', value: 'Connected (acct_123)' },
     ]);
   });
 
@@ -70,7 +70,7 @@ describe('deferredTenantSettingsRows', () => {
       {
         label: 'Brand assets',
         value:
-          'Logo and favicon URLs are editable below; file uploads are not implemented yet.',
+          'Logo and favicon uploads or externally hosted URLs are editable below.',
       },
       {
         label: 'Legal pages',

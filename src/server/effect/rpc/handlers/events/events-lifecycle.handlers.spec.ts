@@ -328,6 +328,9 @@ describe('eventLifecycleHandlers', () => {
     () =>
       Effect.gen(function* () {
         const insertedDiscountValues = vi.fn(() => Effect.succeed());
+        const insertedRegistrationOptionValues = vi.fn((values) =>
+          Effect.succeed(values),
+        );
         const database = {
           insert: vi.fn((table) => {
             if (table === eventInstances) {
@@ -346,15 +349,7 @@ describe('eventLifecycleHandlers', () => {
 
             if (table === eventRegistrationOptions) {
               return {
-                values: vi.fn(() => ({
-                  returning: vi.fn(() =>
-                    Effect.succeed([
-                      {
-                        id: 'event-option-1',
-                      },
-                    ]),
-                  ),
-                })),
+                values: insertedRegistrationOptionValues,
               };
             }
 

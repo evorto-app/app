@@ -23,6 +23,58 @@ import { DateTime } from 'luxon';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 
+export const scanCheckInButtonLabel = ({
+  completed,
+  pending,
+  spotCount,
+}: {
+  completed: boolean;
+  pending: boolean;
+  spotCount: number;
+}): string => {
+  if (pending) {
+    return 'Checking in...';
+  }
+
+  if (completed) {
+    return 'Checked in';
+  }
+
+  return spotCount > 1 ? `Confirm ${spotCount} check-ins` : 'Confirm check-in';
+};
+
+export const scanSpotCountLabel = (spotCount: number): string =>
+  spotCount === 1 ? '1 spot now' : `${spotCount} spots now`;
+
+export const scanCheckInActionDisabled = ({
+  allowCheckin,
+  completed,
+  mutationPending,
+  spotCount,
+}: {
+  allowCheckin: boolean;
+  completed: boolean;
+  mutationPending: boolean;
+  spotCount: number;
+}): boolean => !allowCheckin || completed || mutationPending || spotCount < 1;
+
+export const scanGuestCheckInCountFromInput = ({
+  inputValue,
+  remainingGuestCount,
+}: {
+  inputValue: string;
+  remainingGuestCount: number;
+}): number => {
+  const nextGuestCount = Number.parseInt(inputValue, 10);
+  return Math.max(
+    0,
+    Math.min(
+      Number.isNaN(nextGuestCount) ? 0 : nextGuestCount,
+      remainingGuestCount,
+    ),
+  );
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -39,18 +91,16 @@ import { getErrorMessage } from '../../core/error-message';
 })
 export class HandleRegistrationComponent {
   public readonly registrationId = input.required<string>();
-  protected readonly checkInCompleted = signal(false);
   private readonly rpc = AppRpc.injectClient();
   protected readonly checkInMutation = injectMutation(() =>
     this.rpc.events.checkInRegistration.mutationOptions(),
   );
-  protected readonly faArrowLeft = faArrowLeft;
-  protected readonly guestCheckInCount = signal(0);
   protected readonly scanResultQuery = injectQuery(() =>
     this.rpc.events.registrationScanned.queryOptions({
       registrationId: this.registrationId(),
     }),
   );
+  protected readonly guestCheckInCount = signal(0);
   protected readonly selectedGuestCheckInCount = computed(() => {
     const scanResult = this.scanResultQuery.data();
     if (!scanResult) {
@@ -67,6 +117,14 @@ export class HandleRegistrationComponent {
       (scanResult.attendeeCheckedIn ? 0 : 1) + this.selectedGuestCheckInCount()
     );
   });
+  protected readonly checkInCompleted = computed(
+    () =>
+      this.checkInMutation.isSuccess() && this.selectedSpotCheckInCount() === 0,
+  );
+  protected readonly faArrowLeft = faArrowLeft;
+  protected readonly scanCheckInActionDisabled = scanCheckInActionDisabled;
+  protected readonly scanCheckInButtonLabel = scanCheckInButtonLabel;
+  protected readonly scanSpotCountLabel = scanSpotCountLabel;
   protected readonly startsSoon = computed(() => {
     const scanResult = this.scanResultQuery.data();
     if (!scanResult) return false;
@@ -77,9 +135,12 @@ export class HandleRegistrationComponent {
   checkIn() {
     const scanResult = this.scanResultQuery.data();
     if (
-      !scanResult?.allowCheckin ||
-      this.selectedSpotCheckInCount() < 1 ||
-      this.checkInMutation.isPending()
+      scanCheckInActionDisabled({
+        allowCheckin: scanResult?.allowCheckin ?? false,
+        completed: this.checkInCompleted(),
+        mutationPending: this.checkInMutation.isPending(),
+        spotCount: this.selectedSpotCheckInCount(),
+      })
     )
       return;
 
@@ -90,7 +151,6 @@ export class HandleRegistrationComponent {
       },
       {
         onSuccess: async () => {
-          this.checkInCompleted.set(true);
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['events', 'registrationScanned']),
           );
@@ -104,17 +164,13 @@ export class HandleRegistrationComponent {
     if (!(input instanceof HTMLInputElement)) {
       return;
     }
-    const nextGuestCount = Number.parseInt(input.value, 10);
     const remainingGuestCount =
       this.scanResultQuery.data()?.remainingGuestCount ?? 0;
     this.guestCheckInCount.set(
-      Math.max(
-        0,
-        Math.min(
-          Number.isNaN(nextGuestCount) ? 0 : nextGuestCount,
-          remainingGuestCount,
-        ),
-      ),
+      scanGuestCheckInCountFromInput({
+        inputValue: input.value,
+        remainingGuestCount,
+      }),
     );
   }
 

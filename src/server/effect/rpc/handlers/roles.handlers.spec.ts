@@ -158,6 +158,52 @@ describe('roleHandlers lookup permissions', () => {
 
   it.effect('findOne allows event creators', () =>
     Effect.gen(function* () {
+      let queryInput: unknown;
+      const database = {
+        query: {
+          roles: {
+            findFirst: (query: unknown) => {
+              queryInput = query;
+              return Effect.succeed({
+                defaultOrganizerRole: false,
+                defaultUserRole: true,
+                id: 'role-1',
+                name: 'Participant',
+              });
+            },
+          },
+        },
+      };
+
+      const result = yield* roleHandlers['roles.findOne']({ id: 'role-1' }, {
+        headers: {},
+      } as never).pipe(
+        Effect.provide(createContextLayer(['events:create'], database)),
+      );
+
+      expect(queryInput).toEqual({
+        columns: {
+          defaultOrganizerRole: true,
+          defaultUserRole: true,
+          id: true,
+          name: true,
+        },
+        where: {
+          id: 'role-1',
+          tenantId: tenant.id,
+        },
+      });
+      expect(result).toEqual({
+        defaultOrganizerRole: false,
+        defaultUserRole: true,
+        id: 'role-1',
+        name: 'Participant',
+      });
+    }),
+  );
+
+  it.effect('findOne strips permission-bearing role data from the result', () =>
+    Effect.gen(function* () {
       const database = {
         query: {
           roles: {
@@ -167,6 +213,7 @@ describe('roleHandlers lookup permissions', () => {
                 defaultUserRole: true,
                 id: 'role-1',
                 name: 'Participant',
+                permissions: ['admin:manageRoles'],
               }),
           },
         },

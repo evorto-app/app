@@ -43,6 +43,10 @@ export class RoleCreateComponent {
   private readonly router = inject(Router);
 
   protected async onSubmit(role: RoleFormData): Promise<void> {
+    if (this.createRoleMutation.isPending()) {
+      return;
+    }
+
     this.createRoleMutation.mutate(
       { ...role },
       {

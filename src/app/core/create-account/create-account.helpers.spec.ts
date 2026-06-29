@@ -4,6 +4,7 @@ import {
   createAccountErrorMessage,
   createAccountModelFromAuthData,
   createAccountPayloadFromModel,
+  createAccountSubmitDisabled,
   isAuthEmailVerifiedForAccountCreation,
 } from './create-account.helpers';
 
@@ -95,5 +96,38 @@ describe('createAccountErrorMessage', () => {
 
   it('falls back to account creation copy for unknown failures', () => {
     expect(createAccountErrorMessage(null)).toBe('Failed to create account');
+  });
+});
+
+describe('createAccountSubmitDisabled', () => {
+  it('keeps account creation disabled while invalid, submitting, or awaiting the mutation', () => {
+    expect(
+      createAccountSubmitDisabled({
+        formInvalid: true,
+        formSubmitting: false,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      createAccountSubmitDisabled({
+        formInvalid: false,
+        formSubmitting: true,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      createAccountSubmitDisabled({
+        formInvalid: false,
+        formSubmitting: false,
+        mutationPending: true,
+      }),
+    ).toBe(true);
+    expect(
+      createAccountSubmitDisabled({
+        formInvalid: false,
+        formSubmitting: false,
+        mutationPending: false,
+      }),
+    ).toBe(false);
   });
 });

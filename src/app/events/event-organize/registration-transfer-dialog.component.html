@@ -1,0 +1,54 @@
+<h1 mat-dialog-title>Transfer registration</h1>
+<mat-dialog-content class="grid gap-4">
+  <p class="text-on-surface-variant text-sm">
+    Current participant: {{ currentParticipantLabel() }}
+  </p>
+
+  <mat-form-field class="w-full">
+    <mat-label>Search eligible tenant members</mat-label>
+    <input
+      matInput
+      autocomplete="off"
+      placeholder="Name or email"
+      [formField]="searchForm.query"
+    />
+    <mat-hint>
+      Paid registrations still need manual refund or resale handling.
+    </mat-hint>
+  </mat-form-field>
+
+  @if (transferTargetsQuery.isPending()) {
+    <div class="bg-surface-container rounded-lg p-4 text-sm">
+      Loading eligible members...
+    </div>
+  } @else if (transferTargetsQuery.isError()) {
+    <div class="bg-error-container text-on-error-container rounded-lg p-4">
+      Eligible members could not be loaded.
+    </div>
+  } @else if (transferTargetsQuery.data()?.length === 0) {
+    <div class="bg-surface-container rounded-lg p-4 text-sm">
+      No eligible transfer target found.
+    </div>
+  } @else {
+    <div class="grid max-h-80 gap-2 overflow-y-auto">
+      @for (target of transferTargetsQuery.data(); track target.id) {
+        <button
+          mat-stroked-button
+          type="button"
+          class="h-auto! justify-start! py-3! text-left"
+          (click)="transferTo(target.id)"
+        >
+          <span class="grid">
+            <span>{{ target.firstName }} {{ target.lastName }}</span>
+            <span class="text-on-surface-variant text-xs">
+              {{ target.email }}
+            </span>
+          </span>
+        </button>
+      }
+    </div>
+  }
+</mat-dialog-content>
+<mat-dialog-actions align="end" class="gap-2">
+  <button mat-button mat-dialog-close type="button">Cancel</button>
+</mat-dialog-actions>

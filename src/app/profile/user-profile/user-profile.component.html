@@ -15,7 +15,11 @@
           <button
             mat-stroked-button
             (click)="openEditProfileDialog()"
-            [disabled]="updateProfileMutation.isPending()"
+            [disabled]="
+              profileEditActionDisabled({
+                mutationPending: updateProfileMutation.isPending(),
+              })
+            "
             id="edit-profile-btn"
           >
             <fa-duotone-icon [icon]="faPencil" class="mr-2" />
@@ -153,11 +157,12 @@
                     </p>
                     <div class="mt-2 flex flex-wrap gap-2">
                       @if (
-                        event.paymentState === "pending" && event.checkoutUrl
+                        profileEventContinuePaymentUrl(event);
+                        as continuePaymentUrl
                       ) {
                         <a
                           mat-flat-button
-                          [href]="event.checkoutUrl"
+                          [href]="continuePaymentUrl"
                           rel="noopener noreferrer"
                         >
                           Continue payment
@@ -207,7 +212,7 @@
                           }}</span>
                         </div>
                         <div class="text-sm">
-                          Status: {{ card.status }}
+                          Status: {{ esnCardStatusLabel(card.status) }}
                           @if (card.validTo) {
                             — valid until
                             {{ card.validTo | date: "mediumDate" }}
@@ -217,26 +222,40 @@
                           <button
                             mat-stroked-button
                             (click)="refreshEsnCard()"
-                            [disabled]="refreshCardMutation.isPending()"
+                            [disabled]="
+                              esnCardActionDisabled({
+                                deletePending: deleteCardMutation.isPending(),
+                                refreshPending: refreshCardMutation.isPending(),
+                                upsertPending: upsertCardMutation.isPending(),
+                              })
+                            "
                           >
-                            @if (refreshCardMutation.isPending()) {
-                              Refreshing...
-                            } @else {
-                              Refresh
-                            }
+                            {{
+                              esnCardActionLabel(
+                                "refresh",
+                                refreshCardMutation.isPending()
+                              )
+                            }}
                           </button>
                           <button
                             type="button"
                             mat-stroked-button
                             color="warn"
                             (click)="deleteEsnCard()"
-                            [disabled]="deleteCardMutation.isPending()"
+                            [disabled]="
+                              esnCardActionDisabled({
+                                deletePending: deleteCardMutation.isPending(),
+                                refreshPending: refreshCardMutation.isPending(),
+                                upsertPending: upsertCardMutation.isPending(),
+                              })
+                            "
                           >
-                            @if (deleteCardMutation.isPending()) {
-                              Removing...
-                            } @else {
-                              Remove
-                            }
+                            {{
+                              esnCardActionLabel(
+                                "remove",
+                                deleteCardMutation.isPending()
+                              )
+                            }}
                           </button>
                         </div>
                       </div>
@@ -277,16 +296,20 @@
                     color="primary"
                     type="submit"
                     [disabled]="
-                      esnCardForm().invalid() ||
-                      esnCardForm().submitting() ||
-                      upsertCardMutation.isPending()
+                      esnCardSaveDisabled({
+                        formInvalid: esnCardForm().invalid(),
+                        formSubmitting: esnCardForm().submitting(),
+                        mutationPending: esnCardActionDisabled({
+                          deletePending: deleteCardMutation.isPending(),
+                          refreshPending: refreshCardMutation.isPending(),
+                          upsertPending: upsertCardMutation.isPending(),
+                        }),
+                      })
                     "
                   >
-                    @if (upsertCardMutation.isPending()) {
-                      Checking ESN card...
-                    } @else {
-                      Save ESN card
-                    }
+                    {{
+                      esnCardActionLabel("save", upsertCardMutation.isPending())
+                    }}
                   </button>
                   @if (
                     !hasVerifiedEsnCard() && buyEsnCardUrl();
@@ -353,7 +376,7 @@
                     {{ receipt.receiptDate | date: "mediumDate" }}
                   </p>
                   <p class="text-sm">
-                    {{ receipt.totalAmount / 100 | number: "1.2-2" }} €
+                    {{ profileReceiptAmountLabel(receipt.totalAmount) }}
                   </p>
                 </article>
               }

@@ -1,6 +1,7 @@
+import type { DiscountCardRecord } from '@shared/rpc-contracts/app-rpcs/discounts.rpcs';
 import type { FinanceReceiptStatus } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
 
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -83,6 +84,68 @@ export const profileUserAfterEdit = <
   paypalEmail: result.paypalEmail ?? null,
 });
 
+export const esnCardActionLabel = (
+  action: EsnCardMutationAction,
+  pending: boolean,
+): string => {
+  switch (action) {
+    case 'refresh': {
+      return pending ? 'Refreshing...' : 'Refresh';
+    }
+    case 'remove': {
+      return pending ? 'Removing...' : 'Remove';
+    }
+    case 'save': {
+      return pending ? 'Checking ESN card...' : 'Save ESN card';
+    }
+  }
+};
+
+export const esnCardSaveDisabled = ({
+  formInvalid,
+  formSubmitting,
+  mutationPending,
+}: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean => formInvalid || formSubmitting || mutationPending;
+
+export const esnCardActionDisabled = ({
+  deletePending,
+  refreshPending,
+  upsertPending,
+}: {
+  deletePending: boolean;
+  refreshPending: boolean;
+  upsertPending: boolean;
+}): boolean => deletePending || refreshPending || upsertPending;
+
+export const esnCardStatusLabel = (
+  status: DiscountCardRecord['status'],
+): string => {
+  switch (status) {
+    case 'expired': {
+      return 'Expired';
+    }
+    case 'invalid': {
+      return 'Invalid';
+    }
+    case 'unverified': {
+      return 'Needs verification';
+    }
+    case 'verified': {
+      return 'Verified';
+    }
+  }
+};
+
+export const profileEditActionDisabled = ({
+  mutationPending,
+}: {
+  mutationPending: boolean;
+}): boolean => mutationPending;
+
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
 export const profileEventGuestLabel = (guestCount: number): null | string => {
@@ -106,24 +169,40 @@ export const profileEventNextStepLabel = (event: {
   return null;
 };
 
+export const profileEventContinuePaymentUrl = (event: {
+  checkoutUrl: null | string;
+  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
+}): null | string => {
+  if (event.paymentState !== 'pending') {
+    return null;
+  }
+
+  return event.checkoutUrl;
+};
+
 export const profileEventActionNote = (event: {
+  checkInTime?: null | string;
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
   status: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): string => {
   if (event.paymentState === 'pending' && event.checkoutUrl) {
-    return 'Continue payment from this card, or open the event page for registration details. Cancellation after confirmation is handled on the event page.';
+    return 'Continue payment from this card, or open the event page for registration details.';
   }
 
   switch (event.status) {
     case 'CONFIRMED': {
-      return 'Open the event page for ticket access and participant cancellation when the event still allows it. Automatic refunds and transfer/resale are not implemented yet.';
+      if (event.checkInTime) {
+        return 'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.';
+      }
+
+      return 'Open the event page for ticket access, participant cancellation, and unpaid self-service transfer when available.';
     }
     case 'PENDING': {
-      return 'Open the event page for pending-registration details and available cancellation actions. Transfer/resale is not implemented yet.';
+      return 'Open the event page for pending-registration details and available cancellation actions.';
     }
     case 'WAITLIST': {
-      return 'Open the event page for waitlist details and the leave-waitlist action. Transfer/resale is not available for waitlist registrations.';
+      return 'Open the event page for waitlist details and the leave-waitlist action.';
     }
   }
 };
@@ -182,6 +261,9 @@ export const profileReceiptStatusLabel = (
   }
 };
 
+export const profileReceiptAmountLabel = (totalAmount: number): string =>
+  `${(totalAmount / 100).toFixed(2)} €`;
+
 export const profileSectionFromFragment = (
   fragment: null | string,
   esnEnabled: boolean,
@@ -212,7 +294,6 @@ export const esnCardSubmitPayloadFromIdentifier = (
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
-    DecimalPipe,
     FontAwesomeModule,
     FormField,
     MatButtonModule,
@@ -253,12 +334,16 @@ export class UserProfileComponent {
   protected readonly deleteCardMutation = injectMutation(() =>
     this.rpc.discounts.deleteMyCard.mutationOptions(),
   );
+  protected readonly esnCardActionDisabled = esnCardActionDisabled;
+  protected readonly esnCardActionLabel = esnCardActionLabel;
   protected readonly esnCardErrorMessage = signal<null | string>(null);
   private readonly esnCardModel = signal({ identifier: '' });
   protected readonly esnCardForm = form(this.esnCardModel, (schemaPath) => {
     required(schemaPath.identifier);
     pattern(schemaPath.identifier, /^[A-Za-z0-9]{8,16}$/);
   });
+  protected readonly esnCardSaveDisabled = esnCardSaveDisabled;
+  protected readonly esnCardStatusLabel = esnCardStatusLabel;
   protected readonly esnEnabled = computed(() => {
     const providers = this.discountProvidersQuery.data();
     if (!providers) return false;
@@ -285,11 +370,15 @@ export class UserProfileComponent {
     this.rpc.finance.receipts.my.queryOptions(),
   );
 
+  protected readonly profileEditActionDisabled = profileEditActionDisabled;
   protected readonly profileEventActionNote = profileEventActionNote;
+  protected readonly profileEventContinuePaymentUrl =
+    profileEventContinuePaymentUrl;
   protected readonly profileEventDetailActionLabel =
     profileEventDetailActionLabel;
   protected readonly profileEventGuestLabel = profileEventGuestLabel;
   protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
+  protected readonly profileReceiptAmountLabel = profileReceiptAmountLabel;
   protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
   protected readonly userQuery = injectQuery(() =>
     this.rpc.users.self.queryOptions(),
@@ -347,6 +436,10 @@ export class UserProfileComponent {
   }
 
   protected deleteEsnCard(): void {
+    if (this.esnCardMutationPending()) {
+      return;
+    }
+
     this.esnCardErrorMessage.set(null);
     this.deleteCardMutation.mutate(
       { type: 'esnCard' },
@@ -367,6 +460,14 @@ export class UserProfileComponent {
     );
   }
   protected async openEditProfileDialog(): Promise<void> {
+    if (
+      profileEditActionDisabled({
+        mutationPending: this.updateProfileMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     const user = this.profileUser();
     if (!user) return;
     const dialogReference = this.dialog.open<
@@ -414,6 +515,10 @@ export class UserProfileComponent {
     });
   }
   protected refreshEsnCard(): void {
+    if (this.esnCardMutationPending()) {
+      return;
+    }
+
     this.esnCardErrorMessage.set(null);
     this.refreshCardMutation.mutate(
       { type: 'esnCard' },
@@ -436,6 +541,10 @@ export class UserProfileComponent {
 
   protected async saveEsnCard(event: Event): Promise<void> {
     event.preventDefault();
+    if (this.esnCardMutationPending()) {
+      return;
+    }
+
     this.esnCardErrorMessage.set(null);
     await submit(this.esnCardForm, async (formState) => {
       this.upsertCardMutation.mutate(
@@ -468,5 +577,13 @@ export class UserProfileComponent {
 
   protected setSelectedSection(section: ProfileSection): void {
     this.selectedSection.set(section);
+  }
+
+  private esnCardMutationPending(): boolean {
+    return esnCardActionDisabled({
+      deletePending: this.deleteCardMutation.isPending(),
+      refreshPending: this.refreshCardMutation.isPending(),
+      upsertPending: this.upsertCardMutation.isPending(),
+    });
   }
 }

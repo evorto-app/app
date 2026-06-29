@@ -106,6 +106,10 @@ export const registrationOptionSelectedTotalPrice = (
   return buyerPrice + option.price * Math.max(0, guestCount);
 };
 
+export const registrationOptionWriteActionDisabled = (input: {
+  mutationPending: boolean;
+}): boolean => input.mutationPending;
+
 export const registrationOptionAvailability = (
   option: Pick<
     EventRegistrationOptionView,
@@ -178,6 +182,8 @@ export class EventRegistrationOptionComponent {
       this.currentTime(),
     );
   });
+  protected readonly registrationOptionWriteActionDisabled =
+    registrationOptionWriteActionDisabled;
   protected readonly selectedGuestCount = computed(() =>
     Math.min(this.guestCount(), this.maxGuestCount()),
   );
@@ -205,6 +211,14 @@ export class EventRegistrationOptionComponent {
   private queryClient = inject(QueryClient);
 
   joinWaitlist(registrationOption: { eventId: string; id: string }) {
+    if (
+      registrationOptionWriteActionDisabled({
+        mutationPending: this.mutationPending(),
+      })
+    ) {
+      return;
+    }
+
     this.waitlistMutation.mutate(
       {
         eventId: registrationOption.eventId,
@@ -228,6 +242,14 @@ export class EventRegistrationOptionComponent {
   }
 
   register(registrationOption: { eventId: string; id: string }) {
+    if (
+      registrationOptionWriteActionDisabled({
+        mutationPending: this.mutationPending(),
+      })
+    ) {
+      return;
+    }
+
     this.registrationMutation.mutate(
       {
         eventId: registrationOption.eventId,

@@ -27,6 +27,7 @@ import {
   createAccountErrorMessage,
   createAccountModelFromAuthData,
   createAccountPayloadFromModel,
+  createAccountSubmitDisabled,
   isAuthEmailVerifiedForAccountCreation,
 } from './create-account.helpers';
 
@@ -54,11 +55,12 @@ export class CreateAccountComponent {
   protected readonly authDataQuery = injectQuery(() =>
     this.rpc.users.authData.queryOptions(),
   );
-  protected readonly isAuthEmailVerifiedForAccountCreation =
-    isAuthEmailVerifiedForAccountCreation;
-  private readonly createAccountMutation = injectMutation(() =>
+  protected readonly createAccountMutation = injectMutation(() =>
     this.rpc.users.createAccount.mutationOptions(),
   );
+  protected readonly createAccountSubmitDisabled = createAccountSubmitDisabled;
+  protected readonly isAuthEmailVerifiedForAccountCreation =
+    isAuthEmailVerifiedForAccountCreation;
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
 
@@ -75,6 +77,16 @@ export class CreateAccountComponent {
 
   async onSubmit(event: Event) {
     event.preventDefault();
+    if (
+      createAccountSubmitDisabled({
+        formInvalid: this.accountForm().invalid(),
+        formSubmitting: this.accountForm().submitting(),
+        mutationPending: this.createAccountMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     await submit(this.accountForm, async () => {
       const payload = createAccountPayloadFromModel(this.accountModel());
       this.accountError.set('');

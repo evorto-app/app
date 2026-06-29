@@ -9,7 +9,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowRight } from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowRight, faPlus } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -34,6 +34,7 @@ import {
 })
 export class TenantListComponent {
   protected readonly faArrowRight = faArrowRight;
+  protected readonly faPlus = faPlus;
   private rpc = AppRpc.injectClient();
   protected tenantQuery = injectQuery(() =>
     this.rpc.globalAdmin.tenants.findMany.queryOptions(),

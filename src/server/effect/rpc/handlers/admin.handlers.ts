@@ -29,6 +29,7 @@ import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/con
 import { Tenant } from '../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import { StripeClient } from '../../../stripe-client';
+import { uploadTenantBrandAsset } from '../../../tenant-brand-assets';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -70,6 +71,22 @@ const normalizeOptionalUrl = (
   }
 };
 
+const normalizeOptionalBrandAssetUrl = (
+  value: string | undefined,
+  fieldName: string,
+): null | string => {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  if (trimmedValue.startsWith('/tenant-assets/')) {
+    return trimmedValue;
+  }
+
+  return normalizeOptionalUrl(trimmedValue, fieldName);
+};
+
 const normalizeTenantLegalLinks = (input: {
   legalNoticeText?: string | undefined;
   legalNoticeUrl?: string | undefined;
@@ -93,8 +110,8 @@ const normalizeTenantBrandAssets = (input: {
   faviconUrl?: string | undefined;
   logoUrl?: string | undefined;
 }) => ({
-  faviconUrl: normalizeOptionalUrl(input.faviconUrl, 'faviconUrl'),
-  logoUrl: normalizeOptionalUrl(input.logoUrl, 'logoUrl'),
+  faviconUrl: normalizeOptionalBrandAssetUrl(input.faviconUrl, 'faviconUrl'),
+  logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, 'logoUrl'),
 });
 
 const normalizeHubRoleRecord = (role: {
@@ -630,5 +647,22 @@ export const adminHandlers = {
       }
 
       return validatedTenant;
+    }),
+  'admin.tenant.uploadBrandAsset': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'admin:changeSettings');
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+
+      return yield* uploadTenantBrandAsset({
+        fileBase64: input.fileBase64,
+        fileName: input.fileName,
+        fileSizeBytes: input.fileSizeBytes,
+        kind: input.kind,
+        mimeType: input.mimeType,
+        tenantId: tenant.id,
+      });
     }),
 } satisfies Partial<AppRpcHandlers>;

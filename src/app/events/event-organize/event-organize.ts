@@ -33,6 +33,11 @@ import {
   ReceiptSubmitDialogComponent,
   ReceiptSubmitDialogResult,
 } from './receipt-submit-dialog.component';
+import {
+  RegistrationTransferDialogComponent,
+  RegistrationTransferDialogData,
+  RegistrationTransferDialogResult,
+} from './registration-transfer-dialog.component';
 
 interface EventOrganizeStatsInput {
   registrationOptions?: readonly {
@@ -67,6 +72,32 @@ export const computeEventOrganizeStats = (
   };
 };
 
+export interface EventOrganizeParticipant {
+  checkedIn: boolean;
+  email: string;
+  firstName: string;
+  lastName: string;
+  registrationId: string;
+}
+
+export const organizerRegistrationActionDisabled = ({
+  checkedIn,
+  mutationPending,
+}: {
+  checkedIn: boolean;
+  mutationPending: boolean;
+}): boolean => checkedIn || mutationPending;
+
+export const receiptSubmissionActionDisabled = ({
+  submissionUnavailable,
+  submitPending,
+  uploadPending,
+}: {
+  submissionUnavailable: boolean;
+  submitPending: boolean;
+  uploadPending: boolean;
+}): boolean => submissionUnavailable || submitPending || uploadPending;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -98,7 +129,8 @@ export class EventOrganize {
       eventId: this.eventId(),
     }),
   );
-
+  protected readonly organizerRegistrationActionDisabled =
+    organizerRegistrationActionDisabled;
   protected readonly organizerTableColumns = signal([
     'name',
     'email',
@@ -118,20 +150,24 @@ export class EventOrganize {
         ...registrationOption.users,
       ]);
   });
+
+  protected readonly receiptOriginalUploadMutation = injectMutation(() =>
+    this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
+  );
   protected readonly receiptsByEventQuery = injectQuery(() =>
     this.rpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),
     }),
   );
-  protected readonly receiptSubmissionClosedMessage = computed(() => {
+  protected readonly receiptSubmissionActionDisabled =
+    receiptSubmissionActionDisabled;
+  protected readonly receiptSubmissionUnavailableMessage = computed(() => {
     const event = this.event();
     if (!event) {
       return 'Receipts can be added after the event has loaded.';
     }
 
-    return new Date(event.end) > new Date()
-      ? 'Receipts can be added after the event ends.'
-      : null;
+    return null;
   });
 
   protected readonly stats = computed(() =>
@@ -140,15 +176,15 @@ export class EventOrganize {
   protected readonly submitReceiptMutation = injectMutation(() =>
     this.rpc.finance.receipts.submit.mutationOptions(),
   );
+  protected readonly transferRegistrationMutation = injectMutation(() =>
+    this.rpc.events.transferEventRegistration.mutationOptions(),
+  );
   private readonly config = inject(ConfigService);
+
   private readonly dialog = inject(MatDialog);
 
   private readonly notifications = inject(NotificationService);
-
   private readonly queryClient = inject(QueryClient);
-  private readonly receiptOriginalUploadMutation = injectMutation(() =>
-    this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
-  );
 
   constructor() {
     effect(() => {
@@ -159,7 +195,21 @@ export class EventOrganize {
     });
   }
 
-  protected cancelRegistration(registration: { registrationId: string }) {
+  protected cancelRegistration(
+    registration: Pick<
+      EventOrganizeParticipant,
+      'checkedIn' | 'registrationId'
+    >,
+  ) {
+    if (
+      organizerRegistrationActionDisabled({
+        checkedIn: registration.checkedIn,
+        mutationPending: this.cancelRegistrationMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     this.cancelRegistrationMutation.mutate(
       {
         eventId: this.eventId(),
@@ -189,6 +239,16 @@ export class EventOrganize {
   }
 
   protected async openReceiptDialog(): Promise<void> {
+    if (
+      receiptSubmissionActionDisabled({
+        submissionUnavailable: !!this.receiptSubmissionUnavailableMessage(),
+        submitPending: this.submitReceiptMutation.isPending(),
+        uploadPending: this.receiptOriginalUploadMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     const receiptCountrySettings = resolveReceiptCountrySettings(
       this.config.tenant.receiptSettings,
     );
@@ -251,6 +311,69 @@ export class EventOrganize {
         getErrorMessage(error, 'Failed to upload receipt file'),
       );
     }
+  }
+
+  protected async openTransferDialog(
+    registration: EventOrganizeParticipant,
+  ): Promise<void> {
+    if (
+      organizerRegistrationActionDisabled({
+        checkedIn: registration.checkedIn,
+        mutationPending: this.transferRegistrationMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
+    const dialogReference = this.dialog.open<
+      RegistrationTransferDialogComponent,
+      RegistrationTransferDialogData,
+      RegistrationTransferDialogResult
+    >(RegistrationTransferDialogComponent, {
+      data: {
+        currentUser: {
+          email: registration.email,
+          firstName: registration.firstName,
+          lastName: registration.lastName,
+        },
+        eventId: this.eventId(),
+        registrationId: registration.registrationId,
+      },
+      width: '560px',
+    });
+
+    const result = await firstValueFrom(dialogReference.afterClosed());
+    if (!result) {
+      return;
+    }
+
+    this.transferRegistrationMutation.mutate(
+      {
+        eventId: this.eventId(),
+        registrationId: registration.registrationId,
+        targetUserId: result.targetUserId,
+      },
+      {
+        onError: (error) => {
+          this.notifications.showError(
+            getErrorMessage(error, 'Failed to transfer registration'),
+          );
+        },
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.getOrganizeOverview.queryKey({
+              eventId: this.eventId(),
+            }),
+          });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.findOne.queryKey({
+              id: this.eventId(),
+            }),
+          });
+          this.notifications.showSuccess('Registration transferred');
+        },
+      },
+    );
   }
 
   protected readonly showOrganizerRow = (

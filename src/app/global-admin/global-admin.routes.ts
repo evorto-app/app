@@ -8,6 +8,20 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
     children: [
       {
         loadComponent: () =>
+          import('./tenant-create/tenant-create.component').then(
+            (m) => m.TenantCreateComponent,
+          ),
+        path: 'tenants/create',
+      },
+      {
+        loadComponent: () =>
+          import('./tenant-edit/tenant-edit.component').then(
+            (m) => m.TenantEditComponent,
+          ),
+        path: 'tenants/:tenantId/edit',
+      },
+      {
+        loadComponent: () =>
           import('./tenant-detail/tenant-detail.component').then(
             (m) => m.TenantDetailComponent,
           ),

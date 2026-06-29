@@ -17,6 +17,7 @@ type BunS3ClientConstructor = new (config: {
 }) => BunS3Client;
 
 interface BunS3File {
+  arrayBuffer(): Promise<ArrayBuffer>;
   presign(input?: {
     contentDisposition?: string;
     expiresIn?: number;
@@ -78,7 +79,7 @@ const buildS3Client = (config: ObjectStorageRuntimeConfig) => {
   });
 };
 
-export const uploadReceiptOriginalToR2 = (input: {
+export const uploadObjectToR2 = (input: {
   body: Uint8Array;
   contentType: string;
   key: string;
@@ -103,6 +104,25 @@ export const uploadReceiptOriginalToR2 = (input: {
       storageKey: input.key,
       storageUrl: `${config.endpoint.replace(/\/$/, '')}/${config.bucket}/${input.key}`,
     };
+  });
+
+export const uploadReceiptOriginalToR2 = uploadObjectToR2;
+
+export const getObjectFromR2 = (input: { key: string }) =>
+  Effect.gen(function* () {
+    const config = yield* resolveObjectStorageConfig();
+    const client = buildS3Client(config);
+
+    const body = yield* Effect.tryPromise({
+      catch: (cause) =>
+        new RpcInternalServerError({
+          cause,
+          message: `R2 read failed for key ${input.key}`,
+        }),
+      try: () => client.file(input.key).arrayBuffer(),
+    });
+
+    return new Uint8Array(body);
   });
 
 export const getSignedReceiptObjectUrlFromR2 = (input: {

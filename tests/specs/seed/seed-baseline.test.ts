@@ -35,6 +35,15 @@ test.describe('baseline seed invariants', () => {
         ]),
       );
     expect.soft(templates.every((template) => template.icon)).toBeTruthy();
+    const seededAddOns = templates.flatMap((template) => template.addOns);
+    expect.soft(seededAddOns.length).toBeGreaterThanOrEqual(2);
+    expect.soft(seededAddOns.some((addOn) => addOn.isPaid)).toBeTruthy();
+    expect.soft(seededAddOns.some((addOn) => !addOn.isPaid)).toBeTruthy();
+    expect
+      .soft(
+        seededAddOns.every((addOn) => addOn.registrationOptionIds.length > 0),
+      )
+      .toBeTruthy();
 
     expect(events.length).toBeGreaterThan(0);
     const allOptions = events.flatMap((e) => e.registrationOptions);

@@ -210,6 +210,53 @@ describe('adminHandlers tenant settings', () => {
     }),
   );
 
+  it.effect('preserves uploaded tenant brand asset route URLs', () =>
+    Effect.gen(function* () {
+      let capturedUpdate: Record<string, unknown> | undefined;
+      const updateQuery = {
+        returning: () =>
+          Effect.succeed([
+            {
+              id: 'tenant-1',
+            },
+          ]),
+        set: (value: Record<string, unknown>) => {
+          capturedUpdate = value;
+          return updateQuery;
+        },
+        where: () => updateQuery,
+      };
+      const database = {
+        update: () => updateQuery,
+      };
+
+      const result = yield* adminHandlers['admin.tenant.updateSettings'](
+        {
+          allowOther: true,
+          currency: 'EUR',
+          defaultLocation: null,
+          esnCardEnabled: false,
+          faviconUrl: ' /tenant-assets/tenant-1/favicon/favicon.ico ',
+          locale: 'en-GB',
+          logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
+          receiptCountries: ['NL'],
+          theme: 'evorto',
+          timezone: 'Europe/Berlin',
+        },
+        { headers: createSettingsAdminHeaders() } as never,
+      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+      expect(capturedUpdate).toMatchObject({
+        faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
+        logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
+      });
+      expect(result).toMatchObject({
+        faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
+        logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
+      });
+    }),
+  );
+
   it.effect('rejects invalid tenant brand asset URLs', () =>
     Effect.gen(function* () {
       const database = {

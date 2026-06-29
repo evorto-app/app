@@ -12,7 +12,7 @@ const UrlString = Schema.String.pipe(
   Schema.check(
     Schema.makeFilter((value) => {
       try {
-        new URL(value);
+        new URL(value.trim());
         return;
       } catch {
         return 'Expected a valid URL';
@@ -20,6 +20,27 @@ const UrlString = Schema.String.pipe(
     }),
   ),
 );
+
+const TenantBrandAssetUrlString = Schema.Union([
+  Schema.String.pipe(
+    Schema.check(
+      Schema.makeFilter((value) => {
+        const trimmedValue = value.trim();
+        if (trimmedValue.startsWith('/tenant-assets/')) {
+          return;
+        }
+        try {
+          const url = new URL(trimmedValue);
+          return url.protocol === 'http:' || url.protocol === 'https:'
+            ? undefined
+            : 'Expected an HTTP(S) tenant brand asset URL';
+        } catch {
+          return 'Expected a tenant brand asset URL';
+        }
+      }),
+    ),
+  ),
+]);
 
 export const AdminRoleRecord = Schema.Struct({
   collapseMembersInHup: Schema.Boolean,
@@ -209,11 +230,11 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   currency: Tenant.fields.currency,
   defaultLocation: Schema.NullOr(Schema.Any),
   esnCardEnabled: Schema.Boolean,
-  faviconUrl: Schema.optional(UrlString),
+  faviconUrl: Schema.optional(TenantBrandAssetUrlString),
   legalNoticeText: Schema.optional(Schema.String),
   legalNoticeUrl: Schema.optional(UrlString),
   locale: Tenant.fields.locale,
-  logoUrl: Schema.optional(UrlString),
+  logoUrl: Schema.optional(TenantBrandAssetUrlString),
   privacyPolicyText: Schema.optional(Schema.String),
   privacyPolicyUrl: Schema.optional(UrlString),
   receiptCountries: Schema.Array(Schema.NonEmptyString),
@@ -228,6 +249,29 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
 export type AdminTenantUpdateSettingsInput = Schema.Schema.Type<
   typeof AdminTenantUpdateSettingsInput
 >;
+
+export const AdminTenantBrandAssetKind = literalUnion('favicon', 'logo');
+export type AdminTenantBrandAssetKind = Schema.Schema.Type<
+  typeof AdminTenantBrandAssetKind
+>;
+
+export const AdminTenantUploadBrandAsset = asRpcMutation(
+  Rpc.make('admin.tenant.uploadBrandAsset', {
+    error: AdminTenantRpcError,
+    payload: Schema.Struct({
+      fileBase64: Schema.NonEmptyString,
+      fileName: Schema.NonEmptyString,
+      fileSizeBytes: Schema.Number,
+      kind: AdminTenantBrandAssetKind,
+      mimeType: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      assetUrl: Schema.NonEmptyString,
+      sizeBytes: Schema.Number,
+      storageKey: Schema.NonEmptyString,
+    }),
+  }),
+);
 
 export const AdminTenantUpdateSettings = asRpcMutation(
   Rpc.make('admin.tenant.updateSettings', {
@@ -248,5 +292,6 @@ export class AdminRpcs extends RpcGroup.make(
   AdminTenantImportStripeTaxRates,
   AdminTenantListImportedTaxRates,
   AdminTenantListStripeTaxRates,
+  AdminTenantUploadBrandAsset,
   AdminTenantUpdateSettings,
 ) {}
