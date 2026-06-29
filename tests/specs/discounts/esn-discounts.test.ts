@@ -37,7 +37,7 @@ test('applies ESN discount to paid registrations @finance @track(playwright-spec
     registrationOptionCard.getByText('ESNcard discount applied'),
   ).toBeVisible();
   await expect(
-    registrationOptionCard.locator('p', { hasText: discountedPrice }).first(),
+    registrationOptionCard.getByText(discountedPrice, { exact: true }).first(),
   ).toBeVisible();
   await expect(
     registrationOptionCard.getByRole('button', {
