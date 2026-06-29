@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "f70b6a6c1b75",
+  "session_id": "019eee04-186b-7b81-9d8d-04cc08e75aff",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-29T18:44:55.166584Z",
+  "branch": "codex/pr62-split-05-role-doc-flow",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "b7b9988c006b",
+  "token_usage": {
+    "input_tokens": 10877479,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 253356160,
+    "output_tokens": 546488,
+    "api_call_count": 1878
+  },
+  "session_metrics": {
+    "turn_count": 24
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
