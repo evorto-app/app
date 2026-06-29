@@ -12,12 +12,16 @@ import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
-import { createId } from '../../../../../db/create-id';
 import {
+  addonToEventRegistrationOptions,
+  eventAddons,
   eventInstances,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
+  eventRegistrationQuestions,
+  templateEventAddons,
   templateRegistrationOptionDiscounts,
+  templateRegistrationQuestions,
 } from '../../../../../db/schema';
 import {
   isMeaningfulRichTextHtml,
@@ -102,6 +106,12 @@ const invalidRegistrationOptionTaxRateError = () =>
     reason: 'invalidRegistrationOptionTaxRate',
   });
 
+const invalidCopiedTemplateAddonTaxRateError = () =>
+  new RpcBadRequestError({
+    message: 'Template add-on has an invalid tax rate',
+    reason: 'invalidTemplateAddonTaxRate',
+  });
+
 const invalidEsnCardDiscountPriceError = () =>
   new RpcBadRequestError({
     message: 'ESN card discount cannot exceed the registration price',
@@ -119,6 +129,55 @@ const invalidRegistrationOptionSpotsError = () =>
     message: 'Registration option spots must not be negative',
     reason: 'negativeSpots',
   });
+
+type TemplateAddonCopyRecord = typeof templateEventAddons.$inferSelect & {
+  registrationOptions: {
+    quantity: number;
+    registrationOptionId: string;
+  }[];
+};
+
+type TemplateQuestionCopyRecord =
+  typeof templateRegistrationQuestions.$inferSelect;
+
+export const buildEventAddonInsert = ({
+  addOn,
+  eventId,
+}: {
+  addOn: TemplateAddonCopyRecord;
+  eventId: string;
+}): typeof eventAddons.$inferInsert => ({
+  allowMultiple: addOn.allowMultiple,
+  allowPurchaseBeforeEvent: addOn.allowPurchaseBeforeEvent,
+  allowPurchaseDuringEvent: addOn.allowPurchaseDuringEvent,
+  allowPurchaseDuringRegistration: addOn.allowPurchaseDuringRegistration,
+  description: addOn.description,
+  eventId,
+  isPaid: addOn.isPaid,
+  maxQuantityPerUser: addOn.maxQuantityPerUser,
+  price: addOn.price,
+  stripeTaxRateId: addOn.stripeTaxRateId,
+  title: addOn.title,
+  totalAvailableQuantity: addOn.totalAvailableQuantity,
+});
+
+export const buildEventQuestionInsert = ({
+  eventId,
+  question,
+  registrationOptionId,
+}: {
+  eventId: string;
+  question: TemplateQuestionCopyRecord;
+  registrationOptionId: string;
+}): typeof eventRegistrationQuestions.$inferInsert => ({
+  description: question.description,
+  eventId,
+  registrationOptionId,
+  required: question.required,
+  sortOrder: question.sortOrder,
+  sourceTemplateQuestionId: question.id,
+  title: question.title,
+});
 
 const validateCopiedTemplateDiscount = ({
   discount,
@@ -261,6 +320,68 @@ export const eventLifecycleHandlers = {
                 ),
             )
           : [];
+      const templateAddons =
+        sourceTemplateOptionIds.length > 0
+          ? yield* databaseEffect((database) =>
+              database.query.templateEventAddons.findMany({
+                where: {
+                  templateId: input.templateId,
+                },
+              }),
+            )
+          : [];
+      const templateQuestions =
+        sourceTemplateOptionIds.length > 0
+          ? yield* databaseEffect((database) =>
+              database.query.templateRegistrationQuestions.findMany({
+                where: {
+                  registrationOptionId: {
+                    in: sourceTemplateOptionIds,
+                  },
+                  templateId: input.templateId,
+                },
+              }),
+            )
+          : [];
+      const addonIds = templateAddons.map((addOn) => addOn.id);
+      const templateAddonRegistrationOptions =
+        addonIds.length === 0
+          ? []
+          : yield* databaseEffect((database) =>
+              database.query.addonToTemplateRegistrationOptions.findMany({
+                where: {
+                  addonId: {
+                    in: addonIds,
+                  },
+                  registrationOptionId: {
+                    in: sourceTemplateOptionIds,
+                  },
+                },
+              }),
+            );
+      const templateAddonsToCopy: TemplateAddonCopyRecord[] = templateAddons
+        .map((addOn) => ({
+          ...addOn,
+          registrationOptions: templateAddonRegistrationOptions
+            .filter((option) => option.addonId === addOn.id)
+            .map((option) => ({
+              quantity: option.quantity,
+              registrationOptionId: option.registrationOptionId,
+            })),
+        }))
+        .filter((addOn) => addOn.registrationOptions.length > 0);
+      for (const addOn of templateAddonsToCopy) {
+        const validation = yield* databaseEffect((database) =>
+          validateTaxRate(database, {
+            isPaid: addOn.isPaid,
+            stripeTaxRateId: addOn.stripeTaxRateId ?? null,
+            tenantId: tenant.id,
+          }),
+        );
+        if (!validation.success) {
+          return yield* Effect.fail(invalidCopiedTemplateAddonTaxRateError());
+        }
+      }
       const esnCardEnabledForTenant = isEsnCardEnabled(
         tenant.discountProviders ?? null,
       );
@@ -311,44 +432,39 @@ export const eventLifecycleHandlers = {
         );
       }
 
-      const eventRegistrationOptionInserts = sanitizedRegistrationOptions.map(
-        (option) => ({
-          closeRegistrationTime: option.closeRegistrationTime,
-          description: option.description,
-          eventId: event.id,
-          id: createId(),
-          isPaid: option.isPaid,
-          openRegistrationTime: option.openRegistrationTime,
-          organizingRegistration: option.organizingRegistration,
-          price: option.price,
-          registeredDescription: option.registeredDescription,
-          registrationMode: option.registrationMode,
-          roleIds: [...option.roleIds],
-          sourceTemplateRegistrationOptionId:
-            option.sourceTemplateRegistrationOptionId,
-          spots: option.spots,
-          stripeTaxRateId: option.stripeTaxRateId ?? null,
-          title: option.title,
-        }),
-      );
-
-      yield* databaseEffect((database) =>
+      const createdOptions = yield* databaseEffect((database) =>
         database
           .insert(eventRegistrationOptions)
           .values(
-            eventRegistrationOptionInserts.map(
-              ({ sourceTemplateRegistrationOptionId: _source, ...option }) =>
-                option,
-            ),
-          ),
+            sanitizedRegistrationOptions.map((option) => ({
+              closeRegistrationTime: option.closeRegistrationTime,
+              description: option.description,
+              eventId: event.id,
+              isPaid: option.isPaid,
+              openRegistrationTime: option.openRegistrationTime,
+              organizingRegistration: option.organizingRegistration,
+              price: option.price,
+              registeredDescription: option.registeredDescription,
+              registrationMode: option.registrationMode,
+              roleIds: [...option.roleIds],
+              spots: option.spots,
+              stripeTaxRateId: option.stripeTaxRateId ?? null,
+              title: option.title,
+            })),
+          )
+          .returning({
+            id: eventRegistrationOptions.id,
+          }),
       );
 
       if (templateDiscounts.length > 0) {
-        const createdOptionSources = eventRegistrationOptionInserts.map(
-          (option) => ({
-            createdOptionId: option.id,
-            isPaid: option.isPaid,
-            sourceTemplateOptionId: option.sourceTemplateRegistrationOptionId,
+        const createdOptionSources = createdOptions.map(
+          (createdOption, index) => ({
+            createdOptionId: createdOption.id,
+            isPaid: sanitizedRegistrationOptions[index]?.isPaid ?? false,
+            sourceTemplateOptionId:
+              sanitizedRegistrationOptions[index]
+                ?.sourceTemplateRegistrationOptionId,
           }),
         );
         const discountInserts: EventRegistrationOptionDiscountInsert[] = [];
@@ -385,6 +501,128 @@ export const eventLifecycleHandlers = {
             database
               .insert(eventRegistrationOptionDiscounts)
               .values(discountInserts),
+          );
+        }
+      }
+
+      if (templateAddonsToCopy.length > 0) {
+        const createdOptionSources = createdOptions.map(
+          (createdOption, index) => ({
+            createdOptionId: createdOption.id,
+            sourceTemplateOptionId:
+              sanitizedRegistrationOptions[index]
+                ?.sourceTemplateRegistrationOptionId,
+          }),
+        );
+        const createdOptionIdBySourceTemplateOptionId = new Map(
+          createdOptionSources
+            .filter(
+              (
+                option,
+              ): option is {
+                createdOptionId: string;
+                sourceTemplateOptionId: string;
+              } => option.sourceTemplateOptionId !== undefined,
+            )
+            .map((option) => [
+              option.sourceTemplateOptionId,
+              option.createdOptionId,
+            ]),
+        );
+
+        for (const addOn of templateAddonsToCopy) {
+          const insertedAddons = yield* databaseEffect((database) =>
+            database
+              .insert(eventAddons)
+              .values(buildEventAddonInsert({ addOn, eventId: event.id }))
+              .returning({ id: eventAddons.id }),
+          );
+          const insertedAddon = insertedAddons[0];
+          if (!insertedAddon) {
+            return yield* Effect.fail(
+              new RpcInternalServerError({ message: 'Internal server error' }),
+            );
+          }
+
+          const registrationOptionInserts = addOn.registrationOptions
+            .map((registrationOption) => {
+              const eventRegistrationOptionId =
+                createdOptionIdBySourceTemplateOptionId.get(
+                  registrationOption.registrationOptionId,
+                );
+              return eventRegistrationOptionId
+                ? {
+                    addonId: insertedAddon.id,
+                    quantity: registrationOption.quantity,
+                    registrationOptionId: eventRegistrationOptionId,
+                  }
+                : null;
+            })
+            .filter(
+              (
+                insert,
+              ): insert is typeof addonToEventRegistrationOptions.$inferInsert =>
+                insert !== null,
+            );
+          if (registrationOptionInserts.length > 0) {
+            yield* databaseEffect((database) =>
+              database
+                .insert(addonToEventRegistrationOptions)
+                .values(registrationOptionInserts),
+            );
+          }
+        }
+      }
+
+      if (templateQuestions.length > 0) {
+        const createdOptionSources = createdOptions.map(
+          (createdOption, index) => ({
+            createdOptionId: createdOption.id,
+            sourceTemplateOptionId:
+              sanitizedRegistrationOptions[index]
+                ?.sourceTemplateRegistrationOptionId,
+          }),
+        );
+        const createdOptionIdBySourceTemplateOptionId = new Map(
+          createdOptionSources
+            .filter(
+              (
+                option,
+              ): option is {
+                createdOptionId: string;
+                sourceTemplateOptionId: string;
+              } => option.sourceTemplateOptionId !== undefined,
+            )
+            .map((option) => [
+              option.sourceTemplateOptionId,
+              option.createdOptionId,
+            ]),
+        );
+        const questionInserts = templateQuestions
+          .map((question) => {
+            const registrationOptionId =
+              createdOptionIdBySourceTemplateOptionId.get(
+                question.registrationOptionId,
+              );
+
+            return registrationOptionId
+              ? buildEventQuestionInsert({
+                  eventId: event.id,
+                  question,
+                  registrationOptionId,
+                })
+              : null;
+          })
+          .filter(
+            (
+              insert,
+            ): insert is typeof eventRegistrationQuestions.$inferInsert =>
+              insert !== null,
+          );
+
+        if (questionInserts.length > 0) {
+          yield* databaseEffect((database) =>
+            database.insert(eventRegistrationQuestions).values(questionInserts),
           );
         }
       }

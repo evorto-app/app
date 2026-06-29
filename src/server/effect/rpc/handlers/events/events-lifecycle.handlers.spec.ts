@@ -4,16 +4,23 @@ import { vi } from 'vitest';
 
 import { Database } from '../../../../../db';
 import {
+  addonToEventRegistrationOptions,
+  eventAddons,
   eventInstances,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
+  eventRegistrationQuestions,
 } from '../../../../../db/schema';
 import {
   RpcRequestContext,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
-import { eventLifecycleHandlers } from './events-lifecycle.handlers';
+import {
+  buildEventAddonInsert,
+  buildEventQuestionInsert,
+  eventLifecycleHandlers,
+} from './events-lifecycle.handlers';
 
 const tenant = {
   currency: 'EUR' as const,
@@ -202,9 +209,6 @@ describe('eventLifecycleHandlers', () => {
     () =>
       Effect.gen(function* () {
         const insertedDiscountValues = vi.fn(() => Effect.succeed());
-        const insertedRegistrationOptionValues = vi.fn((values) =>
-          Effect.succeed(values),
-        );
         const database = {
           insert: vi.fn((table) => {
             if (table === eventInstances) {
@@ -223,7 +227,18 @@ describe('eventLifecycleHandlers', () => {
 
             if (table === eventRegistrationOptions) {
               return {
-                values: insertedRegistrationOptionValues,
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-option-1',
+                      },
+                      {
+                        id: 'event-option-2',
+                      },
+                    ]),
+                  ),
+                })),
               };
             }
 
@@ -236,12 +251,18 @@ describe('eventLifecycleHandlers', () => {
             throw new Error('Unexpected insert table');
           }),
           query: {
+            addonToTemplateRegistrationOptions: {
+              findMany: vi.fn(() => Effect.succeed([])),
+            },
             eventTemplates: {
               findFirst: vi.fn(() =>
                 Effect.succeed({
                   unlisted: false,
                 }),
               ),
+            },
+            templateEventAddons: {
+              findMany: vi.fn(() => Effect.succeed([])),
             },
             templateRegistrationOptions: {
               findMany: vi.fn(() =>
@@ -254,6 +275,9 @@ describe('eventLifecycleHandlers', () => {
                   },
                 ]),
               ),
+            },
+            templateRegistrationQuestions: {
+              findMany: vi.fn(() => Effect.succeed([])),
             },
             tenantStripeTaxRates: {
               findFirst: vi.fn(() =>
@@ -309,15 +333,11 @@ describe('eventLifecycleHandlers', () => {
         ).pipe(Effect.provide(layer));
 
         expect(result).toEqual({ id: 'event-1' });
-        const insertedRegistrationOptions =
-          insertedRegistrationOptionValues.mock.calls[0]?.[0] ?? [];
-        const secondInsertedOption = insertedRegistrationOptions[1];
-        expect(secondInsertedOption?.id).toEqual(expect.any(String));
         expect(insertedDiscountValues).toHaveBeenCalledWith([
           {
             discountedPrice: 500,
             discountType: 'esnCard',
-            registrationOptionId: secondInsertedOption.id,
+            registrationOptionId: 'event-option-2',
           },
         ]);
       }),
@@ -328,9 +348,6 @@ describe('eventLifecycleHandlers', () => {
     () =>
       Effect.gen(function* () {
         const insertedDiscountValues = vi.fn(() => Effect.succeed());
-        const insertedRegistrationOptionValues = vi.fn((values) =>
-          Effect.succeed(values),
-        );
         const database = {
           insert: vi.fn((table) => {
             if (table === eventInstances) {
@@ -349,7 +366,15 @@ describe('eventLifecycleHandlers', () => {
 
             if (table === eventRegistrationOptions) {
               return {
-                values: insertedRegistrationOptionValues,
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-option-1',
+                      },
+                    ]),
+                  ),
+                })),
               };
             }
 
@@ -362,12 +387,18 @@ describe('eventLifecycleHandlers', () => {
             throw new Error('Unexpected insert table');
           }),
           query: {
+            addonToTemplateRegistrationOptions: {
+              findMany: vi.fn(() => Effect.succeed([])),
+            },
             eventTemplates: {
               findFirst: vi.fn(() =>
                 Effect.succeed({
                   unlisted: false,
                 }),
               ),
+            },
+            templateEventAddons: {
+              findMany: vi.fn(() => Effect.succeed([])),
             },
             templateRegistrationOptions: {
               findMany: vi.fn(() =>
@@ -377,6 +408,9 @@ describe('eventLifecycleHandlers', () => {
                   },
                 ]),
               ),
+            },
+            templateRegistrationQuestions: {
+              findMany: vi.fn(() => Effect.succeed([])),
             },
             tenantStripeTaxRates: {
               findFirst: vi.fn(() =>
@@ -435,12 +469,18 @@ describe('eventLifecycleHandlers', () => {
         const database = {
           insert,
           query: {
+            addonToTemplateRegistrationOptions: {
+              findMany: vi.fn(() => Effect.succeed([])),
+            },
             eventTemplates: {
               findFirst: vi.fn(() =>
                 Effect.succeed({
                   unlisted: false,
                 }),
               ),
+            },
+            templateEventAddons: {
+              findMany: vi.fn(() => Effect.succeed([])),
             },
             templateRegistrationOptions: {
               findMany: vi.fn(() =>
@@ -450,6 +490,9 @@ describe('eventLifecycleHandlers', () => {
                   },
                 ]),
               ),
+            },
+            templateRegistrationQuestions: {
+              findMany: vi.fn(() => Effect.succeed([])),
             },
             tenantStripeTaxRates: {
               findFirst: vi.fn(() =>
@@ -498,6 +541,376 @@ describe('eventLifecycleHandlers', () => {
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.reason).toBe('esnDiscountExceedsPrice');
         expect(insert).not.toHaveBeenCalled();
+      }),
+  );
+
+  it('builds event add-on inserts from copied template add-ons', () => {
+    expect(
+      buildEventAddonInsert({
+        addOn: {
+          allowMultiple: true,
+          allowPurchaseBeforeEvent: true,
+          allowPurchaseDuringEvent: false,
+          allowPurchaseDuringRegistration: true,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          description: 'Includes equipment rental.',
+          id: 'template-addon-1',
+          isPaid: true,
+          maxQuantityPerUser: 2,
+          price: 1500,
+          registrationOptions: [
+            {
+              quantity: 1,
+              registrationOptionId: 'template-option-1',
+            },
+          ],
+          stripeTaxRateId: 'txr_vat_19',
+          templateId: 'template-1',
+          title: 'Equipment rental',
+          totalAvailableQuantity: 20,
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+        eventId: 'event-1',
+      }),
+    ).toEqual({
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      description: 'Includes equipment rental.',
+      eventId: 'event-1',
+      isPaid: true,
+      maxQuantityPerUser: 2,
+      price: 1500,
+      stripeTaxRateId: 'txr_vat_19',
+      title: 'Equipment rental',
+      totalAvailableQuantity: 20,
+    });
+  });
+
+  it('builds event registration-question inserts from copied template questions', () => {
+    expect(
+      buildEventQuestionInsert({
+        eventId: 'event-1',
+        question: {
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          description: 'Tell us about your experience.',
+          id: 'template-question-1',
+          registrationOptionId: 'template-option-1',
+          required: true,
+          sortOrder: 2,
+          templateId: 'template-1',
+          title: 'Experience',
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+        registrationOptionId: 'event-option-1',
+      }),
+    ).toEqual({
+      description: 'Tell us about your experience.',
+      eventId: 'event-1',
+      registrationOptionId: 'event-option-1',
+      required: true,
+      sortOrder: 2,
+      sourceTemplateQuestionId: 'template-question-1',
+      title: 'Experience',
+    });
+  });
+
+  it.effect(
+    'events.create copies template add-ons to matching event registration options',
+    () =>
+      Effect.gen(function* () {
+        const insertedEventAddonValues = vi.fn(() => ({
+          returning: vi.fn(() => Effect.succeed([{ id: 'event-addon-1' }])),
+        }));
+        const insertedEventAddonOptionValues = vi.fn(() => Effect.succeed());
+        const database = {
+          insert: vi.fn((table) => {
+            if (table === eventInstances) {
+              return {
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-1',
+                      },
+                    ]),
+                  ),
+                })),
+              };
+            }
+
+            if (table === eventRegistrationOptions) {
+              return {
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-option-1',
+                      },
+                    ]),
+                  ),
+                })),
+              };
+            }
+
+            if (table === eventAddons) {
+              return {
+                values: insertedEventAddonValues,
+              };
+            }
+
+            if (table === addonToEventRegistrationOptions) {
+              return {
+                values: insertedEventAddonOptionValues,
+              };
+            }
+
+            throw new Error('Unexpected insert table');
+          }),
+          query: {
+            addonToTemplateRegistrationOptions: {
+              findMany: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    addonId: 'template-addon-1',
+                    quantity: 2,
+                    registrationOptionId: 'template-option-1',
+                  },
+                ]),
+              ),
+            },
+            eventTemplates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  unlisted: false,
+                }),
+              ),
+            },
+            templateEventAddons: {
+              findMany: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    allowMultiple: true,
+                    allowPurchaseBeforeEvent: true,
+                    allowPurchaseDuringEvent: false,
+                    allowPurchaseDuringRegistration: true,
+                    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+                    description: 'Includes equipment rental.',
+                    id: 'template-addon-1',
+                    isPaid: true,
+                    maxQuantityPerUser: 2,
+                    price: 1500,
+                    stripeTaxRateId: 'txr_vat_19',
+                    templateId: 'template-1',
+                    title: 'Equipment rental',
+                    totalAvailableQuantity: 20,
+                    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+                  },
+                ]),
+              ),
+            },
+            templateRegistrationOptions: {
+              findMany: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    id: 'template-option-1',
+                  },
+                ]),
+              ),
+            },
+            templateRegistrationQuestions: {
+              findMany: vi.fn(() => Effect.succeed([])),
+            },
+            tenantStripeTaxRates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  active: true,
+                  inclusive: true,
+                }),
+              ),
+            },
+          },
+          select: vi.fn(() => ({
+            from: vi.fn(() => ({
+              where: vi.fn(() => Effect.succeed([])),
+            })),
+          })),
+        };
+        const layer = Layer.mergeAll(
+          requestContextLayer,
+          Layer.succeed(Database, database as never),
+        );
+
+        const result = yield* eventLifecycleHandlers['events.create'](
+          {
+            ...createInput,
+            registrationOptions: [
+              {
+                ...createInput.registrationOptions[0],
+                isPaid: true,
+                price: 1000,
+                sourceTemplateRegistrationOptionId: 'template-option-1',
+                stripeTaxRateId: 'txr_vat_19',
+              },
+            ],
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(layer));
+
+        expect(result).toEqual({ id: 'event-1' });
+        expect(insertedEventAddonValues).toHaveBeenCalledWith({
+          allowMultiple: true,
+          allowPurchaseBeforeEvent: true,
+          allowPurchaseDuringEvent: false,
+          allowPurchaseDuringRegistration: true,
+          description: 'Includes equipment rental.',
+          eventId: 'event-1',
+          isPaid: true,
+          maxQuantityPerUser: 2,
+          price: 1500,
+          stripeTaxRateId: 'txr_vat_19',
+          title: 'Equipment rental',
+          totalAvailableQuantity: 20,
+        });
+        expect(insertedEventAddonOptionValues).toHaveBeenCalledWith([
+          {
+            addonId: 'event-addon-1',
+            quantity: 2,
+            registrationOptionId: 'event-option-1',
+          },
+        ]);
+      }),
+  );
+
+  it.effect(
+    'events.create copies template questions to matching event registration options',
+    () =>
+      Effect.gen(function* () {
+        const insertedEventQuestionValues = vi.fn(() => Effect.succeed());
+        const database = {
+          insert: vi.fn((table) => {
+            if (table === eventInstances) {
+              return {
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-1',
+                      },
+                    ]),
+                  ),
+                })),
+              };
+            }
+
+            if (table === eventRegistrationOptions) {
+              return {
+                values: vi.fn(() => ({
+                  returning: vi.fn(() =>
+                    Effect.succeed([
+                      {
+                        id: 'event-option-1',
+                      },
+                    ]),
+                  ),
+                })),
+              };
+            }
+
+            if (table === eventRegistrationQuestions) {
+              return {
+                values: insertedEventQuestionValues,
+              };
+            }
+
+            throw new Error('Unexpected insert table');
+          }),
+          query: {
+            addonToTemplateRegistrationOptions: {
+              findMany: vi.fn(() => Effect.succeed([])),
+            },
+            eventTemplates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  unlisted: false,
+                }),
+              ),
+            },
+            templateEventAddons: {
+              findMany: vi.fn(() => Effect.succeed([])),
+            },
+            templateRegistrationOptions: {
+              findMany: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    id: 'template-option-1',
+                  },
+                ]),
+              ),
+            },
+            templateRegistrationQuestions: {
+              findMany: vi.fn(() =>
+                Effect.succeed([
+                  {
+                    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+                    description: 'Tell us about your experience.',
+                    id: 'template-question-1',
+                    registrationOptionId: 'template-option-1',
+                    required: true,
+                    sortOrder: 0,
+                    templateId: 'template-1',
+                    title: 'Experience',
+                    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+                  },
+                ]),
+              ),
+            },
+            tenantStripeTaxRates: {
+              findFirst: vi.fn(() =>
+                Effect.succeed({
+                  active: true,
+                  inclusive: true,
+                }),
+              ),
+            },
+          },
+          select: vi.fn(() => ({
+            from: vi.fn(() => ({
+              where: vi.fn(() => Effect.succeed([])),
+            })),
+          })),
+        };
+        const layer = Layer.mergeAll(
+          requestContextLayer,
+          Layer.succeed(Database, database as never),
+        );
+
+        const result = yield* eventLifecycleHandlers['events.create'](
+          {
+            ...createInput,
+            registrationOptions: [
+              {
+                ...createInput.registrationOptions[0],
+                sourceTemplateRegistrationOptionId: 'template-option-1',
+              },
+            ],
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(layer));
+
+        expect(result).toEqual({ id: 'event-1' });
+        expect(insertedEventQuestionValues).toHaveBeenCalledWith([
+          {
+            description: 'Tell us about your experience.',
+            eventId: 'event-1',
+            registrationOptionId: 'event-option-1',
+            required: true,
+            sortOrder: 0,
+            sourceTemplateQuestionId: 'template-question-1',
+            title: 'Experience',
+          },
+        ]);
       }),
   );
 });

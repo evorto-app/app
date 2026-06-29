@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  registrationAddonMaxSelectableQuantity,
+  registrationAddonPurchasePayload,
+  registrationAddonSelectedTotalPrice,
   registrationOptionAudienceCopy,
   registrationOptionAvailability,
   registrationOptionAvailableSpots,
@@ -8,6 +11,8 @@ import {
   registrationOptionIsFull,
   registrationOptionSelectedTotalPrice,
   registrationOptionWriteActionDisabled,
+  registrationQuestionAnswerPayload,
+  registrationQuestionsMissingRequired,
 } from './event-registration-option.component';
 
 describe('registrationOptionAudienceCopy', () => {
@@ -207,6 +212,80 @@ describe('registrationOptionSelectedTotalPrice', () => {
   });
 });
 
+describe('registration add-on selections', () => {
+  const addOns = [
+    {
+      id: 'addon-1',
+      price: 500,
+      registrationOptions: [
+        {
+          quantity: 2,
+          registrationOptionId: 'option-1',
+        },
+      ],
+    },
+    {
+      id: 'addon-2',
+      price: 0,
+      registrationOptions: [
+        {
+          quantity: 1,
+          registrationOptionId: 'option-1',
+        },
+      ],
+    },
+  ] as const;
+
+  it('normalizes selected add-ons for the registration mutation payload', () => {
+    expect(
+      registrationAddonPurchasePayload(
+        addOns,
+        {
+          'addon-1': 2,
+          'addon-2': 0,
+        },
+        'option-1',
+      ),
+    ).toEqual([
+      {
+        addOnId: 'addon-1',
+        quantity: 2,
+      },
+    ]);
+  });
+
+  it('adds selected paid add-ons to the checkout total', () => {
+    expect(
+      registrationAddonSelectedTotalPrice(
+        addOns,
+        {
+          'addon-1': 2,
+          'addon-2': 4,
+        },
+        'option-1',
+      ),
+    ).toBe(2000);
+  });
+
+  it('caps selectable add-ons by attached quantity and remaining stock', () => {
+    expect(
+      registrationAddonMaxSelectableQuantity(
+        {
+          maxQuantityPerUser: 5,
+          registrationOptions: [
+            {
+              quantity: 2,
+              registrationOptionId: 'option-1',
+            },
+          ],
+          totalAvailableQuantity: 3,
+        },
+        'option-1',
+      ),
+    ).toBe(1);
+  });
+});
+
 describe('registrationOptionWriteActionDisabled', () => {
   it('disables registration writes while register or waitlist mutations are pending', () => {
     expect(
@@ -217,6 +296,63 @@ describe('registrationOptionWriteActionDisabled', () => {
   it('allows registration writes while no register or waitlist mutation is pending', () => {
     expect(
       registrationOptionWriteActionDisabled({ mutationPending: false }),
+    ).toBe(false);
+  });
+
+  it('disables registration writes while required answers are missing', () => {
+    expect(
+      registrationOptionWriteActionDisabled({
+        missingRequiredAnswers: true,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('registration question answers', () => {
+  const option = {
+    questions: [
+      {
+        description: null,
+        id: 'question-1',
+        required: true,
+        sortOrder: 0,
+        title: 'Emergency contact',
+      },
+      {
+        description: null,
+        id: 'question-2',
+        required: false,
+        sortOrder: 1,
+        title: 'Dietary notes',
+      },
+    ],
+  } as const;
+
+  it('normalizes non-empty answers for the registration mutation payload', () => {
+    expect(
+      registrationQuestionAnswerPayload(option, {
+        'question-1': '  Alice  ',
+        'question-2': '   ',
+      }),
+    ).toEqual([
+      {
+        answer: 'Alice',
+        questionId: 'question-1',
+      },
+    ]);
+  });
+
+  it('detects missing required answers', () => {
+    expect(
+      registrationQuestionsMissingRequired(option, {
+        'question-1': '   ',
+      }),
+    ).toBe(true);
+    expect(
+      registrationQuestionsMissingRequired(option, {
+        'question-1': 'Alice',
+      }),
     ).toBe(false);
   });
 });

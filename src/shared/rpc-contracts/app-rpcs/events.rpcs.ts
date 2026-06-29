@@ -272,6 +272,15 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
   openRegistrationTime: Schema.NonEmptyString,
   organizingRegistration: Schema.Boolean,
   price: Schema.Number,
+  questions: Schema.Array(
+    Schema.Struct({
+      description: Schema.NullOr(Schema.String),
+      id: Schema.NonEmptyString,
+      required: Schema.Boolean,
+      sortOrder: Schema.Number,
+      title: Schema.NonEmptyString,
+    }),
+  ),
   registeredDescription: Schema.NullOr(Schema.String),
   registrationMode: EventsFindOneForEditRegistrationMode,
   reservedSpots: Schema.Number,
@@ -283,6 +292,29 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
   title: Schema.NonEmptyString,
 });
 
+export const EventsFindOneAddonRegistrationOption = Schema.Struct({
+  quantity: Schema.Number,
+  registrationOptionId: Schema.NonEmptyString,
+});
+
+export const EventsFindOneAddon = Schema.Struct({
+  allowMultiple: Schema.Boolean,
+  allowPurchaseBeforeEvent: Schema.Boolean,
+  allowPurchaseDuringEvent: Schema.Boolean,
+  allowPurchaseDuringRegistration: Schema.Boolean,
+  description: Schema.NullOr(Schema.String),
+  id: Schema.NonEmptyString,
+  isPaid: Schema.Boolean,
+  maxQuantityPerUser: Schema.Number,
+  price: Schema.Number,
+  registrationOptions: Schema.Array(EventsFindOneAddonRegistrationOption),
+  stripeTaxRateId: Schema.NullOr(Schema.String),
+  taxRateDisplayName: Schema.NullOr(Schema.String),
+  taxRatePercentage: Schema.NullOr(Schema.String),
+  title: Schema.NonEmptyString,
+  totalAvailableQuantity: Schema.Number,
+});
+
 export const EventsFindOne = asRpcQuery(
   Rpc.make('events.findOne', {
     error: EventsFindOneRpcError,
@@ -290,6 +322,7 @@ export const EventsFindOne = asRpcQuery(
       id: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
+      addOns: Schema.Array(EventsFindOneAddon),
       creatorId: Schema.NonEmptyString,
       description: Schema.NonEmptyString,
       end: Schema.NonEmptyString,
@@ -314,6 +347,13 @@ export const EventsFindOne = asRpcQuery(
 );
 
 export const EventsGetOrganizeOverviewUser = Schema.Struct({
+  addonPurchases: Schema.Array(
+    Schema.Struct({
+      quantity: Schema.Number,
+      title: Schema.NonEmptyString,
+      unitPrice: Schema.Number,
+    }),
+  ),
   appliedDiscountedPrice: Schema.NullOr(Schema.Number),
   appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
   basePriceAtRegistration: Schema.NullOr(Schema.Number),
@@ -364,6 +404,13 @@ export const EventsFindTransferTargets = asRpcQuery(
 );
 
 export const EventsRegistrationStatusRecord = Schema.Struct({
+  addonPurchases: Schema.Array(
+    Schema.Struct({
+      quantity: Schema.Number,
+      title: Schema.NonEmptyString,
+      unitPrice: Schema.Number,
+    }),
+  ),
   appliedDiscountedPrice: Schema.optional(Schema.NullOr(Schema.Number)),
   appliedDiscountType: Schema.optional(
     Schema.NullOr(Schema.Literal('esnCard')),
@@ -427,25 +474,42 @@ export const EventsReviewEvent = asRpcMutation(
   }),
 );
 
+export const EventsRegistrationQuestionAnswerInput = Schema.Struct({
+  answer: Schema.String,
+  questionId: Schema.NonEmptyString,
+});
+
+export const EventsRegistrationAddonInput = Schema.Struct({
+  addOnId: Schema.NonEmptyString,
+  quantity: nonNegativeNumber,
+});
+
+export const EventsRegisterForEventPayload = Schema.Struct({
+  addOns: Schema.optional(Schema.Array(EventsRegistrationAddonInput)),
+  answers: Schema.optional(Schema.Array(EventsRegistrationQuestionAnswerInput)),
+  eventId: Schema.NonEmptyString,
+  guestCount: nonNegativeNumber,
+  registrationOptionId: Schema.NonEmptyString,
+});
+
 export const EventsRegisterForEvent = asRpcMutation(
   Rpc.make('events.registerForEvent', {
     error: EventsRegisterForEventError,
-    payload: Schema.Struct({
-      eventId: Schema.NonEmptyString,
-      guestCount: nonNegativeNumber,
-      registrationOptionId: Schema.NonEmptyString,
-    }),
+    payload: EventsRegisterForEventPayload,
     success: Schema.Void,
   }),
 );
 
+export const EventsJoinWaitlistPayload = Schema.Struct({
+  answers: Schema.optional(Schema.Array(EventsRegistrationQuestionAnswerInput)),
+  eventId: Schema.NonEmptyString,
+  registrationOptionId: Schema.NonEmptyString,
+});
+
 export const EventsJoinWaitlist = asRpcMutation(
   Rpc.make('events.joinWaitlist', {
     error: EventsRegisterForEventError,
-    payload: Schema.Struct({
-      eventId: Schema.NonEmptyString,
-      registrationOptionId: Schema.NonEmptyString,
-    }),
+    payload: EventsJoinWaitlistPayload,
     success: Schema.Void,
   }),
 );

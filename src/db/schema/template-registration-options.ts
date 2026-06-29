@@ -2,6 +2,7 @@ import {
   boolean,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -41,6 +42,9 @@ export const templateRegistrationOptions = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
+  (table) => ({
+    uniqueIdTemplateId: unique().on(table.id, table.templateId),
+  }),
 );
 
 export const addonToTemplateRegistrationOptions = pgTable(
@@ -48,13 +52,17 @@ export const addonToTemplateRegistrationOptions = pgTable(
   {
     addonId: varchar({ length: 20 })
       .notNull()
-      .references(() => templateEventAddons.id),
+      .references(() => templateEventAddons.id, { onDelete: 'cascade' }),
     quantity: integer().notNull(),
     registrationOptionId: varchar({ length: 20 })
       .notNull()
-      .references(() => templateRegistrationOptions.id),
+      .references(() => templateRegistrationOptions.id, {
+        onDelete: 'cascade',
+      }),
   },
   (table) => ({
-    unique: unique().on(table.addonId, table.registrationOptionId),
+    pk: primaryKey({
+      columns: [table.addonId, table.registrationOptionId],
+    }),
   }),
 );

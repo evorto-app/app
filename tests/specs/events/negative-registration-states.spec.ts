@@ -4,6 +4,7 @@ import type { Page } from '@playwright/test';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { seedRequiredRegistrationQuestion } from '../../support/utils/seed-registration-addons';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
@@ -82,6 +83,12 @@ test.describe('Negative registration states', () => {
         throw new Error('Expected seeded freeOpen event');
       }
       const serverEventWindow = futureServerEventWindow();
+      const registrationQuestion = await seedRequiredRegistrationQuestion({
+        database,
+        eventId: targetEventId,
+        registrationOptionId: targetOptionId,
+        title: 'Anything organizers should know?',
+      });
 
       try {
         await database
@@ -110,7 +117,6 @@ test.describe('Negative registration states', () => {
             start: serverEventWindow.start,
           })
           .where(eq(schema.eventInstances.id, targetEventId));
-
         await page.goto(`/events/${targetEventId}`);
         await waitForRegistrationStatus(page);
 
@@ -119,6 +125,12 @@ test.describe('Negative registration states', () => {
           name: 'Join waitlist',
         });
         await expect(waitlistButton).toBeVisible();
+        await expect(page.getByLabel(registrationQuestion.title)).toBeVisible();
+        await expect(waitlistButton).toBeDisabled();
+        await page
+          .getByLabel(registrationQuestion.title)
+          .fill('Please tell me if a spot opens.');
+        await expect(waitlistButton).toBeEnabled();
         await expect(
           page.getByRole('button', { name: /^Register$/ }),
         ).toHaveCount(0);
@@ -147,7 +159,61 @@ test.describe('Negative registration states', () => {
             ),
           )
           .limit(1);
-        expect(waitlistRegistration).toBeTruthy();
+        if (!waitlistRegistration) {
+          throw new Error(
+            'Expected waitlist registration after joining waitlist',
+          );
+        }
+        expect(waitlistRegistration).toEqual(
+          expect.objectContaining({
+            registrationOptionId: targetOptionId,
+            status: 'WAITLIST',
+            tenantId: tenant.id,
+            userId: regularUser.id,
+          }),
+        );
+        const questionAnswers =
+          await database.query.eventRegistrationQuestionAnswers.findMany({
+            where: {
+              registrationId: waitlistRegistration.id,
+            },
+          });
+        expect(questionAnswers).toEqual([
+          expect.objectContaining({
+            answer: 'Please tell me if a spot opens.',
+            questionId: registrationQuestion.questionId,
+          }),
+        ]);
+        await page.getByRole('button', { name: 'Leave waitlist' }).click();
+        await expect(page.getByText('This option is full.')).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: 'Join waitlist' }),
+        ).toBeVisible();
+
+        const cancelledWaitlistRegistration =
+          await database.query.eventRegistrations.findFirst({
+            where: {
+              id: waitlistRegistration.id,
+              status: 'CANCELLED',
+              tenantId: tenant.id,
+            },
+          });
+        if (!cancelledWaitlistRegistration) {
+          throw new Error(
+            'Expected leaving waitlist to cancel the registration',
+          );
+        }
+
+        const optionAfterLeaving =
+          await database.query.eventRegistrationOptions.findFirst({
+            where: { eventId: targetEventId, id: targetOptionId },
+          });
+        if (!optionAfterLeaving) {
+          throw new Error(
+            'Expected seeded freeOpen option after leaving waitlist',
+          );
+        }
+        expect(optionAfterLeaving.waitlistSpots).toBe(0);
       } finally {
         await database
           .delete(schema.eventRegistrations)
@@ -156,6 +222,14 @@ test.describe('Negative registration states', () => {
               eq(schema.eventRegistrations.eventId, targetEventId),
               eq(schema.eventRegistrations.tenantId, tenant.id),
               eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+        await database
+          .delete(schema.eventRegistrationQuestions)
+          .where(
+            eq(
+              schema.eventRegistrationQuestions.id,
+              registrationQuestion.questionId,
             ),
           );
         await database
@@ -175,6 +249,76 @@ test.describe('Negative registration states', () => {
             start: targetEvent.start,
           })
           .where(eq(schema.eventInstances.id, targetEventId));
+      }
+    });
+
+    test('does not expose a waitlist action for full unsupported stored modes', async ({
+      database,
+      page,
+      seeded,
+      tenant,
+    }) => {
+      if (!regularUser) {
+        throw new Error('Expected regular user fixture');
+      }
+
+      const targetEventId = seeded.scenario.events.freeOpen.eventId;
+      const targetOptionId = seeded.scenario.events.freeOpen.optionId;
+      const targetOption =
+        await database.query.eventRegistrationOptions.findFirst({
+          where: { eventId: targetEventId, id: targetOptionId },
+        });
+      if (!targetOption) {
+        throw new Error('Expected seeded freeOpen registration option');
+      }
+
+      try {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+        for (const registrationMode of ['random', 'application'] as const) {
+          await database
+            .update(schema.eventRegistrationOptions)
+            .set({
+              confirmedSpots: targetOption.spots,
+              registrationMode,
+              reservedSpots: 0,
+              waitlistSpots: 0,
+            })
+            .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+
+          await page.goto(`/events/${targetEventId}`);
+          await waitForRegistrationStatus(page);
+
+          const optionCard = page
+            .locator('app-event-registration-option')
+            .filter({ hasText: targetOption.title });
+          await expect(
+            optionCard.getByText('This option is full.'),
+          ).toBeVisible();
+          await expect(
+            optionCard.getByRole('button', { name: 'Join waitlist' }),
+          ).toHaveCount(0);
+          await expect(
+            optionCard.getByRole('button', { name: /^Register$/ }),
+          ).toHaveCount(0);
+        }
+      } finally {
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({
+            confirmedSpots: targetOption.confirmedSpots,
+            registrationMode: targetOption.registrationMode,
+            reservedSpots: targetOption.reservedSpots,
+            waitlistSpots: targetOption.waitlistSpots,
+          })
+          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
       }
     });
   });

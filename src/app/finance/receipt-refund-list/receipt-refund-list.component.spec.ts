@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { isSafeReceiptPreviewUrl } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 import {
   receiptReimbursementCanRecord,
   receiptReimbursementManualNotice,
@@ -7,6 +8,32 @@ import {
   receiptReimbursementRecordDisabled,
   receiptReimbursementSelectedTotal,
 } from './receipt-refund-list.component';
+
+describe('isSafeReceiptPreviewUrl', () => {
+  it('allows app-relative and trusted signed HTTP preview URLs', () => {
+    expect(isSafeReceiptPreviewUrl('/receipt-preview/file.pdf')).toBe(true);
+    expect(
+      isSafeReceiptPreviewUrl(
+        'https://receipt-bucket.s3.amazonaws.com/signed/file.pdf?token=abc',
+      ),
+    ).toBe(true);
+    expect(isSafeReceiptPreviewUrl('http://localhost:9000/receipt.pdf')).toBe(
+      true,
+    );
+  });
+
+  it('rejects non-network preview URLs before they can be trusted for rendering', () => {
+    expect(isSafeReceiptPreviewUrl(null)).toBe(false);
+    expect(isSafeReceiptPreviewUrl('javascript:alert(1)')).toBe(false);
+    expect(
+      isSafeReceiptPreviewUrl('data:application/pdf;base64,JVBERi0='),
+    ).toBe(false);
+    expect(isSafeReceiptPreviewUrl('local-unavailable://receipt')).toBe(false);
+    expect(isSafeReceiptPreviewUrl('https://evil.example.test/receipt')).toBe(
+      false,
+    );
+  });
+});
 
 describe('receiptReimbursementManualNotice', () => {
   it('keeps reimbursement copy honest about manual money movement', () => {

@@ -1,6 +1,5 @@
 import { isPlatformServer } from '@angular/common';
 import {
-  computed,
   DOCUMENT,
   effect,
   inject,
@@ -23,9 +22,8 @@ import { AppRpc } from './effect-rpc-angular-client';
   providedIn: 'root',
 })
 export class ConfigService {
-  private readonly tenantState = signal<null | Tenant>(null);
-
-  public readonly tenantSignal = computed(() => this.tenantState());
+  private readonly _tenantSignal = signal<null | Tenant>(null);
+  public readonly tenantSignal = this._tenantSignal.asReadonly();
 
   public get missingContext() {
     return this._missingContext;
@@ -42,9 +40,10 @@ export class ConfigService {
   public get tenant(): Tenant {
     return this._tenant;
   }
-  private _missingContext = false;
 
+  private _missingContext = false;
   private _permissions!: Permission[];
+
   private _publicConfig: {
     googleMapsApiKey: null | string;
     sentryDsn: null | string;
@@ -53,9 +52,9 @@ export class ConfigService {
     sentryDsn: null,
   };
   private _tenant!: Tenant;
+  private activeDescription: null | string = null;
+  private activeTitle: null | string = null;
 
-  private activeRouteDescription: null | string = null;
-  private activeRouteTitle: null | string = null;
   private readonly rpc = AppRpc.injectClient();
 
   private currentTenantQuery = injectQuery(() =>
@@ -111,38 +110,37 @@ export class ConfigService {
   }
 
   public updateDescription(description: string): void {
-    this.activeRouteDescription = description;
-    this.applyDocumentDescription();
+    this.activeDescription = description;
+    this.meta.updateTag({ content: description, name: 'description' });
   }
 
   public updateTitle(title: string): void {
-    this.activeRouteTitle = title;
-    this.applyDocumentTitle();
-  }
-
-  private applyDocumentDescription(): void {
-    const description =
-      this.activeRouteDescription ?? this.tenant.seoDescription;
-    if (description) {
-      this.meta.updateTag({ content: description, name: 'description' });
-    } else {
-      this.meta.removeTag("name='description'");
-    }
-  }
-
-  private applyDocumentTitle(): void {
-    const title = this.activeRouteTitle
-      ? `${this.activeRouteTitle} | ${this.tenant.name}`
-      : (this.tenant.seoTitle ?? this.tenant.name);
-    this.title.setTitle(title);
+    this.activeTitle = title;
+    this.title.setTitle(`${title} | ${this.tenant.name}`);
   }
 
   private applyTenantConfig(tenant: Tenant): void {
     this._tenant = tenant;
-    this.tenantState.set(tenant);
-    this.applyDocumentTitle();
-    this.applyDocumentDescription();
+    this._tenantSignal.set(tenant);
+    if (this.activeTitle) {
+      this.title.setTitle(`${this.activeTitle} | ${tenant.name}`);
+    } else {
+      this.title.setTitle(tenant.seoTitle ?? tenant.name);
+    }
     this.updateFavicon(tenant.faviconUrl ?? 'favicon.ico');
+    if (this.activeDescription) {
+      this.meta.updateTag({
+        content: this.activeDescription,
+        name: 'description',
+      });
+    } else if (tenant.seoDescription) {
+      this.meta.updateTag({
+        content: tenant.seoDescription,
+        name: 'description',
+      });
+    } else {
+      this.meta.removeTag("name='description'");
+    }
   }
 
   private updateFavicon(href: string): void {

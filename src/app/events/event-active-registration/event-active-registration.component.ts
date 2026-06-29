@@ -23,13 +23,11 @@ import {
 } from './event-registration-transfer-dialog.component';
 
 export const registrationCancellationCopy = (registration: {
-  cancellationClosed: boolean;
   guestCount: number;
   paymentPending: boolean;
   status: EventsRegistrationStatus;
 }): null | {
   buttonLabel: string;
-  canCancel: boolean;
   helperText: string;
 } => {
   const pendingSpotNoun =
@@ -38,18 +36,8 @@ export const registrationCancellationCopy = (registration: {
     registration.guestCount > 0 ? 'all selected spots' : 'your spot';
 
   if (registration.status === 'PENDING') {
-    if (registration.cancellationClosed) {
-      return {
-        buttonLabel: 'Cancel registration',
-        canCancel: false,
-        helperText:
-          'Registration can no longer be cancelled because the event has already started.',
-      };
-    }
-
     return {
       buttonLabel: 'Cancel registration',
-      canCancel: true,
       helperText: registration.paymentPending
         ? `This cancels the pending registration and releases ${pendingSpotNoun}. It does not complete a payment.`
         : `This cancels the pending registration and releases ${pendingSpotNoun}.`,
@@ -57,18 +45,8 @@ export const registrationCancellationCopy = (registration: {
   }
 
   if (registration.status === 'CONFIRMED') {
-    if (registration.cancellationClosed) {
-      return {
-        buttonLabel: 'Cancel registration',
-        canCancel: false,
-        helperText:
-          'Registration can no longer be cancelled because the event has already started.',
-      };
-    }
-
     return {
       buttonLabel: 'Cancel registration',
-      canCancel: true,
       helperText: `This cancels your confirmed registration and releases ${confirmedSpotNoun}. Paid-registration refunds are not automatic yet.`,
     };
   }
@@ -76,7 +54,6 @@ export const registrationCancellationCopy = (registration: {
   if (registration.status === 'WAITLIST') {
     return {
       buttonLabel: 'Leave waitlist',
-      canCancel: true,
       helperText:
         'This removes your waitlist registration and releases your waitlist position.',
     };
@@ -147,9 +124,13 @@ export const registrationTransferActionDisabled = (input: {
   templateUrl: './event-active-registration.component.html',
 })
 export class EventActiveRegistrationComponent {
-  public readonly cancellationClosed = input.required<boolean>();
   public readonly registrations = input.required<
     readonly {
+      addonPurchases: readonly {
+        quantity: number;
+        title: string;
+        unitPrice: number;
+      }[];
       appliedDiscountedPrice?: null | number | undefined;
       appliedDiscountType?: 'esnCard' | null | undefined;
       basePriceAtRegistration?: null | number | undefined;
@@ -164,6 +145,7 @@ export class EventActiveRegistrationComponent {
       transferAvailable: boolean;
     }[]
   >();
+  protected readonly cancellationCopy = registrationCancellationCopy;
   private readonly rpc = AppRpc.injectClient();
   protected readonly cancelRegistrationMutation = injectMutation(() =>
     this.rpc.events.cancelRegistration.mutationOptions(),
@@ -252,16 +234,6 @@ export class EventActiveRegistrationComponent {
       },
     );
   }
-
-  protected readonly cancellationCopy = (registration: {
-    guestCount: number;
-    paymentPending: boolean;
-    status: EventsRegistrationStatus;
-  }) =>
-    registrationCancellationCopy({
-      ...registration,
-      cancellationClosed: this.cancellationClosed(),
-    });
 
   protected errorMessage(error: unknown): string {
     return getErrorMessage(error, 'Cancellation failed');

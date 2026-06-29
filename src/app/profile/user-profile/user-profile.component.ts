@@ -1,7 +1,6 @@
-import type { DiscountCardRecord } from '@shared/rpc-contracts/app-rpcs/discounts.rpcs';
 import type { FinanceReceiptStatus } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
 
-import { DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -38,8 +37,6 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
-import type { User } from '../../../types/custom/user';
-
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
@@ -48,21 +45,22 @@ import {
   EditProfileDialogData,
   EditProfileDialogResult,
 } from './edit-profile-dialog.component';
-
-type EsnCardMutationAction = 'refresh' | 'remove' | 'save';
+import {
+  esnCardActionDisabled,
+  esnCardActionLabel,
+  esnCardMutationErrorMessage,
+  esnCardSaveDisabled,
+  esnCardStatusLabel,
+  esnCardSubmitPayloadFromIdentifier,
+} from './user-profile.esn-card';
 
 type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
 
-const esnCardFallbackMessages = {
-  refresh: 'Could not refresh ESN card',
-  remove: 'Could not remove ESN card',
-  save: 'Could not validate ESN card',
-} as const satisfies Record<EsnCardMutationAction, string>;
-
-export const esnCardMutationErrorMessage = (
-  action: EsnCardMutationAction,
-  error: unknown,
-): string => getErrorMessage(error, esnCardFallbackMessages[action]);
+export const profileEditActionDisabled = ({
+  mutationPending,
+}: {
+  mutationPending: boolean;
+}): boolean => mutationPending;
 
 export const profileUserAfterEdit = <
   T extends {
@@ -84,68 +82,6 @@ export const profileUserAfterEdit = <
   paypalEmail: result.paypalEmail ?? null,
 });
 
-export const esnCardActionLabel = (
-  action: EsnCardMutationAction,
-  pending: boolean,
-): string => {
-  switch (action) {
-    case 'refresh': {
-      return pending ? 'Refreshing...' : 'Refresh';
-    }
-    case 'remove': {
-      return pending ? 'Removing...' : 'Remove';
-    }
-    case 'save': {
-      return pending ? 'Checking ESN card...' : 'Save ESN card';
-    }
-  }
-};
-
-export const esnCardSaveDisabled = ({
-  formInvalid,
-  formSubmitting,
-  mutationPending,
-}: {
-  formInvalid: boolean;
-  formSubmitting: boolean;
-  mutationPending: boolean;
-}): boolean => formInvalid || formSubmitting || mutationPending;
-
-export const esnCardActionDisabled = ({
-  deletePending,
-  refreshPending,
-  upsertPending,
-}: {
-  deletePending: boolean;
-  refreshPending: boolean;
-  upsertPending: boolean;
-}): boolean => deletePending || refreshPending || upsertPending;
-
-export const esnCardStatusLabel = (
-  status: DiscountCardRecord['status'],
-): string => {
-  switch (status) {
-    case 'expired': {
-      return 'Expired';
-    }
-    case 'invalid': {
-      return 'Invalid';
-    }
-    case 'unverified': {
-      return 'Needs verification';
-    }
-    case 'verified': {
-      return 'Verified';
-    }
-  }
-};
-
-export const profileEditActionDisabled = ({
-  mutationPending,
-}: {
-  mutationPending: boolean;
-}): boolean => mutationPending;
-
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
 export const profileEventGuestLabel = (guestCount: number): null | string => {
@@ -162,18 +98,31 @@ export const profileEventNextStepLabel = (event: {
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
 }): null | string => {
-  if (event.paymentState === 'pending' && event.checkoutUrl) {
+  if (profileEventContinuePaymentUrl(event)) {
     return 'Finish the checkout payment to confirm your spot.';
   }
 
   return null;
 };
 
+export const isStripeCheckoutUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'checkout.stripe.com';
+  } catch {
+    return false;
+  }
+};
+
 export const profileEventContinuePaymentUrl = (event: {
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
 }): null | string => {
-  if (event.paymentState !== 'pending') {
+  if (
+    event.paymentState !== 'pending' ||
+    !event.checkoutUrl ||
+    !isStripeCheckoutUrl(event.checkoutUrl)
+  ) {
     return null;
   }
 
@@ -186,7 +135,7 @@ export const profileEventActionNote = (event: {
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
   status: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): string => {
-  if (event.paymentState === 'pending' && event.checkoutUrl) {
+  if (profileEventContinuePaymentUrl(event)) {
     return 'Continue payment from this card, or open the event page for registration details.';
   }
 
@@ -283,17 +232,11 @@ export const profileSectionFromFragment = (
   return 'overview';
 };
 
-export const esnCardSubmitPayloadFromIdentifier = (
-  identifier: string,
-): { identifier: string; type: 'esnCard' } => ({
-  identifier: identifier.trim(),
-  type: 'esnCard',
-});
-
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
+    CurrencyPipe,
     FontAwesomeModule,
     FormField,
     MatButtonModule,
@@ -384,10 +327,7 @@ export class UserProfileComponent {
     this.rpc.users.self.queryOptions(),
   );
 
-  private readonly profileUserOverride = signal<null | User>(null);
-  protected readonly profileUser = computed(
-    () => this.profileUserOverride() ?? this.userQuery.data(),
-  );
+  protected readonly profileUser = computed(() => this.userQuery.data());
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
@@ -495,7 +435,6 @@ export class UserProfileComponent {
       },
       onSuccess: async () => {
         const updatedUser = profileUserAfterEdit(user, result);
-        this.profileUserOverride.set(updatedUser);
         this.queryClient.setQueryData(
           this.rpc.pathKey(['users', 'self']),
           updatedUser,

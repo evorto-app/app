@@ -1,13 +1,23 @@
 import { eq } from 'drizzle-orm';
 
+import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import {
+  seedProfileEventCards,
+  type SeededProfileEventCards,
+} from '../../support/utils/profile-event-cards';
 
 test.use({ storageState: userStateFile });
 
-test('Manage user profile', async ({ database, page, seedDate }, testInfo) => {
+test('Manage user profile', async ({
+  database,
+  page,
+  seedDate,
+  seeded,
+}, testInfo) => {
   const regularUser = usersToAuthenticate.find(
     (user) => user.stateFile === userStateFile,
   );
@@ -21,8 +31,39 @@ test('Manage user profile', async ({ database, page, seedDate }, testInfo) => {
     throw new Error('Expected regular profile user to exist');
   }
   const documentedNotificationEmail = `profile-docs-${seedDate.getTime()}@evorto.app`;
+  const profileReceiptId = getId();
+  const profileReceiptFileName = `profile-docs-receipt-${seedDate.getTime()}.pdf`;
+  const profileEventId = seeded.scenario.events.freeOpen.eventId;
+  const profileEvent = seeded.events.find(
+    (event) => event.id === profileEventId,
+  );
+  if (!profileEvent) {
+    throw new Error('Expected seeded free profile event');
+  }
+  let profileEventCards: SeededProfileEventCards | undefined;
 
   try {
+    profileEventCards = await seedProfileEventCards({
+      database,
+      seedDate,
+      seeded,
+      userId: regularUser.id,
+    });
+    await database.insert(schema.financeReceipts).values({
+      attachmentFileName: profileReceiptFileName,
+      attachmentMimeType: 'application/pdf',
+      attachmentSizeBytes: 2048,
+      eventId: profileEventId,
+      id: profileReceiptId,
+      purchaseCountry: 'DE',
+      receiptDate: seedDate,
+      status: 'submitted',
+      submittedByUserId: regularUser.id,
+      taxAmount: 300,
+      tenantId: seeded.tenant.id,
+      totalAmount: 1875,
+    });
+
     await page.goto('.');
     await testInfo.attach('markdown', {
       body: `
@@ -136,8 +177,8 @@ The user profile now uses a two-column layout:
 
 - Left side: section navigation cards
 - Right side: selected section content
-- The **Events** section links each registration back to event details, shows registration status, selected option, guest quantity when applicable, payment state, and check-in time when available, and exposes implemented recovery actions such as continuing a pending checkout payment or opening the event page where confirmed tickets are shown
-- Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/unpaid-transfer details back to the event page, and stop advertising cancellation or transfer once a registration is checked in
+- The **Events** section links each registration back to event details, shows registration status, selected option, guest quantity and purchased add-ons when applicable, payment state, and check-in time when available, and exposes implemented recovery actions such as continuing a pending checkout payment or opening the event page where confirmed tickets are shown
+- Profile event cards point pending checkout registrations at the implemented profile action, route ticket/cancellation/unpaid-transfer details back to the event page, expose waitlist routing back to the event page, and stop advertising cancellation or transfer once a registration is checked in
 - Other sections include **Overview**, **Discounts**, and **Receipts**
 `,
     });
@@ -146,6 +187,101 @@ The user profile now uses a two-column layout:
     await expect(
       page.getByRole('heading', { name: 'Your Event Registrations' }),
     ).toBeVisible();
+    const documentedEventCard = page
+      .locator('article')
+      .filter({ hasText: profileEventCards.confirmed.addOnTitle });
+    await expect(documentedEventCard).toBeVisible();
+    await expect(
+      documentedEventCard.getByText(profileEventCards.confirmed.eventTitle),
+    ).toBeVisible();
+    await expect(documentedEventCard.getByText('Confirmed')).toBeVisible();
+    await expect(
+      documentedEventCard.getByText('Includes 1 guest'),
+    ).toBeVisible();
+    await expect(
+      documentedEventCard.getByText(
+        `2 x ${profileEventCards.confirmed.addOnTitle}`,
+      ),
+    ).toBeVisible();
+    await expect(
+      documentedEventCard.getByText('No payment required'),
+    ).toBeVisible();
+    await expect(
+      documentedEventCard.getByText('Available on the event page.'),
+    ).toBeVisible();
+    await expect(
+      documentedEventCard.getByRole('link', { name: 'Open event page' }),
+    ).toHaveAttribute('href', `/events/${profileEventCards.confirmed.eventId}`);
+    const pendingCheckoutCard = page
+      .locator('article')
+      .filter({ hasText: profileEventCards.pendingCheckout.title });
+    await expect(pendingCheckoutCard).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByText('Pending', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByText('Payment pending'),
+    ).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByText(
+        'Finish the checkout payment to confirm your spot.',
+      ),
+    ).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByText(
+        'Continue payment from this card, or open the event page for registration details.',
+      ),
+    ).toBeVisible();
+    await expect(
+      pendingCheckoutCard.getByRole('link', { name: 'Continue payment' }),
+    ).toHaveAttribute('href', profileEventCards.pendingCheckout.checkoutUrl);
+    await expect(
+      pendingCheckoutCard.getByRole('link', { name: 'Open event page' }),
+    ).toHaveAttribute(
+      'href',
+      `/events/${profileEventCards.pendingCheckout.eventId}`,
+    );
+    const waitlistCard = page
+      .locator('article')
+      .filter({ hasText: profileEventCards.waitlist.title });
+    await expect(waitlistCard).toBeVisible();
+    await expect(
+      waitlistCard.getByText('Waitlist', { exact: true }),
+    ).toBeVisible();
+    await expect(waitlistCard.getByText('No payment required')).toBeVisible();
+    await expect(
+      waitlistCard.getByText(
+        'Open the event page for waitlist details and the leave-waitlist action.',
+      ),
+    ).toBeVisible();
+    await expect(
+      waitlistCard.getByRole('link', { name: 'Open event page' }),
+    ).toHaveAttribute('href', `/events/${profileEventCards.waitlist.eventId}`);
+    const checkedInEventCard = page
+      .locator('article')
+      .filter({ hasText: profileEventCards.checkedIn.addOnTitle });
+    await expect(checkedInEventCard).toBeVisible();
+    await expect(
+      checkedInEventCard.getByText(profileEventCards.checkedIn.eventTitle),
+    ).toBeVisible();
+    await expect(checkedInEventCard.getByText('Confirmed')).toBeVisible();
+    await expect(checkedInEventCard.getByText('Checked in:')).toBeVisible();
+    await expect(
+      checkedInEventCard.getByText(
+        `1 x ${profileEventCards.checkedIn.addOnTitle}`,
+      ),
+    ).toBeVisible();
+    await expect(
+      checkedInEventCard.getByText(
+        'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.',
+      ),
+    ).toBeVisible();
+    await expect(
+      checkedInEventCard.getByText('Available on the event page.'),
+    ).toHaveCount(0);
+    await expect(
+      checkedInEventCard.getByRole('link', { name: 'Open event page' }),
+    ).toHaveAttribute('href', `/events/${profileEventCards.checkedIn.eventId}`);
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),
@@ -154,6 +290,18 @@ The user profile now uses a two-column layout:
     );
 
     await page.getByRole('button', { name: 'Receipts' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Submitted receipts' }),
+    ).toBeVisible();
+    const profileReceiptCard = page
+      .locator('article')
+      .filter({ hasText: profileReceiptFileName });
+    await expect(profileReceiptCard).toBeVisible();
+    await expect(profileReceiptCard.getByText('Submitted')).toBeVisible();
+    await expect(
+      profileReceiptCard.getByText(profileEvent.title),
+    ).toBeVisible();
+    await expect(profileReceiptCard.getByText('18.75 €')).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),
@@ -171,5 +319,9 @@ The user profile now uses a two-column layout:
         paypalEmail: originalUser.paypalEmail,
       })
       .where(eq(schema.users.id, regularUser.id));
+    await database
+      .delete(schema.financeReceipts)
+      .where(eq(schema.financeReceipts.id, profileReceiptId));
+    await profileEventCards?.cleanup();
   }
 });

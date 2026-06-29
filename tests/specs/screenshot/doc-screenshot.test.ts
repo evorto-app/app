@@ -19,8 +19,10 @@ test.use({ storageState: defaultStateFile });
 test('doc-screenshot returns a relative path and writes image', async ({
   page,
 }, testInfo) => {
-  const imgRoot =
-    process.env.DOCS_IMG_OUT_DIR ?? path.resolve('test-results/docs/images');
+  // Put images into a predictable temp folder for the test
+  const imgRoot = path.resolve('test-results/tmp-doc-images');
+  process.env.DOCS_IMG_OUT_DIR = imgRoot;
+
   await page.goto('.');
   const target = page.locator('body');
 

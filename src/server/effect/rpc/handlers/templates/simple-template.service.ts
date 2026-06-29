@@ -1,13 +1,16 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { Context, Effect, Layer } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
+  addonToTemplateRegistrationOptions,
   eventTemplates,
+  templateEventAddons,
   templateRegistrationOptionDiscounts,
   templateRegistrationOptions,
+  templateRegistrationQuestions,
 } from '../../../../../db/schema';
 import {
   isMeaningfulRichTextHtml,
@@ -25,6 +28,8 @@ const databaseEffect = <A>(
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
+type AddonToTemplateRegistrationOptionInsert =
+  typeof addonToTemplateRegistrationOptions.$inferInsert;
 interface CreateSimpleTemplateArguments {
   esnCardEnabled: boolean;
   input: CreateSimpleTemplateInput;
@@ -34,19 +39,30 @@ type CreateSimpleTemplateInput = Parameters<
   AppRpcHandlers['templates.createSimpleTemplate']
 >[0];
 type EventTemplateInsert = typeof eventTemplates.$inferInsert;
+type SimpleTemplateAddonInput = NonNullable<
+  CreateSimpleTemplateInput['addOns']
+>[number];
+type SimpleTemplateQuestionInput = NonNullable<
+  CreateSimpleTemplateInput['questions']
+>[number];
 type SimpleTemplateRegistrationInput =
   CreateSimpleTemplateInput['organizerRegistration'];
 type SimpleTemplateValidationInput = Pick<
   CreateSimpleTemplateInput,
+  | 'addOns'
   | 'categoryId'
   | 'description'
   | 'organizerRegistration'
   | 'participantRegistration'
+  | 'questions'
 >;
+type TemplateEventAddonInsert = typeof templateEventAddons.$inferInsert;
 type TemplateRegistrationOptionDiscountInsert =
   typeof templateRegistrationOptionDiscounts.$inferInsert;
 type TemplateRegistrationOptionInsert =
   typeof templateRegistrationOptions.$inferInsert;
+type TemplateRegistrationQuestionInsert =
+  typeof templateRegistrationQuestions.$inferInsert;
 
 interface UpdateSimpleTemplateArguments {
   esnCardEnabled: boolean;
@@ -137,6 +153,91 @@ export const buildTemplateOptionDiscountInsert = ({
   };
 };
 
+export const buildTemplateAddonInsert = ({
+  addon,
+  templateId,
+}: {
+  addon: SimpleTemplateAddonInput;
+  templateId: string;
+}): TemplateEventAddonInsert => ({
+  allowMultiple: addon.allowMultiple,
+  allowPurchaseBeforeEvent: addon.allowPurchaseBeforeEvent,
+  allowPurchaseDuringEvent: addon.allowPurchaseDuringEvent,
+  allowPurchaseDuringRegistration: addon.allowPurchaseDuringRegistration,
+  description: addon.description?.trim() || null,
+  isPaid: addon.isPaid,
+  maxQuantityPerUser: addon.maxQuantityPerUser,
+  price: addon.isPaid ? addon.price : 0,
+  stripeTaxRateId: addon.isPaid ? (addon.stripeTaxRateId ?? null) : null,
+  templateId,
+  title: addon.title.trim(),
+  totalAvailableQuantity: addon.totalAvailableQuantity,
+});
+
+export const buildTemplateAddonRegistrationOptionInsert = ({
+  addon,
+  addonId,
+  organizerRegistrationOptionId,
+  participantRegistrationOptionId,
+}: {
+  addon: SimpleTemplateAddonInput;
+  addonId: string;
+  organizerRegistrationOptionId: string;
+  participantRegistrationOptionId: string;
+}): AddonToTemplateRegistrationOptionInsert => ({
+  addonId,
+  quantity: addon.quantity,
+  registrationOptionId:
+    addon.registrationOptionKind === 'organizer'
+      ? organizerRegistrationOptionId
+      : participantRegistrationOptionId,
+});
+
+export const buildTemplateQuestionInsert = ({
+  organizerRegistrationOptionId,
+  participantRegistrationOptionId,
+  question,
+  sortOrder,
+  templateId,
+}: {
+  organizerRegistrationOptionId: string;
+  participantRegistrationOptionId: string;
+  question: SimpleTemplateQuestionInput;
+  sortOrder: number;
+  templateId: string;
+}): TemplateRegistrationQuestionInsert => ({
+  description: question.description?.trim() || null,
+  registrationOptionId:
+    question.registrationOptionKind === 'organizer'
+      ? organizerRegistrationOptionId
+      : participantRegistrationOptionId,
+  required: question.required,
+  sortOrder,
+  templateId,
+  title: question.title.trim(),
+});
+
+export const requireSimpleTemplateRegistrationOptionIds = ({
+  organizerRegistrationOptionId,
+  participantRegistrationOptionId,
+}: {
+  organizerRegistrationOptionId: string | undefined;
+  participantRegistrationOptionId: string | undefined;
+}) => {
+  if (!organizerRegistrationOptionId || !participantRegistrationOptionId) {
+    return Effect.fail(
+      new TemplateSimpleInternalError({
+        message: 'Template add-on registration option lookup failed',
+      }),
+    );
+  }
+
+  return Effect.succeed({
+    organizerRegistrationOptionId,
+    participantRegistrationOptionId,
+  });
+};
+
 const validateRegistrationOffsetOrdering = ({
   kind,
   registration,
@@ -200,6 +301,69 @@ const validateRegistrationDiscount = ({
     return Effect.fail(
       new TemplateSimpleBadRequestError({
         message: `${kind} registration ESNcard discount cannot exceed price`,
+      }),
+    );
+  }
+
+  return Effect.void;
+};
+
+const validateTemplateAddon = ({
+  addon,
+}: {
+  addon: SimpleTemplateAddonInput;
+}) => {
+  if (!addon.title.trim()) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: 'Template add-on title is required',
+      }),
+    );
+  }
+
+  if (
+    !addon.allowPurchaseBeforeEvent &&
+    !addon.allowPurchaseDuringEvent &&
+    !addon.allowPurchaseDuringRegistration
+  ) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: 'Template add-on must allow at least one purchase window',
+      }),
+    );
+  }
+
+  if (addon.quantity > addon.totalAvailableQuantity) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: 'Template add-on registration quantity exceeds total quantity',
+      }),
+    );
+  }
+
+  if (
+    addon.maxQuantityPerUser >
+    Math.floor(addon.totalAvailableQuantity / addon.quantity)
+  ) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: 'Template add-on user quantity exceeds total quantity',
+      }),
+    );
+  }
+
+  return Effect.void;
+};
+
+const validateTemplateQuestion = ({
+  question,
+}: {
+  question: SimpleTemplateQuestionInput;
+}) => {
+  if (!question.title.trim()) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: 'Template question title is required',
       }),
     );
   }
@@ -350,8 +514,150 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
           kind: 'participant',
           registration: input.participantRegistration,
         });
+        for (const addon of input.addOns ?? []) {
+          yield* validateTemplateAddon({ addon });
+          const validation = yield* databaseEffect((database) =>
+            validateTaxRate(database, {
+              isPaid: addon.isPaid,
+              stripeTaxRateId: addon.stripeTaxRateId ?? null,
+              tenantId,
+            }),
+          );
+          if (!validation.success) {
+            yield* Effect.logError(
+              'template add-on tax rate validation failed',
+            ).pipe(
+              Effect.annotateLogs({
+                error: validation.error,
+              }),
+            );
+            return yield* Effect.fail(
+              new TemplateSimpleBadRequestError({
+                message: 'Template add-on tax rate validation failed',
+              }),
+            );
+          }
+        }
+        for (const question of input.questions ?? []) {
+          yield* validateTemplateQuestion({ question });
+        }
 
         return { sanitizedDescription };
+      });
+
+      const replaceTemplateAddons = Effect.fn(
+        'SimpleTemplateService.replaceTemplateAddons',
+      )(function* ({
+        addOns,
+        organizerRegistrationOptionId,
+        participantRegistrationOptionId,
+        templateId,
+      }: {
+        addOns: readonly SimpleTemplateAddonInput[];
+        organizerRegistrationOptionId: string;
+        participantRegistrationOptionId: string;
+        templateId: string;
+      }) {
+        const existingAddOns = yield* databaseEffect((database) =>
+          database.query.templateEventAddons.findMany({
+            columns: {
+              id: true,
+            },
+            where: {
+              templateId,
+            },
+          }),
+        );
+        const existingAddOnIds = existingAddOns.map((addon) => addon.id);
+        if (existingAddOnIds.length > 0) {
+          yield* databaseEffect((database) =>
+            database
+              .delete(addonToTemplateRegistrationOptions)
+              .where(
+                inArray(
+                  addonToTemplateRegistrationOptions.addonId,
+                  existingAddOnIds,
+                ),
+              ),
+          );
+          yield* databaseEffect((database) =>
+            database
+              .delete(templateEventAddons)
+              .where(inArray(templateEventAddons.id, existingAddOnIds)),
+          );
+        }
+
+        if (addOns.length === 0) {
+          return;
+        }
+
+        for (const addon of addOns) {
+          const insertedAddOns = yield* databaseEffect((database) =>
+            database
+              .insert(templateEventAddons)
+              .values(buildTemplateAddonInsert({ addon, templateId }))
+              .returning({
+                id: templateEventAddons.id,
+              }),
+          );
+          const insertedAddOn = insertedAddOns[0];
+          if (!insertedAddOn) {
+            return yield* Effect.fail(
+              new TemplateSimpleInternalError({
+                message: 'Template add-on insert failed',
+              }),
+            );
+          }
+
+          yield* databaseEffect((database) =>
+            database.insert(addonToTemplateRegistrationOptions).values(
+              buildTemplateAddonRegistrationOptionInsert({
+                addon,
+                addonId: insertedAddOn.id,
+                organizerRegistrationOptionId,
+                participantRegistrationOptionId,
+              }),
+            ),
+          );
+        }
+      });
+
+      const replaceTemplateQuestions = Effect.fn(
+        'SimpleTemplateService.replaceTemplateQuestions',
+      )(function* ({
+        organizerRegistrationOptionId,
+        participantRegistrationOptionId,
+        questions,
+        templateId,
+      }: {
+        organizerRegistrationOptionId: string;
+        participantRegistrationOptionId: string;
+        questions: readonly SimpleTemplateQuestionInput[];
+        templateId: string;
+      }) {
+        yield* databaseEffect((database) =>
+          database
+            .delete(templateRegistrationQuestions)
+            .where(eq(templateRegistrationQuestions.templateId, templateId)),
+        );
+
+        if (questions.length === 0) {
+          return;
+        }
+
+        yield* databaseEffect((database) =>
+          database.insert(templateRegistrationQuestions).values(
+            questions.map((question, index) =>
+              buildTemplateQuestionInsert({
+                organizerRegistrationOptionId,
+                participantRegistrationOptionId,
+                question,
+                sortOrder: index,
+                templateId,
+              }),
+            ),
+          ),
+        );
       });
 
       const createSimpleTemplate = Effect.fn(
@@ -433,6 +739,40 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
               .insert(templateRegistrationOptionDiscounts)
               .values(discountInserts),
           );
+        }
+        const organizerRegistrationOptionId = createdRegistrationOptions.find(
+          (option) => option.organizingRegistration,
+        )?.id;
+        const participantRegistrationOptionId = createdRegistrationOptions.find(
+          (option) => !option.organizingRegistration,
+        )?.id;
+        if (input.addOns) {
+          const optionIds = yield* requireSimpleTemplateRegistrationOptionIds({
+            organizerRegistrationOptionId,
+            participantRegistrationOptionId,
+          });
+          yield* replaceTemplateAddons({
+            addOns: input.addOns,
+            organizerRegistrationOptionId:
+              optionIds.organizerRegistrationOptionId,
+            participantRegistrationOptionId:
+              optionIds.participantRegistrationOptionId,
+            templateId: template.id,
+          });
+        }
+        if (input.questions) {
+          const optionIds = yield* requireSimpleTemplateRegistrationOptionIds({
+            organizerRegistrationOptionId,
+            participantRegistrationOptionId,
+          });
+          yield* replaceTemplateQuestions({
+            organizerRegistrationOptionId:
+              optionIds.organizerRegistrationOptionId,
+            participantRegistrationOptionId:
+              optionIds.participantRegistrationOptionId,
+            questions: input.questions,
+            templateId: template.id,
+          });
         }
 
         return { id: template.id };
@@ -595,6 +935,37 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
               .insert(templateRegistrationOptionDiscounts)
               .values(discountInsert),
           );
+        }
+        const organizerRegistrationOptionId = updatedOrganizerOptions[0]?.id;
+        const participantRegistrationOptionId =
+          updatedParticipantOptions[0]?.id;
+        if (input.addOns) {
+          const optionIds = yield* requireSimpleTemplateRegistrationOptionIds({
+            organizerRegistrationOptionId,
+            participantRegistrationOptionId,
+          });
+          yield* replaceTemplateAddons({
+            addOns: input.addOns,
+            organizerRegistrationOptionId:
+              optionIds.organizerRegistrationOptionId,
+            participantRegistrationOptionId:
+              optionIds.participantRegistrationOptionId,
+            templateId: template.id,
+          });
+        }
+        if (input.questions) {
+          const optionIds = yield* requireSimpleTemplateRegistrationOptionIds({
+            organizerRegistrationOptionId,
+            participantRegistrationOptionId,
+          });
+          yield* replaceTemplateQuestions({
+            organizerRegistrationOptionId:
+              optionIds.organizerRegistrationOptionId,
+            participantRegistrationOptionId:
+              optionIds.participantRegistrationOptionId,
+            questions: input.questions,
+            templateId: template.id,
+          });
         }
 
         return { id: template.id };

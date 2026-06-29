@@ -13,14 +13,12 @@ describe('registrationCancellationCopy', () => {
   it('describes pending payment cancellation as releasing the reserved spot', () => {
     expect(
       registrationCancellationCopy({
-        cancellationClosed: false,
         guestCount: 0,
         paymentPending: true,
         status: 'PENDING',
       }),
     ).toEqual({
       buttonLabel: 'Cancel registration',
-      canCancel: true,
       helperText:
         'This cancels the pending registration and releases the reserved spot. It does not complete a payment.',
     });
@@ -29,14 +27,12 @@ describe('registrationCancellationCopy', () => {
   it('describes guest cancellation as releasing every selected spot', () => {
     expect(
       registrationCancellationCopy({
-        cancellationClosed: false,
         guestCount: 2,
         paymentPending: true,
         status: 'PENDING',
       }),
     ).toEqual({
       buttonLabel: 'Cancel registration',
-      canCancel: true,
       helperText:
         'This cancels the pending registration and releases all selected spots. It does not complete a payment.',
     });
@@ -45,14 +41,12 @@ describe('registrationCancellationCopy', () => {
   it('describes confirmed cancellation without promising automatic refunds', () => {
     expect(
       registrationCancellationCopy({
-        cancellationClosed: false,
         guestCount: 0,
         paymentPending: false,
         status: 'CONFIRMED',
       }),
     ).toEqual({
       buttonLabel: 'Cancel registration',
-      canCancel: true,
       helperText:
         'This cancels your confirmed registration and releases your spot. Paid-registration refunds are not automatic yet.',
     });
@@ -61,46 +55,26 @@ describe('registrationCancellationCopy', () => {
   it('describes confirmed guest cancellation as releasing every selected spot', () => {
     expect(
       registrationCancellationCopy({
-        cancellationClosed: false,
         guestCount: 1,
         paymentPending: false,
         status: 'CONFIRMED',
       }),
     ).toEqual({
       buttonLabel: 'Cancel registration',
-      canCancel: true,
       helperText:
         'This cancels your confirmed registration and releases all selected spots. Paid-registration refunds are not automatic yet.',
     });
   });
 
-  it('describes closed confirmed cancellation before the button is clicked', () => {
+  it('exposes a leave-waitlist action for waitlisted registrations', () => {
     expect(
       registrationCancellationCopy({
-        cancellationClosed: true,
-        guestCount: 0,
-        paymentPending: false,
-        status: 'CONFIRMED',
-      }),
-    ).toEqual({
-      buttonLabel: 'Cancel registration',
-      canCancel: false,
-      helperText:
-        'Registration can no longer be cancelled because the event has already started.',
-    });
-  });
-
-  it('still allows waitlist cancellation after registration cancellation closes', () => {
-    expect(
-      registrationCancellationCopy({
-        cancellationClosed: true,
         guestCount: 0,
         paymentPending: false,
         status: 'WAITLIST',
       }),
     ).toEqual({
       buttonLabel: 'Leave waitlist',
-      canCancel: true,
       helperText:
         'This removes your waitlist registration and releases your waitlist position.',
     });
@@ -109,7 +83,6 @@ describe('registrationCancellationCopy', () => {
   it('does not expose cancellation copy for already-cancelled registrations', () => {
     expect(
       registrationCancellationCopy({
-        cancellationClosed: false,
         guestCount: 0,
         paymentPending: false,
         status: 'CANCELLED',

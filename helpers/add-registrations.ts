@@ -252,9 +252,6 @@ export async function addRegistrations(
 
       const selectedUsers: (typeof users)[number][] = [];
       for (const user of shuffledUsers) {
-        if (testerUserIds.has(user.id) && isPastEvent) {
-          continue;
-        }
         const limit = testerUserIds.has(user.id)
           ? MAX_REGISTRATIONS_PER_TEST_USER
           : MAX_REGISTRATIONS_PER_USER;

@@ -1,37 +1,8 @@
 import { usersToAuthenticate } from '../../../helpers/user-data';
 import { and, eq } from 'drizzle-orm';
-import { DEFAULT_E2E_NOW_ISO } from '../../../helpers/testing/deterministic-test-defaults';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
-
-const futureServerEventWindow = (): {
-  closeRegistrationTime: Date;
-  end: Date;
-  openRegistrationTime: Date;
-  start: Date;
-} => {
-  const serverNow = new Date(
-    process.env['E2E_NOW_ISO']?.trim() || DEFAULT_E2E_NOW_ISO,
-  );
-  if (Number.isNaN(serverNow.getTime())) {
-    throw new Error('Invalid E2E_NOW_ISO value for free registration test');
-  }
-  const wallNow = new Date();
-  const latestNow =
-    serverNow.getTime() > wallNow.getTime() ? serverNow : wallNow;
-  const earliestNow =
-    serverNow.getTime() < wallNow.getTime() ? serverNow : wallNow;
-  const start = new Date(latestNow.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-  return {
-    closeRegistrationTime: new Date(
-      latestNow.getTime() + 5 * 24 * 60 * 60 * 1000,
-    ),
-    end: new Date(start.getTime() + 2 * 60 * 60 * 1000),
-    openRegistrationTime: new Date(earliestNow.getTime() - 24 * 60 * 60 * 1000),
-    start,
-  };
-};
+import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 test.use({
   storageState: usersToAuthenticate.find((u) => u.roles === 'user')!.stateFile,
@@ -145,12 +116,8 @@ test('register for a free event as regular user', async ({
       .first()
       .waitFor({ state: 'detached' });
 
-    // Confirm a success state is rendered after the registration status refetch.
-    await expect(
-      page
-        .getByText(/You are registered|Your registration is confirmed/)
-        .first(),
-    ).toBeVisible({ timeout: 20_000 });
+    // Confirm success copy is rendered (seed sets registeredDescription: "You are registered")
+    await expect(page.getByText('You are registered')).toBeVisible();
 
     // Verify DB registration exists and counts updated
     const [registration] = await database

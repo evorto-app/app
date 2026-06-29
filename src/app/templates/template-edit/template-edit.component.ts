@@ -6,11 +6,11 @@ import {
   input,
   linkedSignal,
 } from '@angular/core';
-import { apply, form, schema, submit } from '@angular/forms/signals';
+import { apply, applyEach, form, schema, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowLeft, faPlus } from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
@@ -19,6 +19,13 @@ import {
 import consola from 'consola/browser';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { TemplateAddonFormComponent } from '../shared/template-form/template-addon-form.component';
+import { templateAddonFormSchema } from '../shared/template-form/template-addon-form.schema';
+import {
+  createTemplateAddonFormModel,
+  templateAddonRecordToFormModel,
+  toTemplateAddonSubmitData,
+} from '../shared/template-form/template-addon-form.utilities';
 import {
   mergeTemplateFormOverrides,
   TemplateFormData,
@@ -28,6 +35,13 @@ import {
 } from '../shared/template-form/template-form.utilities';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 import { templateGeneralFormSchema } from '../shared/template-form/template-general-form.schema';
+import { TemplateQuestionFormComponent } from '../shared/template-form/template-question-form.component';
+import { templateQuestionFormSchema } from '../shared/template-form/template-question-form.schema';
+import {
+  createTemplateQuestionFormModel,
+  templateQuestionRecordToFormModel,
+  toTemplateQuestionSubmitData,
+} from '../shared/template-form/template-question-form.utilities';
 import { TemplateRegistrationOptionFormComponent } from '../shared/template-form/template-registration-option-form.component';
 import { templateRegistrationOptionFormSchema } from '../shared/template-form/template-registration-option-form.schema';
 import {
@@ -37,8 +51,10 @@ import {
 
 const templateFormSchema = schema<TemplateFormData>((formPath) => {
   apply(formPath, templateGeneralFormSchema);
+  applyEach(formPath.addOns, templateAddonFormSchema);
   apply(formPath.organizerRegistration, templateRegistrationOptionFormSchema);
   apply(formPath.participantRegistration, templateRegistrationOptionFormSchema);
+  applyEach(formPath.questions, templateQuestionFormSchema);
 });
 const logger = consola.withTag('app/templates/edit');
 
@@ -48,7 +64,9 @@ const logger = consola.withTag('app/templates/edit');
     MatButtonModule,
     FontAwesomeModule,
     RouterLink,
+    TemplateAddonFormComponent,
     TemplateGeneralFormComponent,
+    TemplateQuestionFormComponent,
     TemplateRegistrationOptionFormComponent,
   ],
   selector: 'app-template-edit',
@@ -68,18 +86,33 @@ export class TemplateEditComponent {
   protected readonly simpleTemplateData = computed(() => {
     const templateData = this.templateQuery.data();
     if (!templateData) return templateData;
-    const organizerRegistration =
-      templateData.registrationOptions.find(
-        (option) => option.organizingRegistration,
-      ) ?? {};
-    const participantRegistration =
-      templateData.registrationOptions.find(
-        (option) => !option.organizingRegistration,
-      ) ?? {};
+    const organizerRegistration = templateData.registrationOptions.find(
+      (option) => option.organizingRegistration,
+    );
+    const participantRegistration = templateData.registrationOptions.find(
+      (option) => !option.organizingRegistration,
+    );
+    if (!organizerRegistration || !participantRegistration) {
+      throw new Error('Template is missing required registration options');
+    }
     return {
       ...templateData,
+      addOns: templateData.addOns.map((addOn) =>
+        templateAddonRecordToFormModel({
+          addOn,
+          organizerRegistrationOptionId: organizerRegistration?.id,
+          participantRegistrationOptionId: participantRegistration?.id,
+        }),
+      ),
       organizerRegistration,
       participantRegistration,
+      questions: templateData.questions.map((question) =>
+        templateQuestionRecordToFormModel({
+          organizerRegistrationOptionId: organizerRegistration?.id,
+          participantRegistrationOptionId: participantRegistration?.id,
+          question,
+        }),
+      ),
     };
   });
   private readonly templateModel = linkedSignal<
@@ -119,7 +152,7 @@ export class TemplateEditComponent {
     );
   });
   protected readonly faArrowLeft = faArrowLeft;
-
+  protected readonly faPlus = faPlus;
   protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
   private queryClient = inject(QueryClient);
   private router = inject(Router);
@@ -151,6 +184,9 @@ export class TemplateEditComponent {
       const id = this.templateId();
       const payload: TemplateFormSubmitData = {
         ...formValue,
+        addOns: formValue.addOns.map((addOn) =>
+          toTemplateAddonSubmitData(addOn),
+        ),
         icon: formValue.icon,
         organizerRegistration: toTemplateRegistrationSubmitData(
           formValue.organizerRegistration,
@@ -159,6 +195,9 @@ export class TemplateEditComponent {
         participantRegistration: toTemplateRegistrationSubmitData(
           formValue.participantRegistration,
           { esnEnabled: this.esnEnabled() },
+        ),
+        questions: formValue.questions.map((question) =>
+          toTemplateQuestionSubmitData(question),
         ),
       };
       await this.updateTemplateMutation.mutateAsync(
@@ -176,5 +215,35 @@ export class TemplateEditComponent {
         },
       );
     });
+  }
+
+  protected addTemplateAddOn() {
+    this.templateModel.update((model) => ({
+      ...model,
+      addOns: [...model.addOns, createTemplateAddonFormModel()],
+    }));
+  }
+
+  protected addTemplateQuestion() {
+    this.templateModel.update((model) => ({
+      ...model,
+      questions: [...model.questions, createTemplateQuestionFormModel()],
+    }));
+  }
+
+  protected removeTemplateAddOn(index: number) {
+    this.templateModel.update((model) => ({
+      ...model,
+      addOns: model.addOns.filter((_, addOnIndex) => addOnIndex !== index),
+    }));
+  }
+
+  protected removeTemplateQuestion(index: number) {
+    this.templateModel.update((model) => ({
+      ...model,
+      questions: model.questions.filter(
+        (_, questionIndex) => questionIndex !== index,
+      ),
+    }));
   }
 }

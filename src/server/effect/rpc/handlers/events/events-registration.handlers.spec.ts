@@ -838,67 +838,6 @@ describe('event registration cancellation handlers', () => {
         expect(database.transaction).toHaveBeenCalledOnce();
       }),
   );
-
-  it.effect(
-    'cancels waitlist registrations after the event cancellation cutoff',
-    () =>
-      Effect.gen(function* () {
-        const updateSets: unknown[] = [];
-        const tx = {
-          update: (table: unknown) => ({
-            set: (values: unknown) => {
-              updateSets.push(values);
-              return {
-                where: () => ({
-                  returning: () => {
-                    if (
-                      table === eventRegistrations ||
-                      table === eventRegistrationOptions
-                    ) {
-                      return Effect.succeed([{ id: 'updated' }]);
-                    }
-                    return Effect.succeed([]);
-                  },
-                }),
-              };
-            },
-          }),
-        };
-        const database = {
-          query: {
-            eventRegistrations: {
-              findFirst: () =>
-                Effect.succeed({
-                  checkedInGuestCount: 0,
-                  checkInTime: null,
-                  event: {
-                    start: new Date(Date.now() - 24 * 60 * 60 * 1000),
-                  },
-                  guestCount: 0,
-                  id: 'registration-1',
-                  registrationOptionId: 'option-1',
-                  status: 'WAITLIST',
-                  transactions: [],
-                }),
-            },
-          },
-          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
-            callback(tx),
-          ),
-        };
-
-        yield* eventRegistrationHandlers['events.cancelRegistration'](
-          { registrationId: 'registration-1' },
-          { headers: {} } as never,
-        ).pipe(Effect.provide(createContextLayer({ database })));
-
-        expect(updateSets).toEqual([
-          { status: 'CANCELLED' },
-          expect.objectContaining({ waitlistSpots: expect.anything() }),
-        ]);
-        expect(database.transaction).toHaveBeenCalledOnce();
-      }),
-  );
 });
 
 describe('event registration transfer handlers', () => {
@@ -1580,6 +1519,103 @@ describe('event registration scan handlers', () => {
         expect.objectContaining({ checkedInSpots: expect.anything() }),
       ]);
     }),
+  );
+
+  it.effect(
+    'rejects negative guest check-in counts before reading registration state',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: vi.fn(() =>
+                Effect.die(new Error('registration lookup should not run')),
+              ),
+            },
+          },
+          transaction: vi.fn(),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.checkInRegistration'
+        ]({ guestCheckInCount: -1, registrationId: 'registration-1' }, {
+          headers: {},
+        } as never).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Guest check-in count must be a non-negative integer',
+        );
+        expect(
+          database.query.eventRegistrations.findFirst,
+        ).not.toHaveBeenCalled();
+        expect(database.transaction).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'rejects guest check-in counts above remaining guests before writing',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 1,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 30 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 2,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  userId: 'attendee-1',
+                }),
+              findMany: () =>
+                Effect.succeed([
+                  {
+                    id: 'organizer-registration-1',
+                    registrationOption: {
+                      organizingRegistration: true,
+                    },
+                  },
+                ]),
+            },
+          },
+          transaction: vi.fn(),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.checkInRegistration'
+        ]({ guestCheckInCount: 2, registrationId: 'registration-1' }, {
+          headers: {},
+        } as never).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Guest check-in count exceeds remaining guests',
+        );
+        expect(database.transaction).not.toHaveBeenCalled();
+      }),
   );
 
   it.effect('rejects check-in before the pre-start window opens', () =>

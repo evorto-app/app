@@ -1,0 +1,101 @@
+@if (addOnForm(); as form) {
+  <div class="flex items-start gap-3">
+    <div class="grid grow gap-4">
+      <mat-form-field class="w-full">
+        <mat-label>Add-on name</mat-label>
+        <input matInput [formField]="form.title" />
+      </mat-form-field>
+
+      <mat-form-field class="w-full">
+        <mat-label>Description</mat-label>
+        <textarea matInput rows="2" [formField]="form.description"></textarea>
+      </mat-form-field>
+    </div>
+
+    <button
+      type="button"
+      mat-icon-button
+      aria-label="Remove add-on"
+      title="Remove add-on"
+      (click)="remove.emit()"
+    >
+      <fa-duotone-icon [icon]="faTrashCan" />
+    </button>
+  </div>
+
+  <section class="grid gap-3">
+    <mat-slide-toggle [formField]="form.isPaid"
+      >Enable payment</mat-slide-toggle
+    >
+
+    @if (!form.price().hidden()) {
+      <div class="grid gap-4 md:grid-cols-2">
+        <mat-form-field class="w-full">
+          <mat-label>Price (in cents)</mat-label>
+          <input matInput type="number" [formField]="form.price" />
+        </mat-form-field>
+
+        <mat-form-field class="w-full">
+          <mat-label>Tax rate</mat-label>
+          <mat-select [formField]="form.stripeTaxRateId">
+            @if (taxRateOptionsMessage(); as message) {
+              <mat-option disabled>{{ message }}</mat-option>
+            } @else {
+              @for (rate of taxRatesQuery.data(); track rate.id) {
+                <mat-option [value]="rate.stripeTaxRateId">
+                  {{ rate.displayName || rate.stripeTaxRateId }} —
+                  {{ rate.percentage ?? "?" }}%
+                </mat-option>
+              }
+            }
+          </mat-select>
+          <mat-hint>Inclusive tax; shown price is final</mat-hint>
+        </mat-form-field>
+      </div>
+    }
+  </section>
+
+  <section class="grid gap-4 md:grid-cols-3">
+    <mat-form-field class="w-full">
+      <mat-label>Attach to</mat-label>
+      <mat-select [formField]="form.registrationOptionKind">
+        <mat-option value="participant">Participant registration</mat-option>
+        <mat-option value="organizer">Organizer registration</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="w-full">
+      <mat-label>Included quantity</mat-label>
+      <input matInput type="number" [formField]="form.quantity" />
+    </mat-form-field>
+
+    <mat-form-field class="w-full">
+      <mat-label>Available quantity</mat-label>
+      <input matInput type="number" [formField]="form.totalAvailableQuantity" />
+    </mat-form-field>
+  </section>
+
+  <section class="grid gap-4 md:grid-cols-2">
+    <mat-form-field class="w-full">
+      <mat-label>Max per user</mat-label>
+      <input matInput type="number" [formField]="form.maxQuantityPerUser" />
+    </mat-form-field>
+
+    <div class="grid gap-2">
+      <span class="text-on-surface-variant text-sm">Purchase timing</span>
+      <mat-slide-toggle [formField]="form.allowPurchaseDuringRegistration">
+        During registration
+      </mat-slide-toggle>
+      <mat-slide-toggle [formField]="form.allowPurchaseBeforeEvent">
+        Before event
+      </mat-slide-toggle>
+      <mat-slide-toggle [formField]="form.allowPurchaseDuringEvent">
+        During event
+      </mat-slide-toggle>
+    </div>
+  </section>
+
+  <mat-slide-toggle [formField]="form.allowMultiple">
+    Allow multiple purchases per user
+  </mat-slide-toggle>
+}

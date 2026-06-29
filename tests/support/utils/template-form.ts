@@ -15,10 +15,7 @@ export const fillTemplateBasics = async (
   }: TemplateFormOptions,
 ) => {
   if (categoryTitle) {
-    const categorySelect = page
-      .locator('app-template-general-form')
-      .getByRole('combobox', { name: 'Template Category' });
-    await categorySelect.press('Enter');
+    await page.locator('app-template-general-form mat-select').first().click();
     await page.getByRole('option', { name: categoryTitle }).click();
   }
 

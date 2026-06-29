@@ -20,6 +20,33 @@ export interface ReceiptPreviewDialogData {
   previewUrl: string;
 }
 
+const trustedReceiptPreviewHost = (hostname: string): boolean =>
+  hostname === globalThis.location?.hostname ||
+  hostname === 'localhost' ||
+  hostname === '127.0.0.1' ||
+  hostname === '::1' ||
+  hostname.endsWith('.amazonaws.com') ||
+  hostname.endsWith('.r2.cloudflarestorage.com');
+
+export function isSafeReceiptPreviewUrl(
+  previewUrl: null | string,
+): previewUrl is string {
+  if (!previewUrl) {
+    return false;
+  }
+
+  try {
+    const baseUrl = globalThis.location?.origin ?? 'http://localhost';
+    const url = new URL(previewUrl, baseUrl);
+    return (
+      (url.protocol === 'https:' || url.protocol === 'http:') &&
+      trustedReceiptPreviewHost(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -35,12 +62,17 @@ export interface ReceiptPreviewDialogData {
 export class ReceiptPreviewDialogComponent {
   protected readonly data = inject(MAT_DIALOG_DATA) as ReceiptPreviewDialogData;
 
-  protected readonly isImage = computed(() =>
-    this.data.mimeType.startsWith('image/'),
+  protected readonly previewUrl = computed(() =>
+    isSafeReceiptPreviewUrl(this.data.previewUrl) ? this.data.previewUrl : null,
+  );
+
+  protected readonly isImage = computed(
+    () => Boolean(this.previewUrl()) && this.data.mimeType.startsWith('image/'),
   );
 
   protected readonly isPdf = computed(
-    () => this.data.mimeType === 'application/pdf',
+    () =>
+      Boolean(this.previewUrl()) && this.data.mimeType === 'application/pdf',
   );
 
   private readonly sanitizer = inject(DomSanitizer);
@@ -50,9 +82,11 @@ export class ReceiptPreviewDialogComponent {
       if (!this.isPdf()) {
         return null;
       }
-      return this.sanitizer.bypassSecurityTrustResourceUrl(
-        this.data.previewUrl,
-      );
+      const previewUrl = this.previewUrl();
+      if (!previewUrl) {
+        return null;
+      }
+      return this.sanitizer.bypassSecurityTrustResourceUrl(previewUrl);
     },
   );
 }

@@ -1,34 +1,104 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
+import type { Page } from '@playwright/test';
 
+import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { fillTestCard } from '../../support/utils/fill-test-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import {
+  seedFreeRegistrationAddon,
+  seedRequiredRegistrationQuestion,
+} from '../../support/utils/seed-registration-addons';
+import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
-test.skip(
-  true,
-  'Event registration docs are completed by a later stacked slice.',
-);
+const waitForRegistrationStatus = async (page: Page) => {
+  await page
+    .getByText('Loading registration status')
+    .first()
+    .waitFor({ state: 'detached' });
+};
+
+const requireUserFixture = (
+  predicate: (user: (typeof usersToAuthenticate)[number]) => boolean,
+  description: string,
+) => {
+  const user = usersToAuthenticate.find(predicate);
+  if (!user) {
+    throw new Error(`Expected ${description} user fixture`);
+  }
+
+  return user;
+};
 
 test.describe('Register for events', () => {
-  test.describe.configure({ retries: 1 });
+  test.describe.configure({ mode: 'serial', retries: 1 });
 
   test('Register for a free event', async ({
+    database,
     events,
     page,
     seeded,
+    tenant,
   }, testInfo) => {
     test.slow();
     const freeEventId = seeded.scenario.events.freeOpen.eventId;
+    const freeOptionId = seeded.scenario.events.freeOpen.optionId;
     const freeEvent = events.find((event) => event.id === freeEventId);
     if (!freeEvent) {
       throw new Error(
         `Seeded freeOpen scenario event "${freeEventId}" was not found`,
       );
     }
+    const regularUser = requireUserFixture(
+      (user) => user.roles === 'user',
+      'regular',
+    );
+    const addOnId = `addon-${getId().slice(0, 14)}`;
+    const serverEventWindow = futureServerEventWindow();
+
+    await database
+      .delete(schema.eventRegistrations)
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, freeEventId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.eventRegistrations.userId, regularUser.id),
+        ),
+      );
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        closeRegistrationTime: serverEventWindow.closeRegistrationTime,
+        confirmedSpots: 0,
+        openRegistrationTime: serverEventWindow.openRegistrationTime,
+        reservedSpots: 0,
+        waitlistSpots: 0,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, freeOptionId));
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
+      })
+      .where(eq(schema.eventInstances.id, freeEventId));
+    await seedFreeRegistrationAddon({
+      addonId: addOnId,
+      database,
+      eventId: freeEventId,
+      registrationOptionId: freeOptionId,
+      title: 'Snack voucher',
+    });
+    const registrationQuestion = await seedRequiredRegistrationQuestion({
+      database,
+      eventId: freeEventId,
+      registrationOptionId: freeOptionId,
+      title: 'Anything organizers should know?',
+    });
 
     const freeEventHref = `/events/${freeEvent.id}`;
     const freeEventLink = page.locator(`a[href="${freeEventHref}"]`).first();
@@ -45,10 +115,7 @@ test.describe('Register for events', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: freeEvent.title }),
     ).toBeVisible();
-    await page
-      .getByText('Loading registration status')
-      .first()
-      .waitFor({ state: 'detached' });
+    await waitForRegistrationStatus(page);
     await testInfo.attach('markdown', {
       body: `
   After you have selected your event, you can see the event description and your options for registration.
@@ -67,24 +134,62 @@ test.describe('Register for events', () => {
     );
     await testInfo.attach('markdown', {
       body: `
-  After selecting a free event, all left to do is press the **Register** button for the option you chose. After that, you will see your confirmation, ticket QR code, cancellation action, and an unpaid transfer action when the registration is still eligible for self-service transfer.`,
+  Free registration cards can also offer registration-time add-ons and required questions. Choose the quantity you want, answer any required questions, and then register. After registration, selected add-ons are shown with the active registration so participants can review what they picked. Question answers are stored with the registration for organizers.`,
     });
     const participantRegistrationCard = page
       .locator('app-event-registration-option')
       .filter({ hasText: 'Participant registration' })
       .first();
     await expect(participantRegistrationCard).toBeVisible({ timeout: 20_000 });
+    await expect(
+      participantRegistrationCard.getByText('Snack voucher'),
+    ).toBeVisible();
+    await expect(
+      participantRegistrationCard.getByLabel(registrationQuestion.title),
+    ).toBeVisible();
+    await expect(
+      participantRegistrationCard.getByRole('button', { name: 'Register' }),
+    ).toBeDisabled();
+    await participantRegistrationCard.getByLabel('Quantity').fill('2');
+    await participantRegistrationCard
+      .getByLabel(registrationQuestion.title)
+      .fill('Vegetarian snack, please.');
     await participantRegistrationCard
       .getByRole('button', { name: 'Register' })
       .click();
     await expect(page.getByText('You are registered')).toBeVisible();
+    await expect(page.getByText('2 x Snack voucher')).toBeVisible();
+
+    const registration = await database.query.eventRegistrations.findFirst({
+      where: {
+        eventId: freeEventId,
+        registrationOptionId: freeOptionId,
+        status: 'CONFIRMED',
+        tenantId: tenant.id,
+        userId: regularUser.id,
+      },
+      with: {
+        questionAnswers: true,
+      },
+    });
+    if (!registration) {
+      throw new Error(
+        'Expected registration docs flow to persist the confirmed registration',
+      );
+    }
+    expect(registration.questionAnswers).toEqual([
+      expect.objectContaining({
+        answer: 'Vegetarian snack, please.',
+        questionId: registrationQuestion.questionId,
+      }),
+    ]);
 
     await testInfo.attach('markdown', {
       body: `
   ### Successful registration
   You should now have a successful registration.
   You can see this by additional information being available and also your ticket QR code.
-  Participant registrations can include guests. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity.
+  Participant registrations can include guests, registration-time add-ons, and registration-question answers. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
   This code is needed when attending the event. Keep this page available because QR email delivery is not part of the current relaunch flow.
   You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached, but paid-registration refunds are not automatic yet.`,
     });
@@ -95,6 +200,367 @@ test.describe('Register for events', () => {
       page,
       'Event details after registration',
     );
+  });
+
+  test('Review unavailable registration states', async ({
+    database,
+    page,
+    seeded,
+    tenant,
+  }, testInfo) => {
+    const regularUser = requireUserFixture(
+      (user) => user.roles === 'user',
+      'regular',
+    );
+    const closedEventId = seeded.scenario.events.closedReg.eventId;
+    const fullEventId = seeded.scenario.events.freeOpen.eventId;
+    const fullOptionId = seeded.scenario.events.freeOpen.optionId;
+    const serverEventWindow = futureServerEventWindow();
+    const fullOption = await database.query.eventRegistrationOptions.findFirst({
+      where: { eventId: fullEventId, id: fullOptionId },
+    });
+    if (!regularUser || !fullOption) {
+      throw new Error(
+        'Expected regular user and seeded free registration option',
+      );
+    }
+
+    await testInfo.attach('markdown', {
+      body: `
+  ## Registration unavailable states
+
+  Event pages stay readable when registration is not currently possible. The registration card explains the current state instead of showing an action that cannot succeed.
+`,
+    });
+
+    await database
+      .delete(schema.eventRegistrations)
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, closedEventId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.eventRegistrations.userId, regularUser.id),
+        ),
+      );
+    await page.goto(`/events/${closedEventId}`);
+    await waitForRegistrationStatus(page);
+    await expect(page.getByText('Registration is closed')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Register$/ })).toHaveCount(
+      0,
+    );
+    await takeScreenshot(
+      testInfo,
+      page.locator('section').filter({ hasText: 'Registration' }),
+      page,
+      'Closed registration window',
+    );
+
+    await testInfo.attach('markdown', {
+      body: `
+  When the registration window is closed, participants can still read the event details, but the registration action is removed.
+`,
+    });
+
+    await database
+      .delete(schema.eventRegistrations)
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, fullEventId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          eq(schema.eventRegistrations.userId, regularUser.id),
+        ),
+      );
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        closeRegistrationTime: serverEventWindow.closeRegistrationTime,
+        confirmedSpots: fullOption.spots,
+        openRegistrationTime: serverEventWindow.openRegistrationTime,
+        reservedSpots: 0,
+        waitlistSpots: 0,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, fullOptionId));
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
+      })
+      .where(eq(schema.eventInstances.id, fullEventId));
+    const waitlistQuestion = await seedRequiredRegistrationQuestion({
+      database,
+      eventId: fullEventId,
+      registrationOptionId: fullOptionId,
+      title: 'Anything organizers should know?',
+    });
+    await page.goto(`/events/${fullEventId}`);
+    await waitForRegistrationStatus(page);
+    await expect(page.getByText('This option is full.')).toBeVisible();
+    const waitlistButton = page.getByRole('button', { name: 'Join waitlist' });
+    await expect(waitlistButton).toBeVisible();
+    await expect(page.getByLabel(waitlistQuestion.title)).toBeVisible();
+    await expect(waitlistButton).toBeDisabled();
+    await page
+      .getByLabel(waitlistQuestion.title)
+      .fill('Please tell me if a spot opens.');
+    await expect(waitlistButton).toBeEnabled();
+    await expect(page.getByRole('button', { name: /^Register$/ })).toHaveCount(
+      0,
+    );
+    await takeScreenshot(
+      testInfo,
+      page.locator('section').filter({ hasText: 'Registration' }),
+      page,
+      'Full registration option with waitlist',
+    );
+    await waitlistButton.click();
+    await expect(
+      page.getByText('You are currently on the waitlist'),
+    ).toBeVisible();
+    const waitlistRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          eventId: fullEventId,
+          registrationOptionId: fullOptionId,
+          status: 'WAITLIST',
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        },
+        with: {
+          questionAnswers: true,
+        },
+      });
+    if (!waitlistRegistration) {
+      throw new Error(
+        'Expected registration docs waitlist flow to persist the waitlist registration',
+      );
+    }
+    expect(waitlistRegistration.questionAnswers).toEqual([
+      expect.objectContaining({
+        answer: 'Please tell me if a spot opens.',
+        questionId: waitlistQuestion.questionId,
+      }),
+    ]);
+    await page.getByRole('button', { name: 'Leave waitlist' }).click();
+    await expect(page.getByText('This option is full.')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Join waitlist' }),
+    ).toBeVisible();
+
+    const cancelledWaitlistRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: waitlistRegistration.id,
+          status: 'CANCELLED',
+          tenantId: tenant.id,
+        },
+      });
+    if (!cancelledWaitlistRegistration) {
+      throw new Error(
+        'Expected registration docs waitlist leave action to cancel the waitlist registration',
+      );
+    }
+    const fullOptionAfterLeaving =
+      await database.query.eventRegistrationOptions.findFirst({
+        where: { eventId: fullEventId, id: fullOptionId },
+      });
+    if (!fullOptionAfterLeaving) {
+      throw new Error(
+        'Expected seeded full option after registration docs waitlist leave action',
+      );
+    }
+    expect(fullOptionAfterLeaving.waitlistSpots).toBe(0);
+
+    await testInfo.attach('markdown', {
+      body: `
+  Full participant options expose a distinct **Join waitlist** action. If that option asks required registration questions, participants must answer them before joining the waitlist. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full. Participants can leave the waitlist before the event starts, which cancels the waitlist registration and releases the waitlist position.
+`,
+    });
+  });
+
+  test('Transfer an unpaid registration', async ({
+    database,
+    page,
+    seeded,
+    tenant,
+  }, testInfo) => {
+    const regularUser = usersToAuthenticate.find(
+      (user) => user.stateFile === userStateFile,
+    );
+    const targetUser = usersToAuthenticate.find(
+      (user) => user.email === 'organizer@evorto.app',
+    );
+    if (!regularUser || !targetUser) {
+      throw new Error('Expected regular and organizer user fixtures');
+    }
+
+    const freeEventId = seeded.scenario.events.freeOpen.eventId;
+    const freeOptionId = seeded.scenario.events.freeOpen.optionId;
+    const registrationId = getId();
+    const serverEventWindow = futureServerEventWindow();
+
+    await database
+      .update(schema.eventRegistrations)
+      .set({ status: 'CANCELLED' })
+      .where(
+        and(
+          eq(schema.eventRegistrations.eventId, freeEventId),
+          eq(schema.eventRegistrations.tenantId, tenant.id),
+          inArray(schema.eventRegistrations.userId, [
+            regularUser.id,
+            targetUser.id,
+          ]),
+        ),
+      );
+    await database.insert(schema.eventRegistrations).values({
+      eventId: freeEventId,
+      id: registrationId,
+      registrationOptionId: freeOptionId,
+      status: 'CONFIRMED',
+      tenantId: tenant.id,
+      userId: regularUser.id,
+    });
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
+      })
+      .where(eq(schema.eventInstances.id, freeEventId));
+
+    await page.goto(`/events/${freeEventId}`);
+    await waitForRegistrationStatus(page);
+    await expect(page.getByText('You are registered')).toBeVisible();
+
+    await testInfo.attach('markdown', {
+      body: `
+  ## Transfer an unpaid registration
+
+  Confirmed unpaid registrations can be transferred from the event page before check-in and before the event starts. The target account must already exist in the tenant and be eligible for the same registration option.
+
+  Paid registration transfer and resale are not automatic yet. Those flows remain blocked until the money-movement path is implemented.`,
+    });
+    await takeScreenshot(
+      testInfo,
+      page.locator('section').filter({ hasText: 'Registration' }),
+      page,
+      'Transferable unpaid registration',
+    );
+
+    await page.getByRole('button', { name: 'Transfer registration' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Transfer registration' });
+    await expect(dialog).toBeVisible();
+    await dialog
+      .getByLabel('New participant email')
+      .fill(` ${targetUser.email} `);
+    await takeScreenshot(
+      testInfo,
+      dialog,
+      page,
+      'Transfer registration dialog',
+    );
+    await dialog.getByRole('button', { name: 'Transfer registration' }).click();
+    await expect(dialog).not.toBeVisible();
+
+    await expect
+      .poll(async () => {
+        const transferredRegistration =
+          await database.query.eventRegistrations.findFirst({
+            where: {
+              id: registrationId,
+              tenantId: tenant.id,
+            },
+          });
+        return transferredRegistration?.userId;
+      })
+      .toBe(targetUser.id);
+
+    await testInfo.attach('markdown', {
+      body: `
+  After transfer, the registration belongs to the target tenant member. The original participant no longer sees it as their active registration.`,
+    });
+  });
+
+  test.describe('without eligible roles', () => {
+    test.use({ storageState: userStateFile });
+
+    test('Review role-ineligible registration state', async ({
+      database,
+      page,
+      roles,
+      seeded,
+      tenant,
+    }, testInfo) => {
+      const regularUser = requireUserFixture(
+        (user) => user.roles === 'user',
+        'regular',
+      );
+      const organizerRoleIds = roles
+        .filter((role) => role.defaultOrganizerRole)
+        .map((role) => role.id);
+      if (organizerRoleIds.length === 0) {
+        throw new Error('Expected seeded organizer-only role');
+      }
+
+      const eventId = seeded.scenario.events.freeOpen.eventId;
+      const optionId = seeded.scenario.events.freeOpen.optionId;
+      const option = await database.query.eventRegistrationOptions.findFirst({
+        where: { eventId, id: optionId },
+      });
+      if (!option) {
+        throw new Error(
+          'Expected seeded free registration option for role-ineligible docs state',
+        );
+      }
+
+      try {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, eventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({ roleIds: organizerRoleIds })
+          .where(eq(schema.eventRegistrationOptions.id, optionId));
+
+        await page.goto(`/events/${eventId}`);
+        await waitForRegistrationStatus(page);
+
+        await expect(
+          page.getByRole('heading', { name: 'Registration unavailable' }),
+        ).toBeVisible();
+        await expect(
+          page.getByText(
+            'This event is visible from the direct link, but your account is not eligible for the available registration options.',
+          ),
+        ).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: /^Register$/ }),
+        ).toHaveCount(0);
+        await takeScreenshot(
+          testInfo,
+          page.locator('section').filter({ hasText: 'Registration' }),
+          page,
+          'Role-ineligible registration state',
+        );
+
+        await testInfo.attach('markdown', {
+          body: `
+  Direct event links remain readable for signed-in users without eligible tenant roles. The registration area states that the current account is not eligible instead of hiding the event or rendering an empty registration section.
+`,
+        });
+      } finally {
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({ roleIds: option.roleIds })
+          .where(eq(schema.eventRegistrationOptions.id, optionId));
+      }
+    });
   });
 
   test('Register for a paid event', async ({
@@ -113,12 +579,20 @@ test.describe('Register for events', () => {
         `Seeded paidOpen scenario event "${paidEventId}" was not found`,
       );
     }
-    const regularUserId =
-      usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
-      usersToAuthenticate[0].id;
-    if (!regularUserId) {
+    const regularUserId = requireUserFixture(
+      (user) => user.roles === 'user',
+      'regular',
+    ).id;
+    const serverEventWindow = futureServerEventWindow();
+    const paidOption = await database.query.eventRegistrationOptions.findFirst({
+      where: {
+        eventId: paidEventId,
+        id: paidOptionId,
+      },
+    });
+    if (!paidOption?.isPaid) {
       throw new Error(
-        'Regular user configuration missing for paid registration',
+        'Expected seeded paidOpen registration option to exist and be paid',
       );
     }
 
@@ -146,11 +620,20 @@ test.describe('Register for events', () => {
     await database
       .update(schema.eventRegistrationOptions)
       .set({
+        closeRegistrationTime: serverEventWindow.closeRegistrationTime,
         confirmedSpots: 0,
+        openRegistrationTime: serverEventWindow.openRegistrationTime,
         reservedSpots: 0,
         waitlistSpots: 0,
       })
       .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: serverEventWindow.end,
+        start: serverEventWindow.start,
+      })
+      .where(eq(schema.eventInstances.id, paidEventId));
 
     await page.goto('.');
     await testInfo.attach('markdown', {
@@ -159,10 +642,7 @@ test.describe('Register for events', () => {
     });
     await page.goto(`/events/${paidEvent.id}`);
     await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
-    await page
-      .getByText('Loading registration status')
-      .first()
-      .waitFor({ state: 'detached' });
+    await waitForRegistrationStatus(page);
     await takeScreenshot(
       testInfo,
       page.getByRole('heading', { level: 2, name: 'Registration' }),

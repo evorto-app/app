@@ -36,15 +36,14 @@ Tenant admins can manage the settings that are currently implemented for the act
 
 The current general settings page supports:
 
-- A **Deferred settings** summary that makes domain onboarding, brand asset upload, legal text page, and operational policy gaps visible in the app instead of hiding them in docs only.
+- A **Deferred settings** summary that makes custom-domain automation, email sender, review policy, registration limit, and Stripe account management gaps visible in the app instead of hiding them in docs only.
 - A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state.
 - **Default Location** for event location search bias.
 - **Site theme** for the tenant theme.
 - **Currency**, **Locale**, and **Timezone** selection within the supported relaunch policy.
 - **Logo URL** and **Favicon URL** for tenant brand assets. Admins can upload PNG, JPEG, WebP, or GIF logos; favicons also support ICO files. Externally hosted URLs are still supported. The configured favicon updates the browser tab icon.
 - **SEO title** and **SEO description** for tenant-level page metadata.
-- **Legal pages** for tenant imprint/legal notice, privacy policy, and terms. Admins can use external URLs or hosted text. External URLs appear in the public footer as off-site links.
-  Hosted text appears at /legal/imprint, /legal/privacy, and /legal/terms.
+- **Legal pages** for tenant imprint/legal notice, privacy policy, and terms. Admins can use external URLs or hosted text. External URLs appear in the public footer as off-site links; hosted text appears at \`/legal/imprint\`, \`/legal/privacy\`, and \`/legal/terms\`.
 - **Allowed receipt countries** and **Allow other** for receipt submission.
 - **ESN Card discounts** and optional **Buy ESNcard URL** when the tenant uses ESNcard validation.
 

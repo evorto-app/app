@@ -40,6 +40,14 @@ export const normalizeTemplateFindOneRecord = (
     id: string;
     location: typeof eventTemplates.$inferSelect.location;
     planningTips: null | string;
+    questions: readonly {
+      description: null | string;
+      id: string;
+      registrationOptionId: string;
+      required: boolean;
+      sortOrder: number;
+      title: string;
+    }[];
     registrationOptions: readonly {
       closeRegistrationOffset: number;
       description: null | string;
@@ -91,6 +99,14 @@ export const normalizeTemplateFindOneRecord = (
   id: string;
   location: null | typeof eventTemplates.$inferSelect.location;
   planningTips: null | string;
+  questions: {
+    description: null | string;
+    id: string;
+    registrationOptionId: string;
+    required: boolean;
+    sortOrder: number;
+    title: string;
+  }[];
   registrationOptions: {
     closeRegistrationOffset: number;
     description: null | string;
@@ -131,6 +147,14 @@ export const normalizeTemplateFindOneRecord = (
   id: template.id,
   location: template.location ?? null,
   planningTips: template.planningTips?.trim() || null,
+  questions: template.questions.map((question) => ({
+    description: question.description ?? null,
+    id: question.id,
+    registrationOptionId: question.registrationOptionId,
+    required: question.required,
+    sortOrder: question.sortOrder,
+    title: question.title,
+  })),
   registrationOptions: template.registrationOptions.map((option) => ({
     closeRegistrationOffset: option.closeRegistrationOffset,
     description: option.description ?? null,
@@ -186,6 +210,17 @@ export const templateHandlers = {
             tenantId: tenant.id,
           },
           with: {
+            questions: {
+              columns: {
+                description: true,
+                id: true,
+                registrationOptionId: true,
+                required: true,
+                sortOrder: true,
+                title: true,
+              },
+              orderBy: { sortOrder: 'asc' },
+            },
             registrationOptions: {
               columns: {
                 closeRegistrationOffset: true,

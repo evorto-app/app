@@ -5,21 +5,48 @@ const readSource = (path: string) =>
   readFileSync(new URL(path, import.meta.url), 'utf8');
 
 describe('template event add-on schema', () => {
-  it('keeps add-ons scoped to templates until event add-on fulfillment exists', () => {
+  it('exposes template add-ons and copied event add-on storage', () => {
+    const addonPurchaseSource = readSource(
+      'event-registration-addon-purchases.ts',
+    );
     const schemaIndexSource = readSource('index.ts');
+    const eventAddonSource = readSource('event-addons.ts');
     const templateAddonSource = readSource('template-event-addons.ts');
 
     expect(schemaIndexSource).toContain(
       "export * from './template-event-addons'",
     );
+    expect(schemaIndexSource).toContain("export * from './event-addons'");
+    expect(schemaIndexSource).toContain(
+      "export * from './event-registration-addon-purchases'",
+    );
     expect(templateAddonSource).toContain("pgTable('template_event_addons'");
-    expect(schemaIndexSource).not.toContain("export * from './event-addons'");
+    expect(eventAddonSource).toContain("pgTable('event_addons'");
+    expect(eventAddonSource).toContain("'addon_to_event_registration_options'");
+    expect(addonPurchaseSource).toContain(
+      "'event_registration_addon_purchases'",
+    );
   });
 
-  it('does not expose registration-question schemas yet', () => {
+  it('exposes template and event registration-question storage', () => {
+    const answerSource = readSource('event-registration-question-answers.ts');
     const schemaIndexSource = readSource('index.ts');
+    const eventQuestionSource = readSource('event-registration-questions.ts');
+    const questionSource = readSource('template-registration-questions.ts');
 
-    expect(schemaIndexSource).not.toContain('registration-question');
-    expect(schemaIndexSource).not.toContain('registration-questions');
+    expect(schemaIndexSource).toContain(
+      "export * from './template-registration-questions'",
+    );
+    expect(schemaIndexSource).toContain(
+      "export * from './event-registration-questions'",
+    );
+    expect(schemaIndexSource).toContain(
+      "export * from './event-registration-question-answers'",
+    );
+    expect(questionSource).toContain("'template_registration_questions'");
+    expect(eventQuestionSource).toContain("'event_registration_questions'");
+    expect(eventQuestionSource).toContain('sourceTemplateQuestionId');
+    expect(answerSource).toContain("'event_registration_question_answers'");
+    expect(answerSource).toContain('uniqueRegistrationQuestionAnswer');
   });
 });

@@ -4,6 +4,9 @@ import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  eventAddonPurchaseTiming,
+  eventAddonsForRegistrationOption,
+  eventRegistrationOptionTitle,
   eventReviewActionDisabled,
   eventSubmitForReviewActionDisabled,
   registrationOptionsState,
@@ -111,6 +114,83 @@ describe('eventSubmitForReviewActionDisabled', () => {
         status: 'PENDING_REVIEW',
       }),
     ).toBe(true);
+  });
+});
+
+describe('eventAddonPurchaseTiming', () => {
+  it('lists every enabled add-on purchase window in display order', () => {
+    expect(
+      eventAddonPurchaseTiming({
+        allowPurchaseBeforeEvent: true,
+        allowPurchaseDuringEvent: true,
+        allowPurchaseDuringRegistration: true,
+      }),
+    ).toBe('During registration, Before event, During event');
+  });
+
+  it('marks add-ons without purchase windows as unavailable', () => {
+    expect(
+      eventAddonPurchaseTiming({
+        allowPurchaseBeforeEvent: false,
+        allowPurchaseDuringEvent: false,
+        allowPurchaseDuringRegistration: false,
+      }),
+    ).toBe('Unavailable');
+  });
+});
+
+describe('eventRegistrationOptionTitle', () => {
+  it('resolves event-scoped add-on registration option labels', () => {
+    expect(
+      eventRegistrationOptionTitle(
+        {
+          registrationOptions: [
+            {
+              id: 'option-1',
+              title: 'Participant',
+            },
+          ],
+        },
+        'option-1',
+      ),
+    ).toBe('Participant');
+  });
+
+  it('keeps copied add-ons readable when an option is no longer visible', () => {
+    expect(
+      eventRegistrationOptionTitle(
+        {
+          registrationOptions: [],
+        },
+        'option-1',
+      ),
+    ).toBe('Unknown registration option');
+  });
+});
+
+describe('eventAddonsForRegistrationOption', () => {
+  it('returns registration-time add-ons attached to the selected option', () => {
+    expect(
+      eventAddonsForRegistrationOption(
+        {
+          addOns: [
+            {
+              allowPurchaseDuringRegistration: true,
+              registrationOptions: [{ registrationOptionId: 'option-1' }],
+            },
+            {
+              allowPurchaseDuringRegistration: false,
+              registrationOptions: [{ registrationOptionId: 'option-1' }],
+            },
+            {
+              allowPurchaseDuringRegistration: true,
+              registrationOptions: [{ registrationOptionId: 'option-2' }],
+            },
+          ],
+        },
+        'option-1',
+      ),
+    ).toHaveLength(1);
   });
 });
 

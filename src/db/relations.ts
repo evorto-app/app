@@ -3,7 +3,22 @@ import { defineRelations } from 'drizzle-orm';
 import * as schema from './schema';
 
 export const relations = defineRelations(schema, (r) => ({
+  eventAddons: {
+    event: r.one.eventInstances({
+      from: r.eventAddons.eventId,
+      optional: false,
+      to: r.eventInstances.id,
+    }),
+    purchases: r.many.eventRegistrationAddonPurchases(),
+    registrationOptions: r.many.eventRegistrationOptions({
+      from: r.eventAddons.id.through(r.addonToEventRegistrationOptions.addonId),
+      to: r.eventRegistrationOptions.id.through(
+        r.addonToEventRegistrationOptions.registrationOptionId,
+      ),
+    }),
+  },
   eventInstances: {
+    addons: r.many.eventAddons(),
     creator: r.one.users({
       alias: 'eventInstances_creatorId_users_id',
       from: r.eventInstances.creatorId,
@@ -11,6 +26,7 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.users.id,
     }),
     financeReceipts: r.many.financeReceipts(),
+    questions: r.many.eventRegistrationQuestions(),
     registrationOptions: r.many.eventRegistrationOptions(),
     registrations: r.many.eventRegistrations(),
     reviewer: r.one.users({
@@ -30,20 +46,70 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     transactions: r.many.transactions(),
   },
+  eventRegistrationAddonPurchases: {
+    addOn: r.one.eventAddons({
+      from: r.eventRegistrationAddonPurchases.addonId,
+      optional: false,
+      to: r.eventAddons.id,
+    }),
+    registration: r.one.eventRegistrations({
+      from: r.eventRegistrationAddonPurchases.registrationId,
+      optional: false,
+      to: r.eventRegistrations.id,
+    }),
+  },
   eventRegistrationOptions: {
     event: r.one.eventInstances({
       from: r.eventRegistrationOptions.eventId,
       optional: false,
       to: r.eventInstances.id,
     }),
+    eventAddons: r.many.eventAddons({
+      from: r.eventRegistrationOptions.id.through(
+        r.addonToEventRegistrationOptions.registrationOptionId,
+      ),
+      to: r.eventAddons.id.through(r.addonToEventRegistrationOptions.addonId),
+    }),
     eventRegistrations: r.many.eventRegistrations(),
+    questions: r.many.eventRegistrationQuestions(),
+  },
+  eventRegistrationQuestionAnswers: {
+    question: r.one.eventRegistrationQuestions({
+      from: r.eventRegistrationQuestionAnswers.questionId,
+      optional: false,
+      to: r.eventRegistrationQuestions.id,
+    }),
+    registration: r.one.eventRegistrations({
+      from: r.eventRegistrationQuestionAnswers.registrationId,
+      optional: false,
+      to: r.eventRegistrations.id,
+    }),
+  },
+  eventRegistrationQuestions: {
+    answers: r.many.eventRegistrationQuestionAnswers(),
+    event: r.one.eventInstances({
+      from: r.eventRegistrationQuestions.eventId,
+      optional: false,
+      to: r.eventInstances.id,
+    }),
+    registrationOption: r.one.eventRegistrationOptions({
+      from: r.eventRegistrationQuestions.registrationOptionId,
+      optional: false,
+      to: r.eventRegistrationOptions.id,
+    }),
+    sourceTemplateQuestion: r.one.templateRegistrationQuestions({
+      from: r.eventRegistrationQuestions.sourceTemplateQuestionId,
+      to: r.templateRegistrationQuestions.id,
+    }),
   },
   eventRegistrations: {
+    addonPurchases: r.many.eventRegistrationAddonPurchases(),
     event: r.one.eventInstances({
       from: r.eventRegistrations.eventId,
       optional: false,
       to: r.eventInstances.id,
     }),
+    questionAnswers: r.many.eventRegistrationQuestionAnswers(),
     registrationOption: r.one.eventRegistrationOptions({
       from: r.eventRegistrations.registrationOptionId,
       optional: false,
@@ -76,6 +142,7 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.eventTemplateCategories.id,
     }),
     eventInstances: r.many.eventInstances(),
+    questions: r.many.templateRegistrationQuestions(),
     registrationOptions: r.many.templateRegistrationOptions(),
     templateEventAddons: r.many.templateEventAddons(),
   },
@@ -163,7 +230,20 @@ export const relations = defineRelations(schema, (r) => ({
       optional: false,
       to: r.eventTemplates.id,
     }),
+    questions: r.many.templateRegistrationQuestions(),
     templateEventAddons: r.many.templateEventAddons(),
+  },
+  templateRegistrationQuestions: {
+    registrationOption: r.one.templateRegistrationOptions({
+      from: r.templateRegistrationQuestions.registrationOptionId,
+      optional: false,
+      to: r.templateRegistrationOptions.id,
+    }),
+    template: r.one.eventTemplates({
+      from: r.templateRegistrationQuestions.templateId,
+      optional: false,
+      to: r.eventTemplates.id,
+    }),
   },
   tenants: {
     eventRegistrations: r.many.eventRegistrations(),

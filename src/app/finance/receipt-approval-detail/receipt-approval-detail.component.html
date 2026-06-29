@@ -17,10 +17,10 @@
     <div class="grid gap-3 xl:grid-cols-2">
       <section class="bg-surface text-on-surface rounded-2xl p-4">
         <h2 class="title-medium mb-3">Receipt image</h2>
-        @if (receipt.previewImageUrl) {
+        @if (receiptPreviewUrl(); as previewUrl) {
           @if (isImagePreview()) {
             <img
-              [src]="receipt.previewImageUrl"
+              [src]="previewUrl"
               alt="Receipt preview"
               class="max-h-[28rem] w-full rounded-xl object-contain"
             />
@@ -33,7 +33,7 @@
           } @else {
             <a
               class="inline-block text-sm underline"
-              [href]="receipt.previewImageUrl"
+              [href]="previewUrl"
               target="_blank"
               rel="noopener noreferrer"
             >

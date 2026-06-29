@@ -24,6 +24,8 @@ import {
 import { DateTime } from 'luxon';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
+import { NotificationService } from '../../core/notification.service';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   createEventGeneralFormModel,
@@ -45,7 +47,7 @@ export const templateCreateEventSubmitDisabled = ({
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
-    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies registration options now; event-specific add-on sales are not available yet.`
+    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies them to event registration cards when registration-time purchase is enabled; standalone before-event and during-event add-on sales are not available yet.`
     : null;
 
 @Component({
@@ -97,6 +99,7 @@ export class TemplateCreateEventComponent {
   private readonly initializedTemplateId = signal<null | string>(null);
   private readonly lastStart = signal<DateTime | null>(null);
 
+  private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
 
@@ -195,7 +198,7 @@ export class TemplateCreateEventComponent {
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
               : null,
-            registrationMode: 'fcfs',
+            registrationMode: option.registrationMode,
             roleIds: option.roleIds,
             sourceTemplateRegistrationOptionId: option.id || undefined,
             spots: option.spots,
@@ -208,6 +211,11 @@ export class TemplateCreateEventComponent {
           templateId: this.templateId(),
         },
         {
+          onError: (error) => {
+            this.notifications.showError(
+              getErrorMessage(error, 'Failed to create event'),
+            );
+          },
           onSuccess: async (data) => {
             await this.queryClient.invalidateQueries(
               this.rpc.queryFilter(['events', 'eventList']),

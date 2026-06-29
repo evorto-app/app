@@ -72,13 +72,21 @@ describe('scan check-in copy', () => {
 
   it('keeps the pending action state short and active', () => {
     expect(
-      scanCheckInButtonLabel({ completed: false, pending: true, spotCount: 3 }),
+      scanCheckInButtonLabel({
+        completed: false,
+        pending: true,
+        spotCount: 3,
+      }),
     ).toBe('Checking in...');
   });
 
-  it('shows the completed state after a successful check-in', () => {
+  it('shows completed check-ins as final', () => {
     expect(
-      scanCheckInButtonLabel({ completed: true, pending: false, spotCount: 3 }),
+      scanCheckInButtonLabel({
+        completed: true,
+        pending: false,
+        spotCount: 1,
+      }),
     ).toBe('Checked in');
   });
 

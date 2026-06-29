@@ -494,7 +494,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       eq(schema.transactions.tenantId, tenantId),
                     ),
                   );
-                yield* tx
+                const updatedRegistrations = yield* tx
                   .update(schema.eventRegistrations)
                   .set({ status: 'CONFIRMED' })
                   .where(
@@ -509,36 +509,32 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                     guestCount: schema.eventRegistrations.guestCount,
                     registrationOptionId:
                       schema.eventRegistrations.registrationOptionId,
-                  })
-                  .pipe(
-                    Effect.flatMap((updatedRegistrations) => {
-                      const updatedRegistration = updatedRegistrations[0];
-                      if (!updatedRegistration) {
-                        return Effect.void;
-                      }
-                      const registeredSpotCount = registrationSpotCount(
-                        updatedRegistration.guestCount,
-                      );
+                  });
+                const updatedRegistration = updatedRegistrations[0];
+                if (!updatedRegistration) {
+                  return;
+                }
+                const registeredSpotCount = registrationSpotCount(
+                  updatedRegistration.guestCount,
+                );
 
-                      return tx
-                        .update(schema.eventRegistrationOptions)
-                        .set({
-                          confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + ${registeredSpotCount}`,
-                          reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
-                        })
-                        .where(
-                          and(
-                            eq(
-                              schema.eventRegistrationOptions.id,
-                              updatedRegistration.registrationOptionId,
-                            ),
-                            eq(
-                              schema.eventRegistrationOptions.eventId,
-                              updatedRegistration.eventId,
-                            ),
-                          ),
-                        );
-                    }),
+                yield* tx
+                  .update(schema.eventRegistrationOptions)
+                  .set({
+                    confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + ${registeredSpotCount}`,
+                    reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
+                  })
+                  .where(
+                    and(
+                      eq(
+                        schema.eventRegistrationOptions.id,
+                        updatedRegistration.registrationOptionId,
+                      ),
+                      eq(
+                        schema.eventRegistrationOptions.eventId,
+                        updatedRegistration.eventId,
+                      ),
+                    ),
                   );
               }),
             ),
@@ -579,7 +575,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       eq(schema.transactions.tenantId, tenantId),
                     ),
                   );
-                yield* tx
+                const updatedRegistrations = yield* tx
                   .update(schema.eventRegistrations)
                   .set({ status: 'CANCELLED' })
                   .where(
@@ -594,36 +590,53 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                     guestCount: schema.eventRegistrations.guestCount,
                     registrationOptionId:
                       schema.eventRegistrations.registrationOptionId,
-                  })
-                  .pipe(
-                    Effect.flatMap((updatedRegistrations) => {
-                      const updatedRegistration = updatedRegistrations[0];
-                      if (!updatedRegistration) {
-                        return Effect.void;
-                      }
-                      const registeredSpotCount = registrationSpotCount(
-                        updatedRegistration.guestCount,
-                      );
+                  });
+                const updatedRegistration = updatedRegistrations[0];
+                if (!updatedRegistration) {
+                  return;
+                }
+                const registeredSpotCount = registrationSpotCount(
+                  updatedRegistration.guestCount,
+                );
 
-                      return tx
-                        .update(schema.eventRegistrationOptions)
-                        .set({
-                          reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
-                        })
-                        .where(
-                          and(
-                            eq(
-                              schema.eventRegistrationOptions.id,
-                              updatedRegistration.registrationOptionId,
-                            ),
-                            eq(
-                              schema.eventRegistrationOptions.eventId,
-                              updatedRegistration.eventId,
-                            ),
-                          ),
-                        );
-                    }),
+                yield* tx
+                  .update(schema.eventRegistrationOptions)
+                  .set({
+                    reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
+                  })
+                  .where(
+                    and(
+                      eq(
+                        schema.eventRegistrationOptions.id,
+                        updatedRegistration.registrationOptionId,
+                      ),
+                      eq(
+                        schema.eventRegistrationOptions.eventId,
+                        updatedRegistration.eventId,
+                      ),
+                    ),
                   );
+
+                const addOnPurchases = yield* tx
+                  .select({
+                    addonId: schema.eventRegistrationAddonPurchases.addonId,
+                    quantity: schema.eventRegistrationAddonPurchases.quantity,
+                  })
+                  .from(schema.eventRegistrationAddonPurchases)
+                  .where(
+                    eq(
+                      schema.eventRegistrationAddonPurchases.registrationId,
+                      registrationId,
+                    ),
+                  );
+                for (const addOnPurchase of addOnPurchases) {
+                  yield* tx
+                    .update(schema.eventAddons)
+                    .set({
+                      totalAvailableQuantity: sql`${schema.eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+                    })
+                    .where(eq(schema.eventAddons.id, addOnPurchase.addonId));
+                }
               }),
             ),
           );

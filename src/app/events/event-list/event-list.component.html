@@ -1,7 +1,7 @@
 <div
-  class="grid grid-cols-1 lg:relative lg:h-[calc(100dvh-1.5rem)] lg:grid-cols-[400px_1fr] lg:gap-4 lg:overflow-hidden"
+  class="grid grid-cols-1 lg:relative lg:h-full lg:grid-cols-[400px_1fr] lg:gap-4"
 >
-  <div class="lg:h-full lg:min-h-0 lg:overflow-y-auto lg:rounded-t-lg lg:p-4">
+  <div class="lg:h-full lg:overflow-y-auto lg:rounded-t-lg lg:p-4">
     <div
       class="mb-4 {{
         outletActive() ? 'hidden' : 'flex'
@@ -24,7 +24,7 @@
       >
         <fa-icon [icon]="faFilter" />
       </button>
-      <button mat-icon-button [matMenuTriggerFor]="menu">
+      <button type="button" mat-icon-button [matMenuTriggerFor]="menu">
         <fa-icon [icon]="faEllipsisVertical" />
       </button>
       <mat-menu #menu="matMenu">
@@ -120,7 +120,7 @@
       }
     </nav>
   </div>
-  <div class="lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-4">
+  <div class="lg:h-full lg:pr-4">
     <router-outlet
       (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"

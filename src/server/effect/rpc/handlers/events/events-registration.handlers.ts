@@ -30,6 +30,7 @@ import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { Database } from '../../../../../db';
 import {
+  eventAddons,
   eventRegistrationOptions,
   eventRegistrations,
   rolesToTenantUsers,
@@ -184,6 +185,12 @@ const cancelRegistration = ({
           ...(requireOrganizerAccess ? {} : { userId: user.id }),
         },
         with: {
+          addonPurchases: {
+            columns: {
+              addonId: true,
+              quantity: true,
+            },
+          },
           event: {
             columns: {
               start: true,
@@ -246,7 +253,7 @@ const cancelRegistration = ({
       );
     }
 
-    if (registration.status !== 'WAITLIST' && registration.event.start <= now) {
+    if (registration.event.start <= now) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
           message: 'Registration can no longer be cancelled',
@@ -343,6 +350,15 @@ const cancelRegistration = ({
                   message: 'Registration option missing',
                 }),
               );
+            }
+
+            for (const addOnPurchase of registration.addonPurchases ?? []) {
+              yield* tx
+                .update(eventAddons)
+                .set({
+                  totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+                })
+                .where(eq(eventAddons.id, addOnPurchase.addonId));
             }
 
             if (!pendingStripeTransaction) {
@@ -819,38 +835,10 @@ export const eventRegistrationHandlers = {
               });
 
             if (updatedRegistrations.length === 0) {
-              const latestRegistration =
-                yield* tx.query.eventRegistrations.findFirst({
-                  columns: {
-                    checkInTime: true,
-                    status: true,
-                  },
-                  where: {
-                    id: registration.id,
-                    tenantId: tenant.id,
-                  },
-                });
-
-              if (!latestRegistration) {
-                return yield* Effect.fail(
-                  new EventRegistrationNotFoundError({
-                    message: 'Registration not found',
-                  }),
-                );
-              }
-
-              if (latestRegistration.checkInTime) {
-                return {
-                  alreadyCheckedIn: true,
-                  checkInTime: latestRegistration.checkInTime,
-                };
-              }
-
-              return yield* Effect.fail(
-                new EventRegistrationConflictError({
-                  message: 'Only confirmed registrations can be checked in',
-                }),
-              );
+              return {
+                alreadyCheckedIn: true,
+                checkInTime,
+              };
             }
 
             const updatedOptions = yield* tx
@@ -1152,6 +1140,19 @@ export const eventRegistrationHandlers = {
             userId: user.id,
           },
           with: {
+            addonPurchases: {
+              columns: {
+                quantity: true,
+                unitPrice: true,
+              },
+              with: {
+                addOn: {
+                  columns: {
+                    title: true,
+                  },
+                },
+              },
+            },
             event: {
               columns: {
                 start: true,
@@ -1210,6 +1211,17 @@ export const eventRegistrationHandlers = {
             : registrationOption.price - discountedPrice);
 
         return {
+          addonPurchases: registration.addonPurchases.flatMap((purchase) =>
+            purchase.addOn
+              ? [
+                  {
+                    quantity: purchase.quantity,
+                    title: purchase.addOn.title,
+                    unitPrice: purchase.unitPrice,
+                  },
+                ]
+              : [],
+          ),
           appliedDiscountedPrice: discountedPrice,
           appliedDiscountType,
           basePriceAtRegistration,
@@ -1247,13 +1259,17 @@ export const eventRegistrationHandlers = {
         registrations: registrationSummaries,
       };
     }),
-  'events.joinWaitlist': ({ eventId, registrationOptionId }, _options) =>
+  'events.joinWaitlist': (
+    { answers, eventId, registrationOptionId },
+    _options,
+  ) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
 
       return yield* EventRegistrationService.joinWaitlist({
+        answers,
         eventId,
         registrationOptionId,
         tenant: {
@@ -1266,7 +1282,7 @@ export const eventRegistrationHandlers = {
       });
     }),
   'events.registerForEvent': (
-    { eventId, guestCount, registrationOptionId },
+    { addOns, answers, eventId, guestCount, registrationOptionId },
     options,
   ) =>
     Effect.gen(function* () {
@@ -1275,6 +1291,8 @@ export const eventRegistrationHandlers = {
       const user = yield* RpcAccess.requireUser();
 
       return yield* EventRegistrationService.registerForEvent({
+        addOns,
+        answers,
         eventId,
         guestCount,
         headers: options.headers,

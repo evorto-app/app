@@ -1,7 +1,10 @@
 import { DateTime } from 'luxon';
 import { describe, expect, it } from 'vitest';
 
-import { createEventFormModelFromTemplate } from './template-create-event.mapper';
+import {
+  createEventFormModelFromTemplate,
+  defaultTemplateEventDurationHours,
+} from './template-create-event.mapper';
 
 describe('createEventFormModelFromTemplate', () => {
   it('copies reusable event and registration defaults into the event form', () => {
@@ -26,6 +29,7 @@ describe('createEventFormModelFromTemplate', () => {
           type: 'online',
         },
         planningTips: 'Bring printed waiver forms.',
+        questions: [],
         registrationOptions: [
           {
             closeRegistrationOffset: 24,
@@ -65,7 +69,10 @@ describe('createEventFormModelFromTemplate', () => {
       title: 'Weekly meetup',
     });
     expect(model.start.toISO()).toBe('2026-06-01T18:00:00.000Z');
-    expect(model.end.toISO()).toBe('2026-06-01T18:00:00.000Z');
+    expect(model.end.toISO()).toBe('2026-06-01T20:00:00.000Z');
+    expect(model.end.diff(model.start, 'hours').hours).toBe(
+      defaultTemplateEventDurationHours,
+    );
     expect(model.registrationOptions).toHaveLength(1);
     expect(model.registrationOptions[0]).toMatchObject({
       description: '<p>Public participant copy</p>',
@@ -102,6 +109,7 @@ describe('createEventFormModelFromTemplate', () => {
         id: 'template-1',
         location: null,
         planningTips: 'Bring printed waiver forms.',
+        questions: [],
         registrationOptions: [],
         title: 'Weekly meetup',
       },
@@ -112,7 +120,7 @@ describe('createEventFormModelFromTemplate', () => {
     expect(model.description).toBe('<p>Template description</p>');
   });
 
-  it('keeps reusable add-ons out of event form data until event add-on fulfillment exists', () => {
+  it('keeps reusable add-ons out of event form data while preserving source option ids for server-side copying', () => {
     const model = createEventFormModelFromTemplate(
       {
         addOns: [
@@ -146,6 +154,7 @@ describe('createEventFormModelFromTemplate', () => {
         id: 'template-1',
         location: null,
         planningTips: null,
+        questions: [],
         registrationOptions: [
           {
             closeRegistrationOffset: 24,
