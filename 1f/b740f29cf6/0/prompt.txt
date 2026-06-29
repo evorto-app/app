@@ -4093,3 +4093,12 @@ Generally (maybe make a note) I want to try and provide the users if as much inf
 
 I think you made events with registration always visible in the list now, that is not what I want.
 Instead, you should rather update our db seeding a littl ebit so that these kinds of evens are not in the past
+
+---
+
+# Files mentioned by the user:
+
+## codex-clipboard-6f6dcc02-0454-4f07-992c-2e7b61dabe32.png: /var/folders/d5/ghwypcsd403dfcl8bpl7grfw0000gn/T/codex-clipboard-6f6dcc02-0454-4f07-992c-2e7b61dabe32.png
+
+## My request for Codex:
+no need to show the seconds here
