@@ -152,30 +152,6 @@ export const eventQueryHandlers = {
               ),
             ),
         );
-        const eventVisibleInList = and(
-          gt(eventInstances.start, startAfter),
-          ...(input.includeUnlisted
-            ? []
-            : [eq(eventInstances.unlisted, false)]),
-          exists(
-            database
-              .select()
-              .from(eventRegistrationOptions)
-              .where(
-                and(
-                  eq(eventRegistrationOptions.eventId, eventInstances.id),
-                  or(
-                    sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
-                    arrayOverlaps(
-                      eventRegistrationOptions.roleIds,
-                      roleFilters,
-                    ),
-                  ),
-                ),
-              ),
-          ),
-        );
-
         return database
           .select({
             creatorId: eventInstances.creatorId,
@@ -190,9 +166,29 @@ export const eventQueryHandlers = {
           .from(eventInstances)
           .where(
             and(
+              gt(eventInstances.start, startAfter),
               eq(eventInstances.tenantId, tenant.id),
               inArray(eventInstances.status, [...input.status]),
-              or(eventVisibleInList, userRegisteredForEvent),
+              ...(input.includeUnlisted
+                ? []
+                : [eq(eventInstances.unlisted, false)]),
+              exists(
+                database
+                  .select()
+                  .from(eventRegistrationOptions)
+                  .where(
+                    and(
+                      eq(eventRegistrationOptions.eventId, eventInstances.id),
+                      or(
+                        sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
+                        arrayOverlaps(
+                          eventRegistrationOptions.roleIds,
+                          roleFilters,
+                        ),
+                      ),
+                    ),
+                  ),
+              ),
             ),
           )
           .limit(input.limit)
