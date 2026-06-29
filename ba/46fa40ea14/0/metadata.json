@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ba46fa40ea14",
+  "session_id": "019eee04-186b-7b81-9d8d-04cc08e75aff",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-29T17:42:35.92405Z",
+  "branch": "codex/pr62-split-04-playwright-title-metadata",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "56a48fbb9447",
+  "token_usage": {
+    "input_tokens": 9566053,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 221688832,
+    "output_tokens": 476864,
+    "api_call_count": 1652
+  },
+  "session_metrics": {
+    "turn_count": 19
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
