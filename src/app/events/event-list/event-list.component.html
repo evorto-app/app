@@ -61,11 +61,7 @@
             <a
               routerLink="{{ event.id }}"
               class="rounded-2xl bg-surface px-4 py-2 text-on-surface relative overflow-hidden {{
-                event.userRegistered
-                  ? 'ring-3 ring-inset ring-success'
-                  : event.userIsCreator
-                    ? 'ring-3 ring-inset ring-tertiary'
-                    : ''
+                event.userRegistered ? 'ring-3 ring-inset ring-success' : ''
               }}"
               routerLinkActive="bg-secondary-container! text-on-secondary-container!"
             >
