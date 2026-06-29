@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b08212f31cce",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-03-tenant-legal-pages",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "AGENTS.md",
+    "helpers/testing/runtime-preflight.spec.ts",
+    "helpers/testing/runtime-preflight.ts",
+    "package.json",
+    "src/app/profile/user-profile/edit-profile-dialog.component.ts",
+    "src/app/profile/user-profile/user-profile.component.html",
+    "src/app/shared/components/inclusive-price-label/price-with-tax.component.ts",
+    "src/app/templates/shared/template-form/template-registration-option-form.schema.ts",
+    "src/server/config/test-runtime-config.spec.ts",
+    "src/server/config/test-runtime-config.ts",
+    "src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts",
+    "src/server/effect/rpc/handlers/global-admin.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/global-admin.handlers.ts",
+    "src/server/effect/rpc/handlers/users.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/users.handlers.ts",
+    "tests/README.md",
+    "tests/specs/discounts/esn-discounts.test.ts",
+    "tests/specs/reporting/reporter-paths.test.ts",
+    "tests/specs/screenshot/doc-screenshot.test.ts",
+    "tests/specs/templates/templates.test.ts",
+    "tests/support/utils/template-form.ts",
+    "tests/test-inventory.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b0/8212f31cce/0/metadata.json",
+      "transcript": "/b0/8212f31cce/0/full.jsonl",
+      "content_hash": "/b0/8212f31cce/0/content_hash.txt",
+      "prompt": "/b0/8212f31cce/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8032661,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 185776640,
+    "output_tokens": 400690,
+    "api_call_count": 1384
+  }
+}

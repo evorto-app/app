@@ -1,0 +1,68 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b08212f31cce",
+  "session_id": "019eee04-186b-7b81-9d8d-04cc08e75aff",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-29T16:07:28.279666Z",
+  "branch": "codex/pr62-split-03-tenant-legal-pages",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "AGENTS.md",
+    "helpers/testing/runtime-preflight.spec.ts",
+    "helpers/testing/runtime-preflight.ts",
+    "package.json",
+    "src/app/profile/user-profile/edit-profile-dialog.component.ts",
+    "src/app/profile/user-profile/user-profile.component.html",
+    "src/app/shared/components/inclusive-price-label/price-with-tax.component.ts",
+    "src/app/templates/shared/template-form/template-registration-option-form.schema.ts",
+    "src/server/config/test-runtime-config.spec.ts",
+    "src/server/config/test-runtime-config.ts",
+    "src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts",
+    "src/server/effect/rpc/handlers/global-admin.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/global-admin.handlers.ts",
+    "src/server/effect/rpc/handlers/users.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/users.handlers.ts",
+    "tests/README.md",
+    "tests/specs/discounts/esn-discounts.test.ts",
+    "tests/specs/reporting/reporter-paths.test.ts",
+    "tests/specs/screenshot/doc-screenshot.test.ts",
+    "tests/specs/templates/templates.test.ts",
+    "tests/support/utils/template-form.ts",
+    "tests/test-inventory.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "643dec509f81",
+  "token_usage": {
+    "input_tokens": 8032661,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 185776640,
+    "output_tokens": 400690,
+    "api_call_count": 1384
+  },
+  "session_metrics": {
+    "turn_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-29T16:07:27.812611Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 4232,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 4232,
+    "total_lines_changed": 4752,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
