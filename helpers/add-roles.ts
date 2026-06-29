@@ -30,6 +30,7 @@ export const addRoles = (
         permissions: [
           'events:create',
           'events:viewPublic',
+          'templates:create',
           'templates:view',
           'internal:viewInternalPages',
         ],
@@ -43,6 +44,7 @@ export const addRoles = (
         permissions: [
           'events:create',
           'events:viewPublic',
+          'templates:create',
           'templates:view',
           'internal:viewInternalPages',
         ],

@@ -22,15 +22,21 @@ interface BaseFixtures {
     id: string;
     tenantId: string;
     registrationOptions: {
+      checkedInSpots: number;
       closeRegistrationTime: Date;
+      confirmedSpots: number;
       id: string;
       isPaid: boolean;
       openRegistrationTime: Date;
+      organizingRegistration: boolean;
       price: number;
       roleIds: string[];
       spots: number;
+      stripeTaxRateId: null | string;
       title: string;
+      waitlistSpots: number;
     }[];
+    start: Date;
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
     title: string;
     unlisted: boolean;

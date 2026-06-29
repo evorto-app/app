@@ -5,10 +5,17 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { form, FormField, required, submit } from '@angular/forms/signals';
+import {
+  form,
+  FormField,
+  pattern,
+  required,
+  submit,
+} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
+import { notificationEmailPattern } from '@shared/notification-email';
 import {
   injectMutation,
   injectQuery,
@@ -39,6 +46,7 @@ export class CreateAccountComponent {
   });
   protected readonly accountForm = form(this.accountModel, (schema) => {
     required(schema.communicationEmail);
+    pattern(schema.communicationEmail, notificationEmailPattern);
     required(schema.firstName);
     required(schema.lastName);
   });

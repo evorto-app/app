@@ -3,11 +3,11 @@ import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
 import { DurationSelectorComponent } from '../../../shared/components/controls/duration-selector/duration-selector.component';
+import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
 import { RoleSelectComponent } from '../../../shared/components/controls/role-select/role-select.component';
 import {
   RegistrationMode,
@@ -18,17 +18,18 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DurationSelectorComponent,
+    EditorComponent,
     FormField,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-    MatSlideToggleModule,
     RoleSelectComponent,
   ],
   selector: 'app-template-registration-option-form',
   templateUrl: './template-registration-option-form.component.html',
 })
 export class TemplateRegistrationOptionFormComponent {
+  public readonly esnEnabled = input.required<boolean>();
   public readonly registrationForm =
     input.required<FieldTree<TemplateRegistrationFormModel>>();
   public readonly registrationModes =
@@ -38,4 +39,29 @@ export class TemplateRegistrationOptionFormComponent {
   protected readonly taxRatesQuery = injectQuery(() =>
     this.rpc.taxRates.listActive.queryOptions(),
   );
+
+  protected setEsnCardDiscountedPrice(event: Event): void {
+    const rawValue = (event.target as HTMLInputElement).value;
+    const field = this.registrationForm().esnCardDiscountedPrice();
+    field.value.set(rawValue === '' ? '' : Number(rawValue));
+    field.markAsDirty();
+  }
+
+  protected setIsPaid(event: Event): void {
+    const field = this.registrationForm().isPaid();
+    field.value.set((event.target as HTMLInputElement).checked);
+    field.markAsDirty();
+  }
+
+  protected setPrice(event: Event): void {
+    const field = this.registrationForm().price();
+    field.value.set(Number((event.target as HTMLInputElement).value));
+    field.markAsDirty();
+  }
+
+  protected setStripeTaxRateId(stripeTaxRateId: string): void {
+    const field = this.registrationForm().stripeTaxRateId();
+    field.value.set(stripeTaxRateId);
+    field.markAsDirty();
+  }
 }

@@ -1,20 +1,16 @@
 <div class="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr] lg:p-4">
   <div class="grid gap-4">
     <section class="bg-surface-container-high text-on-surface rounded-2xl p-4">
-      @if (userQuery.isSuccess()) {
+      @if (profileUser(); as user) {
         <div class="space-y-2">
           <p class="text-on-surface-variant text-xs uppercase tracking-wide">
             Profile
           </p>
-          <h1 class="title-large">
-            {{ userQuery.data().firstName }} {{ userQuery.data().lastName }}
-          </h1>
-          <p class="text-on-surface-variant text-sm">
-            Login: {{ userQuery.data().email }}
-          </p>
+          <h1 class="title-large">{{ user.firstName }} {{ user.lastName }}</h1>
+          <p class="text-on-surface-variant text-sm">Login: {{ user.email }}</p>
           <p class="text-on-surface-variant text-sm">
             Notifications:
-            {{ userQuery.data().communicationEmail ?? userQuery.data().email }}
+            {{ user.communicationEmail ?? user.email }}
           </p>
           <button
             mat-stroked-button
@@ -125,16 +121,12 @@
                           {{ registrationPaymentLabel(event.paymentState) }}
                         </dd>
                       </div>
-                      @if (
-                        event.paymentState === "pending" && event.checkoutUrl
-                      ) {
+                      @if (profileEventNextStepLabel(event); as nextStep) {
                         <div>
                           <dt class="text-on-surface-variant inline">
                             Next step:
                           </dt>
-                          <dd class="inline">
-                            Finish the checkout payment to confirm your spot.
-                          </dd>
+                          <dd class="inline">{{ nextStep }}</dd>
                         </div>
                       }
                       @if (event.status === "CONFIRMED" && !event.checkInTime) {

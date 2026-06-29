@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   esnCardMutationErrorMessage,
+  esnCardSubmitPayloadFromIdentifier,
   profileEventActionNote,
   profileEventDetailActionLabel,
   profileEventGuestLabel,
+  profileEventNextStepLabel,
   profileReceiptStatusLabel,
+  profileSectionFromFragment,
   registrationPaymentLabel,
   registrationStatusLabel,
 } from './user-profile.component';
@@ -41,7 +44,7 @@ describe('profile event labels', () => {
         status: 'WAITLIST',
       }),
     ).toBe(
-      'Waitlist movement is not managed from profile yet. Open the event page for current details; transfer/resale is not available for waitlist registrations.',
+      'Open the event page for waitlist details and the leave-waitlist action. Transfer/resale is not available for waitlist registrations.',
     );
   });
 
@@ -55,6 +58,27 @@ describe('profile event labels', () => {
     ).toBe(
       'Continue payment from this card, or open the event page for registration details. Cancellation after confirmation is handled on the event page.',
     );
+  });
+
+  it('shows the payment continuation next step only when a checkout link exists', () => {
+    expect(
+      profileEventNextStepLabel({
+        checkoutUrl: 'https://checkout.stripe.test/pay',
+        paymentState: 'pending',
+      }),
+    ).toBe('Finish the checkout payment to confirm your spot.');
+    expect(
+      profileEventNextStepLabel({
+        checkoutUrl: null,
+        paymentState: 'pending',
+      }),
+    ).toBeNull();
+    expect(
+      profileEventNextStepLabel({
+        checkoutUrl: 'https://checkout.stripe.test/pay',
+        paymentState: 'recorded',
+      }),
+    ).toBeNull();
   });
 
   it('labels guest quantities only when a registration includes guests', () => {
@@ -78,6 +102,13 @@ describe('profile event labels', () => {
 });
 
 describe('profile ESN card messages', () => {
+  it('trims the ESN card identifier before submitting the upsert mutation', () => {
+    expect(esnCardSubmitPayloadFromIdentifier('  ABCD1234  ')).toEqual({
+      identifier: 'ABCD1234',
+      type: 'esnCard',
+    });
+  });
+
   it('uses readable fallback messages for save, refresh, and remove failures', () => {
     expect(esnCardMutationErrorMessage('save', null)).toBe(
       'Could not validate ESN card',
@@ -110,5 +141,19 @@ describe('profile receipt labels', () => {
     expect(profileReceiptStatusLabel('refunded')).toBe('Reimbursed');
     expect(profileReceiptStatusLabel('rejected')).toBe('Rejected');
     expect(profileReceiptStatusLabel('submitted')).toBe('Submitted');
+  });
+});
+
+describe('profile section fragments', () => {
+  it('keeps ESN discounts hidden until the tenant provider is enabled', () => {
+    expect(profileSectionFromFragment('discounts', false)).toBe('overview');
+    expect(profileSectionFromFragment('discounts', true)).toBe('discounts');
+  });
+
+  it('routes stable non-provider-gated fragments directly', () => {
+    expect(profileSectionFromFragment('events', false)).toBe('events');
+    expect(profileSectionFromFragment('receipts', false)).toBe('receipts');
+    expect(profileSectionFromFragment(null, true)).toBe('overview');
+    expect(profileSectionFromFragment('unknown', true)).toBe('overview');
   });
 });

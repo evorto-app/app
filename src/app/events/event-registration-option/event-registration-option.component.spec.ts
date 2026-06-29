@@ -80,6 +80,20 @@ describe('registrationOptionCanJoinWaitlist', () => {
     ).toBe(false);
   });
 
+  it('does not offer waitlists for stored unsupported participant modes', () => {
+    for (const registrationMode of ['application', 'random'] as const) {
+      expect(
+        registrationOptionCanJoinWaitlist({
+          confirmedSpots: 8,
+          organizingRegistration: false,
+          registrationMode,
+          reservedSpots: 2,
+          spots: 10,
+        }),
+      ).toBe(false);
+    }
+  });
+
   it('keeps normal registration primary while spots remain', () => {
     expect(
       registrationOptionCanJoinWaitlist({

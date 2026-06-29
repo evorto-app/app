@@ -11,8 +11,8 @@
           <a
             class="underline-offset-4 hover:underline"
             [href]="link.href"
-            target="_blank"
-            rel="noopener noreferrer"
+            [attr.target]="link.external ? '_blank' : null"
+            [attr.rel]="link.external ? 'noopener noreferrer' : null"
           >
             {{ link.label }}
           </a>

@@ -18,7 +18,7 @@ const buildTaxRate = (displayName: string, tenantId: string) => ({
 });
 
 test.describe('Tax Rates Tenant Isolation', () => {
-  test('tax rates stay isolated between tenant contexts @permissions @taxRates @isolation @track(playwright-specs-track-linking_20260126) @req(TENANT-ISOLATION-TAX-RATES-SPEC-01)', async ({
+  test('tax rates stay isolated between tenant contexts @permissions @taxRates @isolation', async ({
     database,
     seedDate,
     tenant,
@@ -65,7 +65,7 @@ test.describe('Tax Rates Tenant Isolation', () => {
     ).toBe(false);
   });
 
-  test('cross-tenant tax rate lookup remains tenant scoped @permissions @taxRates @isolation @track(playwright-specs-track-linking_20260126) @req(TENANT-ISOLATION-TAX-RATES-SPEC-02)', async ({
+  test('cross-tenant tax rate lookup remains tenant scoped @permissions @taxRates @isolation', async ({
     database,
     permissionOverride,
     seedDate,

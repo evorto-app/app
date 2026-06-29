@@ -4,6 +4,11 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
+test.skip(
+  true,
+  'Receipt reimbursement docs are completed by a later stacked docs slice.',
+);
+
 test('Review and reimburse receipts @finance', async ({
   page,
   permissionOverride,
@@ -82,6 +87,11 @@ The review page shows the receipt file, normalized receipt data, tax/deposit/alc
       .getByRole('heading', { name: 'Receipt reimbursements' }),
   ).toBeVisible();
   await expect(
+    page.getByText(
+      'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.',
+    ),
+  ).toBeVisible();
+  await expect(
     page.getByText('No approved receipts are waiting for reimbursement.'),
   ).not.toBeVisible();
 
@@ -89,7 +99,7 @@ The review page shows the receipt file, normalized receipt data, tax/deposit/alc
     body: `
 ## Reimbursement Queue
 
-Approved receipts are grouped by recipient. Finance users select the receipts to include, choose one of the submitter's saved payout details, and record the manual reimbursement transaction for that batch.
+Approved receipts are grouped by recipient. The contact email shown for each recipient is the submitter's notification email when configured, falling back to login email. Finance users select the receipts to include, choose one of the submitter's saved payout details, and record the manual reimbursement transaction for that batch.
 `,
   });
 

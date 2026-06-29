@@ -37,7 +37,7 @@ test.use({
   storageState: usersToAuthenticate.find((u) => u.roles === 'user')!.stateFile,
 });
 
-test('register for a free event as regular user @track(playwright-specs-track-linking_20260126) @req(FREE-REGISTRATION-TEST-01)', async ({
+test('register for a free event as regular user', async ({
   database,
   page,
   seeded,

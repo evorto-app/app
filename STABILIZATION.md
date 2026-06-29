@@ -15,7 +15,7 @@ and useful for small cleanup batches.
 | Finance/receipts                                | Fixes applied       | partial    | Payments, transactions, receipt review/reimbursement, and docs reviewed; high-risk gaps remain.                                                       |
 | Scanning/check-in                               | First pass complete | partial    | QR display and persisted check-in mutation exist; timing, camera, and Browser-backed aggregate follow-ups remain.                                     |
 | Profile/account flows                           | Fixes applied       | partial    | Profile, account creation, discount cards, receipts, and auth guards reviewed; account creation guards, transactionality, and ESNcard scope improved. |
-| Tenant/global admin                             | Fixes applied       | partial    | Tenant resolution, tenant settings, and global-admin list surface reviewed; global-admin route and permission context fixes applied.                  |
+| Tenant/global admin                             | Fixes applied       | partial    | Tenant resolution, tenant settings, and global-admin list/detail surface reviewed; global-admin route and permission context fixes applied.           |
 | Generated documentation and Playwright coverage | First pass complete | partial    | Docs/spec inventory is discoverable again, but several docs/specs are stale or misleading.                                                            |
 | Local runtime/developer workflow                | First pass complete | partial    | Scripts, env loading, Docker/Playwright setup, and unit-test ownership reviewed.                                                                      |
 
@@ -489,7 +489,7 @@ the current working direction until a product decision overrides them.
 - Event list filtering defaults to all statuses only for users with `events:seeDrafts`; other users only request approved events.
 - Event create/update handlers reject invalid start/end dates, event end times that are not after start times, and registration windows that close before they open.
 - Event find/update RPC contracts use the shared `EventLocation` schema instead of accepting arbitrary location payloads.
-- Event creation copies template option discounts by submitted source template option id instead of matching option titles.
+- Event creation copies template option discounts by submitted source template option id instead of matching option titles, but only after validating copied ESNcard discounts against the target event option price and current tenant ESNcard provider state.
 
 ### Intended Behavior From Product Context
 
@@ -504,6 +504,7 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** event creation/update now reject end-before-start and close-before-open registration windows server-side.
 - **Addressed in stabilization pass:** event find/update RPC location fields now validate against the shared `EventLocation` schema.
 - **Addressed in stabilization pass:** event creation now copies template option discounts by source option identity, so duplicate option titles do not miscopy discounts.
+- **Addressed in stabilization pass:** event creation now revalidates copied template ESNcard discounts before inserting the event. Copied discounts do not persist for event options changed to free, fail when ESNcard discounts are no longer enabled for the tenant, and fail when the template discount exceeds the event option price.
 - **Addressed in stabilization pass:** `event-management.doc.ts` no longer describes attendee export, attendee messaging, manual check-in controls, event settings tabs, event tags, featured images, notification settings, integrations, or event deletion as existing event-management UI.
 - **Addressed in stabilization pass:** unlisted-event dialog and event detail status copy now explain that unlisted events are hidden from lists while eligible direct links still work.
 - **Acceptable for now:** event edit locks are duplicated in guard, details `canEdit`, `findOneForEdit`, and `events.update`. Duplication is not ideal, but server-side checks are the source of truth.
@@ -548,12 +549,13 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** existing-registration preflight and transactional duplicate checks include `tenantId`.
 - **Addressed in stabilization pass:** registration option lookup validates the related event tenant before proceeding.
 - **Addressed in stabilization pass:** event registration supports guest quantities for participant options. The registration contract stores `guestCount`, the UI lets participants choose guests up to remaining capacity, free registration confirms all selected spots, and paid registration reserves/prices the selected quantity through Stripe checkout.
-- **Addressed in stabilization pass:** full participant options no longer present the normal registration action and instead expose a distinct waitlist action backed by a `WAITLIST` registration and `waitlistSpots` counter update.
+- **Addressed in stabilization pass:** full participant options no longer present the normal registration action and instead expose a distinct waitlist action backed by a `WAITLIST` registration and `waitlistSpots` counter update. Waitlisted participants can leave the waitlist before the event starts, which decrements `waitlistSpots` transactionally.
 - **Addressed in stabilization pass:** registration submission now rejects stored `random` and `application` options server-side instead of silently handling them as first-come-first-served.
 - **Addressed in stabilization pass:** event registration option cards now label participant options separately from organizer/helper options and use distinct organizer/helper signup action copy while preserving the shared registration-option model.
 - **Addressed in stabilization pass:** role-ineligible direct event links keep the event visible but show an explicit registration-unavailable state instead of silently rendering an empty registration section.
-- **Addressed in stabilization pass:** participant self-cancellation now covers pending and confirmed registrations before event start, rolls back reserved/confirmed counters, blocks checked-in cancellations, and keeps refund copy honest for paid registrations.
+- **Addressed in stabilization pass:** participant self-cancellation now covers pending and confirmed registrations before event start, rolls back reserved/confirmed counters including selected guest spots, blocks checked-in cancellations, and keeps refund copy honest for paid registrations.
 - **Addressed in stabilization pass:** organizer/admin cancellation is available from the organizer overview for confirmed participant registrations, requires event-organizer access or `events:organizeAll`, blocks checked-in cancellations, and rolls back confirmed counters without promising automatic refunds.
+- **Addressed in stabilization pass:** active registration cards now make transfer/resale unavailability explicit for pending, confirmed, and waitlisted registrations until the real transfer/resale flow exists.
 - **Should fix before relaunch:** transfer/resale and automatic refund flows are not implemented in the reviewed event registration path.
 - **Addressed in stabilization pass:** active registration status now uses the shared persisted registration status literal union instead of raw `Schema.String`.
 - **Acceptable for now:** paid registration rollback is careful about cleaning up a failed checkout session creation path; deeper Stripe lifecycle review belongs in the finance pass.
@@ -562,14 +564,16 @@ the current working direction until a product decision overrides them.
 
 - `tests/specs/events/free-registration.test.ts` covers the free registration happy path using seeded scenario handles.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers registration-card state for full options, distinct waitlist availability, remaining-capacity guest selection helpers, and too-early/too-late registration windows without requiring a page-backed browser.
+- `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers that stored `random` and `application` participant options do not expose a waitlist affordance even when full.
 - `src/server/effect/rpc/handlers/events/event-registration.service.spec.ts` covers server-side rejection for duplicate active registration, unpublished events, closed registration windows, role-ineligible users, cross-tenant options, full options, unsupported registration modes, same-event second registrations across options, transactional duplicate races, transactional capacity races, participant waitlist joining, and participant guest quantities.
-- `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending and confirmed registrations plus checked-in and waitlist rejection paths.
+- `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers participant self-cancellation for pending, confirmed, and waitlisted registrations plus checked-in rejection paths.
 - `src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts` covers organizer/admin cancellation for confirmed registrations and denial without event-organizer access.
 - `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers server-side rejection of end-before-start events and close-before-open registration windows for event create/update.
-- `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title.
+- `src/server/effect/rpc/handlers/events/events-lifecycle.handlers.spec.ts` covers template discount copying by stable source option id when template options share the same title, plus pre-insert rejection when copied ESNcard discounts are disabled or exceed the target event option price.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers acceptance and rejection for the shared event location schema now used by Events RPC contracts.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the active registration status literal union and rejects unknown statuses.
 - `src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts` covers the tax-rate label fields returned with event registration options for paid event cards.
+- `src/app/events/event-active-registration/event-active-registration.component.spec.ts` covers participant cancellation copy for single-spot, guest, and waitlisted registrations plus the visible transfer/resale-unavailable notes for pending, confirmed, and waitlisted active registrations.
 - `tests/docs/events/event-management.doc.ts` now documents only the current event details, registration, review/listing, edit, organizer overview, participant grouping/cancellation, and receipt surfaces.
 - `tests/docs/events/unlisted-admin.doc.ts` covers the updated direct-link explanation in the listing dialog and on unlisted event details.
 - `tests/docs/events/register.doc.ts` covers free and paid registration as generated documentation and Stripe-backed evidence, including guest quantity selection, the participant versus organizer/helper option wording, and participant self-cancellation copy.
@@ -577,8 +581,9 @@ the current working direction until a product decision overrides them.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers the participant versus organizer/helper registration option copy.
 - `src/app/events/event-registration-option/event-registration-option.component.spec.ts` covers discounted buyer-price plus full-price guest totals for paid registration actions.
 - `src/server/price/format-inclusive-tax-label.spec.ts` covers the shared inclusive-tax label formatter.
-- **Addressed in stabilization pass:** event registration option cards now render paid prices through the shared inclusive tax label component using tax-rate details from `events.findOne`; Browser-backed price-label assertions are still needed before removing the Playwright fixme file.
-- `tests/specs/events/price-labels-inclusive.spec.ts` is explicitly quarantined with `test.fixme` until it is replaced with real UI assertions.
+- `src/app/shared/components/inclusive-price-label/price-with-tax.component.spec.ts` covers paid, free, zero-tax, and fallback rendering for the shared price/tax label used by event registration cards and template detail summaries.
+- **Addressed in stabilization pass:** event registration option cards now render paid prices through the shared inclusive tax label component using tax-rate details from `events.findOne`.
+- `tests/specs/events/price-labels-inclusive.spec.ts` now has active page-level assertions for paid inclusive tax labels, free options without tax labels, zero-percent tax-free labels, fallback tax labels, ESNcard discounted prices retaining tax labels, and paid template detail summaries sharing the same price component.
 
 ### Product Questions Answered Above
 
@@ -594,7 +599,7 @@ the current working direction until a product decision overrides them.
 - Template routes are under authenticated `/templates`; anonymous Browser access redirects to Auth0.
 - Authenticated organizers can browse template categories, open a template detail page, and start event creation from a template.
 - The visible template model is simple mode: one organizer registration block and one participant registration block.
-- Template detail pages show description, optional location, organizer planning tips, registration option role chips, price/tax label when paid, capacity, mode, and registration open/close offsets.
+- Template detail pages show description, optional location, organizer planning tips, registration option role chips, price/tax label when paid, ESNcard discounted price when configured, capacity, mode, and registration open/close offsets.
 - Template creation preselects default organizer roles and default user roles, then saves a template plus two template registration options.
 - Creating an event from a template copies template details into the event form and converts registration offsets into concrete open/close timestamps relative to the event start.
 - Category create/update handlers enforce `templates:manageCategories`.
@@ -614,7 +619,12 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** template registration offsets now fail with a typed bad request when a registration would open after it closes. Because offsets are "hours before event", `openRegistrationOffset` must be greater than or equal to `closeRegistrationOffset` for a normal window.
 - **Addressed in this stabilization pass:** template create/update and find-one RPC location fields now use the shared `EventLocation` schema instead of `Schema.Any`, matching the event boundary behavior.
 - **Should fix before relaunch:** simple-mode create/update always writes exactly two registration options. That matches the current UI but is thinner than the product model for reusable event knowledge.
-- **Should fix before relaunch:** template discounts and add-ons exist in schema, but simple-mode template create/update does not expose or persist discounts/add-ons. Event creation has separate discount-copying logic, but the simple template editing path cannot maintain those richer fields.
+- **Should fix before relaunch:** template add-ons and registration questions exist in schema or product context, but simple-mode template create/update does not expose or persist them. Event creation has separate add-on copying logic, but the simple template editing path cannot maintain those richer fields yet.
+- **Addressed in stabilization pass:** simple-mode template create/edit now exposes optional ESNcard discounted prices when the tenant ESNcard provider is enabled, persists them in `templateRegistrationOptionDiscounts`, returns them through `templates.findOne`, and shows them on template detail.
+- **Addressed in stabilization pass:** simple-mode template registration
+  options now preserve editable option names plus public and registered-user
+  rich-text descriptions. Those fields are shown on template detail and already
+  flow into event creation through the existing template-to-event mapping.
 - **Addressed in stabilization pass:** simple-mode template create/edit now exposes the existing `planningTips` field as private organizer planning tips, persists trimmed notes through the template RPC/service, and shows them on the template detail page.
 - **Addressed in this stabilization pass:** registration mode now only offers first-come-first-served in event/template authoring controls. The contracts still accept existing stored `random`/`application` values, but new/edit UI no longer presents unsupported fulfillment modes.
 - **Addressed in this stabilization pass:** template create/edit components use scoped `consola/browser` loggers instead of direct `console.*` calls.
@@ -625,16 +635,18 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/specs/templates/templates.test.ts` covers create, view, empty-category add flow, and role autocomplete duplicate hiding.
-- `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, and role-picker behavior.
-- `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` is intentionally fixme-only until template tax-rate behavior has active simple-mode UI coverage.
-- `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate preservation and free-registration payment-field cleanup before create/edit submission.
-- `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts` covers paid template registrations without tax rates and free template registrations with stale tax-rate ids failing through the server-side validation path.
+- `tests/docs/templates/templates.doc.ts` documents simple-mode template creation, organizer planning tips, role defaults, payment field visibility, optional ESNcard discounted price fields, and role-picker behavior. It asserts that enabling payment reveals both the price and tax-rate controls before taking the payment-field screenshot.
+- `tests/specs/templates/paid-option-requires-tax-rate.spec.ts` now has active simple-mode UI coverage for the paid tax-rate requirement and a seeded inclusive tax-rate save path. Remaining fixme entries are limited to future bulk/no-compatible-rate UI behavior.
+- `src/app/templates/shared/template-form/template-registration-option-form.utilities.spec.ts` covers paid template tax-rate and ESNcard discount preservation, paid missing-tax-rate pass-through for server validation, and free-registration payment-field cleanup before create/edit submission.
+- `src/server/effect/rpc/handlers/tax-rates.handlers.spec.ts` covers `taxRates.listActive` permission behavior and the current-tenant active/inclusive filter used to populate compatible template tax-rate selects.
+- `src/server/utils/validate-tax-rate.spec.ts` covers the shared server rule that paid options require a tenant-owned active inclusive tax rate and free options cannot carry stale tax-rate ids.
+- `src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts` covers paid template registrations without tax rates, free template registrations with stale tax-rate ids, and invalid ESNcard discounted prices failing through the server-side validation path.
 - The generic `tests/docs/template.doc.ts` discovery placeholder was removed; product template documentation lives in `tests/docs/templates/templates.doc.ts`.
 - Permission matrix coverage checks template create link visibility plus direct route denial for template create/edit/create-event routes. `src/app/templates/templates.routes.spec.ts` keeps the guarded template write-route manifest explicit. Server unit coverage proves template RPC denial, template offset ordering, tenant-owned template category/role validation, and template location schema rejection.
 
 ### Product Questions Answered Above
 
-- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips now; discounts, add-ons, and questions remain separate follow-up work.
+- Is simple mode the intended relaunch template scope, or should richer registration options/add-ons/questions/organizer notes be available before relaunch? Answered locally: keep simple mode primary and expose organizer planning tips plus ESNcard discounted prices now; add-ons and questions remain separate follow-up work.
 - Should `random` and `application` registration modes be selectable now if registration fulfillment does not implement those semantics?
 - Should template view require `templates:view`, or should organizers with `events:create` inherit template view through permission dependencies only?
 - Should template category management remain a separate capability from template creation/editing?
@@ -647,7 +659,7 @@ the current working direction until a product decision overrides them.
 - Keep template and event RPC location fields aligned on the shared `EventLocation` schema.
 - Keep organizer planning tips private to the template/organizer surface unless
   a later product decision makes them event-facing.
-- Replace fixme-only template tax-rate specs with active coverage for the current simple-mode UI.
+- Keep the active template tax-rate UI coverage aligned with the current simple-mode payment fields and replace the remaining bulk/no-compatible-rate fixme declarations when those behaviors have UI surfaces.
 - Keep `random` and `application` hidden until their fulfillment semantics are
   implemented end to end.
 
@@ -693,7 +705,8 @@ the current working direction until a product decision overrides them.
 - `src/shared/permissions/permissions.spec.ts` covers direct permissions, dependency expansion, legacy tax aliases, wildcard checks, and rejection of unrelated permissions. `RpcAccess` and tax-rate handler unit tests prove server use of the shared evaluator.
 - Permission matrix coverage checks admin tax-rate, role-management, user-list, settings, and template write route denial. `src/app/admin/admin.routes.spec.ts` keeps the guarded admin route manifest explicit. Role lookup UI behavior still needs Browser/E2E coverage once runtime review is available.
 - `tests/docs/roles/roles.doc.ts` documents role creation, dependent permissions, and the explicit deferral of existing-user role assignment for relaunch.
-- `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions`; no matching checked-in documentation source was found in this pass.
+- `tests/docs/roles/about-permissions.doc.ts` generates the `/docs/about-permissions` source from shared permission metadata, including group labels, permission keys/descriptions, dependent permissions, and the tenant-role/global-admin distinction.
+- `tests/docs/roles/roles.doc.ts` links to `/docs/about-permissions` for permission reference details.
 - Server unit coverage proves role lookup permissions, lookup-only result shaping, tenant-scoped lookup filters, role lookup not-found errors, and admin role list denial without `admin:manageRoles`.
 - `src/server/effect/rpc/handlers/users.handlers.spec.ts` verifies `users.findMany` aggregates role names into the RPC contract shape without leaking the joined `role` column.
 - `src/shared/permissions/permissions.spec.ts` requires explicit labels and descriptions for every permission shown in role management.
@@ -725,13 +738,14 @@ the current working direction until a product decision overrides them.
 
 - Paid event registration creates a pending registration, reserves a spot, creates a Stripe Checkout session, and stores a pending `registration` transaction with Stripe checkout ids.
 - Stripe `checkout.session.completed` marks the local transaction successful, confirms the registration, and moves the buyer plus guest spots from reserved to confirmed when the session is complete and paid.
-- Stripe `checkout.session.expired` marks the local transaction cancelled, cancels the registration, and releases one reserved spot when the session is expired.
+- Stripe `checkout.session.expired` marks the local transaction cancelled, cancels the registration, and releases the buyer plus guest reserved spots when the session is expired.
 - Finance navigation is hidden behind `finance:*`, and `/finance` requires at least one finance child capability.
 - The finance overview links to transactions, receipt approvals, and receipt reimbursements only when the user has the matching child permission.
 - `finance.transactions.findMany` returns non-cancelled tenant transactions only to users with `finance:viewTransactions`.
 - Event organizers or users with receipt-management capabilities can submit receipts from the event organize page.
 - Receipt upload is a separate RPC that requires the target event id, preflights the caller through the same receipt-submit authorization used by `finance.receipts.submit`, then stores image/PDF originals in object storage or a local-unavailable placeholder when storage config is absent.
 - Finance reviewers can approve/reject submitted receipts; reimbursement users can group approved receipts by submitter and record manual reimbursement transactions.
+- Finance receipt approval and reimbursement read models display the submitter's notification email when configured, with Auth0 login email as fallback.
 - Profile shows the current user's submitted receipts.
 
 ### Intended Behavior From Product Context
@@ -749,22 +763,24 @@ the current working direction until a product decision overrides them.
 - **Addressed in this stabilization pass:** `finance.transactions.findMany` now requires `finance:viewTransactions`, so direct RPC calls cannot read transaction amounts, comments, methods, or fees with authentication alone.
 - **Addressed in this stabilization pass:** finance parent and child routes now have route-level permission guards. Transactions require `finance:viewTransactions`, receipt approvals require `finance:approveReceipts`, and receipt reimbursement requires `finance:refundReceipts`.
 - **Addressed in this stabilization pass:** receipt media upload now includes the target `eventId`, checks tenant event existence for authorized callers, and requires `canSubmitEventReceipts` before object storage is touched. A signed-in user without receipt-submit access can no longer create orphan receipt objects through the upload RPC.
-- **Addressed in stabilization pass:** manual receipt reimbursement is now labeled as recording a reimbursement in the finance overview, reimbursement list, receipt submit hint, profile payout fields, visible server messages, docs, and Playwright coverage. Reimbursement transaction comments no longer copy the full payout reference into free text. The legacy route path, permission name, RPC name, receipt status, and transaction type still use "refund" internally until a broader data/API migration is worthwhile.
+- **Addressed in stabilization pass:** manual receipt reimbursement is now labeled as recording a reimbursement in the finance overview, reimbursement list, receipt submit hint, profile payout fields, visible server messages, docs, and Playwright coverage. The reimbursement queue now explicitly says Evorto only records the finance transaction and money must be transferred manually through the selected payout method. Reimbursement transaction comments no longer copy the full payout reference into free text. The legacy route path, permission name, RPC name, receipt status, and transaction type still use "refund" internally until a broader data/API migration is worthwhile.
 - **Addressed in stabilization pass:** receipt submission and review now reject tax amounts greater than the total amount, matching the existing deposit/alcohol amount consistency guard.
 - **Addressed in stabilization pass:** receipt submission now requires the target event to have ended before the server inserts a submitted receipt. The receipt Playwright flow uses the deterministic past event fixture for submission/review setup.
 - **Addressed in stabilization pass:** profile and user-event summaries no longer read `event_registrations.paymentStatus`; payment display is derived from registration transaction rows. Seed and webhook-replay setup stopped writing `paymentStatus` for new fixture registrations, and the legacy payment-status column/enum have been removed from the application schema.
 - **Addressed in stabilization pass:** receipt review records status locally, and the review detail page, success feedback, and finance docs explicitly tell finance reviewers that submitter notification is manual until a real delivery path exists.
+- **Addressed in this stabilization pass:** finance receipt approval and reimbursement lists now prefer the user's editable notification email over the Auth0 login email when rendering submitter contact details.
 - **Acceptable for now:** receipt review/reimbursement queries are tenant-scoped, and receipt reimbursement creation uses a transaction plus status preconditions to avoid reimbursing the wrong submitter or already-reimbursed receipts.
 
 ### Test and Documentation Quality
 
-- Stripe webhook replay specs cover idempotent completed sessions, paid-registration counter transitions, expired-session reservation release, processing-claim behavior, stale-claim reclaim, payment-intent fallback, and ignoring unpaid completed sessions.
+- Stripe webhook replay specs cover idempotent completed sessions, paid-registration counter transitions, expired-session reservation release, processing-claim behavior, stale-claim reclaim, payment-intent fallback, and ignoring unpaid completed sessions. `src/shared/registration-spots.spec.ts` pins the buyer-plus-guests spot count used by webhook counter updates.
 - Receipt flow specs cover receipt submission UI, receipt approval/reimbursement path, and tenant "Other" receipt country visibility.
 - **Addressed in stabilization pass:** `tests/specs/finance/receipts-flows.spec.ts` now hard-fails when the seeded pending receipt, refundable receipt group, row checkbox, enabled reimbursement action, or tenant "Other" country option is missing.
 - Finance overview docs now describe the current navigation-style finance UI, current finance capability names, and the manual submitter-notification caveat before and after receipt review.
 - **Addressed in stabilization pass:** `tests/docs/finance/receipt-review-reimbursement.doc.ts` now walks the receipt approval queue, approval detail page, manual submitter-notification caveat, reimbursement queue, payout-detail selection, and manual reimbursement recording.
+- `src/app/finance/receipt-refund-list/receipt-refund-list.component.spec.ts` pins the reimbursement queue's manual money-movement notice, and the receipt reimbursement doc/spec assert that notice on the page.
 - Tax-rate docs and specs provide better active coverage for `admin:tax` and inclusive Stripe tax-rate import/selection.
-- Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, and tax-amount consistency rejection on receipt submit/review.
+- Server finance unit tests are still thin, but now include transaction-list permission denial, receipt-media upload preflight denial/success coverage, profile `finance.receipts.my` output normalization, submitter notification-email fallback, and tax-amount consistency rejection on receipt submit/review.
 
 ### Product Questions Answered Above
 
@@ -824,12 +840,13 @@ the current working direction until a product decision overrides them.
 ### Test and Documentation Quality
 
 - `tests/specs/scanning/scanner.test.ts` now clicks "Confirm Check In" with selected guests and asserts that `checkInTime`, `checkedInGuestCount`, and `checkedInSpots` update, then restores the seeded row.
+- `src/app/events/event-organize/event-organize.spec.ts` covers organizer overview stat aggregation from registration-option counters, including scanner-updated `checkedInSpots` totals.
 - Server unit coverage proves scan-read denial for unauthorized tenant users, check-in counter updates for organizer access, selected guest check-in behavior, remaining-guest scan behavior after buyer check-in, idempotent duplicate check-in behavior, and same-user check-in denial.
 - `src/server/http/qr-code.web-handler.spec.ts` covers unauthenticated QR denial, owner access, same-event organizer access, other-user denial, and pending-registration denial.
 - `src/app/scanning/scanner/scanner.component.spec.ts` covers scanner URL parsing for current-origin tickets, other-origin tenant tickets, malformed payloads, and non-exact scan paths.
 - Server unit coverage proves future-event timing disables scan check-in and rejects direct check-in writes before the pre-start window opens. Server unit coverage also proves pending, cancelled, and waitlisted registrations disable scan check-in and reject direct check-in writes.
 - `tests/docs/events/register.doc.ts` documents that the ticket QR code is available after registration/payment and no longer claims QR email delivery exists in the current relaunch flow.
-- `tests/docs/events/event-management.doc.ts` documents the organizer-facing QR scan/check-in flow, including scan warnings, check-in authorization, checked-in count updates, and selected guest-quantity check-in.
+- `tests/docs/events/event-management.doc.ts` documents the organizer-facing QR scan/check-in flow, including scan warnings, check-in authorization, buyer-plus-selected-guests checked-in count updates, and selected guest-quantity check-in.
 - `QUALITY.md` lists participant and guest-quantity check-in as high-value Playwright flows; the scanner spec now covers selected guest check-in, while Browser-backed organizer aggregate review still depends on local runtime availability.
 
 ### Product Questions Answered Above
@@ -877,11 +894,12 @@ the current working direction until a product decision overrides them.
 - **Addressed in stabilization pass:** create-account stores `communicationEmail`, and profile now shows the Auth0 login email separately from the editable notification email. Profile edit updates `communicationEmail` alongside name and reimbursement fields.
 - **Addressed in stabilization pass:** profile event cards now link to event details and show registration status, selected option, guest quantity when applicable, payment state, and check-in time when available. Profile still leaves QR/ticket display, cancellation/refund action, and transfer/resale workflows to the event-detail flow or future work while exposing pending checkout continuation directly.
 - **Addressed in stabilization pass:** profile event cards now label their event-details action as "Open event page" instead of implying that the profile card itself renders the ticket; confirmed ticket access remains on the event detail surface.
-- **Addressed in stabilization pass:** profile event cards now point pending checkout registrations at the implemented profile-level recovery action, route ticket and cancellation details back to the event page, and keep waitlist movement, automatic refunds, and transfer/resale visibly out of the current implemented profile scope.
+- **Addressed in stabilization pass:** profile event cards now point pending checkout registrations at the implemented profile-level recovery action, route ticket, cancellation, and waitlist details back to the event page, and keep automatic refunds plus transfer/resale visibly out of the current implemented profile scope.
 - **Addressed in stabilization pass:** profile reimbursement fields are global user fields by product decision, and the profile copy now labels them as optional global reimbursement details used for manual receipt reimbursements across tenants.
 - **Addressed in stabilization pass:** ESNcard save, refresh, and remove actions now clear stale errors, show visible pending button states, and map mutation failures through `getErrorMessage(...)` instead of rendering raw error objects.
 - **Addressed in stabilization pass:** ESNcard validation now uses a bounded provider request and distinguishes provider unavailability from invalid/expired card results. Save/refresh mutations surface provider outages as retryable bad-request errors instead of collapsing them into card validation status.
 - **Addressed in stabilization pass:** create-account mutation failures now render a visible retryable error on the form instead of failing silently after the submit attempt.
+- **Addressed in stabilization pass:** the create-account form labels `communicationEmail` as "Notification email" so the UI, generated docs, and profile terminology agree that Auth0 login email and user-managed notification email are separate concepts.
 - **Acceptable for now:** profile receipt reads are tenant-scoped and user-scoped through `finance.receipts.my`.
 - **Acceptable for now:** event price reads and registration writes both require a verified ESNcard in the current tenant before applying the ESNcard discount.
 
@@ -889,13 +907,16 @@ the current working direction until a product decision overrides them.
 
 - `tests/docs/profile/user-profile.doc.ts` documents navigation, profile display, edit dialog validation, notification email persistence, event cards, and the receipts tab.
 - `src/app/profile/user-profile/edit-profile-dialog.component.spec.ts` covers profile edit payload normalization for notification email and optional global reimbursement details before the update mutation receives the dialog result.
-- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, guest-quantity, deferred-action notes, payment-state, registration-status labels, submitted-receipt status labels, and readable ESNcard mutation error fallback/provider messages.
+- `src/app/profile/user-profile/user-profile.component.spec.ts` covers profile event action, guest-quantity, deferred-action notes, payment-continuation next-step copy, payment-state, registration-status labels, submitted-receipt status labels, ESNcard upsert payload normalization, and readable ESNcard mutation error fallback/provider messages.
 - **Addressed in stabilization pass:** the profile doc no longer uses a fixed stabilization wait before the profile screenshot, now saves and verifies notification email persistence, and opens the Events section to document event-card semantics.
 - `tests/docs/profile/discounts.doc.ts` documents the discount-card section and current pending/error behavior, but does not add, refresh, remove, or assert any ESNcard validation outcome.
 - `tests/specs/discounts/esn-discounts.test.ts` verifies a seeded verified ESNcard affects paid event price labels and the register button copy.
 - No reviewed Playwright spec proves profile discount-card management itself, browser-level account creation fallback behavior without Auth0 Management credentials, profile event action rendering, or submitted receipt visibility after receipt submission.
 - `tests/docs/users/create-account.doc.ts` is integration-tagged and skips without Auth0 Management credentials, so baseline docs do not prove the account-creation path.
+- `tests/docs/users/create-account.doc.ts` asserts the account form exposes the editable address as "Notification email" when the integration path can run.
+- `src/app/app.routes.spec.ts` pins the relaunch route contract that public event browsing uses only account-assignment checks, feature areas require assigned authenticated accounts, `/create-account` stays auth-only for tenantless authenticated users, and `/global-admin` remains auth-only before tenant assignment checks.
 - `src/app/core/create-account/create-account.helpers.spec.ts` covers Auth0-data prefill fallback, explicit email-verification gating, create-account submit payload normalization, and create-account error message mapping without needing Auth0 Management credentials.
+- `src/shared/rpc-contracts/app-rpcs/users.rpcs.spec.ts` covers notification email format validation at the account-creation and profile-update RPC boundary, matching the create-account and profile-edit form validation.
 - `src/server/discounts/providers/index.spec.ts` covers ESNcard provider validation parsing and provider-unavailable distinction without hitting the external provider.
 - `src/server/effect/rpc/handlers/discounts.handlers.spec.ts` covers global-per-user ESNcard reads, updating an existing global user card from another tenant context, refresh revalidation persistence, and current-user/type-scoped card removal.
 - `src/server/effect/rpc/handlers/users.handlers.spec.ts` covers `users.events` tenant/user scoping, cancelled-registration exclusion, sorting, checkout URLs, check-in timestamps, guest counts, and payment-state mapping, plus `users.findMany` role aggregation, account creation transactionality, existing-global-user tenant joining, duplicate tenant-assignment conflict behavior, profile update persistence, and `users.userAssigned` behavior.
@@ -913,7 +934,7 @@ the current working direction until a product decision overrides them.
 
 - Keep Browser-backed profile edit persistence coverage aligned with notification email behavior.
 - Add Browser-backed profile event-card coverage for event links and registration/guest/payment/check-in state once runtime review is available.
-- Add profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime/browser review is available.
+- Add Browser-backed profile discount-card tests for add/refresh/remove and provider validation outcomes once runtime review is available. Local app/server coverage already proves upsert payload normalization, readable mutation errors, global card reads/upserts, refresh persistence, and scoped removal.
 - Add profile/account tests for account creation retry/tenant-join behavior, profile edit persistence, ESNcard add/refresh/remove, profile event action rendering, and submitted receipt visibility.
 
 ## Tenant/Global Admin
@@ -922,12 +943,12 @@ the current working direction until a product decision overrides them.
 
 - Tenants are resolved from request host first. On local hosts, the `evorto-tenant` cookie can select the tenant domain; otherwise the host domain is authoritative.
 - If tenant resolution fails, SSR and RPC requests fail closed with a 404. A local probe with `Host: no-such-tenant.invalid` returned 404.
-- Tenant records currently store one unique `domain`, name, currency, locale, timezone, theme, default location, Stripe account id, receipt settings, discount provider settings, SEO title/description, tenant legal links, and externally hosted logo/favicon URLs.
+- Tenant records currently store one unique `domain`, name, currency, locale, timezone, theme, default location, Stripe account id, receipt settings, discount provider settings, SEO title/description, tenant legal links, hosted legal text, and externally hosted logo/favicon URLs.
 - Client config loads the current tenant and permission list through RPC and applies `theme-${tenant.theme}` to the document root.
-- Tenant admin "General settings" shows a read-only identity summary with tenant name, primary domain, currency, locale, timezone, and Stripe connection state. It lets tenant admins change default location, site theme, externally hosted logo/favicon URLs, SEO title/description, legal links, receipt countries/allow-other, and ESNcard provider enablement plus buy URL. Configured legal links appear in the public app footer, and configured favicon URLs update the browser tab icon.
+- Tenant admin "General settings" shows a read-only identity summary with tenant name, primary domain, currency, locale, timezone, and Stripe connection state. It lets tenant admins change default location, site theme, externally hosted logo/favicon URLs, SEO title/description, legal links or hosted legal text, receipt countries/allow-other, and ESNcard provider enablement plus buy URL. Configured legal URLs appear in the public app footer as off-site links; configured hosted legal text appears through public `/legal/*` pages. Configured favicon URLs update the browser tab icon.
 - Tenant settings writes are tenant-scoped and require `admin:changeSettings`; tax-rate admin reads/writes require `admin:tax`.
 - `/global-admin` is guarded by authentication at the app route and by `globalAdmin:manageTenants` in the global-admin route config. The navigation link is hidden behind `globalAdmin:*`, and the tenant list RPC requires `globalAdmin:manageTenants`.
-- Global admin currently exposes only a tenant list with id/name/domain. There is no tenant create/edit/detail flow.
+- Global admin currently exposes a searchable tenant list and read-only tenant detail review with non-sensitive operational tenant state. There is no tenant create/edit/custom-domain/impersonation flow.
 - Global-admin permissions are derived from Auth0 app metadata `evorto.app/app_metadata.globalAdmin === true` independently from current-tenant membership. Tenant user context still requires a current-tenant assignment.
 - Anonymous direct `/global-admin` redirects to Auth0. Stored auth states were stale, so authenticated global-admin UI was not reverified through Playwright in this pass.
 
@@ -942,16 +963,20 @@ the current working direction until a product decision overrides them.
 ### Issues and Risks
 
 - **Addressed in stabilization pass:** root product and architecture docs now state the relaunch domain scope honestly: one active primary domain per tenant, with automated multi-domain/custom-domain verification deferred to later tenant-onboarding work.
-- **Addressed in stabilization pass:** tenant general settings now expose tenant name, primary domain, currency, locale, timezone, and Stripe connection state as read-only operator context without expanding the settings update payload.
-- **Addressed in stabilization pass:** tenant general settings now include a visible deferred-settings summary for custom-domain verification, logo/favicon uploads beyond externally hosted URLs, hosted legal text pages beyond external links, email sender name, review/publishing settings, registration limits, editable locale/currency/timezone, and Stripe account management. These fields are still not editable unless explicitly called out below.
+- **Addressed in stabilization pass:** tenant general settings now expose tenant name, primary domain, and Stripe connection state as read-only operator context.
+- **Addressed in stabilization pass:** tenant general settings now include a visible deferred-settings summary for custom-domain verification, logo/favicon uploads beyond externally hosted URLs, email sender name, review/publishing settings, registration limits, and Stripe account management. These fields are still not editable unless explicitly called out below.
+- **Addressed in this stabilization pass:** supported tenant currency, locale, and timezone values are now editable from general settings, persisted through `admin.tenant.updateSettings`, and validated against the shared Tenant relaunch policy before the RPC responds.
+- **Addressed in this stabilization pass:** general settings reloads the app after saved currency, locale, or timezone changes so Angular's bootstrap-level currency and locale providers are refreshed instead of leaving the current session on stale formatting defaults.
 - **Addressed in stabilization pass:** tenant logo and favicon URLs are now part of the `Tenant` RPC schema, editable from general settings, validated by `admin.tenant.updateSettings`, persisted with empty values normalized to `null`, and the configured favicon updates the browser tab icon.
 - **Addressed in stabilization pass:** tenant SEO title and description are now part of the `Tenant` RPC schema, editable from general settings, persisted by `admin.tenant.updateSettings`, and used as the tenant-level document title/meta description when configured.
 - **Addressed in stabilization pass:** tenant imprint/legal notice, privacy policy, and terms URLs are now part of the `Tenant` RPC schema, editable from general settings, validated by `admin.tenant.updateSettings`, persisted with empty values normalized to `null`, and rendered in the public app footer when configured.
 - **Addressed in stabilization pass:** tenant-admin child routes now have route-level guards. Settings require `admin:changeSettings`, roles require `admin:manageRoles`, users require `users:viewAll`, tax rates require `admin:tax`, and event reviews require `events:review`.
 - **Addressed in stabilization pass:** tenant settings saves now show a success notification and map failed updates through the shared readable error-message helper instead of relying only on mutation state.
-- **Addressed in stabilization pass:** tenant general-settings documentation now covers the implemented relaunch surface and explicitly calls out deferred domain, branding, hosted legal text pages, email sender, review policy, registration limit, locale/currency/timezone, and Stripe-account settings.
+- **Addressed in stabilization pass:** tenant general-settings documentation now covers the implemented relaunch surface and explicitly calls out deferred domain, branding upload, email sender, review policy, registration limit, and Stripe-account settings.
+- **Addressed in stabilization pass:** tenant-hosted legal text is now editable alongside external legal URLs. The public footer links to external URLs when configured, otherwise it links to hosted `/legal/imprint`, `/legal/privacy`, and `/legal/terms` pages when tenant text exists.
 - **Addressed in stabilization pass:** the tenant settings RPC payload schema is now exported and covered by a focused contract spec, including the current editable fields and the fact that deferred branding/domain fields are outside the update payload.
-- **Addressed in stabilization pass:** the global-admin tenant list now renders the tenant domain and id returned by the RPC, and generated docs describe the current list-only global tenant administration surface.
+- **Addressed in stabilization pass:** tenant general-settings payload shaping is now extracted and covered locally, including trim/blank normalization for editable URLs/SEO/ESNcard fields before the RPC call.
+- **Addressed in stabilization pass:** the global-admin tenant list and read-only detail page render the tenant operational state returned by the RPC, and generated docs describe the current searchable list plus detail-review global tenant administration surface.
 - **Acceptable for now:** tenant settings writes are scoped to the current tenant id and validate the returned tenant shape before responding.
 - **Acceptable for now:** unknown host requests fail closed with 404 instead of guessing a tenant.
 - **Acceptable for now:** RPC request-context headers are overwritten server-side before handler execution, so client-supplied `x-evorto-*` headers are not trusted as the source of tenant/user context.
@@ -963,13 +988,14 @@ the current working direction until a product decision overrides them.
 - `src/app/core/effect-rpc-angular-client.spec.ts` covers SSR RPC origin selection from incoming URL and forwarded headers.
 - `tests/specs/auth/storage-state-refresh.test.ts` covers stale/wrong tenant cookies in saved Playwright storage state, not runtime tenant resolution.
 - `tests/specs/permissions/tenant-isolation-tax-rates.spec.ts` checks seeded tenant tax-rate isolation directly in the database, but does not exercise the RPC/UI tenant context switch.
-- `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin` allow/deny behavior once page-backed runtime is available.
-- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary, editable brand asset URLs, editable tenant legal links, and public footer/favicon exposure, and records which branding/domain/hosted-legal-text settings are not editable yet.
-- `tests/docs/admin/global-admin.doc.ts` documents the current global-admin tenant list and records that tenant create/edit/detail, custom-domain verification, and impersonation workflows are not implemented yet.
+- `tests/specs/permissions/matrix.spec.ts` covers route denial for `/admin/settings`, `/admin/roles`, `/admin/users`, `/admin/tax-rates`, `/finance/transactions`, `/finance/receipts-approval`, `/finance/receipts-refunds`, and template write routes. `tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` adds focused tax-rate route denial coverage. Route-manifest unit specs cover admin, finance, template, and global-admin guard declarations without requiring page-backed runtime. `tests/specs/permissions/global-admin-route-guard.spec.ts` covers direct `/global-admin` and `/global-admin/tenants/:tenantId` allow/deny behavior once page-backed runtime is available.
+- `tests/docs/admin/general-settings.doc.ts` documents the current tenant general-settings page, including the deferred-settings summary, read-only tenant identity summary, editable locale/money policy plus reload behavior, editable brand asset URLs, editable tenant legal links or hosted text, and public footer/favicon exposure, and records which branding/domain settings are not editable yet.
+- `tests/docs/admin/global-admin.doc.ts` documents the current searchable global-admin tenant list and read-only tenant detail review, and records that tenant creation/editing, custom-domain verification, and impersonation workflows are not implemented yet.
 - `tests/docs/finance/inclusive-tax-rates.doc.ts` documents tenant tax-rate management.
 - `src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts` covers the tenant settings update payload scope.
+- `src/app/admin/general-settings/general-settings.payload.spec.ts` covers the client-side tenant-settings payload sent by the form, including trimmed optional editable fields and blank-to-undefined normalization.
 - `src/app/global-admin/global-admin.routes.spec.ts` covers route-level global-admin permission requirements.
-- `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers `globalAdmin:*` satisfying `globalAdmin:manageTenants` RPC authorization.
+- `src/server/effect/rpc/handlers/global-admin.handlers.spec.ts` covers explicit `globalAdmin:manageTenants` authorization, `globalAdmin:*` dependency authorization, and fail-closed forbidden/unauthorized tenant-list reads before querying tenants.
 - `src/server/context/request-context-resolver.spec.ts` covers host-first tenant resolution, localhost tenant-cookie fallback, stale localhost tenant-cookie fallback, unknown-host failure, global-admin permissions resolving without a tenant user assignment, and tenant-user context failing closed when the Auth0 user has no current-tenant assignment.
 - Playwright browser probing was limited because the bundled Playwright browser was not installed and stored auth states were stale; system Chrome confirmed anonymous/global-admin redirects to Auth0.
 
@@ -986,9 +1012,9 @@ the current working direction until a product decision overrides them.
 
 - Keep one-domain-per-tenant documented and visible as the relaunch scope; leave
   automated multi-domain/custom-domain management for later work.
-- Keep generated global-admin tenant-management documentation aligned if the surface expands beyond the current tenant list.
+- Keep generated global-admin tenant-management documentation aligned if the surface expands beyond the current read-only list/detail review.
 - Keep tenant settings save feedback aligned with the shared notification/error-message pattern.
-- Keep tenant SEO title/description and legal links aligned between the Tenant RPC schema, general settings, and generated documentation.
+- Keep tenant SEO title/description, legal links, and hosted legal text aligned between the Tenant RPC schema, general settings, public footer/pages, and generated documentation.
 
 ## Generated Documentation and Playwright Coverage
 
@@ -996,10 +1022,10 @@ the current working direction until a product decision overrides them.
 
 - Playwright has separate baseline spec and docs projects. Baseline specs exclude `tests/docs/**`; docs baseline runs `tests/docs/**/*.doc.ts`; integration-only docs are selected with `@needs-*` tags.
 - Local docs/spec discovery is runnable again after replacing stale Effect config APIs in `playwright.config.ts` and Playwright support files, and Auth0 Management credentials are no longer required just to import baseline fixtures.
-- `bun run test:e2e -- --list` discovers 78 baseline tests across 22 files,
+- `bun run test:e2e -- --list` discovers 81 baseline tests across 23 files,
   including setup projects, without requiring local Auth0/Stripe secrets.
-- `bun run test:e2e:docs -- --list` discovers 24 baseline docs/setup tests
-  across 17 files without requiring local Auth0/Stripe secrets.
+- `bun run test:e2e:docs -- --list` discovers 25 baseline docs/setup tests
+  across 18 files without requiring local Auth0/Stripe secrets.
 - The custom documentation reporter writes grouped Markdown pages and image assets to paths from `DOCS_OUT_DIR` / `DOCS_IMG_OUT_DIR`, defaulting to ignored repository-local `test-results/docs` paths.
 - The reporter initializes and clears docs/image output roots on `onBegin` only for real test execution. During Playwright `--list` discovery it no-ops and does not clean or write docs output.
 - Reporter-path tests pass with `bun run test:e2e -- tests/specs/reporting/reporter-paths.test.ts --no-deps`.
@@ -1014,15 +1040,14 @@ the current working direction until a product decision overrides them.
 
 ### Issues and Risks
 
-- **Addressed in stabilization pass:** `tests/specs/events/price-labels-inclusive.spec.ts` is now fixme-only. The old TODO-heavy placeholder bodies and page-load assertions are gone, so it no longer appears to provide active inclusive-price UI coverage.
-- **Addressed in stabilization pass:** intentionally deferred price/tax `test.fixme` declarations no longer carry placeholder `@track`/`@req` ids; they remain plain backlog declarations until active Browser-backed coverage replaces them.
+- **Addressed in stabilization pass:** `tests/specs/events/price-labels-inclusive.spec.ts` now replaces the old placeholder/fixme declarations with real page-level UI assertions backed by seeded event and template data.
 - **Must fix before agent scaling:** some specs still intentionally skip for integration credentials or explicit deferred coverage, but the known misleading fixture-state examples from this pass now fail loudly when expected seeded state is missing: receipt approval/refund rows, receipt dialog options, unlisted-event seed state, event-creation setup, scanner preconditions, regular-user registration tenant setup, template icons, and template role autocomplete.
 - **Addressed in stabilization pass:** `tests/docs/events/event-management.doc.ts` now documents the current event details, registration, review/listing, organizer overview, participant grouping, and receipt surfaces instead of stale attendee export, attendee messaging, settings, tags, featured images, notifications, integrations, or deletion flows.
 - **Addressed in stabilization pass:** `tests/docs/finance/finance-overview.doc.ts` now documents the current finance permission split and transaction/receipt navigation behavior.
 - **Addressed in stabilization pass:** Playwright discovery was broken by stale Effect config APIs and by import-time Auth0 Management config reads in baseline fixtures. Both are fixed locally, but they show the e2e/docs surface was not being exercised recently enough.
 - **Addressed in stabilization pass:** list-only Playwright commands no longer initialize docs output, clear generated docs/image directories, or require Auth0 Management credentials for baseline fixture imports.
 - **Addressed in stabilization pass:** list-only Playwright config now uses inert placeholder values for runtime-only Auth0/Stripe secrets, so docs/spec discovery can enumerate tests without local secret stubs, starting Docker, or contacting external services.
-- **Addressed in stabilization pass:** participant-facing event registration cards now receive tax-rate label metadata from `events.findOne` and render paid option prices through the shared inclusive tax label component. The Playwright price-label file remains fixme-only until Browser-backed page assertions can run in a local runtime.
+- **Addressed in stabilization pass:** participant-facing event registration cards now receive tax-rate label metadata from `events.findOne`, render paid option prices through the shared inclusive tax label component, and have page-level Playwright assertions for the seeded inclusive-price states.
 - **Should fix before relaunch:** page-backed Playwright specs still fail in this checkout because the configured Chromium binary is missing. `tests/specs/screenshot/doc-screenshot.test.ts` seeds data and then fails at browser launch.
 - **Addressed in stabilization pass:** `tests/test-inventory.md` now maps current Playwright specs/docs by suite ownership, records intentional fixme and credential-gated paths, and lists the Browser-backed coverage still needed from the remaining stabilization gaps.
 - **Addressed in stabilization pass:** the remaining `test.skip` audit removed the dead mobile skip from `tests/specs/permissions/override.test.ts`, corrected the inventory entry for that spec, made the Auth0 Management doc skip name the required credentials explicitly, and moved Stripe webhook replay's credential gate to a file-level skip before page/database fixtures are requested.
@@ -1036,6 +1061,11 @@ the current working direction until a product decision overrides them.
   title metadata was removed from the custom Playwright lint rule and the rule
   was dropped. Test guidance now prefers clear behavior-oriented titles without
   forcing placeholder metadata.
+- **Addressed in stabilization pass:** real Playwright spec/doc titles no
+  longer carry placeholder `@track`, `@req`, or `@doc` metadata. Semantic tags
+  such as `@finance`, `@admin`, `@permissions`, and `@stripe` remain for
+  filtering and inventory, and reporter fixture strings still exercise legacy
+  tag stripping.
 - **Acceptable for now:** the documentation reporter has focused tests for output paths, cleanup, grouping, and permissions callouts.
 - **Acceptable for now:** deterministic seed helpers and scenario handles exist; the issue is where specs turn missing seeded state into skips or no-op passes.
 
@@ -1045,7 +1075,9 @@ the current working direction until a product decision overrides them.
 - The docs suite favors screenshots and prose, but many docs do not assert that the workflow was completed or persisted.
 - Some functional specs have strong names and tags but weak assertions. These are more dangerous than absent tests because they imply coverage.
 - Integration-only docs are correctly taggable, but baseline docs should still cover account/profile/tenant flows that do not require Auth0 Management or external APIs.
-- The current reporter output target points outside this repository, so this repo does not contain the generated documentation artifact it depends on.
+- Normal local docs output now stays in this repository's ignored
+  `test-results/docs` paths. Publishing into the sibling documentation checkout
+  is intentionally explicit through `bun run test:e2e:docs:publish`.
 
 ### Product Questions Answered Above
 
@@ -1057,7 +1089,7 @@ the current working direction until a product decision overrides them.
 
 ### Recommended Cleanup Actions
 
-- Replace fixme-only price-label specs with focused assertions once the seeded/browser UI path can prove the behavior.
+- Keep active price-label specs aligned with seeded event and template tax-rate data as price display behavior changes.
 - Keep event-management and finance-overview docs aligned as the live UI changes; both were rewritten during this stabilization pass and should not be treated as stale product truth.
 - Continue auditing remaining `test.skip` usage so credential/integration skips stay honest and fixture-state gaps become hard failures or explicit `test.fixme` states.
 - Keep docs/list commands free of reporter output cleanup, runtime secret requirements, and local browser startup.
@@ -1069,7 +1101,7 @@ the current working direction until a product decision overrides them.
 ### Current Behavior
 
 - The repo is Bun-first. `packageManager`, the Docker base image, local Bun, and CI setup now agree on Bun `1.3.11`.
-- Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs, Docker stack, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.
+- Important entrypoints remain visible in `package.json`: app build/dev, unit tests, Playwright e2e/docs, Docker stack start/resume/stop, database commands, dependency updates, Stripe/Sentry ops, theme generation, and receipt-image cleanup.
 - Local runtime config uses `.env.dev.local` for tracked shared defaults, `.env.dev` for generated worktree-specific values, and `.env` for untracked developer secrets.
 - `bun run env:runtime` writes `.env.dev` with worktree-specific `COMPOSE_PROJECT_NAME`, Neon Local port, MinIO ports, `BASE_URL`, and local `DATABASE_URL`.
 - Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` scripts now refresh `.env.dev` before running `dotenv -c dev`, reducing fresh-worktree and wrong-database risk.
@@ -1095,8 +1127,16 @@ the current working direction until a product decision overrides them.
 - **Must fix before agent scaling:** fixed in this pass: local docs did not expose a package script for installing Playwright browser binaries even though page-backed Playwright specs fail without them.
 - **Addressed in this stabilization pass:** docs generation defaults resolve to ignored repository-local `test-results/docs` paths unless explicitly overridden, and the documentation reporter now skips output cleanup/writes during Playwright `--list` discovery.
 - **Addressed in stabilization pass:** CI e2e docs no longer skip `@finance` docs in the baseline docs run, so rewritten finance docs participate in the normal documentation artifact.
-- **Should fix before relaunch:** `docker:start` and Playwright `webServer` run the foreground Docker stack through a destructive `docker compose down` and `db-setup` reset. This is documented, but future agents should treat it as a database-resetting command, not a harmless server start.
+- **Should fix before relaunch:** Playwright `webServer` still runs the foreground Docker stack through a destructive `docker compose down` and `db-setup` reset. This is documented, but future agents should treat it as a database-resetting command, not a harmless server start.
+- **Addressed in stabilization pass:** `bun run docker:resume` now provides a non-recreating resume path for an already initialized Docker stack, while `docker:start`, `docker:start:foreground`, and `docker:start:watch` keep the explicit reset-from-zero behavior.
 - **Addressed in this stabilization pass:** `bun run docker:check` reports missing Neon Local, Auth0, Stripe, session, and Font Awesome registry variables before Docker Compose mutates local containers. Docker now writes the same Font Awesome registry scopes as the checked-in `.npmrc`, so premium and brand icon packages can use the same build-secret token path. It also reports local tool readiness and warns when Playwright browsers are missing without blocking Docker start. The Compose-managed Stripe CLI listener writes its generated webhook signing secret into a shared volume and the app reads it through `STRIPE_WEBHOOK_SECRET_FILE`, so a static `STRIPE_WEBHOOK_SECRET` is no longer a Docker-start blocker. The current worktree is missing `NEON_API_KEY`, `CLIENT_SECRET`, and `STRIPE_API_KEY`, so a fresh full Docker start is intentionally blocked until those secrets are provided.
+- **Addressed in stabilization pass:** `helpers/testing/runtime-preflight.spec.ts` now pins that destructive Docker start scripts call `docker:check` first, required runtime variables are wired into Compose services, and Font Awesome registry access remains available to Docker through the same secret path for premium and brand icon packages.
+- **Addressed in stabilization pass:** `specs/seed/seed-baseline.test.ts` now treats the reset-from-zero seed as a runtime contract: default user/organizer roles, every template seed family, paid/free registration options, paid tax-rate wiring, open/closed/draft/past scenario handles, confirmed registrations, and scanner aggregate data must all exist after seeding.
+- **Addressed in stabilization pass:** `.env.example` is now a checked-in
+  no-secret checklist for Docker-required local secrets, and runtime preflight
+  tests keep it aligned with the variables that `docker:check` validates. The
+  failing preflight message points developers at the checklist before asking
+  them to add missing values to `.env` or the shell environment.
 - **Addressed in stabilization pass:** local workflow guidance now consistently routes developers through `bun run ...` package scripts or `node_modules/.bin/dotenv -c dev -- ...` for direct external-tool calls. The server config guidance no longer treats unsupported `.env.local` as part of the normal local dotenv contract.
 - **Acceptable for now:** keeping core commands visible in `package.json` makes the workflow easier for agents than hiding orchestration in helper wrappers.
 - **Acceptable for now:** `.env.dev` is ignored and generated per worktree, while `.env.dev.local` remains tracked for shared defaults.
@@ -1119,7 +1159,7 @@ the current working direction until a product decision overrides them.
 ### Recommended Cleanup Actions
 
 - Keep docs publishing explicit if `evorto-pages` output is needed; normal local docs output stays in ignored `test-results/docs`.
-- Consider splitting Docker commands into destructive reset/start and non-destructive restart flows if local developer data preservation becomes important.
+- Keep `docker:resume` scoped to already initialized stacks; use the destructive `docker:start*` scripts when seeded-from-zero behavior matters.
 - Keep rewritten finance docs in the CI docs baseline unless a future integration-only dependency is introduced and explicitly tagged.
 - Keep `package.json` as the visible command surface and avoid moving core workflow commands into hidden helper CLIs.
 
@@ -1127,8 +1167,13 @@ the current working direction until a product decision overrides them.
 
 ### Must Fix Before Agent Scaling
 
-1. Continue pruning misleading placeholder tests/docs from profile/account and remaining thin documentation surfaces before agents treat generated docs as product truth.
-2. Continue auditing remaining `test.skip` usage so credential/integration skips stay explicit and fixture-state gaps become hard failures or honest `test.fixme` states.
+1. Keep product-facing generated docs free of placeholder metadata and stale
+   claims before agents treat generated docs as product truth. Profile/account
+   docs now document the current notification email, ESNcard, receipt, and
+   event-card behavior; remaining profile/account gaps are Browser-backed or
+   Auth0-management-gated coverage, not known placeholder doc titles.
+2. Keep the Playwright skip/fixme inventory guard current whenever an
+   intentional credential gate or Browser-backed placeholder changes.
 3. Keep server-side template permission, validation, and route-guard coverage in place as template behavior expands beyond simple mode.
 4. Keep role lookup APIs lookup-only for event/template eligibility flows; do not re-expose admin role-management data to organizers.
 5. Keep admin, finance, global-admin, and template direct-route denial coverage current as route trees change.
@@ -1137,17 +1182,18 @@ the current working direction until a product decision overrides them.
 ### Should Fix Before Relaunch
 
 1. Implement transfer/resale; keep automatic refund handling visible until the finance flow is implemented.
-2. Add Playwright coverage for negative registration paths and role-ineligible direct links.
-3. Keep organizer/helper signup copy distinct from participant registration as event/template registration-option surfaces evolve.
-4. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, and questions where practical. Organizer planning tips are now exposed as the first private organizer-notes field.
-5. Run the covered legacy-field migration path in production so any existing physical `showInHub`, `paymentStatus`, and `payment_status` artifacts are dropped now that active schema/API code no longer uses them.
-6. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
-7. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
-8. Fill the remaining tenant settings implementation gap for branding uploads, legal text pages, onboarding/domain workflows, locale/currency/timezone policy, and global tenant-admin workflows. The current general-settings page exposes SEO fields, externally hosted logo/favicon URLs, tenant legal links, read-only runtime identity, and a visible deferred-settings summary.
-9. Make Playwright list/discovery side-effect-free and document or automate the local browser installation expectation.
-10. Update or regenerate `tests/test-inventory.md` after placeholder docs/specs are pruned.
-11. Move local generated docs defaults away from the sibling documentation checkout, or introduce an explicit docs-publish flow that cannot run accidentally during list/discovery.
-12. Keep `docker:start` reset behavior intentional and ensure seeded data is sufficient to get going from zero.
+2. Run the active negative-registration Playwright coverage once local runtime
+   is available; `specs/events/negative-registration-states.spec.ts` now covers
+   closed registration windows, role-ineligible direct links, and waitlist
+   affordances.
+3. Keep simple-mode templates as the primary authoring UI, but expand reusable template support for discounts, add-ons, and questions where practical. Organizer planning tips are now exposed as the first private organizer-notes field.
+4. Execute the covered legacy-field migration path during production cut-over so
+   any existing physical `showInHub`, `paymentStatus`, and `payment_status`
+   artifacts are dropped now that active schema/API code no longer uses them.
+5. Add Browser-backed scanner/organizer aggregate review once local runtime is available.
+6. Add Browser-backed profile coverage for payment-continuation, ticket/cancellation routing, waitlist messaging, and ESNcard provider failure semantics once local runtime is available.
+7. Fill the remaining tenant settings implementation gap for branding uploads and onboarding/domain workflows. The current general-settings page exposes SEO fields, externally hosted logo/favicon URLs, tenant legal links or hosted legal text, editable supported locale/currency/timezone values, read-only runtime identity, and a visible deferred-settings summary. The current global-admin surface supports a searchable tenant list plus read-only tenant detail review, while tenant creation/editing, custom-domain verification, and impersonation remain out of scope.
+8. Keep `docker:start` reset behavior intentional, use `docker:resume` only for existing local stacks, and ensure seeded data is sufficient to get going from zero.
 
 ### Acceptable For Now
 
@@ -1166,6 +1212,7 @@ the current working direction until a product decision overrides them.
 13. Local runtime scripts now refresh `.env.dev` before running Playwright, database, or Docker commands.
 14. Angular and server unit-test commands now have separate test discovery ownership.
 15. Docker start commands now run a non-mutating required-secret preflight before tearing down or starting containers.
+16. Organizer/helper signup copy is covered separately from participant registration copy, and full participant options expose the waitlist action instead of a normal registration action.
 
 ### Product Decisions Recorded
 
@@ -1182,11 +1229,14 @@ implement those decisions or explicitly revise them there before changing code.
 - Price-label spec cleanup pass: converted the inclusive price-label Playwright spec to fixme-only declarations and removed placeholder page-load assertions.
 - Unlisted-event spec cleanup pass: changed unlisted-event visibility tests to require an approved unlisted seeded event instead of skipping when the seed state is missing.
 - Event-creation spec cleanup pass: changed the template-create-event Playwright spec to require the deterministic seeded hike template, registration options, tax-rate completeness, and enabled submit button instead of skipping fixture/setup failures.
+- Event-creation template-discount pass: revalidated copied ESNcard template discounts during event creation so changed event prices, free toggles, or later-disabled ESNcard providers cannot create invalid event discount rows.
 - Scanner spec cleanup pass: changed the scanner Playwright spec to require an unchecked confirmed registration and matching registration option instead of skipping fixture/setup failures.
 - Free-registration spec cleanup pass: removed the impossible missing-tenant skip so the regular-user registration flow relies on the required tenant fixture and fails if fixture setup breaks.
 - Template spec cleanup pass: changed template category and role autocomplete coverage to require seeded icons, seeded roles, and concrete role option text instead of skipping fixture/setup failures.
 - None in the Templates pass. The highest-value issues are permission and contract validation gaps that need targeted tests with the fixes.
 - Template docs/spec cleanup pass: removed the generic template doc discovery placeholder, converted the deferred template tax-rate spec to honest fixme-only declarations, and updated the Playwright inventory.
+- Template tax-rate UI coverage pass: replaced the fixme-only template tax-rate file with active simple-mode Browser-backed assertions for the paid tax-rate requirement and seeded inclusive tax-rate save path, leaving only future bulk/no-compatible-rate behavior as fixme declarations.
+- Event price-label UI coverage pass: replaced the fixme-only inclusive-price file with active page-level assertions for paid event labels, free event options, zero-percent tax-free labels, fallback tax labels, ESNcard discounted prices retaining tax labels, and paid template detail summaries.
 - Permission evaluator pass: routed legacy server permission checks through the shared `includesPermission` helper so client and server agree on dependencies, wildcards, and legacy aliases, and added direct unit coverage for the shared evaluator plus tax-rate dependency behavior.
 - Role/user cleanup pass: removed placeholder user-list selection/edit affordances, aligned the roles doc with the current no-role-assignment UI, and fixed `users.findMany` to return only the RPC contract shape.
 - Role hub-field pass: migrated active role create/update form and RPC writes to `displayInHub`, persisted `collapseMembersInHup`, updated role docs, and removed legacy `showInHub` from the application schema/API surface.
@@ -1204,6 +1254,15 @@ implement those decisions or explicitly revise them there before changing code.
 - Profile account-assignment coverage pass: added focused server coverage for `users.userAssigned` so account-creation routing keeps failing closed when the current-tenant assignment header is absent.
 - Profile ESNcard message coverage pass: covered readable save/refresh/remove fallback messages and provider/RPC message preference in app unit tests.
 - Profile ESNcard mutation coverage pass: added focused handler coverage for refresh revalidation persistence and current-user/type-scoped card removal without requiring browser runtime or the external provider.
+- Profile ESNcard upsert payload pass: extracted and covered ESNcard identifier
+  trimming before the profile upsert mutation receives the form payload.
+- Profile notification-email validation pass: shared the email-shape validation
+  between create-account and profile-edit forms and pinned the same constraint at
+  the users RPC contract boundary.
+- Profile/account route-contract pass: added root route-manifest coverage so `/create-account` remains reachable to authenticated users without a tenant assignment while protected feature routes keep assigned-account and auth guards.
+- Permission reference docs pass: added a generated about-permissions documentation source backed by shared permission metadata so the role-creation docs no longer link to a missing checked-in source.
+- Template tax-rate coverage pass: covered the compatible active/inclusive current-tenant tax-rate query and paid missing-tax-rate submit normalization so the remaining fixme is narrowed to page-level simple-mode UI assertions.
+- Scanner aggregate coverage pass: extracted organizer overview stat aggregation and covered the checked-in total against registration-option `checkedInSpots`, keeping local app logic aligned with scanner mutation counters while Browser aggregate review remains blocked.
 - Profile edit-dialog coverage pass: covered profile edit payload normalization so notification email and optional global reimbursement details are trimmed/null-normalized before persistence.
 - Create-account payload coverage pass: normalized submitted account-creation names and notification email before the RPC mutation and covered that behavior in helper unit tests.
 - Profile receipt-label coverage pass: rendered submitted receipt statuses through readable profile labels and covered all persisted receipt states in app unit tests.
@@ -1235,27 +1294,173 @@ implement those decisions or explicitly revise them there before changing code.
 - Tenant settings feedback pass: added explicit success and readable error notifications for general settings saves.
 - Tenant SEO settings pass: exposed stored tenant SEO title/description through the Tenant RPC schema, general settings UI, admin settings persistence, and tenant-level document metadata.
 - Tenant domain-scope docs pass: aligned root product/architecture docs with the current one-active-domain relaunch model and left automated multi-domain/custom-domain verification as later tenant-onboarding work.
+- Tenant locale/timezone contract pass: narrowed the shared Tenant contract to
+  the database-supported relaunch currency, locale, and timezone values while
+  normalizing legacy `en` / `Europe/Amsterdam` context payloads to supported
+  defaults.
+- Tenant locale/money settings pass: moved supported currency, locale, and
+  timezone out of the read-only/deferred tenant-settings bucket and through the
+  general-settings form, admin RPC payload, persistence handler, generated docs,
+  and focused payload/handler coverage.
+- Tenant legal-text pass: added editable hosted imprint, privacy, and terms
+  text fields to tenant settings, persisted them through the Tenant/RPC schema,
+  exposed public `/legal/*` pages, and kept external legal URLs as the footer
+  preference when configured.
+- Tenant locale/money reload pass: reloads the app after saved currency,
+  locale, or timezone changes so bootstrap-level formatting defaults are not
+  stale in the current session.
 - Legacy schema migration pass: added an idempotent migration step that drops
   physical `roles.showInHub`, `event_registrations.paymentStatus`, and the
   unused `payment_status` enum when present.
+- Migration failure signal pass: made the production migration command exit
+  non-zero when a top-level migration step fails, so the legacy cleanup path
+  cannot be logged as failed while still looking successful to automation.
 - Tenant admin route-guard audit: confirmed and documented route-level guards plus permission-matrix coverage for tenant admin settings, roles, users, and tax rates.
+- Global-admin authorization coverage pass: extended handler coverage for the
+  tenant list so explicit `globalAdmin:manageTenants`, wildcard access, and
+  forbidden/anonymous fail-closed paths are all covered before Browser-backed
+  global-admin review is available.
 - Permission metadata pass: replaced generated camelCase permission labels with explicit admin-facing labels/descriptions and rendered descriptions in the role form.
 - Route-guard backlog cleanup: replaced the stale "extend route-guard coverage" follow-up after admin, finance, template, and global-admin route-manifest specs plus permission-matrix denial coverage were in place.
 - Role autocomplete backlog cleanup: replaced the stale skip-based autocomplete follow-up with the remaining Browser-backed least-privilege organizer review, after confirming role lookup unit coverage and the active template autocomplete spec already fail loudly on missing seeded roles.
 - Registration negative-path backlog cleanup: clarified the Playwright inventory so closed-window, role-ineligible, unsupported-mode, and waitlist items point to the remaining Browser-backed page states rather than implying server/app negative-path coverage is absent.
+- Registration negative-path Playwright pass: added active page-backed coverage
+  for closed registration windows, role-ineligible direct links, and full
+  participant-option waitlist affordances. Execution still depends on local
+  runtime secrets and the matching Playwright browser cache.
+- Active-registration deferred-action pass: kept transfer/resale visibly
+  unavailable on event active-registration cards for pending, confirmed, and
+  waitlisted registrations until the real transfer/resale flow exists.
+- Tax-rate validation coverage pass: covered the shared server validator for
+  paid/free registration option tax-rate rules, including tenant-missing,
+  inactive, and exclusive tax rates.
 - Receipt review docs pass: added a generated documentation journey for receipt approval and manual reimbursement recording, then removed receipt review/reimbursement from the generic missing-docs backlog.
+- Finance receipt contact pass: receipt approval/reimbursement read models now
+  render the submitter's notification email when present, falling back to the
+  Auth0 login email only when no notification email is configured.
 - Profile edit docs pass: extended the user-profile documentation journey to save a changed notification email, assert the refreshed profile summary, and restore the seeded user record after the doc run.
 - Create-account gate coverage pass: extracted the email-verification form gate into a typed helper and covered verified, unverified, null, and absent Auth0 email-verification states without requiring Auth0 Management credentials.
+- Playwright skip-inventory pass: added a local unit guard that allowlists every
+  current Playwright `test.skip` and `test.fixme`, keeping future fixture-state
+  gaps from becoming silent placeholders.
+- Global-admin tenant-list pass: expanded the tenant list contract and UI with
+  non-sensitive operational state for support review, including theme,
+  locale/currency/timezone, and Stripe connection status.
+- Global-admin tenant-search pass: added client-side search across tenant
+  operational fields and removed the dead placeholder tenant-list action while
+  keeping the current surface read-only.
+- Global-admin tenant-list error pass: mapped tenant-list query failures
+  through shared readable error-message handling instead of rendering raw error
+  objects in the current global-admin surface.
+- Global-admin tenant-detail pass: added a guarded read-only tenant detail RPC,
+  route, and UI so platform admins can review one tenant's operational state
+  from the searchable tenant list without introducing tenant editing or
+  impersonation semantics.
+- Global-admin route-guard coverage pass: extended the page-backed direct-route
+  guard spec and inventory notes to cover `/global-admin/tenants/:tenantId` in
+  addition to the global-admin shell route.
+- User-list pagination pass: fixed the read-only tenant user list to paginate
+  tenant-user assignments before loading role rows, so users with multiple
+  roles no longer consume multiple page slots.
+- User-list search pass: wired the existing `users.findMany.search` contract
+  into the server query and the read-only user list UI so larger tenants can
+  filter by name or email before pagination.
+- Docker preflight visibility pass: `bun run docker:check` now lists required
+  variables that are already available without printing secret values, so
+  Font Awesome premium/brand icon registry access can be confirmed even when
+  missing runtime secrets still block Docker startup.
+- Docker preflight contract pass: added regression coverage that Docker start
+  scripts remain gated by `docker:check`, Compose consumes the required runtime
+  variables, and the Font Awesome build secret path continues to support both
+  premium and brand icon packages.
+- Migration docs alignment pass: refreshed `migration/README.md` to document
+  the current global migration-step phase, including idempotent DDL cleanup for
+  legacy physical fields, and removed stale conductor/track guidance.
+- Docker resume command pass: added `bun run docker:resume` as a non-recreating
+  path for already initialized Docker stacks and documented the difference from
+  reset-from-zero `docker:start*` commands.
+- Font Awesome registry contract pass: pinned that both the premium duotone icon
+  package and the brand icon package stay installed through the shared Font
+  Awesome registry path used by local installs and Docker builds.
+- Profile discount-fragment pass: kept `/profile#discounts` stable while
+  tenant ESNcard provider data loads, so direct links and docs journeys do not
+  fall back permanently to the overview before the Discounts section becomes
+  available.
+- Shared price-label coverage pass: added focused Angular coverage for the
+  shared price/tax label component's paid, free, zero-tax, and fallback states,
+  narrowing the remaining inclusive-price fixme to page-level Browser
+  assertions.
+- Shared price-label currency pass: changed the shared price/tax label to
+  inherit Angular's tenant-level `DEFAULT_CURRENCY_CODE` and locale by default,
+  while keeping explicit currency overrides available for future cross-currency
+  surfaces.
+- Registration spot-count pass: extracted and covered the buyer-plus-guests
+  spot-count helper used by Stripe webhook completion/expiry counter updates,
+  then corrected the finance notes that still described expiry as releasing one
+  spot.
+- Registration-card unsupported-mode coverage pass: pinned that stored
+  `random` and `application` participant options do not expose the lightweight
+  waitlist action when full, keeping the card aligned with the server-side
+  fail-closed registration-mode policy.
+- Registration cancellation guest-copy pass: aligned active-registration
+  cancellation helper text and generated registration docs with buyer-plus-guest
+  spot release behavior.
+- Waitlist leave-action pass: allowed waitlisted participants to cancel their
+  waitlist registration before event start, decrementing `waitlistSpots`
+  transactionally and exposing **Leave waitlist** copy on the active
+  registration card.
+- Profile payment next-step coverage pass: extracted the profile event-card
+  pending-checkout next-step copy into a helper and covered that it only appears
+  when a pending registration has an actual checkout URL.
+- Docs publish command pass: added an explicit
+  `bun run test:e2e:docs:publish` script for writing generated docs and
+  screenshots into the sibling `evorto-pages` checkout, while keeping normal
+  `test:e2e:docs` output in ignored local `test-results/docs` paths.
+- Profile/account docs metadata pass: removed placeholder `@track`/`@doc`
+  title metadata from the profile, ESN discount-card, and create-account docs
+  while keeping meaningful gating tags such as `@finance` and
+  `@needs-auth0-management`.
+- Generated docs metadata pass: removed the remaining placeholder
+  `@track`/`@doc` title metadata from product-facing generated docs while
+  keeping meaningful suite tags such as `@admin`, `@globalAdmin`, and
+  `@finance` visible in list/discovery output.
+- Playwright spec metadata pass: removed placeholder `@track`/`@req` title
+  metadata from active Playwright specs while keeping meaningful suite tags such
+  as `@finance`, `@stripe`, `@permissions`, `@taxRates`, and `@isolation`.
+  Reporter fixture strings still exercise tag stripping without putting
+  placeholder metadata in real test titles.
+- Playwright inventory metadata pass: refreshed `tests/test-inventory.md` and
+  the generated-docs/current-behavior counts after title metadata cleanup.
+- Runtime blocker refresh: reran `bun run docker:check`; Docker remains
+  intentionally blocked until `NEON_API_KEY`, `CLIENT_SECRET`, and
+  `STRIPE_API_KEY` are provided, while Font Awesome premium/brand registry
+  access and Docker Compose config still validate. Playwright browser cache is
+  still missing and needs `bun run test:e2e:install` before page-backed runs.
+- Docker media isolation pass: forced the app container to use the Compose
+  MinIO endpoint for media/uploads even when developer dotenv values point
+  normal local runs at an external S3-compatible endpoint.
+- Playwright webhook-secret gate pass: local non-CI Playwright runs can now
+  reach the Stripe webhook replay spec's file-level skip when
+  `STRIPE_WEBHOOK_SECRET` is absent, while CI still requires the static secret
+  for replay coverage. Docker app verification can continue to use the
+  Compose-managed `STRIPE_WEBHOOK_SECRET_FILE`.
+- Backlog evidence refresh: reran the skip/fixme inventory guard, the legacy
+  stabilization field guard, and the focused registration copy/deferred-action
+  component specs before pruning completed organizer/helper signup and skip
+  audit action wording from the prioritized backlog.
 
 ## Review Next
 
 All ten first-pass review areas are now represented in this document. The next
 stabilization work should continue with small cleanup commits around the
 remaining relaunch gaps: Browser-backed profile action coverage, Browser-backed
-scanner aggregate review, the remaining tenant settings implementation scope,
-running the legacy-field migration path for production data, and replacing
-intentionally fixme-only price/tax specs with active Browser-backed coverage
-once the local runtime is available. Receipt notification remains a future
-product delivery path; the current relaunch scope records receipt review
+scanner aggregate review, tenant settings implementation scope around branding
+uploads, onboarding/domain workflows, and global
+tenant-admin workflows, plus the legacy-field migration path for production
+data. Normal generated docs output now stays
+local unless `test:e2e:docs:publish` is run intentionally. New Playwright
+skips/fixmes should be added only as explicit credential gates or honest
+Browser-backed stabilization placeholders. Receipt notification remains a
+future product delivery path; the current relaunch scope records receipt review
 locally and keeps finance-facing copy explicit that submitter notification is
 manual.

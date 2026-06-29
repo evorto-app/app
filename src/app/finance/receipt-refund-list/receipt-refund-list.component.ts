@@ -24,6 +24,9 @@ import { ReceiptPreviewDialogComponent } from '../shared/receipt-preview-dialog/
 
 type PayoutType = 'iban' | 'paypal';
 
+export const receiptReimbursementManualNotice =
+  'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.';
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -47,6 +50,8 @@ export class ReceiptRefundListComponent {
     'totalAmount',
     'preview',
   ];
+  protected readonly receiptReimbursementManualNotice =
+    receiptReimbursementManualNotice;
   private readonly rpc = AppRpc.injectClient();
   protected readonly refundableReceiptsQuery = injectQuery(() =>
     this.rpc.finance.receipts.refundableGroupedByRecipient.queryOptions(),

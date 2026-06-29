@@ -19,7 +19,7 @@
         <h2 class="title-small mb-2">Deferred settings</h2>
         <p class="text-on-surface-variant mb-3 text-sm">
           These tenant settings are part of the broader relaunch/onboarding
-          scope, but they are not editable from this page yet.
+          scope, but they are not fully editable from this page yet.
         </p>
         <dl class="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
           @for (row of deferredTenantSettingsRows; track row.label) {
@@ -37,7 +37,7 @@
         <h2 class="title-small mb-2">Tenant identity</h2>
         <p class="text-on-surface-variant mb-3 text-sm">
           These values identify the active tenant for operators and support.
-          They are read-only here.
+          Tenant name, primary domain, and Stripe connection are read-only here.
         </p>
         <dl class="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
           @for (row of tenantIdentityRows(); track row.label) {
@@ -71,6 +71,40 @@
           <mat-option value="esn">ESN theme</mat-option>
         </mat-select>
       </mat-form-field>
+
+      <h3 class="title-small mb-2 mt-6">Locale and money</h3>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        These values are used for tenant currency, date/time display, and local
+        scheduling assumptions.
+      </p>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <mat-form-field>
+          <mat-label>Currency</mat-label>
+          <mat-select [formField]="settingsForm.currency">
+            @for (currency of currencyOptions; track currency) {
+              <mat-option [value]="currency">{{ currency }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Locale</mat-label>
+          <mat-select [formField]="settingsForm.locale">
+            @for (locale of localeOptions; track locale) {
+              <mat-option [value]="locale">{{ locale }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Timezone</mat-label>
+          <mat-select [formField]="settingsForm.timezone">
+            @for (timezone of timezoneOptions; track timezone) {
+              <mat-option [value]="timezone">{{ timezone }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
 
       <h3 class="title-small mb-2 mt-6">Brand assets</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
@@ -116,10 +150,11 @@
         ></textarea>
       </mat-form-field>
 
-      <h3 class="title-small mb-2 mt-6">Legal links</h3>
+      <h3 class="title-small mb-2 mt-6">Legal pages</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
-        Configure tenant-specific public legal pages. Leave a field empty when
-        that page is still handled outside Evorto.
+        Configure tenant-specific public legal pages. Use an external URL when
+        the page is handled elsewhere, or add hosted text for Evorto to publish
+        the page locally.
       </p>
       <mat-form-field>
         <mat-label>Imprint / legal notice URL</mat-label>
@@ -130,6 +165,15 @@
         />
       </mat-form-field>
       <mat-form-field>
+        <mat-label>Hosted imprint / legal notice text</mat-label>
+        <textarea
+          matInput
+          rows="5"
+          [formField]="settingsForm.legalNoticeText"
+          placeholder="Legal notice text shown at /legal/imprint"
+        ></textarea>
+      </mat-form-field>
+      <mat-form-field>
         <mat-label>Privacy policy URL</mat-label>
         <input
           matInput
@@ -138,12 +182,30 @@
         />
       </mat-form-field>
       <mat-form-field>
+        <mat-label>Hosted privacy policy text</mat-label>
+        <textarea
+          matInput
+          rows="5"
+          [formField]="settingsForm.privacyPolicyText"
+          placeholder="Privacy policy text shown at /legal/privacy"
+        ></textarea>
+      </mat-form-field>
+      <mat-form-field>
         <mat-label>Terms URL</mat-label>
         <input
           matInput
           [formField]="settingsForm.termsUrl"
           placeholder="https://section.example.org/terms"
         />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Hosted terms text</mat-label>
+        <textarea
+          matInput
+          rows="5"
+          [formField]="settingsForm.termsText"
+          placeholder="Terms shown at /legal/terms"
+        ></textarea>
       </mat-form-field>
 
       <h3 class="title-small mb-2 mt-6">Finance settings</h3>

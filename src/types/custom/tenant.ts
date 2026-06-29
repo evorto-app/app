@@ -8,6 +8,67 @@ import { Effect, Schema, SchemaGetter } from 'effect';
 
 import { GoogleLocation } from '../location';
 
+export const supportedTenantCurrencies = ['EUR', 'CZK', 'AUD'] as const;
+export const supportedTenantLocales = ['en-AU', 'en-GB', 'en-US'] as const;
+export const supportedTenantTimezones = [
+  'Europe/Prague',
+  'Europe/Berlin',
+  'Australia/Brisbane',
+] as const;
+
+const SupportedTenantCurrency = literalUnion(...supportedTenantCurrencies);
+const SupportedTenantLocale = literalUnion(...supportedTenantLocales);
+const SupportedTenantTimezone = literalUnion(...supportedTenantTimezones);
+
+export type SupportedTenantCurrency =
+  (typeof supportedTenantCurrencies)[number];
+export type SupportedTenantLocale = (typeof supportedTenantLocales)[number];
+export type SupportedTenantTimezone = (typeof supportedTenantTimezones)[number];
+
+const normalizeTenantLocale = (value: string): SupportedTenantLocale => {
+  if (value === 'en') {
+    return 'en-GB';
+  }
+
+  const supportedLocale = supportedTenantLocales.find(
+    (locale) => locale === value,
+  );
+  if (supportedLocale) {
+    return supportedLocale;
+  }
+
+  throw new Error(`Unsupported tenant locale: ${value}`);
+};
+
+const normalizeTenantTimezone = (value: string): SupportedTenantTimezone => {
+  if (value === 'Europe/Amsterdam') {
+    return 'Europe/Berlin';
+  }
+
+  const supportedTimezone = supportedTenantTimezones.find(
+    (timezone) => timezone === value,
+  );
+  if (supportedTimezone) {
+    return supportedTimezone;
+  }
+
+  throw new Error(`Unsupported tenant timezone: ${value}`);
+};
+
+const TenantLocale = Schema.String.pipe(
+  Schema.decodeTo(SupportedTenantLocale, {
+    decode: SchemaGetter.transform(normalizeTenantLocale),
+    encode: SchemaGetter.transform((value) => value),
+  }),
+);
+
+const TenantTimezone = Schema.String.pipe(
+  Schema.decodeTo(SupportedTenantTimezone, {
+    decode: SchemaGetter.transform(normalizeTenantTimezone),
+    encode: SchemaGetter.transform((value) => value),
+  }),
+);
+
 const OptionalGoogleLocation = Schema.NullishOr(GoogleLocation).pipe(
   Schema.decodeTo(Schema.UndefinedOr(GoogleLocation), {
     decode: SchemaGetter.transform((value) => value ?? undefined),
@@ -49,7 +110,7 @@ const OptionalTenantReceiptSettings = Schema.NullishOr(
 );
 
 export class Tenant extends Schema.Class<Tenant>('Tenant')({
-  currency: literalUnion('EUR', 'CZK', 'AUD'),
+  currency: SupportedTenantCurrency,
   defaultLocation: OptionalGoogleLocation,
   discountProviders: Schema.optional(
     Schema.NullOr(
@@ -76,16 +137,19 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   domain: Schema.NonEmptyString,
   faviconUrl: optionalNullable(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
+  legalNoticeText: optionalNullable(Schema.NonEmptyString),
   legalNoticeUrl: optionalNullable(Schema.NonEmptyString),
-  locale: Schema.NonEmptyString,
+  locale: TenantLocale,
   logoUrl: optionalNullable(Schema.NonEmptyString),
   name: Schema.NonEmptyString,
+  privacyPolicyText: optionalNullable(Schema.NonEmptyString),
   privacyPolicyUrl: optionalNullable(Schema.NonEmptyString),
   receiptSettings: OptionalTenantReceiptSettings,
   seoDescription: optionalNullable(Schema.NonEmptyString),
   seoTitle: optionalNullable(Schema.NonEmptyString),
   stripeAccountId: optionalNullable(Schema.NonEmptyString),
+  termsText: optionalNullable(Schema.NonEmptyString),
   termsUrl: optionalNullable(Schema.NonEmptyString),
   theme: literalUnion('evorto', 'esn'),
-  timezone: Schema.NonEmptyString,
+  timezone: TenantTimezone,
 }) {}

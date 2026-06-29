@@ -1,3 +1,5 @@
+import { DateTime } from 'luxon';
+
 import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
@@ -5,9 +7,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 test.describe('Inclusive tax rates documentation (admin)', () => {
   test.use({ storageState: adminStateFile });
 
-  test('Import tenant tax rates @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-01)', async ({
-    page,
-  }, testInfo) => {
+  test('Import tenant tax rates', async ({ page }, testInfo) => {
     await page.goto('.');
 
     await testInfo.attach('markdown', {
@@ -33,7 +33,7 @@ The admin overview links to all configuration areas. Select **Tax Rates** to man
 `,
     });
 
-    await page.getByRole('link', { name: 'Tax Rates' }).click();
+    await page.getByRole('heading', { level: 2, name: 'Tax Rates' }).click();
     await expect(
       page.getByRole('heading', { name: 'Tax Rates' }),
     ).toBeVisible();
@@ -91,7 +91,7 @@ Select the rates you need and choose **Import selected** to refresh the compatib
 test.describe('Inclusive tax rates documentation (creators)', () => {
   test.use({ storageState: adminStateFile });
 
-  test('Assign compatible tax rates to paid registrations @track(playwright-specs-track-linking_20260126) @doc(INCLUSIVE-TAX-RATES-DOC-02)', async ({
+  test('Assign compatible tax rates to paid registrations', async ({
     page,
     seedDate,
     seeded,
@@ -158,9 +158,17 @@ Each paid registration displays the final price together with its inclusive tax 
     const organizerSection = editForm
       .locator('app-template-registration-option-form')
       .filter({
-        has: page.getByRole('heading', { level: 3, name: 'Organizer' }),
+        has: page.getByRole('textbox', {
+          name: 'Registration option name',
+        }),
       })
+      .filter({ has: page.getByRole('combobox', { name: 'Tax rate' }) })
       .first();
+    await expect(
+      organizerSection.getByRole('textbox', {
+        name: 'Registration option name',
+      }),
+    ).toHaveValue('Organizer');
     await expect(
       organizerSection.getByRole('combobox', { name: 'Tax rate' }),
     ).toBeVisible();
@@ -189,11 +197,42 @@ Paid organizer registrations require a compatible inclusive tax rate. The dropdo
     await expect(
       page.getByRole('heading', { level: 1, name: paidTemplate.title }),
     ).toBeVisible();
-    await page.getByRole('link', { name: 'Create event' }).click();
+    await page.getByText('Create event', { exact: true }).click();
 
     const draftEventTitle = `Tax Rate Edit ${seedDate.toISOString().slice(0, 10)}`;
+    const eventForm = page.locator('app-event-general-form');
+    const futureStart = DateTime.fromJSDate(seedDate).plus({ days: 7 });
+    await eventForm
+      .getByRole('textbox', { name: 'Start date' })
+      .fill(futureStart.toFormat('M/d/yyyy'));
+    await eventForm
+      .getByRole('combobox', { name: 'Start time' })
+      .fill('1:00 PM');
+    await eventForm
+      .getByRole('textbox', { name: 'End date' })
+      .fill(futureStart.toFormat('M/d/yyyy'));
+    await eventForm.getByRole('combobox', { name: 'End time' }).fill('5:00 PM');
     await page.getByLabel('Event Title').fill(draftEventTitle);
     await page.getByRole('button', { name: 'Create Event' }).click();
+
+    const createdEventHeading = page.getByRole('heading', {
+      level: 1,
+      name: draftEventTitle,
+    });
+    const createdEventCard = page.locator('a[href^="/events/"]').filter({
+      has: page.getByRole('heading', {
+        level: 2,
+        name: draftEventTitle,
+      }),
+    });
+    const openedCreatedDetail = await createdEventHeading
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!openedCreatedDetail) {
+      await expect(createdEventCard).toBeVisible();
+      await createdEventCard.click();
+    }
     await expect(
       page.getByRole('heading', { level: 1, name: draftEventTitle }),
     ).toBeVisible();

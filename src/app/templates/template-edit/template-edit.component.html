@@ -27,22 +27,20 @@
         >
           <app-template-registration-option-form
             class="bg-surface-container-lowest rounded-xl p-4 grid gap-4 lg:row-span-5 lg:grid-rows-subgrid"
+            [esnEnabled]="esnEnabled()"
             [registrationForm]="templateForm.organizerRegistration"
             [registrationModes]="registrationModes"
           />
           <app-template-registration-option-form
             class="bg-surface-container-lowest rounded-xl p-4 grid gap-4 lg:row-span-5 lg:grid-rows-subgrid"
+            [esnEnabled]="esnEnabled()"
             [registrationForm]="templateForm.participantRegistration"
             [registrationModes]="registrationModes"
           />
         </div>
       </div>
 
-      <button
-        type="submit"
-        mat-button
-        [disabled]="templateForm().invalid() || templateForm().submitting()"
-      >
+      <button type="submit" mat-button [disabled]="!canSubmit()">
         Update template
       </button>
     </form>

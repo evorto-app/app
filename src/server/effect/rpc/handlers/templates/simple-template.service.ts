@@ -6,6 +6,7 @@ import type { AppRpcHandlers } from '../shared/handler-types';
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventTemplates,
+  templateRegistrationOptionDiscounts,
   templateRegistrationOptions,
 } from '../../../../../db/schema';
 import {
@@ -25,6 +26,7 @@ const databaseEffect = <A>(
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
 interface CreateSimpleTemplateArguments {
+  esnCardEnabled: boolean;
   input: CreateSimpleTemplateInput;
   tenantId: string;
 }
@@ -41,13 +43,16 @@ type SimpleTemplateValidationInput = Pick<
   | 'organizerRegistration'
   | 'participantRegistration'
 >;
+type TemplateRegistrationOptionDiscountInsert =
+  typeof templateRegistrationOptionDiscounts.$inferInsert;
 type TemplateRegistrationOptionInsert =
   typeof templateRegistrationOptions.$inferInsert;
+
 interface UpdateSimpleTemplateArguments {
+  esnCardEnabled: boolean;
   input: UpdateSimpleTemplateInput;
   tenantId: string;
 }
-
 type UpdateSimpleTemplateInput = Parameters<
   AppRpcHandlers['templates.updateSimpleTemplate']
 >[0];
@@ -73,7 +78,18 @@ export const buildTemplateInsertValues = ({
   };
 };
 
-const buildRegistrationOptionInsert = ({
+const optionalRichTextOrNull = (
+  value: null | string | undefined,
+): null | string => {
+  if (!value) {
+    return null;
+  }
+
+  const sanitized = sanitizeRichTextHtml(value);
+  return isMeaningfulRichTextHtml(sanitized) ? sanitized : null;
+};
+
+export const buildRegistrationOptionInsert = ({
   input,
   organizingRegistration,
   templateId,
@@ -84,18 +100,40 @@ const buildRegistrationOptionInsert = ({
 }): TemplateRegistrationOptionInsert => {
   return {
     closeRegistrationOffset: input.closeRegistrationOffset,
+    description: optionalRichTextOrNull(input.description),
     isPaid: input.isPaid,
     openRegistrationOffset: input.openRegistrationOffset,
     organizingRegistration,
     price: input.price,
+    registeredDescription: optionalRichTextOrNull(input.registeredDescription),
     registrationMode: input.registrationMode,
     roleIds: [...input.roleIds],
     spots: input.spots,
     stripeTaxRateId: input.stripeTaxRateId ?? null,
     templateId,
-    title: organizingRegistration
-      ? 'Organizer registration'
-      : 'Participant registration',
+    title: input.title.trim(),
+  };
+};
+
+export const buildTemplateOptionDiscountInsert = ({
+  input,
+  registrationOptionId,
+}: {
+  input: SimpleTemplateRegistrationInput;
+  registrationOptionId: string;
+}): null | TemplateRegistrationOptionDiscountInsert => {
+  if (
+    !input.isPaid ||
+    input.esnCardDiscountedPrice === undefined ||
+    input.esnCardDiscountedPrice === null
+  ) {
+    return null;
+  }
+
+  return {
+    discountedPrice: input.esnCardDiscountedPrice,
+    discountType: 'esnCard',
+    registrationOptionId,
   };
 };
 
@@ -128,6 +166,47 @@ const collectRegistrationRoleIds = (
   ]),
 ];
 
+const validateRegistrationDiscount = ({
+  esnCardEnabled,
+  kind,
+  registration,
+}: {
+  esnCardEnabled: boolean;
+  kind: 'organizer' | 'participant';
+  registration: SimpleTemplateRegistrationInput;
+}) => {
+  const discountedPrice = registration.esnCardDiscountedPrice;
+  if (discountedPrice === undefined || discountedPrice === null) {
+    return Effect.void;
+  }
+
+  if (!registration.isPaid) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: `${kind} registration ESNcard discount requires paid registration`,
+      }),
+    );
+  }
+
+  if (!esnCardEnabled) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: `${kind} registration ESNcard discounts are not enabled`,
+      }),
+    );
+  }
+
+  if (discountedPrice > registration.price) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: `${kind} registration ESNcard discount cannot exceed price`,
+      }),
+    );
+  }
+
+  return Effect.void;
+};
+
 export class SimpleTemplateService extends Context.Service<SimpleTemplateService>()(
   '@server/effect/rpc/handlers/templates/SimpleTemplateService',
   {
@@ -135,9 +214,11 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
       const validateSimpleTemplateInput = Effect.fn(
         'SimpleTemplateService.validateSimpleTemplateInput',
       )(function* ({
+        esnCardEnabled,
         input,
         tenantId,
       }: {
+        esnCardEnabled: boolean;
         input: SimpleTemplateValidationInput;
         tenantId: string;
       }) {
@@ -259,14 +340,29 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
           kind: 'participant',
           registration: input.participantRegistration,
         });
+        yield* validateRegistrationDiscount({
+          esnCardEnabled,
+          kind: 'organizer',
+          registration: input.organizerRegistration,
+        });
+        yield* validateRegistrationDiscount({
+          esnCardEnabled,
+          kind: 'participant',
+          registration: input.participantRegistration,
+        });
 
         return { sanitizedDescription };
       });
 
       const createSimpleTemplate = Effect.fn(
         'SimpleTemplateService.createSimpleTemplate',
-      )(function* ({ input, tenantId }: CreateSimpleTemplateArguments) {
+      )(function* ({
+        esnCardEnabled,
+        input,
+        tenantId,
+      }: CreateSimpleTemplateArguments) {
         const { sanitizedDescription } = yield* validateSimpleTemplateInput({
+          esnCardEnabled,
           input,
           tenantId,
         });
@@ -308,19 +404,49 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
           participantRegistrationInsert,
         ];
 
-        yield* databaseEffect((database) =>
+        const createdRegistrationOptions = yield* databaseEffect((database) =>
           database
             .insert(templateRegistrationOptions)
-            .values(registrationOptionInserts),
+            .values(registrationOptionInserts)
+            .returning({
+              id: templateRegistrationOptions.id,
+              organizingRegistration:
+                templateRegistrationOptions.organizingRegistration,
+            }),
         );
+        const discountInserts = createdRegistrationOptions
+          .map((option) =>
+            buildTemplateOptionDiscountInsert({
+              input: option.organizingRegistration
+                ? input.organizerRegistration
+                : input.participantRegistration,
+              registrationOptionId: option.id,
+            }),
+          )
+          .filter(
+            (discount): discount is TemplateRegistrationOptionDiscountInsert =>
+              discount !== null,
+          );
+        if (discountInserts.length > 0) {
+          yield* databaseEffect((database) =>
+            database
+              .insert(templateRegistrationOptionDiscounts)
+              .values(discountInserts),
+          );
+        }
 
         return { id: template.id };
       });
 
       const updateSimpleTemplate = Effect.fn(
         'SimpleTemplateService.updateSimpleTemplate',
-      )(function* ({ input, tenantId }: UpdateSimpleTemplateArguments) {
+      )(function* ({
+        esnCardEnabled,
+        input,
+        tenantId,
+      }: UpdateSimpleTemplateArguments) {
         const { sanitizedDescription } = yield* validateSimpleTemplateInput({
+          esnCardEnabled,
           input,
           tenantId,
         });
@@ -355,53 +481,121 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
           );
         }
 
-        yield* databaseEffect((database) =>
+        const updatedOrganizerOptions = yield* databaseEffect((database) =>
           database
             .update(templateRegistrationOptions)
             .set({
               closeRegistrationOffset:
                 input.organizerRegistration.closeRegistrationOffset,
+              description: optionalRichTextOrNull(
+                input.organizerRegistration.description,
+              ),
               isPaid: input.organizerRegistration.isPaid,
               openRegistrationOffset:
                 input.organizerRegistration.openRegistrationOffset,
               price: input.organizerRegistration.price,
+              registeredDescription: optionalRichTextOrNull(
+                input.organizerRegistration.registeredDescription,
+              ),
               registrationMode: input.organizerRegistration.registrationMode,
               roleIds: input.organizerRegistration.roleIds,
               spots: input.organizerRegistration.spots,
               stripeTaxRateId:
                 input.organizerRegistration.stripeTaxRateId ?? null,
+              title: input.organizerRegistration.title.trim(),
             })
             .where(
               and(
                 eq(templateRegistrationOptions.templateId, input.id),
                 eq(templateRegistrationOptions.organizingRegistration, true),
               ),
-            ),
+            )
+            .returning({
+              id: templateRegistrationOptions.id,
+            }),
         );
 
-        yield* databaseEffect((database) =>
+        const updatedParticipantOptions = yield* databaseEffect((database) =>
           database
             .update(templateRegistrationOptions)
             .set({
               closeRegistrationOffset:
                 input.participantRegistration.closeRegistrationOffset,
+              description: optionalRichTextOrNull(
+                input.participantRegistration.description,
+              ),
               isPaid: input.participantRegistration.isPaid,
               openRegistrationOffset:
                 input.participantRegistration.openRegistrationOffset,
               price: input.participantRegistration.price,
+              registeredDescription: optionalRichTextOrNull(
+                input.participantRegistration.registeredDescription,
+              ),
               registrationMode: input.participantRegistration.registrationMode,
               roleIds: input.participantRegistration.roleIds,
               spots: input.participantRegistration.spots,
               stripeTaxRateId:
                 input.participantRegistration.stripeTaxRateId ?? null,
+              title: input.participantRegistration.title.trim(),
             })
             .where(
               and(
                 eq(templateRegistrationOptions.templateId, input.id),
                 eq(templateRegistrationOptions.organizingRegistration, false),
               ),
-            ),
+            )
+            .returning({
+              id: templateRegistrationOptions.id,
+            }),
         );
+
+        const optionDiscounts = [
+          {
+            input: input.organizerRegistration,
+            optionId: updatedOrganizerOptions[0]?.id,
+          },
+          {
+            input: input.participantRegistration,
+            optionId: updatedParticipantOptions[0]?.id,
+          },
+        ];
+
+        for (const optionDiscount of optionDiscounts) {
+          if (!optionDiscount.optionId) {
+            continue;
+          }
+
+          yield* databaseEffect((database) =>
+            database
+              .delete(templateRegistrationOptionDiscounts)
+              .where(
+                and(
+                  eq(
+                    templateRegistrationOptionDiscounts.registrationOptionId,
+                    optionDiscount.optionId,
+                  ),
+                  eq(
+                    templateRegistrationOptionDiscounts.discountType,
+                    'esnCard',
+                  ),
+                ),
+              ),
+          );
+
+          const discountInsert = buildTemplateOptionDiscountInsert({
+            input: optionDiscount.input,
+            registrationOptionId: optionDiscount.optionId,
+          });
+          if (!discountInsert) {
+            continue;
+          }
+
+          yield* databaseEffect((database) =>
+            database
+              .insert(templateRegistrationOptionDiscounts)
+              .values(discountInsert),
+          );
+        }
 
         return { id: template.id };
       });

@@ -1,19 +1,56 @@
 @let form = registrationForm();
-<h3 class="font-medium">{{ form.title().value() }}</h3>
+<mat-form-field class="w-full">
+  <mat-label>Registration option name</mat-label>
+  <input matInput [formField]="form.title" />
+</mat-form-field>
 
 <section class="grid gap-3">
-  <mat-slide-toggle [formField]="form.isPaid">Enable Payment</mat-slide-toggle>
+  <label class="text-on-surface flex items-center gap-2 text-sm">
+    <input
+      class="h-4 w-4"
+      type="checkbox"
+      [checked]="form.isPaid().value()"
+      (change)="setIsPaid($event)"
+    />
+    <span>Enable payment</span>
+  </label>
 
   @if (!form.price().hidden()) {
     <div class="grid gap-4">
       <mat-form-field class="w-full">
         <mat-label>Price (in cents)</mat-label>
-        <input matInput type="number" [formField]="form.price" />
+        <input
+          matInput
+          type="number"
+          aria-label="Price (in cents)"
+          [value]="form.price().value()"
+          (input)="setPrice($event)"
+        />
       </mat-form-field>
+
+      @if (esnEnabled()) {
+        <mat-form-field class="w-full">
+          <mat-label>ESNcard discounted price (in cents)</mat-label>
+          <input
+            matInput
+            type="number"
+            [value]="form.esnCardDiscountedPrice().value()"
+            (input)="setEsnCardDiscountedPrice($event)"
+            placeholder="Optional"
+          />
+          <mat-hint>
+            Leave empty to disable ESNcard pricing for this option.
+          </mat-hint>
+        </mat-form-field>
+      }
 
       <mat-form-field class="w-full">
         <mat-label>Tax rate</mat-label>
-        <mat-select [formField]="form.stripeTaxRateId">
+        <mat-select
+          aria-label="Tax rate"
+          [value]="form.stripeTaxRateId().value()"
+          (selectionChange)="setStripeTaxRateId($event.value)"
+        >
           @if (taxRatesQuery.isPending()) {
             <mat-option disabled>Loading tax rates ...</mat-option>
           } @else if (taxRatesQuery.isSuccess()) {
@@ -31,6 +68,18 @@
       </mat-form-field>
     </div>
   }
+</section>
+
+<section class="flex flex-col gap-2">
+  <span class="text-on-surface-variant text-sm">Description</span>
+  <app-editor [control]="form.description" />
+</section>
+
+<section class="flex flex-col gap-2">
+  <span class="text-on-surface-variant text-sm">
+    Description for registered users
+  </span>
+  <app-editor [control]="form.registeredDescription" />
 </section>
 
 <section>

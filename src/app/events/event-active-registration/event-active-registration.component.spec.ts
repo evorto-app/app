@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { registrationCancellationCopy } from './event-active-registration.component';
+import {
+  registrationCancellationCopy,
+  registrationDeferredActionCopy,
+} from './event-active-registration.component';
 
 describe('registrationCancellationCopy', () => {
   it('describes pending payment cancellation as releasing the reserved spot', () => {
     expect(
       registrationCancellationCopy({
         cancellationClosed: false,
+        guestCount: 0,
         paymentPending: true,
         status: 'PENDING',
       }),
@@ -18,10 +22,27 @@ describe('registrationCancellationCopy', () => {
     });
   });
 
+  it('describes guest cancellation as releasing every selected spot', () => {
+    expect(
+      registrationCancellationCopy({
+        cancellationClosed: false,
+        guestCount: 2,
+        paymentPending: true,
+        status: 'PENDING',
+      }),
+    ).toEqual({
+      buttonLabel: 'Cancel registration',
+      canCancel: true,
+      helperText:
+        'This cancels the pending registration and releases all selected spots. It does not complete a payment.',
+    });
+  });
+
   it('describes confirmed cancellation without promising automatic refunds', () => {
     expect(
       registrationCancellationCopy({
         cancellationClosed: false,
+        guestCount: 0,
         paymentPending: false,
         status: 'CONFIRMED',
       }),
@@ -33,10 +54,27 @@ describe('registrationCancellationCopy', () => {
     });
   });
 
-  it('describes waitlist cancellation as leaving the waitlist', () => {
+  it('describes confirmed guest cancellation as releasing every selected spot', () => {
+    expect(
+      registrationCancellationCopy({
+        cancellationClosed: false,
+        guestCount: 1,
+        paymentPending: false,
+        status: 'CONFIRMED',
+      }),
+    ).toEqual({
+      buttonLabel: 'Cancel registration',
+      canCancel: true,
+      helperText:
+        'This cancels your confirmed registration and releases all selected spots. Paid-registration refunds are not automatic yet.',
+    });
+  });
+
+  it('describes closed confirmed cancellation before the button is clicked', () => {
     expect(
       registrationCancellationCopy({
         cancellationClosed: true,
+        guestCount: 0,
         paymentPending: false,
         status: 'CONFIRMED',
       }),
@@ -52,6 +90,7 @@ describe('registrationCancellationCopy', () => {
     expect(
       registrationCancellationCopy({
         cancellationClosed: true,
+        guestCount: 0,
         paymentPending: false,
         status: 'WAITLIST',
       }),
@@ -59,7 +98,7 @@ describe('registrationCancellationCopy', () => {
       buttonLabel: 'Leave waitlist',
       canCancel: true,
       helperText:
-        'This removes you from the waitlist and releases your waitlist spot.',
+        'This removes your waitlist registration and releases your waitlist position.',
     });
   });
 
@@ -67,9 +106,31 @@ describe('registrationCancellationCopy', () => {
     expect(
       registrationCancellationCopy({
         cancellationClosed: false,
+        guestCount: 0,
         paymentPending: false,
         status: 'CANCELLED',
       }),
     ).toBeNull();
+  });
+});
+
+describe('registrationDeferredActionCopy', () => {
+  it('keeps transfer and resale visibly unavailable for confirmed registrations', () => {
+    expect(registrationDeferredActionCopy({ status: 'CONFIRMED' })).toBe(
+      'Transfer/resale is not implemented yet. Contact the organizers if someone else should take your spot.',
+    );
+  });
+
+  it('keeps transfer and resale unavailable for pending or waitlist registrations', () => {
+    expect(registrationDeferredActionCopy({ status: 'PENDING' })).toBe(
+      'Transfer/resale is not available for pending registrations.',
+    );
+    expect(registrationDeferredActionCopy({ status: 'WAITLIST' })).toBe(
+      'Transfer/resale is not available for waitlist registrations.',
+    );
+  });
+
+  it('does not show deferred transfer copy after cancellation', () => {
+    expect(registrationDeferredActionCopy({ status: 'CANCELLED' })).toBeNull();
   });
 });
