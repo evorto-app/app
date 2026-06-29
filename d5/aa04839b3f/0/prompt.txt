@@ -1,0 +1,4214 @@
+/goal Finalize the stacked split PRs for evorto-app/app#62 from lowest to highest PR number.
+
+For each PR, inspect unresolved review comments and failing CI, compare with downstream stacked PRs and the original #62 final state when useful, then make only the smallest changes needed to get that PR ready for review. Keep every PR at or below 150 changed files.
+
+For completed review comments, resolve the thread. If no code change is needed, reply with the reason. Do not over-scope fixes inside a lower PR; prefer carrying broader cleanup upward unless it blocks that PR.
+
+Once the lowest unfinished PR is green, comments are handled, and the branch is ready for review, move to the next PR in the stack.
+
+---
+
+Triple check that all of this so we are super sure that our PRs are ready to go, then replace the descriptions with explanations of the PR and isntructions on how they can be validated locally
+
+---
+
+Do all of these have coderabbit reviews?
+
+---
+
+Can you review all the PRs to make sure they are in the state that can be merged now?
+
+---
+
+Can you fix that for me?
+
+---
+
+I would rather like you to update the rules so this can stay
+
+---
+
+I would like to get started with the manual validation, get 63 running locally and tell me what I should check
+
+---
+
+Please tear it back down
+
+---
+
+Make sure that [evorto-app/app#73](https://github.com/evorto-app/app/pull/73) is good and tell me what I should check
+
+---
+
+I want to get rid of any special handling of font awesome packages. Also explain what the patch is about
+
+---
+
+I want to use the duotones from the private fortawesome registry
+
+---
+
+The tokens are available
+
+---
+
+I would also prefer if we can keep the testing workflow less complicated, we are the only ones that use this repo, we should not (generally) have so many fallbacks and instead just use what is configured in github.
+This can also mask failures and misconfig. Always make sure that we set up things the way they are supposed to be and do not mask flaws, instead we have to fix the underlying issue.
+
+---
+
+# Diff comments:
+
+## Comment 1
+File: .github/workflows/e2e-baseline.yml
+Side: R
+Lines: 97
+Comment:
+@chatgpt-codex-connector:
+**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Do not require integration-only credentials in baseline CI**
+
+In environments that provision only the documented baseline E2E variables, this validation fails before any tests run even though this workflow only executes `local-chrome-baseline` via `bun run test:e2e` and `docs-baseline` explicitly; the Playwright runtime config only requires Auth0 Management and Cloudflare Images when an integration project such as `docs-integration` is selected. Please keep these checks conditional on integration-project execution or remove them from the baseline workflow.
+
+Useful? React with 👍 / 👎.
+
+## Comment 2
+File: .github/workflows/e2e-baseline.yml
+Side: R
+Lines: 47
+Comment:
+@chatgpt-codex-connector:
+**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Restore the secret fallback for Stripe test account**
+
+If `STRIPE_TEST_ACCOUNT_ID` is still configured as a GitHub secret, this now resolves to an empty value and the validation step exits before the E2E job starts; the previous workflow explicitly supported either a secret or repository variable. Please keep the `secrets.STRIPE_TEST_ACCOUNT_ID || vars.STRIPE_TEST_ACCOUNT_ID` fallback unless all environments have been migrated to the variable.
+
+Useful? React with 👍 / 👎.
+
+## My request for Codex:
+Check if we need to take action here
+
+---
+
+Once this is done, and generally use git town sync --stack to propagate changes across the stack we have.
+I'm fine if the e2e tests do not work on this PR, it is only meant to change a schema thing anyways, let's rather keep changes minimal and make an exception here, since it works in later PRs
+
+---
+
+Sync and then locally start [evorto-app/app#63](https://github.com/evorto-app/app/pull/63)
+I want to look at the things that should be locally validated
+
+---
+
+It seems that there is still some fontawesome special handling in here that should be removed
+
+---
+
+I have removed all current containers once to help you out
+
+---
+
+The stopping does not work so well, maybe you can help too
+
+---
+
+It seems that the db containers specifically do not delete
+
+---
+
+Please do try to get rid of the leftover db containers
+
+---
+
+Please tell me what should be manually reviewed for this specific PR?
+
+---
+
+Everything seems fine to me, if you are happy with this land it on main and get the next pr ready for us
+
+---
+
+# Diff comments:
+
+## Comment 1
+File: .github/workflows/e2e-baseline.yml
+Side: R
+Lines: 97
+Comment:
+@chatgpt-codex-connector:
+**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Do not require integration-only credentials in baseline CI**
+
+In environments that provision only the documented baseline E2E variables, this validation fails before any tests run even though this workflow only executes `local-chrome-baseline` via `bun run test:e2e` and `docs-baseline` explicitly; the Playwright runtime config only requires Auth0 Management and Cloudflare Images when an integration project such as `docs-integration` is selected. Please keep these checks conditional on integration-project execution or remove them from the baseline workflow.
+
+Useful? React with 👍 / 👎.
+
+## Comment 2
+File: .github/workflows/e2e-baseline.yml
+Side: R
+Lines: 47
+Comment:
+@chatgpt-codex-connector:
+**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Restore the secret fallback for Stripe test account**
+
+If `STRIPE_TEST_ACCOUNT_ID` is still configured as a GitHub secret, this now resolves to an empty value and the validation step exits before the E2E job starts; the previous workflow explicitly supported either a secret or repository variable. Please keep the `secrets.STRIPE_TEST_ACCOUNT_ID || vars.STRIPE_TEST_ACCOUNT_ID` fallback unless all environments have been migrated to the variable.
+
+Useful? React with 👍 / 👎.
+
+## Comment 3
+File: src/server/effect/rpc/handlers/events/event-registration.service.ts
+Side: R
+Lines: 76
+Comment:
+@chatgpt-codex-connector:
+**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Include open role options in event queries**
+
+Fresh evidence: this helper now explicitly treats an empty `roleIds` list as open to every user, but `events.eventList` and `events.findOne` still fetch visible options through `arrayOverlaps(eventRegistrationOptions.roleIds, roleFilters)`, which does not match empty arrays. When an event option is saved with no roles, the server-side registration eligibility would allow it if called directly, but the event/list detail queries hide the option (and can hide the whole event when it is the only option), so users cannot discover or register for an open-to-all option through the UI; include empty-role options in those predicates or reject them consistently.
+
+Useful? React with 👍 / 👎.
+
+## Comment 4
+File: helpers/testing/runtime-preflight.ts
+Side: R
+Lines: 177-183
+Comment:
+@coderabbitai:
+_🩺 Stability & Availability_ | _🟠 Major_ | _⚡ Quick win_
+
+**Avoid false “OK” when Playwright install locations cannot be parsed.**
+
+On a successful dry-run, parsing only `stdout` can yield `locations.length === 0` (format/output stream differences), but the check currently reports OK. That masks broken browser setup.
+
+<details>
+<summary>Proposed fix</summary>
+
+```diff
+-  const locations = readPlaywrightInstallLocations(result.stdout);
++  const locations = readPlaywrightInstallLocations(
++    `${result.stdout}\n${result.stderr}`,
++  );
++  if (locations.length === 0) {
++    return {
++      details: [
++        'Could not detect Playwright install locations from dry-run output',
++      ],
++      label: 'Playwright Chromium browser installation',
++      severity: 'warning',
++    };
++  }
+   const missing = locations.filter((location) => !fileExists(location));
+```
+</details>
+
+   
+
+
+Also applies to: 188-195
+
+<details>
+<summary>🧰 Tools</summary>
+
+<details>
+<summary>🪛 ast-grep (0.44.0)</summary>
+
+[warning]  Importing child_process exposes a command-execution surface; ensure any command/argument built from input is validated, and prefer execFile/spawn with an argument array over exec.
+Context: import { spawnSync } from 'node:child_process';
+Note: [CWE-78] Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection').
+
+(detect-child-process-typescript)
+
+</details>
+
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@helpers/testing/runtime-preflight.ts` around lines 177 - 183, The Playwright
+installation check currently only validates that all found locations exist
+(missing.length === 0) but does not verify that any locations were actually
+parsed from the output. This can result in a false "OK" status when
+readPlaywrightInstallLocations returns an empty array due to stdout format or
+output stream differences. Modify the condition after calling
+readPlaywrightInstallLocations to ensure that locations.length > 0 before
+reporting success, so that parsing failures are properly detected instead of
+being masked as a successful installation.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:7f3f7cabfd957120c3ec3416 -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 5
+File: src/app/core/guards/permission.guard.ts
+Side: R
+Lines: 10-11
+Comment:
+@coderabbitai:
+_🎯 Functional Correctness_ | _🟠 Major_ | _⚡ Quick win_
+
+**Narrow `route.data` values before permission evaluation to avoid runtime misreads/crashes.**
+
+Lines 10-11 force-cast unknown route metadata to `Permission[]`. If route config passes a non-array value, Line 18 can either spread invalid data (runtime error) or evaluate garbage permissions.
+
+<details>
+<summary>Suggested fix</summary>
+
+```diff
++const isPermission = (value: unknown): value is Permission =>
++  typeof value === 'string';
++
++const readPermissions = (value: unknown): Permission[] =>
++  Array.isArray(value) ? value.filter(isPermission) : [];
++
+ export const permissionGuard: CanActivateFn = (route, state) => {
+   const permissionsService = inject(PermissionsService);
+   const router = inject(Router);
+-  const permissions = (route.data['permissions'] ?? []) as Permission[];
+-  const anyPermissions = (route.data['anyPermissions'] ?? []) as Permission[];
++  const permissions = readPermissions(route.data['permissions']);
++  const anyPermissions = readPermissions(route.data['anyPermissions']);
+```
+</details>
+
+As per coding guidelines, `src/**/*.{ts,tsx}` must maintain end-to-end type safety and avoid unchecked `as` casts without narrowing.  
+
+
+
+
+
+
+Also applies to: 17-21
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/app/core/guards/permission.guard.ts` around lines 10 - 11, The force-cast
+to Permission[] on lines 10-11 for route.data['permissions'] and
+route.data['anyPermissions'] lacks validation that these values are actually
+arrays, which can cause runtime errors if invalid route configurations are
+passed. Add type narrowing checks before the casts to verify that both values
+are arrays (using Array.isArray() or similar guards) before casting them to
+Permission[]. Apply the same validation pattern to the related code on lines
+17-21 that uses these values to ensure type safety throughout the permission
+evaluation logic.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:d886534f28ed7467c7a66d7a -->
+
+_Source: Coding guidelines_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 6
+File: src/app/profile/user-profile/edit-profile-dialog.component.ts
+Side: R
+Lines: 61
+Comment:
+@coderabbitai:
+_🎯 Functional Correctness_ | _🟡 Minor_ | _⚡ Quick win_
+
+**Initialize `communicationEmail` with a null-safe default.**
+
+`communicationEmail` is the only seeded text field without `?? ''`. If dialog data is missing/stale, submit still assumes a string and trims it.
+
+<details>
+<summary>Proposed fix</summary>
+
+```diff
+-    communicationEmail: this.data.communicationEmail,
++    communicationEmail: this.data.communicationEmail ?? '',
+```
+</details>
+
+   
+
+
+Also applies to: 80-80
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/app/profile/user-profile/edit-profile-dialog.component.ts` at line 61,
+The communicationEmail field initialization in the EditProfileDialogComponent
+lacks a null-safe default operator, unlike other text fields in the form. Add
+the null-coalescing operator with an empty string default to the
+communicationEmail assignment at line 61, so that if
+this.data.communicationEmail is null or undefined, it defaults to an empty
+string instead. This prevents issues when the dialog data is missing or stale
+and the submit method attempts to trim a potentially undefined value.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:3c8f5efe9e3ba665d2511c78 -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 7
+File: src/app/profile/user-profile/user-profile.component.html
+Side: R
+Lines: 190-200
+Comment:
+@coderabbitai:
+_🎯 Functional Correctness_ | _🟡 Minor_ | _⚡ Quick win_
+
+**Add explicit `type="button"` on action buttons.**
+
+Without `type`, buttons default to submit in form contexts and can trigger unintended form submission.
+
+
+
+
+
+
+<details>
+<summary>Suggested fix</summary>
+
+```diff
+-<button
++<button
++  type="button"
+   mat-stroked-button
+   color="warn"
+   (click)="deleteEsnCard()"
+   [disabled]="deleteCardMutation.isPending()"
+>
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+                          <button
+                            type="button"
+                            mat-stroked-button
+                            color="warn"
+                            (click)="deleteEsnCard()"
+                            [disabled]="deleteCardMutation.isPending()"
+                          >
+                            `@if` (deleteCardMutation.isPending()) {
+                              Removing...
+                            } `@else` {
+                              Remove
+                            }
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🧰 Tools</summary>
+
+<details>
+<summary>🪛 HTMLHint (1.9.2)</summary>
+
+[warning] 191-191: The type attribute must be present on <button> elements.
+
+(button-type-require)
+
+</details>
+
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/app/profile/user-profile/user-profile.component.html` around lines 190 -
+200, The button element that triggers the deleteEsnCard() method is missing an
+explicit type attribute. Add type="button" to this mat-stroked-button element to
+ensure it does not default to submit behavior in form contexts and prevent
+unintended form submissions when clicked.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:2967a3fdcf26a75160089ef9 -->
+
+_Source: Linters/SAST tools_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 8
+File: src/app/scanning/handle-registration/handle-registration.component.html
+Side: R
+Lines: 100-112
+Comment:
+@coderabbitai:
+_🎯 Functional Correctness_ | _🟡 Minor_ | _⚡ Quick win_
+
+**Disable the check-in action once completion is reached.**
+
+Line 100 only disables while pending or when `allowCheckin` is false. After `checkInCompleted()` becomes true, the button can still be clicked and retrigger `checkIn()`.
+
+   
+
+<details>
+<summary>🔧 Suggested fix</summary>
+
+```diff
+   <button
+     [disabled]="
+-      !scanResultQuery.data().allowCheckin || checkInMutation.isPending()
++      !scanResultQuery.data().allowCheckin ||
++      checkInMutation.isPending() ||
++      checkInCompleted()
+     "
+     class="mt-4 w-full"
+     mat-raised-button
+     type="button"
+     (click)="checkIn()"
+   >
+     `@if` (checkInMutation.isPending()) {
+       Checking in ...
++    } `@else` if (checkInCompleted()) {
++      Checked in
+     } `@else` {
+       Confirm Check In
+     }
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+    [disabled]="
+      !scanResultQuery.data().allowCheckin ||
+      checkInMutation.isPending() ||
+      checkInCompleted()
+    "
+    class="mt-4 w-full"
+    mat-raised-button
+    type="button"
+    (click)="checkIn()"
+  >
+    `@if` (checkInMutation.isPending()) {
+      Checking in ...
+    } `@else` if (checkInCompleted()) {
+      Checked in
+    } `@else` {
+      Confirm Check In
+    }
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/app/scanning/handle-registration/handle-registration.component.html`
+around lines 100 - 112, The [disabled] binding on the check-in button currently
+only prevents clicks when checkInMutation.isPending() is true or when
+allowCheckin is false, but it does not account for when the check-in process has
+already completed. Add a condition to check if checkInCompleted() is true to the
+[disabled] binding so that once the check-in is completed, the button remains
+disabled and cannot retrigger the checkIn() action.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:8c021360f634b02aeda9d34e -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 9
+File: src/app/templates/template-create-event/template-create-event.component.ts
+Side: R
+Lines: 68
+Comment:
+@coderabbitai:
+_🎯 Functional Correctness_ | _🟠 Major_ | _⚡ Quick win_
+
+**Normalize loaded template registration modes to `fcfs` after narrowing allowed modes.**
+
+Line 68 restricts choices to `fcfs`, but template hydration still preserves stored `option.registrationMode` values. Existing templates with prior modes can keep submitting stale unsupported values unless you coerce at model init and/or submit mapping.
+
+
+
+
+
+
+<details>
+<summary>Proposed fix</summary>
+
+```diff
+-  protected readonly registrationModes = ['fcfs'] as const;
++  protected readonly registrationModes = ['fcfs'] as const;
+@@
+-              registrationMode: option.registrationMode,
++              registrationMode: 'fcfs',
+@@
+-            registrationMode: option.registrationMode,
++            registrationMode: 'fcfs',
+```
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/app/templates/template-create-event/template-create-event.component.ts`
+at line 68, The registrationModes property on line 68 restricts options to
+'fcfs' only, but when templates are hydrated from storage they retain their
+previously saved registrationMode values which may no longer be supported.
+Normalize the loaded template's registrationMode to 'fcfs' during template
+initialization (in the component's ngOnInit or model setup) or during form
+submission to ensure that stale unsupported registration mode values from
+existing stored templates are coerced to the only currently allowed mode.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:e9049d1e2b9d6cfc6a8306de -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 10
+File: src/app/templates/template-edit/template-edit.component.ts
+Side: R
+Lines: 56
+Comment:
+@coderabbitai:
+_🗄️ Data Integrity & Integration_ | _🟡 Minor_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+# 1) Find shared/server/db declarations and checks that still mention non-fcfs modes
+rg -n --type=ts --type=tsx -C2 '\b(fcfs|random|application)\b' src/shared src/server src/db src/app tests
+
+# 2) Inspect RegistrationMode type/Schema definitions and validator surfaces
+rg -n --type=ts --type=tsx -C3 '\bRegistrationMode\b|Schema\.Literal\(|z\.enum\(|enum\s+RegistrationMode'
+```
+
+Repository: evorto-app/app
+
+Length of output: 86
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+# Search for registration mode mentions (ts files only, no tsx)
+echo "=== Searching for fcfs/random/application mentions ==="
+rg -n --type=ts '\b(fcfs|random|application)\b' src/shared src/server src/db src/app tests 2>/dev/null || true
+
+# Search for RegistrationMode type/schema definitions
+echo -e "\n=== Searching for RegistrationMode definitions ==="
+rg -n --type=ts 'RegistrationMode|enum\s+RegistrationMode|z\.enum\(|Literal\(' src/shared src/server src/db src/app 2>/dev/null || true
+
+# Find the template-edit component file
+echo -e "\n=== Looking at template-edit component ==="
+fd -t f 'template-edit.component.ts' src/app
+```
+
+Repository: evorto-app/app
+
+Length of output: 9289
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+# Examine event-registration.service.ts to understand non-fcfs mode handling
+echo "=== Examining event-registration.service.ts around line 284 ==="
+sed -n '275,295p' src/server/effect/rpc/handlers/events/event-registration.service.ts
+
+# Check templates.handlers.ts for validation and input handling
+echo -e "\n=== Examining templates.handlers.ts around registration mode handling ==="
+sed -n '25,65p' src/server/effect/rpc/handlers/templates.handlers.ts
+
+# Check if there's any constraint on what modes are accepted on create/update
+echo -e "\n=== Check registration-option-form schema ==="
+cat src/app/shared/components/forms/registration-option-form/registration-option-form.schema.ts
+
+# Check template-registration-options schema in DB
+echo -e "\n=== Check DB schema for template-registration-options ==="
+cat src/db/schema/template-registration-options.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 6562
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+# Search for deprecation comments or migration references
+echo "=== Search for deprecation or migration comments ==="
+rg -n 'deprecat|migrat|TODO|FIXME' src/app/templates/template-edit/template-edit.component.ts src/server/effect/rpc/handlers/events/event-registration.service.ts src/db/schema/global-enums.ts
+
+# Check if untouchedSinceMigration field in schema relates to this
+echo -e "\n=== Check for migration logic ==="
+rg -n 'untouchedSinceMigration' src/ --type=ts -B2 -A2
+
+# Verify that the constraint is consistent across ALL edit/create surfaces
+echo -e "\n=== Check all template/event edit/create surfaces ==="
+rg -n 'registrationModes.*=' src/app --type=ts -B1 -A1 | grep -E '(component|\.ts):'
+```
+
+Repository: evorto-app/app
+
+Length of output: 111
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+# Check for migration logic and untouchedSinceMigration usage
+echo "=== Check for migration-related code ==="
+rg -n 'untouchedSinceMigration' src/ --type=ts -B2 -A2 || echo "No migration field usage found"
+
+# Verify that the constraint is consistent across ALL edit/create surfaces
+echo -e "\n=== Check all template/event edit/create surfaces ==="
+rg -n "registrationModes\s*=" src/app --type=ts | head -20
+
+# Check what RegistrationMode is used in the form component (the actual place user selects)
+echo -e "\n=== Check template-registration-option-form.component.ts ==="
+cat src/app/templates/shared/template-form/template-registration-option-form.component.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 3234
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+# Check if registrationModes input is used to pass ['fcfs'] from parent components
+echo "=== Check template-edit.component.ts to see how registrationModes is passed ==="
+sed -n '50,100p' src/app/templates/template-edit/template-edit.component.ts
+
+# Check for any handlers that might still accept non-fcfs modes on update
+echo -e "\n=== Check templates.handlers.ts for update logic ==="
+rg -n 'update|Edit|edit' src/server/effect/rpc/handlers/templates.handlers.ts | head -20
+
+# See if there are any live tests showing non-fcfs template handling
+echo -e "\n=== Check test files for non-fcfs template scenarios ==="
+rg -n "registrationMode.*:.*'(random|application)'" tests/ src/ --type=ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 2736
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefac
+
+# Check the template to see how registration mode is bound
+echo "=== Check template-edit.component.html ==="
+cat src/app/templates/template-edit/template-edit.component.html | grep -A10 -B10 "registrationMode\|registrationModes" || echo "No explicit binding found in visible grep"
+
+# Check the actual registration option form template
+echo -e "\n=== Check template-registration-option-form.component.html ==="
+cat src/app/templates/shared/template-form/template-registration-option-form.component.html
+
+# Look for any data migration or cleanup of non-fcfs modes
+echo -e "\n=== Search for any migration or cleanup of registration modes ==="
+rg -n 'random|application' src/server --type=ts | grep -E '(migrate|clean|update)' || echo "No migration references found"
+
+# Check if there are actual templates with non-fcfs modes in the codebase
+echo -e "\n=== Check seed data or fixtures ==="
+fd -t f 'seed\|fixture\|mock' src/ | xargs grep -l "registrationMode" || echo "No seed files with registration modes found"
+```
+
+Repository: evorto-app/app
+
+Length of output: 111
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+# Check the template to see how registration mode is bound
+echo "=== Check template-edit.component.html ==="
+cat src/app/templates/template-edit/template-edit.component.html | grep -A10 -B10 "registrationMode\|registrationModes" || echo "No explicit binding found in visible grep"
+
+# Check the actual registration option form template
+echo -e "\n=== Check template-registration-option-form.component.html ==="
+cat src/app/templates/shared/template-form/template-registration-option-form.component.html
+
+# Look for any data migration or cleanup of non-fcfs modes
+echo -e "\n=== Search for any migration or cleanup of registration modes ==="
+rg -n 'random|application' src/server --type=ts | grep -E '(migrate|clean|update)' || echo "No migration references found"
+
+# Check if there are actual templates with non-fcfs modes in the codebase
+echo -e "\n=== Check seed data or fixtures ==="
+fd -t f -e ts seed fixture mock | xargs grep -l "registrationMode" 2>/dev/null || echo "No seed files with registration modes found"
+```
+
+Repository: evorto-app/app
+
+Length of output: 4118
+
+---
+
+</details>
+
+**Constrain registration modes to `fcfs` only, but add a data migration to handle existing templates with `random` or `application` modes.**
+
+The UI now restricts `registrationModes` to `['fcfs']`, but the underlying `RegistrationMode` type still supports all three modes. If existing templates were created with `random` or `application` modes, editing them will silently change the mode to `fcfs` (since the form dropdown only shows `fcfs` as an option). While the runtime already rejects non-`fcfs` registrations (event-registration.service.ts:284), the UI should handle backward compatibility either by:
+
+1. Preventing edits of non-`fcfs` templates until migrated, or
+2. Adding a data migration to batch-update or deprecate non-`fcfs` templates
+
+The `untouchedSinceMigration` field in the DB schema suggests a migration strategy exists—ensure it's being applied or plan for it before enforcing the UI constraint.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/app/templates/template-edit/template-edit.component.ts` at line 56, The
+registrationModes constraint to ['fcfs'] in the template-edit.component.ts file
+creates a silent data loss issue for existing templates with 'random' or
+'application' modes. Before enforcing this UI constraint, add logic to handle
+backward compatibility by checking the template's current registrationMode value
+when loading the form. If the loaded template has a non-fcfs mode (random or
+application), either prevent editing and display a user-friendly message
+indicating the template needs migration first, or implement a data migration
+strategy using the existing untouchedSinceMigration field to batch-update legacy
+templates to fcfs mode. Ensure this check happens during template initialization
+so users cannot inadvertently lose their template's original registration mode
+configuration.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:8a47af706968b112ac627974 -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 11
+File: src/server/context/request-context-resolver.spec.ts
+Side: R
+Lines: 79
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟠 Major_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Verify all cast bypasses in this spec file
+rg -n '\bas never\b' src/server/context/request-context-resolver.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 456
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Read the test file around the flagged lines to understand the context
+echo "=== Test file context (lines 60-90) ==="
+sed -n '60,90p' src/server/context/request-context-resolver.spec.ts
+
+echo ""
+echo "=== Full test file to see setup ==="
+head -150 src/server/context/request-context-resolver.spec.ts | tail -100
+```
+
+Repository: evorto-app/app
+
+Length of output: 4396
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Find the Database service definition
+echo "=== Searching for Database service definition ==="
+rg -n 'class Database|type Database|Context.Service.*Database' --type ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 7788
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Look for Database import and definition in the test file
+echo "=== Imports and test setup in spec file ==="
+head -50 src/server/context/request-context-resolver.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1272
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Check the Database service definition and DatabaseClient type
+echo "=== src/db/database.layer.ts content ==="
+cat src/db/database.layer.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1058
+
+---
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Look at the structure expected by DatabaseClient
+echo "=== src/db/index.ts ==="
+cat src/db/index.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 226
+
+---
+
+</details>
+
+**Remove `as never` cast bypasses for Database provisioning in tests.**
+
+These casts hide type mismatches between the mocked database shape and the `Database` service contract (which expects a Drizzle ORM client from `PgDrizzle.makeWithDefaults`), allowing test doubles to silently drift from real handler expectations.
+
+Per coding guidelines, `src/**/*.{ts,tsx}` files must maintain end-to-end type safety and avoid unchecked cast bypasses like `as never`.
+
+Applies to lines 79, 104, 131, 154, 209.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/context/request-context-resolver.spec.ts` at line 79, Remove the
+`as never` type bypass casts from all Database service provisioning calls in the
+test file (appearing in the `Layer.succeed(Database, database as never)` pattern
+at multiple locations). Instead, ensure the mocked database object is properly
+typed to match the actual Database service contract that expects a Drizzle ORM
+client from PgDrizzle.makeWithDefaults. This requires either restructuring the
+mock setup to satisfy the correct type signature or ensuring the test double's
+shape aligns with the real Database service expectations, maintaining end-to-end
+type safety throughout the test file.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:3f8560376eebde88152c3fa5 -->
+
+_Source: Coding guidelines_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 12
+File: src/server/discounts/providers/index.spec.ts
+Side: R
+Lines: 15
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟠 Major_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Verify unsafe cast-bypass patterns in the changed provider spec.
+rg -nP 'as\s+unknown\s+as\s+typeof\s+fetch' src/server/discounts/providers/index.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 175
+
+---
+
+</details>
+
+**Remove `unknown as typeof fetch` cast bypasses in fetch mocks.**
+
+These casts violate the requirement for end-to-end type safety in TypeScript files. Replace with a typed mock factory returning proper `Response` objects.
+
+<details>
+<summary>Suggested refactor</summary>
+
+```diff
++const createFetchMock = (body: unknown, init: ResponseInit = { status: 200 }): typeof fetch =>
++  vi.fn(async () =>
++    new Response(JSON.stringify(body), {
++      headers: { 'content-type': 'application/json' },
++      ...init,
++    }),
++  );
++
+   it('validates active cards and preserves provider metadata', async () => {
+-    const fetchImpl = vi.fn(async () => ({
+-      json: async () => [
+-        {
+-          'expiration-date': '2026-12-31T00:00:00.000Z',
+-          status: 'active',
+-        },
+-      ],
+-      ok: true,
+-    })) as unknown as typeof fetch;
++    const fetchImpl = createFetchMock([
++      { 'expiration-date': '2026-12-31T00:00:00.000Z', status: 'active' },
++    ]);
+@@
+   it('treats missing cards as invalid user input', async () => {
+-    const fetchImpl = vi.fn(async () => ({
+-      json: async () => [],
+-      ok: true,
+-    })) as unknown as typeof fetch;
++    const fetchImpl = createFetchMock([]);
+@@
+   it('distinguishes provider failures from invalid cards', async () => {
+-    const fetchImpl = vi.fn(async () => ({
+-      json: async () => ({ error: 'temporarily unavailable' }),
+-      ok: false,
+-      status: 503,
+-    })) as unknown as typeof fetch;
++    const fetchImpl = createFetchMock(
++      { error: 'temporarily unavailable' },
++      { status: 503 },
++    );
+```
+</details>
+
+Applies to lines 15, 37, 51.
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+const createFetchMock = (body: unknown, init: ResponseInit = { status: 200 }): typeof fetch =>
+  vi.fn(async () =>
+    new Response(JSON.stringify(body), {
+      headers: { 'content-type': 'application/json' },
+      ...init,
+    }),
+  );
+
+it('validates active cards and preserves provider metadata', async () => {
+  const fetchImpl = createFetchMock([
+    { 'expiration-date': '2026-12-31T00:00:00.000Z', status: 'active' },
+  ]);
+  // ... rest of test
+});
+
+it('treats missing cards as invalid user input', async () => {
+  const fetchImpl = createFetchMock([]);
+  // ... rest of test
+});
+
+it('distinguishes provider failures from invalid cards', async () => {
+  const fetchImpl = createFetchMock(
+    { error: 'temporarily unavailable' },
+    { status: 503 },
+  );
+  // ... rest of test
+});
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/discounts/providers/index.spec.ts` at line 15, Remove the type
+bypass cast `as unknown as typeof fetch` from the fetch mock at lines 15, 37,
+and 51 in the spec file. Instead, create a properly typed mock factory function
+that returns a correct `Response` object matching the actual fetch signature.
+Replace each occurrence of the cast bypass with a call to this typed mock
+factory, ensuring the mock returns a properly typed Response object with the
+required properties and methods, maintaining full TypeScript type safety
+throughout the test file.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:refactor_suggestion -->
+
+<!-- cr-comment:v1:108cb4f1865287663a8ce72b -->
+
+_Source: Coding guidelines_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 13
+File: src/server/effect/rpc/handlers/admin.handlers.spec.ts
+Side: R
+Lines: 44-49
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟡 Minor_ | _⚡ Quick win_
+
+**Remove `as never` cast bypasses for handler call options.**
+
+These casts bypass type-safety for RPC options and can hide request-contract drift in tests. Derive options from handler signatures and pass typed objects instead.
+
+<details>
+<summary>Proposed fix</summary>
+
+```diff
++type FindManyOptions = Parameters<
++  (typeof adminHandlers)['admin.roles.findMany']
++>[1];
++type FindOneOptions = Parameters<
++  (typeof adminHandlers)['admin.roles.findOne']
++>[1];
++
+       const error = yield* adminHandlers['admin.roles.findMany']({}, {
++      const findManyOptions = {
+         headers: {
+           [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+           [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([]),
+         },
+-      } as never).pipe(Effect.flip);
++      } satisfies FindManyOptions;
++      const error = yield* adminHandlers['admin.roles.findMany'](
++        {},
++        findManyOptions,
++      ).pipe(Effect.flip);
+
++      const findOneOptions = {
++        headers: createAdminHeaders(),
++      } satisfies FindOneOptions;
+       const role = yield* adminHandlers['admin.roles.findOne'](
+         { id: 'role-1' },
+-        { headers: createAdminHeaders() } as never,
++        findOneOptions,
+       ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+```
+</details>
+
+As per coding guidelines, `src/**/*.{ts,tsx}` must maintain end-to-end type safety and avoid unchecked `as` casts.  
+   
+
+
+Also applies to: 77-79
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/admin.handlers.spec.ts` around lines 44 - 49,
+Remove the `as never` type cast from the options object passed to the
+adminHandlers['admin.roles.findMany'] handler call to maintain type-safety and
+prevent request-contract drift. Instead of bypassing type checking with the
+cast, ensure the options object with the headers (containing
+RPC_CONTEXT_HEADERS.AUTHENTICATED and RPC_CONTEXT_HEADERS.PERMISSIONS) is
+properly typed according to the handler's expected signature. This applies to
+both occurrences mentioned in the diff and related line ranges, ensuring all RPC
+handler calls use typed objects that match their handler signatures without cast
+bypasses.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:585f721fc680d2f46d1a8d85 -->
+
+_Source: Coding guidelines_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 14
+File: src/server/effect/rpc/handlers/events/event-registration.service.ts
+Side: R
+Lines: 325-389
+Comment:
+@coderabbitai:
+_🗄️ Data Integrity & Integration_ | _🟠 Major_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+
+echo "=== eventRegistrations schema and constraints ==="
+fd -i 'event-registrations.ts' src/db/schema --exec sed -n '1,260p' {}
+
+echo "=== unique/index definitions touching tenantId/eventId/userId/status ==="
+rg -nP --type=ts -C3 'unique|index|eventRegistrations|tenantId|eventId|userId|status' src/db/schema
+
+echo "=== conflict/DB-error mapping in registration service ==="
+rg -nP --type=ts -C4 'AlreadyRegistered|EventRegistrationConflictError|insert\\(eventRegistrations\\)|orDie|catch' src/server/effect/rpc/handlers/events/event-registration.service.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 25990
+
+---
+
+🏁 Script executed:
+
+```shell
+# Search for any unique constraints on eventRegistrations across schema and migrations
+rg -i "unique.*event.*registration|event.*registration.*unique" src/db/schema src/db/migrations --type=ts -C2
+
+# Check if there are any migrations that add constraints to eventRegistrations
+rg -i "eventRegistrations|event_registrations" src/db/migrations --type=ts -l
+```
+
+Repository: evorto-app/app
+
+Length of output: 174
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find the actual database structure
+find src -type d -name '*db*' | head -20
+
+# Check for any unique constraints or indexes in the entire schema directory
+rg "unique|index" src/db/schema/event-registrations.ts -A 5 -B 5
+```
+
+Repository: evorto-app/app
+
+Length of output: 65
+
+---
+
+🏁 Script executed:
+
+```shell
+# Read the complete eventRegistrations table definition
+cat -n src/db/schema/event-registrations.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1613
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the complete event-registration.service.ts file around the registration flow
+wc -l src/server/effect/rpc/handlers/events/event-registration.service.ts
+
+# Read the key sections: the duplicate check and transaction setup
+sed -n '320,420p' src/server/effect/rpc/handlers/events/event-registration.service.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 3847
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the database transaction setup and isolation level
+rg -i "transaction|isolation|read_committed" src/server/effect/rpc/handlers/events/event-registration.service.ts -B 3 -A 3
+
+# Check if there's any SELECT FOR UPDATE or locking mechanism
+rg -i "for update|lock|pessimistic" src/server/effect/rpc/handlers/events/ --type=ts
+
+# Look for the Database service implementation to see transaction defaults
+fd -i 'database' src/server/effect --type=ts | head -5
+```
+
+Repository: evorto-app/app
+
+Length of output: 2395
+
+---
+
+🏁 Script executed:
+
+```shell
+# Correct the search - look for database service and transaction config
+rg "database.transaction" src/server/effect/rpc/handlers/events/event-registration.service.ts -B 2 -A 10
+
+# Search for Database service definition
+find src/server/effect -name '*.ts' -type f | xargs grep -l "class Database\|export.*Database" | head -5
+
+# Look for Drizzle transaction wrapper
+rg "transaction\(" src/server/effect -A 5 | head -30
+```
+
+Repository: evorto-app/app
+
+Length of output: 3187
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the database.ts or database provider implementation
+find src/server/effect -name "*.ts" -type f | xargs grep -l "Database\|transaction" | grep -i "database\|provider\|service" | head -10
+
+# Look at the imports in event-registration.service.ts to find Database provider
+head -50 src/server/effect/rpc/handlers/events/event-registration.service.ts | grep -i "import\|from"
+```
+
+Repository: evorto-app/app
+
+Length of output: 1173
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the Database implementation
+cat src/db/index.ts
+
+# Also check if there's a Database service layer definition
+find src/db -name "*.ts" -type f | head -20
+```
+
+Repository: evorto-app/app
+
+Length of output: 834
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the Database layer implementation for transaction configuration
+cat src/db/database.layer.ts | head -100
+
+# Also look for transaction isolation level settings
+grep -i "isolation\|serializable\|repeatable\|committed" src/db/database.layer.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1017
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if drizzle-orm/effect-postgres has default isolation level configuration
+grep -r "isolation\|transaction\|BEGIN" src/db --include="*.ts"
+
+# Search online for drizzle transaction defaults or check for any isolation config
+rg "IsolationLevel\|ISOLATION\|transaction.*config" src/db src/server/effect --type ts -i
+```
+
+Repository: evorto-app/app
+
+Length of output: 1905
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the database client config for any transaction settings
+cat src/db/database-client.ts
+
+# Also verify the pg connection config
+cat src/db/pg-connection-config.ts | head -80
+```
+
+Repository: evorto-app/app
+
+Length of output: 2755
+
+---
+
+</details>
+
+**Duplicate-registration protection relies on application-level checks without database-level enforcement, creating a race condition in concurrent requests.**
+
+The transaction uses a read-then-insert pattern (`findMany()` followed by `insert()`), but without a unique constraint on `(userId, eventId)` where `status != 'CANCELLED'`, two concurrent requests can both observe zero existing registrations before either inserts. PostgreSQL's default READ COMMITTED isolation level does not prevent this phantom read scenario. The code correctly maps `AlreadyRegistered` to `EventRegistrationConflictError`, but this path is only reachable if the in-transaction read finds a conflict—it will never trigger on actual duplicates created by concurrent requests.
+
+Add a partial unique constraint on `eventRegistrations(userId, eventId)` filtered to active statuses, or implement pessimistic locking with `SELECT FOR UPDATE` on the duplicate-check query.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/events/event-registration.service.ts` around
+lines 325 - 389, The activeRegistrations check using findMany() followed by the
+insert into eventRegistrations is vulnerable to race conditions under concurrent
+requests. To fix this, add pessimistic locking to the findMany query that checks
+for active registrations by adding a SELECT FOR UPDATE clause, or alternatively
+add a partial unique constraint at the database level on the eventRegistrations
+table for (userId, eventId) that only applies to non-CANCELLED statuses. The
+pessimistic locking approach is simpler to implement in this transaction context
+and will ensure that once one request locks the row check, concurrent requests
+will wait and see any registrations created by the first request.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:12bfe9da9c046cd01c9900f1 -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 15
+File: src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts
+Side: R
+Lines: 281-287
+Comment:
+@coderabbitai:
+_🗄️ Data Integrity & Integration_ | _🔴 Critical_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🌐 Web query:
+
+`Does PostgreSQL INSERT RETURNING guarantee order matches VALUES order?`
+
+💡 Result:
+
+No, PostgreSQL does not explicitly document or guarantee that the rows returned by an INSERT... RETURNING clause will strictly follow the order of the provided VALUES [1]. While in practice the RETURNING clause often returns rows in the order they were processed or inserted, this behavior is an implementation detail rather than a guaranteed contract [1][2]. Relying on this order can be risky, especially in complex queries or concurrent environments where the database engine's internal execution plan might affect the order of operations [1][2]. If maintaining a specific order is required for your application logic, the recommended approach is to include an identifier or an ordinality column in your input [3]. For example, when using INSERT... SELECT, you can use WITH ORDINALITY to associate each input row with an explicit index, which can then be returned via the RETURNING clause to allow your application to reorder the results as needed [3]. For a simple VALUES clause, you can similarly structure your input to include an index or ID column that allows for deterministic sorting after the results are returned [1][3].
+
+Citations:
+
+- 1: https://stackoverflow.com/questions/5439293/is-insert-returning-guaranteed-to-return-things-in-the-right-order
+- 2: https://stackoverflow.com/questions/50809120/postgres-insert-into-with-select-ordering
+- 3: https://www.postgresql.org/message-id/REDACTED%40mail.gmail.com
+
+---
+
+🏁 Script executed:
+
+```shell
+cat -n src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts | sed -n '260,290p'
+```
+
+Repository: evorto-app/app
+
+Length of output: 1518
+
+---
+
+🏁 Script executed:
+
+```shell
+cat -n src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts | sed -n '230,260p'
+```
+
+Repository: evorto-app/app
+
+Length of output: 1436
+
+---
+
+🏁 Script executed:
+
+```shell
+cat -n src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts | sed -n '200,240p'
+```
+
+Repository: evorto-app/app
+
+Length of output: 1593
+
+---
+
+🏁 Script executed:
+
+```shell
+cat -n src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts | sed -n '288,320p'
+```
+
+Repository: evorto-app/app
+
+Length of output: 1369
+
+---
+
+</details>
+
+**Fix order-dependent mapping in discount copying—use explicit correlation.**
+
+The discount copying logic assumes `createdOptions` array indices match `sanitizedRegistrationOptions` indices after `INSERT...RETURNING`. PostgreSQL does not guarantee `INSERT...RETURNING` order preservation; if row order shifts during insertion, `sanitizedRegistrationOptions[index].sourceTemplateRegistrationOptionId` at line 285–286 will pair with the wrong `createdOptionId`, causing discounts to be applied to incorrect registration options.
+
+Include an explicit ordinality or index column in the `values()` insert and `returning()` clause, then reorder the results after insertion before building the `createdOptionSources` map.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts` around
+lines 281 - 287, The createdOptionSources mapping assumes array index
+correlation between createdOptions and sanitizedRegistrationOptions after
+INSERT...RETURNING, but PostgreSQL does not guarantee row order preservation
+during insertion. To fix this, add an explicit ordinality or index column to
+track the original position in the values() clause before insertion, include
+this column in the returning() clause, then after insertion reorder the
+createdOptions results to match their original insertion order before building
+the createdOptionSources map using the index-based mapping in the map function.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:medusa:ocelot -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:a91c44c412e785a543e92204 -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 16
+File: src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts
+Side: R
+Lines: 58-79
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟠 Major_ | _⚡ Quick win_
+
+**Remove `unknown`/`as never` cast bypasses from the test harness.**
+
+Line 62 (`database: unknown`), Line 77 (`database as never`), and call-site casts like Line 123 (`{ headers: {} } as never`) suppress real contract mismatches and defeat strict typing for these handler tests. Type the mock database and derive RPC options from handler signatures instead of forcing `never`.
+
+As per coding guidelines, `src/**/*.{ts,tsx}` must maintain end-to-end type safety and avoid `any`, unchecked `as`, and `unknown` without narrowing.
+
+
+
+
+
+
+
+Also applies to: 123-123
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts`
+around lines 58 - 79, The createContextLayer function uses improperly typed
+parameters (database as unknown with an as never cast) that bypass type
+checking. Remove the unknown type annotation from the database parameter and
+replace the as never cast with proper typing based on the actual Database
+contract required by the handlers. Similarly, identify and fix any call-site
+casts like the headers object cast to use proper type definitions instead of as
+never bypasses, ensuring the entire test harness maintains strict end-to-end
+type safety without relying on type suppressions.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:28c981e113bfe6e0df54f012 -->
+
+_Source: Coding guidelines_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 17
+File: src/server/effect/rpc/handlers/events/events-registration.handlers.ts
+Side: R
+Lines: 393-397
+Comment:
+@coderabbitai:
+_🎯 Functional Correctness_ | _🟠 Major_ | _⚡ Quick win_
+
+**Return DB-derived state when the conditional check-in update affects zero rows.**
+
+Line 393 currently treats every zero-row update as “already checked in” and returns a local timestamp, which can misreport state under concurrent transitions (for example, status changed away from `CONFIRMED`). Re-read the registration inside the transaction and branch on actual persisted fields before returning.
+
+
+
+
+
+
+<details>
+<summary>Proposed fix</summary>
+
+```diff
+-            if (updatedRegistrations.length === 0) {
+-              return {
+-                alreadyCheckedIn: true,
+-                checkInTime,
+-              };
+-            }
++            if (updatedRegistrations.length === 0) {
++              const latest = yield* tx.query.eventRegistrations.findFirst({
++                columns: {
++                  checkInTime: true,
++                  status: true,
++                },
++                where: {
++                  id: registration.id,
++                  tenantId: tenant.id,
++                },
++              });
++
++              if (!latest) {
++                return yield* Effect.fail(
++                  new EventRegistrationNotFoundError({
++                    message: 'Registration not found',
++                  }),
++                );
++              }
++
++              if (latest.checkInTime) {
++                return {
++                  alreadyCheckedIn: true,
++                  checkInTime: latest.checkInTime,
++                };
++              }
++
++              return yield* Effect.fail(
++                new EventRegistrationConflictError({
++                  message: 'Only confirmed registrations can be checked in',
++                }),
++              );
++            }
+```
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/events/events-registration.handlers.ts` around
+lines 393 - 397, When the conditional check-in update returns zero rows
+(updatedRegistrations.length === 0), the code incorrectly assumes the
+registration is already checked in and returns a hardcoded state with a local
+timestamp. Instead of returning hardcoded values, re-read the registration
+record from the database within the transaction after detecting the zero-row
+update, inspect the actual persisted fields to determine the current state, and
+return the database-derived state based on what you find. This ensures the
+response reflects the actual persisted state rather than making assumptions
+about concurrent modifications that may have changed the registration status
+away from CONFIRMED.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:180968573cfe841e75a4905d -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 18
+File: src/server/effect/rpc/handlers/finance/finance.handlers.spec.ts
+Side: R
+Lines: 49-79
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟠 Major_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Verify all cast bypasses introduced in this spec.
+rg -n "as never|:\\s*unknown\\b" src/server/effect/rpc/handlers/finance/finance.handlers.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 574
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find Database and ReceiptMediaService type definitions
+rg -n "type Database|interface Database|class Database" src/server/effect --type ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1658
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find ReceiptMediaService definitions
+rg -n "ReceiptMediaService" src/server/effect --type ts -A 3 | head -50
+```
+
+Repository: evorto-app/app
+
+Length of output: 4544
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check what the handler options parameter should be typed as
+rg -n "export.*handlers.*=.*\(" src/server/effect/rpc/handlers/finance/finance.handlers.ts -A 2 | head -40
+```
+
+Repository: evorto-app/app
+
+Length of output: 40
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at the finance handlers implementation
+cat -n src/server/effect/rpc/handlers/finance/finance.handlers.ts | head -100
+```
+
+Repository: evorto-app/app
+
+Length of output: 576
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the RPC contract to understand handler invocation
+rg -n "uploadReceipt|approveExpense" src/server/effect/rpc/handlers/finance/finance.handlers.ts -A 5 | head -60
+```
+
+Repository: evorto-app/app
+
+Length of output: 40
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at the finance-media handlers
+cat -n src/server/effect/rpc/handlers/finance/finance-media.handlers.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 2681
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at the test file to see exactly how handlers are called
+cat -n src/server/effect/rpc/handlers/finance/finance.handlers.spec.ts | sed -n '170,185p'
+```
+
+Repository: evorto-app/app
+
+Length of output: 761
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at the handler types
+cat -n src/server/effect/rpc/handlers/shared/handler-types.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 616
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if there's an RpcHandlerOptions or similar type defined
+rg -n "RpcHandler|handler.*options" src/server/effect/rpc --type ts -A 2 | head -80
+```
+
+Repository: evorto-app/app
+
+Length of output: 5679
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find RpcRequestContextMiddleware definition
+rg -n "RpcRequestContextMiddleware|export.*Middleware" src/shared/rpc-contracts/app-rpcs --type ts -B 2 -A 5 | head -80
+```
+
+Repository: evorto-app/app
+
+Length of output: 1123
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the actual RPC request type definition
+rg -n "AddMiddleware|HandlersFrom" src/shared/rpc-contracts/app-rpcs --type ts -B 2 -A 3
+```
+
+Repository: evorto-app/app
+
+Length of output: 40
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at the rpc-request-context.middleware file
+cat -n src/shared/rpc-contracts/app-rpcs/rpc-request-context.middleware.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1265
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check what the RPC framework exports for handler options
+rg -n "effect/unstable/rpc" src/server/effect/rpc -A 2 | head -50
+```
+
+Repository: evorto-app/app
+
+Length of output: 856
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check other spec files to see how they handle the options parameter
+find src/server/effect/rpc/handlers -name "*.spec.ts" -type f | head -5 | xargs grep -l "as never" | head -1 | xargs cat | head -150
+```
+
+Repository: evorto-app/app
+
+Length of output: 2628
+
+---
+
+🏁 Script executed:
+
+```shell
+# Search for how other handlers test their calls with options
+rg -n "handlers\[.*\]\(.*options" src/server/effect/rpc/handlers --type ts -B 2 -A 2 | head -60
+```
+
+Repository: evorto-app/app
+
+Length of output: 40
+
+---
+
+</details>
+
+**Stop using `unknown`/`as never` in the test harness; it masks contract drift.**
+
+The test setup bypasses type checks at dependency injection and handler call boundaries, allowing interface mismatches to slip through undetected. Lines 52–53 declare parameters as `unknown` instead of proper types (e.g., `Database` and `ReceiptMediaService`), and lines 68, 77, 178, 207, 247, 261, 297, 322 cast handler options as `as never` instead of using the correct RPC options type with `headers` field.
+
+Per coding guidelines: "Maintain end-to-end type safety; avoid `any`, unchecked `as`, and `unknown` without narrowing in TypeScript files."
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/finance/finance.handlers.spec.ts` around lines
+49 - 79, In the createContextLayer function, replace the unknown types in the
+options parameter (for database and receiptMediaService fields) with their
+proper type definitions (Database and ReceiptMediaService). Additionally, remove
+the as never casts from the Layer.succeed calls that provide these dependencies
+and ensure the mock objects satisfy the actual contract types without bypassing
+type checks. This maintains end-to-end type safety and ensures interface
+mismatches are caught during testing.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:28db088a660a6f644aa7c220 -->
+
+_Source: Coding guidelines_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 19
+File: src/server/effect/rpc/handlers/roles.handlers.spec.ts
+Side: R
+Lines: 50-65
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟠 Major_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Verify all cast-bypass points in this spec file
+rg -n --type=ts -e '\bas never\b|\bunknown\b' src/server/effect/rpc/handlers/roles.handlers.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 363
+
+---
+
+🏁 Script executed:
+
+```shell
+cat -n src/server/effect/rpc/handlers/roles.handlers.spec.ts | head -100
+```
+
+Repository: evorto-app/app
+
+Length of output: 3362
+
+---
+
+🏁 Script executed:
+
+```shell
+cat -n src/server/effect/rpc/handlers/roles.handlers.spec.ts | tail -100
+```
+
+Repository: evorto-app/app
+
+Length of output: 3280
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find Database service definition
+rg -l 'class Database|export.*Database' src/server --type=ts | head -5
+```
+
+Repository: evorto-app/app
+
+Length of output: 95
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find RpcRequestContext definition
+rg -A5 'export.*RpcRequestContext|const RpcRequestContext' src/server --type=ts | head -20
+```
+
+Repository: evorto-app/app
+
+Length of output: 1165
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find Database service type definition
+cat -n src/db/index.ts | head -50
+```
+
+Repository: evorto-app/app
+
+Length of output: 216
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find roleHandlers signature to see what second param should be
+rg -A10 "roleHandlers\[.*\]|export.*roleHandlers" src/server/effect/rpc/handlers/roles.handlers.ts | head -30
+```
+
+Repository: evorto-app/app
+
+Length of output: 479
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look for RPC handler type patterns
+rg -B5 -A5 "headers:" src/server/effect/rpc/handlers --type=ts | head -40
+```
+
+Repository: evorto-app/app
+
+Length of output: 3243
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find RPC handler signature/interface
+rg -B5 -A10 "type.*Handler|interface.*Handler" src/shared/rpc-contracts --type=ts | head -50
+```
+
+Repository: evorto-app/app
+
+Length of output: 40
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check Database type from db/index.ts
+cat -n src/db/database.layer.ts | head -50
+```
+
+Repository: evorto-app/app
+
+Length of output: 1241
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at an actual handler implementation to understand second param
+cat -n src/server/effect/rpc/handlers/roles.handlers.ts | head -80
+```
+
+Repository: evorto-app/app
+
+Length of output: 2922
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check handler type definition
+cat -n src/server/effect/rpc/handlers/shared/handler-types.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 616
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find how handlers are actually invoked in production
+rg -B3 -A3 "roleHandlers\[" src/server/effect/rpc --type=ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 2382
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check what Headers type is expected
+rg -B2 -A2 "Headers\.Headers" src/server/effect/rpc/handlers --type=ts | head -20
+```
+
+Repository: evorto-app/app
+
+Length of output: 1484
+
+---
+
+</details>
+
+**Remove cast-bypass typing in handler tests; use proper typed mocks matching Database service and Headers structures.**
+
+The mock fixtures in this test file use `unknown` and `as never` casts to suppress type errors on the Database service and request context parameter. This allows the mock database shape (e.g., lines 74–91) and empty header objects to diverge from actual handler contracts without detection. 
+
+- Replace `database: unknown` and `database as never` with a properly typed mock implementing the `DatabaseClient` shape (from `drizzle-orm/effect-postgres`).
+- Replace all `{ headers: {} } as never` casts with proper `Headers` objects using `@effect/platform`'s Headers constructor.
+- Ensure the mock `database.query.roles.findMany` and `findFirst` signatures match the actual Drizzle-ORM query API.
+
+This ensures tests validate handler contracts properly and catch regressions if handler expectations change.
+
+Per coding guidelines: "Maintain end-to-end type safety; avoid `any`, unchecked `as`, and `unknown` without narrowing in TypeScript files."
+
+Also applies to: 73–77, 95, 135, 154, 175
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/roles.handlers.spec.ts` around lines 50 - 65,
+The test fixture uses `database: unknown` parameter and `database as never`
+casts to suppress type errors, allowing mock implementations to diverge from
+actual handler contracts. Replace the `database: unknown` parameter with a
+properly typed mock implementing the `DatabaseClient` shape from
+drizzle-orm/effect-postgres, ensure the mock database object correctly
+implements `database.query.roles.findMany` and `findFirst` methods matching
+Drizzle-ORM's actual API, and replace all `{ headers: {} } as never` casts with
+proper `Headers` objects constructed using `@effect/platform`'s Headers
+constructor. Apply these fixes throughout the test file at the locations
+mentioned (lines 73-77, 95, 135, 154, 175) to maintain end-to-end type safety
+and properly validate handler contracts.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:501f2752eabd6244603175ff -->
+
+_Source: Coding guidelines_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 20
+File: src/server/effect/rpc/handlers/templates.handlers.spec.ts
+Side: R
+Lines: 48-66
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟠 Major_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+rg -nP '\bas\s+never\b|\bas\s+unknown\s+as\b' src/server/effect/rpc/handlers/templates.handlers.spec.ts -C2
+```
+
+Repository: evorto-app/app
+
+Length of output: 949
+
+---
+
+🏁 Script executed:
+
+```shell
+cd src/server/effect/rpc/handlers && wc -l templates.handlers.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 89
+
+---
+
+🏁 Script executed:
+
+```shell
+cat -n src/server/effect/rpc/handlers/templates.handlers.spec.ts | head -80
+```
+
+Repository: evorto-app/app
+
+Length of output: 2526
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check Database type definition
+rg -nP 'type Database|interface Database|const Database' src/server/effect/rpc/handlers/templates.handlers.spec.ts -A5
+```
+
+Repository: evorto-app/app
+
+Length of output: 40
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check handler signatures and RPC options type
+rg -nP "templateHandlers\[|RpcOptions|headers" src/server/effect/rpc/handlers/templates.handlers.spec.ts -B2 -A2
+```
+
+Repository: evorto-app/app
+
+Length of output: 1233
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look for Database and RPC context definitions in the server
+fd -t f '\.ts$' src/server/effect | head -20
+```
+
+Repository: evorto-app/app
+
+Length of output: 1222
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check Database type definition
+cat -n src/db/index.ts | head -50
+```
+
+Repository: evorto-app/app
+
+Length of output: 216
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check what templateHandlers signature looks like
+cat -n src/server/effect/rpc/handlers/templates.handlers.ts | head -100
+```
+
+Repository: evorto-app/app
+
+Length of output: 4179
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check RPC handler signatures
+rg -nP "templates\.createSimpleTemplate|templates\.updateSimpleTemplate|templates\.groupedByCategory|templates\.findOne" src/server/effect/rpc --type ts -A3
+```
+
+Repository: evorto-app/app
+
+Length of output: 4239
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look for RPC schema definitions for templates
+fd -t f 'templates.*schema' src/server/effect/rpc --type ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 228
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find handler-types definition
+cat -n src/server/effect/rpc/handlers/shared/handler-types.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 616
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look for AppRpcHandlers interface/type definition
+rg -nP "type AppRpcHandlers|interface AppRpcHandlers" src/server/effect/rpc --context 20
+```
+
+Repository: evorto-app/app
+
+Length of output: 1117
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check RPC contracts to see the actual types
+cat -n src/shared/rpc-contracts/app-rpcs/index.ts | head -100
+```
+
+Repository: evorto-app/app
+
+Length of output: 305
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check RpcHeaders type definition
+cat -n src/shared/rpc-contracts/app-rpcs/rpc-request-context.middleware.ts | head -60
+```
+
+Repository: evorto-app/app
+
+Length of output: 1265
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check AppRpcs group definition
+cat -n src/shared/rpc-contracts/app-rpcs/app-rpcs.group.ts | head -100
+```
+
+Repository: evorto-app/app
+
+Length of output: 1180
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at the actual handlers to see what the parameter types should be
+cat -n src/server/effect/rpc/handlers/templates.handlers.ts | sed -n '92,120p'
+```
+
+Repository: evorto-app/app
+
+Length of output: 1195
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check TemplatesRpcs to understand the input/output types
+cat -n src/shared/rpc-contracts/app-rpcs/templates.rpcs.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 5300
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check how other spec files handle handler invocation
+grep -n "{ headers:" src/server/effect/rpc/handlers/admin.handlers.spec.ts -A2 -B2 | head -30
+```
+
+Repository: evorto-app/app
+
+Length of output: 290
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at Effect RPC documentation or similar handlers to understand options type
+grep -n "_options\|options" src/server/effect/rpc/handlers/templates.handlers.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 289
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check Database type more carefully
+cat -n src/db/database.layer.ts | head -80
+```
+
+Repository: evorto-app/app
+
+Length of output: 1241
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look for how other test files create Database layer properly
+grep -rn "Layer.succeed(Database" src/server/effect/rpc/handlers --include="*.spec.ts" -A2 -B2
+```
+
+Repository: evorto-app/app
+
+Length of output: 16960
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if there's a DatabaseClient type that should be used
+rg -n "type DatabaseClient|interface DatabaseClient|DatabaseClient" src/db/database.layer.ts -A5
+```
+
+Repository: evorto-app/app
+
+Length of output: 356
+
+---
+
+🏁 Script executed:
+
+```shell
+# See the full context of how Database service is defined
+cat -n src/db/database.layer.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1241
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if there's a pattern - see how the templates.handlers themselves expect options
+rg -n "Rpc.make|RpcGroup" src/shared/rpc-contracts/app-rpcs/templates.rpcs.ts -B2 -A5
+```
+
+Repository: evorto-app/app
+
+Length of output: 1611
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at the actual Error definition to understand what should be typed
+cat -n src/server/effect/rpc/handlers/templates.handlers.spec.ts | sed -n '100,168p'
+```
+
+Repository: evorto-app/app
+
+Length of output: 2560
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check what the actual signature should be for handlers
+rg -n "HandlersFrom|_options" src/server/effect/rpc/handlers/shared -A3
+```
+
+Repository: evorto-app/app
+
+Length of output: 472
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if there's documentation or examples of proper RPC handler options typing
+rg -n "RpcOptions\|RpcHandlerOptions\|RpcRequest" src/shared/rpc-contracts --type ts -A3 | head -40
+```
+
+Repository: evorto-app/app
+
+Length of output: 40
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at Effect RPC documentation or similar handler implementations to see proper typing
+rg -n "_options\)" src/server/effect/rpc/handlers/templates.handlers.ts -B2 -A2
+```
+
+Repository: evorto-app/app
+
+Length of output: 865
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if other handlers in the codebase have proper typing for options
+rg -n "\(_payload, \w+\)|_options" src/server/effect/rpc/handlers --include="*.ts" -B1 | head -60
+```
+
+Repository: evorto-app/app
+
+Length of output: 500
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if there's a pattern in how mocks are created in other test files
+grep -n "const database = {" src/server/effect/rpc/handlers/*.spec.ts -A10 | head -40
+```
+
+Repository: evorto-app/app
+
+Length of output: 3349
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at one complete test setup to understand the pattern
+cat -n src/server/effect/rpc/handlers/admin.handlers.spec.ts | head -100
+```
+
+Repository: evorto-app/app
+
+Length of output: 3258
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if DatabaseClient is ever properly mocked anywhere
+rg -n "DatabaseClient|Drizzle.*mock|mock.*database" src/server/effect/rpc/handlers -B2 -A2
+```
+
+Repository: evorto-app/app
+
+Length of output: 13240
+
+---
+
+</details>
+
+**Remove `as never` casts and provide properly typed mocks for Database and handler options.**
+
+The `as never` casts bypass type contracts, making it difficult to catch handler signature drift or invalid mock shapes. Per coding guidelines, avoid `unchecked as` casts in TypeScript files.
+
+For `{ headers: {} } as never`, create a properly typed mock that satisfies the handler's expected options type. For `database as never`, either extend the mock object to match `DatabaseClient` structure or create a type-safe mock interface that represents the minimal database surface needed for the test.
+
+This pattern appears across multiple test files in the codebase; consider establishing a shared test utility for properly typed mocks rather than using blanket `as never` casts.
+
+Also applies to: 102-105, 122-123, 137-138, 159-160
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/templates.handlers.spec.ts` around lines 48 -
+66, Remove the `as never` cast from the `Layer.succeed(Database, database as
+never)` call in the `createContextLayer` function and provide a properly typed
+mock for the database parameter instead of bypassing type checking. Either
+extend the empty database object to match the expected DatabaseClient structure
+or create a type-safe mock interface representing the minimal database surface
+needed for the test. Apply the same fix to all other instances of `as never`
+casts mentioned at lines 102-105, 122-123, 137-138, and 159-160 throughout the
+file to ensure type contracts are properly satisfied.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:f48f79868610e70cd6817d7f -->
+
+_Source: Coding guidelines_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 21
+File: src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts
+Side: R
+Lines: 38-69
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟠 Major_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+set -euo pipefail
+rg -nP '\bas\s+never\b|\bas\s+unknown\s+as\b' src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts -C2
+```
+
+Repository: evorto-app/app
+
+Length of output: 285
+
+---
+
+🏁 Script executed:
+
+```shell
+cat -n src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts | head -80
+```
+
+Repository: evorto-app/app
+
+Length of output: 2607
+
+---
+
+🏁 Script executed:
+
+```shell
+rg 'Database' src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts -B3 -A3
+```
+
+Repository: evorto-app/app
+
+Length of output: 1072
+
+---
+
+🏁 Script executed:
+
+```shell
+fd -t f 'database.ts' src/server/effect --type f
+```
+
+Repository: evorto-app/app
+
+Length of output: 40
+
+---
+
+🏁 Script executed:
+
+```shell
+fd -type f src/db -name '*.ts' | head -20
+```
+
+Repository: evorto-app/app
+
+Length of output: 229
+
+---
+
+🏁 Script executed:
+
+```shell
+rg 'export.*Database' src/db -A5 | head -40
+```
+
+Repository: evorto-app/app
+
+Length of output: 1940
+
+---
+
+🏁 Script executed:
+
+```shell
+rg 'const databaseEffect' src/db/database.layer.ts -A20
+```
+
+Repository: evorto-app/app
+
+Length of output: 588
+
+---
+
+🏁 Script executed:
+
+```shell
+rg 'DatabaseClient' src/db/database.layer.ts -B5 -A10
+```
+
+Repository: evorto-app/app
+
+Length of output: 362
+
+---
+
+</details>
+
+**Remove `as never` cast bypasses from test mocks and replace with proper `DatabaseClient` typing.**
+
+Lines 40, 63, and 65 use `as never` casts to bypass TypeScript validation of the `Database` mock. The mock factory (line 43–63) and function parameter (line 65) should be properly typed using the `DatabaseClient` type instead. Per coding guidelines, avoid cast bypasses that disable compile-time validation; fix the source type contract instead.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts`
+around lines 38 - 69, Remove the `as never` type bypass casts from the test mock
+setup and replace them with proper DatabaseClient typing. In the
+createValidationDatabase factory function, explicitly return the mock object
+with DatabaseClient type annotation instead of using `as never`, and update the
+createValidationLayer function parameter to properly type the database parameter
+as DatabaseClient. Additionally, remove the `as never` cast from the
+Layer.succeed call where the Database mock is being provided, ensuring the mock
+object matches the expected DatabaseClient type contract through proper typing
+rather than type assertion bypasses.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:50e6402ad3447ac1600ea7a3 -->
+
+_Source: Coding guidelines_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 22
+File: src/server/effect/rpc/handlers/users.handlers.spec.ts
+Side: R
+Lines: 118
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟠 Major_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Verify all cast bypasses in this handler spec
+rg -n '\bas never\b' src/server/effect/rpc/handlers/users.handlers.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1288
+
+---
+
+🏁 Script executed:
+
+```shell
+wc -l src/server/effect/rpc/handlers/users.handlers.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 116
+
+---
+
+🏁 Script executed:
+
+```shell
+head -150 src/server/effect/rpc/handlers/users.handlers.spec.ts | tail -50
+```
+
+Repository: evorto-app/app
+
+Length of output: 1504
+
+---
+
+🏁 Script executed:
+
+```shell
+sed -n '110,130p' src/server/effect/rpc/handlers/users.handlers.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 710
+
+---
+
+🏁 Script executed:
+
+```shell
+sed -n '1,50p' src/server/effect/rpc/handlers/users.handlers.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1164
+
+---
+
+🏁 Script executed:
+
+```shell
+sed -n '70,120p' src/server/effect/rpc/handlers/users.handlers.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1712
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the handler signature and Database type definition
+cat src/server/effect/rpc/handlers/users.handlers.ts | head -100
+```
+
+Repository: evorto-app/app
+
+Length of output: 3302
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find the Database service definition
+fd -t f 'index.ts|db.ts' src/db/
+```
+
+Repository: evorto-app/app
+
+Length of output: 97
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the Database service type definition
+cat src/db/index.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 202
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check what type headers should be - find the RPC handler type
+rg -A 10 "type.*RpcHandlers|AppRpcHandlers" src/server/effect/rpc/handlers/shared/handler-types.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 243
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find the handler function signature to see what types are expected
+rg -B 5 -A 10 "users\.createAccount" src/server/effect/rpc/handlers/users.handlers.ts | head -40
+```
+
+Repository: evorto-app/app
+
+Length of output: 591
+
+---
+
+🏁 Script executed:
+
+```shell
+# Get the full Database layer definition to understand its type
+cat src/db/database.layer.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1017
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the RPC type definitions to see what headers parameter should be
+rg -B 5 -A 20 "AddMiddleware|RpcRequestContextMiddleware" src/server/effect/rpc/ --type ts | head -60
+```
+
+Repository: evorto-app/app
+
+Length of output: 6285
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at the actual RPC handler type more closely
+cat src/server/effect/rpc/handlers/shared/handler-types.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 546
+
+---
+
+🏁 Script executed:
+
+```shell
+# Find the RpcRequestContextMiddleware definition
+rg -A 20 "RpcRequestContextMiddleware" src/shared/rpc-contracts/app-rpcs/rpc-request-context.middleware.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 264
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the actual test to see if there's a proper way to type the mock objects
+sed -n '410,440p' src/server/effect/rpc/handlers/users.handlers.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 955
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look at the type of options parameter in the handler
+rg -B 2 -A 15 "'users\.createAccount':" src/server/effect/rpc/handlers/users.handlers.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 719
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the Headers type from effect/unstable/http
+rg -B 5 -A 10 "from 'effect/unstable/http'" src/server/effect/rpc/handlers/users.handlers.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 433
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look for how Headers.Headers is used elsewhere in tests
+rg "Headers\.Headers" src/server/effect/rpc/handlers/ --type ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1985
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if there's a helper to create proper mock headers
+rg -B 5 -A 10 "createCreateAccountHeaders" src/server/effect/rpc/handlers/users.handlers.spec.ts | head -40
+```
+
+Repository: evorto-app/app
+
+Length of output: 1199
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check what createCreateAccountHeaders returns
+sed -n '1,90p' src/server/effect/rpc/handlers/users.handlers.spec.ts | tail -50
+```
+
+Repository: evorto-app/app
+
+Length of output: 1547
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the RPC_CONTEXT_HEADERS definition
+cat src/server/effect/rpc/rpc-context-headers.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 696
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check what encodeRpcContextHeaderJson returns
+rg -B 5 -A 10 "encodeRpcContextHeaderJson" src/server/effect/rpc/rpc-context-headers.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 512
+
+---
+
+🏁 Script executed:
+
+```shell
+# See how other spec files handle this pattern
+fd -t f "\.handlers\.spec\.ts" src/server/effect/rpc/handlers/ | head -3
+```
+
+Repository: evorto-app/app
+
+Length of output: 242
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check another handler spec to see if same pattern is used
+rg "as never" src/server/effect/rpc/handlers/admin.handlers.spec.ts | head -5
+```
+
+Repository: evorto-app/app
+
+Length of output: 221
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if Headers has a constructor or factory method
+rg -B 5 -A 10 "type Headers|interface Headers|class Headers" --type ts | grep -A 10 "effect/unstable/http"
+```
+
+Repository: evorto-app/app
+
+Length of output: 40
+
+---
+
+🏁 Script executed:
+
+```shell
+# Look for any header helper/factory in the codebase
+rg "Headers\." src/server/effect/rpc/ --type ts | grep -v "headers:" | head -20
+```
+
+Repository: evorto-app/app
+
+Length of output: 300
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check if there's a way to properly construct Headers
+rg "new Headers|Headers\.from|Headers\.create" src/ --type ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 554
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check the actual type structure returned by createCreateAccountHeaders
+sed -n '50,75p' src/server/effect/rpc/handlers/users.handlers.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 769
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check how rpc-request-context.middleware.spec.ts properly constructs headers
+rg -B 10 -A 5 "Headers.fromInput" src/server/effect/rpc/handlers/middleware/rpc-request-context.middleware.spec.ts | head -40
+```
+
+Repository: evorto-app/app
+
+Length of output: 1278
+
+---
+
+🏁 Script executed:
+
+```shell
+# Check what Headers.fromInput signature expects
+rg -B 5 -A 15 "fromInput" --type ts | grep -A 15 "Headers"
+```
+
+Repository: evorto-app/app
+
+Length of output: 50370
+
+---
+
+🏁 Script executed:
+
+```shell
+# See the full context of how headers are properly used in middleware spec
+sed -n '1,100p' src/server/effect/rpc/handlers/middleware/rpc-request-context.middleware.spec.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 3287
+
+---
+
+</details>
+
+**Use `Headers.fromInput()` instead of `as never` casts for proper type safety.**
+
+The handlers expect `Headers.Headers` type, but the test casts plain objects as `never` to suppress type errors. Import `effect/unstable/http/Headers` and use `Headers.fromInput()` for properly typed header construction, matching the pattern in `rpc-request-context.middleware.spec.ts`. Apply the same approach to the database mock to maintain end-to-end type safety and catch contract drift at compile time.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/users.handlers.spec.ts` at line 118, Replace
+the `as never` cast in the headers parameter at the createCreateAccountHeaders()
+call with proper type-safe construction. Import Headers from
+effect/unstable/http/Headers and use Headers.fromInput() to wrap the header
+object instead of the type assertion. Apply the same Headers.fromInput()
+approach to the database mock as well, following the pattern demonstrated in
+rpc-request-context.middleware.spec.ts for consistent end-to-end type safety
+throughout the test.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:53f700e10985807fad7899f5 -->
+
+_Source: Coding guidelines_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 23
+File: src/server/effect/rpc/handlers/users.handlers.ts
+Side: R
+Lines: 102-131
+Comment:
+@coderabbitai:
+_🎯 Functional Correctness_ | _🟠 Major_ | _⚡ Quick win_
+
+**`paymentState` precedence can report paid registrations as `pending`.**
+
+The current resolver returns `pending` if *any* pending registration transaction exists, even when a successful registration transaction is also present. In retry/replay scenarios, this can downgrade a recorded payment to pending in the API response.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/users.handlers.ts` around lines 102 - 131, The
+resolveRegistrationPaymentState function checks for pending transactions before
+checking for successful ones, which causes a successful registration payment to
+be incorrectly downgraded to pending if a retry attempt is in progress. Reorder
+the conditional checks in this function so that the successful status check
+comes before the pending status check. This ensures that if a registration
+payment has already been successfully recorded, it will return recorded even if
+there is a pending retry transaction present.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:9529c0c164e9071bd26b3812 -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 24
+File: src/shared/permissions/permissions.ts
+Side: R
+Lines: 244-247
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟠 Major_
+
+<details>
+<summary>🧩 Analysis chain</summary>
+
+🏁 Script executed:
+
+```shell
+#!/bin/bash
+# Verify cast bypasses in the changed permission contract file.
+rg -n "as Permission|as keyof typeof PERMISSION_METADATA" src/shared/permissions/permissions.ts
+```
+
+Repository: evorto-app/app
+
+Length of output: 1021
+
+---
+
+🏁 Script executed:
+
+```shell
+cat -n src/shared/permissions/permissions.ts | head -100
+```
+
+Repository: evorto-app/app
+
+Length of output: 2916
+
+---
+
+🏁 Script executed:
+
+```shell
+cat -n src/shared/permissions/permissions.ts | tail -300
+```
+
+Repository: evorto-app/app
+
+Length of output: 11247
+
+---
+
+</details>
+
+**Remove unchecked `as Permission` casts where type-safe alternatives exist.**
+
+Several casts in this file bypass compile-time type guarantees without necessity:
+
+- **Line 246** (`key as keyof typeof PERMISSION_METADATA`): The `permissionMeta` function accepts any `Permission` but should only accept permissions that have metadata. TypeScript cannot verify this match.
+- **Line 399** (`${group}:*` as Permission`): Constructing a wildcard permission string from a variable requires a cast because `group` is extracted via string splitting, losing type information.
+- **Line 405** (`parentPermission as Permission`): Using `Object.entries()` on a Record loses the key type; the cast should be unnecessary if the function used a type-safe iteration method.
+
+The casts at lines 255–287 and 295–335 are harder to eliminate without deeper refactoring (template literal type inference limitations), but the above three are candidates for safer approaches.
+
+Per coding guidelines: "Maintain end-to-end type safety; avoid `any`, unchecked `as`, and `unknown` without narrowing in TypeScript files."
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/shared/permissions/permissions.ts` around lines 244 - 247, In the
+permissionMeta function at line 246, instead of casting key as keyof typeof
+PERMISSION_METADATA, add a runtime check to verify that the key exists in
+PERMISSION_METADATA before accessing it, and narrow the type through the check
+rather than casting. For the wildcard permission construction around line 399,
+replace the cast of the string template as Permission with a type-safe function
+that constructs and validates wildcard permissions, ensuring the group component
+is properly typed. For the parentPermission cast around line 405, replace
+Object.entries() iteration with a more type-safe approach such as Object.keys()
+with proper type narrowing, or use Object.entries() with explicit type assertion
+only after validating the key exists in the parent record, eliminating the need
+for the unchecked as cast.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:5796738c28f8096885d2f780 -->
+
+_Source: Coding guidelines_
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 25
+File: tests/specs/events/events.test.ts
+Side: R
+Lines: 8
+Comment:
+@coderabbitai:
+_🩺 Stability & Availability_ | _🟠 Major_ | _⚡ Quick win_
+
+**Unconditional `test.skip` disables core event-creation coverage.**
+
+This permanently bypasses the scenario, so template-to-event creation regressions won’t be caught in CI.
+
+<details>
+<summary>Suggested fix</summary>
+
+```diff
+-test.skip('create event form template `@track`(playwright-specs-track-linking_20260126) `@req`(EVENTS-TEST-01)', async ({
++test('create event form template `@track`(playwright-specs-track-linking_20260126) `@req`(EVENTS-TEST-01)', async ({
+```
+
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+test('create event form template `@track`(playwright-specs-track-linking_20260126) `@req`(EVENTS-TEST-01)', async ({
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@tests/specs/events/events.test.ts` at line 8, The test case for 'create event
+form template' in the events.test.ts file has an unconditional test.skip call
+that permanently disables this test, preventing event-creation regressions from
+being caught in CI. Remove the .skip modifier from the test function call to
+enable the test so it will run during continuous integration and catch potential
+regressions in the event creation flow.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:0b3ce2b364f025755b655b17 -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 26
+File: tests/specs/finance/receipts-flows.spec.ts
+Side: R
+Lines: 92
+Comment:
+@coderabbitai:
+_🩺 Stability & Availability_ | _🟠 Major_ | _⚡ Quick win_
+
+**Multiple unconditional skips remove finance receipt flow protection.**
+
+These skips disable end-to-end checks for submission, reimbursement recording, and country-option behavior; regressions in these paths can now ship undetected.
+
+   
+
+
+Also applies to: 130-130, 181-181
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@tests/specs/finance/receipts-flows.spec.ts` at line 92, Remove the
+unconditional test.skip calls from the receipt flow tests to re-enable critical
+end-to-end checks for the finance receipt flows. Specifically, remove .skip from
+the test declarations for the tests at the specified lines (including the one
+starting with 'submit receipt from event organize page' and the other skipped
+tests mentioned at lines 130 and 181) to restore regression protection for
+submission, reimbursement recording, and country-option behavior validation.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:41f856032f2ff5c44b50b63b -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 27
+File: tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts
+Side: R
+Lines: 8
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟠 Major_ | _⚡ Quick win_
+
+**Re-enable this permission-path e2e instead of skipping it.**
+
+Line 8 disables the only positive-path check in this spec for tax-rate import access, so permission/UI regressions here can ship undetected.
+
+<details>
+<summary>Suggested fix</summary>
+
+```diff
+-  test.skip('admin with tax permission can open tax rates settings and import dialog `@finance` `@taxRates` `@track`(playwright-specs-track-linking_20260126) `@req`(ADMIN-IMPORT-TAX-RATES-SPEC-01)', async ({
++  test('admin with tax permission can open tax rates settings and import dialog `@finance` `@taxRates` `@track`(playwright-specs-track-linking_20260126) `@req`(ADMIN-IMPORT-TAX-RATES-SPEC-01)', async ({
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+  test('admin with tax permission can open tax rates settings and import dialog `@finance` `@taxRates` `@track`(playwright-specs-track-linking_20260126) `@req`(ADMIN-IMPORT-TAX-RATES-SPEC-01)', async ({
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts` at line 8, The
+test for admin tax rate import permission is currently skipped using test.skip,
+which prevents this important positive-path permission check from running and
+allows regressions to go undetected. Remove the .skip modifier from the test
+declaration so that the test case starting with 'admin with tax permission can
+open tax rates settings and import dialog' will execute during the test suite
+run, ensuring permission and UI changes for tax-rate imports are properly
+validated.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:dc8d2894efd2dddcbdd3d23e -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 28
+File: tests/specs/permissions/matrix.spec.ts
+Side: R
+Lines: 8
+Comment:
+@coderabbitai:
+_🔒 Security & Privacy_ | _🟠 Major_ | _⚡ Quick win_
+
+**Do not skip the entire permission matrix suite.**
+
+`test.describe.skip(...)` disables all capability allow/deny checks, which removes authz regression coverage for this spec.
+
+<details>
+<summary>Suggested fix</summary>
+
+```diff
+-  test.describe.skip(matrixCase.capability, () => {
++  test.describe(matrixCase.capability, () => {
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+  test.describe(matrixCase.capability, () => {
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@tests/specs/permissions/matrix.spec.ts` at line 8, The test suite is being
+skipped using test.describe.skip(), which disables all capability allow/deny
+checks and removes authorization regression coverage. Remove the .skip() call
+from the test.describe.skip(matrixCase.capability, ...) statement so the
+permission matrix tests will actually run and provide proper authz regression
+coverage for the capability checks.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:51a54ec9fd80781ca956e0a4 -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 29
+File: tests/specs/reporting/reporter-paths.test.ts
+Side: R
+Lines: 82-83
+Comment:
+@coderabbitai:
+_🩺 Stability & Availability_ | _🟠 Major_ | _⚡ Quick win_
+
+**Restore process env after this test to avoid cross-test leakage.**
+
+`process.env.DOCS_OUT_DIR` and `process.env.DOCS_IMG_OUT_DIR` are mutated but never restored. That can make later tests read the wrong docs/image roots in the same worker.
+
+<details>
+<summary>Suggested fix</summary>
+
+```diff
+ test('documentation reporter leaves docs/image roots untouched in list-only mode `@track`(playwright-specs-track-linking_20260126) `@req`(REPORTER-PATHS-TEST-06)', async ({}, testInfo) => {
+   const docsRoot = testInfo.outputPath('docs-out6');
+   const imgsRoot = testInfo.outputPath('docs-img6');
+-  process.env.DOCS_OUT_DIR = docsRoot;
+-  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
++  const previousDocsOutDir = process.env.DOCS_OUT_DIR;
++  const previousDocsImgOutDir = process.env.DOCS_IMG_OUT_DIR;
++  process.env.DOCS_OUT_DIR = docsRoot;
++  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
++
++  try {
++    const staleDocPath = path.join(docsRoot, 'stale', 'page.md');
++    const staleImagePath = path.join(imgsRoot, 'stale', 'image.png');
++    fs.mkdirSync(path.dirname(staleDocPath), { recursive: true });
++    fs.mkdirSync(path.dirname(staleImagePath), { recursive: true });
++    fs.writeFileSync(staleDocPath, 'stale doc');
++    fs.writeFileSync(staleImagePath, 'stale image');
++
++    const reporter = new DocumentationReporter({ listOnly: true });
++    // `@ts-expect-error` stubs
++    reporter.onBegin({}, {});
++    // `@ts-expect-error` minimal stubs for types
++    reporter.onEnd({});
++
++    expect(fs.readFileSync(staleDocPath, 'utf-8')).toBe('stale doc');
++    expect(fs.readFileSync(staleImagePath, 'utf-8')).toBe('stale image');
++  } finally {
++    if (previousDocsOutDir === undefined) delete process.env.DOCS_OUT_DIR;
++    else process.env.DOCS_OUT_DIR = previousDocsOutDir;
++    if (previousDocsImgOutDir === undefined) delete process.env.DOCS_IMG_OUT_DIR;
++    else process.env.DOCS_IMG_OUT_DIR = previousDocsImgOutDir;
++  }
+-
+-  const staleDocPath = path.join(docsRoot, 'stale', 'page.md');
+-  const staleImagePath = path.join(imgsRoot, 'stale', 'image.png');
+-  fs.mkdirSync(path.dirname(staleDocPath), { recursive: true });
+-  fs.mkdirSync(path.dirname(staleImagePath), { recursive: true });
+-  fs.writeFileSync(staleDocPath, 'stale doc');
+-  fs.writeFileSync(staleImagePath, 'stale image');
+-
+-  const reporter = new DocumentationReporter({ listOnly: true });
+-  // `@ts-expect-error` stubs
+-  reporter.onBegin({}, {});
+-  // `@ts-expect-error` minimal stubs for types
+-  reporter.onEnd({});
+-
+-  expect(fs.readFileSync(staleDocPath, 'utf-8')).toBe('stale doc');
+-  expect(fs.readFileSync(staleImagePath, 'utf-8')).toBe('stale image');
+ });
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+test('documentation reporter leaves docs/image roots untouched in list-only mode `@track`(playwright-specs-track-linking_20260126) `@req`(REPORTER-PATHS-TEST-06)', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-out6');
+  const imgsRoot = testInfo.outputPath('docs-img6');
+  const previousDocsOutDir = process.env.DOCS_OUT_DIR;
+  const previousDocsImgOutDir = process.env.DOCS_IMG_OUT_DIR;
+  process.env.DOCS_OUT_DIR = docsRoot;
+  process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+
+  try {
+    const staleDocPath = path.join(docsRoot, 'stale', 'page.md');
+    const staleImagePath = path.join(imgsRoot, 'stale', 'image.png');
+    fs.mkdirSync(path.dirname(staleDocPath), { recursive: true });
+    fs.mkdirSync(path.dirname(staleImagePath), { recursive: true });
+    fs.writeFileSync(staleDocPath, 'stale doc');
+    fs.writeFileSync(staleImagePath, 'stale image');
+
+    const reporter = new DocumentationReporter({ listOnly: true });
+    // `@ts-expect-error` stubs
+    reporter.onBegin({}, {});
+    // `@ts-expect-error` minimal stubs for types
+    reporter.onEnd({});
+
+    expect(fs.readFileSync(staleDocPath, 'utf-8')).toBe('stale doc');
+    expect(fs.readFileSync(staleImagePath, 'utf-8')).toBe('stale image');
+  } finally {
+    if (previousDocsOutDir === undefined) delete process.env.DOCS_OUT_DIR;
+    else process.env.DOCS_OUT_DIR = previousDocsOutDir;
+    if (previousDocsImgOutDir === undefined) delete process.env.DOCS_IMG_OUT_DIR;
+    else process.env.DOCS_IMG_OUT_DIR = previousDocsImgOutDir;
+  }
+});
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@tests/specs/reporting/reporter-paths.test.ts` around lines 82 - 83, The test
+mutates process.env.DOCS_OUT_DIR and process.env.DOCS_IMG_OUT_DIR without
+restoring them, causing other tests in the same worker to read incorrect values.
+Store the original values of these environment variables before assignment, then
+restore them in an afterEach or cleanup hook to ensure test isolation and
+prevent cross-test leakage.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:29966425551c928f97eccd65 -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 30
+File: tests/specs/scanning/scanner.test.ts
+Side: R
+Lines: 12
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟠 Major_ | _🏗️ Heavy lift_
+
+**Don’t leave the scanner check-in flow fully skipped.**
+
+This change removes active coverage for a core scanner behavior path; regressions in check-in persistence/count updates will now pass unnoticed in CI.
+
+
+
+
+
+
+<details>
+<summary>Suggested minimal change</summary>
+
+```diff
+-test.skip('scan confirmed registration records check-in `@track`(playwright-specs-track-linking_20260126) `@req`(SCANNER-TEST-01)', async ({
++test('scan confirmed registration records check-in `@track`(playwright-specs-track-linking_20260126) `@req`(SCANNER-TEST-01)', async ({
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+test('scan confirmed registration records check-in `@track`(playwright-specs-track-linking_20260126) `@req`(SCANNER-TEST-01)', async ({
+```
+
+</details>
+
+<!-- suggestion_end -->
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@tests/specs/scanning/scanner.test.ts` at line 12, The test for the scanner
+check-in flow is currently skipped using test.skip, which prevents this critical
+scanner behavior from being tested in CI and allows regressions to go
+undetected. Remove the .skip modifier from the test call at the beginning of the
+'scan confirmed registration records check-in' test so that the test runs and
+provides coverage for check-in persistence and count updates.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:8bde403198e43aa0a177395c -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Comment 31
+File: tests/test-inventory.md
+Side: R
+Lines: 5
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🟡 Minor_ | _⚡ Quick win_
+
+**Refresh the inventory timestamp to match this revision.**
+
+The `Updated` date appears stale relative to these new sections, which weakens trust in this file as the current source-of-truth.
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@tests/test-inventory.md` at line 5, Update the timestamp in the `Updated`
+field (currently showing 2026-05-19) to reflect the current date or the date
+when these new sections were added to the file. This ensures the document's
+modification date accurately represents when it was last updated and maintains
+the file's credibility as a current source-of-truth.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:poseidon:hawk -->
+
+<!-- cr-indicator-types:potential_issue -->
+
+<!-- cr-comment:v1:4739c14240a7fc7130fa0cbc -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+## My request for Codex:
+Check if these still are up to date and work on them in case work is needed, do resolve the comments if you are done with them
+
+---
+
+Do we have to fix the e2e issue right now or will it fix in later PRs on this stack?
+
+---
+
+DO some research also on the drizzle github for how to fix this and then get it done, maybe you have to update drizzle to the latest version
+
+---
+
+# Diff comments:
+
+## Comment 1
+File: src/server/effect/rpc/handlers/events/events-registration.handlers.ts
+Side: R
+Lines: 414-419
+Comment:
+@coderabbitai:
+_📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _💤 Low value_
+
+**Return type inconsistency: `checkInTime` should be ISO string.**
+
+The outer return at line 464 calls `.toISOString()` on `checkInTime`, but the inner return at line 417 returns `latestRegistration.checkInTime` directly (a `Date`). This creates inconsistent types within the transaction result that the outer code then processes. The outer code expects a `Date` and calls `.toISOString()`, so this works, but the type inference may be confusing.
+
+Consider adding a comment or ensuring the return shape is consistent:
+
+<details>
+<summary>♻️ Optional clarification</summary>
+
+```diff
+              if (latestRegistration.checkInTime) {
+                return {
+                  alreadyCheckedIn: true,
+-                 checkInTime: latestRegistration.checkInTime,
++                 checkInTime: latestRegistration.checkInTime, // Date, converted to ISO string at outer return
+                };
+              }
+```
+</details>
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+```
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@src/server/effect/rpc/handlers/events/events-registration.handlers.ts` around
+lines 414 - 419, The return statement within the latestRegistration.checkInTime
+condition block (around line 417) returns checkInTime as a Date object, while
+the outer return at line 464 converts it to an ISO string, creating type
+inconsistency. Convert latestRegistration.checkInTime to an ISO string by
+calling .toISOString() in the inner return statement to ensure both code paths
+return the same type format for checkInTime.
+```
+
+</details>
+
+<!-- fingerprinting:phantom:medusa:ocelot -->
+
+<!-- cr-indicator-types:nitpick -->
+
+<!-- cr-comment:v1:2790659e16da144bbcb726d7 -->
+
+<!-- This is an auto-generated comment by CodeRabbit -->
+
+# Failing PR checks:
+
+## Check 1: Playwright E2E (functional + docs)
+Workflow: E2E Baseline
+State: FAILURE
+Event: pull_request
+Link: https://github.com/evorto-app/app/actions/runs/27991431913/job/82844502298
+Started: 2026-06-22T23:37:10Z
+Completed: 2026-06-22T23:48:23Z
+
+## My request for Codex:
+
+---
+
+Since the tests pass in a later PR in the stack we are find
+
+---
+
+fine
+
+---
+
+You can merge this PR
+
+---
+
+Next I want to look at [evorto-app/app#64](https://github.com/evorto-app/app/pull/64) and fix it
+
+---
+
+Also make sure to fix all merge conflicts
+
+---
+
+If the tests pass on later PRs it is okay if we leave them failing here as long as we can verify manually for now
+
+---
+
+What is up with helpers/testing/stripe-listen-docker.sh I think the stripe cli docker container does this already
+
+---
+
+Why do we have the registrationCancellationCopy in src/app/events/event-active-registration/event-active-registration.component.ts?
+
+---
+
+Please start the code from this PR locally and give me isntructions how to verify the changes on this laptop
+
+---
+
+My user is signed up for http://localhost:4291/events/92d930ee4ae1bba7f808 but I can not see in in the event list. Also the event list does not scroll separately from the details anymore, we use to have a desktop two column thing going. Also under the event header, the user can see the neutral bar that includes admin functionality for other users, that should not be shown if there is no content
+
+---
+
+I opened the page in [@Chrome](plugin://chrome@openai-bundled)
+
+---
+
+It seems that theres is still some full page scroll, the non sidebar mt-6 seems to be causing it on desktop
+
+---
+
+# Files mentioned by the user:
+
+## codex-clipboard-f5771a88-2ad1-44f1-8e1b-cc07021ee693.png: /var/folders/d5/ghwypcsd403dfcl8bpl7grfw0000gn/T/codex-clipboard-f5771a88-2ad1-44f1-8e1b-cc07021ee693.png
+
+## My request for Codex:
+I think it should always be possible to leave the waitlist first of all, and secondly, there should already be information that deregistration is no longer possible before the button is clicked in that case
+
+---
+
+Generally (maybe make a note) I want to try and provide the users if as much info about what is going on that is relevant for the as is useful. The app should rather explain a little too much than too little.
+
+---
+
+I think you made events with registration always visible in the list now, that is not what I want.
+Instead, you should rather update our db seeding a littl ebit so that these kinds of evens are not in the past
+
+---
+
+# Files mentioned by the user:
+
+## codex-clipboard-6f6dcc02-0454-4f07-992c-2e7b61dabe32.png: /var/folders/d5/ghwypcsd403dfcl8bpl7grfw0000gn/T/codex-clipboard-6f6dcc02-0454-4f07-992c-2e7b61dabe32.png
+
+## My request for Codex:
+no need to show the seconds here
+
+---
+
+Why are there so many changes in the migration folder in this PR?
+
+---
+
+For all of this PR stack I would like to exclude any migration code. The plan is (maybe note) to just develop the new version with no regard for the old one and then eventually write a typescript job that connects read only to the old db and sets up the new one. For schema changes in this product we do not care at all, we just make sure the db seeding will provide us wiht something useful in the new schema that we need. The current db can be reset at any time
+
+---
+
+Please tell ma again what to look at in manual validation for this pr
+
+---
+
+Merge this pr please
+
+---
+
+As usual, e2e is secondary if it passes further up the stack
+
+---
+
+Get us ready for #66 then
+
+---
+
+I just want you to get 66 ready for merging, not merge it
+
+---
+
+Tell me what to verify locally and prepare the app for me
+
+---
+
+It seems like the global admin account does not see any event, it should be able to see everything in the entire platform
+
+For the organizer it seems that every event has a purple outline, why is that?
+
+I'm not sure that the registration transfer is working right. It should work work only for the participant, they can trigger it. Also it should work by generating a unique link (until now I used the transfer ID from the db) that would allow another user to take the registration by visiting the link.
+Ideally the link is the event details page with a query parameter that has the transfer code and the user that opens the link is immediately presented with the registration/payment based on the transfer.
+For the user creating the transfer, they should be able to select if it is public or not (in case of public, the transfer should show on the event details page). Also the user who created the transfer should see it and have the option to cancel it in case it was not used yet.
+[$grill-with-docs](/Users/hedde/.agents/skills/grill-with-docs/SKILL.md) on that process and compare to the code reality
+
+---
+
+Let's plan this out, go on
+
+---
+
+Also check that later PRs in this stack to not implement behaviour we are planning.
+
+---
+
+PLEASE IMPLEMENT THIS PLAN:
+# PR #66 Readiness And Transfer Stack Plan
+
+**Summary**
+- Keep #66 small. Fix the current event-list defects that affect manual validation, but do not pull the new transfer-offer model down into #66.
+- Later PRs already add transfer-intent/code behavior. When we reach those PRs, reshape that work instead of duplicating it now.
+- No migration-folder work for this stack; schema can evolve, but local reset/seeding is the path.
+
+**PR #66 Changes**
+- Global admin event visibility:
+  - Treat global admin as “current tenant operator” on tenant-scoped event pages.
+  - Event list/detail queries should bypass tenant role eligibility, draft/unlisted visibility restrictions, and normal participant-facing status filtering for global admins.
+  - Keep tenant scoping intact; do not build a cross-tenant event list here.
+- Organizer event-list styling:
+  - Remove the purple outline for “created by you” events. Keep the green registered outline if useful, but do not make every organizer-created event look highlighted.
+  - If creator state is still useful, use a subtle label/chip instead of a card ring.
+- Transfer behavior in #66:
+  - Leave broad transfer redesign alone because later PRs already touch it.
+  - Do not expand #66 with public/private offers, payment/refund flows, or transfer-code schema changes.
+
+**Later PR Transfer Rework**
+- Use the downstream `registrationTransferIntents` work as the base, but adjust it to the desired domain model:
+  - Participant-created **registration transfer offers** only.
+  - Source registration stays active until a claim succeeds.
+  - Creator can choose `private` or `public`.
+  - Private offers are claimable only through the event detail URL query parameter.
+  - Public offers are shown on event details as anonymous availability/count only, not seller identity.
+  - Creator can see their pending offer and cancel it while unused.
+- Replace the current downstream paid-only semantics:
+  - Paid offers use replacement checkout and source refund handling already introduced later in the stack.
+  - Unpaid offers should be claimable without Stripe, still using the same offer/code lifecycle.
+  - Remove or stop exposing old direct organizer/participant transfer RPC/UI once the offer flow exists.
+- Update docs/tests in the later PRs where the existing text says “public resale listings are outside scope” or “only paid registrations can create transfer codes.”
+
+**Validation**
+- For #66:
+  - Sign in as global admin and verify the current tenant’s events are visible, including events that normal users miss due to role/status/unlisted filters.
+  - Sign in as organizer and verify event cards no longer all have purple outlines.
+  - Verify participant registration/cancellation behavior remains unchanged.
+  - Run focused unit tests for event query permissions plus lint/format after edits.
+- For later transfer PRs:
+  - Participant creates private offer, opens link as another user, claims successfully.
+  - Participant creates public offer, another user sees anonymous availability on event details and claims.
+  - Creator sees and cancels unused offer.
+  - Paid claim goes through checkout and refund path.
+  - Unpaid claim completes without Stripe.
+  - Self-claim, expired/cancelled/used code, ineligible role, already-registered user, checked-in source, and past event all fail with useful UI copy.
+
+**Assumptions**
+- “Global admin sees everything” means all events in the currently resolved tenant, not a platform-wide cross-tenant events page.
+- Transfer redesign should be handled where downstream PRs already introduce transfer intents, not in #66.
+- No migration code should be added or preserved for this stack; seed/reset data should support the new schema during development.
+
+---
+
+I would like you to leave comments with the relevant parts of the plan on the affected PRs
