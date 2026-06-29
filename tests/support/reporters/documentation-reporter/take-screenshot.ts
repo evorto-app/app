@@ -1,12 +1,24 @@
 import { Locator, Page, TestInfo } from '@playwright/test';
 
+const settleRenderFrame = async (page: Page): Promise<void> => {
+  await page.locator('body').waitFor({ state: 'visible' });
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      }),
+  );
+};
+
 export async function takeScreenshot(
   testInfo: TestInfo,
   locators: Locator | Locator[],
   page: Page,
   caption?: string,
 ) {
-  await page.waitForTimeout(1000);
+  await settleRenderFrame(page);
   const focusPoints = Array.isArray(locators) ? locators : [locators];
 
   const isDetachedError = (error: unknown) =>
@@ -27,7 +39,7 @@ export async function takeScreenshot(
         if (!isDetachedError(error) || attempt === attempts - 1) {
           throw error;
         }
-        await page.waitForTimeout(100);
+        await settleRenderFrame(page);
       }
     }
     if (lastError) throw lastError;

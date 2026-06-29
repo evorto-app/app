@@ -4,11 +4,19 @@ import * as Headers from 'effect/unstable/http/Headers';
 import Stripe from 'stripe';
 
 import { Database } from '../../../../../db';
+import {
+  eventAddons,
+  eventRegistrationAddonPurchases,
+  eventRegistrations,
+} from '../../../../../db/schema';
 import { StripeClient } from '../../../../stripe-client';
 import {
   EventRegistrationService,
   isUserEligibleForRegistrationOption,
+  validateRegistrationAddons,
+  validateRegistrationQuestionAnswers,
 } from './event-registration.service';
+import { EventRegistrationConflictError } from './events.errors';
 
 const stripeClient = new Stripe('sk_test_123');
 const configProviderLayer = ConfigProvider.layer(
@@ -65,6 +73,159 @@ describe('EventRegistrationService', () => {
           userRoleIds: ['role-2'],
         }),
       ).toBe(false);
+    });
+  });
+
+  describe('validateRegistrationAddons', () => {
+    const availableAddOn = {
+      addOnId: 'addon-1',
+      allowMultiple: true,
+      maxQuantityPerUser: 2,
+      price: 500,
+      quantity: 2,
+      stripeTaxRateId: 'txr_1',
+      taxRateDisplayName: 'VAT',
+      taxRateInclusive: true,
+      taxRatePercentage: '19',
+      title: 'Lunch',
+      totalAvailableQuantity: 5,
+    } as const;
+
+    it('normalizes selected registration add-ons', () => {
+      expect(
+        validateRegistrationAddons({
+          addOns: [
+            {
+              addOnId: 'addon-1',
+              quantity: 1,
+            },
+            {
+              addOnId: 'addon-1',
+              quantity: 1,
+            },
+          ],
+          availableAddOns: [availableAddOn],
+        }),
+      ).toEqual([
+        {
+          ...availableAddOn,
+          fulfilledQuantity: 4,
+          selectedQuantity: 2,
+        },
+      ]);
+    });
+
+    it('rejects add-ons that are not available during registration', () => {
+      expect(() =>
+        validateRegistrationAddons({
+          addOns: [
+            {
+              addOnId: 'other-addon',
+              quantity: 1,
+            },
+          ],
+          availableAddOns: [availableAddOn],
+        }),
+      ).toThrow('Add-on is not available during registration');
+    });
+
+    it('rejects quantities above the per-user limit or remaining availability', () => {
+      expect(() =>
+        validateRegistrationAddons({
+          addOns: [
+            {
+              addOnId: 'addon-1',
+              quantity: 3,
+            },
+          ],
+          availableAddOns: [availableAddOn],
+        }),
+      ).toThrow('Add-on quantity exceeds the per-user limit');
+
+      expect(() =>
+        validateRegistrationAddons({
+          addOns: [
+            {
+              addOnId: 'addon-1',
+              quantity: 2,
+            },
+          ],
+          availableAddOns: [
+            {
+              ...availableAddOn,
+              maxQuantityPerUser: 5,
+              totalAvailableQuantity: 3,
+            },
+          ],
+        }),
+      ).toThrow('Add-on quantity is no longer available');
+    });
+  });
+
+  describe('validateRegistrationQuestionAnswers', () => {
+    it('trims submitted answers and ignores blank optional answers', () => {
+      expect(
+        validateRegistrationQuestionAnswers({
+          answers: [
+            {
+              answer: '  Alice  ',
+              questionId: 'question-1',
+            },
+            {
+              answer: '   ',
+              questionId: 'question-2',
+            },
+          ],
+          questions: [
+            {
+              id: 'question-1',
+              required: true,
+            },
+            {
+              id: 'question-2',
+              required: false,
+            },
+          ],
+        }),
+      ).toEqual([
+        {
+          answer: 'Alice',
+          questionId: 'question-1',
+        },
+      ]);
+    });
+
+    it('rejects missing required answers', () => {
+      expect(() =>
+        validateRegistrationQuestionAnswers({
+          answers: [],
+          questions: [
+            {
+              id: 'question-1',
+              required: true,
+            },
+          ],
+        }),
+      ).toThrow('Required registration question is missing');
+    });
+
+    it('rejects answers for questions outside the selected option', () => {
+      expect(() =>
+        validateRegistrationQuestionAnswers({
+          answers: [
+            {
+              answer: 'Alice',
+              questionId: 'other-question',
+            },
+          ],
+          questions: [
+            {
+              id: 'question-1',
+              required: false,
+            },
+          ],
+        }),
+      ).toThrow('Registration question does not belong to this option');
     });
   });
 
@@ -433,7 +594,6 @@ describe('EventRegistrationService', () => {
           },
           transaction: (
             callback: (tx: {
-              execute: () => Effect.Effect<unknown>;
               insert: () => {
                 values: (value: unknown) => {
                   returning: () => Effect.Effect<{ id: string }[]>;
@@ -454,7 +614,6 @@ describe('EventRegistrationService', () => {
             }) => Effect.Effect<unknown>,
           ) =>
             callback({
-              execute: () => Effect.succeed(),
               insert: () => ({
                 values: (value) => {
                   insertedRegistration = value;
@@ -672,7 +831,6 @@ describe('EventRegistrationService', () => {
           },
           transaction: (
             callback: (tx: {
-              execute: () => Effect.Effect<unknown>;
               query: {
                 eventRegistrations: {
                   findMany: () => Effect.Effect<{ id: string }[]>;
@@ -682,7 +840,6 @@ describe('EventRegistrationService', () => {
             }) => Effect.Effect<unknown>,
           ) =>
             callback({
-              execute: () => Effect.succeed(),
               query: {
                 eventRegistrations: {
                   findMany: () =>
@@ -744,7 +901,6 @@ describe('EventRegistrationService', () => {
           },
           transaction: (
             callback: (tx: {
-              execute: () => Effect.Effect<unknown>;
               insert: ReturnType<typeof vi.fn>;
               query: {
                 eventRegistrations: {
@@ -761,7 +917,6 @@ describe('EventRegistrationService', () => {
             }) => Effect.Effect<unknown>,
           ) =>
             callback({
-              execute: () => Effect.succeed(),
               insert: insertRegistration,
               query: {
                 eventRegistrations: {
@@ -810,9 +965,260 @@ describe('EventRegistrationService', () => {
       }),
   );
 
+  it.effect(
+    'persists the configured add-on attachment quantity for a selected add-on',
+    () =>
+      Effect.gen(function* () {
+        const insertAddonPurchase = vi.fn();
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () => Effect.succeed(approvedRegistrationOption),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+          select: () => ({
+            from: () => ({
+              innerJoin: () => ({
+                leftJoin: () => ({
+                  where: () =>
+                    Effect.succeed([
+                      {
+                        addOnId: 'addon-1',
+                        allowMultiple: false,
+                        maxQuantityPerUser: 1,
+                        price: 0,
+                        quantity: 2,
+                        stripeTaxRateId: null,
+                        taxRateDisplayName: null,
+                        taxRateInclusive: null,
+                        taxRatePercentage: null,
+                        title: 'Lunch',
+                        totalAvailableQuantity: 2,
+                      },
+                    ]),
+                }),
+              }),
+            }),
+          }),
+          transaction: (
+            callback: (tx: {
+              insert: (table: unknown) => {
+                values: (value: unknown) => {
+                  returning?: () => Effect.Effect<{ id: string }[]>;
+                };
+              };
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.Effect<[]>;
+                };
+              };
+              update: () => {
+                set: () => {
+                  where: () => {
+                    returning: () => Effect.Effect<{ id: string }[]>;
+                  };
+                };
+              };
+            }) => Effect.Effect<unknown, unknown>,
+          ) =>
+            callback({
+              insert: (table) => ({
+                values: (value) => {
+                  if (table === eventRegistrations) {
+                    return {
+                      returning: () =>
+                        Effect.succeed([{ id: 'registration-1' }]),
+                    };
+                  }
+                  if (table === eventRegistrationAddonPurchases) {
+                    insertAddonPurchase(value);
+                  }
+                  return Effect.void;
+                },
+              }),
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.succeed([]),
+                },
+              },
+              update: () => ({
+                set: () => ({
+                  where: () => ({
+                    returning: () => Effect.succeed([{ id: 'updated' }]),
+                  }),
+                }),
+              }),
+            }),
+        };
+
+        yield* EventRegistrationService.registerForEvent({
+          addOns: [{ addOnId: 'addon-1', quantity: 1 }],
+          eventId: 'event-1',
+          guestCount: 0,
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        expect(insertAddonPurchase).toHaveBeenCalledWith(
+          expect.objectContaining({
+            addonId: 'addon-1',
+            quantity: 2,
+            registrationId: 'registration-1',
+          }),
+        );
+      }),
+  );
+
+  it.effect(
+    'fails the reservation transaction when add-on stock is no longer available',
+    () =>
+      Effect.gen(function* () {
+        let transactionFailed = false;
+        const insertAddonPurchase = vi.fn();
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () => Effect.succeed(approvedRegistrationOption),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+          select: () => ({
+            from: () => ({
+              innerJoin: () => ({
+                leftJoin: () => ({
+                  where: () =>
+                    Effect.succeed([
+                      {
+                        addOnId: 'addon-1',
+                        allowMultiple: false,
+                        maxQuantityPerUser: 1,
+                        price: 500,
+                        quantity: 1,
+                        stripeTaxRateId: null,
+                        taxRateDisplayName: null,
+                        taxRateInclusive: null,
+                        taxRatePercentage: null,
+                        title: 'Lunch',
+                        totalAvailableQuantity: 1,
+                      },
+                    ]),
+                }),
+              }),
+            }),
+          }),
+          transaction: (
+            callback: (tx: {
+              insert: (table: unknown) => {
+                values: (value: unknown) => {
+                  returning?: () => Effect.Effect<{ id: string }[]>;
+                };
+              };
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.Effect<[]>;
+                };
+              };
+              update: (table: unknown) => {
+                set: () => {
+                  where: () => {
+                    returning: () => Effect.Effect<{ id: string }[]>;
+                  };
+                };
+              };
+            }) => Effect.Effect<unknown, unknown>,
+          ) =>
+            callback({
+              insert: (table) => ({
+                values: (value) => {
+                  if (table !== eventRegistrations) {
+                    insertAddonPurchase(value);
+                    return {};
+                  }
+
+                  return {
+                    returning: () => Effect.succeed([{ id: 'registration-1' }]),
+                  };
+                },
+              }),
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.succeed([]),
+                },
+              },
+              update: (table) => ({
+                set: () => ({
+                  where: () => ({
+                    returning: () =>
+                      Effect.succeed(
+                        table === eventAddons ? [] : [{ id: 'option-1' }],
+                      ),
+                  }),
+                }),
+              }),
+            }).pipe(
+              Effect.tapError((error) =>
+                Effect.sync(() => {
+                  transactionFailed =
+                    error instanceof EventRegistrationConflictError;
+                }),
+              ),
+            ),
+        };
+
+        const program = EventRegistrationService.registerForEvent({
+          addOns: [{ addOnId: 'addon-1', quantity: 1 }],
+          eventId: 'event-1',
+          guestCount: 0,
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        const error = yield* program;
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe('Add-on quantity is no longer available');
+        expect(transactionFailed).toBe(true);
+        expect(insertAddonPurchase).not.toHaveBeenCalled();
+      }),
+  );
+
   it.effect('joins the waitlist for a full public participant option', () =>
     Effect.gen(function* () {
-      const executeWaitlistLock = vi.fn(() => Effect.succeed());
       const insertWaitlistRegistration = vi.fn(() => ({
         values: vi.fn((values) => ({
           returning: vi.fn(() =>
@@ -841,7 +1247,6 @@ describe('EventRegistrationService', () => {
         },
         transaction: (
           callback: (tx: {
-            execute: ReturnType<typeof vi.fn>;
             insert: ReturnType<typeof vi.fn>;
             query: {
               eventRegistrations: {
@@ -858,7 +1263,6 @@ describe('EventRegistrationService', () => {
           }) => Effect.Effect<unknown>,
         ) =>
           callback({
-            execute: executeWaitlistLock,
             insert: insertWaitlistRegistration,
             query: {
               eventRegistrations: {
@@ -892,7 +1296,6 @@ describe('EventRegistrationService', () => {
       );
 
       yield* program;
-      expect(executeWaitlistLock).toHaveBeenCalled();
       expect(insertWaitlistRegistration).toHaveBeenCalled();
     }),
   );

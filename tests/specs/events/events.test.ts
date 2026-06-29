@@ -54,3 +54,63 @@ test.skip('create event form template', async ({
   await page.waitForURL(/\/events\//, { timeout: 20000 });
   await expect(page).toHaveURL(/\/events\/[a-z0-9]+/);
 });
+
+test('event edit form hides selected roles in autocomplete', async ({
+  events,
+  page,
+  roles,
+}) => {
+  const draftEvent = events.find(
+    (event) => event.status === 'DRAFT' && event.registrationOptions.length > 0,
+  );
+  if (!draftEvent) {
+    throw new Error('Expected seeded draft event for event role autocomplete');
+  }
+
+  const registrationOption = draftEvent.registrationOptions[0];
+  const selectedRole = roles.find((role) =>
+    registrationOption.roleIds.includes(role.id),
+  );
+  if (!selectedRole) {
+    throw new Error(
+      `Expected seeded draft event "${draftEvent.title}" to have selected registration roles`,
+    );
+  }
+
+  const unselectedRole = roles.find(
+    (role) => !registrationOption.roleIds.includes(role.id),
+  );
+  if (!unselectedRole) {
+    throw new Error(
+      `Expected seeded draft event "${draftEvent.title}" to have an unselected role for autocomplete`,
+    );
+  }
+
+  await page.goto(`/events/${draftEvent.id}/edit`);
+  await expect(page).toHaveURL(`/events/${draftEvent.id}/edit`);
+  await expect(
+    page.getByRole('heading', { name: draftEvent.title }),
+  ).toBeVisible();
+  await expect(page.getByText(selectedRole.name).first()).toBeVisible();
+
+  const roleInput = page.getByPlaceholder('Add Role...').first();
+  await roleInput.click();
+  await expect(
+    page.getByRole('option', {
+      exact: true,
+      name: selectedRole.name,
+    }),
+  ).toHaveCount(0);
+
+  await page
+    .getByRole('option', { exact: true, name: unselectedRole.name })
+    .click();
+
+  await roleInput.click();
+  await expect(
+    page.getByRole('option', {
+      exact: true,
+      name: unselectedRole.name,
+    }),
+  ).toHaveCount(0);
+});

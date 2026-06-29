@@ -1,11 +1,21 @@
 import type { IconValue } from '@shared/types/icon';
 
 import {
+  createTemplateAddonFormModel,
+  TemplateAddonFormModel,
+  TemplateAddonSubmitData,
+} from './template-addon-form.utilities';
+import {
   createTemplateGeneralFormModel,
   mergeTemplateGeneralFormOverrides,
   TemplateGeneralFormModel,
   TemplateGeneralFormOverrides,
 } from './template-general-form.utilities';
+import {
+  createTemplateQuestionFormModel,
+  TemplateQuestionFormModel,
+  TemplateQuestionSubmitData,
+} from './template-question-form.utilities';
 import {
   createTemplateRegistrationFormModel,
   mergeTemplateRegistrationFormOverrides,
@@ -15,22 +25,32 @@ import {
 } from './template-registration-option-form.utilities';
 
 export interface TemplateFormData extends TemplateGeneralFormModel {
+  addOns: TemplateAddonFormModel[];
   organizerRegistration: TemplateRegistrationFormModel;
   participantRegistration: TemplateRegistrationFormModel;
+  questions: TemplateQuestionFormModel[];
 }
 
 export type TemplateFormOverrides = TemplateGeneralFormOverrides & {
+  addOns?: TemplateAddonFormModel[];
   organizerRegistration?: TemplateRegistrationFormOverrides;
   participantRegistration?: TemplateRegistrationFormOverrides;
+  questions?: TemplateQuestionFormModel[];
 };
 
 export type TemplateFormSubmitData = Omit<
   TemplateFormData,
-  'icon' | 'organizerRegistration' | 'participantRegistration'
+  | 'addOns'
+  | 'icon'
+  | 'organizerRegistration'
+  | 'participantRegistration'
+  | 'questions'
 > & {
+  addOns: TemplateAddonSubmitData[];
   icon: IconValue;
   organizerRegistration: TemplateRegistrationSubmitData;
   participantRegistration: TemplateRegistrationSubmitData;
+  questions: TemplateQuestionSubmitData[];
 };
 
 export const createTemplateFormModel = (
@@ -38,6 +58,7 @@ export const createTemplateFormModel = (
 ): TemplateFormData => {
   const base: TemplateFormData = {
     ...createTemplateGeneralFormModel(),
+    addOns: [],
     organizerRegistration: createTemplateRegistrationFormModel({
       spots: 1,
       title: 'Organizer Registration',
@@ -46,6 +67,7 @@ export const createTemplateFormModel = (
       spots: 20,
       title: 'Participant Registration',
     }),
+    questions: [],
   };
 
   const organizerRegistration = mergeTemplateRegistrationFormOverrides(
@@ -79,8 +101,14 @@ export const createTemplateFormModel = (
 
   return {
     ...general,
+    addOns: (overrides.addOns ?? base.addOns).map((addOn) =>
+      createTemplateAddonFormModel(addOn),
+    ),
     organizerRegistration,
     participantRegistration,
+    questions: (overrides.questions ?? base.questions).map((question) =>
+      createTemplateQuestionFormModel(question),
+    ),
   };
 };
 
@@ -90,6 +118,7 @@ export const mergeTemplateFormOverrides = (
 ): TemplateFormData => {
   const base = previous ?? createTemplateFormModel();
   return createTemplateFormModel({
+    addOns: overrides.addOns ?? base.addOns,
     categoryId: overrides.categoryId ?? base.categoryId,
     description: overrides.description ?? base.description,
     icon: overrides.icon === undefined ? base.icon : overrides.icon,
@@ -104,6 +133,7 @@ export const mergeTemplateFormOverrides = (
       base.participantRegistration,
     ),
     planningTips: overrides.planningTips ?? base.planningTips,
+    questions: overrides.questions ?? base.questions,
     title: overrides.title ?? base.title,
   });
 };

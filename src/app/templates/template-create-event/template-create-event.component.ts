@@ -45,7 +45,7 @@ export const templateCreateEventSubmitDisabled = ({
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
-    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies registration options now; event-specific add-on sales are not available yet.`
+    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies them to event registration cards when registration-time purchase is enabled; standalone before-event and during-event add-on sales are not available yet.`
     : null;
 
 @Component({
@@ -195,7 +195,7 @@ export class TemplateCreateEventComponent {
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
               : null,
-            registrationMode: 'fcfs',
+            registrationMode: option.registrationMode,
             roleIds: option.roleIds,
             sourceTemplateRegistrationOptionId: option.id || undefined,
             spots: option.spots,

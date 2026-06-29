@@ -4,7 +4,6 @@ import {
   pgTable,
   timestamp,
   unique,
-  uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -35,10 +34,7 @@ export const userDiscountCards = pgTable(
     validTo: timestamp(),
   },
   (table) => ({
-    uniqueByUser: uniqueIndex('user_discount_cards_user_id_type_unique_idx').on(
-      table.userId,
-      table.type,
-    ),
+    uniqueByUser: unique().on(table.userId, table.type),
     uniqueIdentifier: unique().on(table.type, table.identifier),
   }),
 );

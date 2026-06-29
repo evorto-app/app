@@ -82,15 +82,6 @@ describe('test-runtime-config', () => {
     ).toBe(false);
   });
 
-  it('treats environment-selected baseline projects as baseline-only', () => {
-    expect(
-      requiresIntegrationOnlyPlaywrightEnvironment(
-        ['node', 'playwright', 'test'],
-        { PLAYWRIGHT_SELECTED_PROJECTS: 'local-chrome-baseline' },
-      ),
-    ).toBe(false);
-  });
-
   it('treats integration project selection as requiring integration credentials', () => {
     expect(
       requiresIntegrationOnlyPlaywrightEnvironment([
@@ -100,14 +91,13 @@ describe('test-runtime-config', () => {
         '--project=docs-integration',
       ]),
     ).toBe(true);
-  });
-
-  it('treats environment-selected integration projects as requiring integration credentials', () => {
     expect(
-      requiresIntegrationOnlyPlaywrightEnvironment(
-        ['node', 'playwright', 'test'],
-        { PLAYWRIGHT_SELECTED_PROJECTS: 'docs-integration' },
-      ),
+      requiresIntegrationOnlyPlaywrightEnvironment([
+        'node',
+        'playwright',
+        'test',
+        '--project=local-chrome-integration',
+      ]),
     ).toBe(true);
   });
 
@@ -172,8 +162,36 @@ describe('test-runtime-config', () => {
       ]);
       const environment = yield* readPlaywrightEnvironment(provider);
 
+      expect(environment.E2E_BROWSER_CHANNEL).toBe('chromium');
       expect(environment.NO_WEBSERVER).toBe(false);
       expect(environment.BASE_URL).toBe('http://localhost:4200');
+    }),
+  );
+
+  it.effect('allows opt-in system Chrome for local exploratory runs', () =>
+    Effect.gen(function* () {
+      const provider = providerFromEntries([
+        ...requiredPlaywrightEntries,
+        ['BASE_URL', 'http://localhost:4200'],
+        ['E2E_BROWSER_CHANNEL', 'chrome'],
+      ]);
+      const environment = yield* readPlaywrightEnvironment(provider);
+
+      expect(environment.E2E_BROWSER_CHANNEL).toBe('chrome');
+    }),
+  );
+
+  it.effect('rejects unsupported Playwright browser channels', () =>
+    Effect.gen(function* () {
+      const provider = providerFromEntries([
+        ...requiredPlaywrightEntries,
+        ['BASE_URL', 'http://localhost:4200'],
+        ['E2E_BROWSER_CHANNEL', 'firefox'],
+      ]);
+
+      const error = yield* Effect.flip(readPlaywrightEnvironment(provider));
+      expect(error.message).toMatch(/E2E_BROWSER_CHANNEL/);
+      expect(error.message).toMatch(/chromium, chrome/);
     }),
   );
 

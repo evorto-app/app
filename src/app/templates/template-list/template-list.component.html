@@ -1,5 +1,7 @@
-<div class="grid grid-cols-1 lg:h-full lg:grid-cols-[450px_1fr] lg:gap-4">
-  <div class="lg:h-full lg:overflow-y-auto lg:py-4 lg:pr-4">
+<div
+  class="grid grid-cols-1 lg:h-[calc(100dvh-1.5rem)] lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-4 lg:overflow-hidden"
+>
+  <div class="min-w-0 lg:h-full lg:overflow-y-auto lg:py-4 lg:pr-4">
     <div
       class="mb-4 {{
         outletActive() ? 'hidden' : 'flex'
@@ -71,7 +73,7 @@
       }
     </nav>
   </div>
-  <div class="lg:h-full lg:overflow-y-auto lg:p-4">
+  <div class="min-w-0 lg:h-full lg:overflow-y-auto lg:p-4">
     <router-outlet
       (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
@@ -85,6 +87,6 @@
   mat-fab
   extended
 >
-  <fa-duotone-icon [icon]="faPlus" />
+  <fa-icon [icon]="faPlus" />
   Create template
 </a>

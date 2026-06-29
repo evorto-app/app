@@ -32,7 +32,7 @@ export const createEventFormModelFromTemplate = (
         organizingRegistration: option.organizingRegistration,
         price: option.price,
         registeredDescription: option.registeredDescription ?? '',
-        registrationMode: 'fcfs',
+        registrationMode: option.registrationMode,
         roleIds: [...(option.roleIds ?? [])],
         spots: option.spots,
         stripeTaxRateId: option.stripeTaxRateId ?? null,

@@ -10,6 +10,7 @@ import {
 import {
   and,
   arrayOverlaps,
+  asc,
   eq,
   exists,
   gt,
@@ -25,9 +26,12 @@ import { DateTime } from 'luxon';
 import type { AppRpcHandlers } from '../shared/handler-types';
 
 import {
+  addonToEventRegistrationOptions,
+  eventAddons,
   eventInstances,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
+  eventRegistrationQuestions,
   eventRegistrations,
   tenantStripeTaxRates,
 } from '../../../../../db/schema';
@@ -149,20 +153,8 @@ export const eventQueryHandlers = {
         rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
       const startAfter = new Date(input.startAfter);
 
-      const selectedEvents = yield* databaseEffect((database) => {
-        const userRegisteredForEvent = exists(
-          database
-            .select()
-            .from(eventRegistrations)
-            .where(
-              and(
-                eq(eventRegistrations.eventId, eventInstances.id),
-                eq(eventRegistrations.userId, user?.id ?? ''),
-                not(eq(eventRegistrations.status, 'CANCELLED')),
-              ),
-            ),
-        );
-        return database
+      const selectedEvents = yield* databaseEffect((database) =>
+        database
           .select({
             creatorId: eventInstances.creatorId,
             icon: eventInstances.icon,
@@ -171,7 +163,18 @@ export const eventQueryHandlers = {
             status: eventInstances.status,
             title: eventInstances.title,
             unlisted: eventInstances.unlisted,
-            userRegistered: userRegisteredForEvent,
+            userRegistered: exists(
+              database
+                .select()
+                .from(eventRegistrations)
+                .where(
+                  and(
+                    eq(eventRegistrations.eventId, eventInstances.id),
+                    eq(eventRegistrations.userId, user?.id ?? ''),
+                    not(eq(eventRegistrations.status, 'CANCELLED')),
+                  ),
+                ),
+            ),
           })
           .from(eventInstances)
           .where(
@@ -210,8 +213,8 @@ export const eventQueryHandlers = {
           )
           .limit(input.limit)
           .offset(input.offset)
-          .orderBy(eventInstances.start);
-      });
+          .orderBy(eventInstances.start),
+      );
 
       const eventRecords = selectedEvents.map((event) => ({
         icon: event.icon,
@@ -370,12 +373,91 @@ export const eventQueryHandlers = {
       const registrationOptionIds = event.registrationOptions.map(
         (registrationOption) => registrationOption.id,
       );
+      const eventAddOnRows =
+        registrationOptionIds.length === 0
+          ? []
+          : yield* databaseEffect((database) =>
+              database
+                .select({
+                  allowMultiple: eventAddons.allowMultiple,
+                  allowPurchaseBeforeEvent:
+                    eventAddons.allowPurchaseBeforeEvent,
+                  allowPurchaseDuringEvent:
+                    eventAddons.allowPurchaseDuringEvent,
+                  allowPurchaseDuringRegistration:
+                    eventAddons.allowPurchaseDuringRegistration,
+                  description: eventAddons.description,
+                  id: eventAddons.id,
+                  isPaid: eventAddons.isPaid,
+                  maxQuantityPerUser: eventAddons.maxQuantityPerUser,
+                  price: eventAddons.price,
+                  quantity: addonToEventRegistrationOptions.quantity,
+                  registrationOptionId:
+                    addonToEventRegistrationOptions.registrationOptionId,
+                  stripeTaxRateId: eventAddons.stripeTaxRateId,
+                  title: eventAddons.title,
+                  totalAvailableQuantity: eventAddons.totalAvailableQuantity,
+                })
+                .from(eventAddons)
+                .innerJoin(
+                  addonToEventRegistrationOptions,
+                  eq(addonToEventRegistrationOptions.addonId, eventAddons.id),
+                )
+                .where(
+                  and(
+                    eq(eventAddons.eventId, event.id),
+                    inArray(
+                      addonToEventRegistrationOptions.registrationOptionId,
+                      registrationOptionIds,
+                    ),
+                  ),
+                ),
+            );
+      const eventQuestionRows =
+        registrationOptionIds.length === 0
+          ? []
+          : yield* databaseEffect((database) =>
+              database
+                .select({
+                  description: eventRegistrationQuestions.description,
+                  id: eventRegistrationQuestions.id,
+                  registrationOptionId:
+                    eventRegistrationQuestions.registrationOptionId,
+                  required: eventRegistrationQuestions.required,
+                  sortOrder: eventRegistrationQuestions.sortOrder,
+                  title: eventRegistrationQuestions.title,
+                })
+                .from(eventRegistrationQuestions)
+                .where(
+                  and(
+                    eq(eventRegistrationQuestions.eventId, event.id),
+                    inArray(
+                      eventRegistrationQuestions.registrationOptionId,
+                      registrationOptionIds,
+                    ),
+                  ),
+                )
+                .orderBy(
+                  asc(eventRegistrationQuestions.sortOrder),
+                  asc(eventRegistrationQuestions.id),
+                ),
+            );
       const registrationOptionTaxRateIds = [
         ...new Set(
           event.registrationOptions
             .map((registrationOption) => registrationOption.stripeTaxRateId)
             .filter((id): id is string => typeof id === 'string'),
         ),
+      ];
+      const addOnTaxRateIds = [
+        ...new Set(
+          eventAddOnRows
+            .map((addOn) => addOn.stripeTaxRateId)
+            .filter((id): id is string => typeof id === 'string'),
+        ),
+      ];
+      const taxRateIds = [
+        ...new Set([...registrationOptionTaxRateIds, ...addOnTaxRateIds]),
       ];
       const optionDiscounts =
         registrationOptionIds.length === 0
@@ -404,7 +486,7 @@ export const eventQueryHandlers = {
                 ),
             );
       const taxRates =
-        registrationOptionTaxRateIds.length === 0
+        taxRateIds.length === 0
           ? []
           : yield* databaseEffect((database) =>
               database
@@ -417,10 +499,7 @@ export const eventQueryHandlers = {
                 .where(
                   and(
                     eq(tenantStripeTaxRates.tenantId, tenant.id),
-                    inArray(
-                      tenantStripeTaxRates.stripeTaxRateId,
-                      registrationOptionTaxRateIds,
-                    ),
+                    inArray(tenantStripeTaxRates.stripeTaxRateId, taxRateIds),
                   ),
                 ),
             );
@@ -429,6 +508,67 @@ export const eventQueryHandlers = {
       );
       const esnCardDiscountedPriceByOptionId =
         getEsnCardDiscountedPriceByOptionId(optionDiscounts);
+      const questionsByRegistrationOptionId = groupBy(
+        eventQuestionRows.toSorted((left, right) => {
+          if (left.sortOrder !== right.sortOrder) {
+            return left.sortOrder - right.sortOrder;
+          }
+
+          return left.title.localeCompare(right.title);
+        }),
+        (question) => question.registrationOptionId,
+      );
+      const addOnsById = new Map<
+        string,
+        {
+          allowMultiple: boolean;
+          allowPurchaseBeforeEvent: boolean;
+          allowPurchaseDuringEvent: boolean;
+          allowPurchaseDuringRegistration: boolean;
+          description: null | string;
+          id: string;
+          isPaid: boolean;
+          maxQuantityPerUser: number;
+          price: number;
+          registrationOptions: {
+            quantity: number;
+            registrationOptionId: string;
+          }[];
+          stripeTaxRateId: null | string;
+          taxRateDisplayName: null | string;
+          taxRatePercentage: null | string;
+          title: string;
+          totalAvailableQuantity: number;
+        }
+      >();
+      for (const addOn of eventAddOnRows) {
+        const taxRate = addOn.stripeTaxRateId
+          ? taxRateByStripeId.get(addOn.stripeTaxRateId)
+          : undefined;
+        const current = addOnsById.get(addOn.id) ?? {
+          allowMultiple: addOn.allowMultiple,
+          allowPurchaseBeforeEvent: addOn.allowPurchaseBeforeEvent,
+          allowPurchaseDuringEvent: addOn.allowPurchaseDuringEvent,
+          allowPurchaseDuringRegistration:
+            addOn.allowPurchaseDuringRegistration,
+          description: addOn.description ?? null,
+          id: addOn.id,
+          isPaid: addOn.isPaid,
+          maxQuantityPerUser: addOn.maxQuantityPerUser,
+          price: addOn.price,
+          registrationOptions: [],
+          stripeTaxRateId: addOn.stripeTaxRateId ?? null,
+          taxRateDisplayName: taxRate?.displayName ?? null,
+          taxRatePercentage: taxRate?.percentage ?? null,
+          title: addOn.title,
+          totalAvailableQuantity: addOn.totalAvailableQuantity,
+        };
+        current.registrationOptions.push({
+          quantity: addOn.quantity,
+          registrationOptionId: addOn.registrationOptionId,
+        });
+        addOnsById.set(addOn.id, current);
+      }
 
       const esnCardIsEnabledForTenant = isEsnCardEnabled(
         tenant.discountProviders ?? null,
@@ -454,6 +594,7 @@ export const eventQueryHandlers = {
       }
 
       return {
+        addOns: [...addOnsById.values()],
         creatorId: event.creatorId,
         description: event.description,
         end: event.end.toISOString(),
@@ -501,6 +642,15 @@ export const eventQueryHandlers = {
                 registrationOption.openRegistrationTime.toISOString(),
               organizingRegistration: registrationOption.organizingRegistration,
               price: registrationOption.price,
+              questions: (
+                questionsByRegistrationOptionId[registrationOption.id] ?? []
+              ).map((question) => ({
+                description: question.description ?? null,
+                id: question.id,
+                required: question.required,
+                sortOrder: question.sortOrder,
+                title: question.title,
+              })),
               registeredDescription:
                 registrationOption.registeredDescription ?? null,
               registrationMode: registrationOption.registrationMode,
@@ -669,6 +819,19 @@ export const eventQueryHandlers = {
             tenantId: tenant.id,
           },
           with: {
+            addonPurchases: {
+              columns: {
+                quantity: true,
+                unitPrice: true,
+              },
+              with: {
+                addOn: {
+                  columns: {
+                    title: true,
+                  },
+                },
+              },
+            },
             registrationOption: {
               columns: {
                 id: true,
@@ -769,6 +932,17 @@ export const eventQueryHandlers = {
                 : registrationOption.price - appliedDiscountedPrice);
 
             return {
+              addonPurchases: registration.addonPurchases.flatMap((purchase) =>
+                purchase.addOn
+                  ? [
+                      {
+                        quantity: purchase.quantity,
+                        title: purchase.addOn.title,
+                        unitPrice: purchase.unitPrice,
+                      },
+                    ]
+                  : [],
+              ),
               appliedDiscountedPrice,
               appliedDiscountType,
               basePriceAtRegistration,

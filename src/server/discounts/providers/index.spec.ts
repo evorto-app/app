@@ -2,23 +2,17 @@ import { describe, expect, it, vi } from '@effect/vitest';
 
 import { ProviderValidationUnavailableError, validateEsnCard } from './index';
 
-const createFetchMock = (body: unknown, init?: ResponseInit): typeof fetch =>
-  vi.fn(async () =>
-    Response.json(body, {
-      headers: { 'content-type': 'application/json' },
-      status: 200,
-      ...init,
-    }),
-  );
-
 describe('validateEsnCard', () => {
   it('validates active cards and preserves provider metadata', async () => {
-    const fetchImpl = createFetchMock([
-      {
-        'expiration-date': '2026-12-31T00:00:00.000Z',
-        status: 'active',
-      },
-    ]);
+    const fetchImpl = vi.fn(async () => ({
+      json: async () => [
+        {
+          'expiration-date': '2026-12-31T00:00:00.000Z',
+          status: 'active',
+        },
+      ],
+      ok: true,
+    })) as unknown as typeof fetch;
 
     await expect(
       validateEsnCard({ fetchImpl, identifier: 'ESN-123' }),
@@ -37,7 +31,10 @@ describe('validateEsnCard', () => {
   });
 
   it('treats missing cards as invalid user input', async () => {
-    const fetchImpl = createFetchMock([]);
+    const fetchImpl = vi.fn(async () => ({
+      json: async () => [],
+      ok: true,
+    })) as unknown as typeof fetch;
 
     await expect(
       validateEsnCard({ fetchImpl, identifier: 'UNKNOWN' }),
@@ -47,10 +44,11 @@ describe('validateEsnCard', () => {
   });
 
   it('distinguishes provider failures from invalid cards', async () => {
-    const fetchImpl = createFetchMock(
-      { error: 'temporarily unavailable' },
-      { status: 503 },
-    );
+    const fetchImpl = vi.fn(async () => ({
+      json: async () => ({ error: 'temporarily unavailable' }),
+      ok: false,
+      status: 503,
+    })) as unknown as typeof fetch;
 
     await expect(
       validateEsnCard({ fetchImpl, identifier: 'ESN-123' }),

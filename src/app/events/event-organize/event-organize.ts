@@ -73,6 +73,11 @@ export const computeEventOrganizeStats = (
 };
 
 export interface EventOrganizeParticipant {
+  addonPurchases: readonly {
+    quantity: number;
+    title: string;
+    unitPrice: number;
+  }[];
   checkedIn: boolean;
   email: string;
   firstName: string;

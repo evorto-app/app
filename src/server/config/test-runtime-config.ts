@@ -5,7 +5,11 @@ import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
 const DEFAULT_TEST_CLOCK_ISO = '2026-02-01T12:00:00.000Z';
 const DEFAULT_TEST_SEED_KEY = 'evorto-e2e-default-v1';
-const INTEGRATION_PROJECT_NAMES = ['docs-integration'] as const;
+const INTEGRATION_PROJECT_NAMES = [
+  'docs-integration',
+  'local-chrome-integration',
+] as const;
+const PLAYWRIGHT_BROWSER_CHANNELS = ['chromium', 'chrome'] as const;
 const LIST_ONLY_ENVIRONMENT_DEFAULTS = {
   BASE_URL: 'http://localhost:4200',
   CLIENT_ID: 'playwright-list-client-id',
@@ -52,6 +56,7 @@ export const testRuntimeConfigState = Config.all({
       }),
     ),
   ),
+  E2E_BROWSER_CHANNEL: optionalTrimmedString('E2E_BROWSER_CHANNEL'),
   E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO').pipe(
     Config.map((value) =>
       Option.match(value, {
@@ -95,11 +100,15 @@ export interface DocumentationOutputEnvironment {
   docsOutputDirectory: string;
 }
 
+export type PlaywrightBrowserChannel =
+  (typeof PLAYWRIGHT_BROWSER_CHANNELS)[number];
+
 export type PlaywrightEnvironment = Omit<
   TestRuntimeConfigState,
   | 'BASE_URL'
   | 'CLIENT_ID'
   | 'CLIENT_SECRET'
+  | 'E2E_BROWSER_CHANNEL'
   | 'ISSUER_BASE_URL'
   | 'SECRET'
   | 'STRIPE_API_KEY'
@@ -109,6 +118,7 @@ export type PlaywrightEnvironment = Omit<
   BASE_URL: string;
   CLIENT_ID: string;
   CLIENT_SECRET: string;
+  E2E_BROWSER_CHANNEL: PlaywrightBrowserChannel;
   ISSUER_BASE_URL: string;
   NO_WEBSERVER: boolean;
   SECRET: string;
@@ -146,6 +156,11 @@ const collectMissingFieldErrors = (
     )
     .filter((value): value is Error => value !== undefined);
 
+const isPlaywrightBrowserChannel = (
+  value: string,
+): value is PlaywrightBrowserChannel =>
+  (PLAYWRIGHT_BROWSER_CHANNELS as readonly string[]).includes(value);
+
 const matchesProjectPattern = (pattern: string, projectName: string) => {
   const escapedPattern = pattern.replaceAll(
     /[|\\{}()[\]^$+?.]/g,
@@ -158,18 +173,8 @@ const matchesProjectPattern = (pattern: string, projectName: string) => {
   return projectPattern.test(projectName);
 };
 
-const resolveRequestedProjectNames = (
-  argv: readonly string[],
-  environment: Record<string, string | undefined> = process.env,
-) => {
+const resolveRequestedProjectNames = (argv: readonly string[]) => {
   const requestedProjectNames: string[] = [];
-  const selectedProjects = environment['PLAYWRIGHT_SELECTED_PROJECTS'];
-
-  if (selectedProjects) {
-    requestedProjectNames.push(
-      ...selectedProjects.split(',').map((projectName) => projectName.trim()),
-    );
-  }
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -205,13 +210,12 @@ const resolveRequestedProjectNames = (
 
 export const requiresIntegrationOnlyPlaywrightEnvironment = (
   argv: readonly string[] = process.argv,
-  environment: Record<string, string | undefined> = process.env,
 ) => {
   if (argv.includes('--ui')) {
     return false;
   }
 
-  const requestedProjectNames = resolveRequestedProjectNames(argv, environment);
+  const requestedProjectNames = resolveRequestedProjectNames(argv);
   if (requestedProjectNames.length === 0) {
     return true;
   }
@@ -315,6 +319,16 @@ export const makePlaywrightEnvironmentConfig = (
       return yield* Effect.fail(combineMissingDataErrors(errors));
     }
 
+    const playwrightBrowserChannel =
+      Option.getOrUndefined(state.E2E_BROWSER_CHANNEL) ?? 'chromium';
+    if (!isPlaywrightBrowserChannel(playwrightBrowserChannel)) {
+      return yield* Effect.fail(
+        new Error(
+          `Expected E2E_BROWSER_CHANNEL to be one of ${PLAYWRIGHT_BROWSER_CHANNELS.join(', ')}`,
+        ),
+      );
+    }
+
     const baseUrl =
       Option.getOrUndefined(state.BASE_URL) ??
       (listOnly ? LIST_ONLY_ENVIRONMENT_DEFAULTS.BASE_URL : undefined);
@@ -359,6 +373,7 @@ export const makePlaywrightEnvironmentConfig = (
       BASE_URL: baseUrl,
       CLIENT_ID: clientId,
       CLIENT_SECRET: clientSecret,
+      E2E_BROWSER_CHANNEL: playwrightBrowserChannel,
       ISSUER_BASE_URL: issuerBaseUrl,
       NO_WEBSERVER: state.NO_WEBSERVER,
       SECRET: secret,

@@ -37,7 +37,43 @@ export const TemplateSimpleRegistrationInput = Schema.Struct({
   title: Schema.NonEmptyString,
 });
 
+export const TemplateSimpleAddonRegistrationOptionKind = literalUnion(
+  'organizer',
+  'participant',
+);
+
+export const TemplateSimpleAddonInput = Schema.Struct({
+  allowMultiple: Schema.Boolean,
+  allowPurchaseBeforeEvent: Schema.Boolean,
+  allowPurchaseDuringEvent: Schema.Boolean,
+  allowPurchaseDuringRegistration: Schema.Boolean,
+  description: Schema.optional(Schema.NullOr(Schema.String)),
+  isPaid: Schema.Boolean,
+  maxQuantityPerUser: positiveNumber,
+  price: nonNegativeNumber,
+  quantity: positiveNumber,
+  registrationOptionKind: TemplateSimpleAddonRegistrationOptionKind,
+  stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  title: Schema.NonEmptyString,
+  totalAvailableQuantity: positiveNumber,
+});
+
+export const TemplateSimpleQuestionRegistrationOptionKind = literalUnion(
+  'organizer',
+  'participant',
+);
+
+export const TemplateSimpleQuestionInput = Schema.Struct({
+  description: Schema.optional(Schema.NullOr(Schema.String)),
+  registrationOptionKind: TemplateSimpleQuestionRegistrationOptionKind,
+  required: Schema.Boolean,
+  title: Schema.NonEmptyString,
+});
+
 export const TemplateSimpleInput = Schema.Struct({
+  addOns: Schema.optional(
+    Schema.mutable(Schema.Array(TemplateSimpleAddonInput)),
+  ),
   categoryId: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
   icon: iconSchema,
@@ -45,6 +81,9 @@ export const TemplateSimpleInput = Schema.Struct({
   organizerRegistration: TemplateSimpleRegistrationInput,
   participantRegistration: TemplateSimpleRegistrationInput,
   planningTips: Schema.optional(Schema.NullOr(Schema.String)),
+  questions: Schema.optional(
+    Schema.mutable(Schema.Array(TemplateSimpleQuestionInput)),
+  ),
   title: Schema.NonEmptyString,
 });
 
@@ -92,6 +131,15 @@ export const TemplateAddonRecord = Schema.Struct({
   totalAvailableQuantity: Schema.Number,
 });
 
+export const TemplateQuestionRecord = Schema.Struct({
+  description: Schema.NullOr(Schema.String),
+  id: Schema.NonEmptyString,
+  registrationOptionId: Schema.NonEmptyString,
+  required: Schema.Boolean,
+  sortOrder: Schema.Number,
+  title: Schema.NonEmptyString,
+});
+
 export const TemplateFindOneRecord = Schema.Struct({
   addOns: Schema.Array(TemplateAddonRecord),
   categoryId: Schema.NonEmptyString,
@@ -100,6 +148,7 @@ export const TemplateFindOneRecord = Schema.Struct({
   id: Schema.NonEmptyString,
   location: Schema.NullOr(EventLocation),
   planningTips: Schema.NullOr(Schema.String),
+  questions: Schema.Array(TemplateQuestionRecord),
   registrationOptions: Schema.Array(TemplateRegistrationOptionRecord),
   title: Schema.NonEmptyString,
 });

@@ -40,14 +40,16 @@
       <a mat-button [routerLink]="['/global-admin/tenants', tenant.id, 'edit']">
         Edit tenant
       </a>
-      <a
-        mat-button
-        [href]="'https://' + tenant.domain"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Open tenant domain
-      </a>
+      @if (tenantDomainUrl(tenant.domain); as domainUrl) {
+        <a
+          mat-button
+          [href]="domainUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open tenant domain
+        </a>
+      }
     </div>
 
     <dl class="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">

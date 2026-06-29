@@ -4,8 +4,12 @@ import { Effect, Layer } from 'effect';
 import { Database } from '../../../../../db';
 import {
   buildRegistrationOptionInsert,
+  buildTemplateAddonInsert,
+  buildTemplateAddonRegistrationOptionInsert,
   buildTemplateInsertValues,
   buildTemplateOptionDiscountInsert,
+  buildTemplateQuestionInsert,
+  requireSimpleTemplateRegistrationOptionIds,
   SimpleTemplateService,
 } from './simple-template.service';
 
@@ -40,6 +44,29 @@ const validTemplateInput = {
     title: 'Participant registration',
   },
   title: 'Template',
+};
+
+const validTemplateAddonInput = {
+  allowMultiple: true,
+  allowPurchaseBeforeEvent: true,
+  allowPurchaseDuringEvent: false,
+  allowPurchaseDuringRegistration: true,
+  description: '  Optional dinner ticket  ',
+  isPaid: true,
+  maxQuantityPerUser: 2,
+  price: 1200,
+  quantity: 1,
+  registrationOptionKind: 'participant' as const,
+  stripeTaxRateId: 'txr_vat_19',
+  title: '  Dinner  ',
+  totalAvailableQuantity: 40,
+};
+
+const validTemplateQuestionInput = {
+  description: '  Tell organizers about accessibility needs.  ',
+  registrationOptionKind: 'participant' as const,
+  required: false,
+  title: '  Accessibility needs  ',
 };
 
 const testLayer = Layer.mergeAll(
@@ -191,6 +218,132 @@ describe('SimpleTemplateService', () => {
       }),
     ).toBeNull();
   });
+
+  it('builds reusable template add-on inserts from simple add-on input', () => {
+    expect(
+      buildTemplateAddonInsert({
+        addon: validTemplateAddonInput,
+        templateId: 'template-1',
+      }),
+    ).toEqual({
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      description: 'Optional dinner ticket',
+      isPaid: true,
+      maxQuantityPerUser: 2,
+      price: 1200,
+      stripeTaxRateId: 'txr_vat_19',
+      templateId: 'template-1',
+      title: 'Dinner',
+      totalAvailableQuantity: 40,
+    });
+  });
+
+  it('clears hidden payment fields for free reusable template add-ons', () => {
+    expect(
+      buildTemplateAddonInsert({
+        addon: {
+          ...validTemplateAddonInput,
+          isPaid: false,
+          price: 1200,
+          stripeTaxRateId: 'txr_stale',
+        },
+        templateId: 'template-1',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        isPaid: false,
+        price: 0,
+        stripeTaxRateId: null,
+      }),
+    );
+  });
+
+  it('attaches reusable add-ons to the selected simple registration option kind', () => {
+    expect(
+      buildTemplateAddonRegistrationOptionInsert({
+        addon: validTemplateAddonInput,
+        addonId: 'addon-1',
+        organizerRegistrationOptionId: 'organizer-option-1',
+        participantRegistrationOptionId: 'participant-option-1',
+      }),
+    ).toEqual({
+      addonId: 'addon-1',
+      quantity: 1,
+      registrationOptionId: 'participant-option-1',
+    });
+
+    expect(
+      buildTemplateAddonRegistrationOptionInsert({
+        addon: {
+          ...validTemplateAddonInput,
+          registrationOptionKind: 'organizer',
+        },
+        addonId: 'addon-1',
+        organizerRegistrationOptionId: 'organizer-option-1',
+        participantRegistrationOptionId: 'participant-option-1',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        registrationOptionId: 'organizer-option-1',
+      }),
+    );
+  });
+
+  it('builds template registration-question inserts for the selected registration option kind', () => {
+    expect(
+      buildTemplateQuestionInsert({
+        organizerRegistrationOptionId: 'organizer-option-1',
+        participantRegistrationOptionId: 'participant-option-1',
+        question: validTemplateQuestionInput,
+        sortOrder: 0,
+        templateId: 'template-1',
+      }),
+    ).toEqual({
+      description: 'Tell organizers about accessibility needs.',
+      registrationOptionId: 'participant-option-1',
+      required: false,
+      sortOrder: 0,
+      templateId: 'template-1',
+      title: 'Accessibility needs',
+    });
+
+    expect(
+      buildTemplateQuestionInsert({
+        organizerRegistrationOptionId: 'organizer-option-1',
+        participantRegistrationOptionId: 'participant-option-1',
+        question: {
+          ...validTemplateQuestionInput,
+          registrationOptionKind: 'organizer',
+        },
+        sortOrder: 1,
+        templateId: 'template-1',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        registrationOptionId: 'organizer-option-1',
+        sortOrder: 1,
+      }),
+    );
+  });
+
+  it.effect(
+    'fails loudly when add-on writes cannot find both simple registration options',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* requireSimpleTemplateRegistrationOptionIds({
+          organizerRegistrationOptionId: 'organizer-option-1',
+          participantRegistrationOptionId: undefined,
+        }).pipe(Effect.flip);
+
+        expect(error['_tag']).toBe('TemplateSimpleInternalError');
+        expect(error.message).toBe(
+          'Template add-on registration option lookup failed',
+        );
+      }),
+  );
 
   it.effect(
     'fails with bad request for non-meaningful rich text description',
@@ -456,6 +609,146 @@ describe('SimpleTemplateService', () => {
       expect(error.message).toBe(
         'organizer registration ESNcard discount cannot exceed price',
       );
+    }),
+  );
+
+  it.effect('fails when a reusable add-on has no purchase window', () =>
+    Effect.gen(function* () {
+      const program = SimpleTemplateService.createSimpleTemplate({
+        esnCardEnabled: true,
+        input: {
+          ...validTemplateInput,
+          addOns: [
+            {
+              ...validTemplateAddonInput,
+              allowPurchaseBeforeEvent: false,
+              allowPurchaseDuringEvent: false,
+              allowPurchaseDuringRegistration: false,
+            },
+          ],
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({
+              categoryFound: true,
+              roleIds: [],
+              taxRate: { active: true, inclusive: true },
+            }),
+          ),
+        ),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe(
+        'Template add-on must allow at least one purchase window',
+      );
+    }),
+  );
+
+  it.effect(
+    'fails when reusable add-on user quantity exceeds fulfillable stock',
+    () =>
+      Effect.gen(function* () {
+        const program = SimpleTemplateService.createSimpleTemplate({
+          esnCardEnabled: true,
+          input: {
+            ...validTemplateInput,
+            addOns: [
+              {
+                ...validTemplateAddonInput,
+                maxQuantityPerUser: 2,
+                quantity: 2,
+                totalAvailableQuantity: 3,
+              },
+            ],
+          },
+          tenantId: 'tenant-1',
+        }).pipe(
+          Effect.flip,
+          Effect.provide(
+            createValidationLayer(
+              createValidationDatabase({
+                categoryFound: true,
+                roleIds: [],
+                taxRate: { active: true, inclusive: true },
+              }),
+            ),
+          ),
+        );
+
+        const error = yield* program;
+        expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+        expect(error.message).toBe(
+          'Template add-on user quantity exceeds total quantity',
+        );
+      }),
+  );
+
+  it.effect('fails when a paid reusable add-on omits a tax rate', () =>
+    Effect.gen(function* () {
+      const program = SimpleTemplateService.createSimpleTemplate({
+        esnCardEnabled: true,
+        input: {
+          ...validTemplateInput,
+          addOns: [
+            {
+              ...validTemplateAddonInput,
+              stripeTaxRateId: null,
+            },
+          ],
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({
+              categoryFound: true,
+              roleIds: [],
+            }),
+          ),
+        ),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe('Template add-on tax rate validation failed');
+    }),
+  );
+
+  it.effect('fails when a registration question has a blank title', () =>
+    Effect.gen(function* () {
+      const program = SimpleTemplateService.createSimpleTemplate({
+        esnCardEnabled: true,
+        input: {
+          ...validTemplateInput,
+          questions: [
+            {
+              ...validTemplateQuestionInput,
+              title: '   ',
+            },
+          ],
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({
+              categoryFound: true,
+              roleIds: [],
+            }),
+          ),
+        ),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe('Template question title is required');
     }),
   );
 });

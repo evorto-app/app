@@ -37,7 +37,7 @@ test('applies ESN discount to paid registrations @finance', async ({
     registrationOptionCard.getByText('ESNcard discount applied'),
   ).toBeVisible();
   await expect(
-    registrationOptionCard.getByText(discountedPrice, { exact: true }).first(),
+    registrationOptionCard.locator('p', { hasText: discountedPrice }).first(),
   ).toBeVisible();
   await expect(
     registrationOptionCard.getByRole('button', {

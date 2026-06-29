@@ -124,6 +124,13 @@ export const UsersUpdateProfile = asRpcMutation(
 );
 
 export const UsersEventSummaryRecord = Schema.Struct({
+  addonPurchases: Schema.Array(
+    Schema.Struct({
+      quantity: Schema.Number,
+      title: Schema.NonEmptyString,
+      unitPrice: Schema.Number,
+    }),
+  ),
   checkInTime: Schema.NullOr(Schema.String),
   checkoutUrl: Schema.NullOr(Schema.String),
   description: Schema.NullOr(Schema.String),

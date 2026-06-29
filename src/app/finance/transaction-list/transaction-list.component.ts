@@ -1,18 +1,12 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
-import { MatMenuModule } from '@angular/material/menu';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTableModule } from '@angular/material/table';
-import { RouterLink } from '@angular/router';
 import {
   FaDuotoneIconComponent,
   FaIconComponent,
 } from '@fortawesome/angular-fontawesome';
-import {
-  faEllipsisVertical,
-  faMoneyBillTransfer,
-} from '@fortawesome/duotone-regular-svg-icons';
+import { faMoneyBillTransfer } from '@fortawesome/duotone-regular-svg-icons';
 import { faCcPaypal, faStripe } from '@fortawesome/free-brands-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
@@ -23,11 +17,8 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FaDuotoneIconComponent,
-    MatButtonModule,
-    MatMenuModule,
     MatTableModule,
     MatPaginatorModule,
-    RouterLink,
     CurrencyPipe,
     FaIconComponent,
     DatePipe,
@@ -45,7 +36,6 @@ export class TransactionListComponent {
     'comment',
   ]);
   protected readonly faCcPaypal = faCcPaypal;
-  protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faMoneyBillTransfer = faMoneyBillTransfer;
   protected readonly faStripe = faStripe;
 

@@ -15,6 +15,7 @@ import { test as base } from './base-test';
 
 const buildRunId = (seed: string) =>
   crypto.createHash('sha256').update(seed).digest('hex').slice(0, 10);
+const seededEsnCardIdentifier = 'TEST-ESN-0001';
 
 interface BaseFixtures {
   discounts?: void;
@@ -71,6 +72,13 @@ interface BaseFixtures {
     description: string;
     icon: string;
     id: string;
+    questions: {
+      id: string;
+      registrationOptionKind: 'organizer' | 'participant';
+      registrationOptionId: string;
+      required: boolean;
+      title: string;
+    }[];
     seedKey:
       | 'city-tour'
       | 'city-trip'
@@ -153,14 +161,13 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
         .where(eq(schema.tenants.id, tenant.id));
       const regularUser = usersToAuthenticate.find((u) => u.roles === 'user');
       if (regularUser) {
-        const uniqueIdentifier = `TEST-ESN-0001-${tenant.id.slice(0, 6)}`;
         const validTo = new Date(
           seedDate.getTime() + 1000 * 60 * 60 * 24 * 180,
         ); // ~6 months
         await database
           .insert(schema.userDiscountCards)
           .values({
-            identifier: uniqueIdentifier,
+            identifier: seededEsnCardIdentifier,
             status: 'verified',
             type: 'esnCard',
             userId: regularUser.id,
@@ -169,7 +176,7 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
           })
           .onConflictDoUpdate({
             set: {
-              identifier: uniqueIdentifier,
+              identifier: seededEsnCardIdentifier,
               status: 'verified',
               validFrom: seedDate,
               validTo,
@@ -182,7 +189,7 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
       }
       await use();
     },
-    { auto: true },
+    { timeout: 30_000 },
   ],
 });
 export { expect } from '@playwright/test';

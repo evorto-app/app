@@ -22,7 +22,7 @@ import { tenantLegalLinks } from './core/tenant-legal-links';
 export class AppComponent {
   private readonly config = inject(ConfigService);
   protected readonly legalLinks = computed(() =>
-    tenantLegalLinks(this.config.tenantSignal()),
+    tenantLegalLinks(this.config.tenant),
   );
   private readonly iconRegistry = inject(MatIconRegistry);
   private readonly sanitizer = inject(DomSanitizer);

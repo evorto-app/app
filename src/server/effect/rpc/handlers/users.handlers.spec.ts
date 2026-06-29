@@ -381,6 +381,7 @@ describe('userHandlers', () => {
       const findRegistrations = vi.fn(() =>
         Effect.succeed([
           {
+            addonPurchases: [],
             checkInTime: null,
             event: {
               description: 'waitlist',
@@ -399,6 +400,7 @@ describe('userHandlers', () => {
             transactions: [],
           },
           {
+            addonPurchases: [],
             checkInTime: null,
             event: {
               description: 'cancelled payment',
@@ -424,6 +426,15 @@ describe('userHandlers', () => {
             ],
           },
           {
+            addonPurchases: [
+              {
+                addOn: {
+                  title: 'Workshop kit',
+                },
+                quantity: 2,
+                unitPrice: 500,
+              },
+            ],
             checkInTime: null,
             event: {
               description: 'later',
@@ -449,6 +460,7 @@ describe('userHandlers', () => {
             ],
           },
           {
+            addonPurchases: [],
             checkInTime: new Date('2026-02-01T10:30:00.000Z'),
             event: {
               description: 'earlier',
@@ -503,6 +515,7 @@ describe('userHandlers', () => {
       );
       expect(result).toEqual([
         {
+          addonPurchases: [],
           checkInTime: null,
           checkoutUrl: null,
           description: 'waitlist',
@@ -517,6 +530,7 @@ describe('userHandlers', () => {
           title: 'Waitlist Event',
         },
         {
+          addonPurchases: [],
           checkInTime: null,
           checkoutUrl: null,
           description: 'cancelled payment',
@@ -531,6 +545,7 @@ describe('userHandlers', () => {
           title: 'Cancelled Payment Event',
         },
         {
+          addonPurchases: [],
           checkInTime: '2026-02-01T10:30:00.000Z',
           checkoutUrl: null,
           description: 'earlier',
@@ -545,6 +560,13 @@ describe('userHandlers', () => {
           title: 'Earlier Event',
         },
         {
+          addonPurchases: [
+            {
+              quantity: 2,
+              title: 'Workshop kit',
+              unitPrice: 500,
+            },
+          ],
           checkInTime: null,
           checkoutUrl: 'https://checkout.stripe.test/pay',
           description: 'later',
@@ -579,6 +601,7 @@ describe('userHandlers', () => {
               findMany: () =>
                 Effect.succeed([
                   {
+                    addonPurchases: [],
                     checkInTime: null,
                     event: null,
                     eventId: 'event-missing',

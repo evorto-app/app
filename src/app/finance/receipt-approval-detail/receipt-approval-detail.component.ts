@@ -28,6 +28,7 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { ReceiptFormFieldsComponent } from '../shared/receipt-form/receipt-form-fields.component';
 import { createReceiptForm } from '../shared/receipt-form/receipt-form.model';
+import { isSafeReceiptPreviewUrl } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 
 export const receiptReviewSuccessMessage = (
   status: 'approved' | 'rejected',
@@ -82,16 +83,20 @@ export class ReceiptApprovalDetailComponent {
       id: this.receiptId(),
     }),
   );
+  protected readonly receiptPreviewUrl = computed(() => {
+    const previewUrl = this.receiptQuery.data()?.previewImageUrl ?? null;
+    return isSafeReceiptPreviewUrl(previewUrl) ? previewUrl : null;
+  });
   protected readonly isImagePreview = computed(() => {
     const receipt = this.receiptQuery.data();
-    if (!receipt?.previewImageUrl) {
+    if (!receipt || !this.receiptPreviewUrl()) {
       return false;
     }
     return receipt.attachmentMimeType.startsWith('image/');
   });
   protected readonly isPdfPreview = computed(() => {
     const receipt = this.receiptQuery.data();
-    if (!receipt?.previewImageUrl) {
+    if (!receipt || !this.receiptPreviewUrl()) {
       return false;
     }
     return receipt.attachmentMimeType === 'application/pdf';
@@ -109,14 +114,17 @@ export class ReceiptApprovalDetailComponent {
     () => {
       const receipt = this.receiptQuery.data();
       if (
-        !receipt?.previewImageUrl ||
+        !receipt ||
+        !this.receiptPreviewUrl() ||
         receipt.attachmentMimeType !== 'application/pdf'
       ) {
         return null;
       }
-      return this.sanitizer.bypassSecurityTrustResourceUrl(
-        receipt.previewImageUrl,
-      );
+      const previewUrl = this.receiptPreviewUrl();
+      if (!previewUrl) {
+        return null;
+      }
+      return this.sanitizer.bypassSecurityTrustResourceUrl(previewUrl);
     },
   );
 

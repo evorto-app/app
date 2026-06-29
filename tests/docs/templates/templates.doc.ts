@@ -1,12 +1,31 @@
+import { and, eq } from 'drizzle-orm';
+
+import { getId } from '../../../helpers/get-id';
 import { adminStateFile } from '../../../helpers/user-data';
+import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { fillTemplateBasics } from '../../support/utils/template-form';
 
 test.use({ storageState: adminStateFile });
 
-test.skip(true, 'Template docs are completed by a later stacked slice.');
+test('Manage templates', async ({
+  database,
+  page,
+  templateCategories,
+  tenant,
+}, testInfo) => {
+  const category = templateCategories[0];
+  if (!category) {
+    throw new Error('Expected seeded template category for template docs');
+  }
+  const templateTitle = `Docs reusable template ${getId().slice(0, 6)}`;
+  const planningTips = 'Bring the printed volunteer briefing checklist.';
+  const addOnTitle = `Docs snack voucher ${getId().slice(0, 6)}`;
+  const addOnDescription = 'Reusable snack add-on for docs coverage.';
+  const questionTitle = `Docs accessibility needs ${getId().slice(0, 6)}`;
+  const questionDescription = 'Tell organizers what support you need.';
 
-test('Manage templates', async ({ page }, testInfo) => {
   await page.goto('.');
   await testInfo.attach('markdown', {
     body: `
@@ -54,6 +73,7 @@ There are a few general settings that are required for templates:
 In simple mode (currently the only mode), the registration settings are split in two.
 There are the settings for participants, and separately, those for organizers.
 Both have the same structure, but you can see that different roles are preselected.
+Simple mode intentionally keeps exactly one organizer registration block and one participant registration block. Use reusable add-ons, registration questions, option descriptions, role eligibility, and organizer planning tips to capture repeatable event knowledge that does not need a separate registration option.
 The registration consists of the following settings:
 - **Registration option name**: The reusable label copied into events created
   from this template.
@@ -89,16 +109,30 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
     .first()
     .getByRole('checkbox', { name: 'Enable payment' });
   await paymentToggle.check();
-  await expect(page.getByLabel('Price (in cents)').first()).toBeVisible();
-  await expect(page.getByLabel('Tax rate').first()).toBeVisible();
+  const organizerRegistrationForm = page
+    .locator('app-template-registration-option-form')
+    .first();
+  await expect(
+    organizerRegistrationForm
+      .locator('mat-form-field')
+      .filter({ hasText: 'Price (in cents)' })
+      .locator('input[type="number"]')
+      .first(),
+  ).toBeVisible();
+  await expect(
+    organizerRegistrationForm
+      .locator('mat-form-field')
+      .filter({ hasText: 'Tax rate' })
+      .locator('mat-select')
+      .first(),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page
-      .locator('app-template-create form')
-      .locator('div', { hasText: 'Organizer Registration' }),
+    organizerRegistrationForm,
     page,
     'Organizer payment fields visible',
   );
+  await paymentToggle.click();
 
   await testInfo.attach('markdown', {
     body: `
@@ -106,35 +140,203 @@ Role selection also avoids duplicate entries by hiding already selected roles fr
 `,
   });
   const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
-  await organizerRoleInput.click();
+  await organizerRoleInput.fill('a');
   const roleOptions = page.locator('mat-option');
-  if ((await roleOptions.count()) > 0) {
-    const firstRoleOption = roleOptions.first();
-    const firstRoleText = await firstRoleOption.textContent();
-    const selectedRoleName = firstRoleText?.trim();
-    await firstRoleOption.click();
-    await organizerRoleInput.click();
-    if (selectedRoleName) {
-      await expect(
-        page.getByRole('option', {
-          exact: true,
-          name: selectedRoleName,
-        }),
-      ).toHaveCount(0);
-    }
-    await takeScreenshot(
-      testInfo,
-      page
-        .locator('app-template-create form')
-        .locator('div', { hasText: 'Organizer Registration' }),
-      page,
-      'Role autocomplete hides selected entries',
-    );
+  await expect(roleOptions.first()).toBeVisible();
+
+  const firstRoleOption = roleOptions.first();
+  const firstRoleText = await firstRoleOption.textContent();
+  const selectedRoleName = firstRoleText?.trim();
+  if (!selectedRoleName) {
+    throw new Error('Expected template docs autocomplete option to have text');
   }
+  await firstRoleOption.click();
+  await organizerRoleInput.fill(selectedRoleName);
+  await expect(
+    page.getByRole('option', {
+      exact: true,
+      name: selectedRoleName,
+    }),
+  ).toHaveCount(0);
+  await takeScreenshot(
+    testInfo,
+    organizerRegistrationForm,
+    page,
+    'Role autocomplete hides selected entries',
+  );
+  await page.keyboard.press('Escape');
+
+  await testInfo.attach('markdown', {
+    body: `
+#### Reusable add-ons
+Templates can also store optional add-ons such as meals, equipment, or other extras.
+Add-ons can be free or paid, attached to either the participant or organizer registration option, and can limit the included quantity, total availability, maximum quantity per user, and purchase timing.
+When a template creates an event, those reusable add-ons are copied into the event and shown on the event detail page. Registration-time add-ons are available from matching registration cards, while standalone before-event and during-event add-on sales are handled separately from this template setup flow.
+`,
+  });
+  await page.getByRole('button', { name: 'Add add-on' }).click();
+  const addOnForm = page.locator('app-template-addon-form').first();
+  await expect(addOnForm.getByLabel('Add-on name')).toBeVisible();
+  await expect(addOnForm.getByLabel('Attach to')).toBeVisible();
+  await expect(page.getByText('Purchase timing')).toBeVisible();
+  await takeScreenshot(testInfo, addOnForm, page, 'Reusable add-on form');
+
+  await testInfo.attach('markdown', {
+    body: `
+#### Registration questions
+Templates can store reusable registration questions for participant or organizer signup.
+Questions can include help text and can be marked as required. Event-side answer collection is handled separately from this template setup flow.
+`,
+  });
+  await page.getByRole('button', { name: 'Add question' }).click();
+  const questionForm = page.locator('app-template-question-form').first();
+  await expect(
+    questionForm.getByRole('textbox', { name: 'Question' }),
+  ).toBeVisible();
+  await expect(questionForm.getByLabel('Ask during')).toBeVisible();
+  await expect(page.getByText('Require an answer')).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    questionForm,
+    page,
+    'Reusable registration question form',
+  );
+
   await testInfo.attach('markdown', {
     body: `
 Once you are happy with your template, click _Save template_ to save your changes.
 You will be redirected to the detail page for that template.
 `,
   });
+  const categorySelect = page.getByRole('combobox', {
+    name: 'Template Category',
+  });
+  await categorySelect.focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('option', { name: category.title }).click();
+  await fillTemplateBasics(page, {
+    title: templateTitle,
+  });
+  await page.getByLabel('Organizer planning tips').fill(planningTips);
+  await addOnForm.getByLabel('Add-on name').fill(addOnTitle);
+  await addOnForm.getByLabel('Description').fill(addOnDescription);
+  await addOnForm.getByLabel('Included quantity').fill('2');
+  await addOnForm.getByLabel('Available quantity').fill('8');
+  await addOnForm.getByLabel('Max per user').fill('3');
+  await questionForm
+    .getByRole('textbox', { name: 'Question' })
+    .fill(questionTitle);
+  await questionForm.getByLabel('Help text').fill(questionDescription);
+  await page.getByRole('button', { name: 'Save template' }).click();
+  await expect(page).toHaveURL(/\/templates\/[^/]+$/);
+  await expect(
+    page.getByRole('heading', { name: templateTitle }),
+  ).toBeVisible();
+  await expect(page.getByText(planningTips)).toBeVisible();
+  await expect(page.getByText(addOnTitle)).toBeVisible();
+  await expect(page.getByText(questionTitle)).toBeVisible();
+
+  const createdTemplate = await database.query.eventTemplates.findFirst({
+    where: {
+      tenantId: tenant.id,
+      title: templateTitle,
+    },
+  });
+  if (!createdTemplate) {
+    throw new Error('Expected template docs flow to persist the template');
+  }
+  expect(createdTemplate.planningTips).toBe(planningTips);
+
+  const registrationOptions =
+    await database.query.templateRegistrationOptions.findMany({
+      where: { templateId: createdTemplate.id },
+    });
+  const participantRegistrationOption = registrationOptions.find(
+    (option) => !option.organizingRegistration,
+  );
+  if (!participantRegistrationOption) {
+    throw new Error(
+      'Expected template docs flow to persist a participant registration option',
+    );
+  }
+
+  const addOn = await database.query.templateEventAddons.findFirst({
+    where: {
+      templateId: createdTemplate.id,
+      title: addOnTitle,
+    },
+  });
+  if (!addOn) {
+    throw new Error(
+      'Expected template docs flow to persist the reusable add-on',
+    );
+  }
+  expect(addOn).toEqual(
+    expect.objectContaining({
+      description: addOnDescription,
+      isPaid: false,
+      maxQuantityPerUser: 3,
+      totalAvailableQuantity: 8,
+    }),
+  );
+
+  const addOnAttachment =
+    await database.query.addonToTemplateRegistrationOptions.findFirst({
+      where: {
+        addonId: addOn.id,
+        registrationOptionId: participantRegistrationOption.id,
+      },
+    });
+  if (!addOnAttachment) {
+    throw new Error(
+      'Expected template docs flow to persist the add-on registration option attachment',
+    );
+  }
+  expect(addOnAttachment.quantity).toBe(2);
+
+  const question = await database.query.templateRegistrationQuestions.findFirst(
+    {
+      where: {
+        registrationOptionId: participantRegistrationOption.id,
+        templateId: createdTemplate.id,
+        title: questionTitle,
+      },
+    },
+  );
+  if (!question) {
+    throw new Error(
+      'Expected template docs flow to persist the registration question',
+    );
+  }
+  expect(question).toEqual(
+    expect.objectContaining({
+      description: questionDescription,
+      required: true,
+    }),
+  );
+
+  await database
+    .delete(schema.addonToTemplateRegistrationOptions)
+    .where(eq(schema.addonToTemplateRegistrationOptions.addonId, addOn.id));
+  await database
+    .delete(schema.templateRegistrationQuestions)
+    .where(
+      eq(schema.templateRegistrationQuestions.templateId, createdTemplate.id),
+    );
+  await database
+    .delete(schema.templateEventAddons)
+    .where(eq(schema.templateEventAddons.templateId, createdTemplate.id));
+  await database
+    .delete(schema.templateRegistrationOptions)
+    .where(
+      eq(schema.templateRegistrationOptions.templateId, createdTemplate.id),
+    );
+  await database
+    .delete(schema.eventTemplates)
+    .where(
+      and(
+        eq(schema.eventTemplates.id, createdTemplate.id),
+        eq(schema.eventTemplates.tenantId, tenant.id),
+      ),
+    );
 });

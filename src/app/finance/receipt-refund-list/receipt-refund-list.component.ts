@@ -20,7 +20,10 @@ import {
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
-import { ReceiptPreviewDialogComponent } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
+import {
+  isSafeReceiptPreviewUrl,
+  ReceiptPreviewDialogComponent,
+} from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 
 export type ReceiptReimbursementPayoutType = 'iban' | 'paypal';
 
@@ -178,7 +181,7 @@ export class ReceiptRefundListComponent {
   protected hasPreviewUrl(receipt: {
     previewImageUrl: null | string;
   }): boolean {
-    return Boolean(receipt.previewImageUrl);
+    return isSafeReceiptPreviewUrl(receipt.previewImageUrl);
   }
 
   protected isPartiallySelected(
@@ -205,7 +208,7 @@ export class ReceiptRefundListComponent {
     attachmentMimeType: string;
     previewImageUrl: null | string;
   }): void {
-    if (!receipt.previewImageUrl) {
+    if (!isSafeReceiptPreviewUrl(receipt.previewImageUrl)) {
       this.notifications.showError('Preview is unavailable for this receipt');
       return;
     }

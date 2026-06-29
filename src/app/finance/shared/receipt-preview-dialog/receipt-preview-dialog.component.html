@@ -2,7 +2,7 @@
 <mat-dialog-content class="max-h-[80vh]">
   @if (isImage()) {
     <img
-      [src]="data.previewUrl"
+      [src]="previewUrl()"
       [alt]="data.attachmentFileName"
       class="max-h-[70vh] w-full rounded-xl object-contain"
     />
@@ -19,13 +19,15 @@
   }
 </mat-dialog-content>
 <mat-dialog-actions align="end">
-  <a
-    mat-stroked-button
-    [href]="data.previewUrl"
-    target="_blank"
-    rel="noopener noreferrer"
-  >
-    Open in new tab
-  </a>
+  @if (previewUrl(); as safePreviewUrl) {
+    <a
+      mat-stroked-button
+      [href]="safePreviewUrl"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Open in new tab
+    </a>
+  }
   <button mat-button mat-dialog-close>Close</button>
 </mat-dialog-actions>

@@ -26,6 +26,7 @@ describe('createEventFormModelFromTemplate', () => {
           type: 'online',
         },
         planningTips: 'Bring printed waiver forms.',
+        questions: [],
         registrationOptions: [
           {
             closeRegistrationOffset: 24,
@@ -102,6 +103,7 @@ describe('createEventFormModelFromTemplate', () => {
         id: 'template-1',
         location: null,
         planningTips: 'Bring printed waiver forms.',
+        questions: [],
         registrationOptions: [],
         title: 'Weekly meetup',
       },
@@ -112,7 +114,7 @@ describe('createEventFormModelFromTemplate', () => {
     expect(model.description).toBe('<p>Template description</p>');
   });
 
-  it('keeps reusable add-ons out of event form data until event add-on fulfillment exists', () => {
+  it('keeps reusable add-ons out of event form data while preserving source option ids for server-side copying', () => {
     const model = createEventFormModelFromTemplate(
       {
         addOns: [
@@ -146,6 +148,7 @@ describe('createEventFormModelFromTemplate', () => {
         id: 'template-1',
         location: null,
         planningTips: null,
+        questions: [],
         registrationOptions: [
           {
             closeRegistrationOffset: 24,

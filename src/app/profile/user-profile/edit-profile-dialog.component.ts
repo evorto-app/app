@@ -73,7 +73,7 @@ export const editProfileDialogResultFromFormValue = (formValue: {
 export class EditProfileDialogComponent {
   protected readonly data = inject(MAT_DIALOG_DATA) as EditProfileDialogData;
   protected readonly profileModel = signal({
-    communicationEmail: this.data.communicationEmail ?? '',
+    communicationEmail: this.data.communicationEmail,
     firstName: this.data.firstName ?? '',
     iban: this.data.iban ?? '',
     lastName: this.data.lastName ?? '',

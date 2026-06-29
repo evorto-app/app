@@ -26,7 +26,7 @@ describe('global admin tenant form model', () => {
     expect(globalAdminTenantRelaunchScopeItems).toEqual([
       'One active primary domain is managed here.',
       'Custom-domain verification and multi-domain automation are deferred.',
-      'Tenant-admin impersonation is not available from this form.',
+      'Tenant-admin impersonation is not available in the current relaunch surface.',
     ]);
   });
 
