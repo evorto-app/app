@@ -12,6 +12,7 @@ import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
+import { createId } from '../../../../../db/create-id';
 import {
   eventInstances,
   eventRegistrationOptionDiscounts,
@@ -56,6 +57,45 @@ const invalidRegistrationOptionTimesError = () =>
     reason: 'invalidRegistrationOptionTimes',
   });
 
+const invalidSourceTemplateRegistrationOptionError = () =>
+  new RpcBadRequestError({
+    message: 'Registration option does not belong to the selected template',
+    reason: 'templateRegistrationOptionMismatch',
+  });
+
+const invalidTemplateError = () =>
+  new RpcBadRequestError({
+    message: 'Template does not exist for this tenant',
+    reason: 'templateNotFound',
+  });
+
+const validateEventDateRange = (start: Date, end: Date) => {
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    end <= start
+  ) {
+    return invalidEventDatesError();
+  }
+
+  return null;
+};
+
+const validateRegistrationOptionDateRange = (option: {
+  closeRegistrationTime: Date;
+  openRegistrationTime: Date;
+}) => {
+  if (
+    Number.isNaN(option.closeRegistrationTime.getTime()) ||
+    Number.isNaN(option.openRegistrationTime.getTime()) ||
+    option.closeRegistrationTime < option.openRegistrationTime
+  ) {
+    return invalidRegistrationOptionTimesError();
+  }
+
+  return null;
+};
+
 const invalidRegistrationOptionTaxRateError = () =>
   new RpcBadRequestError({
     message: 'Registration option has an invalid tax rate',
@@ -89,8 +129,9 @@ export const eventLifecycleHandlers = {
 
       const start = new Date(input.start);
       const end = new Date(input.end);
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-        return yield* Effect.fail(invalidEventDatesError());
+      const eventDateRangeError = validateEventDateRange(start, end);
+      if (eventDateRangeError) {
+        return yield* Effect.fail(eventDateRangeError);
       }
 
       const sanitizedDescription = sanitizeRichTextHtml(input.description);
@@ -115,11 +156,10 @@ export const eventLifecycleHandlers = {
           return yield* Effect.fail(invalidRegistrationOptionSpotsError());
         }
 
-        if (
-          Number.isNaN(option.closeRegistrationTime.getTime()) ||
-          Number.isNaN(option.openRegistrationTime.getTime())
-        ) {
-          return yield* Effect.fail(invalidRegistrationOptionTimesError());
+        const registrationOptionDateRangeError =
+          validateRegistrationOptionDateRange(option);
+        if (registrationOptionDateRangeError) {
+          return yield* Effect.fail(registrationOptionDateRangeError);
         }
 
         const validation = yield* databaseEffect((database) =>
@@ -137,9 +177,38 @@ export const eventLifecycleHandlers = {
       const templateDefaults = yield* databaseEffect((database) =>
         database.query.eventTemplates.findFirst({
           columns: { unlisted: true },
-          where: { id: input.templateId },
+          where: { id: input.templateId, tenantId: tenant.id },
         }),
       );
+      if (!templateDefaults) {
+        return yield* Effect.fail(invalidTemplateError());
+      }
+
+      const sourceTemplateOptionIds = [
+        ...new Set(
+          sanitizedRegistrationOptions
+            .map((option) => option.sourceTemplateRegistrationOptionId)
+            .filter((id): id is string => id !== undefined),
+        ),
+      ];
+      const tenantTemplateOptions = yield* databaseEffect((database) =>
+        database.query.templateRegistrationOptions.findMany({
+          columns: {
+            id: true,
+          },
+          where: { templateId: input.templateId },
+        }),
+      );
+      const validTemplateOptionIds = new Set(
+        tenantTemplateOptions.map((option) => option.id),
+      );
+      for (const sourceTemplateOptionId of sourceTemplateOptionIds) {
+        if (!validTemplateOptionIds.has(sourceTemplateOptionId)) {
+          return yield* Effect.fail(
+            invalidSourceTemplateRegistrationOptionError(),
+          );
+        }
+      }
 
       const events = yield* databaseEffect((database) =>
         database
@@ -166,45 +235,39 @@ export const eventLifecycleHandlers = {
         );
       }
 
-      const createdOptions = yield* databaseEffect((database) =>
+      const eventRegistrationOptionInserts = sanitizedRegistrationOptions.map(
+        (option) => ({
+          closeRegistrationTime: option.closeRegistrationTime,
+          description: option.description,
+          eventId: event.id,
+          id: createId(),
+          isPaid: option.isPaid,
+          openRegistrationTime: option.openRegistrationTime,
+          organizingRegistration: option.organizingRegistration,
+          price: option.price,
+          registeredDescription: option.registeredDescription,
+          registrationMode: option.registrationMode,
+          roleIds: [...option.roleIds],
+          sourceTemplateRegistrationOptionId:
+            option.sourceTemplateRegistrationOptionId,
+          spots: option.spots,
+          stripeTaxRateId: option.stripeTaxRateId ?? null,
+          title: option.title,
+        }),
+      );
+
+      yield* databaseEffect((database) =>
         database
           .insert(eventRegistrationOptions)
           .values(
-            sanitizedRegistrationOptions.map((option) => ({
-              closeRegistrationTime: option.closeRegistrationTime,
-              description: option.description,
-              eventId: event.id,
-              isPaid: option.isPaid,
-              openRegistrationTime: option.openRegistrationTime,
-              organizingRegistration: option.organizingRegistration,
-              price: option.price,
-              registeredDescription: option.registeredDescription,
-              registrationMode: option.registrationMode,
-              roleIds: [...option.roleIds],
-              spots: option.spots,
-              stripeTaxRateId: option.stripeTaxRateId ?? null,
-              title: option.title,
-            })),
-          )
-          .returning({
-            id: eventRegistrationOptions.id,
-            organizingRegistration:
-              eventRegistrationOptions.organizingRegistration,
-            title: eventRegistrationOptions.title,
-          }),
+            eventRegistrationOptionInserts.map(
+              ({ sourceTemplateRegistrationOptionId: _source, ...option }) =>
+                option,
+            ),
+          ),
       );
 
-      const tenantTemplateOptions = yield* databaseEffect((database) =>
-        database.query.templateRegistrationOptions.findMany({
-          columns: {
-            id: true,
-            organizingRegistration: true,
-            title: true,
-          },
-          where: { templateId: input.templateId },
-        }),
-      );
-      if (tenantTemplateOptions.length > 0) {
+      if (sourceTemplateOptionIds.length > 0) {
         const templateDiscounts = yield* databaseEffect((database) =>
           database
             .select({
@@ -218,41 +281,33 @@ export const eventLifecycleHandlers = {
             .where(
               inArray(
                 templateRegistrationOptionDiscounts.registrationOptionId,
-                tenantTemplateOptions.map((option) => option.id),
+                sourceTemplateOptionIds,
               ),
             ),
         );
         if (templateDiscounts.length > 0) {
-          const registrationOptionKey = (title: string, organizing: boolean) =>
-            `${title}__${organizing ? '1' : '0'}`;
-          const templateOptionByKey = new Map(
-            tenantTemplateOptions.map((option) => [
-              registrationOptionKey(
-                option.title,
-                option.organizingRegistration,
-              ),
-              option,
-            ]),
+          const createdOptionSources = eventRegistrationOptionInserts.map(
+            (option) => ({
+              createdOptionId: option.id,
+              sourceTemplateOptionId: option.sourceTemplateRegistrationOptionId,
+            }),
           );
           const discountInserts: EventRegistrationOptionDiscountInsert[] = [];
-          for (const createdOption of createdOptions) {
-            const sourceTemplateOption = templateOptionByKey.get(
-              registrationOptionKey(
-                createdOption.title,
-                createdOption.organizingRegistration,
-              ),
-            );
-            if (!sourceTemplateOption) {
+          for (const createdOptionSource of createdOptionSources) {
+            if (!createdOptionSource.sourceTemplateOptionId) {
               continue;
             }
             for (const discount of templateDiscounts) {
-              if (discount.registrationOptionId !== sourceTemplateOption.id) {
+              if (
+                discount.registrationOptionId !==
+                createdOptionSource.sourceTemplateOptionId
+              ) {
                 continue;
               }
               discountInserts.push({
                 discountedPrice: discount.discountedPrice,
                 discountType: discount.discountType,
-                registrationOptionId: createdOption.id,
+                registrationOptionId: createdOptionSource.createdOptionId,
               });
             }
           }
@@ -278,8 +333,9 @@ export const eventLifecycleHandlers = {
 
       const start = new Date(input.start);
       const end = new Date(input.end);
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-        return yield* Effect.fail(invalidEventDatesError());
+      const eventDateRangeError = validateEventDateRange(start, end);
+      if (eventDateRangeError) {
+        return yield* Effect.fail(eventDateRangeError);
       }
 
       const sanitizedDescription = sanitizeRichTextHtml(input.description);
@@ -301,6 +357,18 @@ export const eventLifecycleHandlers = {
           ),
         }),
       );
+
+      for (const option of sanitizedRegistrationOptions) {
+        if (!Number.isInteger(option.spots) || option.spots < 0) {
+          return yield* Effect.fail(invalidRegistrationOptionSpotsError());
+        }
+
+        const registrationOptionDateRangeError =
+          validateRegistrationOptionDateRange(option);
+        if (registrationOptionDateRangeError) {
+          return yield* Effect.fail(registrationOptionDateRangeError);
+        }
+      }
 
       const event = yield* databaseEffect((database) =>
         database.query.eventInstances.findFirst({
@@ -350,17 +418,6 @@ export const eventLifecycleHandlers = {
       );
 
       for (const option of sanitizedRegistrationOptions) {
-        if (!Number.isInteger(option.spots) || option.spots < 0) {
-          return yield* Effect.fail(invalidRegistrationOptionSpotsError());
-        }
-
-        if (
-          Number.isNaN(option.closeRegistrationTime.getTime()) ||
-          Number.isNaN(option.openRegistrationTime.getTime())
-        ) {
-          return yield* Effect.fail(invalidRegistrationOptionTimesError());
-        }
-
         const validation = yield* databaseEffect((database) =>
           validateTaxRate(database, {
             isPaid: option.isPaid,

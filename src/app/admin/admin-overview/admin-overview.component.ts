@@ -23,6 +23,7 @@ import { interval } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { PermissionsService } from '../../core/permissions.service';
+import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,6 +34,7 @@ import { PermissionsService } from '../../core/permissions.service';
     FontAwesomeModule,
     MatListModule,
     MatBadgeModule,
+    IfPermissionDirective,
   ],
   templateUrl: './admin-overview.component.html',
 })

@@ -41,6 +41,8 @@ bun run lint
 ## Docker Runtime
 
 - Generate or refresh worktree-local runtime overrides: `bun run env:runtime`
+- Check whether required local Docker secrets are available:
+  `bun run docker:check`
 - Start the local runtime stack: `bun run docker:start`
 - Start the local runtime stack in foreground for Playwright `webServer`: `bun run docker:start:foreground`
 - Start the local runtime stack in watch mode: `bun run docker:start:watch`
@@ -48,7 +50,13 @@ bun run lint
 - Local Docker runs use Neon Local instead of a plain Postgres container.
 - Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts.
 - Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default.
-- The `evorto` container now requires `CLIENT_ID`, `CLIENT_SECRET`, `ISSUER_BASE_URL`, and `SECRET` to be non-empty when Compose renders the stack, so blank higher-precedence values fail fast instead of starting a broken app container.
+- `bun run docker:check` fails before Docker Compose mutates local containers
+  when required local runtime variables are missing. The check covers Neon
+  Local, Auth0, Stripe, the application session secret, and Font Awesome package
+  registry access for the premium icon packages. It also reports Bun, Docker
+  Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser
+  cache status. Missing Playwright browsers are warnings because they affect
+  Playwright runs, not Docker startup.
 - `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
 - `.env.dev.local` is the tracked shared default dev config file.
 - `.env` is the untracked developer-secrets file.
@@ -57,6 +65,9 @@ bun run lint
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`.
+- Playwright list/discovery commands do not clean or write generated docs
+  output. Run the docs projects without `--list` when you intentionally want to
+  regenerate documentation artifacts.
 
 ## Playwright Browsers
 
@@ -132,6 +143,8 @@ Required for full Playwright flows:
 - `CLIENT_ID`
 - `CLIENT_SECRET`
 - `ISSUER_BASE_URL`
+- `NEON_API_KEY` for Docker-backed Neon Local runs
+- `NEON_PROJECT_ID` for Docker-backed Neon Local runs
 - `SECRET`
 - `STRIPE_API_KEY`
 - `STRIPE_TEST_ACCOUNT_ID`

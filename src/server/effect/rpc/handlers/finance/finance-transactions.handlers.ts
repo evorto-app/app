@@ -13,7 +13,7 @@ import {
 export const financeTransactionsHandlers = {
   'finance.transactions.findMany': ({ limit, offset }, _options) =>
     Effect.gen(function* () {
-      yield* RpcAccess.ensureAuthenticated();
+      yield* RpcAccess.ensurePermission('finance:viewTransactions');
       const { tenant } = yield* RpcAccess.current();
       const transactionCountResult = yield* databaseEffect((database) =>
         database

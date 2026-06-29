@@ -115,8 +115,22 @@ export type EventsRegisterForEventError = Schema.Schema.Type<
   typeof EventsRegisterForEventError
 >;
 
-export const EventsRegistrationScannedError = Schema.Union([
+export const EventsCheckInRegistrationError = Schema.Union([
+  EventRegistrationConflictError,
+  EventRegistrationInternalError,
   EventRegistrationNotFoundError,
+  RpcForbiddenError,
+  RpcUnauthorizedError,
+]);
+export type EventsCheckInRegistrationError = Schema.Schema.Type<
+  typeof EventsCheckInRegistrationError
+>;
+
+export const EventsRegistrationScannedError = Schema.Union([
+  EventRegistrationConflictError,
+  EventRegistrationInternalError,
+  EventRegistrationNotFoundError,
+  RpcForbiddenError,
   RpcUnauthorizedError,
 ]);
 export type EventsRegistrationScannedError = Schema.Schema.Type<

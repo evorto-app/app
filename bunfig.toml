@@ -1,2 +1,5 @@
 # Disable loading .env files
 env = false
+
+[install.scopes]
+"@fortawesome" = { token = "$FONT_AWESOME_TOKEN", url = "https://npm.fontawesome.com/" }

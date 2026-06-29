@@ -19,10 +19,8 @@ test.use({ storageState: defaultStateFile });
 test('doc-screenshot returns a relative path and writes image @track(playwright-specs-track-linking_20260126) @req(DOC-SCREENSHOT-TEST-01)', async ({
   page,
 }, testInfo) => {
-  // Put images into a predictable temp folder for the test
-  const imgRoot = path.resolve('test-results/tmp-doc-images');
-  process.env.DOCS_IMG_OUT_DIR = imgRoot;
-
+  const imgRoot =
+    process.env.DOCS_IMG_OUT_DIR ?? path.resolve('test-results/docs/images');
   await page.goto('.');
   const target = page.locator('body');
 

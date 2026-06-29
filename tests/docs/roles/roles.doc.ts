@@ -19,7 +19,7 @@ For this guide, we assume you have an admin account with all required permission
 - **admin:manageRoles**: This permission is required to create and manage roles.
 {% /callout %}
 Roles are the way to manage permissions in the app.
-You can create roles with different permissions and assign them to users.
+You can create roles with different permissions.
 A user will have any permission that is assigned to at least one of their roles.
 You can also use roles to group users, for example to make some events only available to specific users.
 
@@ -41,7 +41,7 @@ You can now define the role. You have to add a name for the role as well as a sh
 There are some flags you can set:
 - **Default user role**: This role will be assigned to all new users.
 - **Default organizer role**: This role will be automatically included in the allowed roles of an organizer registration.
-- **Show in hub**: This role will be shown in the hub, so users can see who has this role.
+- **Show in hub**: This role will be shown in the members hub, so users can see who has this role. When enabled, the form also lets you choose whether members are collapsed by default.
 
 You can also add permissions to the role. The permissions are grouped by category. Learn more at [about permissions](/docs/about-permissions).
 
@@ -64,7 +64,8 @@ Permissions that are required by another permission are automatically included a
   await testInfo.attach('markdown', {
     body: `
 After you have saved your newly configured role, you will be redirected to the role details page.
-The roles is now ready for it's first users.
+The role can now be used by flows that reference tenant roles, such as event and template eligibility.
+Assigning roles to existing users is not part of the current role-management UI.
 `,
   });
 });

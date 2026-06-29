@@ -19,11 +19,11 @@
       An organizer registration should be available to this role by default
     </mat-checkbox>
 
-    <mat-checkbox [formField]="form.showInHub">
+    <mat-checkbox [formField]="form.displayInHub">
       Show this role in the hub
     </mat-checkbox>
 
-    @if (form.showInHub().value()) {
+    @if (form.displayInHub().value()) {
       <mat-checkbox [formField]="form.collapseMembersInHup">
         Collapse the members of this role by default
       </mat-checkbox>
@@ -50,6 +50,11 @@
                 >
                   {{ permission.label }}
                 </mat-checkbox>
+                @if (permission.description) {
+                  <p class="text-on-surface-variant ml-6 text-xs">
+                    {{ permission.description }}
+                  </p>
+                }
                 @if (getDependentPermissions(permission.key).length > 0) {
                   <div class="text-on-surface-variant ml-6 text-xs">
                     Includes:

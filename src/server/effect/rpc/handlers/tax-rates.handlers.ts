@@ -4,6 +4,7 @@ import { Effect, Schema } from 'effect';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
+import { includesPermission } from '../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import {
@@ -29,7 +30,7 @@ export const taxRateHandlers = {
           options.headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
           ConfigPermissions,
         );
-        if (!currentPermissions.includes('templates:view')) {
+        if (!includesPermission('templates:view', currentPermissions)) {
           return yield* Effect.fail(
             new RpcForbiddenError({
               message: 'Forbidden',

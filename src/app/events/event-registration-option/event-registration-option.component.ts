@@ -29,6 +29,7 @@ export class EventRegistrationOptionComponent {
   public readonly registrationOption = input.required<{
     appliedDiscountType?: 'esnCard' | null;
     closeRegistrationTime: string;
+    confirmedSpots: number;
     description: null | string;
     discountApplied?: boolean;
     effectivePrice?: number;
@@ -38,12 +39,21 @@ export class EventRegistrationOptionComponent {
     isPaid: boolean;
     openRegistrationTime: string;
     price: number;
+    reservedSpots: number;
+    spots: number;
     title: string;
   }>();
   private readonly rpc = AppRpc.injectClient();
   protected readonly authenticationQuery = injectQuery(() =>
     this.rpc.config.isAuthenticated.queryOptions(),
   );
+  protected readonly full = computed(() => {
+    const registrationOption = this.registrationOption();
+    return (
+      registrationOption.confirmedSpots + registrationOption.reservedSpots >=
+      registrationOption.spots
+    );
+  });
   protected readonly registrationMutation = injectMutation(() =>
     this.rpc.events.registerForEvent.mutationOptions(),
   );

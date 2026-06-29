@@ -34,27 +34,35 @@
   @if (authenticationQuery.data()) {
     @switch (registrationOpen()) {
       @case ("open") {
-        @if (registrationOption().isPaid) {
-          <button
-            (click)="register(registrationOption())"
-            mat-flat-button
-            [disabled]="registrationMutation.isPending()"
-          >
-            Pay
-            {{
-              (registrationOption().effectivePrice ??
-                registrationOption().price) / 100 | currency
-            }}
-            and register
-          </button>
+        @if (full()) {
+          <p class="body-large">
+            This option is full. Waitlist joining is not available yet.
+          </p>
         } @else {
-          <button
-            (click)="register(registrationOption())"
-            mat-flat-button
-            [disabled]="registrationMutation.isPending()"
-          >
-            Register
-          </button>
+          @if (registrationOption().isPaid) {
+            <button
+              (click)="register(registrationOption())"
+              mat-flat-button
+              type="button"
+              [disabled]="registrationMutation.isPending()"
+            >
+              Pay
+              {{
+                (registrationOption().effectivePrice ??
+                  registrationOption().price) / 100 | currency
+              }}
+              and register
+            </button>
+          } @else {
+            <button
+              (click)="register(registrationOption())"
+              mat-flat-button
+              type="button"
+              [disabled]="registrationMutation.isPending()"
+            >
+              Register
+            </button>
+          }
         }
       }
       @case ("tooEarly") {

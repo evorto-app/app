@@ -30,7 +30,7 @@ To change listing, an admin needs:
 
 # Managing Unlisted Events (Admin)
 
-Unlisted events are hidden from public lists. Admins can toggle an event's unlisted flag and still see unlisted events in the list (with a badge).
+Unlisted events are hidden from public lists. Admins can toggle an event's unlisted flag and still see unlisted events in the list (with a badge). Eligible people can still open an unlisted event when they receive its direct link.
 `,
   });
 
@@ -56,6 +56,9 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
   await page.getByRole('button', { name: /open event actions|menu/i }).click();
   await page.getByRole('menuitem', { name: 'Update listing' }).click();
   await page.getByRole('switch', { name: /Unlisted/ }).click();
+  await expect(
+    page.getByText(/eligible people can still open the event/i),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.locator('mat-dialog-container').first(),
@@ -66,7 +69,7 @@ Unlisted events are hidden from public lists. Admins can toggle an event's unlis
 
   // Verify unlisted badge is visible for admins on the details page
   await expect(
-    page.getByText('unlisted', { exact: true }).first(),
+    page.getByText(/Unlisted: hidden from event lists/i).first(),
   ).toBeVisible();
   await takeScreenshot(
     testInfo,

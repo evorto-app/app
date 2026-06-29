@@ -125,11 +125,19 @@
             mat-raised-button
             color="primary"
             (click)="openReceiptDialog()"
-            [disabled]="submitReceiptMutation.isPending()"
+            [disabled]="
+              submitReceiptMutation.isPending() ||
+              !!receiptSubmissionClosedMessage()
+            "
           >
             Add receipt
           </button>
         </div>
+        @if (receiptSubmissionClosedMessage(); as message) {
+          <p class="text-on-surface-variant text-sm">
+            {{ message }}
+          </p>
+        }
 
         @if (receiptsByEventQuery.isPending()) {
           <div class="bg-surface-container rounded-lg p-4">

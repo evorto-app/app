@@ -4,9 +4,11 @@ import { Effect, Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
+import { EventLocation } from '../../../types/location';
 import { iconSchema } from '../../types/icon';
 import {
   EventsCancelPendingRegistrationError,
+  EventsCheckInRegistrationError,
   EventsCreateRpcError,
   EventsEventListRpcError,
   EventsFindOneForEditRpcError,
@@ -30,6 +32,17 @@ export const EventReviewStatus = literalUnion(
 
 export type EventReviewStatus = Schema.Schema.Type<typeof EventReviewStatus>;
 
+export const EventsRegistrationStatus = literalUnion(
+  'CANCELLED',
+  'CONFIRMED',
+  'PENDING',
+  'WAITLIST',
+);
+
+export type EventsRegistrationStatus = Schema.Schema.Type<
+  typeof EventsRegistrationStatus
+>;
+
 export const EventsCanOrganize = asRpcQuery(
   Rpc.make('events.canOrganize', {
     error: EventsRpcError,
@@ -50,6 +63,19 @@ export const EventsCancelPendingRegistration = asRpcMutation(
   }),
 );
 
+export const EventsCheckInRegistration = asRpcMutation(
+  Rpc.make('events.checkInRegistration', {
+    error: EventsCheckInRegistrationError,
+    payload: Schema.Struct({
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      alreadyCheckedIn: Schema.Boolean,
+      checkInTime: Schema.NonEmptyString,
+    }),
+  }),
+);
+
 export const EventsCreateRegistrationOptionInput = Schema.Struct({
   closeRegistrationTime: Schema.NonEmptyString,
   description: Schema.NullOr(Schema.NonEmptyString),
@@ -60,6 +86,7 @@ export const EventsCreateRegistrationOptionInput = Schema.Struct({
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
   registrationMode: literalUnion('application', 'fcfs', 'random'),
   roleIds: Schema.Array(Schema.NonEmptyString),
+  sourceTemplateRegistrationOptionId: Schema.optional(Schema.NonEmptyString),
   spots: nonNegativeNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   title: Schema.NonEmptyString,
@@ -172,7 +199,7 @@ export const EventsFindOneForEdit = asRpcQuery(
       end: Schema.NonEmptyString,
       icon: iconSchema,
       id: Schema.NonEmptyString,
-      location: Schema.NullOr(Schema.Any),
+      location: Schema.NullOr(EventLocation),
       registrationOptions: Schema.Array(EventsFindOneForEditRegistrationOption),
       start: Schema.NonEmptyString,
       title: Schema.NonEmptyString,
@@ -197,6 +224,7 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
   price: Schema.Number,
   registeredDescription: Schema.NullOr(Schema.String),
   registrationMode: EventsFindOneForEditRegistrationMode,
+  reservedSpots: Schema.Number,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
   stripeTaxRateId: Schema.NullOr(Schema.String),
@@ -215,7 +243,7 @@ export const EventsFindOne = asRpcQuery(
       end: Schema.NonEmptyString,
       icon: iconSchema,
       id: Schema.NonEmptyString,
-      location: Schema.NullOr(Schema.Any),
+      location: Schema.NullOr(EventLocation),
       registrationOptions: Schema.Array(EventsFindOneRegistrationOption),
       reviewer: Schema.NullOr(
         Schema.Struct({
@@ -275,7 +303,7 @@ export const EventsRegistrationStatusRecord = Schema.Struct({
   registeredDescription: Schema.optional(Schema.NullOr(Schema.String)),
   registrationOptionId: Schema.NonEmptyString,
   registrationOptionTitle: Schema.NonEmptyString,
-  status: Schema.String,
+  status: EventsRegistrationStatus,
 });
 
 export type EventsRegistrationStatusRecord = Schema.Schema.Type<
@@ -343,6 +371,7 @@ export const EventsRegistrationScanned = asRpcQuery(
     }),
     success: Schema.Struct({
       allowCheckin: Schema.Boolean,
+      alreadyCheckedInIssue: Schema.Boolean,
       appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
       event: Schema.Struct({
         start: Schema.NonEmptyString,
@@ -407,7 +436,7 @@ export const EventsUpdate = asRpcMutation(
       end: Schema.NonEmptyString,
       eventId: Schema.NonEmptyString,
       icon: iconSchema,
-      location: Schema.NullOr(Schema.Any),
+      location: Schema.NullOr(EventLocation),
       registrationOptions: Schema.Array(EventsUpdateRegistrationOptionInput),
       start: Schema.NonEmptyString,
       title: Schema.NonEmptyString,
@@ -421,6 +450,7 @@ export const EventsUpdate = asRpcMutation(
 export class EventsRpcs extends RpcGroup.make(
   EventsCancelPendingRegistration,
   EventsCanOrganize,
+  EventsCheckInRegistration,
   EventsCreate,
   EventsEventList,
   EventsFindOne,

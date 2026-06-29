@@ -1,4 +1,5 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { literalUnion } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -98,6 +99,7 @@ export const UsersSelf = asRpcQuery(
 );
 
 export const UsersUpdateProfileInput = Schema.Struct({
+  communicationEmail: Schema.NonEmptyString,
   firstName: Schema.NonEmptyString,
   iban: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
   lastName: Schema.NonEmptyString,
@@ -117,10 +119,15 @@ export const UsersUpdateProfile = asRpcMutation(
 );
 
 export const UsersEventSummaryRecord = Schema.Struct({
+  checkInTime: Schema.NullOr(Schema.String),
   description: Schema.NullOr(Schema.String),
   end: Schema.String,
-  id: Schema.NonEmptyString,
+  eventId: Schema.NonEmptyString,
+  paymentState: literalUnion('cancelled', 'notRequired', 'pending', 'recorded'),
+  registrationId: Schema.NonEmptyString,
+  registrationOptionTitle: Schema.NonEmptyString,
   start: Schema.String,
+  status: literalUnion('CONFIRMED', 'PENDING', 'WAITLIST'),
   title: Schema.NonEmptyString,
 });
 

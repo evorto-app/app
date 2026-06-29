@@ -20,7 +20,10 @@ import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
-import { type Permission } from '../../../../shared/permissions/permissions';
+import {
+  includesPermission,
+  type Permission,
+} from '../../../../shared/permissions/permissions';
 import { type AdminHubRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
@@ -86,7 +89,7 @@ const ensurePermission = (
       ConfigPermissions,
     );
 
-    if (!currentPermissions.includes(permission)) {
+    if (!includesPermission(permission, currentPermissions)) {
       return yield* Effect.fail(
         new RpcForbiddenError({ message: 'Forbidden', permission }),
       );
@@ -105,9 +108,11 @@ export const adminHandlers = {
         database
           .insert(roles)
           .values({
+            collapseMembersInHup: input.collapseMembersInHup,
             defaultOrganizerRole: input.defaultOrganizerRole,
             defaultUserRole: input.defaultUserRole,
             description: input.description,
+            displayInHub: input.displayInHub,
             name: input.name,
             permissions: input.permissions,
             tenantId: tenant.id,
@@ -121,7 +126,6 @@ export const adminHandlers = {
             id: roles.id,
             name: roles.name,
             permissions: roles.permissions,
-            showInHub: roles.showInHub,
             sortOrder: roles.sortOrder,
           }),
       );
@@ -195,7 +199,7 @@ export const adminHandlers = {
     }),
   'admin.roles.findMany': (input, options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
+      yield* ensurePermission(options.headers, 'admin:manageRoles');
       const tenant = decodeHeaderJson(
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
@@ -211,7 +215,6 @@ export const adminHandlers = {
             id: true,
             name: true,
             permissions: true,
-            showInHub: true,
             sortOrder: true,
           },
           orderBy: { name: 'asc' },
@@ -247,7 +250,6 @@ export const adminHandlers = {
             id: true,
             name: true,
             permissions: true,
-            showInHub: true,
             sortOrder: true,
           },
           where: { id, tenantId: tenant.id },
@@ -279,7 +281,6 @@ export const adminHandlers = {
             id: true,
             name: true,
             permissions: true,
-            showInHub: true,
             sortOrder: true,
           },
           limit: 15,
@@ -304,9 +305,11 @@ export const adminHandlers = {
         database
           .update(roles)
           .set({
+            collapseMembersInHup: input.collapseMembersInHup,
             defaultOrganizerRole: input.defaultOrganizerRole,
             defaultUserRole: input.defaultUserRole,
             description: input.description,
+            displayInHub: input.displayInHub,
             name: input.name,
             permissions: input.permissions,
           })
@@ -320,7 +323,6 @@ export const adminHandlers = {
             id: roles.id,
             name: roles.name,
             permissions: roles.permissions,
-            showInHub: roles.showInHub,
             sortOrder: roles.sortOrder,
           }),
       );

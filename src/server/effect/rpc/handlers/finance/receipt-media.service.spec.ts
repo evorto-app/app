@@ -7,6 +7,7 @@ describe('ReceiptMediaService', () => {
   it.effect('fails with bad request for unsupported mime type', () =>
     Effect.gen(function* () {
       const program = ReceiptMediaService.uploadOriginal({
+        eventId: 'event-1',
         fileBase64: Buffer.from('hello').toString('base64'),
         fileName: 'receipt.txt',
         fileSizeBytes: 5,

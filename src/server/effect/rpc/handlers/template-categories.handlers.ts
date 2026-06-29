@@ -12,7 +12,10 @@ import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { eventTemplateCategories } from '../../../../db/schema';
-import { type Permission } from '../../../../shared/permissions/permissions';
+import {
+  includesPermission,
+  type Permission,
+} from '../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import {
@@ -50,9 +53,9 @@ const ensurePermission = (
       ConfigPermissions,
     );
 
-    if (!currentPermissions.includes(permission)) {
+    if (!includesPermission(permission, currentPermissions)) {
       return yield* Effect.fail(
-        new RpcForbiddenError({ message: 'Forbidden' }),
+        new RpcForbiddenError({ message: 'Forbidden', permission }),
       );
     }
   });

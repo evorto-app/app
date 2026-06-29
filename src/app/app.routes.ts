@@ -61,6 +61,7 @@ export const routes: Routes = [
     path: '403',
   },
   {
+    canActivate: [authGuard],
     loadComponent: () =>
       import('./core/create-account/create-account.component').then(
         (m) => m.CreateAccountComponent,

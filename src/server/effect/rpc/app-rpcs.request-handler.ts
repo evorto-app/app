@@ -15,6 +15,7 @@ const buildRpcUser = (context: RequestContext) => {
   return {
     attributes: context.user.attributes,
     auth0Id: context.user.auth0Id,
+    communicationEmail: context.user.communicationEmail,
     email: context.user.email,
     firstName: context.user.firstName,
     iban: context.user.iban,
@@ -40,7 +41,7 @@ const withRpcContextHeaders = (
   );
   headers.set(
     RPC_CONTEXT_HEADERS.PERMISSIONS,
-    encodeRpcContextHeaderJson(user?.permissions ?? []),
+    encodeRpcContextHeaderJson(context.permissions),
   );
   headers.set(
     RPC_CONTEXT_HEADERS.USER,

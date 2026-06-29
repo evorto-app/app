@@ -10,6 +10,7 @@ import { Context as RequestContext } from '../../types/custom/context';
 import { isAuthenticated, resolveRequestOrigin } from '../auth/auth-session';
 import {
   resolveAuthenticationContext,
+  resolveRequestPermissions,
   resolveTenantContext,
   resolveUserContext,
 } from './request-context-resolver';
@@ -66,14 +67,20 @@ export const resolveHttpRequestContext = (
         new Error('Tenant resolution did not terminate after not-found error'),
       ));
 
-    const user = yield* resolveUserContext({
+    const tenantUser = yield* resolveUserContext({
       isAuthenticated: isAuthenticated(authSession),
       oidcUser: authSession?.authData,
       tenantId: resolvedTenant.id,
     });
+    const permissions = resolveRequestPermissions({
+      oidcUser: authSession?.authData,
+      user: tenantUser,
+    });
+    const user = tenantUser ? { ...tenantUser, permissions } : undefined;
 
     return Schema.decodeUnknownSync(RequestContext)({
       authentication,
+      permissions,
       tenant: resolvedTenant,
       user,
     });

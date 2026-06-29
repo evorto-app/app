@@ -4,11 +4,12 @@ import {
   pgTable,
   timestamp,
   unique,
+  uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core';
 
 import { discountTypes } from './global-enums';
-import { modelOfTenant } from './model';
+import { modelBasics } from './model';
 import { users } from './users';
 
 export const discountCardStatus = pgEnum('discount_card_status', [
@@ -21,7 +22,7 @@ export const discountCardStatus = pgEnum('discount_card_status', [
 export const userDiscountCards = pgTable(
   'user_discount_cards',
   {
-    ...modelOfTenant,
+    ...modelBasics,
     identifier: varchar({ length: 255 }).notNull(),
     lastCheckedAt: timestamp(),
     metadata: jsonb('metadata'),
@@ -34,7 +35,10 @@ export const userDiscountCards = pgTable(
     validTo: timestamp(),
   },
   (table) => ({
-    uniqueByUser: unique().on(table.tenantId, table.userId, table.type),
+    uniqueByUser: uniqueIndex('user_discount_cards_user_id_type_unique_idx').on(
+      table.userId,
+      table.type,
+    ),
     uniqueIdentifier: unique().on(table.type, table.identifier),
   }),
 );

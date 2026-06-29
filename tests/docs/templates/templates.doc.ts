@@ -57,10 +57,7 @@ The registration consists of the following settings:
 - **Payment required**: Is a payment required for this registration?
 - **Registration fee**: The registration fee for this registration. This field is only visible if the payment is required.
 - **Selected roles**: The roles that are selected for this registration. Users can only see and use the registration if they have one of the selected roles.
-- **Registration mode**: By which mode will this registration work, the following options exist:
-  - First come first serve: The first user to register will get the registration.
-  - ~~Random: There is a period in which users can sign up for the event. After this period, random users will be selected until the event is full.~~ _Not available yet_
-  - Application: Users can sign up for the event, but they will not be automatically registered. The event owner has to approve the registration.
+- **Registration mode**: First come first serve is the only selectable mode for now. The first user to register will get the registration.
 - **Registration start**: The offset in hours for when the registration should start. For example 168 hours means that the registration will start 7 days before the event starts.
 - **Registration end**: The offset in hours for when the registration should end. For example 24 hours means that the registration will end 1 day before the event starts.
 - **Role picker behavior**: Roles that are already selected are hidden from autocomplete suggestions to prevent duplicates.

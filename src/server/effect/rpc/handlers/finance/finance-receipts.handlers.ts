@@ -147,7 +147,7 @@ export const financeReceiptsHandlers = {
         return yield* Effect.fail(
           new FinanceResourceNotFoundError({
             id: targetUserId,
-            message: 'Refund recipient not found',
+            message: 'Reimbursement recipient not found',
             resource: 'payoutUser',
           }),
         );
@@ -155,7 +155,7 @@ export const financeReceiptsHandlers = {
       if (input.payoutType === 'iban' && !payoutUser.iban) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Refund recipient is missing an IBAN',
+            message: 'Reimbursement recipient is missing an IBAN',
             reason: 'missingIban',
           }),
         );
@@ -163,7 +163,8 @@ export const financeReceiptsHandlers = {
       if (input.payoutType === 'paypal' && !payoutUser.paypalEmail) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Refund recipient is missing a PayPal email address',
+            message:
+              'Reimbursement recipient is missing a PayPal email address',
             reason: 'missingPaypal',
           }),
         );
@@ -202,7 +203,7 @@ export const financeReceiptsHandlers = {
               .insert(transactions)
               .values({
                 amount: -Math.abs(totalAmount),
-                comment: `Receipt refund (${input.payoutType} ${expectedPayoutReference}) for ${receipts.length} receipt(s) across events: ${uniqueEventIds.join(', ')}`,
+                comment: `Receipt reimbursement record (${input.payoutType}) for ${receipts.length} receipt(s) across events: ${uniqueEventIds.join(', ')}`,
                 currency: tenant.currency,
                 eventId,
                 executiveUserId: user.id,
@@ -247,7 +248,7 @@ export const financeReceiptsHandlers = {
 
             if (updatedReceipts.length !== input.receiptIds.length) {
               transactionFailure = new RpcBadRequestError({
-                message: 'Receipt refund preconditions failed',
+                message: 'Receipt reimbursement preconditions failed',
                 reason: 'receiptRefundPreconditionFailed',
               });
               yield* tx.rollback();
@@ -600,6 +601,14 @@ export const financeReceiptsHandlers = {
           }),
         );
       }
+      if (input.taxAmount > input.totalAmount) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: 'Tax amount exceeds the total amount',
+            reason: 'taxAmountExceedsTotal',
+          }),
+        );
+      }
       if (input.status === 'rejected' && !input.rejectionReason) {
         return yield* Effect.fail(
           new RpcBadRequestError({
@@ -697,6 +706,7 @@ export const financeReceiptsHandlers = {
       const event = yield* databaseEffect((database) =>
         database.query.eventInstances.findFirst({
           columns: {
+            end: true,
             id: true,
           },
           where: {
@@ -711,6 +721,14 @@ export const financeReceiptsHandlers = {
             id: input.eventId,
             message: 'Event not found for receipt submission',
             resource: 'event',
+          }),
+        );
+      }
+      if (event.end > new Date()) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: 'Receipts can only be submitted after the event ends',
+            reason: 'event_not_finished',
           }),
         );
       }
@@ -738,6 +756,14 @@ export const financeReceiptsHandlers = {
           new RpcBadRequestError({
             message: 'Deposit and alcohol amounts exceed the total amount',
             reason: 'amount_mismatch',
+          }),
+        );
+      }
+      if (input.fields.taxAmount > input.fields.totalAmount) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: 'Tax amount exceeds the total amount',
+            reason: 'tax_amount_exceeds_total',
           }),
         );
       }

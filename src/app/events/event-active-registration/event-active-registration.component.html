@@ -42,7 +42,10 @@
           Cancel registration
         </button>
       } @else if (registration.status === "WAITLIST") {
-        <div class="text-warning">You are currently on the waitlist</div>
+        <div class="text-warning">
+          You are currently on the waitlist. We will contact you if a spot
+          becomes available.
+        </div>
       } @else if (registration.status === "CONFIRMED") {
         @if (registration.registeredDescription) {
           <div

@@ -228,14 +228,14 @@ export class ReceiptRefundListComponent {
           },
         },
       );
-      this.notifications.showSuccess('Refund transaction created');
+      this.notifications.showSuccess('Reimbursement transaction recorded');
       this.selectionByRecipient.update((current) => ({
         ...current,
         [group.submittedByUserId]: {},
       }));
     } catch (error) {
       this.notifications.showError(
-        getErrorMessage(error, 'Failed to create refund'),
+        getErrorMessage(error, 'Failed to record reimbursement'),
       );
     }
   }

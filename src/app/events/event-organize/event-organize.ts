@@ -87,6 +87,16 @@ export class EventOrganize {
       eventId: this.eventId(),
     }),
   );
+  protected readonly receiptSubmissionClosedMessage = computed(() => {
+    const event = this.event();
+    if (!event) {
+      return 'Receipts can be added after the event has loaded.';
+    }
+
+    return new Date(event.end) > new Date()
+      ? 'Receipts can be added after the event ends.'
+      : null;
+  });
 
   // Basic stats computation
   protected readonly stats = computed(() => {
@@ -250,6 +260,7 @@ export class EventOrganize {
     storageUrl: string;
   }> {
     return this.receiptOriginalUploadMutation.mutateAsync({
+      eventId: this.eventId(),
       fileBase64: await this.readFileAsBase64(file),
       fileName: file.name,
       fileSizeBytes: file.size,

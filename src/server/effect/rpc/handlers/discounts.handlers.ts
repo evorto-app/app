@@ -23,8 +23,11 @@ import { User } from '../../../../types/custom/user';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import {
   Adapters,
+  type ProviderAdapter,
   PROVIDERS,
   type ProviderType,
+  ProviderValidationUnavailableError,
+  type ValidationResult,
 } from '../../../discounts/providers';
 import {
   decodeRpcContextHeaderJson,
@@ -81,14 +84,43 @@ const requireUserHeader = (
     return user;
   });
 
+const validateDiscountCard = ({
+  adapter,
+  config,
+  identifier,
+}: {
+  adapter: ProviderAdapter<unknown>;
+  config: unknown;
+  identifier: string;
+}): Effect.Effect<
+  ValidationResult,
+  RpcBadRequestError | RpcInternalServerError
+> =>
+  Effect.tryPromise({
+    catch: (cause) => {
+      if (cause instanceof ProviderValidationUnavailableError) {
+        return new RpcBadRequestError({
+          message: 'Could not validate ESN card right now. Try again later.',
+          reason: `provider-${cause.reason}`,
+        });
+      }
+
+      return new RpcInternalServerError({
+        cause,
+        message: 'Discount card validation failed unexpectedly',
+      });
+    },
+    try: () =>
+      adapter.validate({
+        config,
+        identifier,
+      }),
+  });
+
 export const discountHandlers = {
   'discounts.deleteMyCard': (input, options) =>
     Effect.gen(function* () {
       yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
       const user = yield* requireUserHeader(options.headers);
 
       yield* databaseEffect((database) =>
@@ -96,7 +128,6 @@ export const discountHandlers = {
           .delete(userDiscountCards)
           .where(
             and(
-              eq(userDiscountCards.tenantId, tenant.id),
               eq(userDiscountCards.userId, user.id),
               eq(userDiscountCards.type, input.type),
             ),
@@ -106,10 +137,6 @@ export const discountHandlers = {
   'discounts.getMyCards': (_payload, options) =>
     Effect.gen(function* () {
       yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
       const user = yield* requireUserHeader(options.headers);
       const cards = yield* databaseEffect((database) =>
         database.query.userDiscountCards.findMany({
@@ -121,7 +148,6 @@ export const discountHandlers = {
             validTo: true,
           },
           where: {
-            tenantId: tenant.id,
             userId: user.id,
           },
         }),
@@ -193,7 +219,6 @@ export const discountHandlers = {
             validTo: true,
           },
           where: {
-            tenantId: tenant.id,
             type: input.type,
             userId: user.id,
           },
@@ -210,12 +235,11 @@ export const discountHandlers = {
         return normalizeUserDiscountCardRecord(card);
       }
 
-      const result = yield* Effect.promise(() =>
-        adapter.validate({
-          config: provider.config,
-          identifier: card.identifier,
-        }),
-      );
+      const result = yield* validateDiscountCard({
+        adapter,
+        config: provider.config,
+        identifier: card.identifier,
+      });
       const updatedCards = yield* databaseEffect((database) =>
         database
           .update(userDiscountCards)
@@ -304,7 +328,6 @@ export const discountHandlers = {
             validTo: true,
           },
           where: {
-            tenantId: tenant.id,
             type: input.type,
             userId: user.id,
           },
@@ -332,7 +355,6 @@ export const discountHandlers = {
               .insert(userDiscountCards)
               .values({
                 identifier: input.identifier,
-                tenantId: tenant.id,
                 type: input.type,
                 userId: user.id,
               })
@@ -364,12 +386,12 @@ export const discountHandlers = {
         return normalizeUserDiscountCardRecord(upsertedCard);
       }
 
-      const result = yield* Effect.promise(() =>
-        adapter.validate({
-          config: provider.config,
-          identifier: input.identifier,
-        }),
-      );
+      const result = yield* validateDiscountCard({
+        adapter,
+        config: provider.config,
+        identifier: input.identifier,
+      });
+
       const updatedCards = yield* databaseEffect((database) =>
         database
           .update(userDiscountCards)

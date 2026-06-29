@@ -1,29 +1,17 @@
-import type { Headers } from 'effect/unstable/http';
-
-import { RpcUnauthorizedError } from '@shared/errors/rpc-errors';
 import { TemplateSimpleNotFoundError } from '@shared/rpc-contracts/app-rpcs/templates.errors';
-import { Effect, Schema } from 'effect';
+import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { eventTemplates } from '../../../../db/schema';
-import { Tenant } from '../../../../types/custom/tenant';
-import {
-  decodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+import { RpcAccess } from './shared/rpc-access.service';
 import { SimpleTemplateService } from './templates/simple-template.service';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
-
-const decodeHeaderJson = <A>(
-  value: string | undefined,
-  schema: Schema.Decoder<A>,
-): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 const normalizeTemplateFindOneRecord = (
   template: {
@@ -101,36 +89,21 @@ const normalizeTemplateFindOneRecord = (
   title: template.title,
 });
 
-const ensureAuthenticated = (
-  headers: Headers.Headers,
-): Effect.Effect<void, RpcUnauthorizedError> =>
-  headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
-    ? Effect.void
-    : Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
-      );
-
 export const templateHandlers = {
-  'templates.createSimpleTemplate': (input, options) =>
+  'templates.createSimpleTemplate': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('templates:create');
+      const { tenant } = yield* RpcAccess.current();
 
       return yield* SimpleTemplateService.createSimpleTemplate({
         input,
         tenantId: tenant.id,
       });
     }),
-  'templates.findOne': ({ id }, options) =>
+  'templates.findOne': ({ id }, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('templates:view');
+      const { tenant } = yield* RpcAccess.current();
       const template = yield* databaseEffect((database) =>
         database.query.eventTemplates.findFirst({
           columns: {
@@ -200,13 +173,10 @@ export const templateHandlers = {
 
       return normalizeTemplateFindOneRecord(template, rolesById);
     }),
-  'templates.groupedByCategory': (_payload, options) =>
+  'templates.groupedByCategory': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('templates:view');
+      const { tenant } = yield* RpcAccess.current();
       const templateCategories = yield* databaseEffect((database) =>
         database.query.eventTemplateCategories.findMany({
           columns: {
@@ -240,13 +210,10 @@ export const templateHandlers = {
         title: templateCategory.title,
       }));
     }),
-  'templates.updateSimpleTemplate': (input, options) =>
+  'templates.updateSimpleTemplate': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('templates:editAll');
+      const { tenant } = yield* RpcAccess.current();
 
       return yield* SimpleTemplateService.updateSimpleTemplate({
         input,

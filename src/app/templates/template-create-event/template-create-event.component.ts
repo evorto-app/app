@@ -65,11 +65,7 @@ export class TemplateCreateEventComponent {
     );
   });
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly registrationModes = [
-    'fcfs',
-    'random',
-    'application',
-  ] as const;
+  protected readonly registrationModes = ['fcfs'] as const;
   protected readonly templateId = input.required<string>();
   protected readonly templateQuery = injectQuery(() =>
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
@@ -110,7 +106,7 @@ export class TemplateCreateEventComponent {
               organizingRegistration: option.organizingRegistration,
               price: option.price,
               registeredDescription: option.registeredDescription ?? '',
-              registrationMode: option.registrationMode,
+              registrationMode: 'fcfs',
               roleIds: [...(option.roleIds ?? [])],
               spots: option.spots,
               stripeTaxRateId: option.stripeTaxRateId ?? null,
@@ -190,8 +186,9 @@ export class TemplateCreateEventComponent {
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
               : null,
-            registrationMode: option.registrationMode,
+            registrationMode: 'fcfs',
             roleIds: option.roleIds,
+            sourceTemplateRegistrationOptionId: option.id || undefined,
             spots: option.spots,
             stripeTaxRateId: option.stripeTaxRateId?.trim()
               ? option.stripeTaxRateId

@@ -42,8 +42,8 @@ To access your profile, click on the **Profile** link in the navigation bar at t
 The profile page displays your personal information, including:
 
 - Name
-- Email address
-- Payout details (IBAN / PayPal) for finance refunds
+- Login email address and notification email address
+- Global reimbursement details (IBAN / PayPal) used when finance teams record manual receipt reimbursements
 
 From here you can open the edit dialog to update your profile details.
 `,
@@ -65,7 +65,7 @@ From here you can open the edit dialog to update your profile details.
 ## Editing Your Profile
 
 Click **Edit profile** to open the profile dialog.
-The form uses inline validation, and the save button is only enabled when both names are filled in.
+The form uses inline validation, and the save button is only enabled when both names and the notification email are filled in. IBAN and PayPal details are optional global reimbursement details, not tenant-specific payout instructions.
 `,
   });
 
@@ -93,7 +93,8 @@ The user profile now uses a two-column layout:
 
 - Left side: section navigation cards
 - Right side: selected section content
-- Sections include **Overview**, **Events**, **Discounts**, and **Receipts**
+- The **Events** section links each registration back to event details and shows registration status, selected option, payment state, and check-in time when available
+- Other sections include **Overview**, **Discounts**, and **Receipts**
 `,
   });
 

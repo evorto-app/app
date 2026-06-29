@@ -10,12 +10,36 @@
       <input matInput [formField]="profileForm.lastName" />
     </mat-form-field>
     <mat-form-field>
-      <mat-label>IBAN (for refunds)</mat-label>
-      <input matInput [formField]="profileForm.iban" />
+      <mat-label>Notification email</mat-label>
+      <input
+        matInput
+        type="email"
+        autocomplete="email"
+        [formField]="profileForm.communicationEmail"
+      />
+      @if (
+        profileForm.communicationEmail().touched() &&
+        profileForm.communicationEmail().invalid()
+      ) {
+        <mat-error>
+          Enter the email address where event and finance notifications should
+          be sent.
+        </mat-error>
+      }
     </mat-form-field>
     <mat-form-field>
-      <mat-label>PayPal email (for refunds)</mat-label>
+      <mat-label>IBAN (for reimbursements)</mat-label>
+      <input matInput [formField]="profileForm.iban" />
+      <mat-hint
+        >Used for manual receipt reimbursements across tenants.</mat-hint
+      >
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>PayPal email (for reimbursements)</mat-label>
       <input matInput [formField]="profileForm.paypalEmail" />
+      <mat-hint
+        >Used for manual receipt reimbursements across tenants.</mat-hint
+      >
     </mat-form-field>
   </mat-dialog-content>
   <mat-dialog-actions align="end" class="gap-2">

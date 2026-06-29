@@ -1,9 +1,20 @@
 import { RpcForbiddenError } from '@shared/errors/rpc-errors';
+import { includesPermission } from '@shared/permissions/permissions';
 import {
   EventConflictError,
   EventNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { and, arrayOverlaps, eq, exists, gt, inArray, not } from 'drizzle-orm';
+import {
+  and,
+  arrayOverlaps,
+  eq,
+  exists,
+  gt,
+  inArray,
+  not,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { Effect } from 'effect';
 import { groupBy } from 'es-toolkit';
 import { DateTime } from 'luxon';
@@ -32,8 +43,8 @@ export const eventQueryHandlers = {
       const user = yield* RpcAccess.requireUser();
 
       if (
-        user.permissions.includes('events:organizeAll') ||
-        user.permissions.includes('finance:manageReceipts')
+        includesPermission('events:organizeAll', user.permissions) ||
+        includesPermission('finance:manageReceipts', user.permissions)
       ) {
         return true;
       }
@@ -86,7 +97,7 @@ export const eventQueryHandlers = {
         input.status.length === 1 && input.status[0] === 'APPROVED';
       if (
         !onlyApprovedStatus &&
-        !userPermissions.includes('events:seeDrafts')
+        !includesPermission('events:seeDrafts', userPermissions)
       ) {
         return yield* Effect.fail(
           new RpcForbiddenError({
@@ -98,7 +109,7 @@ export const eventQueryHandlers = {
 
       if (
         input.includeUnlisted &&
-        !userPermissions.includes('events:seeUnlisted')
+        !includesPermission('events:seeUnlisted', userPermissions)
       ) {
         return yield* Effect.fail(
           new RpcForbiddenError({
@@ -166,9 +177,12 @@ export const eventQueryHandlers = {
                   .where(
                     and(
                       eq(eventRegistrationOptions.eventId, eventInstances.id),
-                      arrayOverlaps(
-                        eventRegistrationOptions.roleIds,
-                        roleFilters,
+                      or(
+                        sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
+                        arrayOverlaps(
+                          eventRegistrationOptions.roleIds,
+                          roleFilters,
+                        ),
                       ),
                     ),
                   ),
@@ -257,6 +271,7 @@ export const eventQueryHandlers = {
                 price: true,
                 registeredDescription: true,
                 registrationMode: true,
+                reservedSpots: true,
                 roleIds: true,
                 spots: true,
                 stripeTaxRateId: true,
@@ -264,7 +279,10 @@ export const eventQueryHandlers = {
               },
               where: {
                 RAW: (table) =>
-                  arrayOverlaps(table.roleIds, [...rolesToFilterBy]),
+                  sql`cardinality(${table.roleIds}) = 0 or ${arrayOverlaps(
+                    table.roleIds,
+                    [...rolesToFilterBy],
+                  )}`,
               },
             },
             reviewer: {
@@ -282,8 +300,10 @@ export const eventQueryHandlers = {
         );
       }
 
-      const canSeeDrafts = user?.permissions.includes('events:seeDrafts');
-      const canReviewEvents = user?.permissions.includes('events:review');
+      const canSeeDrafts =
+        user && includesPermission('events:seeDrafts', user.permissions);
+      const canReviewEvents =
+        user && includesPermission('events:review', user.permissions);
       const canEditEvent_ = user
         ? canEditEvent({
             creatorId: event.creatorId,
@@ -347,7 +367,6 @@ export const eventQueryHandlers = {
             },
             where: {
               status: 'verified',
-              tenantId: tenant.id,
               type: 'esnCard',
               userId: user.id,
             },
@@ -406,6 +425,7 @@ export const eventQueryHandlers = {
               registeredDescription:
                 registrationOption.registeredDescription ?? null,
               registrationMode: registrationOption.registrationMode,
+              reservedSpots: registrationOption.reservedSpots,
               roleIds: [...registrationOption.roleIds],
               spots: registrationOption.spots,
               stripeTaxRateId: registrationOption.stripeTaxRateId ?? null,
@@ -471,7 +491,7 @@ export const eventQueryHandlers = {
 
       const canEdit =
         event.creatorId === user.id ||
-        user.permissions.includes('events:editAll');
+        includesPermission('events:editAll', user.permissions);
       if (!canEdit) {
         return yield* Effect.fail(
           new RpcForbiddenError({ message: 'Forbidden' }),

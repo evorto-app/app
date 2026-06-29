@@ -1,6 +1,6 @@
 import type Stripe from 'stripe';
 
-import { and, eq, lte } from 'drizzle-orm';
+import { and, eq, lte, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import { Database, type DatabaseClient } from '../../db';
@@ -502,6 +502,38 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       eq(schema.eventRegistrations.status, 'PENDING'),
                       eq(schema.eventRegistrations.tenantId, tenantId),
                     ),
+                  )
+                  .returning({
+                    eventId: schema.eventRegistrations.eventId,
+                    registrationOptionId:
+                      schema.eventRegistrations.registrationOptionId,
+                  })
+                  .pipe(
+                    Effect.flatMap((updatedRegistrations) => {
+                      const updatedRegistration = updatedRegistrations[0];
+                      if (!updatedRegistration) {
+                        return Effect.void;
+                      }
+
+                      return tx
+                        .update(schema.eventRegistrationOptions)
+                        .set({
+                          confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + 1`,
+                          reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - 1, 0)`,
+                        })
+                        .where(
+                          and(
+                            eq(
+                              schema.eventRegistrationOptions.id,
+                              updatedRegistration.registrationOptionId,
+                            ),
+                            eq(
+                              schema.eventRegistrationOptions.eventId,
+                              updatedRegistration.eventId,
+                            ),
+                          ),
+                        );
+                    }),
                   );
               }),
             ),
@@ -551,6 +583,37 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       eq(schema.eventRegistrations.status, 'PENDING'),
                       eq(schema.eventRegistrations.tenantId, tenantId),
                     ),
+                  )
+                  .returning({
+                    eventId: schema.eventRegistrations.eventId,
+                    registrationOptionId:
+                      schema.eventRegistrations.registrationOptionId,
+                  })
+                  .pipe(
+                    Effect.flatMap((updatedRegistrations) => {
+                      const updatedRegistration = updatedRegistrations[0];
+                      if (!updatedRegistration) {
+                        return Effect.void;
+                      }
+
+                      return tx
+                        .update(schema.eventRegistrationOptions)
+                        .set({
+                          reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - 1, 0)`,
+                        })
+                        .where(
+                          and(
+                            eq(
+                              schema.eventRegistrationOptions.id,
+                              updatedRegistration.registrationOptionId,
+                            ),
+                            eq(
+                              schema.eventRegistrationOptions.eventId,
+                              updatedRegistration.eventId,
+                            ),
+                          ),
+                        );
+                    }),
                   );
               }),
             ),

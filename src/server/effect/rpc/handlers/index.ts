@@ -6,6 +6,7 @@ export { eventHandlers } from './events/events.handlers';
 export { financeHandlers } from './finance/finance.handlers';
 export { globalAdminHandlers } from './global-admin.handlers';
 export { iconHandlers } from './icons.handlers';
+export { roleHandlers } from './roles.handlers';
 export { taxRateHandlers } from './tax-rates.handlers';
 export { templateCategoryHandlers } from './template-categories.handlers';
 export { templateHandlers } from './templates.handlers';

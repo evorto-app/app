@@ -4,66 +4,115 @@ import * as Headers from 'effect/unstable/http/Headers';
 import Stripe from 'stripe';
 
 import { Database } from '../../../../../db';
-import { RuntimeConfig } from '../../../../config/runtime-config';
 import { StripeClient } from '../../../../stripe-client';
-import { EventRegistrationService } from './event-registration.service';
+import {
+  EventRegistrationService,
+  isUserEligibleForRegistrationOption,
+} from './event-registration.service';
 
 const stripeClient = new Stripe('sk_test_123');
-const runtimeConfigLayer = RuntimeConfig.Default.pipe(
-  Layer.provide(
-    ConfigProvider.layer(
-      ConfigProvider.fromEnv({
-        env: Object.fromEntries([
-          ['BASE_URL', 'https://app.example'],
-          ['CLIENT_ID', 'client-id'],
-          ['CLIENT_SECRET', 'client-secret'],
-          ['DATABASE_URL', 'postgresql://db.example/app'],
-          ['ISSUER_BASE_URL', 'https://issuer.example'],
-          ['SECRET', 'secret'],
-        ]),
-      }),
-    ),
-  ),
+const configProviderLayer = ConfigProvider.layer(
+  ConfigProvider.fromEnv({
+    env: Object.fromEntries([
+      ['BASE_URL', 'https://app.example'],
+      ['CLIENT_ID', 'client-id'],
+      ['CLIENT_SECRET', 'client-secret'],
+      ['DATABASE_URL', 'postgresql://db.example/app'],
+      ['E2E_NOW_ISO', '2026-09-15T12:00:00.000Z'],
+      ['ISSUER_BASE_URL', 'https://issuer.example'],
+      ['SECRET', 'secret'],
+    ]),
+  }),
 );
 
+const approvedRegistrationOption = {
+  closeRegistrationTime: new Date('2026-09-20T10:00:00.000Z'),
+  confirmedSpots: 0,
+  event: {
+    start: new Date('2026-09-18T10:00:00.000Z'),
+    status: 'APPROVED',
+    tenantId: 'tenant-1',
+    title: 'Approved event',
+  },
+  eventId: 'event-1',
+  id: 'option-1',
+  isPaid: false,
+  openRegistrationTime: new Date('2026-09-10T10:00:00.000Z'),
+  price: 0,
+  registrationMode: 'fcfs',
+  reservedSpots: 0,
+  roleIds: ['role-1'],
+  spots: 10,
+  stripeTaxRateId: null,
+} as const;
+
 describe('EventRegistrationService', () => {
-  it.effect('fails with conflict when user already has a registration', () =>
-    Effect.gen(function* () {
-      const mockDatabase = {
-        query: {
-          eventRegistrations: {
-            findFirst: () =>
-              Effect.succeed({
-                id: 'existing-registration',
-              }),
+  describe('isUserEligibleForRegistrationOption', () => {
+    it('treats an empty role list as open to all users', () => {
+      expect(
+        isUserEligibleForRegistrationOption({
+          optionRoleIds: [],
+          userRoleIds: ['role-2'],
+        }),
+      ).toBe(true);
+    });
+
+    it('requires at least one matching role when the option has role constraints', () => {
+      expect(
+        isUserEligibleForRegistrationOption({
+          optionRoleIds: ['role-1'],
+          userRoleIds: ['role-2'],
+        }),
+      ).toBe(false);
+    });
+  });
+
+  it.effect(
+    'rejects a second registration for the same event before looking up another option',
+    () =>
+      Effect.gen(function* () {
+        const findRegistrationOption = vi.fn(() => Effect.succeed(null));
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: findRegistrationOption,
+            },
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  id: 'existing-registration',
+                }),
+            },
           },
-        },
-      };
+        };
 
-      const program = EventRegistrationService.registerForEvent({
-        eventId: 'event-1',
-        headers: Headers.empty,
-        registrationOptionId: 'option-1',
-        tenant: {
-          currency: 'EUR',
-          id: 'tenant-1',
-          stripeAccountId: undefined,
-        },
-        user: {
-          email: 'alice@example.com',
-          id: 'user-1',
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
-        Effect.provideService(StripeClient, stripeClient),
-        Effect.provide(runtimeConfigLayer),
-      );
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          headers: Headers.empty,
+          registrationOptionId: 'organizer-option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
 
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-    }),
+        const error = yield* program;
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe('User is already registered for this event');
+        expect(findRegistrationOption).not.toHaveBeenCalled();
+      }),
   );
 
   it.effect(
@@ -94,13 +143,14 @@ describe('EventRegistrationService', () => {
           user: {
             email: 'alice@example.com',
             id: 'user-1',
+            roleIds: ['role-1'],
           },
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
           Effect.provide(Layer.succeed(Database, mockDatabase as never)),
           Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(runtimeConfigLayer),
+          Effect.provide(configProviderLayer),
         );
 
         const error = yield* program;
@@ -108,17 +158,455 @@ describe('EventRegistrationService', () => {
         expect(findRegistrationOption).toHaveBeenCalledWith(
           expect.objectContaining({
             columns: expect.objectContaining({
+              closeRegistrationTime: true,
               confirmedSpots: true,
               eventId: true,
               id: true,
               isPaid: true,
+              openRegistrationTime: true,
               price: true,
+              registrationMode: true,
               reservedSpots: true,
+              roleIds: true,
               spots: true,
               stripeTaxRateId: true,
             }),
           }),
         );
+      }),
+  );
+
+  it.effect('rejects registration for an unpublished event', () =>
+    Effect.gen(function* () {
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                event: {
+                  ...approvedRegistrationOption.event,
+                  status: 'DRAFT',
+                },
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+      };
+
+      const program = EventRegistrationService.registerForEvent({
+        eventId: 'event-1',
+        headers: Headers.empty,
+        registrationOptionId: 'option-1',
+        tenant: {
+          currency: 'EUR',
+          id: 'tenant-1',
+          stripeAccountId: undefined,
+        },
+        user: {
+          email: 'alice@example.com',
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provideService(StripeClient, stripeClient),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe('Event is not open for registration');
+    }),
+  );
+
+  it.effect(
+    'rejects registration outside the server-side registration window',
+    () =>
+      Effect.gen(function* () {
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () =>
+                Effect.succeed({
+                  ...approvedRegistrationOption,
+                  openRegistrationTime: new Date('2026-09-20T10:00:00.000Z'),
+                }),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+        };
+
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        const error = yield* program;
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe('Registration is not open');
+      }),
+  );
+
+  it.effect('rejects registration when user roles are not eligible', () =>
+    Effect.gen(function* () {
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () => Effect.succeed(approvedRegistrationOption),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+      };
+
+      const program = EventRegistrationService.registerForEvent({
+        eventId: 'event-1',
+        headers: Headers.empty,
+        registrationOptionId: 'option-1',
+        tenant: {
+          currency: 'EUR',
+          id: 'tenant-1',
+          stripeAccountId: undefined,
+        },
+        user: {
+          email: 'alice@example.com',
+          id: 'user-1',
+          roleIds: ['role-2'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provideService(StripeClient, stripeClient),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'User is not eligible for this registration option',
+      );
+    }),
+  );
+
+  it.effect('rejects registration for another tenant event', () =>
+    Effect.gen(function* () {
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                event: {
+                  ...approvedRegistrationOption.event,
+                  tenantId: 'tenant-2',
+                },
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+      };
+
+      const program = EventRegistrationService.registerForEvent({
+        eventId: 'event-1',
+        headers: Headers.empty,
+        registrationOptionId: 'option-1',
+        tenant: {
+          currency: 'EUR',
+          id: 'tenant-1',
+          stripeAccountId: undefined,
+        },
+        user: {
+          email: 'alice@example.com',
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provideService(StripeClient, stripeClient),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationNotFoundError');
+      expect(error.message).toBe('Registration option not found');
+    }),
+  );
+
+  it.effect('rejects registration when the selected option is full', () =>
+    Effect.gen(function* () {
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                confirmedSpots: 8,
+                reservedSpots: 2,
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+      };
+
+      const program = EventRegistrationService.registerForEvent({
+        eventId: 'event-1',
+        headers: Headers.empty,
+        registrationOptionId: 'option-1',
+        tenant: {
+          currency: 'EUR',
+          id: 'tenant-1',
+          stripeAccountId: undefined,
+        },
+        user: {
+          email: 'alice@example.com',
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provideService(StripeClient, stripeClient),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe('Registration option has no available spots');
+    }),
+  );
+
+  it.effect('rejects registration for unsupported registration modes', () =>
+    Effect.gen(function* () {
+      const updateOptionCounters = vi.fn();
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                registrationMode: 'random',
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+        update: updateOptionCounters,
+      };
+
+      const program = EventRegistrationService.registerForEvent({
+        eventId: 'event-1',
+        headers: Headers.empty,
+        registrationOptionId: 'option-1',
+        tenant: {
+          currency: 'EUR',
+          id: 'tenant-1',
+          stripeAccountId: undefined,
+        },
+        user: {
+          email: 'alice@example.com',
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provideService(StripeClient, stripeClient),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'Registration option mode is not available yet',
+      );
+      expect(updateOptionCounters).not.toHaveBeenCalled();
+    }),
+  );
+
+  it.effect(
+    'rejects when a concurrent registration appears inside the reservation transaction',
+    () =>
+      Effect.gen(function* () {
+        const updateOptionCounters = vi.fn();
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () => Effect.succeed(approvedRegistrationOption),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+          transaction: (
+            callback: (tx: {
+              execute: () => Effect.Effect<unknown>;
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.Effect<{ id: string }[]>;
+                };
+              };
+              update: ReturnType<typeof vi.fn>;
+            }) => Effect.Effect<unknown>,
+          ) =>
+            callback({
+              execute: () => Effect.succeed(),
+              query: {
+                eventRegistrations: {
+                  findMany: () =>
+                    Effect.succeed([{ id: 'concurrent-registration' }]),
+                },
+              },
+              update: updateOptionCounters,
+            }),
+        };
+
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        const error = yield* program;
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe('User is already registered for this event');
+        expect(updateOptionCounters).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'rejects when the transactional capacity counter update loses the race',
+    () =>
+      Effect.gen(function* () {
+        const insertRegistration = vi.fn();
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () =>
+                Effect.succeed({
+                  ...approvedRegistrationOption,
+                  confirmedSpots: 9,
+                  reservedSpots: 0,
+                }),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+          transaction: (
+            callback: (tx: {
+              execute: () => Effect.Effect<unknown>;
+              insert: ReturnType<typeof vi.fn>;
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.Effect<[]>;
+                };
+              };
+              update: () => {
+                set: () => {
+                  where: () => {
+                    returning: () => Effect.Effect<[]>;
+                  };
+                };
+              };
+            }) => Effect.Effect<unknown>,
+          ) =>
+            callback({
+              execute: () => Effect.succeed(),
+              insert: insertRegistration,
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.succeed([]),
+                },
+              },
+              update: () => ({
+                set: () => ({
+                  where: () => ({
+                    returning: () => Effect.succeed([]),
+                  }),
+                }),
+              }),
+            }),
+        };
+
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        const error = yield* program;
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Registration option has no available spots',
+        );
+        expect(insertRegistration).not.toHaveBeenCalled();
       }),
   );
 });

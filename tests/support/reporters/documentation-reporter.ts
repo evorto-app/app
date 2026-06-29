@@ -34,6 +34,12 @@ class DocumentationReporter implements Reporter {
   private readonly environment = readDocumentationEnvironment();
   private readonly registry = new DocumentationGroupRegistry();
 
+  constructor(private readonly options: { listOnly?: boolean } = {}) {}
+
+  private get listOnly(): boolean {
+    return this.options.listOnly ?? process.argv.includes('--list');
+  }
+
   private docsRoot(options?: { empty?: boolean }): string {
     const root = this.environment.docsOutputDirectory;
     ensureDirectory(root, options);
@@ -47,6 +53,10 @@ class DocumentationReporter implements Reporter {
   }
 
   onBegin(config: FullConfig, suite: Suite) {
+    if (this.listOnly) {
+      return;
+    }
+
     this.registry.clear();
     this.registry.registerSuite(suite);
 
@@ -56,6 +66,10 @@ class DocumentationReporter implements Reporter {
   }
 
   onEnd(result: FullResult) {
+    if (this.listOnly) {
+      return;
+    }
+
     for (const doc of this.registry.getDocuments()) {
       if (doc.sections.length === 0) continue;
 
@@ -90,6 +104,10 @@ class DocumentationReporter implements Reporter {
   onTestBegin(test: TestCase, result: TestResult) {}
 
   onTestEnd(test: TestCase, result: TestResult) {
+    if (this.listOnly) {
+      return;
+    }
+
     const relevantAttachments = result.attachments.filter((attachment) =>
       DOCUMENTATION_ATTACHMENT_NAMES.has(attachment.name),
     );

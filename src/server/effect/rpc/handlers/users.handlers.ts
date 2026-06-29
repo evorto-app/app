@@ -17,7 +17,10 @@ import {
   users,
   usersToTenants,
 } from '../../../../db/schema';
-import { type Permission } from '../../../../shared/permissions/permissions';
+import {
+  includesPermission,
+  type Permission,
+} from '../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { UsersAuthData } from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
@@ -57,7 +60,7 @@ const ensurePermission = (
       ConfigPermissions,
     );
 
-    if (!currentPermissions.includes(permission)) {
+    if (!includesPermission(permission, currentPermissions)) {
       return yield* Effect.fail(
         new RpcForbiddenError({ message: 'Forbidden', permission }),
       );
@@ -85,6 +88,48 @@ const requireUserHeader = (
     return user;
   });
 
+const mapCreateAccountUnexpectedError = (error: unknown) =>
+  error instanceof UserConflictError ? Effect.fail(error) : Effect.die(error);
+
+const missingRegistrationRelationDefect = (registration: {
+  eventId: string;
+  id: string;
+}) =>
+  new Error(
+    `Registration ${registration.id} references missing event or registration option for event ${registration.eventId}`,
+  );
+
+const resolveRegistrationPaymentState = (
+  transactions: readonly { status: string; type: string }[],
+): 'cancelled' | 'notRequired' | 'pending' | 'recorded' => {
+  const registrationTransactions = transactions.filter(
+    (transaction) => transaction.type === 'registration',
+  );
+  if (
+    registrationTransactions.some(
+      (transaction) => transaction.status === 'successful',
+    )
+  ) {
+    return 'recorded';
+  }
+  if (
+    registrationTransactions.some(
+      (transaction) => transaction.status === 'pending',
+    )
+  ) {
+    return 'pending';
+  }
+  if (
+    registrationTransactions.some(
+      (transaction) => transaction.status === 'cancelled',
+    )
+  ) {
+    return 'cancelled';
+  }
+
+  return 'notRequired';
+};
+
 export const userHandlers = {
   'users.authData': (_payload, options) =>
     Effect.sync(() => decodeAuthDataHeader(options.headers)),
@@ -105,74 +150,135 @@ export const userHandlers = {
         );
       }
 
-      const existingUser = yield* databaseEffect((database) =>
+      yield* Database.use((database) =>
         database
-          .select({ id: users.id })
-          .from(users)
-          .where(eq(users.auth0Id, auth0Id))
-          .limit(1),
-      );
-      if (existingUser.length > 0) {
-        return yield* Effect.fail(
-          new UserConflictError({ message: 'User account already exists' }),
-        );
-      }
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              const existingUser = yield* tx.query.users.findFirst({
+                columns: {
+                  id: true,
+                },
+                where: {
+                  auth0Id,
+                },
+              });
 
-      const defaultUserRoles = yield* databaseEffect((database) =>
-        database.query.roles.findMany({
-          columns: {
-            id: true,
-          },
-          where: { defaultUserRole: true, tenantId: tenant.id },
-        }),
-      );
-      const userCreateResponse = yield* databaseEffect((database) =>
-        database
-          .insert(users)
-          .values({
-            auth0Id,
-            communicationEmail: input.communicationEmail,
-            email,
-            firstName: input.firstName,
-            lastName: input.lastName,
-          })
-          .returning({
-            id: users.id,
-          }),
-      );
-      const createdUser = userCreateResponse[0];
-      if (!createdUser) {
-        return yield* Effect.die(new Error('User insert returned no rows'));
-      }
+              let userId = existingUser?.id;
+              if (!userId) {
+                const createdUsers = yield* tx
+                  .insert(users)
+                  .values({
+                    auth0Id,
+                    communicationEmail: input.communicationEmail,
+                    email,
+                    firstName: input.firstName,
+                    lastName: input.lastName,
+                  })
+                  .onConflictDoNothing({ target: users.auth0Id })
+                  .returning({
+                    id: users.id,
+                  });
+                userId = createdUsers[0]?.id;
 
-      const userTenantCreateResponse = yield* databaseEffect((database) =>
-        database
-          .insert(usersToTenants)
-          .values({
-            tenantId: tenant.id,
-            userId: createdUser.id,
-          })
-          .returning({
-            id: usersToTenants.id,
-          }),
-      );
-      const createdUserTenant = userTenantCreateResponse[0];
-      if (!createdUserTenant) {
-        return yield* Effect.die(
-          new Error('User tenant association insert returned no rows'),
-        );
-      }
+                if (!userId) {
+                  const concurrentlyCreatedUser =
+                    yield* tx.query.users.findFirst({
+                      columns: {
+                        id: true,
+                      },
+                      where: {
+                        auth0Id,
+                      },
+                    });
+                  userId = concurrentlyCreatedUser?.id;
+                }
 
-      if (defaultUserRoles.length > 0) {
-        yield* databaseEffect((database) =>
-          database.insert(rolesToTenantUsers).values(
-            defaultUserRoles.map((role) => ({
-              roleId: role.id,
-              userTenantId: createdUserTenant.id,
-            })),
-          ),
-        );
-      }
+                if (!userId) {
+                  return yield* Effect.die(
+                    new Error(
+                      'User insert returned no rows and no user exists',
+                    ),
+                  );
+                }
+              }
+
+              const existingTenantAssignment =
+                yield* tx.query.usersToTenants.findFirst({
+                  columns: {
+                    id: true,
+                  },
+                  where: {
+                    tenantId: tenant.id,
+                    userId,
+                  },
+                });
+
+              if (existingTenantAssignment) {
+                return yield* Effect.fail(
+                  new UserConflictError({
+                    message: 'User account already exists',
+                  }),
+                );
+              }
+
+              const defaultUserRoles = yield* tx.query.roles.findMany({
+                columns: {
+                  id: true,
+                },
+                where: { defaultUserRole: true, tenantId: tenant.id },
+              });
+
+              const userTenantCreateResponse = yield* tx
+                .insert(usersToTenants)
+                .values({
+                  tenantId: tenant.id,
+                  userId,
+                })
+                .onConflictDoNothing({
+                  target: [usersToTenants.userId, usersToTenants.tenantId],
+                })
+                .returning({
+                  id: usersToTenants.id,
+                });
+              const createdUserTenant = userTenantCreateResponse[0];
+              if (!createdUserTenant) {
+                const concurrentlyCreatedTenantAssignment =
+                  yield* tx.query.usersToTenants.findFirst({
+                    columns: {
+                      id: true,
+                    },
+                    where: {
+                      tenantId: tenant.id,
+                      userId,
+                    },
+                  });
+                if (concurrentlyCreatedTenantAssignment) {
+                  return yield* Effect.fail(
+                    new UserConflictError({
+                      message: 'User account already exists',
+                    }),
+                  );
+                }
+              }
+
+              if (!createdUserTenant) {
+                return yield* Effect.die(
+                  new Error('User tenant association insert returned no rows'),
+                );
+              }
+
+              if (defaultUserRoles.length > 0) {
+                yield* tx.insert(rolesToTenantUsers).values(
+                  defaultUserRoles.map((role) => ({
+                    roleId: role.id,
+                    userTenantId: createdUserTenant.id,
+                  })),
+                );
+              }
+            }),
+          )
+          .pipe(Effect.catch(mapCreateAccountUnexpectedError)),
+      );
     }),
   'users.events': (_payload, options) =>
     Effect.gen(function* () {
@@ -186,7 +292,10 @@ export const userHandlers = {
       const registrations = yield* databaseEffect((database) =>
         database.query.eventRegistrations.findMany({
           columns: {
+            checkInTime: true,
             eventId: true,
+            id: true,
+            status: true,
           },
           where: {
             status: {
@@ -205,6 +314,17 @@ export const userHandlers = {
                 title: true,
               },
             },
+            registrationOption: {
+              columns: {
+                title: true,
+              },
+            },
+            transactions: {
+              columns: {
+                status: true,
+                type: true,
+              },
+            },
           },
         }),
       );
@@ -213,19 +333,50 @@ export const userHandlers = {
         return [];
       }
 
-      return registrations
-        .flatMap((registration) =>
-          registration.event ? [registration.event] : [],
-        )
+      const mappedRegistrations = [];
+      for (const registration of registrations) {
+        if (!registration.event || !registration.registrationOption) {
+          return yield* Effect.die(
+            missingRegistrationRelationDefect(registration),
+          );
+        }
+        if (registration.status === 'CANCELLED') {
+          return yield* Effect.die(
+            new Error(
+              `Cancelled registration ${registration.id} was returned by users.events`,
+            ),
+          );
+        }
+
+        mappedRegistrations.push({
+          checkInTime: registration.checkInTime,
+          event: registration.event,
+          paymentState: resolveRegistrationPaymentState(
+            registration.transactions,
+          ),
+          registrationId: registration.id,
+          registrationOptionTitle: registration.registrationOption.title,
+          status: registration.status,
+        });
+      }
+
+      return mappedRegistrations
         .toSorted(
-          (eventA, eventB) => eventA.start.getTime() - eventB.start.getTime(),
+          (registrationA, registrationB) =>
+            registrationA.event.start.getTime() -
+            registrationB.event.start.getTime(),
         )
-        .map((event) => ({
-          description: event.description ?? null,
-          end: event.end.toISOString(),
-          id: event.id,
-          start: event.start.toISOString(),
-          title: event.title,
+        .map((registration) => ({
+          checkInTime: registration.checkInTime?.toISOString() ?? null,
+          description: registration.event.description ?? null,
+          end: registration.event.end.toISOString(),
+          eventId: registration.event.id,
+          paymentState: registration.paymentState,
+          registrationId: registration.registrationId,
+          registrationOptionTitle: registration.registrationOptionTitle,
+          start: registration.event.start.toISOString(),
+          status: registration.status,
+          title: registration.event.title,
         }));
     }),
   'users.findMany': (input, options) =>
@@ -289,7 +440,10 @@ export const userHandlers = {
           continue;
         }
         userMap[user.id] = {
-          ...user,
+          email: user.email,
+          firstName: user.firstName,
+          id: user.id,
+          lastName: user.lastName,
           roles: user.role ? [user.role] : [],
         };
       }
@@ -311,6 +465,7 @@ export const userHandlers = {
         database
           .update(users)
           .set({
+            communicationEmail: input.communicationEmail,
             firstName: input.firstName,
             iban: input.iban ?? null,
             lastName: input.lastName,

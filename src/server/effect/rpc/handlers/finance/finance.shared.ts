@@ -13,6 +13,10 @@ import {
   eventRegistrations,
   financeReceipts,
 } from '../../../../../db/schema';
+import {
+  includesPermission,
+  type Permission,
+} from '../../../../../shared/permissions/permissions';
 
 interface ReceiptCountryConfigTenant {
   receiptSettings?:
@@ -158,7 +162,7 @@ export const normalizeFinanceTransactionRecord = (transaction: {
 
 export const hasOrganizingRegistrationForEvent = (
   tenantId: string,
-  user: { id: string; permissions: readonly string[] },
+  user: { id: string; permissions: readonly Permission[] },
   eventId: string,
 ): Effect.Effect<boolean, never, Database> =>
   Effect.gen(function* () {
@@ -192,14 +196,14 @@ export const hasOrganizingRegistrationForEvent = (
 
 export const canViewEventReceipts = (
   tenantId: string,
-  user: { id: string; permissions: readonly string[] },
+  user: { id: string; permissions: readonly Permission[] },
   eventId: string,
 ): Effect.Effect<boolean, never, Database> => {
   if (
-    user.permissions.includes('events:organizeAll') ||
-    user.permissions.includes('finance:manageReceipts') ||
-    user.permissions.includes('finance:approveReceipts') ||
-    user.permissions.includes('finance:refundReceipts')
+    includesPermission('events:organizeAll', user.permissions) ||
+    includesPermission('finance:manageReceipts', user.permissions) ||
+    includesPermission('finance:approveReceipts', user.permissions) ||
+    includesPermission('finance:refundReceipts', user.permissions)
   ) {
     return Effect.succeed(true);
   }
@@ -209,12 +213,12 @@ export const canViewEventReceipts = (
 
 export const canSubmitEventReceipts = (
   tenantId: string,
-  user: { id: string; permissions: readonly string[] },
+  user: { id: string; permissions: readonly Permission[] },
   eventId: string,
 ): Effect.Effect<boolean, never, Database> => {
   if (
-    user.permissions.includes('events:organizeAll') ||
-    user.permissions.includes('finance:manageReceipts')
+    includesPermission('events:organizeAll', user.permissions) ||
+    includesPermission('finance:manageReceipts', user.permissions)
   ) {
     return Effect.succeed(true);
   }
