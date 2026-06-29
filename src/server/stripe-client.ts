@@ -2,7 +2,9 @@ import { stripeApiConfig } from '@server/config/stripe-config';
 import { Context, Effect, Layer } from 'effect';
 import Stripe from 'stripe';
 
-const STRIPE_API_VERSION: Stripe.LatestApiVersion = '2026-02-25.clover';
+type StripeConfig = NonNullable<ConstructorParameters<typeof Stripe>[1]>;
+
+const STRIPE_API_VERSION: StripeConfig['apiVersion'] = '2026-06-24.dahlia';
 
 export class StripeClient extends Context.Service<StripeClient, Stripe>()(
   '@server/StripeClient',

@@ -125,8 +125,7 @@ export class CategoryListComponent {
       },
     );
     const result = (await firstValueFrom(dialogReference.afterClosed())) as
-      | undefined
-      | { icon: IconValue; title: string };
+      undefined | { icon: IconValue; title: string };
     if (result?.title) {
       await this.updateCategoryMutation.mutateAsync({
         icon: result.icon,

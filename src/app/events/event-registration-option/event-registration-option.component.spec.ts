@@ -333,7 +333,7 @@ describe('registration question answers', () => {
     expect(
       registrationQuestionAnswerPayload(option, {
         'question-1': '  Alice  ',
-        'question-2': '   ',
+        'question-2': ' '.repeat(3),
       }),
     ).toEqual([
       {
@@ -346,7 +346,7 @@ describe('registration question answers', () => {
   it('detects missing required answers', () => {
     expect(
       registrationQuestionsMissingRequired(option, {
-        'question-1': '   ',
+        'question-1': ' '.repeat(3),
       }),
     ).toBe(true);
     expect(

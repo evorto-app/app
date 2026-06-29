@@ -11,12 +11,15 @@ export class DrizzleError extends Error {
 }
 
 export class DrizzleQueryError extends Error {
+	static readonly [entityKind]: string = 'DrizzleQueryError';
+
 	constructor(
 		public query: string,
 		public params: any[],
 		public override cause?: Error,
 	) {
 		super(`Failed query: ${query}\nparams: ${params}`);
+		this.name = 'DrizzleQueryError';
 		Error.captureStackTrace(this, DrizzleQueryError);
 
 		// ES2022+: preserves original error on `.cause`
@@ -29,5 +32,6 @@ export class TransactionRollbackError extends DrizzleError {
 
 	constructor() {
 		super({ message: 'Rollback' });
+		this.name = 'TransactionRollbackError';
 	}
 }

@@ -126,7 +126,7 @@ describe('SimpleTemplateService', () => {
       buildTemplateInsertValues({
         input: {
           ...validTemplateInput,
-          planningTips: '   ',
+          planningTips: ' '.repeat(3),
         },
         sanitizedDescription: '<p>Clean description</p>',
         tenantId: 'tenant-1',
@@ -729,7 +729,7 @@ describe('SimpleTemplateService', () => {
           questions: [
             {
               ...validTemplateQuestionInput,
-              title: '   ',
+              title: ' '.repeat(3),
             },
           ],
         },

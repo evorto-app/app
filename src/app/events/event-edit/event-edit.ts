@@ -95,45 +95,47 @@ export class EventEdit {
   private router = inject(Router);
   constructor() {
     effect(() => {
-      if (this.eventQuery.isSuccess()) {
-        const event = this.eventQuery.data();
-        this.editEventModel.set(
-          createEventGeneralFormModel({
-            description: event.description,
-            end: event.end
-              ? DateTime.fromJSDate(new Date(event.end))
-              : DateTime.now(),
-            icon: event.icon,
-            location: event.location ?? null,
-            registrationOptions: event.registrationOptions.map((option) =>
-              createRegistrationOptionFormModel({
-                closeRegistrationTime: option.closeRegistrationTime
-                  ? DateTime.fromJSDate(new Date(option.closeRegistrationTime))
-                  : DateTime.now(),
-                description: option.description ?? '',
-                esnCardDiscountedPrice: option.esnCardDiscountedPrice ?? '',
-                id: option.id,
-                isPaid: option.isPaid,
-                openRegistrationTime: option.openRegistrationTime
-                  ? DateTime.fromJSDate(new Date(option.openRegistrationTime))
-                  : DateTime.now(),
-                organizingRegistration: option.organizingRegistration,
-                price: option.price,
-                registeredDescription: option.registeredDescription ?? '',
-                registrationMode: option.registrationMode,
-                roleIds: option.roleIds ? [...option.roleIds] : [],
-                spots: option.spots,
-                stripeTaxRateId: option.stripeTaxRateId ?? null,
-                title: option.title,
-              }),
-            ),
-            start: event.start
-              ? DateTime.fromJSDate(new Date(event.start))
-              : DateTime.now(),
-            title: event.title,
-          }),
-        );
+      if (!this.eventQuery.isSuccess()) {
+        return;
       }
+
+      const event = this.eventQuery.data();
+      this.editEventModel.set(
+        createEventGeneralFormModel({
+          description: event.description,
+          end: event.end
+            ? DateTime.fromJSDate(new Date(event.end))
+            : DateTime.now(),
+          icon: event.icon,
+          location: event.location ?? null,
+          registrationOptions: event.registrationOptions.map((option) =>
+            createRegistrationOptionFormModel({
+              closeRegistrationTime: option.closeRegistrationTime
+                ? DateTime.fromJSDate(new Date(option.closeRegistrationTime))
+                : DateTime.now(),
+              description: option.description ?? '',
+              esnCardDiscountedPrice: option.esnCardDiscountedPrice ?? '',
+              id: option.id,
+              isPaid: option.isPaid,
+              openRegistrationTime: option.openRegistrationTime
+                ? DateTime.fromJSDate(new Date(option.openRegistrationTime))
+                : DateTime.now(),
+              organizingRegistration: option.organizingRegistration,
+              price: option.price,
+              registeredDescription: option.registeredDescription ?? '',
+              registrationMode: option.registrationMode,
+              roleIds: option.roleIds ? [...option.roleIds] : [],
+              spots: option.spots,
+              stripeTaxRateId: option.stripeTaxRateId ?? null,
+              title: option.title,
+            }),
+          ),
+          start: event.start
+            ? DateTime.fromJSDate(new Date(event.start))
+            : DateTime.now(),
+          title: event.title,
+        }),
+      );
     });
   }
   protected async saveEvent(event: Event) {

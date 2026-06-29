@@ -30,7 +30,7 @@ describe('auth-config', () => {
           ['SECRET', 'super-secret'],
         ]);
         const blankAudienceProvider = providerFromEntries([
-          ['AUDIENCE', '   '],
+          ['AUDIENCE', ' '.repeat(3)],
           ['BASE_URL', 'https://app.example'],
           ['CLIENT_ID', 'client-id'],
           ['CLIENT_SECRET', 'client-secret'],
@@ -69,7 +69,7 @@ describe('auth-config', () => {
   it.effect('rejects whitespace-only required values after trimming', () =>
     Effect.gen(function* () {
       const provider = providerFromEntries([
-        ['BASE_URL', '   '],
+        ['BASE_URL', ' '.repeat(3)],
         ['CLIENT_ID', 'client-id'],
         ['CLIENT_SECRET', 'client-secret'],
         ['ISSUER_BASE_URL', 'https://issuer.example'],

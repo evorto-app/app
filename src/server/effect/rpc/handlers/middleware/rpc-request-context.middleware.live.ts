@@ -16,10 +16,11 @@ import {
   RPC_CONTEXT_HEADERS,
 } from '../../rpc-context-headers';
 
-const decodeHeaderJson = <A>(
+const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
   value: string | undefined,
-  schema: Schema.Decoder<A>,
-): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: S,
+): S['Type'] =>
+  Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 export const decodeRpcRequestContextFromHeaders = (
   headers: Headers.Headers,

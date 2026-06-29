@@ -133,10 +133,10 @@ export const eventQueryHandlers = {
         );
       }
 
-      const onlyApprovedStatus =
+      const isOnlyApprovedStatus =
         input.status.length === 1 && input.status[0] === 'APPROVED';
       if (
-        !onlyApprovedStatus &&
+        !isOnlyApprovedStatus &&
         !canInspectAllTenantEvents &&
         !includesPermission('events:seeDrafts', userPermissions)
       ) {
@@ -264,7 +264,7 @@ export const eventQueryHandlers = {
         groupedEvents.set(day, currentEvents);
       }
 
-      return [...groupedEvents.entries()].map(([day, events]) => ({
+      return [...groupedEvents].map(([day, events]) => ({
         day: DateTime.fromFormat(day, 'yyyy-MM-dd').toJSDate().toISOString(),
         events,
       }));
@@ -393,7 +393,7 @@ export const eventQueryHandlers = {
                 }),
               ),
             );
-      const registrationOptionsHiddenByEligibility =
+      const isRegistrationOptionsHiddenByEligibility =
         Boolean(user) &&
         event.registrationOptions.length === 0 &&
         hasAnyRegistrationOption;
@@ -601,7 +601,7 @@ export const eventQueryHandlers = {
       const esnCardIsEnabledForTenant = isEsnCardEnabled(
         tenant.discountProviders ?? null,
       );
-      let userCanUseEsnCardDiscount = false;
+      let isUserCanUseEsnCardDiscount = false;
 
       if (user && esnCardIsEnabledForTenant) {
         const cards = yield* databaseEffect((database) =>
@@ -616,7 +616,7 @@ export const eventQueryHandlers = {
             },
           }),
         );
-        userCanUseEsnCardDiscount = cards.some(
+        isUserCanUseEsnCardDiscount = cards.some(
           (card) => !card.validTo || card.validTo > event.start,
         );
       }
@@ -638,7 +638,7 @@ export const eventQueryHandlers = {
               registrationOption.isPaid &&
               esnCardDiscountedPrice !== null &&
               esnCardIsEnabledForTenant &&
-              userCanUseEsnCardDiscount;
+              isUserCanUseEsnCardDiscount;
             const effectivePrice = userIsEligibleForEsnCardDiscount
               ? Math.min(registrationOption.price, esnCardDiscountedPrice)
               : registrationOption.price;
@@ -692,7 +692,8 @@ export const eventQueryHandlers = {
             };
           },
         ),
-        registrationOptionsHiddenByEligibility,
+        registrationOptionsHiddenByEligibility:
+          isRegistrationOptionsHiddenByEligibility,
         reviewer: event.reviewer,
         start: event.start.toISOString(),
         status: event.status,

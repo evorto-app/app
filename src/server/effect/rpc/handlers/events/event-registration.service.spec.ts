@@ -172,7 +172,7 @@ describe('EventRegistrationService', () => {
               questionId: 'question-1',
             },
             {
-              answer: '   ',
+              answer: ' '.repeat(3),
               questionId: 'question-2',
             },
           ],
@@ -1091,7 +1091,7 @@ describe('EventRegistrationService', () => {
     'fails the reservation transaction when add-on stock is no longer available',
     () =>
       Effect.gen(function* () {
-        let transactionFailed = false;
+        let isTransactionFailed = false;
         const insertAddonPurchase = vi.fn();
         const mockDatabase = {
           query: {
@@ -1178,7 +1178,7 @@ describe('EventRegistrationService', () => {
             }).pipe(
               Effect.tapError((error) =>
                 Effect.sync(() => {
-                  transactionFailed =
+                  isTransactionFailed =
                     error instanceof EventRegistrationConflictError;
                 }),
               ),
@@ -1212,7 +1212,7 @@ describe('EventRegistrationService', () => {
         const error = yield* program;
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe('Add-on quantity is no longer available');
-        expect(transactionFailed).toBe(true);
+        expect(isTransactionFailed).toBe(true);
         expect(insertAddonPurchase).not.toHaveBeenCalled();
       }),
   );

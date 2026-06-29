@@ -797,13 +797,15 @@ export const eventLifecycleHandlers = {
               existingRegistrationRows.map((option) => option.id),
             );
             for (const option of sanitizedRegistrationOptions) {
-              if (!existingRegistrationOptionIds.has(option.id)) {
-                transactionFailure = new RpcBadRequestError({
-                  message: 'Registration option does not belong to event',
-                  reason: 'registrationOptionMismatch',
-                });
-                yield* tx.rollback();
+              if (existingRegistrationOptionIds.has(option.id)) {
+                continue;
               }
+
+              transactionFailure = new RpcBadRequestError({
+                message: 'Registration option does not belong to event',
+                reason: 'registrationOptionMismatch',
+              });
+              yield* tx.rollback();
             }
 
             for (const option of sanitizedRegistrationOptions) {

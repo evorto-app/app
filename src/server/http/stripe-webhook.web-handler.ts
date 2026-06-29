@@ -19,9 +19,7 @@ const responseText = (body: string, status = 200): Response =>
   new Response(body, { status });
 
 type SupportedStripeWebhookEventType =
-  | 'charge.updated'
-  | 'checkout.session.completed'
-  | 'checkout.session.expired';
+  'charge.updated' | 'checkout.session.completed' | 'checkout.session.expired';
 
 const isSupportedStripeWebhookEventType = (
   eventType: string,
@@ -168,7 +166,7 @@ const claimWebhookEvent = (input: {
         .values({
           eventType: input.eventType,
           stripeEventId: input.eventId,
-          ...(input.tenantId ? { tenantId: input.tenantId } : {}),
+          ...(input.tenantId && { tenantId: input.tenantId }),
         })
         .onConflictDoNothing()
         .returning({
@@ -202,7 +200,7 @@ const claimWebhookEvent = (input: {
           .set({
             eventType: input.eventType,
             processedAt: reclaimedAt,
-            ...(input.tenantId ? { tenantId: input.tenantId } : {}),
+            ...(input.tenantId && { tenantId: input.tenantId }),
           })
           .where(
             and(
@@ -300,12 +298,12 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
     }
 
     const tenantId = getTenantIdFromWebhookEvent(event);
-    let ownsClaim = false;
+    let isOwnsClaim = false;
     const response = yield* Effect.gen(function* () {
       const claimedEvent = yield* claimWebhookEvent({
         eventId: event.id,
         eventType: event.type,
-        ...(tenantId ? { tenantId } : {}),
+        ...(tenantId && { tenantId }),
       });
       if (claimedEvent.type === 'duplicate-processing') {
         yield* Effect.logWarning(
@@ -330,7 +328,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
       if (claimedEvent.type === 'missing') {
         return responseText('Webhook claim missing', 409);
       }
-      ownsClaim = true;
+      isOwnsClaim = true;
 
       switch (event.type) {
         case 'charge.updated': {
@@ -650,13 +648,13 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
       }
     }).pipe(
       Effect.catchCause((cause) =>
-        (ownsClaim ? releaseWebhookEventClaim(event.id) : Effect.void).pipe(
+        (isOwnsClaim ? releaseWebhookEventClaim(event.id) : Effect.void).pipe(
           Effect.andThen(Effect.failCause(cause)),
         ),
       ),
     );
 
-    const finalizeClaim = ownsClaim
+    const finalizeClaim = isOwnsClaim
       ? response.status >= 400
         ? releaseWebhookEventClaim(event.id)
         : markWebhookEventProcessed(event.id)

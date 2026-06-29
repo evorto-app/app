@@ -1,4 +1,6 @@
-FROM oven/bun:1.3.11 AS base
+FROM node:24.15.0-bookworm-slim AS node-runtime
+
+FROM oven/bun:1.3.14 AS base
 
 # Canvas dependencies removed - not currently used in production
 # RUN apk add --no-cache \
@@ -18,6 +20,9 @@ USER bun
 WORKDIR /app
 
 FROM base AS dependencies
+USER root
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+USER bun
 ENV NG_BUILD_PARTIAL_SSR=1
 ENV NG_BUILD_MAX_WORKERS=2
 

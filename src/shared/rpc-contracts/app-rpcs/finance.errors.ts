@@ -40,7 +40,7 @@ export class ReceiptMediaBadRequestError extends Schema.TaggedErrorClass<Receipt
 export class ReceiptMediaInternalError extends Schema.TaggedErrorClass<ReceiptMediaInternalError>()(
   'ReceiptMediaInternalError',
   {
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
     message: Schema.String,
   },
 ) {}
@@ -48,7 +48,7 @@ export class ReceiptMediaInternalError extends Schema.TaggedErrorClass<ReceiptMe
 export class ReceiptMediaServiceUnavailableError extends Schema.TaggedErrorClass<ReceiptMediaServiceUnavailableError>()(
   'ReceiptMediaServiceUnavailableError',
   {
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
     message: Schema.String,
   },
 ) {}

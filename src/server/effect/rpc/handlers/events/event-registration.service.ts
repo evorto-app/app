@@ -53,8 +53,7 @@ type DiscountCardRecord = Pick<
 interface DiscountResolution {
   appliedDiscountedPrice: null | number;
   appliedDiscountType:
-    | null
-    | typeof eventRegistrationOptionDiscounts.$inferSelect.discountType;
+    null | typeof eventRegistrationOptionDiscounts.$inferSelect.discountType;
   discountAmount: null | number;
   effectivePrice: number;
 }
@@ -82,8 +81,10 @@ export const isUserEligibleForRegistrationOption = ({
   optionRoleIds.some((roleId) => userRoleIds.includes(roleId));
 
 const resolveRequestOrigin = (headers: Headers.Headers): string | undefined => {
-  const forwardedProtocol = headers['x-forwarded-proto']?.split(',')[0]?.trim();
-  const forwardedHost = headers['x-forwarded-host']?.split(',')[0]?.trim();
+  const forwardedProtocol = headers['x-forwarded-proto']
+    ?.split(',', 1)[0]
+    ?.trim();
+  const forwardedHost = headers['x-forwarded-host']?.split(',', 1)[0]?.trim();
   const host = forwardedHost ?? headers['host'];
 
   return (
@@ -225,7 +226,7 @@ export const validateRegistrationQuestionAnswers = ({
     }
   }
 
-  return [...normalizedAnswers.entries()]
+  return [...normalizedAnswers]
     .filter(([, answer]) => answer.length > 0)
     .map(([questionId, answer]) => ({
       answer,
@@ -263,7 +264,7 @@ export const validateRegistrationAddons = ({
     );
   }
 
-  return [...selectedAddOns.entries()].map(([addOnId, selectedQuantity]) => {
+  return [...selectedAddOns].map(([addOnId, selectedQuantity]) => {
     const availableAddOn = availableAddOnById.get(addOnId);
     if (!availableAddOn) {
       throw new EventRegistrationConflictError({
@@ -616,14 +617,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     guestCount,
                     registrationOptionId: registrationOption.id,
                     status: requiresCheckout ? 'PENDING' : 'CONFIRMED',
-                    ...(selectedTaxRateId
-                      ? {
-                          stripeTaxRateId: selectedTaxRateId,
-                          taxRateDisplayName: selectedTaxRate?.displayName,
-                          taxRateInclusive: selectedTaxRate?.inclusive,
-                          taxRatePercentage: selectedTaxRate?.percentage,
-                        }
-                      : {}),
+                    ...(selectedTaxRateId && {
+                      stripeTaxRateId: selectedTaxRateId,
+                      taxRateDisplayName: selectedTaxRate?.displayName,
+                      taxRateInclusive: selectedTaxRate?.inclusive,
+                      taxRatePercentage: selectedTaxRate?.percentage,
+                    }),
                     tenantId: tenant.id,
                     userId: user.id,
                   })
@@ -870,7 +869,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           }
 
           // Phase 4: paid registration path (Stripe session + pending transaction record).
-          const applicationFee = Math.round(effectiveTotalPrice * 0.035);
+          const appFee = Math.round(effectiveTotalPrice * 0.035);
           const stripeAccount = tenant.stripeAccountId;
           if (!stripeAccount) {
             return yield* Effect.fail(
@@ -891,7 +890,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 },
                 unit_amount: effectivePrice,
               },
-              ...(selectedTaxRateId ? { tax_rates: [selectedTaxRateId] } : {}),
+              ...(selectedTaxRateId && { tax_rates: [selectedTaxRateId] }),
               quantity: 1,
             });
           }
@@ -913,9 +912,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   },
                   unit_amount: registrationOption.price,
                 },
-                ...(selectedTaxRateId
-                  ? { tax_rates: [selectedTaxRateId] }
-                  : {}),
+                ...(selectedTaxRateId && { tax_rates: [selectedTaxRateId] }),
                 quantity: guestCount,
               });
             }
@@ -932,9 +929,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 },
                 unit_amount: addOn.price,
               },
-              ...(addOn.stripeTaxRateId
-                ? { tax_rates: [addOn.stripeTaxRateId] }
-                : {}),
+              ...(addOn.stripeTaxRateId && {
+                tax_rates: [addOn.stripeTaxRateId],
+              }),
               quantity: addOn.fulfilledQuantity,
             });
           }
@@ -952,7 +949,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               },
               mode: 'payment',
               payment_intent_data: {
-                application_fee_amount: applicationFee,
+                application_fee_amount: appFee,
               },
               success_url: `${eventUrl}?registrationStatus=success`,
             },

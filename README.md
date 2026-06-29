@@ -1,10 +1,16 @@
 # Evorto
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) and is maintained on Angular 21 with Bun-first tooling.
+This project was generated using [Angular CLI](https://github.com/angular/angular-cli) and is maintained on Angular 22 with Bun-first tooling.
 
 ## Prerequisites
 
+- Bun 1.3.14 is the package manager and app runtime baseline.
+- Node 24.15.0 is required for Angular CLI package scripts while Angular 22
+  rejects Bun's current Node compatibility version.
 - Docker Compose 2.24.0 or later is required for the local Docker-backed runtime and E2E flows.
+
+Move Angular CLI package scripts back to direct Bun execution when Bun exposes a
+Node version accepted by Angular CLI.
 
 ## Local Environment Files
 
