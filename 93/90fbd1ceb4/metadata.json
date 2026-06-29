@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "9390fbd1ceb4",
+  "strategy": "manual-commit",
+  "branch": "codex/pr67-prepare-temp",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/app.component.ts",
+    "src/app/core/config.service.ts",
+    "src/db/schema/user-discount-cards.ts",
+    "src/server/discounts/providers/index.spec.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.spec.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/93/90fbd1ceb4/0/metadata.json",
+      "transcript": "/93/90fbd1ceb4/0/full.jsonl",
+      "content_hash": "/93/90fbd1ceb4/0/content_hash.txt",
+      "prompt": "/93/90fbd1ceb4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 9990197,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 228506880,
+    "output_tokens": 493574,
+    "api_call_count": 1699
+  }
+}
