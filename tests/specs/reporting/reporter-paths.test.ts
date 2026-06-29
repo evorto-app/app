@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
 import DocumentationReporter from '../../support/reporters/documentation-reporter';
+import { resolveDocsImageOutputDirectory } from '../../support/utils/doc-screenshot';
 
 test('documentation reporter respects DOCS_* env and writes files @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-01)', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out');
@@ -51,6 +52,27 @@ test('documentation reporter respects DOCS_* env and writes files @track(playwri
   const imgDir = path.join(imgsRoot, slug);
   const imgs = fs.existsSync(imgDir) ? fs.readdirSync(imgDir) : [];
   expect(imgs.some((f) => f.endsWith('.png'))).toBeTruthy();
+});
+
+test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-07)', async ({}, testInfo) => {
+  const previous = process.env.DOCS_IMG_OUT_DIR;
+  const imgsRoot = testInfo.outputPath('docs-img-call-time');
+  delete process.env.DOCS_IMG_OUT_DIR;
+
+  try {
+    expect(resolveDocsImageOutputDirectory()).toBe(
+      path.resolve('test-results/docs/images'),
+    );
+
+    process.env.DOCS_IMG_OUT_DIR = imgsRoot;
+    expect(resolveDocsImageOutputDirectory()).toBe(imgsRoot);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.DOCS_IMG_OUT_DIR;
+    } else {
+      process.env.DOCS_IMG_OUT_DIR = previous;
+    }
+  }
 });
 
 test('documentation reporter clears docs/image roots on begin @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-03)', async ({}, testInfo) => {

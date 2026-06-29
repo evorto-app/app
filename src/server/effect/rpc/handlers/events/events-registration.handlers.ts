@@ -111,197 +111,308 @@ const ensureCanScanEventRegistration = ({
     );
   });
 
-export const eventRegistrationHandlers = {
-  'events.cancelPendingRegistration': ({ registrationId }, _options) =>
-    Effect.gen(function* () {
-      yield* RpcAccess.ensureAuthenticated();
-      const stripe = yield* StripeClient;
-      const { tenant } = yield* RpcAccess.current();
-      const user = yield* RpcAccess.requireUser();
+const cancelRegistration = ({
+  eventId,
+  registrationId,
+  requireOrganizerAccess = false,
+}: {
+  eventId?: string;
+  registrationId: string;
+  requireOrganizerAccess?: boolean;
+}) =>
+  Effect.gen(function* () {
+    yield* RpcAccess.ensureAuthenticated();
+    const stripe = yield* StripeClient;
+    const { tenant } = yield* RpcAccess.current();
+    const user = yield* RpcAccess.requireUser();
+    const now = new Date();
 
-      const registration = yield* databaseEffect((database) =>
-        database.query.eventRegistrations.findFirst({
-          columns: {
-            id: true,
-            registrationOptionId: true,
-          },
-          where: {
-            id: registrationId,
-            status: 'PENDING',
-            tenantId: tenant.id,
-            userId: user.id,
-          },
-          with: {
-            registrationOption: {
-              columns: {
-                reservedSpots: true,
-              },
-            },
-            transactions: {
-              columns: {
-                id: true,
-                method: true,
-                status: true,
-                stripeCheckoutSessionId: true,
-              },
+    const registration = yield* databaseEffect((database) =>
+      database.query.eventRegistrations.findFirst({
+        columns: {
+          checkInTime: true,
+          eventId: true,
+          guestCount: true,
+          id: true,
+          registrationOptionId: true,
+          status: true,
+        },
+        where: {
+          ...(eventId ? { eventId } : {}),
+          id: registrationId,
+          status: { NOT: 'CANCELLED' },
+          tenantId: tenant.id,
+          ...(requireOrganizerAccess ? {} : { userId: user.id }),
+        },
+        with: {
+          event: {
+            columns: {
+              start: true,
             },
           },
+          transactions: {
+            columns: {
+              id: true,
+              method: true,
+              status: true,
+              stripeCheckoutSessionId: true,
+            },
+          },
+        },
+      }),
+    );
+
+    if (!registration) {
+      return yield* Effect.fail(
+        new EventRegistrationNotFoundError({
+          message: 'Registration not found',
         }),
       );
+    }
 
-      if (!registration) {
-        return yield* Effect.fail(
-          new EventRegistrationNotFoundError({
-            message: 'Registration not found',
-          }),
-        );
-      }
+    if (requireOrganizerAccess) {
+      yield* ensureCanScanEventRegistration({
+        eventId: registration.eventId,
+        tenantId: tenant.id,
+        user,
+      });
+    }
 
-      const pendingStripeTransaction = registration.transactions.find(
-        (currentTransaction) =>
-          currentTransaction.status === 'pending' &&
-          currentTransaction.method === 'stripe',
+    if (
+      registration.status !== 'PENDING' &&
+      registration.status !== 'CONFIRMED' &&
+      registration.status !== 'WAITLIST'
+    ) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message:
+            'Only pending, confirmed, or waitlisted registrations can be cancelled',
+        }),
       );
-      const stripeCheckoutSessionId =
-        pendingStripeTransaction?.stripeCheckoutSessionId;
-      const stripeAccount = tenant.stripeAccountId;
-      if (stripeCheckoutSessionId && !stripeAccount) {
-        return yield* Effect.fail(
-          new EventRegistrationInternalError({
-            message: 'Stripe account not found',
-          }),
-        );
-      }
+    }
 
-      const cancelledStripeTransaction = yield* Database.use((database) =>
-        database
-          .transaction((tx) =>
-            Effect.gen(function* () {
-              const cancelledRegistrations = yield* tx
-                .update(eventRegistrations)
-                .set({
-                  status: 'CANCELLED',
-                })
-                .where(
-                  and(
-                    eq(eventRegistrations.id, registration.id),
-                    eq(eventRegistrations.status, 'PENDING'),
-                  ),
-                )
-                .returning({
-                  id: eventRegistrations.id,
-                });
-              if (cancelledRegistrations.length === 0) {
-                return yield* Effect.fail(
-                  new EventRegistrationNotFoundError({
-                    message: 'Registration not found',
-                  }),
-                );
-              }
-
-              const updatedOptions = yield* tx
-                .update(eventRegistrationOptions)
-                .set({
-                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - 1`,
-                })
-                .where(
-                  and(
-                    eq(
-                      eventRegistrationOptions.id,
-                      registration.registrationOptionId,
-                    ),
-                    gte(eventRegistrationOptions.reservedSpots, 1),
-                  ),
-                )
-                .returning({
-                  id: eventRegistrationOptions.id,
-                });
-              if (updatedOptions.length === 0) {
-                return yield* Effect.fail(
-                  new EventRegistrationInternalError({
-                    message: 'Registration option missing',
-                  }),
-                );
-              }
-
-              if (!pendingStripeTransaction) {
-                return null;
-              }
-
-              yield* tx
-                .update(transactions)
-                .set({
-                  status: 'cancelled',
-                })
-                .where(eq(transactions.id, pendingStripeTransaction.id));
-
-              return {
-                stripeCheckoutSessionId,
-                transactionId: pendingStripeTransaction.id,
-              };
-            }),
-          )
-          .pipe(
-            Effect.catch((error) =>
-              error instanceof EventRegistrationInternalError
-                ? Effect.fail(error)
-                : Effect.fail(
-                    new EventRegistrationInternalError({
-                      cause: error,
-                      message: 'Internal server error',
-                    }),
-                  ),
-            ),
-          ),
+    if (!registration.event) {
+      return yield* Effect.fail(
+        new EventRegistrationInternalError({
+          message: 'Registration event relation missing',
+        }),
       );
+    }
 
-      if (
-        !cancelledStripeTransaction ||
-        !stripeCheckoutSessionId ||
-        !stripeAccount
-      ) {
-        return;
-      }
+    if (registration.checkInTime) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Checked-in registrations cannot be cancelled',
+        }),
+      );
+    }
 
-      yield* Effect.tryPromise(() =>
-        Promise.race([
-          stripe.checkout.sessions.expire(stripeCheckoutSessionId, undefined, {
-            stripeAccount,
-          }),
-          new Promise<never>((_, reject) => {
-            setTimeout(
-              () => reject(new Error('Stripe checkout expiry timed out')),
-              5000,
-            );
-          }),
-        ]),
-      ).pipe(
-        Effect.tapError((error) =>
-          Effect.logError(
-            'Failed to expire Stripe checkout session on registration cancellation',
-          ).pipe(
-            Effect.annotateLogs({
-              error,
-              registrationId: registration.id,
+    if (registration.status !== 'WAITLIST' && registration.event.start <= now) {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Registration can no longer be cancelled',
+        }),
+      );
+    }
+    const registeredSpotCount = registration.guestCount + 1;
+
+    const pendingStripeTransaction = registration.transactions.find(
+      (currentTransaction) =>
+        currentTransaction.status === 'pending' &&
+        currentTransaction.method === 'stripe',
+    );
+    const stripeCheckoutSessionId =
+      pendingStripeTransaction?.stripeCheckoutSessionId;
+    const stripeAccount = tenant.stripeAccountId;
+    if (stripeCheckoutSessionId && !stripeAccount) {
+      return yield* Effect.fail(
+        new EventRegistrationInternalError({
+          message: 'Stripe account not found',
+        }),
+      );
+    }
+
+    const cancelledStripeTransaction = yield* Database.use((database) =>
+      database
+        .transaction((tx) =>
+          Effect.gen(function* () {
+            const cancelledRegistrations = yield* tx
+              .update(eventRegistrations)
+              .set({
+                status: 'CANCELLED',
+              })
+              .where(
+                and(
+                  eq(eventRegistrations.id, registration.id),
+                  eq(eventRegistrations.status, registration.status),
+                ),
+              )
+              .returning({
+                id: eventRegistrations.id,
+              });
+            if (cancelledRegistrations.length === 0) {
+              return yield* Effect.fail(
+                new EventRegistrationNotFoundError({
+                  message: 'Registration not found',
+                }),
+              );
+            }
+
+            const optionSpotUpdate =
+              registration.status === 'CONFIRMED'
+                ? {
+                    confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} - ${registeredSpotCount}`,
+                  }
+                : registration.status === 'PENDING'
+                  ? {
+                      reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}`,
+                    }
+                  : {
+                      waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} - ${registeredSpotCount}`,
+                    };
+            const optionSpotAvailable =
+              registration.status === 'CONFIRMED'
+                ? gte(
+                    eventRegistrationOptions.confirmedSpots,
+                    registeredSpotCount,
+                  )
+                : registration.status === 'PENDING'
+                  ? gte(
+                      eventRegistrationOptions.reservedSpots,
+                      registeredSpotCount,
+                    )
+                  : gte(
+                      eventRegistrationOptions.waitlistSpots,
+                      registeredSpotCount,
+                    );
+
+            const updatedOptions = yield* tx
+              .update(eventRegistrationOptions)
+              .set(optionSpotUpdate)
+              .where(
+                and(
+                  eq(
+                    eventRegistrationOptions.id,
+                    registration.registrationOptionId,
+                  ),
+                  optionSpotAvailable,
+                ),
+              )
+              .returning({
+                id: eventRegistrationOptions.id,
+              });
+            if (updatedOptions.length === 0) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message: 'Registration option missing',
+                }),
+              );
+            }
+
+            if (!pendingStripeTransaction) {
+              return null;
+            }
+
+            yield* tx
+              .update(transactions)
+              .set({
+                status: 'cancelled',
+              })
+              .where(eq(transactions.id, pendingStripeTransaction.id));
+
+            return {
               stripeCheckoutSessionId,
-              transactionId: cancelledStripeTransaction.transactionId,
-            }),
+              transactionId: pendingStripeTransaction.id,
+            };
+          }),
+        )
+        .pipe(
+          Effect.catch((error) =>
+            error instanceof EventRegistrationConflictError ||
+            error instanceof EventRegistrationInternalError ||
+            error instanceof EventRegistrationNotFoundError
+              ? Effect.fail(error)
+              : Effect.fail(
+                  new EventRegistrationInternalError({
+                    cause: error,
+                    message: 'Internal server error',
+                  }),
+                ),
           ),
         ),
-        Effect.catch(() => Effect.void),
-      );
+    );
+
+    if (
+      !cancelledStripeTransaction ||
+      !stripeCheckoutSessionId ||
+      !stripeAccount
+    ) {
+      return;
+    }
+
+    yield* Effect.tryPromise(() =>
+      Promise.race([
+        stripe.checkout.sessions.expire(stripeCheckoutSessionId, undefined, {
+          stripeAccount,
+        }),
+        new Promise<never>((_, reject) => {
+          setTimeout(
+            () => reject(new Error('Stripe checkout expiry timed out')),
+            5000,
+          );
+        }),
+      ]),
+    ).pipe(
+      Effect.tapError((error) =>
+        Effect.logError(
+          'Failed to expire Stripe checkout session on registration cancellation',
+        ).pipe(
+          Effect.annotateLogs({
+            error,
+            registrationId: registration.id,
+            stripeCheckoutSessionId,
+            transactionId: cancelledStripeTransaction.transactionId,
+          }),
+        ),
+      ),
+      Effect.catch(() => Effect.void),
+    );
+  });
+
+export const eventRegistrationHandlers = {
+  'events.cancelEventRegistration': ({ eventId, registrationId }, _options) =>
+    cancelRegistration({
+      eventId,
+      registrationId,
+      requireOrganizerAccess: true,
     }),
-  'events.checkInRegistration': ({ registrationId }, _options) =>
+  'events.cancelPendingRegistration': ({ registrationId }, _options) =>
+    cancelRegistration({ registrationId }),
+  'events.cancelRegistration': ({ registrationId }, _options) =>
+    cancelRegistration({ registrationId }),
+  'events.checkInRegistration': (
+    { guestCheckInCount, registrationId },
+    _options,
+  ) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
+      if (!Number.isInteger(guestCheckInCount) || guestCheckInCount < 0) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Guest check-in count must be a non-negative integer',
+          }),
+        );
+      }
 
       const registration = yield* databaseEffect((database) =>
         database.query.eventRegistrations.findFirst({
           columns: {
+            checkedInGuestCount: true,
             checkInTime: true,
             eventId: true,
+            guestCount: true,
             id: true,
             registrationOptionId: true,
             status: true,
@@ -351,7 +462,25 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      if (registration.checkInTime) {
+      const remainingGuestCount = Math.max(
+        0,
+        registration.guestCount - registration.checkedInGuestCount,
+      );
+      if (guestCheckInCount > remainingGuestCount) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Guest check-in count exceeds remaining guests',
+          }),
+        );
+      }
+
+      if (registration.checkInTime && remainingGuestCount === 0) {
+        return {
+          alreadyCheckedIn: true,
+          checkInTime: registration.checkInTime.toISOString(),
+        };
+      }
+      if (registration.checkInTime && guestCheckInCount === 0) {
         return {
           alreadyCheckedIn: true,
           checkInTime: registration.checkInTime.toISOString(),
@@ -369,23 +498,29 @@ export const eventRegistrationHandlers = {
       }
 
       const checkInTime = new Date();
+      const checkedInSpotCount =
+        (registration.checkInTime ? 0 : 1) + guestCheckInCount;
       const checkedInRegistration = yield* Database.use((database) =>
         database.transaction((tx) =>
           Effect.gen(function* () {
             const updatedRegistrations = yield* tx
               .update(eventRegistrations)
               .set({
-                checkInTime,
+                ...(registration.checkInTime ? {} : { checkInTime }),
+                checkedInGuestCount: sql`${eventRegistrations.checkedInGuestCount} + ${guestCheckInCount}`,
               })
               .where(
                 and(
                   eq(eventRegistrations.id, registration.id),
                   eq(eventRegistrations.tenantId, tenant.id),
                   eq(eventRegistrations.status, 'CONFIRMED'),
-                  isNull(eventRegistrations.checkInTime),
+                  registration.checkInTime
+                    ? sql`${eventRegistrations.checkedInGuestCount} + ${guestCheckInCount} <= ${eventRegistrations.guestCount}`
+                    : isNull(eventRegistrations.checkInTime),
                 ),
               )
               .returning({
+                checkedInGuestCount: eventRegistrations.checkedInGuestCount,
                 checkInTime: eventRegistrations.checkInTime,
                 id: eventRegistrations.id,
               });
@@ -428,7 +563,7 @@ export const eventRegistrationHandlers = {
             const updatedOptions = yield* tx
               .update(eventRegistrationOptions)
               .set({
-                checkedInSpots: sql`${eventRegistrationOptions.checkedInSpots} + 1`,
+                checkedInSpots: sql`${eventRegistrationOptions.checkedInSpots} + ${checkedInSpotCount}`,
               })
               .where(
                 and(
@@ -482,6 +617,7 @@ export const eventRegistrationHandlers = {
             appliedDiscountType: true,
             basePriceAtRegistration: true,
             discountAmount: true,
+            guestCount: true,
             id: true,
             registrationOptionId: true,
             status: true,
@@ -557,6 +693,7 @@ export const eventRegistrationHandlers = {
               transaction.type === 'registration',
           )?.stripeCheckoutUrl,
           discountAmount,
+          guestCount: registration.guestCount,
           id: registration.id,
           paymentPending: registration.transactions.some(
             (transaction) =>
@@ -575,7 +712,28 @@ export const eventRegistrationHandlers = {
         registrations: registrationSummaries,
       };
     }),
-  'events.registerForEvent': ({ eventId, registrationOptionId }, options) =>
+  'events.joinWaitlist': ({ eventId, registrationOptionId }, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+
+      return yield* EventRegistrationService.joinWaitlist({
+        eventId,
+        registrationOptionId,
+        tenant: {
+          id: tenant.id,
+        },
+        user: {
+          id: user.id,
+          roleIds: user.roleIds,
+        },
+      });
+    }),
+  'events.registerForEvent': (
+    { eventId, guestCount, registrationOptionId },
+    options,
+  ) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
@@ -583,6 +741,7 @@ export const eventRegistrationHandlers = {
 
       return yield* EventRegistrationService.registerForEvent({
         eventId,
+        guestCount,
         headers: options.headers,
         registrationOptionId,
         tenant: {
@@ -608,8 +767,10 @@ export const eventRegistrationHandlers = {
           columns: {
             appliedDiscountedPrice: true,
             appliedDiscountType: true,
+            checkedInGuestCount: true,
             checkInTime: true,
             eventId: true,
+            guestCount: true,
             status: true,
             userId: true,
           },
@@ -665,7 +826,12 @@ export const eventRegistrationHandlers = {
 
       const sameUserIssue = registration.userId === user.id;
       const registrationStatusIssue = registration.status !== 'CONFIRMED';
-      const alreadyCheckedInIssue = registration.checkInTime !== null;
+      const remainingGuestCount = Math.max(
+        0,
+        registration.guestCount - registration.checkedInGuestCount,
+      );
+      const alreadyCheckedInIssue =
+        registration.checkInTime !== null && remainingGuestCount === 0;
       const timingIssue = !isWithinCheckInWindow(registration.event.start);
       const allowCheckin =
         !registrationStatusIssue &&
@@ -688,14 +854,18 @@ export const eventRegistrationHandlers = {
         allowCheckin,
         alreadyCheckedInIssue,
         appliedDiscountType,
+        attendeeCheckedIn: registration.checkInTime !== null,
+        checkedInGuestCount: registration.checkedInGuestCount,
         event: {
           start: registration.event.start.toISOString(),
           title: registration.event.title,
         },
+        guestCount: registration.guestCount,
         registrationOption: {
           title: registration.registrationOption.title,
         },
         registrationStatusIssue,
+        remainingGuestCount,
         sameUserIssue,
         user: {
           firstName: registration.user.firstName,

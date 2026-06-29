@@ -1,7 +1,7 @@
 <div class="bg-surface text-on-surface p-4 lg:h-full lg:rounded-t-lg">
   <div class="mb-4 flex w-full flex-row items-center gap-2">
     <a [routerLink]="['/events', eventId()]" mat-icon-button>
-      <fa-duotone-icon [icon]="faArrowLeft" />
+      <fa-icon [icon]="faArrowLeft" />
     </a>
     <h1 class="title-large">{{ event()?.title || "Loading..." }}</h1>
     <div class="grow"></div>
@@ -57,14 +57,34 @@
               {{ registrationOption.registrationOptionTitle }}
             </h3>
             @for (user of registrationOption.users; track user.userId) {
-              <div class="flex flex-wrap items-center gap-2">
-                <p>{{ user.firstName }} {{ user.lastName }}</p>
-                @if (user.appliedDiscountType === "esnCard") {
-                  <span
-                    class="bg-primary-container text-on-primary-container rounded px-2 py-1 text-xs"
+              <div
+                class="flex flex-wrap items-center justify-between gap-2 rounded bg-surface-container-high px-3 py-2"
+              >
+                <div class="flex flex-wrap items-center gap-2">
+                  <p>{{ user.firstName }} {{ user.lastName }}</p>
+                  @if (user.appliedDiscountType === "esnCard") {
+                    <span
+                      class="bg-primary-container text-on-primary-container rounded px-2 py-1 text-xs"
+                    >
+                      ESNcard discount
+                    </span>
+                  }
+                  @if (user.checkedIn) {
+                    <span class="rounded bg-surface px-2 py-1 text-xs">
+                      Checked in
+                    </span>
+                  }
+                </div>
+                @if (!registrationOption.organizingRegistration) {
+                  <button
+                    mat-stroked-button
+                    (click)="cancelRegistration(user)"
+                    [disabled]="
+                      user.checkedIn || cancelRegistrationMutation.isPending()
+                    "
                   >
-                    ESNcard discount
-                  </span>
+                    Cancel registration
+                  </button>
                 }
               </div>
             }

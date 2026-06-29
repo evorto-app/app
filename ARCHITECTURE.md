@@ -60,12 +60,10 @@ SSR-sensitive work should consider:
 
 Tenants are resolved by domain.
 
-A tenant may use:
-
-- an Evorto-provided subdomain
-- its own custom domain
-
-Tenant configuration should include the domain(s) that identify it.
+The current relaunch schema stores one active primary domain per tenant. That
+domain may be an Evorto-provided subdomain or a manually configured custom
+domain, but automated multi-domain/custom-domain verification is outside the
+current runtime model.
 
 If no tenant matches the request domain, fail closed or show a tenant-not-found state. Do not guess a tenant.
 

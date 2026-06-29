@@ -80,11 +80,18 @@ Docker Compose now also runs one-shot `db-expiration` and `db-setup` containers 
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
 containers, including Neon Local, Auth0, Stripe, the app session secret, and
-Font Awesome package registry access for premium icons. It also reports local
+Font Awesome package registry access for premium and brand icons. It also reports local
 tooling readiness such as Bun, Docker Compose, Compose config validation,
 Playwright CLI availability, and whether the matching Playwright browser cache
 is installed. Missing Playwright browsers are reported as a warning because
 they block local Playwright runs, not Docker startup.
+
+Docker Compose passes `STRIPE_TEST_ACCOUNT_ID` into both the `db-setup` service
+and the app container so the seeded local tenants can exercise paid registration
+flows against the intended connected test account. The Stripe listener is the
+standard `stripe/stripe-cli` container; configure the matching
+`STRIPE_WEBHOOK_SECRET` in the local environment instead of deriving it from
+container output.
 
 Testing/runtime context that depends on these seed flows lives in [tests/README.md](../tests/README.md).
 

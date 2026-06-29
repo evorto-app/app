@@ -86,10 +86,12 @@ Cancelled transactions are omitted from this list.
     body: `
 ## Receipt Approvals
 
-The **Receipt approvals** tab shows all receipts waiting for finance review, grouped by event. Reviewers can open each receipt, validate submitted values, and approve or reject it.
+The **Receipt approvals** tab shows all receipts waiting for finance review, grouped by event. Reviewers can open each receipt, validate submitted values, and approve or reject it. The detail page shows the manual submitter-notification caveat before the review actions.
+
+Approving or rejecting records the review status in Evorto. Submitter email notification is still manual in the current relaunch scope.
 `,
   });
-  await page.getByRole('link', { name: 'Receipt approvals' }).click();
+  await page.goto('/finance/receipts-approval');
   await takeScreenshot(
     testInfo,
     page.locator('app-receipt-approval-list'),
@@ -104,7 +106,7 @@ The **Receipt approvals** tab shows all receipts waiting for finance review, gro
 The **Receipt reimbursements** tab groups approved receipts by recipient and renders each group in a selectable table. Finance users can select one or more rows, verify payout details (IBAN/PayPal), and record the manual reimbursement transaction for the selected batch.
 `,
   });
-  await page.getByRole('link', { name: 'Receipt reimbursements' }).click();
+  await page.goto('/finance/receipts-refunds');
   await takeScreenshot(
     testInfo,
     page.locator('app-receipt-refund-list'),

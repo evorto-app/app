@@ -143,8 +143,16 @@ const resolveDiscount = ({
   };
 };
 
+interface JoinWaitlistArguments {
+  eventId: string;
+  registrationOptionId: string;
+  tenant: Pick<Tenant, 'id'>;
+  user: Pick<User, 'id' | 'roleIds'>;
+}
+
 interface RegisterForEventArguments {
   eventId: string;
+  guestCount: number;
   headers: Headers.Headers;
   registrationOptionId: string;
   tenant: Pick<Tenant, 'currency' | 'id' | 'stripeAccountId'>;
@@ -159,6 +167,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         'EventRegistrationService.registerForEvent',
       )(function* ({
         eventId,
+        guestCount,
         headers,
         registrationOptionId,
         tenant,
@@ -179,6 +188,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           serverEnvironment.E2E_NOW_ISO,
         );
         const now = getServerNow(pinnedNowIso).toJSDate();
+        if (!Number.isInteger(guestCount) || guestCount < 0) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Guest count must be a non-negative integer',
+            }),
+          );
+        }
+        const requestedSpotCount = guestCount + 1;
 
         // Phase 1: ensure this user can register (no active registration + valid option + capacity).
         const existingRegistration = yield* databaseEffect((database) =>
@@ -211,6 +228,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               id: true,
               isPaid: true,
               openRegistrationTime: true,
+              organizingRegistration: true,
               price: true,
               registrationMode: true,
               reservedSpots: true,
@@ -288,9 +306,17 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
           );
         }
+        if (registrationOption.organizingRegistration && guestCount > 0) {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Guest spots are only available for participant options',
+            }),
+          );
+        }
         if (
           registrationOption.confirmedSpots +
-            registrationOption.reservedSpots >=
+            registrationOption.reservedSpots +
+            requestedSpotCount >
           registrationOption.spots
         ) {
           return yield* Effect.fail(
@@ -351,17 +377,17 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 .set(
                   registrationOption.isPaid
                     ? {
-                        reservedSpots: sql`${eventRegistrationOptions.reservedSpots} + 1`,
+                        reservedSpots: sql`${eventRegistrationOptions.reservedSpots} + ${requestedSpotCount}`,
                       }
                     : {
-                        confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + 1`,
+                        confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + ${requestedSpotCount}`,
                       },
                 )
                 .where(
                   and(
                     eq(eventRegistrationOptions.id, registrationOption.id),
                     eq(eventRegistrationOptions.eventId, eventId),
-                    sql`${eventRegistrationOptions.confirmedSpots} + ${eventRegistrationOptions.reservedSpots} < ${eventRegistrationOptions.spots}`,
+                    sql`${eventRegistrationOptions.confirmedSpots} + ${eventRegistrationOptions.reservedSpots} + ${requestedSpotCount} <= ${eventRegistrationOptions.spots}`,
                   ),
                 )
                 .returning({
@@ -375,6 +401,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 .insert(eventRegistrations)
                 .values({
                   eventId,
+                  guestCount,
                   registrationOptionId: registrationOption.id,
                   status: registrationOption.isPaid ? 'PENDING' : 'CONFIRMED',
                   ...(selectedTaxRateId
@@ -434,13 +461,13 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               database
                 .update(eventRegistrationOptions)
                 .set({
-                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - 1`,
+                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${requestedSpotCount}`,
                 })
                 .where(
                   and(
                     eq(eventRegistrationOptions.id, registrationOption.id),
                     eq(eventRegistrationOptions.eventId, eventId),
-                    sql`${eventRegistrationOptions.reservedSpots} > 0`,
+                    sql`${eventRegistrationOptions.reservedSpots} >= ${requestedSpotCount}`,
                   ),
                 ),
             );
@@ -516,6 +543,8 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             discountAmount,
             effectivePrice,
           } = discountResolution;
+          const effectiveTotalPrice =
+            effectivePrice + registrationOption.price * guestCount;
 
           yield* databaseEffect((database) =>
             database
@@ -530,7 +559,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           );
 
           // Free registrations skip Stripe but still transition reservation -> confirmed.
-          if (effectivePrice <= 0) {
+          if (effectiveTotalPrice <= 0) {
             yield* databaseEffect((database) =>
               database
                 .update(eventRegistrations)
@@ -544,14 +573,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               database
                 .update(eventRegistrationOptions)
                 .set({
-                  confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + 1`,
-                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - 1`,
+                  confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} + ${requestedSpotCount}`,
+                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${requestedSpotCount}`,
                 })
                 .where(
                   and(
                     eq(eventRegistrationOptions.id, registrationOption.id),
                     eq(eventRegistrationOptions.eventId, eventId),
-                    sql`${eventRegistrationOptions.reservedSpots} > 0`,
+                    sql`${eventRegistrationOptions.reservedSpots} >= ${requestedSpotCount}`,
                   ),
                 ),
             );
@@ -559,7 +588,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           }
 
           // Phase 4: paid registration path (Stripe session + pending transaction record).
-          const applicationFee = Math.round(effectivePrice * 0.035);
+          const applicationFee = Math.round(effectiveTotalPrice * 0.035);
           const stripeAccount = tenant.stripeAccountId;
           if (!stripeAccount) {
             return yield* Effect.fail(
@@ -569,8 +598,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             );
           }
 
-          const checkoutLineItem: Stripe.Checkout.SessionCreateParams.LineItem =
-            {
+          const checkoutLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
+            [];
+          if (effectivePrice > 0) {
+            checkoutLineItems.push({
               price_data: {
                 currency: tenant.currency,
                 product_data: {
@@ -580,14 +611,40 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               },
               ...(selectedTaxRateId ? { tax_rates: [selectedTaxRateId] } : {}),
               quantity: 1,
-            };
+            });
+          }
+          if (guestCount > 0) {
+            if (
+              effectivePrice === registrationOption.price &&
+              checkoutLineItems.length === 1
+            ) {
+              checkoutLineItems[0] = {
+                ...checkoutLineItems[0],
+                quantity: requestedSpotCount,
+              };
+            } else {
+              checkoutLineItems.push({
+                price_data: {
+                  currency: tenant.currency,
+                  product_data: {
+                    name: `Guest registration fee for ${registrationOption.event.title}`,
+                  },
+                  unit_amount: registrationOption.price,
+                },
+                ...(selectedTaxRateId
+                  ? { tax_rates: [selectedTaxRateId] }
+                  : {}),
+                quantity: guestCount,
+              });
+            }
+          }
 
           const session = yield* createHostedCheckoutSession(
             {
               cancel_url: `${eventUrl}?registrationStatus=cancel`,
               customer_email: user.email,
               expires_at: buildCheckoutSessionExpiresAt(30, { pinnedNowIso }),
-              line_items: [checkoutLineItem],
+              line_items: checkoutLineItems,
               metadata: {
                 registrationId: userRegistration.id,
                 tenantId: tenant.id,
@@ -617,7 +674,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
           yield* databaseEffect((database) =>
             database.insert(transactions).values({
-              amount: effectivePrice,
+              amount: effectiveTotalPrice,
               comment: `Registration for event ${registrationOption.event.title} ${registrationOption.eventId}`,
               currency: tenant.currency,
               eventId: registrationOption.eventId,
@@ -651,7 +708,237 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         );
       });
 
+      const joinWaitlist = Effect.fn('EventRegistrationService.joinWaitlist')(
+        function* ({
+          eventId,
+          registrationOptionId,
+          tenant,
+          user,
+        }: JoinWaitlistArguments) {
+          const configProvider = yield* ConfigProvider.ConfigProvider;
+          const serverEnvironment = yield* serverConfig
+            .parse(configProvider)
+            .pipe(
+              Effect.mapError(
+                (error) =>
+                  new EventRegistrationInternalError({
+                    message: `Invalid server configuration:\n${formatConfigError(error)}`,
+                  }),
+              ),
+            );
+          const pinnedNowIso = Option.getOrUndefined(
+            serverEnvironment.E2E_NOW_ISO,
+          );
+          const now = getServerNow(pinnedNowIso).toJSDate();
+
+          const existingRegistration = yield* databaseEffect((database) =>
+            database.query.eventRegistrations.findFirst({
+              columns: {
+                id: true,
+              },
+              where: {
+                eventId,
+                status: { NOT: 'CANCELLED' },
+                tenantId: tenant.id,
+                userId: user.id,
+              },
+            }),
+          );
+          if (existingRegistration) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'User is already registered for this event',
+              }),
+            );
+          }
+
+          const registrationOption = yield* databaseEffect((database) =>
+            database.query.eventRegistrationOptions.findFirst({
+              columns: {
+                closeRegistrationTime: true,
+                confirmedSpots: true,
+                eventId: true,
+                id: true,
+                openRegistrationTime: true,
+                organizingRegistration: true,
+                registrationMode: true,
+                reservedSpots: true,
+                roleIds: true,
+                spots: true,
+              },
+              where: { eventId, id: registrationOptionId },
+              with: {
+                event: {
+                  columns: {
+                    status: true,
+                    tenantId: true,
+                  },
+                },
+              },
+            }),
+          );
+          if (!registrationOption) {
+            return yield* Effect.fail(
+              new EventRegistrationNotFoundError({
+                message: 'Registration option not found',
+              }),
+            );
+          }
+          if (!registrationOption.event) {
+            return yield* Effect.fail(
+              new EventRegistrationInternalError({
+                message: 'Registration option event relation missing',
+              }),
+            );
+          }
+          if (registrationOption.event.tenantId !== tenant.id) {
+            return yield* Effect.fail(
+              new EventRegistrationNotFoundError({
+                message: 'Registration option not found',
+              }),
+            );
+          }
+          if (registrationOption.event.status !== 'APPROVED') {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Event is not open for registration',
+              }),
+            );
+          }
+          if (
+            now < registrationOption.openRegistrationTime ||
+            now > registrationOption.closeRegistrationTime
+          ) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Registration is not open',
+              }),
+            );
+          }
+          if (
+            !isUserEligibleForRegistrationOption({
+              optionRoleIds: registrationOption.roleIds,
+              userRoleIds: user.roleIds,
+            })
+          ) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'User is not eligible for this registration option',
+              }),
+            );
+          }
+          if (registrationOption.organizingRegistration) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Waitlist is only available for participant options',
+              }),
+            );
+          }
+          if (registrationOption.registrationMode !== 'fcfs') {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Registration option mode is not available yet',
+              }),
+            );
+          }
+          if (
+            registrationOption.confirmedSpots +
+              registrationOption.reservedSpots <
+            registrationOption.spots
+          ) {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Registration option still has available spots',
+              }),
+            );
+          }
+
+          const waitlistResult = yield* databaseEffect((database) =>
+            database.transaction((tx) =>
+              Effect.gen(function* () {
+                yield* tx.execute(
+                  sql`select pg_advisory_xact_lock(hashtextextended(${[
+                    tenant.id,
+                    user.id,
+                    eventId,
+                  ].join(':')}, 0))`,
+                );
+
+                const activeRegistrations =
+                  yield* tx.query.eventRegistrations.findMany({
+                    columns: {
+                      id: true,
+                    },
+                    where: {
+                      eventId,
+                      status: { NOT: 'CANCELLED' },
+                      tenantId: tenant.id,
+                      userId: user.id,
+                    },
+                  });
+                if (activeRegistrations.length > 0) {
+                  return { _tag: 'AlreadyRegistered' } as const;
+                }
+
+                const updatedOptions = yield* tx
+                  .update(eventRegistrationOptions)
+                  .set({
+                    waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} + 1`,
+                  })
+                  .where(
+                    and(
+                      eq(eventRegistrationOptions.id, registrationOption.id),
+                      eq(eventRegistrationOptions.eventId, eventId),
+                      sql`${eventRegistrationOptions.confirmedSpots} + ${eventRegistrationOptions.reservedSpots} >= ${eventRegistrationOptions.spots}`,
+                    ),
+                  )
+                  .returning({
+                    id: eventRegistrationOptions.id,
+                  });
+                if (updatedOptions.length === 0) {
+                  return { _tag: 'CapacityAvailable' } as const;
+                }
+
+                const createdRegistrations = yield* tx
+                  .insert(eventRegistrations)
+                  .values({
+                    eventId,
+                    registrationOptionId: registrationOption.id,
+                    status: 'WAITLIST',
+                    tenantId: tenant.id,
+                    userId: user.id,
+                  })
+                  .returning({
+                    id: eventRegistrations.id,
+                  });
+                if (!createdRegistrations[0]) {
+                  return { _tag: 'CapacityAvailable' } as const;
+                }
+
+                return { _tag: 'Joined' } as const;
+              }),
+            ),
+          );
+
+          if (waitlistResult._tag === 'AlreadyRegistered') {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'User is already registered for this event',
+              }),
+            );
+          }
+          if (waitlistResult._tag === 'CapacityAvailable') {
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Registration option still has available spots',
+              }),
+            );
+          }
+        },
+      );
+
       return {
+        joinWaitlist,
         registerForEvent,
       } as const;
     }),
@@ -661,6 +948,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
     EventRegistrationService,
     EventRegistrationService.make,
   );
+
+  static readonly joinWaitlist = (input: JoinWaitlistArguments) =>
+    EventRegistrationService.use((service) => service.joinWaitlist(input));
 
   static readonly registerForEvent = (input: RegisterForEventArguments) =>
     EventRegistrationService.use((service) => service.registerForEvent(input));

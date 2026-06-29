@@ -61,6 +61,7 @@ services:
     environment:
       DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
       NEON_LOCAL_PROXY: "true"
+      STRIPE_TEST_ACCOUNT_ID:
     command:
       - /bin/sh
       - -lc
@@ -150,6 +151,7 @@ services:
       S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-minioadmin}"
       SECRET:
       STRIPE_API_KEY:
+      STRIPE_TEST_ACCOUNT_ID:
       STRIPE_WEBHOOK_SECRET:
     command:
       - /bin/sh

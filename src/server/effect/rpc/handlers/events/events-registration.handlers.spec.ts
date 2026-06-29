@@ -11,6 +11,7 @@ import {
   RpcRequestContext,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
+import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { eventRegistrationHandlers } from './events-registration.handlers';
 
@@ -75,18 +76,27 @@ const createContextLayer = ({
     RpcAccess.Default,
     Layer.succeed(RpcRequestContext, requestContext),
     Layer.succeed(Database, database as never),
+    Layer.succeed(StripeClient, {
+      checkout: {
+        sessions: {
+          expire: vi.fn(),
+        },
+      },
+    } as never),
   );
 };
 
 const scannedRegistration = {
   appliedDiscountedPrice: null,
   appliedDiscountType: null,
+  checkedInGuestCount: 0,
   checkInTime: null,
   event: {
     start: new Date(Date.now() + 30 * 60 * 1000),
     title: 'City tour',
   },
   eventId: 'event-1',
+  guestCount: 0,
   registrationOption: {
     price: 0,
     title: 'Participant',
@@ -105,6 +115,398 @@ const nonConfirmedRegistrationStatuses = [
   'PENDING',
   'WAITLIST',
 ] as const;
+
+describe('event registration cancellation handlers', () => {
+  it.effect(
+    'allows event organizers to cancel another confirmed registration',
+    () =>
+      Effect.gen(function* () {
+        const updateSets: unknown[] = [];
+        const tx = {
+          update: (table: unknown) => ({
+            set: (values: unknown) => {
+              updateSets.push(values);
+              return {
+                where: () => ({
+                  returning: () => {
+                    if (
+                      table === eventRegistrations ||
+                      table === eventRegistrationOptions
+                    ) {
+                      return Effect.succeed([{ id: 'updated' }]);
+                    }
+                    return Effect.succeed([]);
+                  },
+                }),
+              };
+            },
+          }),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  transactions: [],
+                }),
+              findMany: () =>
+                Effect.succeed([
+                  {
+                    id: 'organizer-registration-1',
+                    registrationOption: {
+                      organizingRegistration: true,
+                    },
+                  },
+                ]),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        yield* eventRegistrationHandlers['events.cancelEventRegistration'](
+          { eventId: 'event-1', registrationId: 'registration-1' },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(createContextLayer({ database })));
+
+        expect(updateSets).toEqual([
+          { status: 'CANCELLED' },
+          expect.objectContaining({ confirmedSpots: expect.anything() }),
+        ]);
+        expect(database.transaction).toHaveBeenCalledOnce();
+      }),
+  );
+
+  it.effect(
+    'rejects event registration cancellation without organizer access',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  transactions: [],
+                }),
+              findMany: () => Effect.succeed([]),
+            },
+          },
+          transaction: vi.fn(),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.cancelEventRegistration'
+        ]({ eventId: 'event-1', registrationId: 'registration-1' }, {
+          headers: {},
+        } as never).pipe(
+          Effect.flip,
+          Effect.provide(createContextLayer({ database })),
+        );
+
+        expect(error['_tag']).toBe('RpcForbiddenError');
+        expect(database.transaction).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'cancels confirmed registrations and releases a confirmed spot',
+    () =>
+      Effect.gen(function* () {
+        const updateSets: unknown[] = [];
+        const tx = {
+          update: (table: unknown) => ({
+            set: (values: unknown) => {
+              updateSets.push(values);
+              return {
+                where: () => ({
+                  returning: () => {
+                    if (
+                      table === eventRegistrations ||
+                      table === eventRegistrationOptions
+                    ) {
+                      return Effect.succeed([{ id: 'updated' }]);
+                    }
+                    return Effect.succeed([]);
+                  },
+                }),
+              };
+            },
+          }),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  transactions: [],
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        yield* eventRegistrationHandlers['events.cancelRegistration'](
+          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(createContextLayer({ database })));
+
+        expect(updateSets).toEqual([
+          { status: 'CANCELLED' },
+          expect.objectContaining({ confirmedSpots: expect.anything() }),
+        ]);
+        expect(database.transaction).toHaveBeenCalledOnce();
+      }),
+  );
+
+  it.effect('cancels pending registrations and releases a reserved spot', () =>
+    Effect.gen(function* () {
+      const updateSets: unknown[] = [];
+      const tx = {
+        update: (table: unknown) => ({
+          set: (values: unknown) => {
+            updateSets.push(values);
+            return {
+              where: () => ({
+                returning: () => {
+                  if (
+                    table === eventRegistrations ||
+                    table === eventRegistrationOptions
+                  ) {
+                    return Effect.succeed([{ id: 'updated' }]);
+                  }
+                  return Effect.succeed([]);
+                },
+              }),
+            };
+          },
+        }),
+      };
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                checkedInGuestCount: 0,
+                checkInTime: null,
+                event: {
+                  start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                },
+                guestCount: 0,
+                id: 'registration-1',
+                registrationOptionId: 'option-1',
+                status: 'PENDING',
+                transactions: [],
+              }),
+          },
+        },
+        transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+          callback(tx),
+        ),
+      };
+
+      yield* eventRegistrationHandlers['events.cancelRegistration'](
+        { guestCheckInCount: 0, registrationId: 'registration-1' },
+        { headers: {} } as never,
+      ).pipe(Effect.provide(createContextLayer({ database })));
+
+      expect(updateSets).toEqual([
+        { status: 'CANCELLED' },
+        expect.objectContaining({ reservedSpots: expect.anything() }),
+      ]);
+      expect(database.transaction).toHaveBeenCalledOnce();
+    }),
+  );
+
+  it.effect('rejects checked-in registration cancellation', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                checkedInGuestCount: 0,
+                checkInTime: new Date(),
+                event: {
+                  start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                },
+                guestCount: 0,
+                id: 'registration-1',
+                registrationOptionId: 'option-1',
+                status: 'CONFIRMED',
+                transactions: [],
+              }),
+          },
+        },
+        transaction: vi.fn(),
+      };
+
+      const error = yield* eventRegistrationHandlers[
+        'events.cancelRegistration'
+      ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+        Effect.flip,
+        Effect.provide(createContextLayer({ database })),
+      );
+
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'Checked-in registrations cannot be cancelled',
+      );
+      expect(database.transaction).not.toHaveBeenCalled();
+    }),
+  );
+
+  it.effect('cancels waitlist registrations and releases a waitlist spot', () =>
+    Effect.gen(function* () {
+      const updateSets: unknown[] = [];
+      const tx = {
+        update: (table: unknown) => ({
+          set: (values: unknown) => {
+            updateSets.push(values);
+            return {
+              where: () => ({
+                returning: () => {
+                  if (
+                    table === eventRegistrations ||
+                    table === eventRegistrationOptions
+                  ) {
+                    return Effect.succeed([{ id: 'updated' }]);
+                  }
+                  return Effect.succeed([]);
+                },
+              }),
+            };
+          },
+        }),
+      };
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                checkedInGuestCount: 0,
+                checkInTime: null,
+                event: {
+                  start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                },
+                guestCount: 0,
+                id: 'registration-1',
+                registrationOptionId: 'option-1',
+                status: 'WAITLIST',
+                transactions: [],
+              }),
+          },
+        },
+        transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+          callback(tx),
+        ),
+      };
+
+      yield* eventRegistrationHandlers['events.cancelRegistration'](
+        { registrationId: 'registration-1' },
+        { headers: {} } as never,
+      ).pipe(Effect.provide(createContextLayer({ database })));
+
+      expect(updateSets).toEqual([
+        { status: 'CANCELLED' },
+        expect.objectContaining({ waitlistSpots: expect.anything() }),
+      ]);
+      expect(database.transaction).toHaveBeenCalledOnce();
+    }),
+  );
+
+  it.effect(
+    'cancels waitlist registrations after the event cancellation cutoff',
+    () =>
+      Effect.gen(function* () {
+        const updateSets: unknown[] = [];
+        const tx = {
+          update: (table: unknown) => ({
+            set: (values: unknown) => {
+              updateSets.push(values);
+              return {
+                where: () => ({
+                  returning: () => {
+                    if (
+                      table === eventRegistrations ||
+                      table === eventRegistrationOptions
+                    ) {
+                      return Effect.succeed([{ id: 'updated' }]);
+                    }
+                    return Effect.succeed([]);
+                  },
+                }),
+              };
+            },
+          }),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                  },
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'WAITLIST',
+                  transactions: [],
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        yield* eventRegistrationHandlers['events.cancelRegistration'](
+          { registrationId: 'registration-1' },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(createContextLayer({ database })));
+
+        expect(updateSets).toEqual([
+          { status: 'CANCELLED' },
+          expect.objectContaining({ waitlistSpots: expect.anything() }),
+        ]);
+        expect(database.transaction).toHaveBeenCalledOnce();
+      }),
+  );
+});
 
 describe('event registration scan handlers', () => {
   it.effect('rejects scan reads for users who cannot check in this event', () =>
@@ -197,6 +599,44 @@ describe('event registration scan handlers', () => {
   }
 
   it.effect(
+    'allows scanning remaining guests after the buyer is checked in',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  ...scannedRegistration,
+                  checkedInGuestCount: 1,
+                  checkInTime: new Date(),
+                  guestCount: 2,
+                }),
+            },
+          },
+        };
+
+        const result = yield* eventRegistrationHandlers[
+          'events.registrationScanned'
+        ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(result.allowCheckin).toBe(true);
+        expect(result.alreadyCheckedInIssue).toBe(false);
+        expect(result.attendeeCheckedIn).toBe(true);
+        expect(result.checkedInGuestCount).toBe(1);
+        expect(result.guestCount).toBe(2);
+        expect(result.remainingGuestCount).toBe(1);
+      }),
+  );
+
+  it.effect(
     'records check-in and increments the option counter for an organizer',
     () =>
       Effect.gen(function* () {
@@ -210,6 +650,7 @@ describe('event registration scan handlers', () => {
                     updateCalls.push('registration');
                     return Effect.succeed([
                       {
+                        checkedInGuestCount: 0,
                         checkInTime: values.checkInTime,
                         id: 'registration-1',
                       },
@@ -232,11 +673,13 @@ describe('event registration scan handlers', () => {
             eventRegistrations: {
               findFirst: () =>
                 Effect.succeed({
+                  checkedInGuestCount: 0,
                   checkInTime: null,
                   event: {
                     start: new Date(Date.now() + 30 * 60 * 1000),
                   },
                   eventId: 'event-1',
+                  guestCount: 0,
                   id: 'registration-1',
                   registrationOptionId: 'option-1',
                   status: 'CONFIRMED',
@@ -260,15 +703,97 @@ describe('event registration scan handlers', () => {
 
         const result = yield* eventRegistrationHandlers[
           'events.checkInRegistration'
-        ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
-          Effect.provide(createContextLayer({ database })),
-        );
+        ]({ guestCheckInCount: 0, registrationId: 'registration-1' }, {
+          headers: {},
+        } as never).pipe(Effect.provide(createContextLayer({ database })));
 
         expect(result.alreadyCheckedIn).toBe(false);
         expect(result.checkInTime).toContain('T');
         expect(updateCalls).toEqual(['registration', 'option']);
         expect(database.transaction).toHaveBeenCalledOnce();
       }),
+  );
+
+  it.effect('records selected guest check-ins with the attendee check-in', () =>
+    Effect.gen(function* () {
+      const updateSets: unknown[] = [];
+      const tx = {
+        update: (table: unknown) => ({
+          set: (values: unknown) => {
+            updateSets.push(values);
+            return {
+              where: () => ({
+                returning: () => {
+                  if (table === eventRegistrations) {
+                    return Effect.succeed([
+                      {
+                        checkedInGuestCount: 2,
+                        checkInTime: new Date(),
+                        id: 'registration-1',
+                      },
+                    ]);
+                  }
+
+                  if (table === eventRegistrationOptions) {
+                    return Effect.succeed([{ id: 'option-1' }]);
+                  }
+
+                  return Effect.succeed([]);
+                },
+              }),
+            };
+          },
+        }),
+      };
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                checkedInGuestCount: 0,
+                checkInTime: null,
+                event: {
+                  start: new Date(Date.now() + 30 * 60 * 1000),
+                },
+                eventId: 'event-1',
+                guestCount: 2,
+                id: 'registration-1',
+                registrationOptionId: 'option-1',
+                status: 'CONFIRMED',
+                userId: 'attendee-1',
+              }),
+            findMany: () =>
+              Effect.succeed([
+                {
+                  id: 'organizer-registration-1',
+                  registrationOption: {
+                    organizingRegistration: true,
+                  },
+                },
+              ]),
+          },
+        },
+        transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+          callback(tx),
+        ),
+      };
+
+      const result = yield* eventRegistrationHandlers[
+        'events.checkInRegistration'
+      ](
+        {
+          guestCheckInCount: 2,
+          registrationId: 'registration-1',
+        },
+        { headers: {} } as never,
+      ).pipe(Effect.provide(createContextLayer({ database })));
+
+      expect(result.alreadyCheckedIn).toBe(false);
+      expect(updateSets).toEqual([
+        expect.objectContaining({ checkInTime: expect.any(Date) }),
+        expect.objectContaining({ checkedInSpots: expect.anything() }),
+      ]);
+    }),
   );
 
   it.effect('rejects check-in before the pre-start window opens', () =>
@@ -278,11 +803,13 @@ describe('event registration scan handlers', () => {
           eventRegistrations: {
             findFirst: () =>
               Effect.succeed({
+                checkedInGuestCount: 0,
                 checkInTime: null,
                 event: {
                   start: new Date(Date.now() + 2 * 60 * 60 * 1000),
                 },
                 eventId: 'event-1',
+                guestCount: 0,
                 id: 'registration-1',
                 registrationOptionId: 'option-1',
                 status: 'CONFIRMED',
@@ -295,7 +822,9 @@ describe('event registration scan handlers', () => {
 
       const error = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
-      ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+      ]({ guestCheckInCount: 0, registrationId: 'registration-1' }, {
+        headers: {},
+      } as never).pipe(
         Effect.flip,
         Effect.provide(
           createContextLayer({
@@ -319,6 +848,7 @@ describe('event registration scan handlers', () => {
           eventRegistrations: {
             findFirst: () =>
               Effect.succeed({
+                checkedInGuestCount: 0,
                 checkInTime,
                 event: {
                   start: new Date(Date.now() + 2 * 60 * 60 * 1000),
@@ -345,9 +875,9 @@ describe('event registration scan handlers', () => {
 
       const result = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
-      ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
-        Effect.provide(createContextLayer({ database })),
-      );
+      ]({ guestCheckInCount: 0, registrationId: 'registration-1' }, {
+        headers: {},
+      } as never).pipe(Effect.provide(createContextLayer({ database })));
 
       expect(result).toEqual({
         alreadyCheckedIn: true,
@@ -364,11 +894,13 @@ describe('event registration scan handlers', () => {
           eventRegistrations: {
             findFirst: () =>
               Effect.succeed({
+                checkedInGuestCount: 0,
                 checkInTime: null,
                 event: {
                   start: new Date(Date.now() + 30 * 60 * 1000),
                 },
                 eventId: 'event-1',
+                guestCount: 0,
                 id: 'registration-1',
                 registrationOptionId: 'option-1',
                 status: 'CONFIRMED',
@@ -389,7 +921,9 @@ describe('event registration scan handlers', () => {
 
       const error = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
-      ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+      ]({ guestCheckInCount: 0, registrationId: 'registration-1' }, {
+        headers: {},
+      } as never).pipe(
         Effect.flip,
         Effect.provide(createContextLayer({ database })),
       );
@@ -409,11 +943,13 @@ describe('event registration scan handlers', () => {
             eventRegistrations: {
               findFirst: () =>
                 Effect.succeed({
+                  checkedInGuestCount: 0,
                   checkInTime: null,
                   event: {
                     start: new Date(Date.now() + 30 * 60 * 1000),
                   },
                   eventId: 'event-1',
+                  guestCount: 0,
                   id: 'registration-1',
                   registrationOptionId: 'option-1',
                   status,
@@ -426,7 +962,9 @@ describe('event registration scan handlers', () => {
 
         const error = yield* eventRegistrationHandlers[
           'events.checkInRegistration'
-        ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+        ]({ guestCheckInCount: 0, registrationId: 'registration-1' }, {
+          headers: {},
+        } as never).pipe(
           Effect.flip,
           Effect.provide(
             createContextLayer({

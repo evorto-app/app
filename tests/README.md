@@ -16,13 +16,15 @@ This directory contains the active Playwright suite.
 - Specs should consume deterministic scenario handles from `seeded.scenario`
 - Do not discover test entities by template title fragments, fuzzy event searches, or wall-clock checks
 
-## Required Tags
+## Test Titles and Optional Tags
 
-All tests in `tests/**/*.ts` are linted with a custom ESLint rule:
+Prefer clear behavior-oriented test titles because Playwright `--list`,
+generated docs, and inventory reviews depend on readable names.
 
-- `@track(<track_id>)` is required for every test title
-- `@req(<id>)` is required for non-doc tests
-- `@doc(<id>)` is required for doc tests under `tests/docs/**`
+Legacy `@track(...)`, `@req(...)`, and `@doc(...)` tags may still appear in
+existing titles, but they are not mandatory for new or updated tests. Prefer a
+plain title over placeholder metadata. Dynamic titles are acceptable for compact
+matrix-style coverage when the listed output remains readable.
 
 ## Commands
 
@@ -53,7 +55,7 @@ bun run lint
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Neon
   Local, Auth0, Stripe, the application session secret, and Font Awesome package
-  registry access for the premium icon packages. It also reports Bun, Docker
+  registry access for the premium and brand icon packages. It also reports Bun, Docker
   Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser
   cache status. Missing Playwright browsers are warnings because they affect
   Playwright runs, not Docker startup.
@@ -64,10 +66,13 @@ bun run lint
 - Starting the Docker stack is destructive for local database state by design because `db-setup` pushes schema and resets/seeds the Docker database on every start.
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
-- Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`.
+- Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
 - Playwright list/discovery commands do not clean or write generated docs
-  output. Run the docs projects without `--list` when you intentionally want to
-  regenerate documentation artifacts.
+  output and may run without local Auth0/Stripe secrets. In list-only mode the
+  Playwright config uses inert placeholder values for runtime-only secrets so
+  test titles can be enumerated without starting Docker or contacting external
+  services. Run the docs projects without `--list` when you intentionally want
+  to regenerate documentation artifacts.
 
 ## Playwright Browsers
 
@@ -148,7 +153,14 @@ Required for full Playwright flows:
 - `SECRET`
 - `STRIPE_API_KEY`
 - `STRIPE_TEST_ACCOUNT_ID`
-- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_WEBHOOK_SECRET` or the Docker-provided
+  `STRIPE_WEBHOOK_SECRET_FILE` path for app webhook verification
+
+The Docker stack can use `STRIPE_WEBHOOK_SECRET_FILE` for the app container
+instead of a static `STRIPE_WEBHOOK_SECRET`; the Compose-managed Stripe CLI
+listener writes the generated signing secret there. The replay specs that
+generate signed webhook payloads directly still need `STRIPE_WEBHOOK_SECRET`
+when those specs are run outside the Docker listener path.
 
 Required in CI baseline docs/functional jobs:
 

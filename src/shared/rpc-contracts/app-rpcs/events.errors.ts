@@ -57,8 +57,10 @@ export const EventsReviewRpcError = ForbiddenOrUnauthorizedRpcError;
 export type EventsReviewRpcError = ForbiddenOrUnauthorizedRpcError;
 
 export const EventsCancelPendingRegistrationError = Schema.Union([
+  EventRegistrationConflictError,
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
+  RpcForbiddenError,
   RpcUnauthorizedError,
 ]);
 export type EventsCancelPendingRegistrationError = Schema.Schema.Type<

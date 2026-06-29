@@ -4,6 +4,12 @@
       <div class="title-medium lg:col-span-2">
         {{ registration.registrationOptionTitle }}
       </div>
+      @if (registration.guestCount > 0) {
+        <div class="body-medium text-on-surface-variant lg:col-span-2">
+          Includes {{ registration.guestCount }}
+          {{ registration.guestCount === 1 ? "guest" : "guests" }} plus you.
+        </div>
+      }
       @if (registration.appliedDiscountType === "esnCard") {
         <div
           class="bg-primary-container text-on-primary-container rounded px-3 py-2 text-sm lg:col-span-2"
@@ -35,16 +41,10 @@
             Your registration is pending confirmation
           </div>
         }
-        <button
-          mat-stroked-button
-          (click)="cancelPendingRegistration(registration)"
-        >
-          Cancel registration
-        </button>
       } @else if (registration.status === "WAITLIST") {
         <div class="text-warning">
-          You are currently on the waitlist. We will contact you if a spot
-          becomes available.
+          You are currently on the waitlist. Open this event again later to see
+          whether a spot becomes available.
         </div>
       } @else if (registration.status === "CONFIRMED") {
         @if (registration.registeredDescription) {
@@ -68,6 +68,29 @@
           />
         </div>
       }
+      @if (cancellationCopy(registration); as cancellation) {
+        <div class="flex flex-col items-start gap-2 lg:col-span-2">
+          <p class="body-small text-on-surface-variant">
+            {{ cancellation.helperText }}
+          </p>
+          <button
+            type="button"
+            mat-stroked-button
+            (click)="cancelRegistration(registration)"
+            [disabled]="
+              cancelRegistrationMutation.isPending() || !cancellation.canCancel
+            "
+          >
+            {{ cancellation.buttonLabel }}
+          </button>
+        </div>
+      }
     </div>
   }
 </div>
+@if (cancelRegistrationMutation.isError()) {
+  <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
+    <h3 class="title-medium">Registration cancellation failed</h3>
+    <p>{{ errorMessage(cancelRegistrationMutation.error()) }}</p>
+  </div>
+}

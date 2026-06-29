@@ -21,8 +21,18 @@
   </div>
 } @else if (tenantQuery.isSuccess()) {
   @for (tenant of tenantQuery.data(); track tenant.id) {
-    <div class="bg-surface text-on-surface rounded-2xl p-4">
+    <div class="bg-surface text-on-surface mb-3 rounded-2xl p-4">
       <h2 class="title-medium">{{ tenant.name }}</h2>
+      <dl class="mt-2 grid gap-1 text-sm">
+        <div>
+          <dt class="text-on-surface-variant inline">Domain:</dt>
+          <dd class="inline">{{ tenant.domain }}</dd>
+        </div>
+        <div>
+          <dt class="text-on-surface-variant inline">Tenant ID:</dt>
+          <dd class="inline font-mono text-xs">{{ tenant.id }}</dd>
+        </div>
+      </dl>
     </div>
   } @empty {
     <div class="bg-surface text-on-surface rounded-2xl p-4">

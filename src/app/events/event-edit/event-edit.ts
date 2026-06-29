@@ -11,7 +11,7 @@ import { form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { Router, RouterLink } from '@angular/router';
-import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
+import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faArrowLeft,
   faEllipsisVertical,
@@ -38,7 +38,7 @@ import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permiss
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    FaDuotoneIconComponent,
+    FontAwesomeModule,
     IfAnyPermissionDirective,
     MatButtonModule,
     MatMenuModule,

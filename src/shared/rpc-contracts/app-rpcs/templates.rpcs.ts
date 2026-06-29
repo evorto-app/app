@@ -40,6 +40,7 @@ export const TemplateSimpleInput = Schema.Struct({
   location: Schema.NullOr(EventLocation),
   organizerRegistration: TemplateSimpleRegistrationInput,
   participantRegistration: TemplateSimpleRegistrationInput,
+  planningTips: Schema.optional(Schema.NullOr(Schema.String)),
   title: Schema.NonEmptyString,
 });
 
@@ -71,6 +72,7 @@ export const TemplateFindOneRecord = Schema.Struct({
   icon: iconSchema,
   id: Schema.NonEmptyString,
   location: Schema.NullOr(EventLocation),
+  planningTips: Schema.NullOr(Schema.String),
   registrationOptions: Schema.Array(TemplateRegistrationOptionRecord),
   title: Schema.NonEmptyString,
 });

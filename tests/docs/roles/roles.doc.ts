@@ -65,7 +65,7 @@ Permissions that are required by another permission are automatically included a
     body: `
 After you have saved your newly configured role, you will be redirected to the role details page.
 The role can now be used by flows that reference tenant roles, such as event and template eligibility.
-Assigning roles to existing users is not part of the current role-management UI.
+Assigning roles to existing users is explicitly deferred for relaunch. The **All users** page is read-only and shows current role assignments; the **users:assignRoles** permission is reserved for the production migration path and future role-assignment workflows.
 `,
   });
 });

@@ -29,6 +29,16 @@ import { NotificationService } from '../../core/notification.service';
 import { ReceiptFormFieldsComponent } from '../shared/receipt-form/receipt-form-fields.component';
 import { createReceiptForm } from '../shared/receipt-form/receipt-form.model';
 
+export const receiptReviewSuccessMessage = (
+  status: 'approved' | 'rejected',
+): string =>
+  status === 'approved'
+    ? 'Receipt approved. Notify the submitter manually.'
+    : 'Receipt rejected. Notify the submitter manually.';
+
+export const receiptReviewNotificationNotice =
+  'Approving or rejecting this receipt records the review status only. Notify the submitter manually after saving.';
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -77,6 +87,8 @@ export class ReceiptApprovalDetailComponent {
     return receipt.attachmentMimeType === 'application/pdf';
   });
 
+  protected readonly receiptReviewNotificationNotice =
+    receiptReviewNotificationNotice;
   protected readonly rejectionReason = signal('');
   protected readonly reviewMutation = injectMutation(() =>
     this.rpc.finance.receipts.review.mutationOptions(),
@@ -212,9 +224,7 @@ export class ReceiptApprovalDetailComponent {
           },
         },
       );
-      this.notifications.showSuccess(
-        status === 'approved' ? 'Receipt approved' : 'Receipt rejected',
-      );
+      this.notifications.showSuccess(receiptReviewSuccessMessage(status));
       await this.router.navigate(['/finance/receipts-approval']);
     } catch (error) {
       this.notifications.showError(

@@ -48,6 +48,14 @@
       @if (templateQuery.data().location) {
         <div>Location: {{ templateQuery.data().location?.name }}</div>
       }
+      @if (templateQuery.data().planningTips) {
+        <div class="mt-4">
+          <h3 class="title-small">Organizer planning tips</h3>
+          <p class="whitespace-pre-line text-sm">
+            {{ templateQuery.data().planningTips }}
+          </p>
+        </div>
+      }
     </section>
 
     <section
@@ -84,17 +92,17 @@
                   }}</span>
                   <span class="text-on-surface-variant">·</span>
                   @if (option.isPaid) {
-                    <span>{{ option.price / 100 | currency }}</span>
                     @if (
                       taxRatesQuery.isSuccess() &&
                         findRateByStripeId(option.stripeTaxRateId);
                       as rate
                     ) {
-                      <span class="text-on-surface-variant">·</span>
-                      <span class="text-on-surface-variant">
-                        Incl. {{ rate.percentage }}%
-                        {{ rate.displayName || "Tax" }}
-                      </span>
+                      <app-price-with-tax
+                        [amount]="option.price"
+                        [taxRate]="rate"
+                      />
+                    } @else {
+                      <app-price-with-tax [amount]="option.price" />
                     }
                   } @else {
                     <span>Free</span>

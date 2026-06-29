@@ -17,7 +17,10 @@ const hasManagementEnvironment = Effect.runSync(
 );
 
 if (!hasManagementEnvironment) {
-  test.skip(true, 'Auth0 creds missing');
+  test.skip(
+    true,
+    'AUTH0_MANAGEMENT_CLIENT_ID and AUTH0_MANAGEMENT_CLIENT_SECRET are required for this integration doc',
+  );
 }
 
 test('Create your account @needs-auth0-management @track(playwright-specs-track-linking_20260126) @doc(CREATE-ACCOUNT-DOC-01)', async ({
@@ -29,7 +32,7 @@ test('Create your account @needs-auth0-management @track(playwright-specs-track-
   await testInfo.attach('markdown', {
     body: `
 {% callout type="note" title="For first time visits" %}
-This guide assumes that you do not have an account already.
+This guide assumes that you are authenticated by Auth0 but do not yet have an Evorto account for the current tenant. Creating the account connects your global login to this tenant and grants the tenant's default user roles.
 {% /callout %}
 ## Login
 Open the app page and click on the **Login** link.`,
@@ -57,13 +60,9 @@ Open the app page and click on the **Login** link.`,
   await page.getByRole('link', { name: 'Login' }).click();
   await testInfo.attach('markdown', {
     body: `
-After starting the login flow, you can sign in. In general there are two options available to you:
-- **Sign in with a social account**: This is the most common way to sign in. You can reuse your existing social account to sign in.
-  _Note that your selection could be different from the image below._
-- **Sign in with an email address**: You can also create a new account using your email address. You then sign in with your email address and password.
-  _Email verification_ If you are using an email address to sign in, you will be asked to verify your email address. You will receive an email with a link to verify your email address. To continue, click the link from the email.
+After starting the login flow, sign in with the account you want to use for this tenant. This integration guide uses a generated demo user because Auth0 account creation requires Auth0 Management credentials.
 
-For this example we will sign in with a demo user.`,
+If your Auth0 email address is not verified yet, Evorto asks you to verify it before the tenant account form is shown.`,
   });
   await page.getByLabel('Email address').waitFor({ state: 'visible' });
   await takeScreenshot(testInfo, page.getByLabel('Email address'), page);
@@ -88,7 +87,9 @@ For this example we will sign in with a demo user.`,
 
   await testInfo.attach('markdown', {
     body: `
-The next step is simple. Just fill in the data requested and click on **Create account**. _Note_ the data requested can change based on the application settings.`,
+Review the prefilled first name, last name, and notification email address, then click **Create Account**. Evorto stores the notification email as your editable communication address for event and finance messages.
+
+If the same global login already exists for another tenant, this step joins the current tenant instead of creating a duplicate global user. If account creation fails, the form shows the server error and lets you retry after resolving the issue.`,
   });
   const createAccountForm = page
     .locator('form')
@@ -105,7 +106,6 @@ The next step is simple. Just fill in the data requested and click on **Create a
   ).toBeVisible();
   await testInfo.attach('markdown', {
     body: `
-You should now be on your profile page and are ready to start using the app.
-Why not Register for an event next?`,
+You should now be on your profile page for the current tenant. From here you can review your profile, manage discount cards when the tenant supports them, and register for events.`,
   });
 });

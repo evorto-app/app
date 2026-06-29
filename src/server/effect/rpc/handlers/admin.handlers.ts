@@ -44,6 +44,53 @@ const decodeHeaderJson = <A>(
   schema: Schema.Decoder<A>,
 ): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
+const normalizeOptionalUrl = (
+  value: string | undefined,
+  fieldName: string,
+): null | string => {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmedValue);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      throw new Error('URL must use http or https');
+    }
+
+    return url.toString();
+  } catch (error) {
+    throw new Error(
+      `${fieldName} must be a valid http or https URL${
+        error instanceof Error ? `: ${error.message}` : ''
+      }`,
+      { cause: error },
+    );
+  }
+};
+
+const normalizeTenantLegalLinks = (input: {
+  legalNoticeUrl?: string | undefined;
+  privacyPolicyUrl?: string | undefined;
+  termsUrl?: string | undefined;
+}) => ({
+  legalNoticeUrl: normalizeOptionalUrl(input.legalNoticeUrl, 'legalNoticeUrl'),
+  privacyPolicyUrl: normalizeOptionalUrl(
+    input.privacyPolicyUrl,
+    'privacyPolicyUrl',
+  ),
+  termsUrl: normalizeOptionalUrl(input.termsUrl, 'termsUrl'),
+});
+
+const normalizeTenantBrandAssets = (input: {
+  faviconUrl?: string | undefined;
+  logoUrl?: string | undefined;
+}) => ({
+  faviconUrl: normalizeOptionalUrl(input.faviconUrl, 'faviconUrl'),
+  logoUrl: normalizeOptionalUrl(input.logoUrl, 'logoUrl'),
+});
+
 const normalizeHubRoleRecord = (role: {
   description: null | string;
   id: string;
@@ -498,15 +545,35 @@ export const adminHandlers = {
           status: input.esnCardEnabled ? 'enabled' : 'disabled',
         },
       };
+      const legalLinks = yield* Effect.try({
+        catch: (error) =>
+          new RpcBadRequestError({
+            message: 'Invalid tenant legal links',
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+        try: () => normalizeTenantLegalLinks(input),
+      });
+      const brandAssets = yield* Effect.try({
+        catch: (error) =>
+          new RpcBadRequestError({
+            message: 'Invalid tenant brand assets',
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+        try: () => normalizeTenantBrandAssets(input),
+      });
 
       const nextTenant = {
         ...tenant,
+        ...brandAssets,
         defaultLocation: input.defaultLocation,
         discountProviders,
+        ...legalLinks,
         receiptSettings: resolveTenantReceiptSettings({
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
         }),
+        seoDescription: input.seoDescription?.trim() || null,
+        seoTitle: input.seoTitle?.trim() || null,
         theme: input.theme,
       };
 
@@ -523,12 +590,16 @@ export const adminHandlers = {
         database
           .update(tenants)
           .set({
+            ...brandAssets,
             defaultLocation: input.defaultLocation,
             discountProviders,
+            ...legalLinks,
             receiptSettings: resolveTenantReceiptSettings({
               allowOther: input.allowOther,
               receiptCountries: input.receiptCountries,
             }),
+            seoDescription: input.seoDescription?.trim() || null,
+            seoTitle: input.seoTitle?.trim() || null,
             theme: input.theme,
           })
           .where(eq(tenants.id, tenant.id))

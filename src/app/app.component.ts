@@ -1,10 +1,17 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+} from '@angular/core';
 import { MatIconRegistry } from '@angular/material/icon';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { DomSanitizer } from '@angular/platform-browser';
 import { RouterOutlet } from '@angular/router';
 
+import { ConfigService } from './core/config.service';
 import { NavigationComponent } from './core/navigation/navigation.component';
+import { tenantLegalLinks } from './core/tenant-legal-links';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -13,6 +20,10 @@ import { NavigationComponent } from './core/navigation/navigation.component';
   templateUrl: './app.component.html',
 })
 export class AppComponent {
+  private readonly config = inject(ConfigService);
+  protected readonly legalLinks = computed(() =>
+    tenantLegalLinks(this.config.tenantSignal()),
+  );
   private readonly iconRegistry = inject(MatIconRegistry);
   private readonly sanitizer = inject(DomSanitizer);
 

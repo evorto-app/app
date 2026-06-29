@@ -5,9 +5,12 @@ import {
   computed,
   inject,
   input,
+  signal,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import {
   injectMutation,
   injectQuery,
@@ -17,65 +20,192 @@ import { interval, map } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
+
+export interface EventRegistrationOptionView {
+  appliedDiscountType?: 'esnCard' | null;
+  closeRegistrationTime: string;
+  confirmedSpots: number;
+  description: null | string;
+  discountApplied?: boolean;
+  effectivePrice?: number;
+  esnCardDiscountedPrice?: null | number;
+  eventId: string;
+  id: string;
+  isPaid: boolean;
+  openRegistrationTime: string;
+  organizingRegistration: boolean;
+  price: number;
+  registrationMode: 'application' | 'fcfs' | 'random';
+  reservedSpots: number;
+  spots: number;
+  stripeTaxRateId?: null | string;
+  taxRateDisplayName?: null | string;
+  taxRatePercentage?: null | string;
+  title: string;
+}
+
+export type RegistrationAvailability = 'open' | 'tooEarly' | 'tooLate';
+
+export const registrationOptionAudienceCopy = (
+  option: Pick<EventRegistrationOptionView, 'organizingRegistration'>,
+): {
+  actionSuffix: string;
+  helperText: string;
+  label: string;
+  primaryAction: string;
+} =>
+  option.organizingRegistration
+    ? {
+        actionSuffix: 'sign up as organizer/helper',
+        helperText: 'Use this option when you are helping run the event.',
+        label: 'Organizer/helper option',
+        primaryAction: 'Sign up as organizer/helper',
+      }
+    : {
+        actionSuffix: 'register',
+        helperText: 'Use this option when you are attending the event.',
+        label: 'Participant option',
+        primaryAction: 'Register',
+      };
+
+export const registrationOptionIsFull = (
+  option: Pick<
+    EventRegistrationOptionView,
+    'confirmedSpots' | 'reservedSpots' | 'spots'
+  >,
+): boolean => option.confirmedSpots + option.reservedSpots >= option.spots;
+
+export const registrationOptionCanJoinWaitlist = (
+  option: Pick<
+    EventRegistrationOptionView,
+    | 'confirmedSpots'
+    | 'organizingRegistration'
+    | 'registrationMode'
+    | 'reservedSpots'
+    | 'spots'
+  >,
+): boolean =>
+  !option.organizingRegistration &&
+  option.registrationMode === 'fcfs' &&
+  registrationOptionIsFull(option);
+
+export const registrationOptionAvailableSpots = (
+  option: Pick<
+    EventRegistrationOptionView,
+    'confirmedSpots' | 'reservedSpots' | 'spots'
+  >,
+): number =>
+  Math.max(0, option.spots - option.confirmedSpots - option.reservedSpots);
+
+export const registrationOptionSelectedTotalPrice = (
+  option: Pick<EventRegistrationOptionView, 'effectivePrice' | 'price'>,
+  guestCount: number,
+): number => {
+  const buyerPrice = option.effectivePrice ?? option.price;
+  return buyerPrice + option.price * Math.max(0, guestCount);
+};
+
+export const registrationOptionAvailability = (
+  option: Pick<
+    EventRegistrationOptionView,
+    'closeRegistrationTime' | 'openRegistrationTime'
+  >,
+  currentTime: Date,
+): RegistrationAvailability => {
+  if (new Date(option.openRegistrationTime) > currentTime) {
+    return 'tooEarly';
+  }
+  if (new Date(option.closeRegistrationTime) < currentTime) {
+    return 'tooLate';
+  }
+  return 'open';
+};
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, CurrencyPipe, DatePipe],
+  imports: [
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    CurrencyPipe,
+    DatePipe,
+    PriceWithTaxComponent,
+  ],
   selector: 'app-event-registration-option',
   styles: ``,
   templateUrl: './event-registration-option.component.html',
 })
 export class EventRegistrationOptionComponent {
-  public readonly registrationOption = input.required<{
-    appliedDiscountType?: 'esnCard' | null;
-    closeRegistrationTime: string;
-    confirmedSpots: number;
-    description: null | string;
-    discountApplied?: boolean;
-    effectivePrice?: number;
-    esnCardDiscountedPrice?: null | number;
-    eventId: string;
-    id: string;
-    isPaid: boolean;
-    openRegistrationTime: string;
-    price: number;
-    reservedSpots: number;
-    spots: number;
-    title: string;
-  }>();
+  public readonly registrationOption =
+    input.required<EventRegistrationOptionView>();
+  protected readonly audienceCopy = computed(() =>
+    registrationOptionAudienceCopy(this.registrationOption()),
+  );
   private readonly rpc = AppRpc.injectClient();
   protected readonly authenticationQuery = injectQuery(() =>
     this.rpc.config.isAuthenticated.queryOptions(),
   );
+  protected readonly availableSpots = computed(() =>
+    registrationOptionAvailableSpots(this.registrationOption()),
+  );
   protected readonly full = computed(() => {
-    const registrationOption = this.registrationOption();
-    return (
-      registrationOption.confirmedSpots + registrationOption.reservedSpots >=
-      registrationOption.spots
-    );
+    return registrationOptionIsFull(this.registrationOption());
   });
+  protected readonly guestCount = signal(0);
+  protected readonly maxGuestCount = computed(() =>
+    this.registrationOption().organizingRegistration
+      ? 0
+      : Math.max(0, this.availableSpots() - 1),
+  );
   protected readonly registrationMutation = injectMutation(() =>
     this.rpc.events.registerForEvent.mutationOptions(),
+  );
+  protected readonly waitlistMutation = injectMutation(() =>
+    this.rpc.events.joinWaitlist.mutationOptions(),
+  );
+  protected readonly mutationPending = computed(
+    () =>
+      this.registrationMutation.isPending() ||
+      this.waitlistMutation.isPending(),
   );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),
   });
   protected registrationOpen = computed(() => {
-    const currentTime = this.currentTime();
-    const registrationOption = this.registrationOption();
-    if (new Date(registrationOption.openRegistrationTime) > currentTime) {
-      return 'tooEarly';
-    }
-    if (new Date(registrationOption.closeRegistrationTime) < currentTime) {
-      return 'tooLate';
-    }
-    return 'open';
+    return registrationOptionAvailability(
+      this.registrationOption(),
+      this.currentTime(),
+    );
+  });
+  protected readonly selectedGuestCount = computed(() =>
+    Math.min(this.guestCount(), this.maxGuestCount()),
+  );
+  protected readonly selectedSpotCount = computed(
+    () => this.selectedGuestCount() + 1,
+  );
+  protected readonly selectedTotalPrice = computed(() => {
+    return registrationOptionSelectedTotalPrice(
+      this.registrationOption(),
+      this.selectedGuestCount(),
+    );
+  });
+  protected readonly taxRateInfo = computed(() => {
+    const option = this.registrationOption();
+    return {
+      displayName: option.taxRateDisplayName ?? null,
+      percentage: option.taxRatePercentage ?? null,
+      stripeTaxRateId: option.stripeTaxRateId ?? null,
+    };
+  });
+  protected readonly waitlistAvailable = computed(() => {
+    return registrationOptionCanJoinWaitlist(this.registrationOption());
   });
 
   private queryClient = inject(QueryClient);
 
-  register(registrationOption: { eventId: string; id: string }) {
-    this.registrationMutation.mutate(
+  joinWaitlist(registrationOption: { eventId: string; id: string }) {
+    this.waitlistMutation.mutate(
       {
         eventId: registrationOption.eventId,
         registrationOptionId: registrationOption.id,
@@ -87,8 +217,49 @@ export class EventRegistrationOptionComponent {
               eventId: registrationOption.eventId,
             }),
           });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.findOne.queryKey({
+              id: registrationOption.eventId,
+            }),
+          });
         },
       },
+    );
+  }
+
+  register(registrationOption: { eventId: string; id: string }) {
+    this.registrationMutation.mutate(
+      {
+        eventId: registrationOption.eventId,
+        guestCount: this.selectedGuestCount(),
+        registrationOptionId: registrationOption.id,
+      },
+      {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.getRegistrationStatus.queryKey({
+              eventId: registrationOption.eventId,
+            }),
+          });
+        },
+      },
+    );
+  }
+
+  updateGuestCount(event: Event) {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    const nextGuestCount = Number.parseInt(input.value, 10);
+    this.guestCount.set(
+      Math.max(
+        0,
+        Math.min(
+          Number.isNaN(nextGuestCount) ? 0 : nextGuestCount,
+          this.maxGuestCount(),
+        ),
+      ),
     );
   }
 

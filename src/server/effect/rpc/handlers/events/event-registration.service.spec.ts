@@ -38,6 +38,7 @@ const approvedRegistrationOption = {
   id: 'option-1',
   isPaid: false,
   openRegistrationTime: new Date('2026-09-10T10:00:00.000Z'),
+  organizingRegistration: false,
   price: 0,
   registrationMode: 'fcfs',
   reservedSpots: 0,
@@ -88,6 +89,7 @@ describe('EventRegistrationService', () => {
 
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
+          guestCount: 0,
           headers: Headers.empty,
           registrationOptionId: 'organizer-option-1',
           tenant: {
@@ -133,6 +135,7 @@ describe('EventRegistrationService', () => {
 
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
+          guestCount: 0,
           headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
@@ -164,6 +167,7 @@ describe('EventRegistrationService', () => {
               id: true,
               isPaid: true,
               openRegistrationTime: true,
+              organizingRegistration: true,
               price: true,
               registrationMode: true,
               reservedSpots: true,
@@ -198,6 +202,7 @@ describe('EventRegistrationService', () => {
 
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
+        guestCount: 0,
         headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
@@ -245,6 +250,7 @@ describe('EventRegistrationService', () => {
 
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
+          guestCount: 0,
           headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
@@ -286,6 +292,7 @@ describe('EventRegistrationService', () => {
 
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
+        guestCount: 0,
         headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
@@ -336,6 +343,7 @@ describe('EventRegistrationService', () => {
 
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
+        guestCount: 0,
         headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
@@ -382,6 +390,7 @@ describe('EventRegistrationService', () => {
 
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
+        guestCount: 0,
         headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
@@ -408,6 +417,194 @@ describe('EventRegistrationService', () => {
     }),
   );
 
+  it.effect(
+    'stores guest count when registering multiple participant spots',
+    () =>
+      Effect.gen(function* () {
+        let insertedRegistration: unknown;
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () => Effect.succeed(approvedRegistrationOption),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+          transaction: (
+            callback: (tx: {
+              execute: () => Effect.Effect<unknown>;
+              insert: () => {
+                values: (value: unknown) => {
+                  returning: () => Effect.Effect<{ id: string }[]>;
+                };
+              };
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.Effect<[]>;
+                };
+              };
+              update: () => {
+                set: () => {
+                  where: () => {
+                    returning: () => Effect.Effect<{ id: string }[]>;
+                  };
+                };
+              };
+            }) => Effect.Effect<unknown>,
+          ) =>
+            callback({
+              execute: () => Effect.succeed(),
+              insert: () => ({
+                values: (value) => {
+                  insertedRegistration = value;
+                  return {
+                    returning: () => Effect.succeed([{ id: 'registration-1' }]),
+                  };
+                },
+              }),
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.succeed([]),
+                },
+              },
+              update: () => ({
+                set: () => ({
+                  where: () => ({
+                    returning: () => Effect.succeed([{ id: 'option-1' }]),
+                  }),
+                }),
+              }),
+            }),
+        };
+
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 2,
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        yield* program;
+        expect(insertedRegistration).toEqual(
+          expect.objectContaining({
+            guestCount: 2,
+            status: 'CONFIRMED',
+          }),
+        );
+      }),
+  );
+
+  it.effect('rejects guest registration when not enough spots remain', () =>
+    Effect.gen(function* () {
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                confirmedSpots: 8,
+                reservedSpots: 0,
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+      };
+
+      const program = EventRegistrationService.registerForEvent({
+        eventId: 'event-1',
+        guestCount: 2,
+        headers: Headers.empty,
+        registrationOptionId: 'option-1',
+        tenant: {
+          currency: 'EUR',
+          id: 'tenant-1',
+          stripeAccountId: undefined,
+        },
+        user: {
+          email: 'alice@example.com',
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provideService(StripeClient, stripeClient),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe('Registration option has no available spots');
+    }),
+  );
+
+  it.effect('rejects guest spots for organizer/helper registration', () =>
+    Effect.gen(function* () {
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                organizingRegistration: true,
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+      };
+
+      const program = EventRegistrationService.registerForEvent({
+        eventId: 'event-1',
+        guestCount: 1,
+        headers: Headers.empty,
+        registrationOptionId: 'option-1',
+        tenant: {
+          currency: 'EUR',
+          id: 'tenant-1',
+          stripeAccountId: undefined,
+        },
+        user: {
+          email: 'alice@example.com',
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provideService(StripeClient, stripeClient),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'Guest spots are only available for participant options',
+      );
+    }),
+  );
+
   it.effect('rejects registration for unsupported registration modes', () =>
     Effect.gen(function* () {
       const updateOptionCounters = vi.fn();
@@ -429,6 +626,7 @@ describe('EventRegistrationService', () => {
 
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
+        guestCount: 0,
         headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
@@ -497,6 +695,7 @@ describe('EventRegistrationService', () => {
 
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
+          guestCount: 0,
           headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
@@ -581,6 +780,7 @@ describe('EventRegistrationService', () => {
 
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
+          guestCount: 0,
           headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
@@ -608,5 +808,177 @@ describe('EventRegistrationService', () => {
         );
         expect(insertRegistration).not.toHaveBeenCalled();
       }),
+  );
+
+  it.effect('joins the waitlist for a full public participant option', () =>
+    Effect.gen(function* () {
+      const executeWaitlistLock = vi.fn(() => Effect.succeed());
+      const insertWaitlistRegistration = vi.fn(() => ({
+        values: vi.fn((values) => ({
+          returning: vi.fn(() =>
+            Effect.succeed([
+              {
+                id: values.status === 'WAITLIST' ? 'waitlist-1' : undefined,
+              },
+            ]),
+          ),
+        })),
+      }));
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                confirmedSpots: 10,
+                organizingRegistration: false,
+                roleIds: [],
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+        transaction: (
+          callback: (tx: {
+            execute: ReturnType<typeof vi.fn>;
+            insert: ReturnType<typeof vi.fn>;
+            query: {
+              eventRegistrations: {
+                findMany: () => Effect.Effect<[]>;
+              };
+            };
+            update: () => {
+              set: (values: unknown) => {
+                where: () => {
+                  returning: () => Effect.Effect<{ id: string }[]>;
+                };
+              };
+            };
+          }) => Effect.Effect<unknown>,
+        ) =>
+          callback({
+            execute: executeWaitlistLock,
+            insert: insertWaitlistRegistration,
+            query: {
+              eventRegistrations: {
+                findMany: () => Effect.succeed([]),
+              },
+            },
+            update: () => ({
+              set: () => ({
+                where: () => ({
+                  returning: () => Effect.succeed([{ id: 'option-1' }]),
+                }),
+              }),
+            }),
+          }),
+      };
+
+      const program = EventRegistrationService.joinWaitlist({
+        eventId: 'event-1',
+        registrationOptionId: 'option-1',
+        tenant: {
+          id: 'tenant-1',
+        },
+        user: {
+          id: 'user-1',
+          roleIds: [],
+        },
+      }).pipe(
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(configProviderLayer),
+      );
+
+      yield* program;
+      expect(executeWaitlistLock).toHaveBeenCalled();
+      expect(insertWaitlistRegistration).toHaveBeenCalled();
+    }),
+  );
+
+  it.effect('rejects waitlist joining while capacity remains', () =>
+    Effect.gen(function* () {
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                organizingRegistration: false,
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+      };
+
+      const program = EventRegistrationService.joinWaitlist({
+        eventId: 'event-1',
+        registrationOptionId: 'option-1',
+        tenant: {
+          id: 'tenant-1',
+        },
+        user: {
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'Registration option still has available spots',
+      );
+    }),
+  );
+
+  it.effect('rejects waitlist joining for organizer/helper options', () =>
+    Effect.gen(function* () {
+      const mockDatabase = {
+        query: {
+          eventRegistrationOptions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...approvedRegistrationOption,
+                confirmedSpots: 10,
+                organizingRegistration: true,
+              }),
+          },
+          eventRegistrations: {
+            findFirst: () => Effect.succeed(null),
+          },
+        },
+      };
+
+      const program = EventRegistrationService.joinWaitlist({
+        eventId: 'event-1',
+        registrationOptionId: 'option-1',
+        tenant: {
+          id: 'tenant-1',
+        },
+        user: {
+          id: 'user-1',
+          roleIds: ['role-1'],
+        },
+      }).pipe(
+        Effect.flip,
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(configProviderLayer),
+      );
+
+      const error = yield* program;
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe(
+        'Waitlist is only available for participant options',
+      );
+    }),
   );
 });

@@ -1,21 +1,24 @@
 <div
   class="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-on-surface {{
-    registrationMutation.isPending()
-      ? 'animate-pulse cursor-progress pointer-events-none'
-      : ''
+    mutationPending() ? 'animate-pulse cursor-progress pointer-events-none' : ''
   }}"
 >
   <div class="flex flex-row items-center gap-4">
-    <h3 class="title-medium">{{ registrationOption().title }}</h3>
+    <div class="flex min-w-0 flex-col gap-1">
+      <p class="label-medium text-primary">{{ audienceCopy().label }}</p>
+      <h3 class="title-medium">{{ registrationOption().title }}</h3>
+    </div>
     @if (registrationOption().isPaid) {
       <div class="grow"></div>
       <div class="flex flex-col items-end gap-1">
-        <p class="title-small">
-          {{
-            (registrationOption().effectivePrice ??
-              registrationOption().price) / 100 | currency
-          }}
-        </p>
+        <app-price-with-tax
+          class="title-small"
+          [amount]="
+            registrationOption().effectivePrice ?? registrationOption().price
+          "
+          [isFree]="!registrationOption().isPaid"
+          [taxRate]="taxRateInfo()"
+        />
         @if (registrationOption().discountApplied) {
           <p class="text-on-surface-variant text-xs line-through">
             {{ registrationOption().price / 100 | currency }}
@@ -30,37 +33,63 @@
     class="prose dark:prose-invert max-w-none"
     [innerHTML]="registrationOption().description"
   ></div>
+  <p class="body-medium text-on-surface-variant">
+    {{ audienceCopy().helperText }}
+  </p>
 
   @if (authenticationQuery.data()) {
     @switch (registrationOpen()) {
       @case ("open") {
         @if (full()) {
-          <p class="body-large">
-            This option is full. Waitlist joining is not available yet.
-          </p>
+          @if (waitlistAvailable()) {
+            <p class="body-large">This option is full.</p>
+            <button
+              (click)="joinWaitlist(registrationOption())"
+              mat-flat-button
+              type="button"
+              [disabled]="mutationPending()"
+            >
+              Join waitlist
+            </button>
+          } @else {
+            <p class="body-large">This option is full.</p>
+          }
         } @else {
+          @if (maxGuestCount() > 0) {
+            <mat-form-field appearance="outline">
+              <mat-label>Guests</mat-label>
+              <input
+                matInput
+                type="number"
+                min="0"
+                [max]="maxGuestCount()"
+                [value]="selectedGuestCount()"
+                (input)="updateGuestCount($event)"
+              />
+              <span matTextSuffix>
+                + you = {{ selectedSpotCount() }} spots
+              </span>
+            </mat-form-field>
+          }
           @if (registrationOption().isPaid) {
             <button
               (click)="register(registrationOption())"
               mat-flat-button
               type="button"
-              [disabled]="registrationMutation.isPending()"
+              [disabled]="mutationPending()"
             >
               Pay
-              {{
-                (registrationOption().effectivePrice ??
-                  registrationOption().price) / 100 | currency
-              }}
-              and register
+              {{ selectedTotalPrice() / 100 | currency }}
+              and {{ audienceCopy().actionSuffix }}
             </button>
           } @else {
             <button
               (click)="register(registrationOption())"
               mat-flat-button
               type="button"
-              [disabled]="registrationMutation.isPending()"
+              [disabled]="mutationPending()"
             >
-              Register
+              {{ audienceCopy().primaryAction }}
             </button>
           }
         }
@@ -68,13 +97,15 @@
       @case ("tooEarly") {
         <p class="body-large">
           Registration is not open yet, it will open
-          {{ registrationOption().openRegistrationTime | date: "medium" }}
+          {{ registrationOption().openRegistrationTime | date: "mediumDate" }},
+          {{ registrationOption().openRegistrationTime | date: "shortTime" }}
         </p>
       }
       @case ("tooLate") {
         <p class="body-large">
           Registration is closed, it closed
-          {{ registrationOption().closeRegistrationTime | date: "medium" }}
+          {{ registrationOption().closeRegistrationTime | date: "mediumDate" }},
+          {{ registrationOption().closeRegistrationTime | date: "shortTime" }}
         </p>
       }
     }
@@ -94,5 +125,11 @@
   <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
     <h3 class="title-medium">Registration failed</h3>
     <p>{{ errorMessage(registrationMutation.error()) }}</p>
+  </div>
+}
+@if (waitlistMutation.isError()) {
+  <div class="bg-error text-on-error mt-4 flex flex-col gap-2 rounded-2xl p-4">
+    <h3 class="title-medium">Waitlist failed</h3>
+    <p>{{ errorMessage(waitlistMutation.error()) }}</p>
   </div>
 }

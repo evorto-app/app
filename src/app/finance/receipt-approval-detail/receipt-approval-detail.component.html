@@ -54,6 +54,11 @@
 
       <section class="bg-surface text-on-surface rounded-2xl p-3">
         <h2 class="title-medium mb-3">Receipt data</h2>
+        <p
+          class="bg-secondary-container text-on-secondary-container mb-4 rounded-xl p-3 text-sm"
+        >
+          {{ receiptReviewNotificationNotice }}
+        </p>
         <app-receipt-form-fields
           [form]="form"
           [selectableCountries]="selectableCountries"

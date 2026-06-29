@@ -68,6 +68,9 @@ export const createTemplateFormModel = (
   if (overrides.location !== undefined) {
     generalOverrides.location = overrides.location;
   }
+  if (overrides.planningTips !== undefined) {
+    generalOverrides.planningTips = overrides.planningTips;
+  }
   if (overrides.title !== undefined) {
     generalOverrides.title = overrides.title;
   }
@@ -99,6 +102,7 @@ export const mergeTemplateFormOverrides = (
       overrides.participantRegistration ?? {},
       base.participantRegistration,
     ),
+    planningTips: overrides.planningTips ?? base.planningTips,
     title: overrides.title ?? base.title,
   });
 };

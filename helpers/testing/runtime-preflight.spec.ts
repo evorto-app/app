@@ -1,4 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import {
   evaluateRuntimePreflight,
@@ -66,12 +68,30 @@ FFmpeg
 };
 
 describe('evaluateRuntimePreflight', () => {
+  it('keeps Docker and local Font Awesome registry scopes aligned', () => {
+    const dockerfile = fs.readFileSync(
+      path.join(process.cwd(), 'Dockerfile'),
+      'utf8',
+    );
+    const npmrc = fs.readFileSync(path.join(process.cwd(), '.npmrc'), 'utf8');
+
+    for (const registryScope of [
+      '@fortawesome:registry=https://npm.fontawesome.com/',
+      '@awesome.me:registry=https://npm.fontawesome.com/',
+    ]) {
+      expect(dockerfile).toContain(registryScope);
+      expect(npmrc).toContain(registryScope);
+    }
+
+    expect(dockerfile).toContain('//npm.fontawesome.com/:_authToken=%s');
+    expect(npmrc).toContain('//npm.fontawesome.com/:_authToken=');
+  });
+
   it('reports all docker startup blockers before mutating containers', () => {
     const result = evaluateRuntimePreflight('docker', {
       cwd: '/repo',
       env: {
         CLIENT_ID: 'client-id',
-        FONT_AWESOME_TOKEN: 'font-awesome-token',
         ISSUER_BASE_URL: 'issuer',
         NEON_PROJECT_ID: 'project-id',
         SECRET: 'secret',
@@ -87,8 +107,9 @@ describe('evaluateRuntimePreflight', () => {
           details: expect.arrayContaining([
             'NEON_API_KEY: Neon Local branch creation',
             'CLIENT_SECRET: Auth0 application secret',
+            'FONT_AWESOME_TOKEN: Font Awesome package registry access for premium and brand icons',
             'STRIPE_API_KEY: Stripe API access for paid registration flows',
-            'STRIPE_WEBHOOK_SECRET: Stripe webhook signature verification',
+            'STRIPE_TEST_ACCOUNT_ID: Stripe connected account id for seeded paid flows',
           ]),
           label: 'Required docker runtime variables',
           severity: 'failure',
@@ -123,6 +144,27 @@ describe('evaluateRuntimePreflight', () => {
           ]),
           label: 'Playwright Chromium browser installation',
           severity: 'warning',
+        }),
+      ]),
+    );
+  });
+
+  it('allows Docker to use the generated Stripe listener webhook secret file', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'Docker Stripe CLI writes its generated signing secret to STRIPE_WEBHOOK_SECRET_FILE for the app container.',
+          ],
+          label: 'Stripe webhook signing secret source',
+          severity: 'ok',
         }),
       ]),
     );

@@ -1,5 +1,6 @@
 import { isPlatformServer } from '@angular/common';
 import {
+  computed,
   DOCUMENT,
   effect,
   inject,
@@ -7,6 +8,7 @@ import {
   PLATFORM_ID,
   RendererFactory2,
   REQUEST_CONTEXT,
+  signal,
 } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { injectQuery } from '@tanstack/angular-query-experimental';
@@ -21,6 +23,10 @@ import { AppRpc } from './effect-rpc-angular-client';
   providedIn: 'root',
 })
 export class ConfigService {
+  private readonly tenantState = signal<null | Tenant>(null);
+
+  public readonly tenantSignal = computed(() => this.tenantState());
+
   public get missingContext() {
     return this._missingContext;
   }
@@ -36,10 +42,9 @@ export class ConfigService {
   public get tenant(): Tenant {
     return this._tenant;
   }
-
   private _missingContext = false;
-  private _permissions!: Permission[];
 
+  private _permissions!: Permission[];
   private _publicConfig: {
     googleMapsApiKey: null | string;
     sentryDsn: null | string;
@@ -49,6 +54,8 @@ export class ConfigService {
   };
   private _tenant!: Tenant;
 
+  private activeRouteDescription: null | string = null;
+  private activeRouteTitle: null | string = null;
   private readonly rpc = AppRpc.injectClient();
 
   private currentTenantQuery = injectQuery(() =>
@@ -69,13 +76,14 @@ export class ConfigService {
     effect(() => {
       const currentTenant = this.currentTenantQuery.data();
       if (currentTenant) {
-        if (this.tenant) {
+        const previousTenant = this.tenantSignal();
+        if (previousTenant) {
           this.renderer.removeClass(
             this.document.documentElement,
-            `theme-${this.tenant.theme}`,
+            `theme-${previousTenant.theme}`,
           );
         }
-        this._tenant = currentTenant;
+        this.applyTenantConfig(currentTenant);
         this.renderer.addClass(
           this.document.documentElement,
           `theme-${this.tenant.theme}`,
@@ -96,19 +104,56 @@ export class ConfigService {
       this.rpc.config.public.call(),
     ]);
 
-    this.title.setTitle(tenant.name);
-
-    this._tenant = tenant;
+    this.applyTenantConfig(tenant);
     this._permissions = [...permissions];
 
     this._publicConfig = pub;
   }
 
   public updateDescription(description: string): void {
-    this.meta.updateTag({ content: description, name: 'description' });
+    this.activeRouteDescription = description;
+    this.applyDocumentDescription();
   }
 
   public updateTitle(title: string): void {
-    this.title.setTitle(`${title} | ${this.tenant.name}`);
+    this.activeRouteTitle = title;
+    this.applyDocumentTitle();
+  }
+
+  private applyDocumentDescription(): void {
+    const description =
+      this.activeRouteDescription ?? this.tenant.seoDescription;
+    if (description) {
+      this.meta.updateTag({ content: description, name: 'description' });
+    } else {
+      this.meta.removeTag("name='description'");
+    }
+  }
+
+  private applyDocumentTitle(): void {
+    const title = this.activeRouteTitle
+      ? `${this.activeRouteTitle} | ${this.tenant.name}`
+      : (this.tenant.seoTitle ?? this.tenant.name);
+    this.title.setTitle(title);
+  }
+
+  private applyTenantConfig(tenant: Tenant): void {
+    this._tenant = tenant;
+    this.tenantState.set(tenant);
+    this.applyDocumentTitle();
+    this.applyDocumentDescription();
+    this.updateFavicon(tenant.faviconUrl ?? 'favicon.ico');
+  }
+
+  private updateFavicon(href: string): void {
+    const existingIcon =
+      this.document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    const icon = existingIcon ?? this.renderer.createElement('link');
+
+    this.renderer.setAttribute(icon, 'rel', 'icon');
+    this.renderer.setAttribute(icon, 'href', href);
+    if (!existingIcon) {
+      this.renderer.appendChild(this.document.head, icon);
+    }
   }
 }

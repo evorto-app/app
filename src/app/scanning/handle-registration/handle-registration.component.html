@@ -57,6 +57,18 @@
       <p class="px-2">
         {{ scanResultQuery.data().registrationOption.title }}
       </p>
+      @if (scanResultQuery.data().guestCount > 0) {
+        <div class="mt-2 px-2">
+          <p class="body-medium">
+            Includes {{ scanResultQuery.data().guestCount }}
+            {{ scanResultQuery.data().guestCount === 1 ? "guest" : "guests" }}.
+          </p>
+          <p class="body-small text-on-surface-variant">
+            {{ scanResultQuery.data().checkedInGuestCount }} checked in,
+            {{ scanResultQuery.data().remainingGuestCount }} remaining.
+          </p>
+        </div>
+      }
       @if (scanResultQuery.data().appliedDiscountType === "esnCard") {
         <div
           class="bg-primary-container text-on-primary-container mt-2 rounded p-2"
@@ -84,6 +96,23 @@
       }
     </div>
   </div>
+  @if (
+    scanResultQuery.data().allowCheckin &&
+    scanResultQuery.data().remainingGuestCount > 0
+  ) {
+    <mat-form-field appearance="outline" class="mt-4 w-full">
+      <mat-label>Guests to check in now</mat-label>
+      <input
+        matInput
+        type="number"
+        min="0"
+        [max]="scanResultQuery.data().remainingGuestCount"
+        [value]="selectedGuestCheckInCount()"
+        (input)="updateGuestCheckInCount($event)"
+      />
+      <span matTextSuffix> {{ selectedSpotCheckInCount() }} spots now </span>
+    </mat-form-field>
+  }
   @if (checkInMutation.isError()) {
     <div class="bg-error text-on-error mt-4 rounded p-4">
       <p class="title-small">Check-in failed</p>
@@ -99,6 +128,7 @@
   <button
     [disabled]="
       !scanResultQuery.data().allowCheckin ||
+      selectedSpotCheckInCount() < 1 ||
       checkInMutation.isPending() ||
       checkInCompleted()
     "
@@ -111,6 +141,8 @@
       Checking in ...
     } @else if (checkInCompleted()) {
       Checked in
+    } @else if (selectedSpotCheckInCount() > 1) {
+      Confirm {{ selectedSpotCheckInCount() }} Check Ins
     } @else {
       Confirm Check In
     }

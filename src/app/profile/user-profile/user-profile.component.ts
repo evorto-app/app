@@ -1,3 +1,5 @@
+import type { FinanceReceiptStatus } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
+
 import { DatePipe, DecimalPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -44,7 +46,108 @@ import {
   EditProfileDialogResult,
 } from './edit-profile-dialog.component';
 
+type EsnCardMutationAction = 'refresh' | 'remove' | 'save';
+
 type ProfileSection = 'discounts' | 'events' | 'overview' | 'receipts';
+
+const esnCardFallbackMessages = {
+  refresh: 'Could not refresh ESN card',
+  remove: 'Could not remove ESN card',
+  save: 'Could not validate ESN card',
+} as const satisfies Record<EsnCardMutationAction, string>;
+
+export const esnCardMutationErrorMessage = (
+  action: EsnCardMutationAction,
+  error: unknown,
+): string => getErrorMessage(error, esnCardFallbackMessages[action]);
+
+export const profileEventDetailActionLabel = (): string => 'Open event page';
+
+export const profileEventGuestLabel = (guestCount: number): null | string => {
+  if (guestCount <= 0) {
+    return null;
+  }
+
+  return guestCount === 1
+    ? 'Includes 1 guest'
+    : `Includes ${guestCount} guests`;
+};
+
+export const profileEventActionNote = (event: {
+  checkoutUrl: null | string;
+  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
+  status: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+}): string => {
+  if (event.paymentState === 'pending' && event.checkoutUrl) {
+    return 'Continue payment from this card, or open the event page for registration details. Cancellation after confirmation is handled on the event page.';
+  }
+
+  switch (event.status) {
+    case 'CONFIRMED': {
+      return 'Open the event page for ticket access and participant cancellation when the event still allows it. Automatic refunds and transfer/resale are not implemented yet.';
+    }
+    case 'PENDING': {
+      return 'Open the event page for pending-registration details and available cancellation actions. Transfer/resale is not implemented yet.';
+    }
+    case 'WAITLIST': {
+      return 'Waitlist movement is not managed from profile yet. Open the event page for current details; transfer/resale is not available for waitlist registrations.';
+    }
+  }
+};
+
+export const registrationPaymentLabel = (
+  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded',
+): string => {
+  switch (paymentState) {
+    case 'cancelled': {
+      return 'Payment cancelled';
+    }
+    case 'notRequired': {
+      return 'No payment required';
+    }
+    case 'pending': {
+      return 'Payment pending';
+    }
+    case 'recorded': {
+      return 'Payment recorded';
+    }
+  }
+};
+
+export const registrationStatusLabel = (
+  status: 'CONFIRMED' | 'PENDING' | 'WAITLIST',
+): string => {
+  switch (status) {
+    case 'CONFIRMED': {
+      return 'Confirmed';
+    }
+    case 'PENDING': {
+      return 'Pending';
+    }
+    case 'WAITLIST': {
+      return 'Waitlist';
+    }
+  }
+};
+
+export const profileReceiptStatusLabel = (
+  status: FinanceReceiptStatus,
+): string => {
+  switch (status) {
+    case 'approved': {
+      return 'Approved';
+    }
+    case 'refunded': {
+      return 'Reimbursed';
+    }
+    case 'rejected': {
+      return 'Rejected';
+    }
+    case 'submitted': {
+      return 'Submitted';
+    }
+  }
+};
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -123,15 +226,22 @@ export class UserProfileComponent {
     this.rpc.finance.receipts.my.queryOptions(),
   );
 
+  protected readonly profileEventActionNote = profileEventActionNote;
+  protected readonly profileEventDetailActionLabel =
+    profileEventDetailActionLabel;
+  protected readonly profileEventGuestLabel = profileEventGuestLabel;
+  protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
+
+  protected readonly registrationPaymentLabel = registrationPaymentLabel;
+  protected readonly registrationStatusLabel = registrationStatusLabel;
   protected readonly sectionEntries = computed(() =>
     this.allSectionEntries.filter(
       (section) => section.key !== 'discounts' || this.esnEnabled(),
     ),
   );
-
   protected readonly selectedSection = signal<ProfileSection>('overview');
   protected readonly updateProfileMutation = injectMutation(() =>
     this.rpc.users.updateProfile.mutationOptions(),
@@ -142,13 +252,16 @@ export class UserProfileComponent {
   protected readonly userEventsQuery = injectQuery(() =>
     this.rpc.users.events.queryOptions(),
   );
+
   protected readonly userQuery = injectQuery(() =>
     this.rpc.users.self.queryOptions(),
   );
   private readonly dialog = inject(MatDialog);
+
   private readonly notifications = inject(NotificationService);
 
   private readonly queryClient = inject(QueryClient);
+
   private readonly route = inject(ActivatedRoute);
 
   constructor() {
@@ -185,7 +298,7 @@ export class UserProfileComponent {
       {
         onError: (error) => {
           this.esnCardErrorMessage.set(
-            getErrorMessage(error, 'Could not remove ESN card'),
+            esnCardMutationErrorMessage('remove', error),
           );
         },
         onSuccess: async () => {
@@ -198,7 +311,6 @@ export class UserProfileComponent {
       },
     );
   }
-
   protected async openEditProfileDialog(): Promise<void> {
     const user = this.userQuery.data();
     if (!user) return;
@@ -242,7 +354,6 @@ export class UserProfileComponent {
       },
     });
   }
-
   protected refreshEsnCard(): void {
     this.esnCardErrorMessage.set(null);
     this.refreshCardMutation.mutate(
@@ -250,7 +361,7 @@ export class UserProfileComponent {
       {
         onError: (error) => {
           this.esnCardErrorMessage.set(
-            getErrorMessage(error, 'Could not refresh ESN card'),
+            esnCardMutationErrorMessage('refresh', error),
           );
         },
         onSuccess: async () => {
@@ -262,41 +373,6 @@ export class UserProfileComponent {
         },
       },
     );
-  }
-
-  protected registrationPaymentLabel(
-    paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded',
-  ): string {
-    switch (paymentState) {
-      case 'cancelled': {
-        return 'Payment cancelled';
-      }
-      case 'notRequired': {
-        return 'No payment required';
-      }
-      case 'pending': {
-        return 'Payment pending';
-      }
-      case 'recorded': {
-        return 'Payment recorded';
-      }
-    }
-  }
-
-  protected registrationStatusLabel(
-    status: 'CONFIRMED' | 'PENDING' | 'WAITLIST',
-  ): string {
-    switch (status) {
-      case 'CONFIRMED': {
-        return 'Confirmed';
-      }
-      case 'PENDING': {
-        return 'Pending';
-      }
-      case 'WAITLIST': {
-        return 'Waitlist';
-      }
-    }
   }
 
   protected async saveEsnCard(event: Event): Promise<void> {
@@ -311,7 +387,7 @@ export class UserProfileComponent {
         {
           onError: (error) => {
             this.esnCardErrorMessage.set(
-              getErrorMessage(error, 'Could not validate ESN card'),
+              esnCardMutationErrorMessage('save', error),
             );
           },
           onSuccess: async () => {

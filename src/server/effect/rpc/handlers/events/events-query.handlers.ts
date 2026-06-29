@@ -26,6 +26,7 @@ import {
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrations,
+  tenantStripeTaxRates,
 } from '../../../../../db/schema';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
@@ -138,8 +139,20 @@ export const eventQueryHandlers = {
         rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
       const startAfter = new Date(input.startAfter);
 
-      const selectedEvents = yield* databaseEffect((database) =>
-        database
+      const selectedEvents = yield* databaseEffect((database) => {
+        const userRegisteredForEvent = exists(
+          database
+            .select()
+            .from(eventRegistrations)
+            .where(
+              and(
+                eq(eventRegistrations.eventId, eventInstances.id),
+                eq(eventRegistrations.userId, user?.id ?? ''),
+                not(eq(eventRegistrations.status, 'CANCELLED')),
+              ),
+            ),
+        );
+        return database
           .select({
             creatorId: eventInstances.creatorId,
             icon: eventInstances.icon,
@@ -148,18 +161,7 @@ export const eventQueryHandlers = {
             status: eventInstances.status,
             title: eventInstances.title,
             unlisted: eventInstances.unlisted,
-            userRegistered: exists(
-              database
-                .select()
-                .from(eventRegistrations)
-                .where(
-                  and(
-                    eq(eventRegistrations.eventId, eventInstances.id),
-                    eq(eventRegistrations.userId, user?.id ?? ''),
-                    not(eq(eventRegistrations.status, 'CANCELLED')),
-                  ),
-                ),
-            ),
+            userRegistered: userRegisteredForEvent,
           })
           .from(eventInstances)
           .where(
@@ -191,8 +193,8 @@ export const eventQueryHandlers = {
           )
           .limit(input.limit)
           .offset(input.offset)
-          .orderBy(eventInstances.start),
-      );
+          .orderBy(eventInstances.start);
+      });
 
       const eventRecords = selectedEvents.map((event) => ({
         icon: event.icon,
@@ -322,9 +324,36 @@ export const eventQueryHandlers = {
         );
       }
 
+      const hasAnyRegistrationOption =
+        event.registrationOptions.length > 0
+          ? true
+          : Boolean(
+              yield* databaseEffect((database) =>
+                database.query.eventRegistrationOptions.findFirst({
+                  columns: {
+                    id: true,
+                  },
+                  where: {
+                    eventId: event.id,
+                  },
+                }),
+              ),
+            );
+      const registrationOptionsHiddenByEligibility =
+        Boolean(user) &&
+        event.registrationOptions.length === 0 &&
+        hasAnyRegistrationOption;
+
       const registrationOptionIds = event.registrationOptions.map(
         (registrationOption) => registrationOption.id,
       );
+      const registrationOptionTaxRateIds = [
+        ...new Set(
+          event.registrationOptions
+            .map((registrationOption) => registrationOption.stripeTaxRateId)
+            .filter((id): id is string => typeof id === 'string'),
+        ),
+      ];
       const optionDiscounts =
         registrationOptionIds.length === 0
           ? []
@@ -351,6 +380,30 @@ export const eventQueryHandlers = {
                   ),
                 ),
             );
+      const taxRates =
+        registrationOptionTaxRateIds.length === 0
+          ? []
+          : yield* databaseEffect((database) =>
+              database
+                .select({
+                  displayName: tenantStripeTaxRates.displayName,
+                  percentage: tenantStripeTaxRates.percentage,
+                  stripeTaxRateId: tenantStripeTaxRates.stripeTaxRateId,
+                })
+                .from(tenantStripeTaxRates)
+                .where(
+                  and(
+                    eq(tenantStripeTaxRates.tenantId, tenant.id),
+                    inArray(
+                      tenantStripeTaxRates.stripeTaxRateId,
+                      registrationOptionTaxRateIds,
+                    ),
+                  ),
+                ),
+            );
+      const taxRateByStripeId = new Map(
+        taxRates.map((taxRate) => [taxRate.stripeTaxRateId, taxRate]),
+      );
       const esnCardDiscountedPriceByOptionId =
         getEsnCardDiscountedPriceByOptionId(optionDiscounts);
 
@@ -400,6 +453,9 @@ export const eventQueryHandlers = {
             const discountApplied =
               userIsEligibleForEsnCardDiscount &&
               effectivePrice < registrationOption.price;
+            const taxRate = registrationOption.stripeTaxRateId
+              ? taxRateByStripeId.get(registrationOption.stripeTaxRateId)
+              : undefined;
 
             return {
               appliedDiscountType: discountApplied
@@ -429,10 +485,13 @@ export const eventQueryHandlers = {
               roleIds: [...registrationOption.roleIds],
               spots: registrationOption.spots,
               stripeTaxRateId: registrationOption.stripeTaxRateId ?? null,
+              taxRateDisplayName: taxRate?.displayName ?? null,
+              taxRatePercentage: taxRate?.percentage ?? null,
               title: registrationOption.title,
             };
           },
         ),
+        registrationOptionsHiddenByEligibility,
         reviewer: event.reviewer,
         start: event.start.toISOString(),
         status: event.status,
@@ -578,6 +637,7 @@ export const eventQueryHandlers = {
             basePriceAtRegistration: true,
             checkInTime: true,
             discountAmount: true,
+            id: true,
             registrationOptionId: true,
           },
           where: {
@@ -695,6 +755,7 @@ export const eventQueryHandlers = {
               email: registration.user.email,
               firstName: registration.user.firstName,
               lastName: registration.user.lastName,
+              registrationId: registration.id,
               userId: registration.user.id,
             };
           });

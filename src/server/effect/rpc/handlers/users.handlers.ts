@@ -130,6 +130,22 @@ const resolveRegistrationPaymentState = (
   return 'notRequired';
 };
 
+const resolvePendingRegistrationCheckoutUrl = (
+  transactions: readonly {
+    method?: string;
+    status: string;
+    stripeCheckoutUrl?: null | string;
+    type: string;
+  }[],
+): null | string =>
+  transactions.find(
+    (transaction) =>
+      transaction.method === 'stripe' &&
+      transaction.status === 'pending' &&
+      transaction.type === 'registration' &&
+      transaction.stripeCheckoutUrl,
+  )?.stripeCheckoutUrl ?? null;
+
 export const userHandlers = {
   'users.authData': (_payload, options) =>
     Effect.sync(() => decodeAuthDataHeader(options.headers)),
@@ -294,6 +310,7 @@ export const userHandlers = {
           columns: {
             checkInTime: true,
             eventId: true,
+            guestCount: true,
             id: true,
             status: true,
           },
@@ -321,7 +338,9 @@ export const userHandlers = {
             },
             transactions: {
               columns: {
+                method: true,
                 status: true,
+                stripeCheckoutUrl: true,
                 type: true,
               },
             },
@@ -350,7 +369,11 @@ export const userHandlers = {
 
         mappedRegistrations.push({
           checkInTime: registration.checkInTime,
+          checkoutUrl: resolvePendingRegistrationCheckoutUrl(
+            registration.transactions,
+          ),
           event: registration.event,
+          guestCount: registration.guestCount,
           paymentState: resolveRegistrationPaymentState(
             registration.transactions,
           ),
@@ -368,9 +391,11 @@ export const userHandlers = {
         )
         .map((registration) => ({
           checkInTime: registration.checkInTime?.toISOString() ?? null,
+          checkoutUrl: registration.checkoutUrl,
           description: registration.event.description ?? null,
           end: registration.event.end.toISOString(),
           eventId: registration.event.id,
+          guestCount: registration.guestCount,
           paymentState: registration.paymentState,
           registrationId: registration.registrationId,
           registrationOptionTitle: registration.registrationOptionTitle,

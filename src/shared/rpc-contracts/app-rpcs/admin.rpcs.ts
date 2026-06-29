@@ -8,6 +8,19 @@ import { Tenant } from '../../../types/custom/tenant';
 import { PermissionSchema } from '../../permissions/permissions';
 import { AdminRoleRpcError, AdminTenantRpcError } from './admin.errors';
 
+const UrlString = Schema.String.pipe(
+  Schema.check(
+    Schema.makeFilter((value) => {
+      try {
+        new URL(value);
+        return;
+      } catch {
+        return 'Expected a valid URL';
+      }
+    }),
+  ),
+);
+
 export const AdminRoleRecord = Schema.Struct({
   collapseMembersInHup: Schema.Boolean,
   defaultOrganizerRole: Schema.Boolean,
@@ -190,17 +203,30 @@ export const AdminTenantListStripeTaxRates = asRpcQuery(
   }),
 );
 
+export const AdminTenantUpdateSettingsInput = Schema.Struct({
+  allowOther: Schema.Boolean,
+  buyEsnCardUrl: Schema.optional(UrlString),
+  defaultLocation: Schema.NullOr(Schema.Any),
+  esnCardEnabled: Schema.Boolean,
+  faviconUrl: Schema.optional(UrlString),
+  legalNoticeUrl: Schema.optional(UrlString),
+  logoUrl: Schema.optional(UrlString),
+  privacyPolicyUrl: Schema.optional(UrlString),
+  receiptCountries: Schema.Array(Schema.NonEmptyString),
+  seoDescription: Schema.optional(Schema.String),
+  seoTitle: Schema.optional(Schema.String),
+  termsUrl: Schema.optional(UrlString),
+  theme: literalUnion('evorto', 'esn'),
+});
+
+export type AdminTenantUpdateSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdateSettingsInput
+>;
+
 export const AdminTenantUpdateSettings = asRpcMutation(
   Rpc.make('admin.tenant.updateSettings', {
     error: AdminTenantRpcError,
-    payload: Schema.Struct({
-      allowOther: Schema.Boolean,
-      buyEsnCardUrl: Schema.optional(Schema.String),
-      defaultLocation: Schema.NullOr(Schema.Any),
-      esnCardEnabled: Schema.Boolean,
-      receiptCountries: Schema.Array(Schema.NonEmptyString),
-      theme: literalUnion('evorto', 'esn'),
-    }),
+    payload: AdminTenantUpdateSettingsInput,
     success: Tenant,
   }),
 );

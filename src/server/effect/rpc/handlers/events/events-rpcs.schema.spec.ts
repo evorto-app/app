@@ -2,6 +2,7 @@ import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import {
+  EventsFindOneRegistrationOption,
   EventsRegistrationStatus,
   EventsRegistrationStatusRecord,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
@@ -53,5 +54,37 @@ describe('events RPC registration status schema', () => {
         status: 'UNKNOWN',
       }),
     ).toThrow();
+  });
+});
+
+describe('events RPC registration option schema', () => {
+  it('carries inclusive tax-rate label details for paid event cards', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsFindOneRegistrationOption)({
+        appliedDiscountType: null,
+        checkedInSpots: 0,
+        closeRegistrationTime: '2026-09-20T12:00:00.000Z',
+        confirmedSpots: 0,
+        description: null,
+        discountApplied: false,
+        effectivePrice: 2500,
+        esnCardDiscountedPrice: null,
+        eventId: 'event-1',
+        id: 'option-1',
+        isPaid: true,
+        openRegistrationTime: '2026-09-10T12:00:00.000Z',
+        organizingRegistration: false,
+        price: 2500,
+        registeredDescription: null,
+        registrationMode: 'fcfs',
+        reservedSpots: 0,
+        roleIds: ['role-1'],
+        spots: 10,
+        stripeTaxRateId: 'txr_vat_19',
+        taxRateDisplayName: 'VAT',
+        taxRatePercentage: '19',
+        title: 'Participant',
+      }),
+    ).not.toThrow();
   });
 });

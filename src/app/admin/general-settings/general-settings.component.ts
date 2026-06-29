@@ -32,6 +32,10 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
+import {
+  deferredTenantSettingsRows,
+  tenantIdentityRows,
+} from './general-settings.identity';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -52,19 +56,34 @@ import { LocationSelectorField } from '../../shared/components/controls/location
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
+  protected readonly deferredTenantSettingsRows = deferredTenantSettingsRows;
   protected readonly settingsModel = signal<{
     allowOther: boolean;
     buyEsnCardUrl: string;
     defaultLocation: GoogleLocationType | null;
     esnCardEnabled: boolean;
+    faviconUrl: string;
+    legalNoticeUrl: string;
+    logoUrl: string;
+    privacyPolicyUrl: string;
     receiptCountries: string[];
+    seoDescription: string;
+    seoTitle: string;
+    termsUrl: string;
     theme: 'esn' | 'evorto';
   }>({
     allowOther: false,
     buyEsnCardUrl: '',
     defaultLocation: null,
     esnCardEnabled: false,
+    faviconUrl: '',
+    legalNoticeUrl: '',
+    logoUrl: '',
+    privacyPolicyUrl: '',
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
+    seoDescription: '',
+    seoTitle: '',
+    termsUrl: '',
     theme: 'evorto',
   });
   protected readonly esnEnabled = computed(
@@ -74,6 +93,9 @@ export class GeneralSettingsComponent {
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
   private readonly configService = inject(ConfigService);
+  protected readonly tenantIdentityRows = computed(() =>
+    tenantIdentityRows(this.configService.tenant),
+  );
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly rpc = AppRpc.injectClient();
@@ -97,7 +119,14 @@ export class GeneralSettingsComponent {
           defaultLocation: currentTenant.defaultLocation ?? null,
           esnCardEnabled:
             currentTenant.discountProviders?.esnCard?.status === 'enabled',
+          faviconUrl: currentTenant.faviconUrl ?? '',
+          legalNoticeUrl: currentTenant.legalNoticeUrl ?? '',
+          logoUrl: currentTenant.logoUrl ?? '',
+          privacyPolicyUrl: currentTenant.privacyPolicyUrl ?? '',
           receiptCountries: [...receiptCountrySettings.receiptCountries],
+          seoDescription: currentTenant.seoDescription ?? '',
+          seoTitle: currentTenant.seoTitle ?? '',
+          termsUrl: currentTenant.termsUrl ?? '',
           theme: currentTenant.theme,
         });
       }
@@ -115,7 +144,14 @@ export class GeneralSettingsComponent {
             buyEsnCardUrl: settings.buyEsnCardUrl.trim() || undefined,
             defaultLocation: settings.defaultLocation,
             esnCardEnabled: settings.esnCardEnabled,
+            faviconUrl: settings.faviconUrl.trim() || undefined,
+            legalNoticeUrl: settings.legalNoticeUrl.trim() || undefined,
+            logoUrl: settings.logoUrl.trim() || undefined,
+            privacyPolicyUrl: settings.privacyPolicyUrl.trim() || undefined,
             receiptCountries: settings.receiptCountries,
+            seoDescription: settings.seoDescription.trim() || undefined,
+            seoTitle: settings.seoTitle.trim() || undefined,
+            termsUrl: settings.termsUrl.trim() || undefined,
             theme: settings.theme,
           },
           {

@@ -44,4 +44,45 @@ describe('Tenant schema', () => {
       defaultLocation: null,
     });
   });
+
+  it('accepts tenant SEO defaults when present', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      seoDescription: 'Public tenant description',
+      seoTitle: 'Public tenant title',
+    });
+
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      seoDescription: 'Public tenant description',
+      seoTitle: 'Public tenant title',
+    });
+  });
+
+  it('accepts tenant legal links when present', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      legalNoticeUrl: 'https://tenant.example.com/imprint',
+      privacyPolicyUrl: 'https://tenant.example.com/privacy',
+      termsUrl: 'https://tenant.example.com/terms',
+    });
+
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      legalNoticeUrl: 'https://tenant.example.com/imprint',
+      privacyPolicyUrl: 'https://tenant.example.com/privacy',
+      termsUrl: 'https://tenant.example.com/terms',
+    });
+  });
+
+  it('accepts tenant brand asset URLs when present', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      faviconUrl: 'https://tenant.example.com/favicon.ico',
+      logoUrl: 'https://tenant.example.com/logo.svg',
+    });
+
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      faviconUrl: 'https://tenant.example.com/favicon.ico',
+      logoUrl: 'https://tenant.example.com/logo.svg',
+    });
+  });
 });

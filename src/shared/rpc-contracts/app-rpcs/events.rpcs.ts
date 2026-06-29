@@ -63,10 +63,32 @@ export const EventsCancelPendingRegistration = asRpcMutation(
   }),
 );
 
+export const EventsCancelRegistration = asRpcMutation(
+  Rpc.make('events.cancelRegistration', {
+    error: EventsCancelPendingRegistrationError,
+    payload: Schema.Struct({
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
+export const EventsCancelEventRegistration = asRpcMutation(
+  Rpc.make('events.cancelEventRegistration', {
+    error: EventsCheckInRegistrationError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
 export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationError,
     payload: Schema.Struct({
+      guestCheckInCount: nonNegativeNumber,
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
@@ -228,6 +250,8 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
   stripeTaxRateId: Schema.NullOr(Schema.String),
+  taxRateDisplayName: Schema.NullOr(Schema.String),
+  taxRatePercentage: Schema.NullOr(Schema.String),
   title: Schema.NonEmptyString,
 });
 
@@ -245,6 +269,7 @@ export const EventsFindOne = asRpcQuery(
       id: Schema.NonEmptyString,
       location: Schema.NullOr(EventLocation),
       registrationOptions: Schema.Array(EventsFindOneRegistrationOption),
+      registrationOptionsHiddenByEligibility: Schema.Boolean,
       reviewer: Schema.NullOr(
         Schema.Struct({
           firstName: Schema.String,
@@ -270,6 +295,7 @@ export const EventsGetOrganizeOverviewUser = Schema.Struct({
   email: Schema.NonEmptyString,
   firstName: Schema.NonEmptyString,
   lastName: Schema.NonEmptyString,
+  registrationId: Schema.NonEmptyString,
   userId: Schema.NonEmptyString,
 });
 
@@ -298,6 +324,7 @@ export const EventsRegistrationStatusRecord = Schema.Struct({
   basePriceAtRegistration: Schema.optional(Schema.NullOr(Schema.Number)),
   checkoutUrl: Schema.optional(Schema.NullOr(Schema.String)),
   discountAmount: Schema.optional(Schema.NullOr(Schema.Number)),
+  guestCount: Schema.Number,
   id: Schema.NonEmptyString,
   paymentPending: Schema.Boolean,
   registeredDescription: Schema.optional(Schema.NullOr(Schema.String)),
@@ -357,6 +384,18 @@ export const EventsRegisterForEvent = asRpcMutation(
     error: EventsRegisterForEventError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
+      guestCount: nonNegativeNumber,
+      registrationOptionId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
+export const EventsJoinWaitlist = asRpcMutation(
+  Rpc.make('events.joinWaitlist', {
+    error: EventsRegisterForEventError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
       registrationOptionId: Schema.NonEmptyString,
     }),
     success: Schema.Void,
@@ -373,14 +412,18 @@ export const EventsRegistrationScanned = asRpcQuery(
       allowCheckin: Schema.Boolean,
       alreadyCheckedInIssue: Schema.Boolean,
       appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
+      attendeeCheckedIn: Schema.Boolean,
+      checkedInGuestCount: Schema.Number,
       event: Schema.Struct({
         start: Schema.NonEmptyString,
         title: Schema.NonEmptyString,
       }),
+      guestCount: Schema.Number,
       registrationOption: Schema.Struct({
         title: Schema.NonEmptyString,
       }),
       registrationStatusIssue: Schema.Boolean,
+      remainingGuestCount: Schema.Number,
       sameUserIssue: Schema.Boolean,
       user: Schema.Struct({
         firstName: Schema.NonEmptyString,
@@ -449,6 +492,8 @@ export const EventsUpdate = asRpcMutation(
 
 export class EventsRpcs extends RpcGroup.make(
   EventsCancelPendingRegistration,
+  EventsCancelRegistration,
+  EventsCancelEventRegistration,
   EventsCanOrganize,
   EventsCheckInRegistration,
   EventsCreate,
@@ -458,6 +503,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsGetOrganizeOverview,
   EventsGetPendingReviews,
   EventsGetRegistrationStatus,
+  EventsJoinWaitlist,
   EventsRegisterForEvent,
   EventsRegistrationScanned,
   EventsReviewEvent,

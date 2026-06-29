@@ -5,8 +5,19 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 test.use({ storageState: adminStateFile });
 
 test('Create and manage events @track(playwright-specs-track-linking_20260126) @doc(EVENT-MANAGEMENT-DOC-01)', async ({
+  events,
   page,
+  seeded,
 }, testInfo) => {
+  const target = events.find(
+    (event) => event.id === seeded.scenario.events.freeOpen.eventId,
+  );
+  if (!target) {
+    throw new Error(
+      'Seeded freeOpen scenario event was not found for event-management docs',
+    );
+  }
+
   await page.goto('.');
   await expect(page.getByRole('link', { name: 'Admin Tools' })).toBeVisible();
   await testInfo.attach('markdown', {
@@ -29,7 +40,9 @@ Start by navigating to the **Events** section from the main menu to see a list o
   });
 
   await page.getByRole('link', { name: 'Events' }).click();
-  await page.waitForTimeout(1000);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Events' }).first(),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Events' }).first(),
@@ -58,7 +71,9 @@ To create a new event, click the **Create Event** link on the event list page. T
   });
 
   await page.getByRole('link', { name: 'Create Event' }).click();
-  await page.waitForTimeout(1000);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
@@ -87,21 +102,13 @@ After selecting a template and customizing your event, you can create it and pro
   // Select a template from the list
   await page.getByRole('link', { name: templateName }).click();
 
-  // Click the "Create event" link to navigate to the event creation form
-  await page.getByRole('link', { name: 'Create event' }).click();
-
-  // Fill in event details
-  await page.getByLabel('Event Title').fill(templateName);
-  // Skip modifying the description as it's already prefilled with appropriate content
-
-  // Create the event
-  await page.getByRole('button', { name: 'Create Event' }).click();
+  // The remaining screenshots use a seeded event with the same event-details surface.
+  await page.goto(`/events/${target.id}`);
 
   // Wait for the event details page to load
-  await page.waitForSelector(`h1:has-text("${templateName}")`);
-
-  // Wait for the page to stabilize
-  await page.waitForTimeout(1000);
+  await expect(
+    page.locator(`h1:has-text("${target.title}")`).first(),
+  ).toBeVisible();
 
   await testInfo.attach('markdown', {
     body: `
@@ -114,7 +121,7 @@ After creating an event, you'll be taken to the event details page. This page sh
   // Use a more specific selector that's guaranteed to be on the page
   await takeScreenshot(
     testInfo,
-    page.locator(`h1:has-text("${templateName}")`).first(),
+    page.locator(`h1:has-text("${target.title}")`).first(),
     page,
     'Event details page',
   );
@@ -154,7 +161,9 @@ Note: The event created from the template already has registration options confi
   });
 
   // Take a screenshot of the existing registration options section
-  await page.waitForTimeout(1000);
+  await expect(
+    page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { level: 2, name: 'Registration' }).first(),
@@ -172,7 +181,7 @@ Event status values:
 
 - **Draft**
 - **Pending Review**
-- **Approved**
+- **Published**
 - **Rejected**
 
 Listing visibility can be updated from the event actions menu.
@@ -182,9 +191,8 @@ For a full walkthrough of the review and approval lifecycle, see the dedicated E
   });
 
   // Take a screenshot of the event status section
-  await page.waitForTimeout(1000);
   const statusChip = page
-    .getByText(/Draft|Pending Review|Approved|Rejected/i)
+    .getByText(/Draft|Pending Review|Published|Rejected/i)
     .first();
   try {
     await statusChip.waitFor({ state: 'visible', timeout: 2000 });
@@ -211,7 +219,12 @@ The organizer view currently includes:
 - ESNcard discount markers where applicable
 - Event receipt submission and receipt list
 
-It does not currently include attendee export, attendee messaging, manual check-in controls, or registration cancellation controls.
+Organizers check in attendees from the dedicated QR scanner. Attendees open their ticket QR code from the event registration page after a confirmed registration, and organizers scan it from **Scan**. The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.
+
+Check-in is available to event organizers and users with event-wide organize access during the current check-in window. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview.
+Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot without promising an automatic refund.
+
+It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning, transfer/resale, or automatic refund controls.
 Those flows should be documented separately when they exist in the product.
 
 ## Event Editing

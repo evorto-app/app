@@ -35,7 +35,8 @@ const commandTimeoutMs = 15_000;
 export const requiredByTarget = {
   docker: [
     {
-      description: 'Font Awesome package registry access for premium icons',
+      description:
+        'Font Awesome package registry access for premium and brand icons',
       name: 'FONT_AWESOME_TOKEN',
     },
     {
@@ -67,8 +68,8 @@ export const requiredByTarget = {
       name: 'STRIPE_API_KEY',
     },
     {
-      description: 'Stripe webhook signature verification',
-      name: 'STRIPE_WEBHOOK_SECRET',
+      description: 'Stripe connected account id for seeded paid flows',
+      name: 'STRIPE_TEST_ACCOUNT_ID',
     },
   ],
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
@@ -207,6 +208,26 @@ const playwrightBrowserCheck = (
   };
 };
 
+const stripeWebhookSecretSourceCheck = (
+  env: NodeJS.ProcessEnv,
+): RuntimeCheck => {
+  if (isPresent(env, 'STRIPE_WEBHOOK_SECRET')) {
+    return {
+      details: ['Using STRIPE_WEBHOOK_SECRET from the local environment.'],
+      label: 'Stripe webhook signing secret source',
+      severity: 'ok',
+    };
+  }
+
+  return {
+    details: [
+      'Docker Stripe CLI writes its generated signing secret to STRIPE_WEBHOOK_SECRET_FILE for the app container.',
+    ],
+    label: 'Stripe webhook signing secret source',
+    severity: 'ok',
+  };
+};
+
 export const evaluateRuntimePreflight = (
   target: RuntimeTarget,
   options: RuntimePreflightOptions = {},
@@ -253,6 +274,7 @@ export const evaluateRuntimePreflight = (
       'warning',
       runCommand,
     ),
+    stripeWebhookSecretSourceCheck(env),
     playwrightBrowserCheck(fileExists, runCommand),
   ];
 

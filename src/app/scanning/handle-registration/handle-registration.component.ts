@@ -8,6 +8,8 @@ import {
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { RouterLink } from '@angular/router';
 import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
@@ -23,7 +25,14 @@ import { getErrorMessage } from '../../core/error-message';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FaDuotoneIconComponent, MatButtonModule, RouterLink, DatePipe],
+  imports: [
+    FaDuotoneIconComponent,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    RouterLink,
+    DatePipe,
+  ],
   selector: 'app-handle-registration',
   styles: ``,
   templateUrl: './handle-registration.component.html',
@@ -36,11 +45,28 @@ export class HandleRegistrationComponent {
     this.rpc.events.checkInRegistration.mutationOptions(),
   );
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly guestCheckInCount = signal(0);
   protected readonly scanResultQuery = injectQuery(() =>
     this.rpc.events.registrationScanned.queryOptions({
       registrationId: this.registrationId(),
     }),
   );
+  protected readonly selectedGuestCheckInCount = computed(() => {
+    const scanResult = this.scanResultQuery.data();
+    if (!scanResult) {
+      return 0;
+    }
+    return Math.min(this.guestCheckInCount(), scanResult.remainingGuestCount);
+  });
+  protected readonly selectedSpotCheckInCount = computed(() => {
+    const scanResult = this.scanResultQuery.data();
+    if (!scanResult) {
+      return 0;
+    }
+    return (
+      (scanResult.attendeeCheckedIn ? 0 : 1) + this.selectedGuestCheckInCount()
+    );
+  });
   protected readonly startsSoon = computed(() => {
     const scanResult = this.scanResultQuery.data();
     if (!scanResult) return false;
@@ -50,10 +76,16 @@ export class HandleRegistrationComponent {
 
   checkIn() {
     const scanResult = this.scanResultQuery.data();
-    if (!scanResult?.allowCheckin || this.checkInMutation.isPending()) return;
+    if (
+      !scanResult?.allowCheckin ||
+      this.selectedSpotCheckInCount() < 1 ||
+      this.checkInMutation.isPending()
+    )
+      return;
 
     this.checkInMutation.mutate(
       {
+        guestCheckInCount: this.selectedGuestCheckInCount(),
         registrationId: this.registrationId(),
       },
       {
@@ -64,6 +96,25 @@ export class HandleRegistrationComponent {
           );
         },
       },
+    );
+  }
+
+  updateGuestCheckInCount(event: Event) {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    const nextGuestCount = Number.parseInt(input.value, 10);
+    const remainingGuestCount =
+      this.scanResultQuery.data()?.remainingGuestCount ?? 0;
+    this.guestCheckInCount.set(
+      Math.max(
+        0,
+        Math.min(
+          Number.isNaN(nextGuestCount) ? 0 : nextGuestCount,
+          remainingGuestCount,
+        ),
+      ),
     );
   }
 
