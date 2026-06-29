@@ -97,13 +97,15 @@
       @case ("tooEarly") {
         <p class="body-large">
           Registration is not open yet, it will open
-          {{ registrationOption().openRegistrationTime | date: "medium" }}
+          {{ registrationOption().openRegistrationTime | date: "mediumDate" }},
+          {{ registrationOption().openRegistrationTime | date: "shortTime" }}
         </p>
       }
       @case ("tooLate") {
         <p class="body-large">
           Registration is closed, it closed
-          {{ registrationOption().closeRegistrationTime | date: "medium" }}
+          {{ registrationOption().closeRegistrationTime | date: "mediumDate" }},
+          {{ registrationOption().closeRegistrationTime | date: "shortTime" }}
         </p>
       }
     }
