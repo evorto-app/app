@@ -139,8 +139,44 @@ export const eventQueryHandlers = {
         rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
       const startAfter = new Date(input.startAfter);
 
-      const selectedEvents = yield* databaseEffect((database) =>
-        database
+      const selectedEvents = yield* databaseEffect((database) => {
+        const userRegisteredForEvent = exists(
+          database
+            .select()
+            .from(eventRegistrations)
+            .where(
+              and(
+                eq(eventRegistrations.eventId, eventInstances.id),
+                eq(eventRegistrations.userId, user?.id ?? ''),
+                not(eq(eventRegistrations.status, 'CANCELLED')),
+              ),
+            ),
+        );
+        const eventVisibleInList = and(
+          gt(eventInstances.start, startAfter),
+          ...(input.includeUnlisted
+            ? []
+            : [eq(eventInstances.unlisted, false)]),
+          exists(
+            database
+              .select()
+              .from(eventRegistrationOptions)
+              .where(
+                and(
+                  eq(eventRegistrationOptions.eventId, eventInstances.id),
+                  or(
+                    sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
+                    arrayOverlaps(
+                      eventRegistrationOptions.roleIds,
+                      roleFilters,
+                    ),
+                  ),
+                ),
+              ),
+          ),
+        );
+
+        return database
           .select({
             creatorId: eventInstances.creatorId,
             icon: eventInstances.icon,
@@ -149,51 +185,20 @@ export const eventQueryHandlers = {
             status: eventInstances.status,
             title: eventInstances.title,
             unlisted: eventInstances.unlisted,
-            userRegistered: exists(
-              database
-                .select()
-                .from(eventRegistrations)
-                .where(
-                  and(
-                    eq(eventRegistrations.eventId, eventInstances.id),
-                    eq(eventRegistrations.userId, user?.id ?? ''),
-                    not(eq(eventRegistrations.status, 'CANCELLED')),
-                  ),
-                ),
-            ),
+            userRegistered: userRegisteredForEvent,
           })
           .from(eventInstances)
           .where(
             and(
-              gt(eventInstances.start, startAfter),
               eq(eventInstances.tenantId, tenant.id),
               inArray(eventInstances.status, [...input.status]),
-              ...(input.includeUnlisted
-                ? []
-                : [eq(eventInstances.unlisted, false)]),
-              exists(
-                database
-                  .select()
-                  .from(eventRegistrationOptions)
-                  .where(
-                    and(
-                      eq(eventRegistrationOptions.eventId, eventInstances.id),
-                      or(
-                        sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
-                        arrayOverlaps(
-                          eventRegistrationOptions.roleIds,
-                          roleFilters,
-                        ),
-                      ),
-                    ),
-                  ),
-              ),
+              or(eventVisibleInList, userRegisteredForEvent),
             ),
           )
           .limit(input.limit)
           .offset(input.offset)
-          .orderBy(eventInstances.start),
-      );
+          .orderBy(eventInstances.start);
+      });
 
       const eventRecords = selectedEvents.map((event) => ({
         icon: event.icon,
