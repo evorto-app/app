@@ -54,6 +54,7 @@ export class ConfigService {
   };
   private _tenant!: Tenant;
 
+  private activeRouteDescription: null | string = null;
   private activeRouteTitle: null | string = null;
   private readonly rpc = AppRpc.injectClient();
 
@@ -110,12 +111,23 @@ export class ConfigService {
   }
 
   public updateDescription(description: string): void {
-    this.meta.updateTag({ content: description, name: 'description' });
+    this.activeRouteDescription = description;
+    this.applyDocumentDescription();
   }
 
   public updateTitle(title: string): void {
     this.activeRouteTitle = title;
     this.applyDocumentTitle();
+  }
+
+  private applyDocumentDescription(): void {
+    const description =
+      this.activeRouteDescription ?? this.tenant.seoDescription;
+    if (description) {
+      this.meta.updateTag({ content: description, name: 'description' });
+    } else {
+      this.meta.removeTag("name='description'");
+    }
   }
 
   private applyDocumentTitle(): void {
@@ -129,12 +141,8 @@ export class ConfigService {
     this._tenant = tenant;
     this.tenantState.set(tenant);
     this.applyDocumentTitle();
+    this.applyDocumentDescription();
     this.updateFavicon(tenant.faviconUrl ?? 'favicon.ico');
-    if (tenant.seoDescription) {
-      this.updateDescription(tenant.seoDescription);
-    } else {
-      this.meta.removeTag("name='description'");
-    }
   }
 
   private updateFavicon(href: string): void {
