@@ -3,23 +3,8 @@
   "checkpoint_id": "fed1f57ac6db",
   "strategy": "manual-commit",
   "branch": "codex/pr62-dependency-refresh",
-  "checkpoints_count": 0,
-  "files_touched": [
-    ".changeset/dependency-vendor-refresh.md",
-    ".github/workflows/copilot-setup-steps.yml",
-    ".github/workflows/e2e-baseline.yml",
-    ".github/workflows/fly-deploy.yml",
-    "Dockerfile",
-    "README.md",
-    "docker-compose.yml",
-    "eslint.config.mjs",
-    "package.json",
-    "src/app/shared/components/controls/location-selector/location-selector-dialog/location-selector-dialog.ts",
-    "src/app/templates/template-create-event/template-create-event.component.ts",
-    "src/server.ts",
-    "src/server/stripe-client.ts",
-    "tsconfig.json"
-  ],
+  "checkpoints_count": 1,
+  "files_touched": null,
   "sessions": [
     {
       "metadata": "/fe/d1f57ac6db/0/metadata.json",
@@ -29,10 +14,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 1198606,
+    "input_tokens": 1264847,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 17447424,
-    "output_tokens": 53827,
-    "api_call_count": 129
+    "cache_read_tokens": 20982272,
+    "output_tokens": 60138,
+    "api_call_count": 150
   }
 }
