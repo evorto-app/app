@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "4cc600918e8f",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-02-esncard-coverage",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/e2e-baseline.yml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/4c/c600918e8f/0/metadata.json",
+      "transcript": "/4c/c600918e8f/0/full.jsonl",
+      "content_hash": "/4c/c600918e8f/0/content_hash.txt",
+      "prompt": "/4c/c600918e8f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6139010,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 141985408,
+    "output_tokens": 310165,
+    "api_call_count": 1059
+  }
+}
