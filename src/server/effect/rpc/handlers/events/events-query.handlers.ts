@@ -1,5 +1,8 @@
 import { RpcForbiddenError } from '@shared/errors/rpc-errors';
-import { includesPermission } from '@shared/permissions/permissions';
+import {
+  includesPermission,
+  type Permission,
+} from '@shared/permissions/permissions';
 import {
   EventConflictError,
   EventNotFoundError,
@@ -35,6 +38,9 @@ import {
   getEsnCardDiscountedPriceByOptionId,
   isEsnCardEnabled,
 } from './events.shared';
+
+const canInspectTenantEvents = (permissions: readonly Permission[]): boolean =>
+  includesPermission('globalAdmin:manageTenants', permissions);
 
 export const eventQueryHandlers = {
   'events.canOrganize': ({ eventId }, _options) =>
@@ -82,6 +88,7 @@ export const eventQueryHandlers = {
       const { tenant } = yield* RpcAccess.current();
       const { user } = yield* RpcAccess.current();
       const userPermissions = user?.permissions ?? [];
+      const canInspectAllTenantEvents = canInspectTenantEvents(userPermissions);
 
       if (user?.id !== input.userId) {
         yield* Effect.logWarning(
@@ -98,6 +105,7 @@ export const eventQueryHandlers = {
         input.status.length === 1 && input.status[0] === 'APPROVED';
       if (
         !onlyApprovedStatus &&
+        !canInspectAllTenantEvents &&
         !includesPermission('events:seeDrafts', userPermissions)
       ) {
         return yield* Effect.fail(
@@ -110,6 +118,7 @@ export const eventQueryHandlers = {
 
       if (
         input.includeUnlisted &&
+        !canInspectAllTenantEvents &&
         !includesPermission('events:seeUnlisted', userPermissions)
       ) {
         return yield* Effect.fail(
@@ -120,21 +129,22 @@ export const eventQueryHandlers = {
         );
       }
 
-      const rolesToFilterBy =
-        user?.roleIds ??
-        (yield* databaseEffect((database) =>
-          database.query.roles
-            .findMany({
-              columns: { id: true },
-              where: {
-                defaultUserRole: true,
-                tenantId: tenant.id,
-              },
-            })
-            .pipe(
-              Effect.map((roleRecords) => roleRecords.map((role) => role.id)),
-            ),
-        ));
+      const rolesToFilterBy = canInspectAllTenantEvents
+        ? []
+        : (user?.roleIds ??
+          (yield* databaseEffect((database) =>
+            database.query.roles
+              .findMany({
+                columns: { id: true },
+                where: {
+                  defaultUserRole: true,
+                  tenantId: tenant.id,
+                },
+              })
+              .pipe(
+                Effect.map((roleRecords) => roleRecords.map((role) => role.id)),
+              ),
+          )));
       const roleFilters =
         rolesToFilterBy.length > 0 ? [...rolesToFilterBy] : [''];
       const startAfter = new Date(input.startAfter);
@@ -172,23 +182,30 @@ export const eventQueryHandlers = {
               ...(input.includeUnlisted
                 ? []
                 : [eq(eventInstances.unlisted, false)]),
-              exists(
-                database
-                  .select()
-                  .from(eventRegistrationOptions)
-                  .where(
-                    and(
-                      eq(eventRegistrationOptions.eventId, eventInstances.id),
-                      or(
-                        sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
-                        arrayOverlaps(
-                          eventRegistrationOptions.roleIds,
-                          roleFilters,
+              ...(canInspectAllTenantEvents
+                ? []
+                : [
+                    exists(
+                      database
+                        .select()
+                        .from(eventRegistrationOptions)
+                        .where(
+                          and(
+                            eq(
+                              eventRegistrationOptions.eventId,
+                              eventInstances.id,
+                            ),
+                            or(
+                              sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`,
+                              arrayOverlaps(
+                                eventRegistrationOptions.roleIds,
+                                roleFilters,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
                     ),
-                  ),
-              ),
+                  ]),
             ),
           )
           .limit(input.limit)
@@ -225,22 +242,25 @@ export const eventQueryHandlers = {
     Effect.gen(function* () {
       const { tenant } = yield* RpcAccess.current();
       const { user } = yield* RpcAccess.current();
+      const userPermissions = user?.permissions ?? [];
+      const canInspectAllTenantEvents = canInspectTenantEvents(userPermissions);
 
-      const rolesToFilterBy =
-        user?.roleIds ??
-        (yield* databaseEffect((database) =>
-          database.query.roles
-            .findMany({
-              columns: { id: true },
-              where: {
-                defaultUserRole: true,
-                tenantId: tenant.id,
-              },
-            })
-            .pipe(
-              Effect.map((roleRecords) => roleRecords.map((role) => role.id)),
-            ),
-        ));
+      const rolesToFilterBy = canInspectAllTenantEvents
+        ? []
+        : (user?.roleIds ??
+          (yield* databaseEffect((database) =>
+            database.query.roles
+              .findMany({
+                columns: { id: true },
+                where: {
+                  defaultUserRole: true,
+                  tenantId: tenant.id,
+                },
+              })
+              .pipe(
+                Effect.map((roleRecords) => roleRecords.map((role) => role.id)),
+              ),
+          )));
 
       const event = yield* databaseEffect((database) =>
         database.query.eventInstances.findFirst({
@@ -279,13 +299,15 @@ export const eventQueryHandlers = {
                 stripeTaxRateId: true,
                 title: true,
               },
-              where: {
-                RAW: (table) =>
-                  sql`cardinality(${table.roleIds}) = 0 or ${arrayOverlaps(
-                    table.roleIds,
-                    [...rolesToFilterBy],
-                  )}`,
-              },
+              where: canInspectAllTenantEvents
+                ? undefined
+                : {
+                    RAW: (table) =>
+                      sql`cardinality(${table.roleIds}) = 0 or ${arrayOverlaps(
+                        table.roleIds,
+                        [...rolesToFilterBy],
+                      )}`,
+                  },
             },
             reviewer: {
               columns: {
@@ -303,7 +325,8 @@ export const eventQueryHandlers = {
       }
 
       const canSeeDrafts =
-        user && includesPermission('events:seeDrafts', user.permissions);
+        canInspectAllTenantEvents ||
+        (user && includesPermission('events:seeDrafts', user.permissions));
       const canReviewEvents =
         user && includesPermission('events:review', user.permissions);
       const canEditEvent_ = user
