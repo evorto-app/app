@@ -12,4 +12,13 @@ describe('GLOBAL_ADMIN_ROUTES', () => {
       permissions: ['globalAdmin:manageTenants'],
     });
   });
+
+  it('keeps the tenant list and detail review routes under the guarded shell', () => {
+    const shellRoute = GLOBAL_ADMIN_ROUTES.find((route) => route.path === '');
+
+    expect(shellRoute?.children?.map((route) => route.path)).toEqual([
+      'tenants/:tenantId',
+      'tenants',
+    ]);
+  });
 });

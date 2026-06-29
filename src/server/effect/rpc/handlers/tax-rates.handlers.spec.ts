@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@effect/vitest';
+import { describe, expect, it, vi } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
 
 import { Database } from '../../../../db';
@@ -38,6 +38,63 @@ const createHeaders = (permissions: readonly Permission[]) => ({
 });
 
 describe('taxRateHandlers permissions', () => {
+  it.effect(
+    'lists only compatible active inclusive rates for the current tenant',
+    () =>
+      Effect.gen(function* () {
+        const findMany = vi.fn(() =>
+          Effect.succeed([
+            {
+              country: 'NL',
+              displayName: 'Dutch VAT',
+              id: 'tax-rate-1',
+              percentage: '21',
+              state: null,
+              stripeTaxRateId: 'txr_vat_21',
+            },
+          ]),
+        );
+        const database = {
+          query: {
+            tenantStripeTaxRates: {
+              findMany,
+            },
+          },
+        };
+
+        const result = yield* taxRateHandlers['taxRates.listActive'](
+          undefined,
+          {
+            headers: createHeaders(['templates:view']),
+          } as never,
+        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+        expect(result).toEqual([
+          {
+            country: 'NL',
+            displayName: 'Dutch VAT',
+            id: 'tax-rate-1',
+            percentage: '21',
+            state: null,
+            stripeTaxRateId: 'txr_vat_21',
+          },
+        ]);
+        expect(findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            columns: expect.objectContaining({
+              displayName: true,
+              stripeTaxRateId: true,
+            }),
+            where: {
+              active: true,
+              inclusive: true,
+              tenantId: 'tenant-1',
+            },
+          }),
+        );
+      }),
+  );
+
   it.effect('allows template view through permission dependencies', () =>
     Effect.gen(function* () {
       const database = {

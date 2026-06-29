@@ -8,7 +8,7 @@ test.setTimeout(120000);
 
 test.use({ storageState: organizerStateFile });
 
-test('create template in empty category @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-01)', async ({
+test('create template in empty category', async ({
   database,
   page,
   permissionOverride,
@@ -48,7 +48,7 @@ test('create template in empty category @track(playwright-specs-track-linking_20
   await expect(page.getByLabel('Template Category')).toHaveText(category.title);
 });
 
-test('create a new template @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-02)', async ({
+test('create a new template', async ({
   page,
   permissionOverride,
   templateCategories,
@@ -73,10 +73,7 @@ test('create a new template @track(playwright-specs-track-linking_20260126) @req
   await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
 });
 
-test('view a template @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-03)', async ({
-  page,
-  templates,
-}) => {
+test('view a template', async ({ page, templates }) => {
   const template = templates[0];
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
@@ -85,7 +82,7 @@ test('view a template @track(playwright-specs-track-linking_20260126) @req(TEMPL
   await expect(page).toHaveURL(`/templates/${template.id}`);
 });
 
-test('template create form hides selected roles in autocomplete @track(playwright-specs-track-linking_20260126) @req(TEMPLATES-TEST-04)', async ({
+test('template create form hides selected roles in autocomplete', async ({
   page,
   permissionOverride,
 }) => {

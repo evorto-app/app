@@ -4,6 +4,10 @@ import {
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
+import {
+  GlobalAdminTenantRecord,
+  type GlobalAdminTenantRecord as GlobalAdminTenantRecordType,
+} from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -56,21 +60,60 @@ const ensurePermission = (
     }
   });
 
+const toGlobalAdminTenantRecord = (tenant: {
+  currency: string;
+  domain: string;
+  id: string;
+  locale: string;
+  name: string;
+  stripeAccountId: null | string;
+  theme: string;
+  timezone: string;
+}): GlobalAdminTenantRecordType => {
+  const { stripeAccountId, ...record } = tenant;
+
+  return Schema.decodeUnknownSync(GlobalAdminTenantRecord)({
+    ...record,
+    stripeConnected: !!stripeAccountId,
+  });
+};
+
+const globalAdminTenantColumns = {
+  currency: true,
+  domain: true,
+  id: true,
+  locale: true,
+  name: true,
+  stripeAccountId: true,
+  theme: true,
+  timezone: true,
+} as const;
+
 export const globalAdminHandlers = {
   'globalAdmin.tenants.findMany': (_payload, options) =>
     Effect.gen(function* () {
       yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
       const allTenants = yield* databaseEffect((database) =>
         database.query.tenants.findMany({
-          columns: {
-            domain: true,
-            id: true,
-            name: true,
-          },
+          columns: globalAdminTenantColumns,
           orderBy: (table, { asc }) => [asc(table.name)],
         }),
       );
 
-      return allTenants;
+      return allTenants.map((tenant) => toGlobalAdminTenantRecord(tenant));
+    }),
+  'globalAdmin.tenants.findOne': (input, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
+      const tenant = yield* databaseEffect((database) =>
+        database.query.tenants.findFirst({
+          columns: globalAdminTenantColumns,
+          where: {
+            id: input.id,
+          },
+        }),
+      );
+
+      return tenant ? toGlobalAdminTenantRecord(tenant) : null;
     }),
 } satisfies Partial<AppRpcHandlers>;

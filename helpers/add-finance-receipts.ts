@@ -1,7 +1,6 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
-import { eq } from 'drizzle-orm';
-
+import { createId } from '../src/db/create-id';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
@@ -14,9 +13,6 @@ export const addFinanceReceipts = async (
     tenantId: string;
   },
 ) => {
-  const organizerUserId =
-    usersToAuthenticate.find((user) => user.roles === 'organizer')?.id ??
-    usersToAuthenticate[0].id;
   const regularUserId =
     usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
     usersToAuthenticate[0].id;
@@ -27,13 +23,17 @@ export const addFinanceReceipts = async (
     return;
   }
 
-  await database
-    .update(schema.users)
-    .set({
-      iban: 'DE00123456781234567890',
-      paypalEmail: 'organizer-refunds@example.com',
-    })
-    .where(eq(schema.users.id, organizerUserId));
+  const reimbursementUserId = createId();
+  await database.insert(schema.users).values({
+    auth0Id: `local-finance-${reimbursementUserId}`,
+    communicationEmail: `finance-${reimbursementUserId}@example.com`,
+    email: `finance-${reimbursementUserId}@example.com`,
+    firstName: 'Finance',
+    iban: 'DE00123456781234567890',
+    id: reimbursementUserId,
+    lastName: 'Recipient',
+    paypalEmail: 'organizer-refunds@example.com',
+  });
 
   const now = new Date();
   const [eventA, eventB, eventC] = options.eventIds;
@@ -44,7 +44,7 @@ export const addFinanceReceipts = async (
       attachmentFileName: 'kitchen-supplies.pdf',
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 42_000,
-      attachmentStorageKey: `seed://${getId()}`,
+      attachmentStorageKey: `local-unavailable/${getId()}.pdf`,
       depositAmount: 0,
       eventId: eventA,
       hasAlcohol: false,
@@ -52,7 +52,7 @@ export const addFinanceReceipts = async (
       purchaseCountry: 'DE',
       receiptDate: now,
       status: 'submitted',
-      submittedByUserId: organizerUserId,
+      submittedByUserId: reimbursementUserId,
       taxAmount: 250,
       tenantId: options.tenantId,
       totalAmount: 1500,
@@ -62,7 +62,7 @@ export const addFinanceReceipts = async (
       attachmentFileName: 'venue-deposit.pdf',
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 48_000,
-      attachmentStorageKey: `seed://${getId()}`,
+      attachmentStorageKey: `local-unavailable/${getId()}.pdf`,
       depositAmount: 1000,
       eventId: eventB ?? eventA,
       hasAlcohol: true,
@@ -72,7 +72,7 @@ export const addFinanceReceipts = async (
       reviewedAt: now,
       reviewedByUserId: reviewerUserId,
       status: 'approved',
-      submittedByUserId: organizerUserId,
+      submittedByUserId: reimbursementUserId,
       taxAmount: 400,
       tenantId: options.tenantId,
       totalAmount: 2500,
@@ -82,7 +82,7 @@ export const addFinanceReceipts = async (
       attachmentFileName: 'transport-ticket.pdf',
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 21_000,
-      attachmentStorageKey: `seed://${getId()}`,
+      attachmentStorageKey: `local-unavailable/${getId()}.pdf`,
       depositAmount: 0,
       eventId: eventC ?? eventA,
       hasAlcohol: true,
@@ -92,7 +92,7 @@ export const addFinanceReceipts = async (
       reviewedAt: now,
       reviewedByUserId: reviewerUserId,
       status: 'approved',
-      submittedByUserId: organizerUserId,
+      submittedByUserId: reimbursementUserId,
       taxAmount: 150,
       tenantId: options.tenantId,
       totalAmount: 950,
@@ -102,7 +102,7 @@ export const addFinanceReceipts = async (
       attachmentFileName: 'profile-receipt.pdf',
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 30_000,
-      attachmentStorageKey: `seed://${getId()}`,
+      attachmentStorageKey: `local-unavailable/${getId()}.pdf`,
       depositAmount: 0,
       eventId: eventA,
       hasAlcohol: false,

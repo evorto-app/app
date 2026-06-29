@@ -11,7 +11,7 @@ describe('tenantIdentityRows', () => {
       tenantIdentityRows({
         currency: 'EUR',
         domain: 'tenant.example.com',
-        locale: 'en-GB',
+        locale: 'de-DE',
         name: 'Example Tenant',
         stripeAccountId: 'acct_123',
         timezone: 'Europe/Berlin',
@@ -20,7 +20,7 @@ describe('tenantIdentityRows', () => {
       { label: 'Tenant name', value: 'Example Tenant' },
       { label: 'Primary domain', value: 'tenant.example.com' },
       { label: 'Currency', value: 'EUR' },
-      { label: 'Locale', value: 'en-GB' },
+      { label: 'Locale', value: 'de-DE' },
       { label: 'Timezone', value: 'Europe/Berlin' },
       { label: 'Stripe account', value: 'Connected' },
     ]);
@@ -30,7 +30,7 @@ describe('tenantIdentityRows', () => {
     const rows = tenantIdentityRows({
       currency: 'EUR',
       domain: 'tenant.example.com',
-      locale: 'en-GB',
+      locale: 'de-DE',
       name: 'Example Tenant',
       stripeAccountId: null,
       timezone: 'Europe/Berlin',
@@ -46,7 +46,7 @@ describe('tenantIdentityRows', () => {
     const rows = tenantIdentityRows({
       currency: 'EUR',
       domain: 'tenant.example.com',
-      locale: 'en-GB',
+      locale: 'de-DE',
       name: 'Example Tenant',
       stripeAccountId: undefined,
       timezone: 'Europe/Berlin',
@@ -75,12 +75,7 @@ describe('deferredTenantSettingsRows', () => {
       {
         label: 'Legal pages',
         value:
-          'Imprint, privacy, and terms links are editable below; legal text pages are not implemented yet.',
-      },
-      {
-        label: 'Locale and money',
-        value:
-          'Currency, locale, and timezone are read-only after tenant creation for now.',
+          'Imprint, privacy, and terms links or hosted text are editable below.',
       },
       {
         label: 'Operations policy',

@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -26,7 +27,11 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
-import { GoogleLocationType } from '../../../types/location';
+import {
+  supportedTenantCurrencies,
+  supportedTenantLocales,
+  supportedTenantTimezones,
+} from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
@@ -36,6 +41,11 @@ import {
   deferredTenantSettingsRows,
   tenantIdentityRows,
 } from './general-settings.identity';
+import {
+  GeneralSettingsModel,
+  generalSettingsPayloadFromModel,
+  requiresLocaleMoneyRuntimeReload,
+} from './general-settings.payload';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,46 +66,42 @@ import {
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
+  protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly deferredTenantSettingsRows = deferredTenantSettingsRows;
-  protected readonly settingsModel = signal<{
-    allowOther: boolean;
-    buyEsnCardUrl: string;
-    defaultLocation: GoogleLocationType | null;
-    esnCardEnabled: boolean;
-    faviconUrl: string;
-    legalNoticeUrl: string;
-    logoUrl: string;
-    privacyPolicyUrl: string;
-    receiptCountries: string[];
-    seoDescription: string;
-    seoTitle: string;
-    termsUrl: string;
-    theme: 'esn' | 'evorto';
-  }>({
+  protected readonly settingsModel = signal<GeneralSettingsModel>({
     allowOther: false,
     buyEsnCardUrl: '',
+    currency: 'EUR',
     defaultLocation: null,
     esnCardEnabled: false,
     faviconUrl: '',
+    legalNoticeText: '',
     legalNoticeUrl: '',
+    locale: 'en-GB',
     logoUrl: '',
+    privacyPolicyText: '',
     privacyPolicyUrl: '',
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
     seoDescription: '',
     seoTitle: '',
+    termsText: '',
     termsUrl: '',
     theme: 'evorto',
+    timezone: 'Europe/Berlin',
   });
   protected readonly esnEnabled = computed(
     () => this.settingsModel().esnCardEnabled,
   );
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly localeOptions = supportedTenantLocales;
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
   private readonly configService = inject(ConfigService);
   protected readonly tenantIdentityRows = computed(() =>
     tenantIdentityRows(this.configService.tenant),
   );
+  protected readonly timezoneOptions = supportedTenantTimezones;
+  private readonly document = inject(DOCUMENT);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly rpc = AppRpc.injectClient();
@@ -116,18 +122,24 @@ export class GeneralSettingsComponent {
           buyEsnCardUrl:
             currentTenant.discountProviders?.esnCard?.config?.buyEsnCardUrl ??
             '',
+          currency: currentTenant.currency,
           defaultLocation: currentTenant.defaultLocation ?? null,
           esnCardEnabled:
             currentTenant.discountProviders?.esnCard?.status === 'enabled',
           faviconUrl: currentTenant.faviconUrl ?? '',
+          legalNoticeText: currentTenant.legalNoticeText ?? '',
           legalNoticeUrl: currentTenant.legalNoticeUrl ?? '',
+          locale: currentTenant.locale,
           logoUrl: currentTenant.logoUrl ?? '',
+          privacyPolicyText: currentTenant.privacyPolicyText ?? '',
           privacyPolicyUrl: currentTenant.privacyPolicyUrl ?? '',
           receiptCountries: [...receiptCountrySettings.receiptCountries],
           seoDescription: currentTenant.seoDescription ?? '',
           seoTitle: currentTenant.seoTitle ?? '',
+          termsText: currentTenant.termsText ?? '',
           termsUrl: currentTenant.termsUrl ?? '',
           theme: currentTenant.theme,
+          timezone: currentTenant.timezone,
         });
       }
     });
@@ -137,23 +149,13 @@ export class GeneralSettingsComponent {
     event.preventDefault();
     await submit(this.settingsForm, async (formState) => {
       const settings = formState().value();
+      const reloadRequired = requiresLocaleMoneyRuntimeReload(
+        this.configService.tenant,
+        settings,
+      );
       try {
         await this.updateSettingsMutation.mutateAsync(
-          {
-            allowOther: settings.allowOther,
-            buyEsnCardUrl: settings.buyEsnCardUrl.trim() || undefined,
-            defaultLocation: settings.defaultLocation,
-            esnCardEnabled: settings.esnCardEnabled,
-            faviconUrl: settings.faviconUrl.trim() || undefined,
-            legalNoticeUrl: settings.legalNoticeUrl.trim() || undefined,
-            logoUrl: settings.logoUrl.trim() || undefined,
-            privacyPolicyUrl: settings.privacyPolicyUrl.trim() || undefined,
-            receiptCountries: settings.receiptCountries,
-            seoDescription: settings.seoDescription.trim() || undefined,
-            seoTitle: settings.seoTitle.trim() || undefined,
-            termsUrl: settings.termsUrl.trim() || undefined,
-            theme: settings.theme,
-          },
+          generalSettingsPayloadFromModel(settings),
           {
             onSuccess: async () => {
               await this.queryClient.invalidateQueries({
@@ -165,7 +167,14 @@ export class GeneralSettingsComponent {
             },
           },
         );
-        this.notifications.showSuccess('Tenant settings updated');
+        this.notifications.showSuccess(
+          reloadRequired
+            ? 'Tenant settings updated. Reloading to apply locale and money settings.'
+            : 'Tenant settings updated',
+        );
+        if (reloadRequired) {
+          this.document.defaultView?.location.reload();
+        }
       } catch (error) {
         this.notifications.showError(
           getErrorMessage(error, 'Failed to update tenant settings'),

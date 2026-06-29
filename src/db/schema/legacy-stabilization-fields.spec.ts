@@ -34,4 +34,11 @@ describe('legacy stabilization fields', () => {
       migrationIndexSource.indexOf('await dropLegacyStabilizationFields()'),
     ).toBeLessThan(migrationIndexSource.indexOf('await runForTenant('));
   });
+
+  it('fails the migration command when a top-level migration step fails', () => {
+    const migrationIndexSource = readSource('../../../migration/index.ts');
+
+    expect(migrationIndexSource).toContain('main().catch');
+    expect(migrationIndexSource).toContain('process.exitCode = 1');
+  });
 });

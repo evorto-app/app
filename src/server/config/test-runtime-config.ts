@@ -245,6 +245,7 @@ const validateCiEnvironment = (
     ['S3_ENDPOINT', Option.isSome(state.S3_ENDPOINT)],
     ['S3_REGION', Option.isSome(state.S3_REGION)],
     ['S3_SECRET_ACCESS_KEY', Option.isSome(state.S3_SECRET_ACCESS_KEY)],
+    ['STRIPE_WEBHOOK_SECRET', Option.isSome(state.STRIPE_WEBHOOK_SECRET)],
     ['STRIPE_TEST_ACCOUNT_ID', Option.isSome(state.STRIPE_TEST_ACCOUNT_ID)],
     [
       'AUTH0_MANAGEMENT_CLIENT_ID',
@@ -308,9 +309,6 @@ export const makePlaywrightEnvironmentConfig = (
       Option.isSome(state.STRIPE_TEST_ACCOUNT_ID) || listOnly
         ? undefined
         : missingFieldError('STRIPE_TEST_ACCOUNT_ID'),
-      Option.isSome(state.STRIPE_WEBHOOK_SECRET) || listOnly
-        ? undefined
-        : missingFieldError('STRIPE_WEBHOOK_SECRET'),
     ].filter((value): value is Error => value !== undefined);
 
     if (errors.length > 0) {
@@ -342,9 +340,7 @@ export const makePlaywrightEnvironmentConfig = (
         : undefined);
     const stripeWebhookSecret =
       Option.getOrUndefined(state.STRIPE_WEBHOOK_SECRET) ??
-      (listOnly
-        ? LIST_ONLY_ENVIRONMENT_DEFAULTS.STRIPE_WEBHOOK_SECRET
-        : undefined);
+      (listOnly ? LIST_ONLY_ENVIRONMENT_DEFAULTS.STRIPE_WEBHOOK_SECRET : '');
 
     if (
       !baseUrl ||
@@ -353,8 +349,7 @@ export const makePlaywrightEnvironmentConfig = (
       !issuerBaseUrl ||
       !secret ||
       !stripeApiKey ||
-      !stripeTestAccountId ||
-      !stripeWebhookSecret
+      !stripeTestAccountId
     ) {
       throw new Error('Expected validated Playwright configuration values');
     }

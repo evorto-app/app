@@ -23,6 +23,7 @@ const validSimpleTemplateInput = {
     roleIds: [],
     spots: 10,
     stripeTaxRateId: null,
+    title: 'Organizer registration',
   },
   participantRegistration: {
     closeRegistrationOffset: 24,
@@ -33,6 +34,7 @@ const validSimpleTemplateInput = {
     roleIds: [],
     spots: 10,
     stripeTaxRateId: null,
+    title: 'Participant registration',
   },
   title: 'Template',
 };

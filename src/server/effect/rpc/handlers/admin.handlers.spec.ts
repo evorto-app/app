@@ -125,38 +125,56 @@ describe('adminHandlers tenant settings', () => {
         const result = yield* adminHandlers['admin.tenant.updateSettings'](
           {
             allowOther: true,
+            currency: 'AUD',
             defaultLocation: null,
             esnCardEnabled: false,
             faviconUrl: ' https://cdn.example.org/favicon.ico ',
+            legalNoticeText: '  Tenant imprint text  ',
             legalNoticeUrl: ' https://section.example.org/imprint ',
+            locale: 'en-AU',
             logoUrl: 'https://cdn.example.org/logo.svg',
+            privacyPolicyText: ' Tenant privacy text ',
             privacyPolicyUrl: 'https://section.example.org/privacy',
             receiptCountries: ['NL'],
             seoDescription: '  Public description  ',
             seoTitle: '  Public title  ',
+            termsText: ' Tenant terms text ',
             termsUrl: 'https://section.example.org/terms',
             theme: 'evorto',
+            timezone: 'Australia/Brisbane',
           },
           { headers: createSettingsAdminHeaders() } as never,
         ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
         expect(capturedUpdate).toMatchObject({
+          currency: 'AUD',
           faviconUrl: 'https://cdn.example.org/favicon.ico',
+          legalNoticeText: 'Tenant imprint text',
           legalNoticeUrl: 'https://section.example.org/imprint',
+          locale: 'en-AU',
           logoUrl: 'https://cdn.example.org/logo.svg',
+          privacyPolicyText: 'Tenant privacy text',
           privacyPolicyUrl: 'https://section.example.org/privacy',
           seoDescription: 'Public description',
           seoTitle: 'Public title',
+          termsText: 'Tenant terms text',
           termsUrl: 'https://section.example.org/terms',
+          timezone: 'Australia/Brisbane',
         });
         expect(result).toMatchObject({
+          currency: 'AUD',
           faviconUrl: 'https://cdn.example.org/favicon.ico',
+          legalNoticeText: 'Tenant imprint text',
           legalNoticeUrl: 'https://section.example.org/imprint',
+          locale: 'en-AU',
           logoUrl: 'https://cdn.example.org/logo.svg',
+          privacyPolicyText: 'Tenant privacy text',
           privacyPolicyUrl: 'https://section.example.org/privacy',
           seoDescription: 'Public description',
           seoTitle: 'Public title',
+          termsText: 'Tenant terms text',
           termsUrl: 'https://section.example.org/terms',
+          timezone: 'Australia/Brisbane',
         });
       }),
   );
@@ -172,11 +190,14 @@ describe('adminHandlers tenant settings', () => {
       const error = yield* adminHandlers['admin.tenant.updateSettings'](
         {
           allowOther: true,
+          currency: 'EUR',
           defaultLocation: null,
           esnCardEnabled: false,
           legalNoticeUrl: 'not a url',
+          locale: 'en-GB',
           receiptCountries: ['NL'],
           theme: 'evorto',
+          timezone: 'Europe/Berlin',
         },
         { headers: createSettingsAdminHeaders() } as never,
       ).pipe(
@@ -200,11 +221,14 @@ describe('adminHandlers tenant settings', () => {
       const error = yield* adminHandlers['admin.tenant.updateSettings'](
         {
           allowOther: true,
+          currency: 'EUR',
           defaultLocation: null,
           esnCardEnabled: false,
+          locale: 'en-GB',
           logoUrl: 'file:///tmp/logo.svg',
           receiptCountries: ['NL'],
           theme: 'evorto',
+          timezone: 'Europe/Berlin',
         },
         { headers: createSettingsAdminHeaders() } as never,
       ).pipe(

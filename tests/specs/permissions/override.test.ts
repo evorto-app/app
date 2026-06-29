@@ -3,7 +3,7 @@ import { expect, test } from '../../support/fixtures/permissions-test';
 
 test.use({ storageState: userStateFile });
 
-test('adds internal:viewInternalPages to Regular user shows Internal link @track(playwright-specs-track-linking_20260126) @req(OVERRIDE-TEST-01)', async ({
+test('adds internal:viewInternalPages to Regular user shows Internal link', async ({
   page,
   permissionOverride,
 }) => {

@@ -49,9 +49,9 @@ export class PriceWithTaxComponent {
    */
   amount = input.required<number>();
   /**
-   * Currency code (defaults to the tenant currency)
+   * Currency code. Defaults to the tenant-level DEFAULT_CURRENCY_CODE.
    */
-  currency = input<string>();
+  currency = input<string | undefined>();
   /**
    * Whether this is a free option (shows "Free" instead of formatted price)
    */
@@ -63,11 +63,9 @@ export class PriceWithTaxComponent {
   taxRate = input<null | TaxRateInfo | undefined>();
 
   private readonly defaultCurrencyCode = inject(DEFAULT_CURRENCY_CODE);
-
-  private readonly locale = inject(LOCALE_ID);
-
+  private readonly localeId = inject(LOCALE_ID);
   private readonly currencyPipe = new CurrencyPipe(
-    this.locale,
+    this.localeId,
     this.defaultCurrencyCode,
   );
 

@@ -11,7 +11,7 @@ import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from '../rpc-context-headers';
-import { userHandlers } from './users.handlers';
+import { normalizeUsersFindManySearch, userHandlers } from './users.handlers';
 
 const createTenant = () => ({
   currency: 'EUR' as const,
@@ -71,6 +71,14 @@ const returningInsert = <A>(result: A) => ({
 });
 
 describe('userHandlers', () => {
+  it('normalizes user-list search input for the server query', () => {
+    expect(normalizeUsersFindManySearch()).toBeUndefined();
+    expect(normalizeUsersFindManySearch('   ')).toBeUndefined();
+    expect(normalizeUsersFindManySearch(' alice@example.com ')).toBe(
+      '%alice@example.com%',
+    );
+  });
+
   it.effect(
     'createAccount creates the user, tenant assignment, and default roles transactionally',
     () =>
@@ -611,7 +619,7 @@ describe('userHandlers', () => {
   );
 
   it.effect(
-    'users.findMany uses distinct tenant users count with role-join rows',
+    'users.findMany paginates tenant users before loading role join rows',
     () =>
       Effect.gen(function* () {
         const tenant = createTenant();
@@ -626,43 +634,59 @@ describe('userHandlers', () => {
           .fn()
           .mockImplementationOnce(() => ({
             from: () => ({
-              where: () => Effect.succeed([{ count: 2 }]),
+              innerJoin: () => ({
+                where: () => Effect.succeed([{ count: 2 }]),
+              }),
             }),
           }))
           .mockImplementationOnce(() => ({
             from: () => ({
-              orderBy: () => ({
-                offset: () => ({
-                  limit: () => ({
-                    innerJoin: () => ({
-                      leftJoin: () => ({
-                        leftJoin: () =>
-                          Effect.succeed([
-                            {
-                              email: 'a@example.com',
-                              firstName: 'Alice',
-                              id: 'user-1',
-                              lastName: 'One',
-                              role: 'Admin',
-                            },
-                            {
-                              email: 'a@example.com',
-                              firstName: 'Alice',
-                              id: 'user-1',
-                              lastName: 'One',
-                              role: 'Editor',
-                            },
-                            {
-                              email: 'b@example.com',
-                              firstName: 'Bob',
-                              id: 'user-2',
-                              lastName: 'Two',
-                              role: null,
-                            },
-                          ]),
-                      }),
+              innerJoin: () => ({
+                where: () => ({
+                  orderBy: () => ({
+                    offset: () => ({
+                      limit: () =>
+                        Effect.succeed([
+                          {
+                            email: 'a@example.com',
+                            firstName: 'Alice',
+                            id: 'user-1',
+                            lastName: 'One',
+                            userTenantId: 'user-tenant-1',
+                          },
+                          {
+                            email: 'b@example.com',
+                            firstName: 'Bob',
+                            id: 'user-2',
+                            lastName: 'Two',
+                            userTenantId: 'user-tenant-2',
+                          },
+                        ]),
                     }),
                   }),
+                }),
+              }),
+            }),
+          }))
+          .mockImplementationOnce(() => ({
+            from: () => ({
+              leftJoin: () => ({
+                leftJoin: () => ({
+                  where: () =>
+                    Effect.succeed([
+                      {
+                        role: 'Admin',
+                        userTenantId: 'user-tenant-1',
+                      },
+                      {
+                        role: 'Editor',
+                        userTenantId: 'user-tenant-1',
+                      },
+                      {
+                        role: null,
+                        userTenantId: 'user-tenant-2',
+                      },
+                    ]),
                 }),
               }),
             }),
@@ -673,6 +697,7 @@ describe('userHandlers', () => {
           {
             limit: 25,
             offset: 0,
+            search: 'Alice',
           },
           { headers } as never,
         ).pipe(Effect.provide(Layer.succeed(Database, mockDatabase as never)));
@@ -694,6 +719,7 @@ describe('userHandlers', () => {
             roles: [],
           },
         ]);
+        expect(select).toHaveBeenCalledTimes(3);
         expect(result.users).not.toEqual(
           expect.arrayContaining([
             expect.objectContaining({

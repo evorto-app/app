@@ -55,16 +55,15 @@ const logger = consola.withTag('app/templates/edit');
   templateUrl: './template-edit.component.html',
 })
 export class TemplateEditComponent {
-  protected readonly faArrowLeft = faArrowLeft;
-  protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
+  private readonly rpc = AppRpc.injectClient();
+  protected readonly discountProvidersQuery = injectQuery(() =>
+    this.rpc.discounts.getTenantProviders.queryOptions(),
+  );
 
   protected readonly templateId = input.required<string>();
-  private readonly rpc = AppRpc.injectClient();
-
   protected readonly templateQuery = injectQuery(() =>
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
-
   protected readonly simpleTemplateData = computed(() => {
     const templateData = this.templateQuery.data();
     if (!templateData) return templateData;
@@ -82,7 +81,6 @@ export class TemplateEditComponent {
       participantRegistration,
     };
   });
-
   private readonly templateModel = linkedSignal<
     TemplateFormOverrides,
     TemplateFormData
@@ -96,6 +94,25 @@ export class TemplateEditComponent {
     this.templateModel,
     templateFormSchema,
   );
+
+  protected readonly canSubmit = computed(
+    () =>
+      this.discountProvidersQuery.isSuccess() &&
+      !this.templateForm().invalid() &&
+      !this.templateForm().submitting(),
+  );
+
+  protected readonly esnEnabled = computed(() => {
+    if (!this.discountProvidersQuery.isSuccess()) return false;
+    const providers = this.discountProvidersQuery.data();
+    return (
+      providers.find((provider) => provider.type === 'esnCard')?.status ===
+      'enabled'
+    );
+  });
+
+  protected readonly faArrowLeft = faArrowLeft;
+  protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
 
   protected readonly updateTemplateMutation = injectMutation(() =>
     this.rpc.templates.updateSimpleTemplate.mutationOptions(),
@@ -114,15 +131,21 @@ export class TemplateEditComponent {
         });
         return;
       }
+      if (!this.discountProvidersQuery.isSuccess()) {
+        logger.warn('Submit blocked: discount providers are not loaded');
+        return;
+      }
       const id = this.templateId();
       const payload: TemplateFormSubmitData = {
         ...formValue,
         icon: formValue.icon,
         organizerRegistration: toTemplateRegistrationSubmitData(
           formValue.organizerRegistration,
+          { esnEnabled: this.esnEnabled() },
         ),
         participantRegistration: toTemplateRegistrationSubmitData(
           formValue.participantRegistration,
+          { esnEnabled: this.esnEnabled() },
         ),
       };
       await this.updateTemplateMutation.mutateAsync(

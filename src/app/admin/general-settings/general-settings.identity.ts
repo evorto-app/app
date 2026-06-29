@@ -33,12 +33,7 @@ export const deferredTenantSettingsRows = [
   {
     label: 'Legal pages',
     value:
-      'Imprint, privacy, and terms links are editable below; legal text pages are not implemented yet.',
-  },
-  {
-    label: 'Locale and money',
-    value:
-      'Currency, locale, and timezone are read-only after tenant creation for now.',
+      'Imprint, privacy, and terms links or hosted text are editable below.',
   },
   {
     label: 'Operations policy',

@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 import DocumentationReporter from '../../support/reporters/documentation-reporter';
 import { resolveDocsImageOutputDirectory } from '../../support/utils/doc-screenshot';
 
-test('documentation reporter respects DOCS_* env and writes files @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-01)', async ({}, testInfo) => {
+test('documentation reporter respects DOCS_* env and writes files', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out');
   const imgsRoot = testInfo.outputPath('docs-img');
   process.env.DOCS_OUT_DIR = docsRoot;
@@ -54,7 +54,7 @@ test('documentation reporter respects DOCS_* env and writes files @track(playwri
   expect(imgs.some((f) => f.endsWith('.png'))).toBeTruthy();
 });
 
-test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-07)', async ({}, testInfo) => {
+test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time', async ({}, testInfo) => {
   const previous = process.env.DOCS_IMG_OUT_DIR;
   const imgsRoot = testInfo.outputPath('docs-img-call-time');
   delete process.env.DOCS_IMG_OUT_DIR;
@@ -75,7 +75,7 @@ test('doc screenshot helper resolves DOCS_IMG_OUT_DIR at call time @track(playwr
   }
 });
 
-test('documentation reporter clears docs/image roots on begin @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-03)', async ({}, testInfo) => {
+test('documentation reporter clears docs/image roots on begin', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out3');
   const imgsRoot = testInfo.outputPath('docs-img3');
   process.env.DOCS_OUT_DIR = docsRoot;
@@ -98,7 +98,7 @@ test('documentation reporter clears docs/image roots on begin @track(playwright-
   expect(fs.existsSync(imgsRoot)).toBe(true);
 });
 
-test('documentation reporter leaves docs/image roots untouched in list-only mode @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-06)', async ({}, testInfo) => {
+test('documentation reporter leaves docs/image roots untouched in list-only mode', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out6');
   const imgsRoot = testInfo.outputPath('docs-img6');
   const previousDocsOutDir = process.env.DOCS_OUT_DIR;
@@ -136,7 +136,7 @@ test('documentation reporter leaves docs/image roots untouched in list-only mode
   }
 });
 
-test('front matter normalization with permissions callout @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-02)', async ({}, testInfo) => {
+test('front matter normalization with permissions callout', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out2');
   const imgsRoot = testInfo.outputPath('docs-img2');
   process.env.DOCS_OUT_DIR = docsRoot;
@@ -172,7 +172,7 @@ test('front matter normalization with permissions callout @track(playwright-spec
   expect(md).toContain('Body text');
 });
 
-test('documentation reporter emits one markdown file per describe block @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-04)', async ({}, testInfo) => {
+test('documentation reporter emits one markdown file per describe block', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out4');
   const imgsRoot = testInfo.outputPath('docs-img4');
   process.env.DOCS_OUT_DIR = docsRoot;
@@ -252,7 +252,7 @@ test('documentation reporter emits one markdown file per describe block @track(p
   expect(docDirectories).toEqual(['registration-docs']);
 });
 
-test('two tests in one describe block share one markdown file @track(playwright-specs-track-linking_20260126) @req(REPORTER-PATHS-TEST-05)', async ({}, testInfo) => {
+test('two tests in one describe block share one markdown file', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out5');
   const imgsRoot = testInfo.outputPath('docs-img5');
   process.env.DOCS_OUT_DIR = docsRoot;

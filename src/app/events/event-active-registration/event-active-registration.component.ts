@@ -18,6 +18,7 @@ import { getErrorMessage } from '../../core/error-message';
 
 export const registrationCancellationCopy = (registration: {
   cancellationClosed: boolean;
+  guestCount: number;
   paymentPending: boolean;
   status: EventsRegistrationStatus;
 }): null | {
@@ -25,6 +26,11 @@ export const registrationCancellationCopy = (registration: {
   canCancel: boolean;
   helperText: string;
 } => {
+  const pendingSpotNoun =
+    registration.guestCount > 0 ? 'all selected spots' : 'the reserved spot';
+  const confirmedSpotNoun =
+    registration.guestCount > 0 ? 'all selected spots' : 'your spot';
+
   if (registration.status === 'PENDING') {
     if (registration.cancellationClosed) {
       return {
@@ -39,8 +45,8 @@ export const registrationCancellationCopy = (registration: {
       buttonLabel: 'Cancel registration',
       canCancel: true,
       helperText: registration.paymentPending
-        ? 'This cancels the pending registration and releases the reserved spot. It does not complete a payment.'
-        : 'This cancels the pending registration and releases the reserved spot.',
+        ? `This cancels the pending registration and releases ${pendingSpotNoun}. It does not complete a payment.`
+        : `This cancels the pending registration and releases ${pendingSpotNoun}.`,
     };
   }
 
@@ -57,8 +63,7 @@ export const registrationCancellationCopy = (registration: {
     return {
       buttonLabel: 'Cancel registration',
       canCancel: true,
-      helperText:
-        'This cancels your confirmed registration and releases your spot. Paid-registration refunds are not automatic yet.',
+      helperText: `This cancels your confirmed registration and releases ${confirmedSpotNoun}. Paid-registration refunds are not automatic yet.`,
     };
   }
 
@@ -67,8 +72,26 @@ export const registrationCancellationCopy = (registration: {
       buttonLabel: 'Leave waitlist',
       canCancel: true,
       helperText:
-        'This removes you from the waitlist and releases your waitlist spot.',
+        'This removes your waitlist registration and releases your waitlist position.',
     };
+  }
+
+  return null;
+};
+
+export const registrationDeferredActionCopy = (registration: {
+  status: EventsRegistrationStatus;
+}): null | string => {
+  if (registration.status === 'CONFIRMED') {
+    return 'Transfer/resale is not implemented yet. Contact the organizers if someone else should take your spot.';
+  }
+
+  if (registration.status === 'PENDING') {
+    return 'Transfer/resale is not available for pending registrations.';
+  }
+
+  if (registration.status === 'WAITLIST') {
+    return 'Transfer/resale is not available for waitlist registrations.';
   }
 
   return null;
@@ -102,6 +125,8 @@ export class EventActiveRegistrationComponent {
   protected readonly cancelRegistrationMutation = injectMutation(() =>
     this.rpc.events.cancelRegistration.mutationOptions(),
   );
+  protected readonly deferredActionCopy = registrationDeferredActionCopy;
+
   private readonly queryClient = inject(QueryClient);
 
   cancelRegistration(registration: { id: string }) {
@@ -123,6 +148,7 @@ export class EventActiveRegistrationComponent {
   }
 
   protected readonly cancellationCopy = (registration: {
+    guestCount: number;
     paymentPending: boolean;
     status: EventsRegistrationStatus;
   }) =>

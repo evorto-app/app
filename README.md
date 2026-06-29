@@ -14,6 +14,16 @@ This repo uses three local env files:
 - `.env.dev.local` — tracked shared default dev config
 - `.env.dev` — generated worktree-specific overrides via `bun run env:runtime`
 
+Use `.env.example` as the no-secret checklist for values that must be copied
+into `.env` or exported before Docker can start. `bun run docker:check` reports
+which required values are still missing before any Docker containers are
+stopped, reset, or started.
+
+`bun run docker:start` intentionally resets the Docker-backed local runtime.
+When a Docker stack has already been initialized and you only need to bring
+stopped containers back, use `bun run docker:resume` to avoid container
+recreation.
+
 `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 
 ## Git workflow

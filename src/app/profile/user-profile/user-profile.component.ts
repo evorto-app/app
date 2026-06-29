@@ -37,6 +37,8 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
+import type { User } from '../../../types/custom/user';
+
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
@@ -61,6 +63,26 @@ export const esnCardMutationErrorMessage = (
   error: unknown,
 ): string => getErrorMessage(error, esnCardFallbackMessages[action]);
 
+export const profileUserAfterEdit = <
+  T extends {
+    communicationEmail?: null | string | undefined;
+    firstName: string;
+    iban?: null | string | undefined;
+    lastName: string;
+    paypalEmail?: null | string | undefined;
+  },
+>(
+  user: T,
+  result: EditProfileDialogResult,
+): T => ({
+  ...user,
+  communicationEmail: result.communicationEmail?.trim() || null,
+  firstName: result.firstName,
+  iban: result.iban ?? null,
+  lastName: result.lastName,
+  paypalEmail: result.paypalEmail ?? null,
+});
+
 export const profileEventDetailActionLabel = (): string => 'Open event page';
 
 export const profileEventGuestLabel = (guestCount: number): null | string => {
@@ -71,6 +93,17 @@ export const profileEventGuestLabel = (guestCount: number): null | string => {
   return guestCount === 1
     ? 'Includes 1 guest'
     : `Includes ${guestCount} guests`;
+};
+
+export const profileEventNextStepLabel = (event: {
+  checkoutUrl: null | string;
+  paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
+}): null | string => {
+  if (event.paymentState === 'pending' && event.checkoutUrl) {
+    return 'Finish the checkout payment to confirm your spot.';
+  }
+
+  return null;
 };
 
 export const profileEventActionNote = (event: {
@@ -90,7 +123,7 @@ export const profileEventActionNote = (event: {
       return 'Open the event page for pending-registration details and available cancellation actions. Transfer/resale is not implemented yet.';
     }
     case 'WAITLIST': {
-      return 'Waitlist movement is not managed from profile yet. Open the event page for current details; transfer/resale is not available for waitlist registrations.';
+      return 'Open the event page for waitlist details and the leave-waitlist action. Transfer/resale is not available for waitlist registrations.';
     }
   }
 };
@@ -148,6 +181,32 @@ export const profileReceiptStatusLabel = (
     }
   }
 };
+
+export const profileSectionFromFragment = (
+  fragment: null | string,
+  esnEnabled: boolean,
+): ProfileSection => {
+  if (fragment === 'discounts' && esnEnabled) {
+    return 'discounts';
+  }
+
+  if (fragment === 'events') {
+    return 'events';
+  }
+
+  if (fragment === 'receipts') {
+    return 'receipts';
+  }
+
+  return 'overview';
+};
+
+export const esnCardSubmitPayloadFromIdentifier = (
+  identifier: string,
+): { identifier: string; type: 'esnCard' } => ({
+  identifier: identifier.trim(),
+  type: 'esnCard',
+});
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -230,11 +289,19 @@ export class UserProfileComponent {
   protected readonly profileEventDetailActionLabel =
     profileEventDetailActionLabel;
   protected readonly profileEventGuestLabel = profileEventGuestLabel;
+  protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
   protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
+  protected readonly userQuery = injectQuery(() =>
+    this.rpc.users.self.queryOptions(),
+  );
+
+  private readonly profileUserOverride = signal<null | User>(null);
+  protected readonly profileUser = computed(
+    () => this.profileUserOverride() ?? this.userQuery.data(),
+  );
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
-
   protected readonly registrationPaymentLabel = registrationPaymentLabel;
   protected readonly registrationStatusLabel = registrationStatusLabel;
   protected readonly sectionEntries = computed(() =>
@@ -253,41 +320,29 @@ export class UserProfileComponent {
     this.rpc.users.events.queryOptions(),
   );
 
-  protected readonly userQuery = injectQuery(() =>
-    this.rpc.users.self.queryOptions(),
-  );
   private readonly dialog = inject(MatDialog);
-
   private readonly notifications = inject(NotificationService);
 
   private readonly queryClient = inject(QueryClient);
 
   private readonly route = inject(ActivatedRoute);
 
+  private readonly routeFragment = signal<null | string>(null);
+
   constructor() {
     effect(() => {
-      if (!this.esnEnabled() && this.selectedSection() === 'discounts') {
-        this.selectedSection.set('overview');
+      if (this.routeFragment() === 'discounts') {
+        this.selectedSection.set(
+          profileSectionFromFragment(this.routeFragment(), this.esnEnabled()),
+        );
       }
     });
 
     this.route.fragment.subscribe((fragment) => {
-      if (fragment === 'discounts' && this.esnEnabled()) {
-        this.selectedSection.set('discounts');
-        return;
-      }
-
-      if (fragment === 'events') {
-        this.selectedSection.set('events');
-        return;
-      }
-
-      if (fragment === 'receipts') {
-        this.selectedSection.set('receipts');
-        return;
-      }
-
-      this.selectedSection.set('overview');
+      this.routeFragment.set(fragment);
+      this.selectedSection.set(
+        profileSectionFromFragment(fragment, this.esnEnabled()),
+      );
     });
   }
 
@@ -312,7 +367,7 @@ export class UserProfileComponent {
     );
   }
   protected async openEditProfileDialog(): Promise<void> {
-    const user = this.userQuery.data();
+    const user = this.profileUser();
     if (!user) return;
     const dialogReference = this.dialog.open<
       EditProfileDialogComponent,
@@ -338,11 +393,15 @@ export class UserProfileComponent {
         );
       },
       onSuccess: async () => {
-        await this.queryClient.invalidateQueries(
-          this.rpc.queryFilter(['users', 'self']),
+        const updatedUser = profileUserAfterEdit(user, result);
+        this.profileUserOverride.set(updatedUser);
+        this.queryClient.setQueryData(
+          this.rpc.pathKey(['users', 'self']),
+          updatedUser,
         );
-        await this.queryClient.invalidateQueries(
-          this.rpc.queryFilter(['users', 'maybeSelf']),
+        this.queryClient.setQueryData(
+          this.rpc.pathKey(['users', 'maybeSelf']),
+          updatedUser,
         );
         await this.queryClient.invalidateQueries(
           this.rpc.queryFilter([
@@ -380,10 +439,7 @@ export class UserProfileComponent {
     this.esnCardErrorMessage.set(null);
     await submit(this.esnCardForm, async (formState) => {
       this.upsertCardMutation.mutate(
-        {
-          identifier: formState().value().identifier.trim(),
-          type: 'esnCard',
-        },
+        esnCardSubmitPayloadFromIdentifier(formState().value().identifier),
         {
           onError: (error) => {
             this.esnCardErrorMessage.set(

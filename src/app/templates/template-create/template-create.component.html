@@ -1,6 +1,6 @@
 <div class="mb-4 flex flex-row items-center gap-2">
   <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
-    <fa-duotone-icon [icon]="faArrowLeft" />
+    <fa-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">Create template</h1>
 </div>
@@ -22,22 +22,20 @@
       >
         <app-template-registration-option-form
           class="bg-surface-container-lowest rounded-xl p-4 grid gap-4 lg:row-span-5 lg:grid-rows-subgrid"
+          [esnEnabled]="esnEnabled()"
           [registrationForm]="templateForm.organizerRegistration"
           [registrationModes]="registrationModes"
         />
         <app-template-registration-option-form
           class="bg-surface-container-lowest rounded-xl p-4 grid gap-4 lg:row-span-5 lg:grid-rows-subgrid"
+          [esnEnabled]="esnEnabled()"
           [registrationForm]="templateForm.participantRegistration"
           [registrationModes]="registrationModes"
         />
       </div>
     </div>
 
-    <button
-      type="submit"
-      mat-button
-      [disabled]="templateForm().invalid() || templateForm().submitting()"
-    >
+    <button type="submit" mat-button [disabled]="!canSubmit()">
       Save template
     </button>
   </form>

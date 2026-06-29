@@ -4,7 +4,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: gaStateFile });
 
-test('Review global tenant administration @admin @globalAdmin @track(playwright-specs-track-linking_20260126) @doc(ADMIN-GLOBAL-TENANTS-DOC-01)', async ({
+test('Review global tenant administration @admin @globalAdmin', async ({
   page,
 }, testInfo) => {
   await page.goto('/global-admin');
@@ -26,22 +26,36 @@ Global admins can review tenants from the **Global admin** area. This is a platf
   ).toBeVisible();
   await page.getByRole('link', { name: 'Tenants' }).click();
   await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
-  await expect(page.getByText('Domain:').first()).toBeVisible();
-  await expect(page.getByText('Tenant ID:').first()).toBeVisible();
+  await expect(page.getByLabel('Search tenants')).toBeVisible();
+  await expect(page.getByText('Primary domain').first()).toBeVisible();
+  await expect(page.getByText('Tenant ID').first()).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.locator('app-tenant-list'),
     page,
     'Global admin tenant list',
   );
+  await page.getByRole('link', { name: 'Review tenant' }).first().click();
+  await expect(
+    page.getByText('Read-only operational tenant review'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Open tenant domain' }),
+  ).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-tenant-detail'),
+    page,
+    'Global admin tenant detail',
+  );
 
   await testInfo.attach('markdown', {
     body: `
 ## Current relaunch surface
 
-The current global-admin page is a tenant list. Each entry shows the tenant name, domain, and tenant id for support and operational review.
+The current global-admin page is a searchable tenant list with a read-only tenant detail review. Each entry shows the tenant name, domain, tenant id, theme, locale, currency, timezone, and Stripe connection state for support and operational review. The tenant detail page repeats the operational fields and provides an external link to open the tenant's primary domain.
 
-Tenant creation, tenant editing, custom-domain verification, impersonation, and tenant-detail workflows are not implemented in this surface yet.
+Tenant creation, tenant editing, custom-domain verification, and impersonation are not implemented in this surface yet.
 `,
   });
 });

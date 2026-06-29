@@ -4,13 +4,32 @@ import {
   minLength,
   required,
   schema,
+  validate,
 } from '@angular/forms/signals';
+import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
 import { TemplateRegistrationFormModel } from './template-registration-option-form.utilities';
 
 export const templateRegistrationOptionFormSchema =
   schema<TemplateRegistrationFormModel>((form) => {
+    validate(form.description, ({ value }) => {
+      return hasTemporaryRichTextImageSources(value())
+        ? {
+            kind: 'richTextPendingUpload',
+            message: 'Wait for image uploads to finish before saving.',
+          }
+        : undefined;
+    });
+    validate(form.registeredDescription, ({ value }) => {
+      return hasTemporaryRichTextImageSources(value())
+        ? {
+            kind: 'richTextPendingUpload',
+            message: 'Wait for image uploads to finish before saving.',
+          }
+        : undefined;
+    });
     hidden(form.price, ({ valueOf }) => !valueOf(form.isPaid));
+    hidden(form.esnCardDiscountedPrice, ({ valueOf }) => !valueOf(form.isPaid));
     hidden(form.stripeTaxRateId, ({ valueOf }) => !valueOf(form.isPaid));
     min(form.closeRegistrationOffset, 0);
     min(form.openRegistrationOffset, 0);
@@ -25,5 +44,33 @@ export const templateRegistrationOptionFormSchema =
     required(form.spots);
     required(form.stripeTaxRateId, {
       when: ({ valueOf }) => valueOf(form.isPaid),
+    });
+    required(form.title);
+    validate(form.title, ({ value }) =>
+      value().trim().length === 0
+        ? {
+            kind: 'required',
+            message: 'Title is required.',
+          }
+        : undefined,
+    );
+    validate(form.esnCardDiscountedPrice, ({ value, valueOf }) => {
+      const discountedPrice = value();
+      if (discountedPrice === '') {
+        return;
+      }
+      if (discountedPrice < 0) {
+        return {
+          kind: 'min',
+          message: 'Discounted price must be non-negative.',
+        };
+      }
+      if (discountedPrice > valueOf(form.price)) {
+        return {
+          kind: 'max',
+          message: 'Discounted price cannot exceed the base price.',
+        };
+      }
+      return;
     });
   });

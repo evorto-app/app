@@ -18,7 +18,7 @@ test.skip(
   'STRIPE_WEBHOOK_SECRET is required for webhook replay tests',
 );
 
-test('replaying the same Stripe webhook is idempotent @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-01)', async ({
+test('replaying the same Stripe webhook is idempotent @finance @stripe', async ({
   database,
   request,
   seeded,
@@ -197,7 +197,7 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe @track(pl
   expect(dedupeRecords[0]?.status).toBe('processed');
 });
 
-test('expired checkout webhook releases reserved capacity @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-01D)', async ({
+test('expired checkout webhook releases reserved capacity @finance @stripe', async ({
   database,
   request,
   seeded,
@@ -335,7 +335,7 @@ test('expired checkout webhook releases reserved capacity @finance @stripe @trac
     });
 });
 
-test('duplicate webhook delivery is retryable while the original event claim is still processing @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-01B)', async ({
+test('duplicate webhook delivery is retryable while the original event claim is still processing @finance @stripe', async ({
   database,
   request,
   tenant,
@@ -404,7 +404,7 @@ test('duplicate webhook delivery is retryable while the original event claim is 
   expect(existingClaim?.status).toBe('processing');
 });
 
-test('stale webhook claims are reclaimed so Stripe retries can finish processing @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-01C)', async ({
+test('stale webhook claims are reclaimed so Stripe retries can finish processing @finance @stripe', async ({
   database,
   request,
   seeded,
@@ -505,7 +505,7 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
     .toBe('processed');
 });
 
-test('checkout webhook resolves registration by payment intent when metadata is missing @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-02)', async ({
+test('checkout webhook resolves registration by payment intent when metadata is missing @finance @stripe', async ({
   database,
   request,
   seeded,
@@ -620,7 +620,7 @@ test('checkout webhook resolves registration by payment intent when metadata is 
     });
 });
 
-test('checkout webhook does not confirm unpaid completed sessions @finance @stripe @track(playwright-specs-track-linking_20260126) @req(STRIPE-WEBHOOK-REPLAY-SPEC-03)', async ({
+test('checkout webhook does not confirm unpaid completed sessions @finance @stripe', async ({
   database,
   request,
   seeded,

@@ -4,11 +4,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
-test('Create and manage events @track(playwright-specs-track-linking_20260126) @doc(EVENT-MANAGEMENT-DOC-01)', async ({
-  events,
-  page,
-  seeded,
-}, testInfo) => {
+test('Create and manage events', async ({ events, page, seeded }, testInfo) => {
   const target = events.find(
     (event) => event.id === seeded.scenario.events.freeOpen.eventId,
   );
@@ -221,7 +217,7 @@ The organizer view currently includes:
 
 Organizers check in attendees from the dedicated QR scanner. Attendees open their ticket QR code from the event registration page after a confirmed registration, and organizers scan it from **Scan**. The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.
 
-Check-in is available to event organizers and users with event-wide organize access during the current check-in window. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview.
+Check-in is available to event organizers and users with event-wide organize access during the current check-in window. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview. When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.
 Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot without promising an automatic refund.
 
 It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning, transfer/resale, or automatic refund controls.

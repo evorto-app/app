@@ -61,14 +61,20 @@ describe('Tenant schema', () => {
   it('accepts tenant legal links when present', () => {
     const tenant = Schema.decodeUnknownSync(Tenant)({
       ...tenantInput,
+      legalNoticeText: 'Imprint text',
       legalNoticeUrl: 'https://tenant.example.com/imprint',
+      privacyPolicyText: 'Privacy policy text',
       privacyPolicyUrl: 'https://tenant.example.com/privacy',
+      termsText: 'Terms text',
       termsUrl: 'https://tenant.example.com/terms',
     });
 
     expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      legalNoticeText: 'Imprint text',
       legalNoticeUrl: 'https://tenant.example.com/imprint',
+      privacyPolicyText: 'Privacy policy text',
       privacyPolicyUrl: 'https://tenant.example.com/privacy',
+      termsText: 'Terms text',
       termsUrl: 'https://tenant.example.com/terms',
     });
   });
@@ -84,5 +90,44 @@ describe('Tenant schema', () => {
       faviconUrl: 'https://tenant.example.com/favicon.ico',
       logoUrl: 'https://tenant.example.com/logo.svg',
     });
+  });
+
+  it('normalizes legacy context locale and timezone values to supported tenant settings', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)({
+      ...tenantInput,
+      locale: 'en',
+      timezone: 'Europe/Amsterdam',
+    });
+
+    expect(tenant.locale).toBe('en-GB');
+    expect(tenant.timezone).toBe('Europe/Berlin');
+    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
+      locale: 'en-GB',
+      timezone: 'Europe/Berlin',
+    });
+  });
+
+  it('rejects locale and timezone values outside the relaunch tenant policy', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(Tenant)({
+        ...tenantInput,
+        locale: 'de-DE',
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(Tenant)({
+        ...tenantInput,
+        timezone: 'America/New_York',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects currencies outside the relaunch tenant policy', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(Tenant)({
+        ...tenantInput,
+        currency: 'USD',
+      }),
+    ).toThrow();
   });
 });

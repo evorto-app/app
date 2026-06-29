@@ -1,5 +1,6 @@
 import type Stripe from 'stripe';
 
+import { registrationSpotCount } from '@shared/registration-spots';
 import { and, eq, lte, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -515,8 +516,9 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       if (!updatedRegistration) {
                         return Effect.void;
                       }
-                      const registeredSpotCount =
-                        updatedRegistration.guestCount + 1;
+                      const registeredSpotCount = registrationSpotCount(
+                        updatedRegistration.guestCount,
+                      );
 
                       return tx
                         .update(schema.eventRegistrationOptions)
@@ -599,8 +601,9 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                       if (!updatedRegistration) {
                         return Effect.void;
                       }
-                      const registeredSpotCount =
-                        updatedRegistration.guestCount + 1;
+                      const registeredSpotCount = registrationSpotCount(
+                        updatedRegistration.guestCount,
+                      );
 
                       return tx
                         .update(schema.eventRegistrationOptions)

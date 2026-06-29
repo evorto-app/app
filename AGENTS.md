@@ -54,6 +54,9 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run docker:start` / `bun run docker:stop` - start/stop local services;
   `docker:start` may reset local data and should leave enough seeded data to
   get going from zero.
+- `bun run docker:resume` - bring back an already initialized Docker stack
+  without recreating containers; use it only when preserving local Docker state
+  matters.
 - `bun run db:migrate`, `bun run db:push`, `bun run db:reset` - database commands.
 
 ## Local Environment
