@@ -433,6 +433,7 @@ describe('EventRegistrationService', () => {
           },
           transaction: (
             callback: (tx: {
+              execute: () => Effect.Effect<unknown>;
               insert: () => {
                 values: (value: unknown) => {
                   returning: () => Effect.Effect<{ id: string }[]>;
@@ -453,6 +454,7 @@ describe('EventRegistrationService', () => {
             }) => Effect.Effect<unknown>,
           ) =>
             callback({
+              execute: () => Effect.succeed(),
               insert: () => ({
                 values: (value) => {
                   insertedRegistration = value;
@@ -810,6 +812,7 @@ describe('EventRegistrationService', () => {
 
   it.effect('joins the waitlist for a full public participant option', () =>
     Effect.gen(function* () {
+      const executeWaitlistLock = vi.fn(() => Effect.succeed());
       const insertWaitlistRegistration = vi.fn(() => ({
         values: vi.fn((values) => ({
           returning: vi.fn(() =>
@@ -838,6 +841,7 @@ describe('EventRegistrationService', () => {
         },
         transaction: (
           callback: (tx: {
+            execute: ReturnType<typeof vi.fn>;
             insert: ReturnType<typeof vi.fn>;
             query: {
               eventRegistrations: {
@@ -854,6 +858,7 @@ describe('EventRegistrationService', () => {
           }) => Effect.Effect<unknown>,
         ) =>
           callback({
+            execute: executeWaitlistLock,
             insert: insertWaitlistRegistration,
             query: {
               eventRegistrations: {
@@ -887,6 +892,7 @@ describe('EventRegistrationService', () => {
       );
 
       yield* program;
+      expect(executeWaitlistLock).toHaveBeenCalled();
       expect(insertWaitlistRegistration).toHaveBeenCalled();
     }),
   );

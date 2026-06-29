@@ -1,5 +1,6 @@
 import { isPlatformServer } from '@angular/common';
 import {
+  computed,
   DOCUMENT,
   effect,
   inject,
@@ -7,6 +8,7 @@ import {
   PLATFORM_ID,
   RendererFactory2,
   REQUEST_CONTEXT,
+  signal,
 } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { injectQuery } from '@tanstack/angular-query-experimental';
@@ -21,6 +23,10 @@ import { AppRpc } from './effect-rpc-angular-client';
   providedIn: 'root',
 })
 export class ConfigService {
+  private readonly tenantState = signal<null | Tenant>(null);
+
+  public readonly tenantSignal = computed(() => this.tenantState());
+
   public get missingContext() {
     return this._missingContext;
   }
@@ -36,10 +42,9 @@ export class ConfigService {
   public get tenant(): Tenant {
     return this._tenant;
   }
-
   private _missingContext = false;
-  private _permissions!: Permission[];
 
+  private _permissions!: Permission[];
   private _publicConfig: {
     googleMapsApiKey: null | string;
     sentryDsn: null | string;
@@ -49,6 +54,7 @@ export class ConfigService {
   };
   private _tenant!: Tenant;
 
+  private activeRouteTitle: null | string = null;
   private readonly rpc = AppRpc.injectClient();
 
   private currentTenantQuery = injectQuery(() =>
@@ -69,10 +75,11 @@ export class ConfigService {
     effect(() => {
       const currentTenant = this.currentTenantQuery.data();
       if (currentTenant) {
-        if (this.tenant) {
+        const previousTenant = this.tenantSignal();
+        if (previousTenant) {
           this.renderer.removeClass(
             this.document.documentElement,
-            `theme-${this.tenant.theme}`,
+            `theme-${previousTenant.theme}`,
           );
         }
         this.applyTenantConfig(currentTenant);
@@ -107,12 +114,21 @@ export class ConfigService {
   }
 
   public updateTitle(title: string): void {
-    this.title.setTitle(`${title} | ${this.tenant.name}`);
+    this.activeRouteTitle = title;
+    this.applyDocumentTitle();
+  }
+
+  private applyDocumentTitle(): void {
+    const title = this.activeRouteTitle
+      ? `${this.activeRouteTitle} | ${this.tenant.name}`
+      : (this.tenant.seoTitle ?? this.tenant.name);
+    this.title.setTitle(title);
   }
 
   private applyTenantConfig(tenant: Tenant): void {
     this._tenant = tenant;
-    this.title.setTitle(tenant.seoTitle ?? tenant.name);
+    this.tenantState.set(tenant);
+    this.applyDocumentTitle();
     this.updateFavicon(tenant.faviconUrl ?? 'favicon.ico');
     if (tenant.seoDescription) {
       this.updateDescription(tenant.seoDescription);

@@ -856,6 +856,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           const waitlistResult = yield* databaseEffect((database) =>
             database.transaction((tx) =>
               Effect.gen(function* () {
+                yield* tx.execute(
+                  sql`select pg_advisory_xact_lock(hashtextextended(${[
+                    tenant.id,
+                    user.id,
+                    eventId,
+                  ].join(':')}, 0))`,
+                );
+
                 const activeRegistrations =
                   yield* tx.query.eventRegistrations.findMany({
                     columns: {
