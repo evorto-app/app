@@ -4224,3 +4224,15 @@ Please work on all the review comments in our PR as usual
 ---
 
 Merge this PR and prepare the next one for us to work on
+
+---
+
+Give me an overview of what to validate in this pr and get it running locally
+
+---
+
+What relevant things to this pr are still delivered in the next one?
+
+---
+
+The template edit page is absolutely fucked, please use [@Browser](plugin://browser@openai-bundled) to check it out and fix it
