@@ -53,18 +53,20 @@ export class IconSelectorDialogComponent {
     this.rpc.icons.search.queryOptions({ search: this.searchValue() }),
   );
   protected displayDirectAccess = computed(() => {
-    const iconData = this.iconSearchQuery.data();
-    return !!(iconData && iconData.length === 0);
+    return this.iconSearchQuery.isSuccess()
+      ? this.iconSearchQuery.data().length === 0
+      : false;
   });
   protected readonly iconChoices = computed(() => {
-    const icons = this.iconSearchQuery.data() ?? [];
-    return icons.map((icon) => ({
-      ...icon,
-      value: {
-        iconColor: icon.sourceColor ?? 0,
-        iconName: icon.commonName,
-      } satisfies IconValue,
-    }));
+    return this.iconSearchQuery.isSuccess()
+      ? this.iconSearchQuery.data().map((icon) => ({
+          ...icon,
+          value: {
+            iconColor: icon.sourceColor ?? 0,
+            iconName: icon.commonName,
+          } satisfies IconValue,
+        }))
+      : [];
   });
   private readonly addIconMutation = injectMutation(() =>
     this.rpc.icons.add.mutationOptions(),

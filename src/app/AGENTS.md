@@ -20,6 +20,7 @@
 
 - Use the typed Effect RPC Angular client via `AppRpc.injectClient()`.
 - Prefer generated query/mutation helpers (`queryOptions`, `mutationOptions`, keys/filters) with TanStack Angular Query.
+- For TanStack Angular Query result data, rely on query status signal narrowing. Prefer `@if (query.isSuccess()) { @let data = query.data(); }` or equivalent TypeScript `isSuccess()` checks over `@if (query.data(); as data)` aliases, so templates and component code preserve Query's discriminated-union type narrowing.
 - Do not reintroduce legacy tRPC client patterns.
 - Do not bypass RPC type errors with cast hacks (`unknown as ...`); fix the underlying server/client contract alignment.
 

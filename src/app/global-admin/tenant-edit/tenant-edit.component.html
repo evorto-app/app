@@ -17,102 +17,113 @@
     <h2 class="title-medium mb-4">There was an error</h2>
     <p class="body-medium">Error: {{ errorMessage(tenantQuery.error()) }}</p>
   </div>
-} @else if (tenantQuery.data()) {
-  <section class="bg-surface text-on-surface rounded-2xl p-4">
-    <form class="grid grid-cols-1 gap-3" (submit)="updateTenant($event)">
-      <aside
-        class="border-outline-variant bg-surface-container-low text-on-surface rounded-lg border p-4"
-      >
-        <div class="flex items-start gap-3">
-          <fa-duotone-icon class="text-primary mt-1" [icon]="faCircleInfo" />
-          <div class="grid gap-2">
-            <h2 class="title-small">Relaunch tenant scope</h2>
-            <ul class="body-medium list-disc space-y-1 pl-5">
-              @for (item of relaunchScopeItems; track item) {
-                <li>{{ item }}</li>
-              }
-            </ul>
+} @else if (tenantQuery.isSuccess()) {
+  @let tenant = tenantQuery.data();
+  @if (tenant) {
+    <section class="bg-surface text-on-surface rounded-2xl p-4">
+      <form class="grid grid-cols-1 gap-3" (submit)="updateTenant($event)">
+        <aside
+          class="border-outline-variant bg-surface-container-low text-on-surface rounded-lg border p-4"
+        >
+          <div class="flex items-start gap-3">
+            <fa-duotone-icon class="text-primary mt-1" [icon]="faCircleInfo" />
+            <div class="grid gap-2">
+              <h2 class="title-small">Relaunch tenant scope</h2>
+              <ul class="body-medium list-disc space-y-1 pl-5">
+                @for (item of relaunchScopeItems; track item) {
+                  <li>{{ item }}</li>
+                }
+              </ul>
+            </div>
           </div>
+        </aside>
+
+        <mat-form-field>
+          <mat-label>Tenant name</mat-label>
+          <input matInput [formField]="tenantForm.name" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Primary domain</mat-label>
+          <input matInput [formField]="tenantForm.domain" />
+          <mat-hint
+            >One primary host; custom-domain automation is deferred.</mat-hint
+          >
+        </mat-form-field>
+
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <mat-form-field>
+            <mat-label>Theme</mat-label>
+            <mat-select [formField]="tenantForm.theme">
+              <mat-option value="evorto">Default theme</mat-option>
+              <mat-option value="esn">ESN theme</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field>
+            <mat-label>Stripe account ID</mat-label>
+            <input matInput [formField]="tenantForm.stripeAccountId" />
+          </mat-form-field>
         </div>
-      </aside>
 
-      <mat-form-field>
-        <mat-label>Tenant name</mat-label>
-        <input matInput [formField]="tenantForm.name" />
-      </mat-form-field>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <mat-form-field>
+            <mat-label>Currency</mat-label>
+            <mat-select [formField]="tenantForm.currency">
+              @for (currency of currencyOptions; track currency) {
+                <mat-option [value]="currency">{{ currency }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
 
-      <mat-form-field>
-        <mat-label>Primary domain</mat-label>
-        <input matInput [formField]="tenantForm.domain" />
-        <mat-hint
-          >One primary host; custom-domain automation is deferred.</mat-hint
-        >
-      </mat-form-field>
+          <mat-form-field>
+            <mat-label>Locale</mat-label>
+            <mat-select [formField]="tenantForm.locale">
+              @for (locale of localeOptions; track locale) {
+                <mat-option [value]="locale">{{ locale }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
 
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <mat-form-field>
-          <mat-label>Theme</mat-label>
-          <mat-select [formField]="tenantForm.theme">
-            <mat-option value="evorto">Default theme</mat-option>
-            <mat-option value="esn">ESN theme</mat-option>
-          </mat-select>
-        </mat-form-field>
+          <mat-form-field>
+            <mat-label>Timezone</mat-label>
+            <mat-select [formField]="tenantForm.timezone">
+              @for (timezone of timezoneOptions; track timezone) {
+                <mat-option [value]="timezone">{{ timezone }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
 
-        <mat-form-field>
-          <mat-label>Stripe account ID</mat-label>
-          <input matInput [formField]="tenantForm.stripeAccountId" />
-        </mat-form-field>
-      </div>
-
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <mat-form-field>
-          <mat-label>Currency</mat-label>
-          <mat-select [formField]="tenantForm.currency">
-            @for (currency of currencyOptions; track currency) {
-              <mat-option [value]="currency">{{ currency }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field>
-          <mat-label>Locale</mat-label>
-          <mat-select [formField]="tenantForm.locale">
-            @for (locale of localeOptions; track locale) {
-              <mat-option [value]="locale">{{ locale }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field>
-          <mat-label>Timezone</mat-label>
-          <mat-select [formField]="tenantForm.timezone">
-            @for (timezone of timezoneOptions; track timezone) {
-              <mat-option [value]="timezone">{{ timezone }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-      </div>
-
-      <div class="mt-2 flex flex-wrap gap-2">
-        <button
-          mat-flat-button
-          type="submit"
-          [disabled]="
-            tenantSubmitDisabled({
-              formInvalid: tenantForm().invalid(),
-              formSubmitting: tenantForm().submitting(),
-              mutationPending: updateTenantMutation.isPending(),
-            })
-          "
-        >
-          Save tenant
-        </button>
-        <a mat-button [routerLink]="['/global-admin/tenants', tenantId()]">
-          Cancel
-        </a>
-      </div>
-    </form>
-  </section>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button
+            mat-flat-button
+            type="submit"
+            [disabled]="
+              tenantSubmitDisabled({
+                formInvalid: tenantForm().invalid(),
+                formSubmitting: tenantForm().submitting(),
+                mutationPending: updateTenantMutation.isPending(),
+              })
+            "
+          >
+            Save tenant
+          </button>
+          <a mat-button [routerLink]="['/global-admin/tenants', tenantId()]">
+            Cancel
+          </a>
+        </div>
+      </form>
+    </section>
+  } @else {
+    <section class="bg-surface text-on-surface rounded-2xl p-4">
+      <h2 class="title-medium">Tenant not found</h2>
+      <p class="body-medium text-on-surface-variant">
+        This tenant either does not exist or is no longer available for global
+        admin editing.
+      </p>
+    </section>
+  }
 } @else {
   <section class="bg-surface text-on-surface rounded-2xl p-4">
     <h2 class="title-medium">Tenant not found</h2>

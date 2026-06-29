@@ -42,7 +42,7 @@ export const permissionMatrix: PermissionMatrixCase[] = [
     deniedDiff: {
       add: ['templates:view'],
       remove: ['templates:create'],
-      roleName: 'Section member',
+      roleName: ['Section member', 'Trial member'],
     },
     deniedRoute: '/templates/create',
     requiredPermissions: ['templates:create', 'templates:view'],
@@ -92,7 +92,7 @@ export const permissionMatrix: PermissionMatrixCase[] = [
     capability: 'admin user list access',
     deniedDiff: {
       add: [],
-      remove: ['users:viewAll'],
+      remove: ['users:assignRoles', 'users:viewAll'],
       roleName: 'Admin',
     },
     deniedRoute: '/admin/users',
@@ -178,7 +178,7 @@ export const permissionMatrix: PermissionMatrixCase[] = [
     deniedDiff: {
       add: ['templates:view'],
       remove: ['templates:editAll'],
-      roleName: 'Section member',
+      roleName: ['Section member', 'Trial member'],
     },
     deniedRoute: '/templates/route-guard-placeholder/edit',
     requiredPermissions: ['templates:editAll', 'templates:view'],
@@ -195,7 +195,7 @@ export const permissionMatrix: PermissionMatrixCase[] = [
     deniedDiff: {
       add: ['templates:view'],
       remove: ['events:create'],
-      roleName: 'Section member',
+      roleName: ['Section member', 'Trial member'],
     },
     deniedRoute: '/templates/route-guard-placeholder/create-event',
     requiredPermissions: ['events:create'],

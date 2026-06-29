@@ -4,9 +4,12 @@ import path from 'node:path';
 
 import {
   evaluateRuntimePreflight,
+  optionalByTarget,
   requiredByTarget,
 } from './runtime-preflight';
 
+// Keeps Docker preflight failures readable by pinning the checks operators see
+// before the stack starts rebuilding containers or touching local data.
 const requiredDockerEnvironment = Object.fromEntries(
   requiredByTarget.docker.map(({ name }) => [
     name,
@@ -133,6 +136,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['docker:check']).toBe(
       'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker',
     );
+    expect(packageJson.scripts['docker:ps']).toBe(
+      'bun run env:runtime && dotenv -c dev -- docker compose ps',
+    );
 
     for (const scriptName of [
       'docker:start',
@@ -146,6 +152,115 @@ describe('evaluateRuntimePreflight', () => {
 
     expect(packageJson.scripts['docker:resume']).toBe(
       'bun run docker:check && dotenv -c dev -- docker compose up --no-recreate -d',
+    );
+    expect(packageJson.scripts['docker:webserver']).toBe(
+      'bun run docker:check && dotenv -c dev -- docker compose up --build',
+    );
+
+    const playwrightConfig = fs.readFileSync(
+      path.join(process.cwd(), 'playwright.config.ts'),
+      'utf8',
+    );
+    expect(playwrightConfig).toContain("command: 'bun run docker:webserver'");
+    expect(playwrightConfig).not.toContain(
+      "command: 'bun run docker:start:foreground'",
+    );
+
+    const testsGuidance = fs.readFileSync(
+      path.join(process.cwd(), 'tests/AGENTS.md'),
+      'utf8',
+    );
+    expect(testsGuidance).toContain('`bun run docker:start:foreground`');
+  });
+
+  it('keeps Angular SSR host validation aligned with local and seeded tenant hosts', () => {
+    const angularJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'angular.json'), 'utf8'),
+    ) as {
+      projects: {
+        evorto: {
+          architect: {
+            build: {
+              options: {
+                security?: {
+                  allowedHosts?: string[];
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+
+    expect(
+      angularJson.projects.evorto.architect.build.options.security
+        ?.allowedHosts,
+    ).toEqual(
+      expect.arrayContaining([
+        'localhost',
+        '127.0.0.1',
+        'evorto.fly.dev',
+        '*.evorto.app',
+      ]),
+    );
+  });
+
+  it('keeps local app routes reachable to lightweight GET and HEAD probes', () => {
+    const serverSource = fs.readFileSync(
+      path.join(process.cwd(), 'src/server.ts'),
+      'utf8',
+    );
+
+    expect(serverSource).toContain("method === 'GET' || method === 'HEAD'");
+    expect(serverSource).toContain('if (isSsrMethod(request.method))');
+    expect(serverSource).not.toContain("if (request.method === 'GET') {");
+  });
+
+  it('keeps Playwright package scripts on the generated runtime environment path', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+
+    for (const scriptName of [
+      'test:e2e',
+      'test:e2e:ui',
+      'test:e2e:integration',
+      'test:e2e:live-esncard',
+      'test:e2e:docs',
+      'test:e2e:docs:publish',
+    ]) {
+      expect(packageJson.scripts[scriptName]).toContain('bun run env:runtime');
+      expect(packageJson.scripts[scriptName]).toContain('dotenv -c dev --');
+    }
+
+    expect(packageJson.scripts['test:e2e:integration']).toContain(
+      '--project=local-chrome-integration --project=docs-integration',
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
+      'tests/specs/profile/user-profile-live-esncard.spec.ts',
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
+      '--project=local-chrome-integration',
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
+      "--grep '@needs-live-esncard'",
+    );
+  });
+
+  it('keeps Playwright list discovery away from file-writing reporters', () => {
+    const playwrightConfig = fs.readFileSync(
+      path.join(process.cwd(), 'playwright.config.ts'),
+      'utf8',
+    );
+
+    expect(playwrightConfig).toContain(
+      "const listOnly = process.argv.includes('--list');",
+    );
+    expect(playwrightConfig).toContain(': listOnly');
+    expect(playwrightConfig).toContain("? [['dot']]");
+    expect(playwrightConfig).toContain("['html', { open: 'never' }]");
+    expect(playwrightConfig).toContain(
+      "['./tests/support/reporters/documentation-reporter.ts']",
     );
   });
 
@@ -165,12 +280,18 @@ describe('evaluateRuntimePreflight', () => {
     expect(dbSetupService).toContain('secrets:');
     expect(dbSetupService).toContain('- FONT_AWESOME_TOKEN');
     expect(dbSetupService).toContain('STRIPE_TEST_ACCOUNT_ID:');
+    expect(dbSetupService).toContain('bun helpers/reset-database-schema.ts');
+    expect(dbSetupService).toContain(
+      'bun ./node_modules/drizzle-kit/bin.cjs push --force',
+    );
+    expect(dbSetupService).toContain('bun helpers/database.ts');
 
     for (const variable of [
       'CLIENT_ID',
       'CLIENT_SECRET',
       'ISSUER_BASE_URL',
       'SECRET',
+      'SSR_RPC_ORIGIN',
       'STRIPE_API_KEY',
       'STRIPE_TEST_ACCOUNT_ID',
       'STRIPE_WEBHOOK_SECRET_FILE',
@@ -183,6 +304,7 @@ describe('evaluateRuntimePreflight', () => {
       'STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret',
     );
     expect(evortoService).toContain('S3_ENDPOINT: http://minio:9000');
+    expect(evortoService).toContain('SSR_RPC_ORIGIN: http://localhost:4200');
     expect(evortoService).not.toContain(
       'S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"',
     );
@@ -242,6 +364,52 @@ describe('evaluateRuntimePreflight', () => {
     );
   });
 
+  it('reports optional live-provider variables without making them startup blockers', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'missing E2E_LIVE_ESN_CARD_IDENTIFIER: Live esncard.org add, refresh, and remove Playwright coverage',
+          ],
+          label: 'Optional docker live-provider variables',
+          severity: 'ok',
+        }),
+      ]),
+    );
+  });
+
+  it('keeps optional live-provider variables visible when they are available', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: {
+        ...requiredDockerEnvironment,
+        E2E_LIVE_ESN_CARD_IDENTIFIER: 'live-card-id',
+      },
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'E2E_LIVE_ESN_CARD_IDENTIFIER: Live esncard.org add, refresh, and remove Playwright coverage',
+          ],
+          label: 'Optional docker live-provider variables',
+          severity: 'ok',
+        }),
+      ]),
+    );
+  });
+
   it('keeps the no-secret env example aligned with required Docker variables', () => {
     const envExample = fs.readFileSync(
       path.join(process.cwd(), '.env.example'),
@@ -252,6 +420,17 @@ describe('evaluateRuntimePreflight', () => {
       expect(envExample).toContain(`${name}=`);
     }
     expect(envExample).toContain('Do not put real secret values in this file.');
+  });
+
+  it('keeps the no-secret env example aligned with optional Docker variables', () => {
+    const envExample = fs.readFileSync(
+      path.join(process.cwd(), '.env.example'),
+      'utf8',
+    );
+
+    for (const { name } of optionalByTarget.docker) {
+      expect(envExample).toContain(`${name}=`);
+    }
   });
 
   it('warns about missing Playwright browsers without blocking Docker start', () => {
@@ -285,6 +464,86 @@ describe('evaluateRuntimePreflight', () => {
     );
   });
 
+  it('points local runs at system Chrome when bundled Chromium is missing and Chrome is available', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) =>
+        filePath === '/repo/.env.dev' ||
+        filePath === '/Applications/Google Chrome.app',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.warned).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'Or set E2E_BROWSER_CHANNEL=chrome to use /Applications/Google Chrome.app for local exploratory runs.',
+          ]),
+          label: 'Playwright Chromium browser installation',
+          severity: 'warning',
+        }),
+      ]),
+    );
+  });
+
+  it('allows opt-in system Chrome to avoid the bundled Chromium cache warning', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: {
+        ...requiredDockerEnvironment,
+        E2E_BROWSER_CHANNEL: 'chrome',
+      },
+      fileExists: (filePath) =>
+        filePath === '/repo/.env.dev' ||
+        filePath === '/Applications/Google Chrome.app',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.warned).toBe(false);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'Using E2E_BROWSER_CHANNEL=chrome with /Applications/Google Chrome.app',
+          ],
+          label: 'Playwright system Chrome browser channel',
+          severity: 'ok',
+        }),
+      ]),
+    );
+  });
+
+  it('warns when opt-in system Chrome is requested but missing', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: {
+        ...requiredDockerEnvironment,
+        E2E_BROWSER_CHANNEL: 'chrome',
+      },
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(result.warned).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: [
+            'E2E_BROWSER_CHANNEL=chrome is set, but no system Chrome installation was found.',
+            'Unset E2E_BROWSER_CHANNEL and run bun run test:e2e:install, or install Google Chrome for local exploratory runs.',
+          ],
+          label: 'Playwright system Chrome browser channel',
+          severity: 'warning',
+        }),
+      ]),
+    );
+  });
+
   it('allows Docker to use the generated Stripe listener webhook secret file', () => {
     const result = evaluateRuntimePreflight('docker', {
       cwd: '/repo',
@@ -301,42 +560,6 @@ describe('evaluateRuntimePreflight', () => {
           ],
           label: 'Stripe webhook signing secret source',
           severity: 'ok',
-        }),
-      ]),
-    );
-  });
-
-  it('warns when Playwright dry-run output has no install locations', () => {
-    const result = evaluateRuntimePreflight('docker', {
-      cwd: '/repo',
-      env: requiredDockerEnvironment,
-      fileExists: (filePath) => filePath === '/repo/.env.dev',
-      runCommand: (command, args) => {
-        if (
-          [command, ...args].join(' ') ===
-          'bunx playwright install --dry-run chromium'
-        ) {
-          return {
-            status: 0,
-            stderr: 'No browser cache details emitted\n',
-            stdout: '',
-          };
-        }
-
-        return successfulCommand(command, args);
-      },
-    });
-
-    expect(result.failed).toBe(false);
-    expect(result.warned).toBe(true);
-    expect(result.checks).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          details: [
-            'Could not detect Playwright install locations from dry-run output',
-          ],
-          label: 'Playwright Chromium browser installation',
-          severity: 'warning',
         }),
       ]),
     );

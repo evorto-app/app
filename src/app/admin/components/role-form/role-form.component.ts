@@ -118,12 +118,10 @@ export class RoleFormComponent {
     group: { permissions: { key: Permission }[] },
     checked: boolean,
   ): void {
-    const form = this.roleForm();
-    for (const permission of group.permissions) {
-      const field = form.permissions[permission.key]();
-      field.value.set(checked);
-      field.markAsDirty();
+    if (!checked) {
+      this.setGroupPermissions(group, checked);
     }
+    this.setGroupPermissions(group, checked);
   }
 
   protected getDependentPermissionLabels(permission: Permission): string {
@@ -150,5 +148,18 @@ export class RoleFormComponent {
     return `Automatically granted by ${activeParents
       .map((permission) => permissionLabel(permission))
       .join(', ')}`;
+  }
+
+  private setGroupPermissions(
+    group: { permissions: { key: Permission }[] },
+    checked: boolean,
+  ): void {
+    const form = this.roleForm();
+    for (const permission of group.permissions) {
+      const field = form.permissions[permission.key]();
+      if (field.readonly()) continue;
+      field.value.set(checked);
+      field.markAsDirty();
+    }
   }
 }

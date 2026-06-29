@@ -19,8 +19,12 @@ const environment = Effect.runSync(
   ),
 );
 const resolvedBaseUrl = environment.BASE_URL;
+const desktopChrome = {
+  ...devices['Desktop Chrome'],
+  channel: environment.E2E_BROWSER_CHANNEL,
+};
 const integrationOnlyTestTagPattern =
-  /@needs-(auth0-management|cloudflare|google-maps)\b/;
+  /@needs-(auth0-management|cloudflare|google-maps|live-esncard)\b/;
 
 const createModeProject = (
   name: string,
@@ -41,7 +45,7 @@ const createModeProject = (
   ...(options.testIgnore ? { testIgnore: options.testIgnore } : {}),
   ...(options.testMatch ? { testMatch: options.testMatch } : {}),
   ...(options.timeout ? { timeout: options.timeout } : {}),
-  use: { ...devices['Desktop Chrome'], channel: 'chromium' },
+  use: desktopChrome,
 });
 
 /**
@@ -55,21 +59,25 @@ const webServer = (() => {
   const url = environment.BASE_URL;
 
   return {
-    command: 'bun run docker:start:foreground',
+    command: 'bun run docker:webserver',
     reuseExistingServer: true,
     timeout: 240_000,
     url,
   } as const;
 })();
 
+const listOnly = process.argv.includes('--list');
+
 // Configure reporters: avoid blocking HTML server opening; prefer terminal output
 const reporters = environment.CI
   ? [['github'], ['dot']]
-  : [
-      ['html', { open: 'never' }],
-      ['dot'],
-      ['./tests/support/reporters/documentation-reporter.ts'],
-    ];
+  : listOnly
+    ? [['dot']]
+    : [
+        ['html', { open: 'never' }],
+        ['dot'],
+        ['./tests/support/reporters/documentation-reporter.ts'],
+      ];
 
 export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -85,7 +93,7 @@ export default defineConfig({
       testDir: './tests/setup',
       testMatch: /database\.setup\.ts$/,
       timeout: 120_000,
-      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
+      use: desktopChrome,
     },
     {
       dependencies: ['database-setup'],
@@ -94,7 +102,7 @@ export default defineConfig({
       testDir: './tests/setup',
       testMatch: /authentication\.setup\.ts$/,
       timeout: 20_000,
-      use: { ...devices['Desktop Chrome'], channel: 'chromium' },
+      use: desktopChrome,
     },
     createModeProject('docs-baseline', {
       dependencies: ['setup'],
@@ -105,6 +113,11 @@ export default defineConfig({
     createModeProject('local-chrome-baseline', {
       dependencies: ['setup'],
       integrationOnly: false,
+      testIgnore: /docs\/.*\.doc\.ts$/,
+    }),
+    createModeProject('local-chrome-integration', {
+      dependencies: ['setup'],
+      integrationOnly: true,
       testIgnore: /docs\/.*\.doc\.ts$/,
     }),
     createModeProject('docs-integration', {

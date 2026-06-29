@@ -4,10 +4,12 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 test.use({ storageState: userStateFile });
 
 test('applies ESN discount to paid registrations @finance', async ({
+  discounts,
   events,
   page,
   seeded,
 }) => {
+  void discounts;
   const paidEvent = events.find(
     (event) => event.id === seeded.scenario.events.paidOpen.eventId,
   );
@@ -37,7 +39,9 @@ test('applies ESN discount to paid registrations @finance', async ({
     registrationOptionCard.getByText('ESNcard discount applied'),
   ).toBeVisible();
   await expect(
-    registrationOptionCard.locator('p', { hasText: discountedPrice }).first(),
+    registrationOptionCard
+      .locator('app-price-with-tax')
+      .getByText(discountedPrice, { exact: true }),
   ).toBeVisible();
   await expect(
     registrationOptionCard.getByRole('button', {

@@ -91,11 +91,14 @@ export class TemplateCreateComponent {
   protected readonly initialFormData = computed<TemplateFormOverrides>(() => ({
     categoryId: this.categoryId() || '',
     organizerRegistration: {
-      roleIds:
-        this.defaultOrganizerRolesQuery.data()?.map((role) => role.id) || [],
+      roleIds: this.defaultOrganizerRolesQuery.isSuccess()
+        ? this.defaultOrganizerRolesQuery.data().map((role) => role.id)
+        : [],
     },
     participantRegistration: {
-      roleIds: this.defaultUserRolesQuery.data()?.map((role) => role.id) || [],
+      roleIds: this.defaultUserRolesQuery.isSuccess()
+        ? this.defaultUserRolesQuery.data().map((role) => role.id)
+        : [],
     },
   }));
   private readonly templateModel = linkedSignal<
@@ -142,7 +145,7 @@ export class TemplateCreateComponent {
     event.preventDefault();
     if (
       templateWriteSubmitDisabled({
-        formInvalid: false,
+        formInvalid: this.templateForm().invalid(),
         formSubmitting: this.templateForm().submitting(),
         mutationPending: this.createTemplateMutation.isPending(),
       })

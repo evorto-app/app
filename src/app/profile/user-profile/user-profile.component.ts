@@ -37,6 +37,8 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
+import type { User } from '../../../types/custom/user';
+
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
@@ -264,8 +266,8 @@ export class UserProfileComponent {
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
   protected readonly buyEsnCardUrl = computed(() => {
+    if (!this.discountProvidersQuery.isSuccess()) return;
     const providers = this.discountProvidersQuery.data();
-    if (!providers) return;
     const esnProvider = providers.find(
       (provider) => provider.type === 'esnCard',
     );
@@ -288,8 +290,8 @@ export class UserProfileComponent {
   protected readonly esnCardSaveDisabled = esnCardSaveDisabled;
   protected readonly esnCardStatusLabel = esnCardStatusLabel;
   protected readonly esnEnabled = computed(() => {
+    if (!this.discountProvidersQuery.isSuccess()) return false;
     const providers = this.discountProvidersQuery.data();
-    if (!providers) return false;
     return providers.find((p) => p.type === 'esnCard')?.status === 'enabled';
   });
   protected readonly faCalendarDays = faCalendarDays;
@@ -303,8 +305,8 @@ export class UserProfileComponent {
   );
 
   protected readonly hasVerifiedEsnCard = computed(() => {
+    if (!this.myCardsQuery.isSuccess()) return false;
     const cards = this.myCardsQuery.data();
-    if (!cards) return false;
     return cards.some(
       (card) => card.type === 'esnCard' && card.status === 'verified',
     );
@@ -327,7 +329,12 @@ export class UserProfileComponent {
     this.rpc.users.self.queryOptions(),
   );
 
-  protected readonly profileUser = computed(() => this.userQuery.data());
+  private readonly profileUserOverride = signal<null | User>(null);
+  protected readonly profileUser = computed(
+    () =>
+      this.profileUserOverride() ??
+      (this.userQuery.isSuccess() ? this.userQuery.data() : undefined),
+  );
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
@@ -435,6 +442,7 @@ export class UserProfileComponent {
       },
       onSuccess: async () => {
         const updatedUser = profileUserAfterEdit(user, result);
+        this.profileUserOverride.set(updatedUser);
         this.queryClient.setQueryData(
           this.rpc.pathKey(['users', 'self']),
           updatedUser,

@@ -101,6 +101,15 @@ describe('test-runtime-config', () => {
     ).toBe(true);
   });
 
+  it('uses selected project environment when worker argv omits project flags', () => {
+    expect(
+      requiresIntegrationOnlyPlaywrightEnvironment(
+        ['node', 'worker'],
+        ['local-chrome-baseline', 'docs-baseline'],
+      ),
+    ).toBe(false);
+  });
+
   it.effect('requires BASE_URL and ignores PLAYWRIGHT_TEST_BASE_URL', () =>
     Effect.gen(function* () {
       const provider = providerFromEntries([

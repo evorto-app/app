@@ -2,11 +2,16 @@
   <a routerLink="/templates" mat-icon-button class="lg:hidden! block">
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
-  @if (templateQuery.data(); as template) {
-    <app-icon [iconCommonName]="template.icon" size="28" />
-    <h1 class="title-large">
-      {{ template.title }}
-    </h1>
+  @if (templateQuery.isSuccess()) {
+    @let template = templateQuery.data();
+    @if (template) {
+      <app-icon [iconCommonName]="template.icon" size="28" />
+      <h1 class="title-large">
+        {{ template.title }}
+      </h1>
+    } @else {
+      <h1 class="title-large">Template not found</h1>
+    }
   } @else {
     <h1 class="title-large">Loading ...</h1>
   }
@@ -32,7 +37,7 @@
 } @else if (templateQuery.isSuccess()) {
   @let template = templateQuery.data();
   <a mat-fab extended routerLink="create-event" class="fab-fixed">
-    <fa-duotone-icon [icon]="faPlus" />
+    <fa-icon [icon]="faPlus" />
     Create event
   </a>
 

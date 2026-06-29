@@ -1,4 +1,4 @@
-import { readonly, schema } from '@angular/forms/signals';
+import { readonly, required, schema } from '@angular/forms/signals';
 
 import {
   ALL_PERMISSIONS,
@@ -95,6 +95,8 @@ for (const [permission, dependencies] of Object.entries(
 }
 
 export const roleFormSchema = schema<RoleFormModel>((form) => {
+  required(form.name);
+
   for (const permission of ALL_PERMISSIONS) {
     const parents = DEPENDENT_PERMISSION_PARENTS[permission];
     if (parents.length === 0) continue;

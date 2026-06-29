@@ -70,6 +70,8 @@ const sanitizeRedirectPath = (value: null | string) => {
 const isStaticMethod = (method: string) =>
   method === 'GET' || method === 'HEAD';
 
+const isSsrMethod = (method: string) => method === 'GET';
+
 const safeDecodePath = (pathname: string) => {
   try {
     return decodeURIComponent(pathname);
@@ -218,10 +220,24 @@ const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
       : notFoundServerResponse;
   });
 
-const healthRouteLayer = HttpLayerRouter.add('GET', '/healthz', () =>
-  Effect.tryPromise(() => handleHealthzWebRequest()).pipe(
-    Effect.map((response) => HttpServerResponse.fromWeb(response)),
-  ),
+const healthRouteLayer = HttpLayerRouter.add('*', '/healthz', (request) =>
+  Effect.gen(function* () {
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      const response = yield* Effect.tryPromise(() =>
+        handleHealthzWebRequest(),
+      );
+      if (request.method === 'HEAD') {
+        return HttpServerResponse.empty({
+          headers: response.headers,
+          status: response.status,
+          statusText: response.statusText,
+        });
+      }
+      return HttpServerResponse.fromWeb(response);
+    }
+
+    return yield* Effect.fail(new HttpServerError.RouteNotFound({ request }));
+  }),
 );
 
 const loginRouteLayer = HttpLayerRouter.add('GET', '/login', (request) =>
@@ -353,7 +369,7 @@ const staticAndAngularCatchAllLayer = HttpLayerRouter.add('*', '*', (request) =>
       return staticResponse;
     }
 
-    if (request.method === 'GET') {
+    if (isSsrMethod(request.method)) {
       return yield* renderSsr(request);
     }
 

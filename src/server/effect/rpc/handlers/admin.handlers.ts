@@ -71,6 +71,40 @@ const normalizeOptionalUrl = (
   }
 };
 
+const decodeTenantAssetSegment = (value: string): string | undefined => {
+  try {
+    const decoded = decodeURIComponent(value);
+    return decoded.includes('/') || decoded.includes('\\')
+      ? undefined
+      : decoded;
+  } catch {
+    return;
+  }
+};
+
+const normalizeTenantAssetPath = (value: string): string | undefined => {
+  const parsed = new URL(value, 'https://tenant-assets.invalid');
+  if (
+    parsed.origin !== 'https://tenant-assets.invalid' ||
+    parsed.search !== '' ||
+    parsed.hash !== ''
+  ) {
+    return;
+  }
+
+  const match = /^\/tenant-assets\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(
+    parsed.pathname,
+  );
+  const tenantId = match?.[1] ? decodeTenantAssetSegment(match[1]) : undefined;
+  const kind = match?.[2] ? decodeTenantAssetSegment(match[2]) : undefined;
+  const fileName = match?.[3] ? decodeTenantAssetSegment(match[3]) : undefined;
+  if (!tenantId || (kind !== 'favicon' && kind !== 'logo') || !fileName) {
+    return;
+  }
+
+  return `/tenant-assets/${encodeURIComponent(tenantId)}/${kind}/${encodeURIComponent(fileName)}`;
+};
+
 const normalizeOptionalBrandAssetUrl = (
   value: string | undefined,
   fieldName: string,
@@ -81,17 +115,9 @@ const normalizeOptionalBrandAssetUrl = (
   }
 
   if (trimmedValue.startsWith('/')) {
-    const parsed = new URL(trimmedValue, 'https://tenant-assets.invalid');
-    if (
-      parsed.origin === 'https://tenant-assets.invalid' &&
-      parsed.pathname === trimmedValue &&
-      /^\/tenant-assets\/[^/]+\/(?:favicon|logo)\/[^/]+$/.test(
-        parsed.pathname,
-      ) &&
-      parsed.search === '' &&
-      parsed.hash === ''
-    ) {
-      return parsed.pathname;
+    const assetPath = normalizeTenantAssetPath(trimmedValue);
+    if (assetPath) {
+      return assetPath;
     }
 
     throw new Error(
@@ -128,6 +154,44 @@ const normalizeTenantBrandAssets = (input: {
   faviconUrl: normalizeOptionalBrandAssetUrl(input.faviconUrl, 'faviconUrl'),
   logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, 'logoUrl'),
 });
+
+const localeMoneySettingsChanged = (
+  tenant: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
+  input: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
+): boolean =>
+  tenant.currency !== input.currency ||
+  tenant.locale !== input.locale ||
+  tenant.timezone !== input.timezone;
+
+const tenantHasLocaleMoneyDependentData = (
+  tenantId: string,
+): Effect.Effect<boolean, never, Database> =>
+  databaseEffect((database) =>
+    Effect.gen(function* () {
+      const existingEvent = yield* database.query.eventInstances.findFirst({
+        columns: {
+          id: true,
+        },
+        where: {
+          tenantId,
+        },
+      });
+      if (existingEvent) {
+        return true;
+      }
+
+      const existingTransaction = yield* database.query.transactions.findFirst({
+        columns: {
+          id: true,
+        },
+        where: {
+          tenantId,
+        },
+      });
+
+      return !!existingTransaction;
+    }),
+  );
 
 const normalizeHubRoleRecord = (role: {
   description: null | string;
@@ -599,6 +663,20 @@ export const adminHandlers = {
           }),
         try: () => normalizeTenantBrandAssets(input),
       });
+      if (localeMoneySettingsChanged(tenant, input)) {
+        const hasDependentData = yield* tenantHasLocaleMoneyDependentData(
+          tenant.id,
+        );
+        if (hasDependentData) {
+          return yield* Effect.fail(
+            new RpcBadRequestError({
+              message: 'Tenant locale and money settings are locked',
+              reason:
+                'Currency, locale, and timezone cannot be changed after event or payment data exists.',
+            }),
+          );
+        }
+      }
 
       const nextTenant = {
         ...tenant,

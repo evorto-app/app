@@ -25,11 +25,29 @@ const normalizePermissions = (permissions: readonly Permission[]) =>
     permissions.flatMap((permission) => expandPermissionAliases(permission)),
   );
 
+const configuredLocalEndToEndGlobalAdminAuth0Ids = () =>
+  (process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'] ?? '')
+    .split(',')
+    .map((auth0Id) => auth0Id.trim())
+    .filter((auth0Id) => auth0Id.length > 0);
+
+const localEndToEndGlobalAdminOverrideEnabled = (): boolean =>
+  process.env['NODE_ENV'] !== 'production';
+
 const resolveGlobalAdminPermissions = (oidcUser: unknown): Permission[] => {
   const user = asRecord(oidcUser);
-  const appMetadata = asRecord(user?.['evorto.app/app_metadata']);
+  const appMetadata =
+    asRecord(user?.['evorto.app/app_metadata']) ??
+    asRecord(user?.['https://evorto.app/app_metadata']) ??
+    asRecord(user?.['app_metadata']);
+  const auth0Id = asString(user?.['sub']);
+  const configuredLocalEndToEndGlobalAdmin =
+    localEndToEndGlobalAdminOverrideEnabled() &&
+    auth0Id !== undefined &&
+    configuredLocalEndToEndGlobalAdminAuth0Ids().includes(auth0Id);
 
-  return appMetadata?.['globalAdmin'] === true
+  return appMetadata?.['globalAdmin'] === true ||
+    configuredLocalEndToEndGlobalAdmin
     ? [...ALL_PERMISSIONS, 'globalAdmin:manageTenants']
     : [];
 };

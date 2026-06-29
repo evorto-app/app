@@ -2,6 +2,8 @@ import * as BunRuntime from '@effect/platform-bun/BunRuntime';
 import { Effect } from 'effect';
 import path from 'node:path';
 
+// Generates worktree-local runtime ports and names so parallel Docker/test
+// runs do not collide with the main checkout or other Codex worktrees.
 const DEFAULT_APP_HOST_PORT = 4200;
 const DEFAULT_NEON_LOCAL_HOST_PORT = 55_432;
 const DEFAULT_MINIO_CONSOLE_HOST_PORT = 9001;

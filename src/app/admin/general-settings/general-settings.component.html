@@ -273,14 +273,11 @@
 
       <h3 class="title-small mb-2 mt-6">Discount providers</h3>
       <div class="mb-4">
-        <mat-slide-toggle
-          [checked]="esnEnabled()"
-          (change)="setEsnEnabled($event.checked)"
-        >
+        <mat-slide-toggle [formField]="settingsForm.esnCardEnabled">
           ESN Card discounts
         </mat-slide-toggle>
       </div>
-      @if (esnEnabled()) {
+      @if (settingsForm.esnCardEnabled().value()) {
         <mat-form-field class="mb-4">
           <mat-label>Buy ESNcard URL</mat-label>
           <input

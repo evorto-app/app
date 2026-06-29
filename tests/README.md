@@ -33,12 +33,13 @@ when the listed output remains readable.
 ```bash
 bun run test:e2e
 bun run test:e2e:ui
+AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:integration
+E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard
 bun run test:e2e:docs
 bun run test:e2e:docs:publish
 bun run test:e2e:install
 bun run test:e2e -- --project=setup
 bun run test:e2e -- --headed --workers 1
-bun run test:e2e:docs -- --project=docs-integration
 bun run test:e2e:report
 bun run lint
 ```
@@ -48,24 +49,38 @@ bun run lint
 - Generate or refresh worktree-local runtime overrides: `bun run env:runtime`
 - Check whether required local Docker secrets are available:
   `bun run docker:check`
+- Show the generated worktree Compose project status: `bun run docker:ps`
 - Start the local runtime stack: `bun run docker:start`
 - Resume an existing local runtime stack without recreating containers:
   `bun run docker:resume`
-- Start the local runtime stack in foreground for Playwright `webServer`: `bun run docker:start:foreground`
+- Start the local runtime stack in foreground for Playwright `webServer` without
+  forcing `docker compose down`: `bun run docker:webserver`
+- Start the local runtime stack in foreground from a reset state:
+  `bun run docker:start:foreground`
 - Start the local runtime stack in watch mode: `bun run docker:start:watch`
 - Stop the local runtime stack: `bun run docker:stop`
 - Local Docker runs use Neon Local instead of a plain Postgres container.
-- Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts.
+- Docker Compose includes a one-shot `db-setup` service that runs the equivalent of `db:reset` before `evorto` starts. It first drops and recreates the Docker database `public` schema so Drizzle does not require interactive confirmation inside the container.
 - Docker Compose forces app media/uploads to the in-network MinIO endpoint even
   when normal local dotenv values point to an external S3-compatible endpoint.
-- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default.
+- Docker keeps `BASE_URL` browser-facing for Auth0 redirects and sets
+  `SSR_RPC_ORIGIN=http://localhost:4200` so SSR RPC calls stay inside the app
+  container instead of calling the host-mapped port.
+- Auth0 callback URLs are registered out-of-band. Worktree-local generated
+  ports keep stacks isolated, but authenticated Browser/Playwright validation
+  needs a callback URL Auth0 accepts. On this machine, run Docker-backed
+  authenticated checks with `APP_HOST_PORT=4200 bun run docker:start` unless the
+  generated worktree port has also been added to the Auth0 application.
+- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default. Use `bun run docker:ps` rather than bare `docker compose ps` when checking a worktree stack because the generated `COMPOSE_PROJECT_NAME` must be loaded from `.env.dev`.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Neon
   Local, Auth0, Stripe, the application session secret, and Font Awesome package
   registry access for the premium and brand icon packages. It also reports Bun, Docker
   Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser
-  cache status. Missing Playwright browsers are warnings because they affect
-  Playwright runs, not Docker startup.
+  cache status. It lists optional live-provider variables, such as
+  `E2E_LIVE_ESN_CARD_IDENTIFIER`, without printing values and without making
+  Docker startup depend on them. Missing Playwright browsers are warnings
+  because they affect Playwright runs, not Docker startup.
 - `bun run env:runtime` generates `.env.dev`, the untracked worktree-local override file.
 - `.env.dev.local` is the tracked shared default dev config file.
 - `.env` is the untracked developer-secrets file.
@@ -74,18 +89,30 @@ bun run lint
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 - Starting the Docker stack with `docker:start`, `docker:start:foreground`, or
   `docker:start:watch` is destructive for local database state by design because
-  those scripts run `docker compose down` and then `db-setup` pushes schema and
-  resets/seeds the Docker database. Use `docker:resume` only for an already
-  initialized stack when you want to bring containers back without recreating
-  them.
+  those scripts run `docker compose down` and then `db-setup` clears the
+  `public` schema, pushes schema, and resets/seeds the Docker database.
+  Playwright `webServer` uses
+  `docker:webserver`, which still builds and starts the Compose stack in the
+  foreground but does not force a Compose teardown first. Use `docker:resume`
+  only for an already initialized stack when you want to bring containers back
+  without recreating them.
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
+- `bun run test:e2e:integration` runs all integration-only Playwright
+  projects. It is intended for credential-gated specs and docs such as Auth0
+  Management account creation.
+- `bun run test:e2e:live-esncard` runs only the live esncard.org
+  add/refresh/remove profile path. It still uses the integration project for
+  authenticated setup, but it narrows execution to
+  `tests/specs/profile/user-profile-live-esncard.spec.ts` and
+  `@needs-live-esncard`.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
 - Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
 - Playwright list/discovery commands do not clean or write generated docs
   output and may run without local Auth0/Stripe secrets. In list-only mode the
-  Playwright config uses inert placeholder values for runtime-only secrets so
-  test titles can be enumerated without starting Docker or contacting external
-  services. Run the docs projects without `--list` when you intentionally want
+  Playwright config uses inert placeholder values for runtime-only secrets and
+  terminal-only reporters, so test titles can be enumerated without starting
+  Docker, contacting external services, or writing local docs/HTML report
+  artifacts. Run the docs projects without `--list` when you intentionally want
   to regenerate documentation artifacts.
 - `bun run test:e2e:docs` writes generated docs to ignored local
   `test-results/docs` paths by default. Use
@@ -102,6 +129,11 @@ bun run test:e2e:install
 ```
 
 CI runs `bunx playwright install --with-deps`, but local macOS/Linux development only needs the package script unless the host is missing OS-level browser dependencies.
+
+Local runs use Playwright's bundled Chromium by default. For exploratory runs
+on a machine that already has Google Chrome installed, set
+`E2E_BROWSER_CHANNEL=chrome` to use the system Chrome channel without
+installing the bundled browser cache.
 
 ## Runtime Environment Precedence
 
@@ -146,17 +178,22 @@ Playwright separates external-service coverage with dedicated projects:
   - `local-chrome-baseline`
   - `docs-baseline`
 - integration-only:
+  - `local-chrome-integration`
   - `docs-integration`
 
 CI infers whether integration-only credentials are required from the selected Playwright projects.
-If you select `docs-integration`, CI/runtime validation demands the extra external-service credentials.
+If you select `local-chrome-integration` or `docs-integration`, CI/runtime validation demands the extra external-service credentials.
 UI mode is intentionally unrestricted and does not force integration-only credentials at startup.
+CI baseline jobs set `E2E_SELECTED_PROJECTS` so Playwright worker processes
+that no longer expose the original CLI `--project` flags still use the
+baseline credential contract.
 
 Integration-only coverage is tagged at the test-title level:
 
 - `@needs-auth0-management`
 - `@needs-cloudflare`
 - `@needs-google-maps`
+- `@needs-live-esncard`
 
 ## Required E2E Variables
 
@@ -198,6 +235,14 @@ Required only for integration-tagged Playwright projects:
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_IMAGES_DELIVERY_HASH`
 - `CLOUDFLARE_IMAGES_API_TOKEN`
+
+Optional live-provider variables for integration-tagged specs:
+
+- `E2E_LIVE_ESN_CARD_IDENTIFIER` for the profile ESNcard add/refresh/remove
+  journey against esncard.org. Use a real valid card identifier only from a
+  local secret source; do not check it into the repo. Run it with
+  `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` when you
+  want to exercise only that live-provider path.
 
 ## Local Stack Isolation
 
