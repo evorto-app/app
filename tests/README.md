@@ -33,7 +33,7 @@ when the listed output remains readable.
 ```bash
 bun run test:e2e
 bun run test:e2e:ui
-AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... bun run test:e2e:integration
+AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_IMAGES_API_TOKEN=... CLOUDFLARE_IMAGES_DELIVERY_HASH=... bun run test:e2e:integration
 E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard
 bun run test:e2e:docs
 bun run test:e2e:docs:publish

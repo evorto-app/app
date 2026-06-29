@@ -69,15 +69,24 @@ export class TenantEditComponent {
     }),
   );
   protected readonly tenantModel = linkedSignal<
-    GlobalAdminTenantRecord | null | undefined,
+    { tenant: GlobalAdminTenantRecord | null | undefined; tenantId: string },
     GlobalAdminTenantFormModel
   >({
-    computation: (tenant, previous) =>
-      tenant
-        ? globalAdminTenantFormModelFromRecord(tenant)
-        : (previous?.value ?? createGlobalAdminTenantFormModel()),
-    source: () =>
-      this.tenantQuery.isSuccess() ? this.tenantQuery.data() : undefined,
+    computation: ({ tenant, tenantId }, previous) => {
+      if (tenant) {
+        return globalAdminTenantFormModelFromRecord(tenant);
+      }
+
+      return previous?.source.tenantId === tenantId
+        ? previous.value
+        : createGlobalAdminTenantFormModel();
+    },
+    source: () => ({
+      tenant: this.tenantQuery.isSuccess()
+        ? this.tenantQuery.data()
+        : undefined,
+      tenantId: this.tenantId(),
+    }),
   });
   protected readonly tenantForm = form(this.tenantModel, (schema) => {
     required(schema.domain);

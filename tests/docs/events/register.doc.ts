@@ -530,6 +530,23 @@ test.describe('Register for events', () => {
 
     const registrationId = getId();
     const transactionId = getId();
+    const priorRegularUserRegistrations =
+      await database.query.eventRegistrations.findMany({
+        where: {
+          eventId: paidEventId,
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        },
+      });
+    const priorPaidEvent = await database.query.eventInstances.findFirst({
+      where: {
+        id: paidEventId,
+        tenantId: tenant.id,
+      },
+    });
+    if (!priorPaidEvent) {
+      throw new Error('Expected seeded paid event for docs');
+    }
 
     try {
       await database
@@ -683,6 +700,21 @@ test.describe('Register for events', () => {
           confirmedSpots: paidOption.confirmedSpots,
         })
         .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
+      await Promise.all(
+        priorRegularUserRegistrations.map((registration) =>
+          database
+            .update(schema.eventRegistrations)
+            .set({ status: registration.status })
+            .where(eq(schema.eventRegistrations.id, registration.id)),
+        ),
+      );
+      await database
+        .update(schema.eventInstances)
+        .set({
+          end: priorPaidEvent.end,
+          start: priorPaidEvent.start,
+        })
+        .where(eq(schema.eventInstances.id, paidEventId));
     }
   });
 

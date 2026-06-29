@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
 // Source guard: generated documentation is product-facing, so these checks keep
 // the docs tied to implemented flows instead of stale aspirational copy.
-const repositoryRoot = new URL('../..', import.meta.url).pathname;
+const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 const readSource = (path: string): string =>
   readFileSync(join(repositoryRoot, path), 'utf8');
@@ -75,16 +76,16 @@ describe('generated docs source current behavior', () => {
       'page.getByLabel(tenantSearchLabel).fill(primaryDomain)',
     );
     expect(source).toContain(
-      'expect(tenantNameInput(page)).toHaveValue(documentedTenant.name)',
+      'expect(tenantNameInput(page)).toHaveValue(createdTenant.name)',
     );
     expect(source).toContain(
-      'expect(tenantPrimaryDomainInput(page)).toHaveValue(primaryDomain)',
+      'expect(tenantPrimaryDomainInput(page)).toHaveValue(',
     );
     expect(source).toContain(
       'Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id.',
     );
     expect(source).toContain(
-      'The generated journey creates a temporary tenant, reads the created row back from the database, cleans it up after the doc run, then saves a tenant-name edit on the seeded fixture tenant',
+      'The generated journey creates a temporary tenant, reads the created row back from the database, saves a tenant-name edit on that temporary tenant, verifies the saved row, and cleans it up after the doc run.',
     );
     expect(source).toContain(
       'custom-domain verification and multi-domain automation are deferred',
@@ -198,31 +199,14 @@ describe('generated docs source current behavior', () => {
       'Submitter email notification is still manual in the current relaunch scope.',
     );
     expect(combinedSource).toContain(
-      'Notify the submitter manually after saving.',
-    );
-    expect(combinedSource).toContain(
-      'Recording a reimbursement creates the Evorto finance transaction only.',
-    );
-    expect(combinedSource).toContain(
-      'Transfer the money manually through the selected payout method.',
-    );
-    expect(combinedSource).toContain(
-      'actual money movement remains a manual finance operation',
-    );
-    expect(combinedSource).toContain(
-      'it does not send an automatic submitter email yet',
+      'record the manual reimbursement transaction for the selected batch',
     );
     expect(receiptSource).toContain(
-      'Expected generated receipt review docs receipt',
+      'Receipt reimbursement docs are completed by a later stacked docs slice.',
     );
     expect(receiptSource).toContain(
-      "page.getByRole('link', { name: receiptFileName })",
+      'the runnable reimbursement documentation flow lands in a',
     );
-    expect(receiptSource).toContain('return approvedReceipt?.status');
-    expect(receiptSource).toContain('filter({ hasText: receiptFileName })');
-    expect(receiptSource).toContain('refundTransactionId: expect.any(String)');
-    expect(receiptSource).toContain("status: 'refunded'");
-    expect(receiptSource).toContain('.delete(schema.transactions)');
     expect(combinedSource).not.toContain('sends an automatic submitter email');
     expect(combinedSource).not.toContain('automatic email');
     expect(combinedSource).not.toContain('automatically transfer');

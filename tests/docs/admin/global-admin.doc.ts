@@ -218,11 +218,11 @@ Global admins can review, create, and edit tenants from the **Global admin** are
       page.getByRole('heading', { level: 1, name: 'Tenants' }),
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants$/);
-    await page.getByLabel(tenantSearchLabel).fill(primaryDomain);
-    await expect(page.getByText(primaryDomain).first()).toBeVisible();
+    await page.getByLabel(tenantSearchLabel).fill(createdTenantDomain);
+    await expect(page.getByText(createdTenantDomain).first()).toBeVisible();
     const reviewTenantLink = page
       .locator('app-tenant-list > div')
-      .filter({ hasText: primaryDomain })
+      .filter({ hasText: createdTenantDomain })
       .getByRole('link', { name: 'Review tenant' });
     const reviewTenantHref = await reviewTenantLink.getAttribute('href');
     if (!reviewTenantHref) {
@@ -234,10 +234,10 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     await expect(
       page.getByText('Read-only operational tenant review'),
     ).toBeVisible();
-    await expectGlobalAdminTenantRows(page, documentedTenant);
+    await expectGlobalAdminTenantRows(page, createdTenant);
     await expect(
       page.getByRole('link', { name: 'Open tenant domain' }),
-    ).toHaveAttribute('href', `https://${primaryDomain}`);
+    ).toHaveAttribute('href', `https://${createdTenantDomain}`);
     await expect(
       page.getByRole('link', { name: 'Edit tenant' }),
     ).toHaveAttribute('href', `${reviewTenantHref}/edit`);
@@ -253,16 +253,18 @@ Global admins can review, create, and edit tenants from the **Global admin** are
       page.getByRole('heading', { name: 'Edit tenant' }),
     ).toBeVisible();
     await expectGlobalAdminTenantFormSurface(page);
-    await expect(tenantNameInput(page)).toHaveValue(documentedTenant.name);
-    await expect(tenantPrimaryDomainInput(page)).toHaveValue(primaryDomain);
+    await expect(tenantNameInput(page)).toHaveValue(createdTenant.name);
+    await expect(tenantPrimaryDomainInput(page)).toHaveValue(
+      createdTenantDomain,
+    );
     await expect(tenantStripeAccountInput(page)).toHaveValue(
-      documentedTenant.stripeAccountId ?? '',
+      createdTenant.stripeAccountId ?? '',
     );
     await expect(
       page.getByRole('button', { name: 'Save tenant' }),
     ).toBeEnabled();
 
-    const updatedTenantName = `${documentedTenant.name} documentation review`;
+    const updatedTenantName = `${createdTenant.name} documentation review`;
     await tenantNameInput(page).fill(updatedTenantName);
     await page.getByRole('button', { name: 'Save tenant' }).click();
     await expect(page).toHaveURL(reviewTenantHref);
@@ -271,12 +273,12 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     ).toBeVisible();
 
     const updatedTenant = await database.query.tenants.findFirst({
-      where: { id: documentedTenant.id },
+      where: { id: createdTenant.id },
     });
     expect(updatedTenant).toEqual(
       expect.objectContaining({
-        domain: documentedTenant.domain,
-        id: documentedTenant.id,
+        domain: createdTenant.domain,
+        id: createdTenant.id,
         name: updatedTenantName,
       }),
     );
@@ -287,7 +289,7 @@ Global admins can review, create, and edit tenants from the **Global admin** are
 
 The current global-admin page is a searchable tenant list with tenant creation, tenant editing, and a tenant detail review. Each entry shows the tenant name, domain, tenant id, theme, locale, currency, timezone, and Stripe account state plus connected account id for support and operational review. The tenant detail page repeats the operational fields, links to the edit form, and provides an external link to open the tenant's primary domain.
 
-Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id. The server normalizes primary domains to a single-host value and rejects duplicates before saving, so each tenant keeps one unique primary domain. The generated journey creates a temporary tenant, reads the created row back from the database, cleans it up after the doc run, then saves a tenant-name edit on the seeded fixture tenant, reads the saved row back from the database, and restores the fixture tenant after the doc run. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
+Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id. The server normalizes primary domains to a single-host value and rejects duplicates before saving, so each tenant keeps one unique primary domain. The generated journey creates a temporary tenant, reads the created row back from the database, saves a tenant-name edit on that temporary tenant, verifies the saved row, and cleans it up after the doc run. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
 
 The create journey also checks the one-domain guardrails before saving: domains with paths are rejected in the form before mutation, and duplicate primary domains return a visible error while keeping the admin on the create page.
 `,
@@ -296,17 +298,5 @@ The create journey also checks the one-domain guardrails before saving: domains 
     await database
       .delete(schema.tenants)
       .where(eq(schema.tenants.domain, createdTenantDomain));
-    await database
-      .update(schema.tenants)
-      .set({
-        currency: documentedTenant.currency,
-        domain: documentedTenant.domain,
-        locale: documentedTenant.locale,
-        name: documentedTenant.name,
-        stripeAccountId: documentedTenant.stripeAccountId,
-        theme: documentedTenant.theme,
-        timezone: documentedTenant.timezone,
-      })
-      .where(eq(schema.tenants.id, documentedTenant.id));
   }
 });

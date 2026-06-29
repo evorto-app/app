@@ -24,7 +24,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { Effect } from 'effect';
+import { Effect, Result } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
@@ -472,67 +472,71 @@ const cancelRegistration = ({
         return;
       }
 
-      yield* Effect.tryPromise(() =>
-        Promise.race([
-          stripe.refunds.create(stripeRefundParameters, {
-            stripeAccount,
-          }),
-          new Promise<never>((_, reject) => {
-            setTimeout(
-              () => reject(new Error('Stripe refund creation timed out')),
-              5000,
-            );
-          }),
-        ]),
-      ).pipe(
-        Effect.flatMap((stripeRefund) =>
-          databaseEffect((database) =>
-            database.insert(transactions).values({
-              amount: -Math.abs(refundTransaction.amount),
-              comment: `Stripe refund ${stripeRefund.id} recorded for cancelled registration ${registration.id} with status ${stripeRefund.status}.`,
-              currency: tenant.currency,
-              eventId: registration.eventId,
-              eventRegistrationId: registration.id,
-              executiveUserId: user.id,
-              manuallyCreated: false,
-              method: refundTransaction.method,
-              status:
-                stripeRefund.status === 'succeeded' ? 'successful' : 'pending',
-              targetUserId: registration.userId,
-              tenantId: tenant.id,
-              type: 'refund',
+      const stripeRefundResult = yield* Effect.result(
+        Effect.tryPromise(() =>
+          Promise.race([
+            stripe.refunds.create(stripeRefundParameters, {
+              stripeAccount,
             }),
-          ),
+            new Promise<never>((_, reject) => {
+              setTimeout(
+                () => reject(new Error('Stripe refund creation timed out')),
+                5000,
+              );
+            }),
+          ]),
         ),
-        Effect.catch((error) =>
-          Effect.logError(
-            'Failed to create Stripe refund for cancelled registration',
-          ).pipe(
-            Effect.annotateLogs({
-              error,
-              registrationId: registration.id,
-              transactionId: refundTransaction.id,
-            }),
-            Effect.andThen(
-              databaseEffect((database) =>
-                database.insert(transactions).values({
-                  amount: -Math.abs(refundTransaction.amount),
-                  comment: `Pending registration refund record for cancelled registration ${registration.id}. Automatic Stripe refund failed and must be followed up manually.`,
-                  currency: tenant.currency,
-                  eventId: registration.eventId,
-                  eventRegistrationId: registration.id,
-                  executiveUserId: user.id,
-                  manuallyCreated: true,
-                  method: refundTransaction.method,
-                  status: 'pending',
-                  targetUserId: registration.userId,
-                  tenantId: tenant.id,
-                  type: 'refund',
-                }),
-              ),
+      );
+
+      if (Result.isFailure(stripeRefundResult)) {
+        const error = stripeRefundResult.failure;
+        yield* Effect.logError(
+          'Failed to create Stripe refund for cancelled registration',
+        ).pipe(
+          Effect.annotateLogs({
+            error,
+            registrationId: registration.id,
+            transactionId: refundTransaction.id,
+          }),
+          Effect.andThen(
+            databaseEffect((database) =>
+              database.insert(transactions).values({
+                amount: -Math.abs(refundTransaction.amount),
+                comment: `Pending registration refund record for cancelled registration ${registration.id}. Automatic Stripe refund failed and must be followed up manually.`,
+                currency: tenant.currency,
+                eventId: registration.eventId,
+                eventRegistrationId: registration.id,
+                executiveUserId: user.id,
+                manuallyCreated: true,
+                method: refundTransaction.method,
+                status: 'pending',
+                targetUserId: registration.userId,
+                tenantId: tenant.id,
+                type: 'refund',
+              }),
             ),
           ),
-        ),
+        );
+        return;
+      }
+
+      const stripeRefund = stripeRefundResult.success;
+      yield* databaseEffect((database) =>
+        database.insert(transactions).values({
+          amount: -Math.abs(refundTransaction.amount),
+          comment: `Stripe refund ${stripeRefund.id} recorded for cancelled registration ${registration.id} with status ${stripeRefund.status}.`,
+          currency: tenant.currency,
+          eventId: registration.eventId,
+          eventRegistrationId: registration.id,
+          executiveUserId: user.id,
+          manuallyCreated: false,
+          method: refundTransaction.method,
+          status:
+            stripeRefund.status === 'succeeded' ? 'successful' : 'pending',
+          targetUserId: registration.userId,
+          tenantId: tenant.id,
+          type: 'refund',
+        }),
       );
     }
 

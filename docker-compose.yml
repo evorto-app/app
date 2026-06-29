@@ -147,7 +147,17 @@ services:
     command:
       - /bin/sh
       - -lc
-      - mkdir -p /app/logs && bun --preload ./instrument.mjs dist/evorto/server/server.mjs 2>&1 | tee -a /app/logs/server.log
+      - |
+        mkdir -p /app/logs
+        log_pipe="$(mktemp -u /tmp/evorto-server-log.XXXXXX)"
+        mkfifo "$$log_pipe"
+        tee -a /app/logs/server.log < "$$log_pipe" &
+        tee_pid="$!"
+        bun --preload ./instrument.mjs dist/evorto/server/server.mjs > "$$log_pipe" 2>&1
+        server_status="$?"
+        wait "$$tee_pid"
+        rm -f "$$log_pipe"
+        exit "$$server_status"
     ports:
       - "${APP_HOST_PORT:-4200}:4200"
     volumes:

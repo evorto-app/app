@@ -20,6 +20,7 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
   database,
   discounts,
   page,
+  tenant,
 }) => {
   void discounts;
   const regularUser = usersToAuthenticate.find(
@@ -37,6 +38,7 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
       .values({
         identifier: seededEsnCardIdentifier,
         status: 'verified',
+        tenantId: tenant.id,
         type: 'esnCard',
         userId: regularUser.id,
         validFrom,
@@ -46,11 +48,13 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
         set: {
           identifier: seededEsnCardIdentifier,
           status: 'verified',
+          tenantId: tenant.id,
           validFrom,
           validTo,
         },
         target: [
           schema.userDiscountCards.userId,
+          schema.userDiscountCards.tenantId,
           schema.userDiscountCards.type,
         ],
       });
@@ -86,6 +90,7 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
     const savedCard = await database.query.userDiscountCards.findFirst({
       where: {
         identifier: liveEsnCardIdentifier!,
+        tenantId: tenant.id,
         type: 'esnCard',
         userId: regularUser.id,
       },
@@ -94,6 +99,7 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
       expect.objectContaining({
         identifier: liveEsnCardIdentifier,
         status: 'verified',
+        tenantId: tenant.id,
         type: 'esnCard',
         userId: regularUser.id,
       }),

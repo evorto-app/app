@@ -163,35 +163,43 @@ const localeMoneySettingsChanged = (
   tenant.locale !== input.locale ||
   tenant.timezone !== input.timezone;
 
+type TenantLocaleMoneyDependentDataDatabase = Pick<DatabaseClient, 'query'>;
+
 const tenantHasLocaleMoneyDependentData = (
+  database: TenantLocaleMoneyDependentDataDatabase,
   tenantId: string,
-): Effect.Effect<boolean, never, Database> =>
-  databaseEffect((database) =>
-    Effect.gen(function* () {
-      const existingEvent = yield* database.query.eventInstances.findFirst({
-        columns: {
-          id: true,
-        },
-        where: {
-          tenantId,
-        },
-      });
-      if (existingEvent) {
-        return true;
-      }
+): Effect.Effect<boolean, unknown> =>
+  Effect.gen(function* () {
+    const existingEvent = yield* database.query.eventInstances.findFirst({
+      columns: {
+        id: true,
+      },
+      where: {
+        tenantId,
+      },
+    });
+    if (existingEvent) {
+      return true;
+    }
 
-      const existingTransaction = yield* database.query.transactions.findFirst({
-        columns: {
-          id: true,
-        },
-        where: {
-          tenantId,
-        },
-      });
+    const existingTransaction = yield* database.query.transactions.findFirst({
+      columns: {
+        id: true,
+      },
+      where: {
+        tenantId,
+      },
+    });
 
-      return !!existingTransaction;
-    }),
-  );
+    return !!existingTransaction;
+  });
+
+const tenantLocaleMoneySettingsLockedError = () =>
+  new RpcBadRequestError({
+    message: 'Tenant locale and money settings are locked',
+    reason:
+      'Currency, locale, and timezone cannot be changed after event or payment data exists.',
+  });
 
 const normalizeHubRoleRecord = (role: {
   description: null | string;
@@ -663,21 +671,6 @@ export const adminHandlers = {
           }),
         try: () => normalizeTenantBrandAssets(input),
       });
-      if (localeMoneySettingsChanged(tenant, input)) {
-        const hasDependentData = yield* tenantHasLocaleMoneyDependentData(
-          tenant.id,
-        );
-        if (hasDependentData) {
-          return yield* Effect.fail(
-            new RpcBadRequestError({
-              message: 'Tenant locale and money settings are locked',
-              reason:
-                'Currency, locale, and timezone cannot be changed after event or payment data exists.',
-            }),
-          );
-        }
-      }
-
       const nextTenant = {
         ...tenant,
         ...brandAssets,
@@ -705,29 +698,64 @@ export const adminHandlers = {
         try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
       });
 
-      const updatedTenants = yield* databaseEffect((database) =>
+      const tenantUpdate = {
+        ...brandAssets,
+        currency: input.currency,
+        defaultLocation: input.defaultLocation,
+        discountProviders,
+        ...legalLinks,
+        locale: input.locale,
+        receiptSettings: resolveTenantReceiptSettings({
+          allowOther: input.allowOther,
+          receiptCountries: input.receiptCountries,
+        }),
+        seoDescription: input.seoDescription?.trim() || null,
+        seoTitle: input.seoTitle?.trim() || null,
+        theme: input.theme,
+        timezone: input.timezone,
+      };
+      const updatedTenants = yield* Database.use((database) =>
         database
-          .update(tenants)
-          .set({
-            ...brandAssets,
-            currency: input.currency,
-            defaultLocation: input.defaultLocation,
-            discountProviders,
-            ...legalLinks,
-            locale: input.locale,
-            receiptSettings: resolveTenantReceiptSettings({
-              allowOther: input.allowOther,
-              receiptCountries: input.receiptCountries,
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              const lockedTenantRows = yield* tx
+                .select({ id: tenants.id })
+                .from(tenants)
+                .where(eq(tenants.id, tenant.id))
+                .for('update');
+
+              if (lockedTenantRows.length === 0) {
+                return [];
+              }
+
+              if (localeMoneySettingsChanged(tenant, input)) {
+                const hasDependentData = yield* tenantHasLocaleMoneyDependentData(
+                  tx,
+                  tenant.id,
+                );
+                if (hasDependentData) {
+                  return yield* Effect.fail(
+                    tenantLocaleMoneySettingsLockedError(),
+                  );
+                }
+              }
+
+              return yield* tx
+                .update(tenants)
+                .set(tenantUpdate)
+                .where(eq(tenants.id, tenant.id))
+                .returning({
+                  id: tenants.id,
+                });
             }),
-            seoDescription: input.seoDescription?.trim() || null,
-            seoTitle: input.seoTitle?.trim() || null,
-            theme: input.theme,
-            timezone: input.timezone,
-          })
-          .where(eq(tenants.id, tenant.id))
-          .returning({
-            id: tenants.id,
-          }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof RpcBadRequestError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
       );
       const updatedTenant = updatedTenants[0];
       if (!updatedTenant) {

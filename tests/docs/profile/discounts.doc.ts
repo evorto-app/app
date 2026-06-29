@@ -63,6 +63,7 @@ test('Manage ESN discount card @finance', async ({
   discounts,
   database,
   page,
+  tenant,
 }, testInfo) => {
   void discounts;
   const regularUser = usersToAuthenticate.find(
@@ -95,6 +96,7 @@ Open your profile's **Discounts** section directly when you want to review or up
   const seededEsnCard = await database.query.userDiscountCards.findFirst({
     where: {
       identifier: seededEsnCardIdentifier,
+      tenantId: tenant.id,
       type: 'esnCard',
       userId: regularUser.id,
     },
@@ -103,6 +105,7 @@ Open your profile's **Discounts** section directly when you want to review or up
     expect.objectContaining({
       identifier: seededEsnCardIdentifier,
       status: 'verified',
+      tenantId: tenant.id,
       type: 'esnCard',
       userId: regularUser.id,
     }),

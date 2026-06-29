@@ -1,4 +1,4 @@
-import { Config, Effect, Option } from 'effect';
+import { Config, ConfigProvider, Effect, Option } from 'effect';
 import path from 'node:path';
 
 import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
@@ -8,6 +8,12 @@ const DEFAULT_TEST_SEED_KEY = 'evorto-e2e-default-v1';
 const INTEGRATION_PROJECT_NAMES = [
   'docs-integration',
   'local-chrome-integration',
+] as const;
+const PLAYWRIGHT_PROJECT_NAMES = [
+  'setup',
+  'local-chrome-baseline',
+  'docs-baseline',
+  ...INTEGRATION_PROJECT_NAMES,
 ] as const;
 const SELECTED_PLAYWRIGHT_PROJECTS_ENV = 'E2E_SELECTED_PROJECTS';
 const PLAYWRIGHT_BROWSER_CHANNELS = ['chromium', 'chrome'] as const;
@@ -111,13 +117,37 @@ const parseSelectedProjectNames = (value: string) =>
     .map((projectName) => projectName.trim())
     .filter((projectName) => projectName.length > 0);
 
+const configFailure = (message: string) =>
+  new Config.ConfigError(new ConfigProvider.SourceError({ message }));
+
+const assertKnownProjectNames = (
+  projectNames: readonly string[],
+): Effect.Effect<readonly string[], Config.ConfigError> => {
+  const unknownProjectNames = projectNames.filter(
+    (projectName) =>
+      !PLAYWRIGHT_PROJECT_NAMES.some((knownProjectName) =>
+        matchesProjectPattern(projectName, knownProjectName),
+      ),
+  );
+  if (unknownProjectNames.length > 0) {
+    return Effect.fail(
+      configFailure(
+        `${SELECTED_PLAYWRIGHT_PROJECTS_ENV} contains unknown Playwright project(s): ${unknownProjectNames.join(', ')}`,
+      ),
+    );
+  }
+
+  return Effect.succeed(projectNames);
+};
+
 const selectedProjectNamesConfig = optionalTrimmedString(
   SELECTED_PLAYWRIGHT_PROJECTS_ENV,
 ).pipe(
-  Config.map((value) =>
+  Config.mapOrFail((value) =>
     Option.match(value, {
-      onNone: () => [],
-      onSome: parseSelectedProjectNames,
+      onNone: () => Effect.succeed([]),
+      onSome: (projectNames) =>
+        assertKnownProjectNames(parseSelectedProjectNames(projectNames)),
     }),
   ),
 );

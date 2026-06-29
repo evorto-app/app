@@ -564,6 +564,9 @@ live ESNcard provider path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`.
 - Playwright list/discovery output is intentionally readable:
   `helpers/testing/playwright-skip-inventory.spec.ts` guards that real spec/doc
   titles no longer include placeholder `@track`, `@req`, or `@doc` metadata.
-- `docs/users/create-account.doc.ts` is the only current integration-tagged Playwright path; there is no non-doc integration-only spec yet.
+- Integration-tagged Playwright paths now include both generated docs and
+  non-doc specs: `docs/users/create-account.doc.ts`,
+  `specs/profile/create-account.spec.ts`, and
+  `specs/profile/user-profile-live-esncard.spec.ts`.
 - Playwright `--list` discovery does not clean or write generated docs output,
   and baseline fixture imports do not require Auth0 Management credentials.

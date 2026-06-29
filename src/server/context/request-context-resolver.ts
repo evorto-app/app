@@ -32,7 +32,8 @@ const configuredLocalEndToEndGlobalAdminAuth0Ids = () =>
     .filter((auth0Id) => auth0Id.length > 0);
 
 const localEndToEndGlobalAdminOverrideEnabled = (): boolean =>
-  process.env['NODE_ENV'] !== 'production';
+  process.env['NODE_ENV'] === 'development' ||
+  process.env['NODE_ENV'] === 'test';
 
 const resolveGlobalAdminPermissions = (oidcUser: unknown): Permission[] => {
   const user = asRecord(oidcUser);

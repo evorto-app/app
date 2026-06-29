@@ -110,6 +110,20 @@ describe('test-runtime-config', () => {
     ).toBe(false);
   });
 
+  it.effect('rejects unknown selected Playwright projects', () =>
+    Effect.gen(function* () {
+      const provider = providerFromEntries([
+        ...requiredPlaywrightEntries,
+        ['BASE_URL', 'http://localhost:4200'],
+        ['E2E_SELECTED_PROJECTS', 'local-chrome-integraton'],
+      ]);
+
+      const error = yield* Effect.flip(readPlaywrightEnvironment(provider));
+      expect(error.message).toMatch(/E2E_SELECTED_PROJECTS/);
+      expect(error.message).toMatch(/local-chrome-integraton/);
+    }),
+  );
+
   it.effect('requires BASE_URL and ignores PLAYWRIGHT_TEST_BASE_URL', () =>
     Effect.gen(function* () {
       const provider = providerFromEntries([

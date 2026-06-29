@@ -1,23 +1,23 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
 // Source guard: every skipped browser/doc test needs an explicit reason here so
 // uncovered behavior does not disappear behind permanent `test.skip` calls.
-const repositoryRoot = new URL('../..', import.meta.url).pathname;
+const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 const testsRoot = join(repositoryRoot, 'tests');
 const testInventoryPath = join(testsRoot, 'test-inventory.md');
 
 const allowedPlaywrightSkipEntries = [
   {
-    entry:
-      'tests/docs/finance/receipt-review-reimbursement.doc.ts:10:test.skip',
+    entry: 'tests/docs/finance/receipt-review-reimbursement.doc.ts:3:test.skip',
     reason:
       'Receipt reimbursement docs are completed by a later stacked slice.',
   },
   {
-    entry: 'tests/docs/users/create-account.doc.ts:97:test.skip',
+    entry: 'tests/docs/users/create-account.doc.ts:91:test.skip',
     reason:
       'Auth0 Management credentials are required for the integration doc.',
   },
@@ -153,7 +153,8 @@ const collectPlaceholderMetadataEntries = () =>
   });
 
 const collectFixedWaitEntries = () =>
-  collectTypeScriptFiles(testsRoot).flatMap((path) => {
+  collectPlaywrightSpecAndDocFiles().flatMap((playwrightPath) => {
+    const path = join(testsRoot, playwrightPath);
     const source = readFileSync(path, 'utf8');
     const lines = source.split('\n');
     const relativePath = relative(repositoryRoot, path).replaceAll('\\', '/');

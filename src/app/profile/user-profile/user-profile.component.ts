@@ -37,8 +37,6 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
-import type { User } from '../../../types/custom/user';
-
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
@@ -329,11 +327,8 @@ export class UserProfileComponent {
     this.rpc.users.self.queryOptions(),
   );
 
-  private readonly profileUserOverride = signal<null | User>(null);
-  protected readonly profileUser = computed(
-    () =>
-      this.profileUserOverride() ??
-      (this.userQuery.isSuccess() ? this.userQuery.data() : undefined),
+  protected readonly profileUser = computed(() =>
+    this.userQuery.isSuccess() ? this.userQuery.data() : undefined,
   );
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
@@ -442,7 +437,6 @@ export class UserProfileComponent {
       },
       onSuccess: async () => {
         const updatedUser = profileUserAfterEdit(user, result);
-        this.profileUserOverride.set(updatedUser);
         this.queryClient.setQueryData(
           this.rpc.pathKey(['users', 'self']),
           updatedUser,
@@ -450,6 +444,12 @@ export class UserProfileComponent {
         this.queryClient.setQueryData(
           this.rpc.pathKey(['users', 'maybeSelf']),
           updatedUser,
+        );
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['users', 'self']),
+        );
+        await this.queryClient.invalidateQueries(
+          this.rpc.queryFilter(['users', 'maybeSelf']),
         );
         await this.queryClient.invalidateQueries(
           this.rpc.queryFilter([

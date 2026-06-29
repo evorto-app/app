@@ -72,7 +72,8 @@ for (const userData of usersToAuthenticate) {
 
     if (!reachedEventsWithoutConsent) {
       const consentVisible = await acceptConsentButton
-        .isVisible({ timeout: 5000 })
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .then(() => true)
         .catch(() => false);
       if (consentVisible) {
         await acceptConsentButton.click();

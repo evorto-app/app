@@ -1,7 +1,10 @@
+import type Stripe from 'stripe';
+
 import { describe, expect, it, vi } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
 
-import { Database } from '../../../../../db';
+import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventRegistrationOptions,
   eventRegistrations,
@@ -18,6 +21,24 @@ import {
 import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { eventRegistrationHandlers } from './events-registration.handlers';
+
+type StripeClientDouble = Pick<Stripe, 'checkout' | 'refunds'>;
+
+const createStripeClientDouble = (): StripeClientDouble =>
+  ({
+    checkout: {
+      sessions: {
+        expire: vi.fn(),
+      },
+    },
+    refunds: {
+      create: vi.fn(),
+    },
+  }) as StripeClientDouble;
+
+const emptyHandlerOptions = {
+  headers: Headers.fromInput({}),
+};
 
 const tenant = {
   currency: 'EUR' as const,
@@ -62,21 +83,12 @@ const createUser = ({
 
 const createContextLayer = ({
   database,
-  stripe = {
-    checkout: {
-      sessions: {
-        expire: vi.fn(),
-      },
-    },
-    refunds: {
-      create: vi.fn(),
-    },
-  },
+  stripe = createStripeClientDouble(),
   tenant: currentTenant = tenant,
   user = createUser(),
 }: {
-  database: unknown;
-  stripe?: unknown;
+  database: object;
+  stripe?: StripeClientDouble;
   tenant?: typeof tenant;
   user?: ReturnType<typeof createUser>;
 }) => {
@@ -92,8 +104,8 @@ const createContextLayer = ({
   return Layer.mergeAll(
     RpcAccess.Default,
     Layer.succeed(RpcRequestContext, requestContext),
-    Layer.succeed(Database, database as never),
-    Layer.succeed(StripeClient, stripe as never),
+    Layer.succeed(Database, database as DatabaseClient),
+    Layer.succeed(StripeClient, stripe as Stripe),
   );
 };
 
@@ -542,7 +554,7 @@ describe('event registration cancellation handlers', () => {
 
         yield* eventRegistrationHandlers['events.cancelEventRegistration'](
           { eventId: 'event-1', registrationId: 'registration-1' },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 
         expect(updateSets).toEqual([
@@ -582,12 +594,10 @@ describe('event registration cancellation handlers', () => {
 
         const error = yield* eventRegistrationHandlers[
           'events.cancelEventRegistration'
-        ]({ eventId: 'event-1', registrationId: 'registration-1' }, {
-          headers: {},
-        } as never).pipe(
-          Effect.flip,
-          Effect.provide(createContextLayer({ database })),
-        );
+        ](
+          { eventId: 'event-1', registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error['_tag']).toBe('RpcForbiddenError');
         expect(database.transaction).not.toHaveBeenCalled();
@@ -644,7 +654,7 @@ describe('event registration cancellation handlers', () => {
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
           { guestCheckInCount: 0, registrationId: 'registration-1' },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 
         expect(updateSets).toEqual([
@@ -665,7 +675,7 @@ describe('event registration cancellation handlers', () => {
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
           { registrationId: 'registration-1' },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 
         expectCounterDecrement(updateSets[1], 'confirmedSpots', 3);
@@ -744,7 +754,7 @@ describe('event registration cancellation handlers', () => {
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
           { registrationId: 'registration-1' },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 
         expectCounterDecrement(updateSets[1], 'confirmedSpots', 2);
@@ -855,7 +865,7 @@ describe('event registration cancellation handlers', () => {
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
           { registrationId: 'registration-1' },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(
           Effect.provide(
             createContextLayer({
@@ -947,7 +957,7 @@ describe('event registration cancellation handlers', () => {
 
       yield* eventRegistrationHandlers['events.cancelRegistration'](
         { guestCheckInCount: 0, registrationId: 'registration-1' },
-        { headers: {} } as never,
+        emptyHandlerOptions,
       ).pipe(Effect.provide(createContextLayer({ database })));
 
       expect(updateSets).toEqual([
@@ -968,7 +978,7 @@ describe('event registration cancellation handlers', () => {
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
           { registrationId: 'registration-1' },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 
         expectCounterDecrement(updateSets[1], 'reservedSpots', 3);
@@ -1001,7 +1011,7 @@ describe('event registration cancellation handlers', () => {
 
       const error = yield* eventRegistrationHandlers[
         'events.cancelRegistration'
-      ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+      ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
         Effect.flip,
         Effect.provide(createContextLayer({ database })),
       );
@@ -1064,7 +1074,7 @@ describe('event registration cancellation handlers', () => {
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
           { registrationId: 'registration-1' },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 
         expect(updateSets).toEqual([
@@ -1089,7 +1099,7 @@ describe('event registration transfer handlers', () => {
             registrationId: 'registration-1',
             search: 'alex',
           },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(
           Effect.provide(
             createContextLayer({ database: createTransferTargetsDatabase() }),
@@ -1119,7 +1129,7 @@ describe('event registration transfer handlers', () => {
             registrationId: 'registration-1',
             search: 'alex',
           },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(
           Effect.provide(
             createContextLayer({
@@ -1159,7 +1169,7 @@ describe('event registration transfer handlers', () => {
             registrationId: 'registration-1',
             targetUserId: 'target-user-1',
           },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 
         expect(updateSets).toEqual([{ userId: 'target-user-1' }]);
@@ -1179,7 +1189,7 @@ describe('event registration transfer handlers', () => {
             registrationId: 'registration-1',
             targetEmail: ' TARGET@EXAMPLE.COM ',
           },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(
           Effect.provide(
             createContextLayer({
@@ -1209,7 +1219,7 @@ describe('event registration transfer handlers', () => {
           registrationId: 'registration-1',
           targetUserId: 'target-user-1',
         },
-        { headers: {} } as never,
+        emptyHandlerOptions,
       ).pipe(Effect.provide(createContextLayer({ database })));
 
       expect(updateSets).toEqual([{ userId: 'target-user-1' }]);
@@ -1231,7 +1241,7 @@ describe('event registration transfer handlers', () => {
             registrationId: 'registration-1',
             targetEmail: 'missing@example.com',
           },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1263,7 +1273,7 @@ describe('event registration transfer handlers', () => {
             registrationId: 'registration-1',
             targetEmail: 'target@example.com',
           },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1294,7 +1304,7 @@ describe('event registration transfer handlers', () => {
           registrationId: 'registration-1',
           targetUserId: 'target-user-1',
         },
-        { headers: {} } as never,
+        emptyHandlerOptions,
       ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
       expect(error['_tag']).toBe('RpcForbiddenError');
@@ -1337,7 +1347,7 @@ describe('event registration transfer handlers', () => {
             registrationId: 'registration-1',
             targetUserId: 'target-user-1',
           },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
@@ -1377,7 +1387,7 @@ describe('event registration transfer handlers', () => {
             registrationId: 'registration-1',
             targetUserId: 'target-user-1',
           },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
@@ -1405,7 +1415,7 @@ describe('event registration transfer handlers', () => {
           registrationId: 'registration-1',
           targetUserId: 'target-user-1',
         },
-        { headers: {} } as never,
+        emptyHandlerOptions,
       ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
@@ -1432,7 +1442,7 @@ describe('event registration transfer handlers', () => {
             registrationId: 'registration-1',
             targetUserId: 'target-user-1',
           },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error['_tag']).toBe('EventRegistrationNotFoundError');
@@ -1457,7 +1467,7 @@ describe('event registration transfer handlers', () => {
             registrationId: 'registration-1',
             targetUserId: 'target-user-1',
           },
-          { headers: {} } as never,
+          emptyHandlerOptions,
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
@@ -1483,7 +1493,7 @@ describe('event registration scan handlers', () => {
 
       const error = yield* eventRegistrationHandlers[
         'events.registrationScanned'
-      ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+      ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
         Effect.flip,
         Effect.provide(createContextLayer({ database })),
       );
@@ -1511,7 +1521,7 @@ describe('event registration scan handlers', () => {
 
       const result = yield* eventRegistrationHandlers[
         'events.registrationScanned'
-      ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+      ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
         Effect.provide(
           createContextLayer({
             database,
@@ -1543,7 +1553,7 @@ describe('event registration scan handlers', () => {
 
         const result = yield* eventRegistrationHandlers[
           'events.registrationScanned'
-        ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
           Effect.provide(
             createContextLayer({
               database,
@@ -1579,7 +1589,7 @@ describe('event registration scan handlers', () => {
 
         const result = yield* eventRegistrationHandlers[
           'events.registrationScanned'
-        ]({ registrationId: 'registration-1' }, { headers: {} } as never).pipe(
+        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
           Effect.provide(
             createContextLayer({
               database,
@@ -1664,9 +1674,10 @@ describe('event registration scan handlers', () => {
 
         const result = yield* eventRegistrationHandlers[
           'events.checkInRegistration'
-        ]({ guestCheckInCount: 0, registrationId: 'registration-1' }, {
-          headers: {},
-        } as never).pipe(Effect.provide(createContextLayer({ database })));
+        ](
+          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(Effect.provide(createContextLayer({ database })));
 
         expect(result.alreadyCheckedIn).toBe(false);
         expect(result.checkInTime).toContain('T');
@@ -1746,7 +1757,7 @@ describe('event registration scan handlers', () => {
           guestCheckInCount: 2,
           registrationId: 'registration-1',
         },
-        { headers: {} } as never,
+        emptyHandlerOptions,
       ).pipe(Effect.provide(createContextLayer({ database })));
 
       expect(result.alreadyCheckedIn).toBe(false);
@@ -1774,9 +1785,10 @@ describe('event registration scan handlers', () => {
 
         const error = yield* eventRegistrationHandlers[
           'events.checkInRegistration'
-        ]({ guestCheckInCount: -1, registrationId: 'registration-1' }, {
-          headers: {},
-        } as never).pipe(
+        ](
+          { guestCheckInCount: -1, registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(
           Effect.flip,
           Effect.provide(
             createContextLayer({
@@ -1834,9 +1846,10 @@ describe('event registration scan handlers', () => {
 
         const error = yield* eventRegistrationHandlers[
           'events.checkInRegistration'
-        ]({ guestCheckInCount: 2, registrationId: 'registration-1' }, {
-          headers: {},
-        } as never).pipe(
+        ](
+          { guestCheckInCount: 2, registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(
           Effect.flip,
           Effect.provide(
             createContextLayer({
@@ -1880,9 +1893,10 @@ describe('event registration scan handlers', () => {
 
       const error = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
-      ]({ guestCheckInCount: 0, registrationId: 'registration-1' }, {
-        headers: {},
-      } as never).pipe(
+      ](
+        { guestCheckInCount: 0, registrationId: 'registration-1' },
+        emptyHandlerOptions,
+      ).pipe(
         Effect.flip,
         Effect.provide(
           createContextLayer({
@@ -1933,9 +1947,10 @@ describe('event registration scan handlers', () => {
 
       const result = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
-      ]({ guestCheckInCount: 0, registrationId: 'registration-1' }, {
-        headers: {},
-      } as never).pipe(Effect.provide(createContextLayer({ database })));
+      ](
+        { guestCheckInCount: 0, registrationId: 'registration-1' },
+        emptyHandlerOptions,
+      ).pipe(Effect.provide(createContextLayer({ database })));
 
       expect(result).toEqual({
         alreadyCheckedIn: true,
@@ -1979,12 +1994,10 @@ describe('event registration scan handlers', () => {
 
       const error = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
-      ]({ guestCheckInCount: 0, registrationId: 'registration-1' }, {
-        headers: {},
-      } as never).pipe(
-        Effect.flip,
-        Effect.provide(createContextLayer({ database })),
-      );
+      ](
+        { guestCheckInCount: 0, registrationId: 'registration-1' },
+        emptyHandlerOptions,
+      ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
@@ -2020,9 +2033,10 @@ describe('event registration scan handlers', () => {
 
         const error = yield* eventRegistrationHandlers[
           'events.checkInRegistration'
-        ]({ guestCheckInCount: 0, registrationId: 'registration-1' }, {
-          headers: {},
-        } as never).pipe(
+        ](
+          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(
           Effect.flip,
           Effect.provide(
             createContextLayer({

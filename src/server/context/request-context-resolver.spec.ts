@@ -217,6 +217,23 @@ describe('request-context-resolver', () => {
     }
   });
 
+  it('does not resolve e2e global-admin permissions when NODE_ENV is unset', () => {
+    vi.stubEnv('NODE_ENV');
+    vi.stubEnv('E2E_GLOBAL_ADMIN_AUTH0_IDS', 'auth0|global-admin');
+    try {
+      expect(
+        resolveRequestPermissions({
+          oidcUser: {
+            sub: 'auth0|global-admin',
+          },
+          user: undefined,
+        }),
+      ).not.toContain('globalAdmin:manageTenants');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it.effect('does not resolve a tenant user without a tenant assignment', () =>
     Effect.gen(function* () {
       const attributesExecute = vi.fn(() => Effect.succeed([]));
