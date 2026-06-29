@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "986c3769ec4b",
+  "session_id": "019eee04-186b-7b81-9d8d-04cc08e75aff",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-29T15:52:19.174143Z",
+  "branch": "codex/pr62-split-02-esncard-coverage",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "3d272b460050",
+  "token_usage": {
+    "input_tokens": 7959241,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 181803648,
+    "output_tokens": 392510,
+    "api_call_count": 1363
+  },
+  "session_metrics": {
+    "turn_count": 10
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
