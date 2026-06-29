@@ -3,39 +3,22 @@
   "checkpoint_id": "2d5244a05119",
   "session_id": "019eee04-186b-7b81-9d8d-04cc08e75aff",
   "strategy": "manual-commit",
-  "created_at": "2026-06-29T16:21:25.228829Z",
+  "created_at": "2026-06-29T16:25:46.092592Z",
   "branch": "codex/pr62-split-04-playwright-title-metadata",
   "checkpoints_count": 1,
-  "files_touched": [
-    "src/app/core/guards/permission.guard.ts",
-    "src/app/scanning/handle-registration/handle-registration.component.html",
-    "src/app/scanning/handle-registration/handle-registration.component.ts",
-    "src/app/templates/template-create-event/template-create-event.component.ts"
-  ],
+  "files_touched": [],
   "agent": "Codex",
   "model": "gpt-5.5",
-  "turn_id": "a9fe110afb8e",
+  "turn_id": "f4071471410c",
   "token_usage": {
-    "input_tokens": 8087968,
+    "input_tokens": 8192711,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 191988096,
-    "output_tokens": 404271,
-    "api_call_count": 1413
+    "cache_read_tokens": 193958912,
+    "output_tokens": 412856,
+    "api_call_count": 1437
   },
   "session_metrics": {
     "turn_count": 13
-  },
-  "initial_attribution": {
-    "calculated_at": "2026-06-29T16:21:24.749582Z",
-    "agent_lines": 0,
-    "agent_removed": 0,
-    "human_added": 7816,
-    "human_modified": 70,
-    "human_removed": 0,
-    "total_committed": 7816,
-    "total_lines_changed": 8277,
-    "agent_percentage": 0,
-    "metric_version": 2
   },
   "prompt_attributions": [
     {
