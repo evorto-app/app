@@ -12,7 +12,10 @@ import { FieldTree, form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  faArrowLeft,
+  faCircleInfo,
+} from '@fortawesome/duotone-regular-svg-icons';
 import {
   injectMutation,
   injectQuery,
@@ -28,7 +31,22 @@ import {
   eventGeneralFormSchema,
 } from '../../shared/components/forms/event-general-form/event-general-form.schema';
 import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
-import { createRegistrationOptionFormModel } from '../../shared/components/forms/registration-option-form/registration-option-form.schema';
+import { createEventFormModelFromTemplate } from './template-create-event.mapper';
+
+export const templateCreateEventSubmitDisabled = ({
+  formInvalid,
+  formSubmitting,
+  mutationPending,
+}: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean => formInvalid || formSubmitting || mutationPending;
+
+export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
+  addOnCount > 0
+    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies registration options now; event-specific add-on sales are not available yet.`
+    : null;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,6 +60,14 @@ import { createRegistrationOptionFormModel } from '../../shared/components/forms
   templateUrl: './template-create-event.component.html',
 })
 export class TemplateCreateEventComponent {
+  protected readonly templateId = input.required<string>();
+  private readonly rpc = AppRpc.injectClient();
+  protected readonly templateQuery = injectQuery(() =>
+    this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
+  );
+  protected readonly addOnCopyNotice = computed(() =>
+    templateAddOnCopyNotice(this.templateQuery.data()?.addOns.length ?? 0),
+  );
   protected readonly createEventModel = signal<EventGeneralFormModel>(
     createEventGeneralFormModel(),
   );
@@ -49,7 +75,6 @@ export class TemplateCreateEventComponent {
     this.createEventModel,
     eventGeneralFormSchema,
   );
-  private readonly rpc = AppRpc.injectClient();
   protected readonly createEventMutation = injectMutation(() =>
     this.rpc.events.create.mutationOptions(),
   );
@@ -65,11 +90,10 @@ export class TemplateCreateEventComponent {
     );
   });
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly faCircleInfo = faCircleInfo;
   protected readonly registrationModes = ['fcfs'] as const;
-  protected readonly templateId = input.required<string>();
-  protected readonly templateQuery = injectQuery(() =>
-    this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
-  );
+  protected readonly templateCreateEventSubmitDisabled =
+    templateCreateEventSubmitDisabled;
   private readonly initializedTemplateId = signal<null | string>(null);
   private readonly lastStart = signal<DateTime | null>(null);
 
@@ -86,36 +110,7 @@ export class TemplateCreateEventComponent {
         untracked(() => this.createEventForm.start().value()),
       );
       this.createEventModel.set(
-        createEventGeneralFormModel({
-          description: template.description,
-          end: startDateTime,
-          icon: template.icon,
-          location: template.location ?? null,
-          registrationOptions: template.registrationOptions.map((option) =>
-            createRegistrationOptionFormModel({
-              closeRegistrationTime: startDateTime.minus({
-                hours: option.closeRegistrationOffset,
-              }),
-              description: option.description ?? '',
-              // Preserve source option id only for local form tracking.
-              id: option.id,
-              isPaid: option.isPaid,
-              openRegistrationTime: startDateTime.minus({
-                hours: option.openRegistrationOffset,
-              }),
-              organizingRegistration: option.organizingRegistration,
-              price: option.price,
-              registeredDescription: option.registeredDescription ?? '',
-              registrationMode: 'fcfs',
-              roleIds: [...(option.roleIds ?? [])],
-              spots: option.spots,
-              stripeTaxRateId: option.stripeTaxRateId ?? null,
-              title: option.title,
-            }),
-          ),
-          start: startDateTime,
-          title: template.title,
-        }),
+        createEventFormModelFromTemplate(template, startDateTime),
       );
       this.lastStart.set(startDateTime);
       this.initializedTemplateId.set(template.id);
@@ -162,6 +157,16 @@ export class TemplateCreateEventComponent {
 
   async onSubmit(event: Event) {
     event.preventDefault();
+    if (
+      templateCreateEventSubmitDisabled({
+        formInvalid: this.createEventForm().invalid(),
+        formSubmitting: this.createEventForm().submitting(),
+        mutationPending: this.createEventMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     await submit(this.createEventForm, async (formState) => {
       const formValue = formState().value();
       if (!formValue.icon) {
@@ -177,6 +182,10 @@ export class TemplateCreateEventComponent {
               .toJSDate()
               .toISOString(),
             description: option.description?.trim() ? option.description : null,
+            esnCardDiscountedPrice:
+              option.esnCardDiscountedPrice === ''
+                ? null
+                : option.esnCardDiscountedPrice,
             isPaid: option.isPaid,
             openRegistrationTime: this.toDateTime(option.openRegistrationTime)
               .toJSDate()

@@ -1,3 +1,5 @@
+import type { EventReviewStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -6,6 +8,7 @@ import {
   inject,
   input,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
@@ -24,7 +27,7 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { convert } from 'html-to-text';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, interval, map } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -55,6 +58,27 @@ export const registrationOptionsState = (event: {
     ? 'hiddenByEligibility'
     : 'none';
 };
+
+export const eventReviewActionDisabled = ({
+  canReview,
+  mutationPending,
+  status,
+}: {
+  canReview: boolean;
+  mutationPending: boolean;
+  status: EventReviewStatus;
+}): boolean => !canReview || status !== 'PENDING_REVIEW' || mutationPending;
+
+export const eventSubmitForReviewActionDisabled = ({
+  canEdit,
+  mutationPending,
+  status,
+}: {
+  canEdit: boolean;
+  mutationPending: boolean;
+  status: EventReviewStatus;
+}): boolean =>
+  !canEdit || (status !== 'DRAFT' && status !== 'REJECTED') || mutationPending;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -157,12 +181,19 @@ export class EventDetailsComponent {
     }
     return event.icon.iconColor;
   });
+  protected readonly eventReviewActionDisabled = eventReviewActionDisabled;
+  protected readonly eventSubmitForReviewActionDisabled =
+    eventSubmitForReviewActionDisabled;
   protected readonly faArrowLeft = faArrowLeft;
 
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  private readonly currentTime = toSignal(
+    interval(60_000).pipe(map(() => new Date())),
+    { initialValue: new Date() },
+  );
   protected readonly registrationCancellationClosed = computed(() => {
     const event = this.eventQuery.data();
-    return event ? new Date(event.start) <= new Date() : false;
+    return event ? new Date(event.start) <= this.currentTime() : false;
   });
   protected readonly registrationOptionsState = computed(() => {
     const event = this.eventQuery.data();
@@ -220,6 +251,18 @@ export class EventDetailsComponent {
   }
 
   protected async reviewEvent(approved: boolean): Promise<void> {
+    const event = this.eventQuery.data();
+    if (
+      !event ||
+      eventReviewActionDisabled({
+        canReview: this.canReview(),
+        mutationPending: this.reviewMutation.isPending(),
+        status: event.status,
+      })
+    ) {
+      return;
+    }
+
     try {
       if (approved) {
         await this.reviewMutation.mutateAsync({
@@ -254,6 +297,18 @@ export class EventDetailsComponent {
   }
 
   protected async submitForReview(): Promise<void> {
+    const event = this.eventQuery.data();
+    if (
+      !event ||
+      eventSubmitForReviewActionDisabled({
+        canEdit: this.canEdit(),
+        mutationPending: this.submitForReviewMutation.isPending(),
+        status: event.status,
+      })
+    ) {
+      return;
+    }
+
     try {
       const dialogReference = this.dialog.open(SubmitEventDialogComponent);
       const confirmed = await firstValueFrom(dialogReference.afterClosed());

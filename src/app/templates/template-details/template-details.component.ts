@@ -1,4 +1,6 @@
-import { CommonModule, TitleCasePipe } from '@angular/common';
+import type { TemplateFindOneRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
+
+import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,6 +19,7 @@ import {
   faEllipsisVertical,
   faPlus,
 } from '@fortawesome/duotone-regular-svg-icons';
+import { registrationModeLabel } from '@shared/registration-modes';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -24,6 +27,26 @@ import { getErrorMessage } from '../../core/error-message';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-start-offset.pipe';
+
+export const templateAddonPurchaseTiming = (
+  addOn: TemplateFindOneRecord['addOns'][number],
+): string => {
+  const windows = [
+    addOn.allowPurchaseDuringRegistration ? 'During registration' : null,
+    addOn.allowPurchaseBeforeEvent ? 'Before event' : null,
+    addOn.allowPurchaseDuringEvent ? 'During event' : null,
+  ].filter((window): window is string => window !== null);
+
+  return windows.length > 0 ? windows.join(', ') : 'Unavailable';
+};
+
+export const templateRegistrationOptionTitle = (
+  template: TemplateFindOneRecord,
+  registrationOptionId: string,
+): string =>
+  template.registrationOptions.find(
+    (option) => option.id === registrationOptionId,
+  )?.title ?? 'Unknown registration option';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,7 +58,6 @@ import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-sta
     FontAwesomeModule,
     MatMenuModule,
     IconComponent,
-    TitleCasePipe,
     MatChipsModule,
     RegistrationStartOffsetPipe,
     PriceWithTaxComponent,
@@ -50,7 +72,9 @@ export class TemplateDetailsComponent {
   protected readonly faClockFour = faClockFour;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faPlus = faPlus;
+  protected readonly registrationModeLabel = registrationModeLabel;
 
+  protected readonly registrationOptionTitle = templateRegistrationOptionTitle;
   private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>
     this.rpc.taxRates.listActive.queryOptions(),
@@ -59,7 +83,10 @@ export class TemplateDetailsComponent {
     const rates = this.taxRatesQuery.data() ?? [];
     return Object.fromEntries(rates.map((r) => [r.stripeTaxRateId, r]));
   });
+  protected readonly templateAddonPurchaseTiming = templateAddonPurchaseTiming;
+
   protected readonly templateId = input.required<string>();
+
   protected readonly templateQuery = injectQuery(() =>
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );

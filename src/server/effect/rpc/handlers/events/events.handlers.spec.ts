@@ -14,6 +14,7 @@ describe('eventHandlers composition', () => {
       'events.eventList',
       'events.findOne',
       'events.findOneForEdit',
+      'events.findTransferTargets',
       'events.getOrganizeOverview',
       'events.getPendingReviews',
       'events.getRegistrationStatus',
@@ -22,6 +23,8 @@ describe('eventHandlers composition', () => {
       'events.registrationScanned',
       'events.reviewEvent',
       'events.submitForReview',
+      'events.transferEventRegistration',
+      'events.transferMyRegistration',
       'events.update',
       'events.updateListing',
     ]);

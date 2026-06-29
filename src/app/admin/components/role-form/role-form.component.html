@@ -58,7 +58,7 @@
                 @if (getDependentPermissions(permission.key).length > 0) {
                   <div class="text-on-surface-variant ml-6 text-xs">
                     Includes:
-                    {{ getDependentPermissions(permission.key).join(", ") }}
+                    {{ getDependentPermissionLabels(permission.key) }}
                   </div>
                 }
               </div>
@@ -71,7 +71,13 @@
   <button
     type="submit"
     mat-button
-    [disabled]="form().invalid() || form().submitting() || isSubmitting()"
+    [disabled]="
+      roleFormSubmitDisabled({
+        formInvalid: form().invalid(),
+        formSubmitting: form().submitting(),
+        mutationPending: isSubmitting(),
+      })
+    "
   >
     {{ submitLabel() }}
   </button>

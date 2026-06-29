@@ -6,6 +6,7 @@ import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import {
+  addonToTemplateRegistrationOptions,
   eventTemplates,
   templateRegistrationOptionDiscounts,
 } from '../../../../db/schema';
@@ -17,8 +18,22 @@ const databaseEffect = <A>(
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
-const normalizeTemplateFindOneRecord = (
+export const normalizeTemplateFindOneRecord = (
   template: {
+    addOns: readonly {
+      allowMultiple: boolean;
+      allowPurchaseBeforeEvent: boolean;
+      allowPurchaseDuringEvent: boolean;
+      allowPurchaseDuringRegistration: boolean;
+      description: null | string;
+      id: string;
+      isPaid: boolean;
+      maxQuantityPerUser: number;
+      price: number;
+      stripeTaxRateId: null | string;
+      title: string;
+      totalAvailableQuantity: number;
+    }[];
     categoryId: string;
     description: string;
     icon: typeof eventTemplates.$inferSelect.icon;
@@ -44,7 +59,32 @@ const normalizeTemplateFindOneRecord = (
   },
   rolesById: ReadonlyMap<string, { id: string; name: string }>,
   esnDiscountByOptionId: ReadonlyMap<string, number>,
+  addonRegistrationOptionsByAddonId: ReadonlyMap<
+    string,
+    {
+      quantity: number;
+      registrationOptionId: string;
+    }[]
+  >,
 ): {
+  addOns: {
+    allowMultiple: boolean;
+    allowPurchaseBeforeEvent: boolean;
+    allowPurchaseDuringEvent: boolean;
+    allowPurchaseDuringRegistration: boolean;
+    description: null | string;
+    id: string;
+    isPaid: boolean;
+    maxQuantityPerUser: number;
+    price: number;
+    registrationOptions: {
+      quantity: number;
+      registrationOptionId: string;
+    }[];
+    stripeTaxRateId: null | string;
+    title: string;
+    totalAvailableQuantity: number;
+  }[];
   categoryId: string;
   description: string;
   icon: typeof eventTemplates.$inferSelect.icon;
@@ -70,6 +110,21 @@ const normalizeTemplateFindOneRecord = (
   }[];
   title: string;
 } => ({
+  addOns: template.addOns.map((addOn) => ({
+    allowMultiple: addOn.allowMultiple,
+    allowPurchaseBeforeEvent: addOn.allowPurchaseBeforeEvent,
+    allowPurchaseDuringEvent: addOn.allowPurchaseDuringEvent,
+    allowPurchaseDuringRegistration: addOn.allowPurchaseDuringRegistration,
+    description: addOn.description ?? null,
+    id: addOn.id,
+    isPaid: addOn.isPaid,
+    maxQuantityPerUser: addOn.maxQuantityPerUser,
+    price: addOn.price,
+    registrationOptions: addonRegistrationOptionsByAddonId.get(addOn.id) ?? [],
+    stripeTaxRateId: addOn.stripeTaxRateId ?? null,
+    title: addOn.title,
+    totalAvailableQuantity: addOn.totalAvailableQuantity,
+  })),
   categoryId: template.categoryId,
   description: template.description,
   icon: template.icon,
@@ -210,11 +265,72 @@ export const templateHandlers = {
           discount.discountedPrice,
         ]),
       );
+      const addOns = yield* databaseEffect((database) =>
+        database.query.templateEventAddons.findMany({
+          columns: {
+            allowMultiple: true,
+            allowPurchaseBeforeEvent: true,
+            allowPurchaseDuringEvent: true,
+            allowPurchaseDuringRegistration: true,
+            description: true,
+            id: true,
+            isPaid: true,
+            maxQuantityPerUser: true,
+            price: true,
+            stripeTaxRateId: true,
+            title: true,
+            totalAvailableQuantity: true,
+          },
+          orderBy: { createdAt: 'asc' },
+          where: {
+            templateId: id,
+          },
+        }),
+      );
+      const addOnIds = addOns.map((addOn) => addOn.id);
+      const addonRegistrationOptions =
+        addOnIds.length > 0
+          ? yield* databaseEffect((database) =>
+              database
+                .select({
+                  addonId: addonToTemplateRegistrationOptions.addonId,
+                  quantity: addonToTemplateRegistrationOptions.quantity,
+                  registrationOptionId:
+                    addonToTemplateRegistrationOptions.registrationOptionId,
+                })
+                .from(addonToTemplateRegistrationOptions)
+                .where(
+                  inArray(addonToTemplateRegistrationOptions.addonId, addOnIds),
+                ),
+            )
+          : [];
+      const addonRegistrationOptionsByAddonId = new Map<
+        string,
+        {
+          quantity: number;
+          registrationOptionId: string;
+        }[]
+      >();
+      for (const addonRegistrationOption of addonRegistrationOptions) {
+        const existing =
+          addonRegistrationOptionsByAddonId.get(
+            addonRegistrationOption.addonId,
+          ) ?? [];
+        existing.push({
+          quantity: addonRegistrationOption.quantity,
+          registrationOptionId: addonRegistrationOption.registrationOptionId,
+        });
+        addonRegistrationOptionsByAddonId.set(
+          addonRegistrationOption.addonId,
+          existing,
+        );
+      }
 
       return normalizeTemplateFindOneRecord(
-        template,
+        { ...template, addOns },
         rolesById,
         esnDiscountByOptionId,
+        addonRegistrationOptionsByAddonId,
       );
     }),
   'templates.groupedByCategory': (_payload, _options) =>

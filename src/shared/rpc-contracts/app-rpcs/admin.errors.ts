@@ -1,5 +1,5 @@
 import {
-  RpcBadRequestError,
+  BadRequestForbiddenInternalUnauthorizedRpcError,
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
@@ -29,10 +29,8 @@ export class AdminTenantNotFoundError extends Schema.TaggedErrorClass<AdminTenan
 ) {}
 
 export const AdminTenantRpcError = Schema.Union([
-  RpcBadRequestError,
-  RpcForbiddenError,
+  BadRequestForbiddenInternalUnauthorizedRpcError,
   AdminTenantNotFoundError,
-  RpcUnauthorizedError,
 ]);
 export type AdminTenantRpcError = Schema.Schema.Type<
   typeof AdminTenantRpcError

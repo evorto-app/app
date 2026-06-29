@@ -1,4 +1,4 @@
-export type RegistrationMode = 'application' | 'fcfs' | 'random';
+import type { RegistrationMode } from '@shared/registration-modes';
 
 export interface TemplateRegistrationFormModel {
   closeRegistrationOffset: number;
@@ -6,7 +6,7 @@ export interface TemplateRegistrationFormModel {
   esnCardDiscountedPrice: '' | number;
   isPaid: boolean;
   openRegistrationOffset: number;
-  price: number;
+  price: '' | number;
   registeredDescription: string;
   registrationMode: RegistrationMode;
   roleIds: string[];
@@ -23,9 +23,10 @@ export type TemplateRegistrationFormOverrides = Partial<
 
 export type TemplateRegistrationSubmitData = Omit<
   TemplateRegistrationFormModel,
-  'esnCardDiscountedPrice'
+  'esnCardDiscountedPrice' | 'price'
 > & {
   esnCardDiscountedPrice: null | number;
+  price: number;
 };
 
 export const toTemplateRegistrationSubmitData = (
@@ -42,7 +43,8 @@ export const toTemplateRegistrationSubmitData = (
       : null,
   isPaid: registration.isPaid,
   openRegistrationOffset: registration.openRegistrationOffset,
-  price: registration.isPaid ? registration.price : 0,
+  price:
+    registration.isPaid && registration.price !== '' ? registration.price : 0,
   registeredDescription: registration.registeredDescription?.trim()
     ? registration.registeredDescription
     : '',
@@ -100,3 +102,5 @@ export const mergeTemplateRegistrationFormOverrides = (
     title: overrides.title ?? base.title,
   });
 };
+
+export { type RegistrationMode } from '@shared/registration-modes';

@@ -42,6 +42,7 @@ import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
 import { applySecurityHeaders } from './server/http/security-headers';
 import { handleStripeWebhookWebRequest } from './server/http/stripe-webhook.web-handler';
+import { handleTenantBrandAssetWebRequest } from './server/http/tenant-brand-asset.web-handler';
 import { stripeClientLayer } from './server/stripe-client';
 
 const angularApp = new AngularAppEngine();
@@ -154,6 +155,42 @@ const extractRegistrationId = (
   }
 };
 
+const decodePathSegment = (value: string): string | undefined => {
+  try {
+    const decoded = decodeURIComponent(value);
+    return decoded.includes('/') || decoded.includes('\\')
+      ? undefined
+      : decoded;
+  } catch {
+    return;
+  }
+};
+
+const extractTenantBrandAsset = (
+  request: HttpServerRequest.HttpServerRequest,
+) => {
+  const requestUrl = toAbsoluteRequestUrl(request);
+  const match = /^\/tenant-assets\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(
+    requestUrl.pathname,
+  );
+  if (!match?.[1] || !match[2] || !match[3]) {
+    return;
+  }
+
+  const tenantId = decodePathSegment(match[1]);
+  const kind = decodePathSegment(match[2]);
+  const fileName = decodePathSegment(match[3]);
+  if (!tenantId || !kind || !fileName) {
+    return;
+  }
+
+  return {
+    fileName,
+    kind,
+    tenantId,
+  };
+};
+
 const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const authSession = yield* loadAuthSession(request);
@@ -253,6 +290,22 @@ const qrCodeRouteLayer = HttpLayerRouter.add(
     }),
 );
 
+const tenantBrandAssetRouteLayer = HttpLayerRouter.add(
+  'GET',
+  '/tenant-assets/:tenantId/:kind/:fileName',
+  (request) =>
+    Effect.gen(function* () {
+      const asset = extractTenantBrandAsset(request);
+      if (!asset) {
+        return HttpServerResponse.text('Asset not found', { status: 404 });
+      }
+
+      const webResponse = yield* handleTenantBrandAssetWebRequest(asset);
+
+      return HttpServerResponse.fromWeb(webResponse);
+    }),
+);
+
 const stripeWebhookRouteLayer = HttpLayerRouter.add(
   'POST',
   '/webhooks/stripe',
@@ -321,6 +374,7 @@ const routesLayer = Layer.mergeAll(
   logoutRouteLayer,
   forwardLoginRouteLayer,
   qrCodeRouteLayer,
+  tenantBrandAssetRouteLayer,
   stripeWebhookRouteLayer,
   rpcRouteLayer,
   staticAndAngularCatchAllLayer,

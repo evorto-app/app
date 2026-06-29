@@ -1,3 +1,5 @@
+import type { AdminTenantBrandAssetKind } from '@shared/rpc-contracts/app-rpcs/admin.rpcs';
+
 import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -16,7 +18,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowLeft, faUpload } from '@fortawesome/duotone-regular-svg-icons';
 import {
   DEFAULT_RECEIPT_COUNTRIES,
   RECEIPT_COUNTRY_OPTIONS,
@@ -47,6 +49,37 @@ import {
   requiresLocaleMoneyRuntimeReload,
 } from './general-settings.payload';
 
+export const generalSettingsSaveDisabled = ({
+  formInvalid,
+  formSubmitting,
+  mutationPending,
+}: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean => formInvalid || formSubmitting || mutationPending;
+
+export const generalSettingsBrandAssetUploadDisabled = ({
+  mutationPending,
+  uploadingBrandAsset,
+}: {
+  mutationPending: boolean;
+  uploadingBrandAsset: AdminTenantBrandAssetKind | null;
+}): boolean => uploadingBrandAsset !== null || mutationPending;
+
+const tenantBrandAssetClientMaxSizeBytes = 5 * 1024 * 1024;
+const tenantBrandAssetClientMimeTypes = {
+  favicon: new Set([
+    'image/gif',
+    'image/jpeg',
+    'image/png',
+    'image/vnd.microsoft.icon',
+    'image/webp',
+    'image/x-icon',
+  ]),
+  logo: new Set(['image/gif', 'image/jpeg', 'image/png', 'image/webp']),
+} satisfies Record<AdminTenantBrandAssetKind, ReadonlySet<string>>;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -66,6 +99,23 @@ import {
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
+  private readonly rpc = AppRpc.injectClient();
+  protected readonly updateSettingsMutation = injectMutation(() =>
+    this.rpc.admin.tenant.updateSettings.mutationOptions(),
+  );
+  protected readonly uploadingBrandAsset =
+    signal<AdminTenantBrandAssetKind | null>(null);
+  private readonly uploadBrandAssetMutation = injectMutation(() =>
+    this.rpc.admin.tenant.uploadBrandAsset.mutationOptions(),
+  );
+  protected readonly brandAssetUploadDisabled = computed(() =>
+    generalSettingsBrandAssetUploadDisabled({
+      mutationPending:
+        this.uploadBrandAssetMutation.isPending() ||
+        this.updateSettingsMutation.isPending(),
+      uploadingBrandAsset: this.uploadingBrandAsset(),
+    }),
+  );
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly deferredTenantSettingsRows = deferredTenantSettingsRows;
   protected readonly settingsModel = signal<GeneralSettingsModel>({
@@ -93,6 +143,8 @@ export class GeneralSettingsComponent {
     () => this.settingsModel().esnCardEnabled,
   );
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly faUpload = faUpload;
+  protected readonly generalSettingsSaveDisabled = generalSettingsSaveDisabled;
   protected readonly localeOptions = supportedTenantLocales;
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
@@ -102,13 +154,9 @@ export class GeneralSettingsComponent {
   );
   protected readonly timezoneOptions = supportedTenantTimezones;
   private readonly document = inject(DOCUMENT);
+
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
-  private readonly rpc = AppRpc.injectClient();
-
-  private updateSettingsMutation = injectMutation(() =>
-    this.rpc.admin.tenant.updateSettings.mutationOptions(),
-  );
 
   constructor() {
     effect(() => {
@@ -147,6 +195,16 @@ export class GeneralSettingsComponent {
 
   async saveSettings(event: Event) {
     event.preventDefault();
+    if (
+      generalSettingsSaveDisabled({
+        formInvalid: this.settingsForm().invalid(),
+        formSubmitting: this.settingsForm().submitting(),
+        mutationPending: this.updateSettingsMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     await submit(this.settingsForm, async (formState) => {
       const settings = formState().value();
       const reloadRequired = requiresLocaleMoneyRuntimeReload(
@@ -188,5 +246,93 @@ export class GeneralSettingsComponent {
       ...current,
       esnCardEnabled: checked,
     }));
+  }
+
+  protected async uploadBrandAsset(
+    kind: AdminTenantBrandAssetKind,
+    event: Event,
+  ): Promise<void> {
+    const input = event.target as HTMLInputElement | undefined;
+    const file = input?.files?.[0] ?? null;
+    if (!file) {
+      return;
+    }
+    if (this.brandAssetUploadDisabled()) {
+      if (input) {
+        input.value = '';
+      }
+      return;
+    }
+    if (!tenantBrandAssetClientMimeTypes[kind].has(file.type)) {
+      this.notifications.showError(
+        kind === 'favicon'
+          ? 'Favicons must be PNG, JPEG, WebP, GIF, or ICO files'
+          : 'Logos must be PNG, JPEG, WebP, or GIF files',
+      );
+      if (input) {
+        input.value = '';
+      }
+      return;
+    }
+    if (file.size <= 0 || file.size > tenantBrandAssetClientMaxSizeBytes) {
+      this.notifications.showError(
+        'Brand asset file must be between 1 byte and 5 MB',
+      );
+      if (input) {
+        input.value = '';
+      }
+      return;
+    }
+
+    this.uploadingBrandAsset.set(kind);
+    try {
+      const uploaded = await this.uploadBrandAssetMutation.mutateAsync({
+        fileBase64: await this.readFileAsBase64(file),
+        fileName: file.name,
+        fileSizeBytes: file.size,
+        kind,
+        mimeType: file.type,
+      });
+      this.settingsModel.update((current) => ({
+        ...current,
+        [kind === 'logo' ? 'logoUrl' : 'faviconUrl']: uploaded.assetUrl,
+      }));
+      this.notifications.showSuccess(
+        kind === 'logo'
+          ? 'Logo uploaded. Save settings to publish it.'
+          : 'Favicon uploaded. Save settings to publish it.',
+      );
+    } catch (error) {
+      this.notifications.showError(
+        getErrorMessage(error, 'Failed to upload brand asset'),
+      );
+    } finally {
+      this.uploadingBrandAsset.set(null);
+      if (input) {
+        input.value = '';
+      }
+    }
+  }
+
+  private async readFileAsBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener('error', () => {
+        reject(new Error('Failed to read brand asset'));
+      });
+      reader.addEventListener('load', () => {
+        if (typeof reader.result !== 'string') {
+          reject(new Error('Invalid brand asset payload'));
+          return;
+        }
+        const commaIndex = reader.result.indexOf(',');
+        if (commaIndex === -1) {
+          reject(new Error('Invalid brand asset data URL'));
+          return;
+        }
+        resolve(reader.result.slice(commaIndex + 1));
+      });
+      reader.readAsDataURL(file);
+    });
   }
 }

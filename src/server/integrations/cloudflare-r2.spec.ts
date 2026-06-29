@@ -3,6 +3,7 @@ import { ConfigProvider, Effect } from 'effect';
 
 import { objectStorageConfig } from '../config/object-storage-config';
 import {
+  getObjectFromR2,
   getSignedReceiptObjectUrlFromR2,
   uploadReceiptOriginalToR2,
 } from './cloudflare-r2';
@@ -101,6 +102,7 @@ describe('cloudflare-r2', () => {
           file(key: string) {
             captured.key = key;
             return {
+              arrayBuffer: vi.fn(async () => new ArrayBuffer(0)),
               presign,
               write,
             };
@@ -141,6 +143,7 @@ describe('cloudflare-r2', () => {
       class FakeS3Client {
         file() {
           return {
+            arrayBuffer: vi.fn(async () => new ArrayBuffer(0)),
             presign,
             write: vi.fn(async () => 0),
           };
@@ -169,6 +172,35 @@ describe('cloudflare-r2', () => {
         expiresIn: 30,
         method: 'GET',
       });
+    }),
+  );
+
+  it.effect('reads objects with Bun.S3Client', () =>
+    Effect.gen(function* () {
+      const arrayBuffer = vi.fn(async () => new Uint8Array([4, 5, 6]).buffer);
+      const captured = {
+        key: '',
+      };
+
+      class FakeS3Client {
+        file(key: string) {
+          captured.key = key;
+          return {
+            arrayBuffer,
+            presign: vi.fn(() => 'https://signed.example.com/object'),
+            write: vi.fn(async () => 0),
+          };
+        }
+      }
+
+      bunRuntime.S3Client = FakeS3Client;
+
+      const result = yield* getObjectFromR2({
+        key: 'tenant-assets/tenant-1/logo/logo.png',
+      }).pipe(Effect.provide(objectStorageProviderLayer));
+
+      expect(captured.key).toBe('tenant-assets/tenant-1/logo/logo.png');
+      expect(result).toEqual(new Uint8Array([4, 5, 6]));
     }),
   );
 });

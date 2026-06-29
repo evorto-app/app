@@ -1,8 +1,13 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { FieldTree, FormField } from '@angular/forms/signals';
+import {
+  MatCheckboxChange,
+  MatCheckboxModule,
+} from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { registrationModeLabel } from '@shared/registration-modes';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
@@ -20,6 +25,7 @@ import {
     DurationSelectorComponent,
     EditorComponent,
     FormField,
+    MatCheckboxModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -34,6 +40,7 @@ export class TemplateRegistrationOptionFormComponent {
     input.required<FieldTree<TemplateRegistrationFormModel>>();
   public readonly registrationModes =
     input.required<readonly RegistrationMode[]>();
+  protected readonly registrationModeLabel = registrationModeLabel;
 
   private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>
@@ -47,15 +54,16 @@ export class TemplateRegistrationOptionFormComponent {
     field.markAsDirty();
   }
 
-  protected setIsPaid(event: Event): void {
+  protected setIsPaid(event: MatCheckboxChange): void {
     const field = this.registrationForm().isPaid();
-    field.value.set((event.target as HTMLInputElement).checked);
+    field.value.set(event.checked);
     field.markAsDirty();
   }
 
   protected setPrice(event: Event): void {
+    const rawValue = (event.target as HTMLInputElement).value;
     const field = this.registrationForm().price();
-    field.value.set(Number((event.target as HTMLInputElement).value));
+    field.value.set(rawValue === '' ? '' : Number(rawValue));
     field.markAsDirty();
   }
 

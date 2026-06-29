@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  receiptReviewActionDisabled,
   receiptReviewNotificationNotice,
   receiptReviewSuccessMessage,
 } from './receipt-approval-detail.component';
@@ -22,5 +23,38 @@ describe('receiptReviewSuccessMessage', () => {
     expect(receiptReviewSuccessMessage('rejected')).toBe(
       'Receipt rejected. Notify the submitter manually.',
     );
+  });
+});
+
+describe('receiptReviewActionDisabled', () => {
+  it('blocks review writes while the form is invalid, the receipt is loading, or the mutation is pending', () => {
+    expect(
+      receiptReviewActionDisabled({
+        formInvalid: false,
+        mutationPending: false,
+        receiptPending: false,
+      }),
+    ).toBe(false);
+    expect(
+      receiptReviewActionDisabled({
+        formInvalid: true,
+        mutationPending: false,
+        receiptPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      receiptReviewActionDisabled({
+        formInvalid: false,
+        mutationPending: false,
+        receiptPending: true,
+      }),
+    ).toBe(true);
+    expect(
+      receiptReviewActionDisabled({
+        formInvalid: false,
+        mutationPending: true,
+        receiptPending: false,
+      }),
+    ).toBe(true);
   });
 });

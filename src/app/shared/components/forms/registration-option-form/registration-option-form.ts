@@ -1,4 +1,4 @@
-import { CurrencyPipe, TitleCasePipe } from '@angular/common';
+import { CurrencyPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -7,6 +7,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTimepickerModule } from '@angular/material/timepicker';
+import {
+  type RegistrationMode,
+  registrationModeLabel,
+} from '@shared/registration-modes';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../../../core/effect-rpc-angular-client';
@@ -26,7 +30,6 @@ import { RegistrationOptionFormModel } from './registration-option-form.schema';
     MatTimepickerModule,
     MatFormFieldModule,
     MatInputModule,
-    TitleCasePipe,
     RoleSelectComponent,
   ],
   selector: 'app-registration-option-form',
@@ -35,9 +38,10 @@ import { RegistrationOptionFormModel } from './registration-option-form.schema';
 })
 export class RegistrationOptionForm {
   public esnEnabled = input.required<boolean>();
-  public registrationModes = input.required<readonly string[]>();
+  public registrationModes = input.required<readonly RegistrationMode[]>();
   public registrationOptionForm =
     input.required<FieldTree<RegistrationOptionFormModel>>();
+  protected readonly registrationModeLabel = registrationModeLabel;
   private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>
     this.rpc.taxRates.listActive.queryOptions(),

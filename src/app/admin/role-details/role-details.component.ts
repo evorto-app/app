@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft, faEdit } from '@fortawesome/duotone-regular-svg-icons';
@@ -16,15 +15,8 @@ import { getErrorMessage } from '../../core/error-message';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    FontAwesomeModule,
-    MatButtonModule,
-    MatCardModule,
-    MatIconModule,
-    RouterLink,
-  ],
+  imports: [FontAwesomeModule, MatButtonModule, MatCardModule, RouterLink],
   selector: 'app-role-details',
-  standalone: true,
   templateUrl: './role-details.component.html',
 })
 export class RoleDetailsComponent {

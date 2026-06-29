@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   filterGlobalAdminTenants,
+  globalAdminStripeAccountLabel,
   globalAdminTenantListErrorMessage,
   globalAdminTenantRows,
 } from './tenant-list.rows';
@@ -14,6 +15,7 @@ const tenant = {
   id: 'tenant-1',
   locale: 'en-GB',
   name: 'Tenant',
+  stripeAccountId: 'acct_123',
   stripeConnected: true,
   theme: 'esn',
   timezone: 'Europe/Berlin',
@@ -28,7 +30,7 @@ describe('globalAdminTenantRows', () => {
       { label: 'Locale', value: 'en-GB' },
       { label: 'Currency', value: 'EUR' },
       { label: 'Timezone', value: 'Europe/Berlin' },
-      { label: 'Stripe account', value: 'Connected' },
+      { label: 'Stripe account', value: 'Connected (acct_123)' },
     ]);
   });
 
@@ -63,6 +65,32 @@ describe('globalAdminTenantRows', () => {
   });
 });
 
+describe('globalAdminStripeAccountLabel', () => {
+  it('includes the connected account id when available for support lookup', () => {
+    expect(
+      globalAdminStripeAccountLabel({
+        stripeAccountId: 'acct_123',
+        stripeConnected: true,
+      }),
+    ).toBe('Connected (acct_123)');
+  });
+
+  it('keeps connection state readable when the id is absent', () => {
+    expect(
+      globalAdminStripeAccountLabel({
+        stripeAccountId: null,
+        stripeConnected: true,
+      }),
+    ).toBe('Connected');
+    expect(
+      globalAdminStripeAccountLabel({
+        stripeAccountId: 'acct_123',
+        stripeConnected: false,
+      }),
+    ).toBe('Not connected');
+  });
+});
+
 describe('filterGlobalAdminTenants', () => {
   it('returns all tenants for blank searches', () => {
     expect(filterGlobalAdminTenants([tenant], '   ')).toEqual([tenant]);
@@ -76,6 +104,7 @@ describe('filterGlobalAdminTenants', () => {
       id: 'tenant-2',
       locale: 'en-US',
       name: 'North',
+      stripeAccountId: null,
       stripeConnected: false,
       theme: 'evorto',
       timezone: 'Australia/Brisbane',
@@ -90,6 +119,9 @@ describe('filterGlobalAdminTenants', () => {
     expect(
       filterGlobalAdminTenants([tenant, secondTenant], 'not connected'),
     ).toEqual([secondTenant]);
+    expect(
+      filterGlobalAdminTenants([tenant, secondTenant], 'acct_123'),
+    ).toEqual([tenant]);
   });
 });
 

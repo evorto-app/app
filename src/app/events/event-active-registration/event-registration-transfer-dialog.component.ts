@@ -1,0 +1,80 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { email, form, FormField, required } from '@angular/forms/signals';
+import { MatButtonModule } from '@angular/material/button';
+import {
+  MatDialogActions,
+  MatDialogClose,
+  MatDialogContent,
+  MatDialogRef,
+  MatDialogTitle,
+} from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+
+export interface EventRegistrationTransferDialogResult {
+  targetEmail: string;
+}
+
+export const normalizeRegistrationTransferTargetEmail = (email: string) =>
+  email.trim().toLocaleLowerCase();
+
+@Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    FormField,
+    MatButtonModule,
+    MatDialogActions,
+    MatDialogClose,
+    MatDialogContent,
+    MatDialogTitle,
+    MatFormFieldModule,
+    MatInputModule,
+  ],
+  selector: 'app-event-registration-transfer-dialog',
+  templateUrl: './event-registration-transfer-dialog.component.html',
+})
+export class EventRegistrationTransferDialogComponent {
+  protected readonly errorMessage = signal('');
+  protected readonly transferModel = signal({ targetEmail: '' });
+  protected readonly transferForm = form(this.transferModel, (schema) => {
+    email(schema.targetEmail);
+    required(schema.targetEmail);
+  });
+  protected readonly normalizedTargetEmail = computed(() =>
+    normalizeRegistrationTransferTargetEmail(
+      this.transferForm().value().targetEmail,
+    ),
+  );
+  protected readonly submitting = signal(false);
+  private readonly dialogRef = inject(
+    MatDialogRef<
+      EventRegistrationTransferDialogComponent,
+      EventRegistrationTransferDialogResult
+    >,
+  );
+
+  protected submit(event: Event): void {
+    event.preventDefault();
+    if (this.submitting()) {
+      return;
+    }
+    this.errorMessage.set('');
+
+    const targetEmail = this.normalizedTargetEmail();
+    if (!targetEmail || this.transferForm.targetEmail().invalid()) {
+      this.errorMessage.set(
+        'Enter a valid email address for the new participant.',
+      );
+      return;
+    }
+
+    this.submitting.set(true);
+    this.dialogRef.close({ targetEmail });
+  }
+}

@@ -107,3 +107,10 @@ export const mergeTemplateFormOverrides = (
     title: overrides.title ?? base.title,
   });
 };
+
+export const templateWriteSubmitDisabled = (input: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean =>
+  input.formInvalid || input.formSubmitting || input.mutationPending;

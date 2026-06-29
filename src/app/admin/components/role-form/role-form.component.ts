@@ -18,12 +18,23 @@ import {
   Permission,
   PERMISSION_DEPENDENCIES,
   PERMISSION_GROUPS,
+  permissionLabel,
 } from '../../../../shared/permissions/permissions';
 import {
   DEPENDENT_PERMISSION_PARENTS,
   RoleFormData,
   RoleFormModel,
 } from './role-form.schema';
+
+export const roleFormSubmitDisabled = ({
+  formInvalid,
+  formSubmitting,
+  mutationPending,
+}: {
+  formInvalid: boolean;
+  formSubmitting: boolean;
+  mutationPending: boolean;
+}): boolean => formInvalid || formSubmitting || mutationPending;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -43,7 +54,6 @@ export class RoleFormComponent {
   public readonly roleForm = input.required<FieldTree<RoleFormModel>>();
   public readonly submitLabel = input('Save role');
   protected formSubmit = output<RoleFormData>();
-
   protected readonly permissionGroups = PERMISSION_GROUPS;
 
   protected readonly groupStates = computed(() => {
@@ -63,6 +73,8 @@ export class RoleFormComponent {
     });
   });
 
+  protected readonly roleFormSubmitDisabled = roleFormSubmitDisabled;
+
   private readonly syncDependentPermissions = effect(() => {
     const form = this.roleForm();
     for (const permission of ALL_PERMISSIONS) {
@@ -79,6 +91,17 @@ export class RoleFormComponent {
 
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
+    const form = this.roleForm();
+    if (
+      roleFormSubmitDisabled({
+        formInvalid: form().invalid(),
+        formSubmitting: form().submitting(),
+        mutationPending: this.isSubmitting(),
+      })
+    ) {
+      return;
+    }
+
     await submit(this.roleForm(), async (formState) => {
       const formValue = formState().value();
       this.formSubmit.emit({
@@ -103,6 +126,12 @@ export class RoleFormComponent {
     }
   }
 
+  protected getDependentPermissionLabels(permission: Permission): string {
+    return this.getDependentPermissions(permission)
+      .map((dependentPermission) => permissionLabel(dependentPermission))
+      .join(', ');
+  }
+
   protected getDependentPermissions(permission: Permission): Permission[] {
     return PERMISSION_DEPENDENCIES[permission] || [];
   }
@@ -116,8 +145,10 @@ export class RoleFormComponent {
     );
     if (activeParents.length === 0) return '';
     if (activeParents.length === 1) {
-      return `Automatically granted by ${activeParents[0]}`;
+      return `Automatically granted by ${permissionLabel(activeParents[0])}`;
     }
-    return `Automatically granted by ${activeParents.join(', ')}`;
+    return `Automatically granted by ${activeParents
+      .map((permission) => permissionLabel(permission))
+      .join(', ')}`;
   }
 }

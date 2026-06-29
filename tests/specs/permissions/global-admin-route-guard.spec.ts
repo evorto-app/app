@@ -24,6 +24,29 @@ test.describe('global admin route guard allow path', () => {
       page.getByText('Read-only operational tenant review'),
     ).toBeVisible();
   });
+
+  test('allows global tenant admins to open tenant creation directly @permissions @globalAdmin', async ({
+    page,
+  }) => {
+    await page.goto('/global-admin/tenants/create');
+    await expect(page).toHaveURL(/\/global-admin\/tenants\/create/);
+    await expect(
+      page.getByRole('heading', { name: 'Create tenant' }),
+    ).toBeVisible();
+  });
+
+  test('allows global tenant admins to open tenant editing directly @permissions @globalAdmin', async ({
+    page,
+    tenant,
+  }) => {
+    await page.goto(`/global-admin/tenants/${tenant.id}/edit`);
+    await expect(page).toHaveURL(
+      new RegExp(`/global-admin/tenants/${tenant.id}/edit`),
+    );
+    await expect(
+      page.getByRole('heading', { name: 'Edit tenant' }),
+    ).toBeVisible();
+  });
 });
 
 test.describe('global admin route guard deny path', () => {
@@ -41,6 +64,17 @@ test.describe('global admin route guard deny path', () => {
     tenant,
   }) => {
     await page.goto(`/global-admin/tenants/${tenant.id}`);
+    await expect(page).toHaveURL(/\/403/);
+  });
+
+  test('denies direct tenant create and edit routes without global tenant-admin permission @permissions @globalAdmin', async ({
+    page,
+    tenant,
+  }) => {
+    await page.goto('/global-admin/tenants/create');
+    await expect(page).toHaveURL(/\/403/);
+
+    await page.goto(`/global-admin/tenants/${tenant.id}/edit`);
     await expect(page).toHaveURL(/\/403/);
   });
 });

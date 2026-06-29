@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  registrationCancellationActionDisabled,
   registrationCancellationCopy,
   registrationDeferredActionCopy,
+  registrationTransferActionCopy,
+  registrationTransferActionDisabled,
 } from './event-active-registration.component';
+import { normalizeRegistrationTransferTargetEmail } from './event-registration-transfer-dialog.component';
 
 describe('registrationCancellationCopy', () => {
   it('describes pending payment cancellation as releasing the reserved spot', () => {
@@ -115,10 +119,8 @@ describe('registrationCancellationCopy', () => {
 });
 
 describe('registrationDeferredActionCopy', () => {
-  it('keeps transfer and resale visibly unavailable for confirmed registrations', () => {
-    expect(registrationDeferredActionCopy({ status: 'CONFIRMED' })).toBe(
-      'Transfer/resale is not implemented yet. Contact the organizers if someone else should take your spot.',
-    );
+  it('does not show deferred transfer copy for confirmed registrations', () => {
+    expect(registrationDeferredActionCopy({ status: 'CONFIRMED' })).toBeNull();
   });
 
   it('keeps transfer and resale unavailable for pending or waitlist registrations', () => {
@@ -132,5 +134,116 @@ describe('registrationDeferredActionCopy', () => {
 
   it('does not show deferred transfer copy after cancellation', () => {
     expect(registrationDeferredActionCopy({ status: 'CANCELLED' })).toBeNull();
+  });
+});
+
+describe('registrationTransferActionCopy', () => {
+  it('exposes self-service transfer for eligible confirmed registrations', () => {
+    expect(
+      registrationTransferActionCopy({
+        status: 'CONFIRMED',
+        transferAvailable: true,
+      }),
+    ).toEqual({
+      buttonLabel: 'Transfer registration',
+      helperText:
+        'You can transfer this unpaid registration to another eligible tenant member by email.',
+    });
+  });
+
+  it('keeps paid or otherwise blocked confirmed transfers honest', () => {
+    expect(
+      registrationTransferActionCopy({
+        status: 'CONFIRMED',
+        transferAvailable: false,
+      }),
+    ).toEqual({
+      buttonLabel: 'Transfer unavailable',
+      helperText:
+        'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
+    });
+  });
+
+  it('does not expose transfer actions for pending or waitlist registrations', () => {
+    expect(
+      registrationTransferActionCopy({
+        status: 'PENDING',
+        transferAvailable: false,
+      }),
+    ).toBeNull();
+    expect(
+      registrationTransferActionCopy({
+        status: 'WAITLIST',
+        transferAvailable: false,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('active registration action guards', () => {
+  it('disables cancellation while cancellation or transfer writes are pending', () => {
+    expect(
+      registrationCancellationActionDisabled({
+        cancellationPending: true,
+        transferPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      registrationCancellationActionDisabled({
+        cancellationPending: false,
+        transferPending: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('allows cancellation only when no active registration action write is pending', () => {
+    expect(
+      registrationCancellationActionDisabled({
+        cancellationPending: false,
+        transferPending: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('disables transfer when unavailable or when cancellation or transfer writes are pending', () => {
+    expect(
+      registrationTransferActionDisabled({
+        cancellationPending: false,
+        transferAvailable: false,
+        transferPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      registrationTransferActionDisabled({
+        cancellationPending: true,
+        transferAvailable: true,
+        transferPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      registrationTransferActionDisabled({
+        cancellationPending: false,
+        transferAvailable: true,
+        transferPending: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('allows transfer only when available and no active registration action write is pending', () => {
+    expect(
+      registrationTransferActionDisabled({
+        cancellationPending: false,
+        transferAvailable: true,
+        transferPending: false,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('normalizeRegistrationTransferTargetEmail', () => {
+  it('normalizes participant-entered target emails before submit', () => {
+    expect(
+      normalizeRegistrationTransferTargetEmail(' Target@Example.COM '),
+    ).toBe('target@example.com');
   });
 });

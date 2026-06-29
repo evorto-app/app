@@ -99,6 +99,12 @@ export interface SeedTenantResult {
   };
   templateCategories: { id: string; tenantId: string; title: string }[];
   templates: {
+    addOns: {
+      id: string;
+      isPaid: boolean;
+      registrationOptionIds: string[];
+      title: string;
+    }[];
     description: string;
     icon: string;
     id: string;
@@ -286,6 +292,7 @@ export async function seedTenant(
     scenario: seededEvents.scenario,
     templateCategories,
     templates: templates.map((t) => ({
+      addOns: t.addOns,
       description: t.description,
       icon: t.icon.iconName,
       id: t.id,

@@ -16,7 +16,7 @@
         mat-icon-button
         [matMenuTriggerFor]="menu"
       >
-        <fa-icon [icon]="faEllipsisVertical" />
+        <fa-duotone-icon [icon]="faEllipsisVertical" />
       </button>
       <mat-menu #menu="matMenu">
         <a routerLink="categories" mat-menu-item>Manage categories</a>
@@ -85,6 +85,6 @@
   mat-fab
   extended
 >
-  <mat-icon svgIcon="faPlus" />
+  <fa-duotone-icon [icon]="faPlus" />
   Create template
 </a>

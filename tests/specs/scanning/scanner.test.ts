@@ -82,7 +82,7 @@ test.skip('scan confirmed registration records check-in', async ({
       page.getByRole('heading', { name: 'Registration scanned' }),
     ).toBeVisible();
     await page.getByLabel('Guests to check in now').fill('2');
-    await page.getByRole('button', { name: 'Confirm 3 Check Ins' }).click();
+    await page.getByRole('button', { name: 'Confirm 3 check-ins' }).click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
 
     await expect

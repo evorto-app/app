@@ -1,11 +1,9 @@
-export interface TenantIdentity {
-  currency: string;
-  domain: string;
-  locale: string;
-  name: string;
-  stripeAccountId?: null | string | undefined;
-  timezone: string;
-}
+import type { Tenant } from '../../../types/custom/tenant';
+
+export type TenantIdentity = Pick<
+  Tenant,
+  'currency' | 'domain' | 'locale' | 'name' | 'stripeAccountId' | 'timezone'
+>;
 
 export const tenantIdentityRows = (tenant: TenantIdentity) => [
   { label: 'Tenant name', value: tenant.name },
@@ -15,7 +13,9 @@ export const tenantIdentityRows = (tenant: TenantIdentity) => [
   { label: 'Timezone', value: tenant.timezone },
   {
     label: 'Stripe account',
-    value: tenant.stripeAccountId ? 'Connected' : 'Not connected',
+    value: tenant.stripeAccountId
+      ? `Connected (${tenant.stripeAccountId})`
+      : 'Not connected',
   },
 ];
 
@@ -28,7 +28,7 @@ export const deferredTenantSettingsRows = [
   {
     label: 'Brand assets',
     value:
-      'Logo and favicon URLs are editable below; file uploads are not implemented yet.',
+      'Logo and favicon uploads or externally hosted URLs are editable below.',
   },
   {
     label: 'Legal pages',

@@ -24,6 +24,7 @@ import {
   TemplateFormData,
   TemplateFormOverrides,
   TemplateFormSubmitData,
+  templateWriteSubmitDisabled,
 } from '../shared/template-form/template-form.utilities';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 import { templateGeneralFormSchema } from '../shared/template-form/template-general-form.schema';
@@ -56,6 +57,9 @@ const logger = consola.withTag('app/templates/create');
 })
 export class TemplateCreateComponent {
   private readonly rpc = AppRpc.injectClient();
+  protected readonly createTemplateMutation = injectMutation(() =>
+    this.rpc.templates.createSimpleTemplate.mutationOptions(),
+  );
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
@@ -90,15 +94,15 @@ export class TemplateCreateComponent {
     this.templateModel,
     templateFormSchema,
   );
+
   protected readonly canSubmit = computed(
     () =>
       this.discountProvidersQuery.isSuccess() &&
-      !this.templateForm().invalid() &&
-      !this.templateForm().submitting(),
-  );
-
-  protected readonly createTemplateMutation = injectMutation(() =>
-    this.rpc.templates.createSimpleTemplate.mutationOptions(),
+      !templateWriteSubmitDisabled({
+        formInvalid: this.templateForm().invalid(),
+        formSubmitting: this.templateForm().submitting(),
+        mutationPending: this.createTemplateMutation.isPending(),
+      }),
   );
 
   protected readonly esnEnabled = computed(() => {
@@ -113,11 +117,22 @@ export class TemplateCreateComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
 
+  protected readonly templateWriteSubmitDisabled = templateWriteSubmitDisabled;
   private queryClient = inject(QueryClient);
   private router = inject(Router);
 
   async onSubmit(event: Event) {
     event.preventDefault();
+    if (
+      templateWriteSubmitDisabled({
+        formInvalid: false,
+        formSubmitting: this.templateForm().submitting(),
+        mutationPending: this.createTemplateMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
     await submit(this.templateForm, async (formState) => {
       const formValue = formState().value();
       if (!formValue.icon) {

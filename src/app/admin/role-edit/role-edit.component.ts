@@ -58,6 +58,10 @@ export class RoleEditComponent {
   private readonly router = inject(Router);
 
   onSubmit(role: RoleFormData) {
+    if (this.updateRoleMutation.isPending()) {
+      return;
+    }
+
     this.updateRoleMutation.mutate(
       { ...role, id: this.roleId() },
       {

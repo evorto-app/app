@@ -22,10 +22,54 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { ReceiptPreviewDialogComponent } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 
-type PayoutType = 'iban' | 'paypal';
+export type ReceiptReimbursementPayoutType = 'iban' | 'paypal';
+
+interface ReceiptReimbursementPayoutDetails {
+  iban: null | string;
+  paypalEmail: null | string;
+}
 
 export const receiptReimbursementManualNotice =
   'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.';
+
+export function receiptReimbursementCanRecord(
+  selectedReceiptIds: readonly string[],
+  payout: ReceiptReimbursementPayoutDetails,
+  payoutType: ReceiptReimbursementPayoutType,
+): boolean {
+  if (selectedReceiptIds.length === 0) {
+    return false;
+  }
+
+  return payoutType === 'iban'
+    ? Boolean(payout.iban)
+    : Boolean(payout.paypalEmail);
+}
+
+export function receiptReimbursementPayoutDetailLabel(
+  payoutType: ReceiptReimbursementPayoutType,
+  payoutReference: null | string,
+): string {
+  const label = payoutType === 'iban' ? 'IBAN' : 'PayPal';
+  return `${label}: ${payoutReference || 'not set'}`;
+}
+
+export function receiptReimbursementRecordDisabled(input: {
+  canRecord: boolean;
+  mutationPending: boolean;
+}): boolean {
+  return !input.canRecord || input.mutationPending;
+}
+
+export function receiptReimbursementSelectedTotal(
+  receipts: readonly { id: string; totalAmount: number }[],
+  selectedReceiptIds: readonly string[],
+): number {
+  const selectedIds = new Set(selectedReceiptIds);
+  return receipts
+    .filter((receipt) => selectedIds.has(receipt.id))
+    .reduce((sum, receipt) => sum + receipt.totalAmount, 0);
+}
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -52,6 +96,10 @@ export class ReceiptRefundListComponent {
   ];
   protected readonly receiptReimbursementManualNotice =
     receiptReimbursementManualNotice;
+  protected readonly receiptReimbursementPayoutDetailLabel =
+    receiptReimbursementPayoutDetailLabel;
+  protected readonly receiptReimbursementRecordDisabled =
+    receiptReimbursementRecordDisabled;
   private readonly rpc = AppRpc.injectClient();
   protected readonly refundableReceiptsQuery = injectQuery(() =>
     this.rpc.finance.receipts.refundableGroupedByRecipient.queryOptions(),
@@ -62,9 +110,9 @@ export class ReceiptRefundListComponent {
 
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
-  private readonly payoutTypeByRecipient = signal<Record<string, PayoutType>>(
-    {},
-  );
+  private readonly payoutTypeByRecipient = signal<
+    Record<string, ReceiptReimbursementPayoutType>
+  >({});
 
   private readonly queryClient = inject(QueryClient);
   private readonly selectionByRecipient = signal<
@@ -108,21 +156,19 @@ export class ReceiptRefundListComponent {
 
   protected canRefund(
     recipientId: string,
-    payout: { iban: null | string; paypalEmail: null | string },
+    payout: ReceiptReimbursementPayoutDetails,
   ): boolean {
-    if (this.selectedReceiptIds(recipientId).length === 0) {
-      return false;
-    }
-    const payoutType = this.getPayoutType(recipientId, payout);
-    return payoutType === 'iban'
-      ? Boolean(payout.iban)
-      : Boolean(payout.paypalEmail);
+    return receiptReimbursementCanRecord(
+      this.selectedReceiptIds(recipientId),
+      payout,
+      this.getPayoutType(recipientId, payout),
+    );
   }
 
   protected getPayoutType(
     recipientId: string,
-    payout: { iban: null | string; paypalEmail: null | string },
-  ): PayoutType {
+    payout: ReceiptReimbursementPayoutDetails,
+  ): ReceiptReimbursementPayoutType {
     return (
       this.payoutTypeByRecipient()[recipientId] ??
       (payout.iban ? 'iban' : 'paypal')
@@ -184,17 +230,33 @@ export class ReceiptRefundListComponent {
     submittedByUserId: string;
   }): Promise<void> {
     const receiptIds = this.selectedReceiptIds(group.submittedByUserId);
-    if (receiptIds.length === 0) {
-      this.notifications.showError('Select at least one receipt');
-      return;
-    }
-
     const payoutType = this.getPayoutType(
       group.submittedByUserId,
       group.payout,
     );
     const payoutReference =
       payoutType === 'iban' ? group.payout.iban : group.payout.paypalEmail;
+    if (
+      receiptReimbursementRecordDisabled({
+        canRecord: receiptReimbursementCanRecord(
+          receiptIds,
+          group.payout,
+          payoutType,
+        ),
+        mutationPending: this.refundMutation.isPending(),
+      })
+    ) {
+      if (receiptIds.length === 0) {
+        this.notifications.showError('Select at least one receipt');
+        return;
+      }
+      if (this.refundMutation.isPending()) {
+        return;
+      }
+
+      this.notifications.showError('Selected payout detail is missing');
+      return;
+    }
     if (!payoutReference) {
       this.notifications.showError('Selected payout detail is missing');
       return;
@@ -256,10 +318,10 @@ export class ReceiptRefundListComponent {
     recipientId: string,
     receipts: readonly { id: string; totalAmount: number }[],
   ): number {
-    const selectedIds = new Set(this.selectedReceiptIds(recipientId));
-    return receipts
-      .filter((receipt) => selectedIds.has(receipt.id))
-      .reduce((sum, receipt) => sum + receipt.totalAmount, 0);
+    return receiptReimbursementSelectedTotal(
+      receipts,
+      this.selectedReceiptIds(recipientId),
+    );
   }
 
   protected setPayoutType(

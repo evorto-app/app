@@ -67,15 +67,6 @@ export type BadRequestForbiddenOrUnauthorizedRpcError = Schema.Schema.Type<
   typeof BadRequestForbiddenOrUnauthorizedRpcError
 >;
 
-export const BadRequestInternalUnauthorizedRpcError = Schema.Union([
-  RpcBadRequestError,
-  RpcInternalServerError,
-  RpcUnauthorizedError,
-]);
-export type BadRequestInternalUnauthorizedRpcError = Schema.Schema.Type<
-  typeof BadRequestInternalUnauthorizedRpcError
->;
-
 export const BadRequestForbiddenInternalUnauthorizedRpcError = Schema.Union([
   RpcBadRequestError,
   RpcForbiddenError,
@@ -84,3 +75,12 @@ export const BadRequestForbiddenInternalUnauthorizedRpcError = Schema.Union([
 ]);
 export type BadRequestForbiddenInternalUnauthorizedRpcError =
   Schema.Schema.Type<typeof BadRequestForbiddenInternalUnauthorizedRpcError>;
+
+export const BadRequestInternalUnauthorizedRpcError = Schema.Union([
+  RpcBadRequestError,
+  RpcInternalServerError,
+  RpcUnauthorizedError,
+]);
+export type BadRequestInternalUnauthorizedRpcError = Schema.Schema.Type<
+  typeof BadRequestInternalUnauthorizedRpcError
+>;

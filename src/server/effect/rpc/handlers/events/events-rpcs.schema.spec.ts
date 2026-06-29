@@ -52,6 +52,7 @@ describe('events RPC registration status schema', () => {
         registrationOptionId: 'option-1',
         registrationOptionTitle: 'Participant',
         status: 'UNKNOWN',
+        transferAvailable: false,
       }),
     ).toThrow();
   });

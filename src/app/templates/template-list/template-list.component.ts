@@ -5,11 +5,13 @@ import {
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faEllipsisVertical } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  faEllipsisVertical,
+  faPlus,
+} from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -21,7 +23,6 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
   imports: [
     RouterLink,
     MatButtonModule,
-    MatIconModule,
     FontAwesomeModule,
     MatMenuModule,
     IconComponent,
@@ -34,6 +35,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 })
 export class TemplateListComponent {
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly faPlus = faPlus;
   protected readonly outletActive = signal(false);
   private readonly rpc = AppRpc.injectClient();
   protected templateQuery = injectQuery(() =>
