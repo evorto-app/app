@@ -177,6 +177,7 @@
           } @else if (registrationStatusQuery.isSuccess()) {
             @if (registrationStatusQuery.data().isRegistered) {
               <app-event-active-registration
+                [cancellationClosed]="registrationCancellationClosed()"
                 [registrations]="registrationStatusQuery.data().registrations"
               />
             } @else {

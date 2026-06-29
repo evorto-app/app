@@ -445,6 +445,67 @@ describe('event registration cancellation handlers', () => {
       expect(database.transaction).toHaveBeenCalledOnce();
     }),
   );
+
+  it.effect(
+    'cancels waitlist registrations after the event cancellation cutoff',
+    () =>
+      Effect.gen(function* () {
+        const updateSets: unknown[] = [];
+        const tx = {
+          update: (table: unknown) => ({
+            set: (values: unknown) => {
+              updateSets.push(values);
+              return {
+                where: () => ({
+                  returning: () => {
+                    if (
+                      table === eventRegistrations ||
+                      table === eventRegistrationOptions
+                    ) {
+                      return Effect.succeed([{ id: 'updated' }]);
+                    }
+                    return Effect.succeed([]);
+                  },
+                }),
+              };
+            },
+          }),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                  },
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'WAITLIST',
+                  transactions: [],
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        yield* eventRegistrationHandlers['events.cancelRegistration'](
+          { registrationId: 'registration-1' },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(createContextLayer({ database })));
+
+        expect(updateSets).toEqual([
+          { status: 'CANCELLED' },
+          expect.objectContaining({ waitlistSpots: expect.anything() }),
+        ]);
+        expect(database.transaction).toHaveBeenCalledOnce();
+      }),
+  );
 });
 
 describe('event registration scan handlers', () => {

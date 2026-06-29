@@ -207,7 +207,7 @@ const cancelRegistration = ({
       );
     }
 
-    if (registration.event.start <= now) {
+    if (registration.status !== 'WAITLIST' && registration.event.start <= now) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
           message: 'Registration can no longer be cancelled',

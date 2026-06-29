@@ -77,7 +77,9 @@
             type="button"
             mat-stroked-button
             (click)="cancelRegistration(registration)"
-            [disabled]="cancelRegistrationMutation.isPending()"
+            [disabled]="
+              cancelRegistrationMutation.isPending() || !cancellation.canCancel
+            "
           >
             {{ cancellation.buttonLabel }}
           </button>

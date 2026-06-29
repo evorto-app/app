@@ -157,9 +157,13 @@ export class EventDetailsComponent {
     }
     return event.icon.iconColor;
   });
-
   protected readonly faArrowLeft = faArrowLeft;
+
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly registrationCancellationClosed = computed(() => {
+    const event = this.eventQuery.data();
+    return event ? new Date(event.start) <= new Date() : false;
+  });
   protected readonly registrationOptionsState = computed(() => {
     const event = this.eventQuery.data();
     return event ? registrationOptionsState(event) : 'none';

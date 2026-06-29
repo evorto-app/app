@@ -17,15 +17,27 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 
 export const registrationCancellationCopy = (registration: {
+  cancellationClosed: boolean;
   paymentPending: boolean;
   status: EventsRegistrationStatus;
 }): null | {
   buttonLabel: string;
+  canCancel: boolean;
   helperText: string;
 } => {
   if (registration.status === 'PENDING') {
+    if (registration.cancellationClosed) {
+      return {
+        buttonLabel: 'Cancel registration',
+        canCancel: false,
+        helperText:
+          'Registration can no longer be cancelled because the event has already started.',
+      };
+    }
+
     return {
       buttonLabel: 'Cancel registration',
+      canCancel: true,
       helperText: registration.paymentPending
         ? 'This cancels the pending registration and releases the reserved spot. It does not complete a payment.'
         : 'This cancels the pending registration and releases the reserved spot.',
@@ -33,8 +45,18 @@ export const registrationCancellationCopy = (registration: {
   }
 
   if (registration.status === 'CONFIRMED') {
+    if (registration.cancellationClosed) {
+      return {
+        buttonLabel: 'Cancel registration',
+        canCancel: false,
+        helperText:
+          'Registration can no longer be cancelled because the event has already started.',
+      };
+    }
+
     return {
       buttonLabel: 'Cancel registration',
+      canCancel: true,
       helperText:
         'This cancels your confirmed registration and releases your spot. Paid-registration refunds are not automatic yet.',
     };
@@ -43,6 +65,7 @@ export const registrationCancellationCopy = (registration: {
   if (registration.status === 'WAITLIST') {
     return {
       buttonLabel: 'Leave waitlist',
+      canCancel: true,
       helperText:
         'This removes you from the waitlist and releases your waitlist spot.',
     };
@@ -59,6 +82,7 @@ export const registrationCancellationCopy = (registration: {
   templateUrl: './event-active-registration.component.html',
 })
 export class EventActiveRegistrationComponent {
+  public readonly cancellationClosed = input.required<boolean>();
   public readonly registrations = input.required<
     readonly {
       appliedDiscountedPrice?: null | number | undefined;
@@ -74,12 +98,10 @@ export class EventActiveRegistrationComponent {
       status: EventsRegistrationStatus;
     }[]
   >();
-  protected readonly cancellationCopy = registrationCancellationCopy;
   private readonly rpc = AppRpc.injectClient();
   protected readonly cancelRegistrationMutation = injectMutation(() =>
     this.rpc.events.cancelRegistration.mutationOptions(),
   );
-
   private readonly queryClient = inject(QueryClient);
 
   cancelRegistration(registration: { id: string }) {
@@ -99,6 +121,15 @@ export class EventActiveRegistrationComponent {
       },
     );
   }
+
+  protected readonly cancellationCopy = (registration: {
+    paymentPending: boolean;
+    status: EventsRegistrationStatus;
+  }) =>
+    registrationCancellationCopy({
+      ...registration,
+      cancellationClosed: this.cancellationClosed(),
+    });
 
   protected errorMessage(error: unknown): string {
     return getErrorMessage(error, 'Cancellation failed');
