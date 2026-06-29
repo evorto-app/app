@@ -238,10 +238,14 @@ describe('registration add-on selections', () => {
 
   it('normalizes selected add-ons for the registration mutation payload', () => {
     expect(
-      registrationAddonPurchasePayload(addOns, {
-        'addon-1': 2,
-        'addon-2': 0,
-      }),
+      registrationAddonPurchasePayload(
+        addOns,
+        {
+          'addon-1': 2,
+          'addon-2': 0,
+        },
+        'option-1',
+      ),
     ).toEqual([
       {
         addOnId: 'addon-1',

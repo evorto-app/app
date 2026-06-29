@@ -20,6 +20,7 @@ export const globalAdminTenantDomainUrl = (domain: string): null | string => {
     if (
       !url.hostname ||
       url.pathname !== '/' ||
+      url.port ||
       url.search ||
       url.hash ||
       url.username ||

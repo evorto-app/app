@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   pgTable,
   text,
@@ -40,4 +41,9 @@ export const eventRegistrationQuestions = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
+  (table) => ({
+    byEventId: index().on(table.eventId),
+    byRegistrationOptionId: index().on(table.registrationOptionId),
+    bySourceTemplateQuestionId: index().on(table.sourceTemplateQuestionId),
+  }),
 );

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from '@effect/vitest';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { Effect, Layer } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
 
 import { Database } from '../../../../db';
 import { userDiscountCards } from '../../../../db/schema';
@@ -49,14 +50,15 @@ const createUser = () => ({
   roleIds: [],
 });
 
-const createHeaders = (tenant = createTenant(), user = createUser()) => ({
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-  [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
-});
+const createHeaders = (tenant = createTenant(), user = createUser()) =>
+  Headers.fromInput({
+    [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+    [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
+    [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
+  });
 
 describe('discountHandlers', () => {
-  it.effect('getMyCards reads discount cards globally for the user', () =>
+  it.effect('getMyCards reads discount cards for the current tenant', () =>
     Effect.gen(function* () {
       const findMany = vi.fn(() =>
         Effect.succeed([
@@ -79,9 +81,7 @@ describe('discountHandlers', () => {
 
       const cards = yield* discountHandlers['discounts.getMyCards'](undefined, {
         headers: createHeaders(createTenant('tenant-2')),
-      } as never).pipe(
-        Effect.provide(Layer.succeed(Database, database as never)),
-      );
+      }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
       expect(cards).toEqual([
         {
@@ -95,6 +95,7 @@ describe('discountHandlers', () => {
       expect(findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
+            tenantId: 'tenant-2',
             userId: 'user-1',
           },
         }),
@@ -102,7 +103,7 @@ describe('discountHandlers', () => {
     }),
   );
 
-  it.effect('upsertMyCard updates an existing global user card', () => {
+  it.effect('upsertMyCard updates an existing tenant user card', () => {
     const originalAdapter = Adapters.esnCard;
     const validate = vi.fn(async () => ({
       status: 'verified' as const,
@@ -176,7 +177,7 @@ describe('discountHandlers', () => {
           identifier: 'ESN-123',
           type: 'esnCard',
         },
-        { headers: createHeaders(createTenant('tenant-2')) } as never,
+        { headers: createHeaders(createTenant('tenant-2')) },
       ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
       expect(card).toEqual({
@@ -202,6 +203,7 @@ describe('discountHandlers', () => {
         2,
         expect.objectContaining({
           where: {
+            tenantId: 'tenant-2',
             type: 'esnCard',
             userId: 'user-1',
           },
@@ -272,7 +274,7 @@ describe('discountHandlers', () => {
               identifier: 'ESN-123',
               type: 'esnCard',
             },
-            { headers: createHeaders(createTenant('tenant-2')) } as never,
+            { headers: createHeaders(createTenant('tenant-2')) },
           ).pipe(Effect.provide(Layer.succeed(Database, database as never))),
         );
 
@@ -357,7 +359,7 @@ describe('discountHandlers', () => {
 
         const refreshed = yield* discountHandlers['discounts.refreshMyCard'](
           { type: 'esnCard' },
-          { headers: createHeaders(createTenant('tenant-2')) } as never,
+          { headers: createHeaders(createTenant('tenant-2')) },
         ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
         expect(refreshed).toEqual({
@@ -370,6 +372,7 @@ describe('discountHandlers', () => {
         expect(findFirst).toHaveBeenCalledWith(
           expect.objectContaining({
             where: {
+              tenantId: 'tenant-2',
               type: 'esnCard',
               userId: 'user-1',
             },
@@ -406,11 +409,12 @@ describe('discountHandlers', () => {
         }),
       };
 
-      yield* discountHandlers['discounts.deleteMyCard']({ type: 'esnCard' }, {
-        headers: createHeaders(createTenant('tenant-2')),
-      } as never).pipe(
-        Effect.provide(Layer.succeed(Database, database as never)),
-      );
+      yield* discountHandlers['discounts.deleteMyCard'](
+        { type: 'esnCard' },
+        {
+          headers: createHeaders(createTenant('tenant-2')),
+        },
+      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
       const condition = where.mock.calls[0]?.[0];
       const collectValues = (value: unknown, seen = new WeakSet<object>()) => {
@@ -427,6 +431,7 @@ describe('discountHandlers', () => {
       };
       const conditionValues = collectValues(condition);
 
+      expect(conditionValues).toContain('tenant-2');
       expect(conditionValues).toContain('user-1');
       expect(conditionValues).toContain('esnCard');
     }),

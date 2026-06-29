@@ -20,6 +20,14 @@ export interface ReceiptPreviewDialogData {
   previewUrl: string;
 }
 
+const trustedReceiptPreviewHost = (hostname: string): boolean =>
+  hostname === globalThis.location?.hostname ||
+  hostname === 'localhost' ||
+  hostname === '127.0.0.1' ||
+  hostname === '::1' ||
+  hostname.endsWith('.amazonaws.com') ||
+  hostname.endsWith('.r2.cloudflarestorage.com');
+
 export function isSafeReceiptPreviewUrl(
   previewUrl: null | string,
 ): previewUrl is string {
@@ -30,7 +38,10 @@ export function isSafeReceiptPreviewUrl(
   try {
     const baseUrl = globalThis.location?.origin ?? 'http://localhost';
     const url = new URL(previewUrl, baseUrl);
-    return url.protocol === 'https:' || url.protocol === 'http:';
+    return (
+      (url.protocol === 'https:' || url.protocol === 'http:') &&
+      trustedReceiptPreviewHost(url.hostname)
+    );
   } catch {
     return false;
   }

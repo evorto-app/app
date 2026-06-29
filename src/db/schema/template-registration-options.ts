@@ -5,6 +5,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -41,6 +42,9 @@ export const templateRegistrationOptions = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
+  (table) => ({
+    uniqueIdTemplateId: unique().on(table.id, table.templateId),
+  }),
 );
 
 export const addonToTemplateRegistrationOptions = pgTable(

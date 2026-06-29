@@ -130,10 +130,19 @@ export const registrationOptionSelectedTotalPrice = (
 };
 
 export const registrationAddonPurchasePayload = (
-  addOns: readonly Pick<EventRegistrationAddonView, 'id'>[],
+  addOns: readonly Pick<
+    EventRegistrationAddonView,
+    'id' | 'registrationOptions'
+  >[],
   selections: Readonly<Record<string, number>>,
+  registrationOptionId: string,
 ): { addOnId: string; quantity: number }[] =>
   addOns
+    .filter((addOn) =>
+      addOn.registrationOptions.some(
+        (option) => option.registrationOptionId === registrationOptionId,
+      ),
+    )
     .map((addOn) => ({
       addOnId: addOn.id,
       quantity: Math.max(0, Math.trunc(selections[addOn.id] ?? 0)),
@@ -406,6 +415,7 @@ export class EventRegistrationOptionComponent {
         addOns: registrationAddonPurchasePayload(
           this.addOns(),
           this.addonSelections(),
+          registrationOption.id,
         ),
         answers: registrationQuestionAnswerPayload(
           this.registrationOption(),

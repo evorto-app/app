@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   pgTable,
   primaryKey,
@@ -49,6 +50,12 @@ export const addonToEventRegistrationOptions = pgTable(
       .references(() => eventRegistrationOptions.id, { onDelete: 'cascade' }),
   },
   (table) => ({
+    byAddonId: index().on(table.addonId),
+    byRegistrationOptionId: index().on(table.registrationOptionId),
+    byRegistrationOptionIdAndAddonId: index().on(
+      table.registrationOptionId,
+      table.addonId,
+    ),
     pk: primaryKey({
       columns: [table.addonId, table.registrationOptionId],
     }),

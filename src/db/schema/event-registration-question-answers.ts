@@ -1,4 +1,11 @@
-import { pgTable, text, timestamp, unique, varchar } from 'drizzle-orm/pg-core';
+import {
+  index,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
 import { createId } from '../create-id';
 import { eventRegistrationQuestions } from './event-registration-questions';
@@ -24,6 +31,7 @@ export const eventRegistrationQuestionAnswers = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => ({
+    byQuestionId: index().on(table.questionId),
     uniqueRegistrationQuestionAnswer: unique().on(
       table.registrationId,
       table.questionId,

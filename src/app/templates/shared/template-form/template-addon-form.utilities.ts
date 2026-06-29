@@ -74,19 +74,25 @@ export const templateAddonOptionKindFromRecord = ({
   const optionIds = new Set(
     addOn.registrationOptions.map((option) => option.registrationOptionId),
   );
-  if (
+  const attachedToOrganizer =
     organizerRegistrationOptionId &&
-    optionIds.has(organizerRegistrationOptionId)
-  ) {
+    optionIds.has(organizerRegistrationOptionId);
+  const attachedToParticipant =
+    participantRegistrationOptionId &&
+    optionIds.has(participantRegistrationOptionId);
+
+  if (attachedToOrganizer && attachedToParticipant) {
+    throw new Error('Template add-on is attached to multiple option kinds');
+  }
+
+  if (attachedToOrganizer) {
     return 'organizer';
   }
-  if (
-    participantRegistrationOptionId &&
-    optionIds.has(participantRegistrationOptionId)
-  ) {
+  if (attachedToParticipant) {
     return 'participant';
   }
-  return 'participant';
+
+  throw new Error('Template add-on is missing a valid registration option');
 };
 
 export const templateAddonQuantityFromRecord = ({

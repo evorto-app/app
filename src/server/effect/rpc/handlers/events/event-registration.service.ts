@@ -777,6 +777,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               },
               where: {
                 status: 'verified',
+                tenantId: tenant.id,
                 userId: user.id,
               },
             }),

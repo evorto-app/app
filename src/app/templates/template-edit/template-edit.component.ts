@@ -92,6 +92,9 @@ export class TemplateEditComponent {
     const participantRegistration = templateData.registrationOptions.find(
       (option) => !option.organizingRegistration,
     );
+    if (!organizerRegistration || !participantRegistration) {
+      throw new Error('Template is missing required registration options');
+    }
     return {
       ...templateData,
       addOns: templateData.addOns.map((addOn) =>
@@ -101,8 +104,8 @@ export class TemplateEditComponent {
           participantRegistrationOptionId: participantRegistration?.id,
         }),
       ),
-      organizerRegistration: organizerRegistration ?? {},
-      participantRegistration: participantRegistration ?? {},
+      organizerRegistration,
+      participantRegistration,
       questions: templateData.questions.map((question) =>
         templateQuestionRecordToFormModel({
           organizerRegistrationOptionId: organizerRegistration?.id,

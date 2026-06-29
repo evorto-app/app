@@ -21,7 +21,7 @@ const appSourceFiles = (directory: string): string[] =>
     if (
       entry.isFile() &&
       (entry.name.endsWith('.html') || entry.name.endsWith('.ts')) &&
-      entry.name !== 'font-awesome-icon-usage.spec.ts'
+      !entry.name.endsWith('.spec.ts')
     ) {
       return [filePath];
     }

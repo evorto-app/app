@@ -169,6 +169,7 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
           .values({
             identifier: seededEsnCardIdentifier,
             status: 'verified',
+            tenantId: tenant.id,
             type: 'esnCard',
             userId: regularUser.id,
             validFrom: seedDate,
@@ -183,6 +184,7 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
             },
             target: [
               schema.userDiscountCards.userId,
+              schema.userDiscountCards.tenantId,
               schema.userDiscountCards.type,
             ],
           });

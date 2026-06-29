@@ -22,7 +22,8 @@ import { AppRpc } from './effect-rpc-angular-client';
   providedIn: 'root',
 })
 export class ConfigService {
-  public readonly tenantSignal = signal<null | Tenant>(null);
+  private readonly _tenantSignal = signal<null | Tenant>(null);
+  public readonly tenantSignal = this._tenantSignal.asReadonly();
 
   public get missingContext() {
     return this._missingContext;
@@ -51,6 +52,8 @@ export class ConfigService {
     sentryDsn: null,
   };
   private _tenant!: Tenant;
+  private activeDescription: null | string = null;
+  private activeTitle: null | string = null;
 
   private readonly rpc = AppRpc.injectClient();
 
@@ -107,20 +110,34 @@ export class ConfigService {
   }
 
   public updateDescription(description: string): void {
+    this.activeDescription = description;
     this.meta.updateTag({ content: description, name: 'description' });
   }
 
   public updateTitle(title: string): void {
+    this.activeTitle = title;
     this.title.setTitle(`${title} | ${this.tenant.name}`);
   }
 
   private applyTenantConfig(tenant: Tenant): void {
     this._tenant = tenant;
-    this.tenantSignal.set(tenant);
-    this.title.setTitle(tenant.seoTitle ?? tenant.name);
+    this._tenantSignal.set(tenant);
+    if (this.activeTitle) {
+      this.title.setTitle(`${this.activeTitle} | ${tenant.name}`);
+    } else {
+      this.title.setTitle(tenant.seoTitle ?? tenant.name);
+    }
     this.updateFavicon(tenant.faviconUrl ?? 'favicon.ico');
-    if (tenant.seoDescription) {
-      this.updateDescription(tenant.seoDescription);
+    if (this.activeDescription) {
+      this.meta.updateTag({
+        content: this.activeDescription,
+        name: 'description',
+      });
+    } else if (tenant.seoDescription) {
+      this.meta.updateTag({
+        content: tenant.seoDescription,
+        name: 'description',
+      });
     } else {
       this.meta.removeTag("name='description'");
     }

@@ -1,5 +1,6 @@
 import {
   boolean,
+  foreignKey,
   integer,
   pgTable,
   text,
@@ -35,4 +36,14 @@ export const templateRegistrationQuestions = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
+  (table) => ({
+    optionBelongsToTemplate: foreignKey({
+      columns: [table.registrationOptionId, table.templateId],
+      foreignColumns: [
+        templateRegistrationOptions.id,
+        templateRegistrationOptions.templateId,
+      ],
+      name: 'template_registration_questions_option_template_fk',
+    }).onDelete('cascade'),
+  }),
 );

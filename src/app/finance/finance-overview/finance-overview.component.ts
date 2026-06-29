@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { FaIconComponent } from '@fortawesome/angular-fontawesome';
+import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
 import {
   faBadgeCheck,
   faListTimeline,
@@ -12,7 +12,7 @@ import { IfPermissionDirective } from '../../shared/directives/if-permission.dir
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    FaIconComponent,
+    FaDuotoneIconComponent,
     IfPermissionDirective,
     RouterLink,
     RouterLinkActive,

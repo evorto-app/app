@@ -58,7 +58,7 @@ export const templateQuestionOptionKindFromRecord = ({
   ) {
     return 'participant';
   }
-  return 'participant';
+  throw new Error('Template question is missing a valid registration option');
 };
 
 export const templateQuestionRecordToFormModel = ({

@@ -37,6 +37,7 @@ test('profile discounts show seeded ESN card state and block invalid saves', asy
   const seededEsnCard = await database.query.userDiscountCards.findFirst({
     where: {
       identifier: seededEsnCardIdentifier,
+      tenantId: tenant.id,
       type: 'esnCard',
       userId: regularUser.id,
     },
