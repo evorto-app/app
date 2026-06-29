@@ -8,13 +8,15 @@ import {
 } from '../../shared/components/forms/event-general-form/event-general-form.schema';
 import { createRegistrationOptionFormModel } from '../../shared/components/forms/registration-option-form/registration-option-form.schema';
 
+export const defaultTemplateEventDurationHours = 2;
+
 export const createEventFormModelFromTemplate = (
   template: TemplateFindOneRecord,
   startDateTime: DateTime,
 ): EventGeneralFormModel =>
   createEventGeneralFormModel({
     description: template.description,
-    end: startDateTime,
+    end: startDateTime.plus({ hours: defaultTemplateEventDurationHours }),
     icon: template.icon,
     location: template.location ?? null,
     registrationOptions: template.registrationOptions.map((option) =>

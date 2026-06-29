@@ -24,6 +24,8 @@ import {
 import { DateTime } from 'luxon';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
+import { NotificationService } from '../../core/notification.service';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   createEventGeneralFormModel,
@@ -97,6 +99,7 @@ export class TemplateCreateEventComponent {
   private readonly initializedTemplateId = signal<null | string>(null);
   private readonly lastStart = signal<DateTime | null>(null);
 
+  private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
 
@@ -208,6 +211,11 @@ export class TemplateCreateEventComponent {
           templateId: this.templateId(),
         },
         {
+          onError: (error) => {
+            this.notifications.showError(
+              getErrorMessage(error, 'Failed to create event'),
+            );
+          },
           onSuccess: async (data) => {
             await this.queryClient.invalidateQueries(
               this.rpc.queryFilter(['events', 'eventList']),

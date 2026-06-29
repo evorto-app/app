@@ -1,7 +1,10 @@
 import { DateTime } from 'luxon';
 import { describe, expect, it } from 'vitest';
 
-import { createEventFormModelFromTemplate } from './template-create-event.mapper';
+import {
+  createEventFormModelFromTemplate,
+  defaultTemplateEventDurationHours,
+} from './template-create-event.mapper';
 
 describe('createEventFormModelFromTemplate', () => {
   it('copies reusable event and registration defaults into the event form', () => {
@@ -66,7 +69,10 @@ describe('createEventFormModelFromTemplate', () => {
       title: 'Weekly meetup',
     });
     expect(model.start.toISO()).toBe('2026-06-01T18:00:00.000Z');
-    expect(model.end.toISO()).toBe('2026-06-01T18:00:00.000Z');
+    expect(model.end.toISO()).toBe('2026-06-01T20:00:00.000Z');
+    expect(model.end.diff(model.start, 'hours').hours).toBe(
+      defaultTemplateEventDurationHours,
+    );
     expect(model.registrationOptions).toHaveLength(1);
     expect(model.registrationOptions[0]).toMatchObject({
       description: '<p>Public participant copy</p>',

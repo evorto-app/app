@@ -1,40 +1,42 @@
 @let form = generalForm();
-<div class="grid grid-cols-1 gap-2 2xl:grid-cols-[auto_1fr_1fr]">
-  <app-icon-selector-field [formField]="form.icon" />
-  <mat-form-field>
-    <mat-label>Template title</mat-label>
-    <input matInput [formField]="form.title" />
-  </mat-form-field>
-  <mat-form-field>
-    <mat-label>Template Category</mat-label>
-    <mat-select [formField]="form.categoryId">
-      @for (
-        templateCategory of templateCategories();
-        track templateCategory.id
-      ) {
-        <mat-option [value]="templateCategory.id">
-          {{ templateCategory.title }}
-        </mat-option>
-      } @empty {
-        <mat-option disabled>No template categories found</mat-option>
-      }
-    </mat-select>
+<div class="grid gap-4">
+  <div class="grid grid-cols-1 gap-2 2xl:grid-cols-[auto_1fr_1fr]">
+    <app-icon-selector-field [formField]="form.icon" />
+    <mat-form-field>
+      <mat-label>Template title</mat-label>
+      <input matInput [formField]="form.title" />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Template Category</mat-label>
+      <mat-select [formField]="form.categoryId">
+        @for (
+          templateCategory of templateCategories();
+          track templateCategory.id
+        ) {
+          <mat-option [value]="templateCategory.id">
+            {{ templateCategory.title }}
+          </mat-option>
+        } @empty {
+          <mat-option disabled>No template categories found</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </div>
+  <app-location-selector-field [formField]="form.location" />
+
+  <app-editor [control]="form.description" />
+
+  <mat-form-field class="w-full">
+    <mat-label>Organizer planning tips</mat-label>
+    <textarea
+      matInput
+      rows="4"
+      [formField]="form.planningTips"
+      placeholder="Optional setup notes, checklists, or recurring organizer reminders"
+    ></textarea>
+    <mat-hint>
+      These notes stay on the template detail page for organizers. They are not
+      shown on the public event page.
+    </mat-hint>
   </mat-form-field>
 </div>
-<app-location-selector-field [formField]="form.location" />
-
-<app-editor [control]="form.description" />
-
-<mat-form-field class="w-full">
-  <mat-label>Organizer planning tips</mat-label>
-  <textarea
-    matInput
-    rows="4"
-    [formField]="form.planningTips"
-    placeholder="Optional setup notes, checklists, or recurring organizer reminders"
-  ></textarea>
-  <mat-hint>
-    These notes stay on the template detail page for organizers. They are not
-    shown on the public event page.
-  </mat-hint>
-</mat-form-field>
