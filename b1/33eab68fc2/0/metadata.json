@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b133eab68fc2",
+  "session_id": "019eee04-186b-7b81-9d8d-04cc08e75aff",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-29T15:24:46.890573Z",
+  "branch": "codex/pr62-split-02-esncard-coverage",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/events/event-details/event-details.component.html",
+    "src/app/events/event-list/event-list.component.html",
+    "src/server/effect/rpc/handlers/events/events-query.handlers.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "1e7f81c8e0c6",
+  "token_usage": {
+    "input_tokens": 7257129,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 165269120,
+    "output_tokens": 350720,
+    "api_call_count": 1234
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-29T15:24:46.45985Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 8,
+    "human_modified": 54,
+    "human_removed": 0,
+    "total_committed": 8,
+    "total_lines_changed": 62,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

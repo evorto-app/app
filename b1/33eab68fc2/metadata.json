@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b133eab68fc2",
+  "strategy": "manual-commit",
+  "branch": "codex/pr62-split-02-esncard-coverage",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/events/event-details/event-details.component.html",
+    "src/app/events/event-list/event-list.component.html",
+    "src/server/effect/rpc/handlers/events/events-query.handlers.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b1/33eab68fc2/0/metadata.json",
+      "transcript": "/b1/33eab68fc2/0/full.jsonl",
+      "content_hash": "/b1/33eab68fc2/0/content_hash.txt",
+      "prompt": "/b1/33eab68fc2/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 7257129,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 165269120,
+    "output_tokens": 350720,
+    "api_call_count": 1234
+  }
+}
