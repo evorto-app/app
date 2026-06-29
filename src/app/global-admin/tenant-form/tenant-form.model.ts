@@ -33,13 +33,13 @@ export const createGlobalAdminTenantFormModel =
 export const globalAdminTenantFormModelFromRecord = (
   tenant: GlobalAdminTenantRecord,
 ): GlobalAdminTenantFormModel => ({
-  currency: tenant.currency as GlobalAdminTenantFormModel['currency'],
+  currency: tenant.currency,
   domain: tenant.domain,
-  locale: tenant.locale as GlobalAdminTenantFormModel['locale'],
+  locale: tenant.locale,
   name: tenant.name,
   stripeAccountId: tenant.stripeAccountId ?? '',
-  theme: tenant.theme as GlobalAdminTenantFormModel['theme'],
-  timezone: tenant.timezone as GlobalAdminTenantFormModel['timezone'],
+  theme: tenant.theme,
+  timezone: tenant.timezone,
 });
 
 const optionalTrimmed = (value: string): string | undefined =>

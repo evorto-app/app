@@ -117,9 +117,12 @@ export class HandleRegistrationComponent {
       (scanResult.attendeeCheckedIn ? 0 : 1) + this.selectedGuestCheckInCount()
     );
   });
+  private readonly localCheckInCompleted = signal(false);
   protected readonly checkInCompleted = computed(
     () =>
-      this.checkInMutation.isSuccess() && this.selectedSpotCheckInCount() === 0,
+      this.localCheckInCompleted() ||
+      (this.checkInMutation.isSuccess() &&
+        this.selectedSpotCheckInCount() === 0),
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly scanCheckInActionDisabled = scanCheckInActionDisabled;
@@ -151,6 +154,7 @@ export class HandleRegistrationComponent {
       },
       {
         onSuccess: async () => {
+          this.localCheckInCompleted.set(true);
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['events', 'registrationScanned']),
           );

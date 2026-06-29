@@ -51,6 +51,7 @@ export class EventRegistrationTransferDialogComponent {
       this.transferForm().value().targetEmail,
     ),
   );
+  protected readonly submitting = signal(false);
   private readonly dialogRef = inject(
     MatDialogRef<
       EventRegistrationTransferDialogComponent,
@@ -60,6 +61,9 @@ export class EventRegistrationTransferDialogComponent {
 
   protected submit(event: Event): void {
     event.preventDefault();
+    if (this.submitting()) {
+      return;
+    }
     this.errorMessage.set('');
 
     const targetEmail = this.normalizedTargetEmail();
@@ -70,6 +74,7 @@ export class EventRegistrationTransferDialogComponent {
       return;
     }
 
+    this.submitting.set(true);
     this.dialogRef.close({ targetEmail });
   }
 }

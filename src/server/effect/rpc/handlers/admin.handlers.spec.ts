@@ -287,4 +287,35 @@ describe('adminHandlers tenant settings', () => {
       expect(error.message).toBe('Invalid tenant brand assets');
     }),
   );
+
+  it.effect('rejects dot-segment tenant brand asset paths', () =>
+    Effect.gen(function* () {
+      const database = {
+        update: () => {
+          throw new Error('database should not be touched');
+        },
+      };
+
+      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+        {
+          allowOther: true,
+          currency: 'EUR',
+          defaultLocation: null,
+          esnCardEnabled: false,
+          locale: 'en-GB',
+          logoUrl: '/tenant-assets/../logout',
+          receiptCountries: ['NL'],
+          theme: 'evorto',
+          timezone: 'Europe/Berlin',
+        },
+        { headers: createSettingsAdminHeaders() } as never,
+      ).pipe(
+        Effect.provide(Layer.succeed(Database, database as never)),
+        Effect.flip,
+      );
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.message).toBe('Invalid tenant brand assets');
+    }),
+  );
 });

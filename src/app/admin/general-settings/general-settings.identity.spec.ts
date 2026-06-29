@@ -11,7 +11,7 @@ describe('tenantIdentityRows', () => {
       tenantIdentityRows({
         currency: 'EUR',
         domain: 'tenant.example.com',
-        locale: 'de-DE',
+        locale: 'en-GB',
         name: 'Example Tenant',
         stripeAccountId: 'acct_123',
         timezone: 'Europe/Berlin',
@@ -20,7 +20,7 @@ describe('tenantIdentityRows', () => {
       { label: 'Tenant name', value: 'Example Tenant' },
       { label: 'Primary domain', value: 'tenant.example.com' },
       { label: 'Currency', value: 'EUR' },
-      { label: 'Locale', value: 'de-DE' },
+      { label: 'Locale', value: 'en-GB' },
       { label: 'Timezone', value: 'Europe/Berlin' },
       { label: 'Stripe account', value: 'Connected (acct_123)' },
     ]);
@@ -30,7 +30,7 @@ describe('tenantIdentityRows', () => {
     const rows = tenantIdentityRows({
       currency: 'EUR',
       domain: 'tenant.example.com',
-      locale: 'de-DE',
+      locale: 'en-GB',
       name: 'Example Tenant',
       stripeAccountId: null,
       timezone: 'Europe/Berlin',
@@ -46,7 +46,7 @@ describe('tenantIdentityRows', () => {
     const rows = tenantIdentityRows({
       currency: 'EUR',
       domain: 'tenant.example.com',
-      locale: 'de-DE',
+      locale: 'en-GB',
       name: 'Example Tenant',
       stripeAccountId: undefined,
       timezone: 'Europe/Berlin',

@@ -1,5 +1,10 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -23,10 +28,12 @@ import { NotificationService } from '../../core/notification.service';
 import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
 
 export const eventReviewQueueActionDisabled = ({
+  actionPending,
   mutationPending,
 }: {
+  actionPending: boolean;
   mutationPending: boolean;
-}): boolean => mutationPending;
+}): boolean => actionPending || mutationPending;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -86,6 +93,7 @@ export const eventReviewQueueActionDisabled = ({
                     (click)="reviewEvent(event.id, event.title, false)"
                     [disabled]="
                       eventReviewQueueActionDisabled({
+                        actionPending: reviewActionPending(),
                         mutationPending: reviewEventMutation.isPending(),
                       })
                     "
@@ -97,6 +105,7 @@ export const eventReviewQueueActionDisabled = ({
                     (click)="reviewEvent(event.id, event.title, true)"
                     [disabled]="
                       eventReviewQueueActionDisabled({
+                        actionPending: reviewActionPending(),
                         mutationPending: reviewEventMutation.isPending(),
                       })
                     "
@@ -140,6 +149,7 @@ export class EventReviewsComponent {
   protected readonly pendingReviewsQuery = injectQuery(() =>
     this.rpc.events.getPendingReviews.queryOptions(),
   );
+  protected readonly reviewActionPending = signal(false);
   protected readonly reviewEventMutation = injectMutation(() =>
     this.rpc.events.reviewEvent.mutationOptions(),
   );
@@ -163,12 +173,14 @@ export class EventReviewsComponent {
   ): Promise<void> {
     if (
       eventReviewQueueActionDisabled({
+        actionPending: this.reviewActionPending(),
         mutationPending: this.reviewEventMutation.isPending(),
       })
     ) {
       return;
     }
 
+    this.reviewActionPending.set(true);
     try {
       if (approved) {
         await this.reviewEventMutation.mutateAsync({ approved, eventId });
@@ -188,6 +200,8 @@ export class EventReviewsComponent {
       this.notifications.showEventReviewed(approved, eventTitle);
     } catch (error) {
       await this.handleReviewActionError(error);
+    } finally {
+      this.reviewActionPending.set(false);
     }
   }
 

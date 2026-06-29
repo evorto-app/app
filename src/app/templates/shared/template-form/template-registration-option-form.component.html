@@ -5,15 +5,9 @@
 </mat-form-field>
 
 <section class="grid gap-3">
-  <label class="text-on-surface flex items-center gap-2 text-sm">
-    <input
-      class="h-4 w-4"
-      type="checkbox"
-      [checked]="form.isPaid().value()"
-      (change)="setIsPaid($event)"
-    />
-    <span>Enable payment</span>
-  </label>
+  <mat-checkbox [checked]="form.isPaid().value()" (change)="setIsPaid($event)">
+    Enable payment
+  </mat-checkbox>
 
   @if (!form.price().hidden()) {
     <div class="grid gap-4">

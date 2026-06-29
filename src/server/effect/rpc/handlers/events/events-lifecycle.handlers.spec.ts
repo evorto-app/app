@@ -312,7 +312,7 @@ describe('eventLifecycleHandlers', () => {
         const insertedRegistrationOptions =
           insertedRegistrationOptionValues.mock.calls[0]?.[0] ?? [];
         const secondInsertedOption = insertedRegistrationOptions[1];
-        expect(secondInsertedOption).toBeDefined();
+        expect(secondInsertedOption?.id).toEqual(expect.any(String));
         expect(insertedDiscountValues).toHaveBeenCalledWith([
           {
             discountedPrice: 500,

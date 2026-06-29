@@ -1,11 +1,9 @@
-export interface TenantIdentity {
-  currency: string;
-  domain: string;
-  locale: string;
-  name: string;
-  stripeAccountId?: null | string | undefined;
-  timezone: string;
-}
+import type { Tenant } from '../../../types/custom/tenant';
+
+export type TenantIdentity = Pick<
+  Tenant,
+  'currency' | 'domain' | 'locale' | 'name' | 'stripeAccountId' | 'timezone'
+>;
 
 export const tenantIdentityRows = (tenant: TenantIdentity) => [
   { label: 'Tenant name', value: tenant.name },

@@ -140,7 +140,7 @@ export class EventEdit {
     event.preventDefault();
     if (
       eventEditSubmitDisabled({
-        formInvalid: this.editEventForm().invalid(),
+        formInvalid: false,
         formSubmitting: this.editEventForm().submitting(),
         mutationPending: this.updateEventMutation.isPending(),
       })

@@ -99,15 +99,20 @@ const tenantBrandAssetClientMimeTypes = {
   templateUrl: './general-settings.component.html',
 })
 export class GeneralSettingsComponent {
+  private readonly rpc = AppRpc.injectClient();
+  protected readonly updateSettingsMutation = injectMutation(() =>
+    this.rpc.admin.tenant.updateSettings.mutationOptions(),
+  );
   protected readonly uploadingBrandAsset =
     signal<AdminTenantBrandAssetKind | null>(null);
-  private readonly rpc = AppRpc.injectClient();
   private readonly uploadBrandAssetMutation = injectMutation(() =>
     this.rpc.admin.tenant.uploadBrandAsset.mutationOptions(),
   );
   protected readonly brandAssetUploadDisabled = computed(() =>
     generalSettingsBrandAssetUploadDisabled({
-      mutationPending: this.uploadBrandAssetMutation.isPending(),
+      mutationPending:
+        this.uploadBrandAssetMutation.isPending() ||
+        this.updateSettingsMutation.isPending(),
       uploadingBrandAsset: this.uploadingBrandAsset(),
     }),
   );
@@ -148,9 +153,6 @@ export class GeneralSettingsComponent {
     tenantIdentityRows(this.configService.tenant),
   );
   protected readonly timezoneOptions = supportedTenantTimezones;
-  protected readonly updateSettingsMutation = injectMutation(() =>
-    this.rpc.admin.tenant.updateSettings.mutationOptions(),
-  );
   private readonly document = inject(DOCUMENT);
 
   private readonly notifications = inject(NotificationService);

@@ -13,6 +13,7 @@
             {{ user.communicationEmail ?? user.email }}
           </p>
           <button
+            type="button"
             mat-stroked-button
             (click)="openEditProfileDialog()"
             [disabled]="

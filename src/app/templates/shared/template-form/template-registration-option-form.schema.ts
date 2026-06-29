@@ -33,7 +33,6 @@ export const templateRegistrationOptionFormSchema =
     hidden(form.stripeTaxRateId, ({ valueOf }) => !valueOf(form.isPaid));
     min(form.closeRegistrationOffset, 0);
     min(form.openRegistrationOffset, 0);
-    min(form.price, 0);
     min(form.spots, 1);
     minLength(form.roleIds, 1);
     required(form.closeRegistrationOffset);
@@ -65,10 +64,24 @@ export const templateRegistrationOptionFormSchema =
           message: 'Discounted price must be non-negative.',
         };
       }
-      if (discountedPrice > valueOf(form.price)) {
+      const price = valueOf(form.price);
+      if (price !== '' && discountedPrice > price) {
         return {
           kind: 'max',
           message: 'Discounted price cannot exceed the base price.',
+        };
+      }
+      return;
+    });
+    validate(form.price, ({ value }) => {
+      const price = value();
+      if (price === '') {
+        return;
+      }
+      if (price < 0) {
+        return {
+          kind: 'min',
+          message: 'Price must be non-negative.',
         };
       }
       return;

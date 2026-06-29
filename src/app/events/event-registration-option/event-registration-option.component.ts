@@ -263,6 +263,11 @@ export class EventRegistrationOptionComponent {
               eventId: registrationOption.eventId,
             }),
           });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.findOne.queryKey({
+              id: registrationOption.eventId,
+            }),
+          });
         },
       },
     );

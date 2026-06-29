@@ -67,4 +67,30 @@ describe('permissionGuard', () => {
 
     expect(result).toBe(true);
   });
+
+  it('fails closed when permission metadata is malformed', () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        {
+          provide: PermissionsService,
+          useValue: {
+            hasPermissionSync: () => true,
+          } satisfies Pick<PermissionsService, 'hasPermissionSync'>,
+        },
+      ],
+    });
+
+    const result = TestBed.runInInjectionContext(() =>
+      permissionGuard(
+        routeWithData({ permissions: 'admin:manageRoles' }),
+        routerState('/admin/roles'),
+      ),
+    );
+
+    expect(result).toBeInstanceOf(UrlTree);
+    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe(
+      '/403?originalPath=%2Fadmin%2Froles',
+    );
+  });
 });

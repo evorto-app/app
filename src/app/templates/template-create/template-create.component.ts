@@ -125,7 +125,7 @@ export class TemplateCreateComponent {
     event.preventDefault();
     if (
       templateWriteSubmitDisabled({
-        formInvalid: this.templateForm().invalid(),
+        formInvalid: false,
         formSubmitting: this.templateForm().submitting(),
         mutationPending: this.createTemplateMutation.isPending(),
       })

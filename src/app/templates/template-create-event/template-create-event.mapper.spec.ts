@@ -69,6 +69,7 @@ describe('createEventFormModelFromTemplate', () => {
     expect(model.registrationOptions).toHaveLength(1);
     expect(model.registrationOptions[0]).toMatchObject({
       description: '<p>Public participant copy</p>',
+      esnCardDiscountedPrice: 1200,
       id: 'template-option-1',
       isPaid: true,
       organizingRegistration: false,

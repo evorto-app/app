@@ -16,7 +16,7 @@
           class="lg:hidden! block"
           aria-label="Back to events"
         >
-          <fa-icon [icon]="faArrowLeft" />
+          <fa-duotone-icon [icon]="faArrowLeft" />
         </a>
         <div class="grow"></div>
         <button
@@ -26,7 +26,7 @@
           [matMenuTriggerFor]="menu"
           aria-label="Open event actions"
         >
-          <fa-icon [icon]="faEllipsisVertical" />
+          <fa-duotone-icon [icon]="faEllipsisVertical" />
         </button>
         <mat-menu #menu="matMenu">
           <button mat-menu-item (click)="updateVisibility()">

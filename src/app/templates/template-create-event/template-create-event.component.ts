@@ -182,6 +182,10 @@ export class TemplateCreateEventComponent {
               .toJSDate()
               .toISOString(),
             description: option.description?.trim() ? option.description : null,
+            esnCardDiscountedPrice:
+              option.esnCardDiscountedPrice === ''
+                ? null
+                : option.esnCardDiscountedPrice,
             isPaid: option.isPaid,
             openRegistrationTime: this.toDateTime(option.openRegistrationTime)
               .toJSDate()

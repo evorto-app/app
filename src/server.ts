@@ -155,6 +155,17 @@ const extractRegistrationId = (
   }
 };
 
+const decodePathSegment = (value: string): string | undefined => {
+  try {
+    const decoded = decodeURIComponent(value);
+    return decoded.includes('/') || decoded.includes('\\')
+      ? undefined
+      : decoded;
+  } catch {
+    return;
+  }
+};
+
 const extractTenantBrandAsset = (
   request: HttpServerRequest.HttpServerRequest,
 ) => {
@@ -166,15 +177,18 @@ const extractTenantBrandAsset = (
     return;
   }
 
-  try {
-    return {
-      fileName: decodeURIComponent(match[3]),
-      kind: decodeURIComponent(match[2]),
-      tenantId: decodeURIComponent(match[1]),
-    };
-  } catch {
+  const tenantId = decodePathSegment(match[1]);
+  const kind = decodePathSegment(match[2]);
+  const fileName = decodePathSegment(match[3]);
+  if (!tenantId || !kind || !fileName) {
     return;
   }
+
+  return {
+    fileName,
+    kind,
+    tenantId,
+  };
 };
 
 const renderSsr = (request: HttpServerRequest.HttpServerRequest) =>

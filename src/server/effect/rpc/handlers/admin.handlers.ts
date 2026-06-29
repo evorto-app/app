@@ -80,8 +80,23 @@ const normalizeOptionalBrandAssetUrl = (
     return null;
   }
 
-  if (trimmedValue.startsWith('/tenant-assets/')) {
-    return trimmedValue;
+  if (trimmedValue.startsWith('/')) {
+    const parsed = new URL(trimmedValue, 'https://tenant-assets.invalid');
+    if (
+      parsed.origin === 'https://tenant-assets.invalid' &&
+      parsed.pathname === trimmedValue &&
+      /^\/tenant-assets\/[^/]+\/(?:favicon|logo)\/[^/]+$/.test(
+        parsed.pathname,
+      ) &&
+      parsed.search === '' &&
+      parsed.hash === ''
+    ) {
+      return parsed.pathname;
+    }
+
+    throw new Error(
+      `${fieldName} must be an uploaded tenant asset path or a valid http or https URL`,
+    );
   }
 
   return normalizeOptionalUrl(trimmedValue, fieldName);

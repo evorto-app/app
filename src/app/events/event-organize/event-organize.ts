@@ -136,7 +136,6 @@ export class EventOrganize {
     'email',
     'checkin',
   ]);
-
   protected readonly organizerTableContent = computed(() => {
     const overview = this.organizerOverviewQuery.data();
     if (!overview) return [];
@@ -154,6 +153,7 @@ export class EventOrganize {
   protected readonly receiptOriginalUploadMutation = injectMutation(() =>
     this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
   );
+
   protected readonly receiptsByEventQuery = injectQuery(() =>
     this.rpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),
@@ -169,15 +169,20 @@ export class EventOrganize {
 
     return null;
   });
+  protected readonly transferRegistrationMutation = injectMutation(() =>
+    this.rpc.events.transferEventRegistration.mutationOptions(),
+  );
 
+  protected readonly registrationMutationPending = computed(
+    () =>
+      this.cancelRegistrationMutation.isPending() ||
+      this.transferRegistrationMutation.isPending(),
+  );
   protected readonly stats = computed(() =>
     computeEventOrganizeStats(this.event()),
   );
   protected readonly submitReceiptMutation = injectMutation(() =>
     this.rpc.finance.receipts.submit.mutationOptions(),
-  );
-  protected readonly transferRegistrationMutation = injectMutation(() =>
-    this.rpc.events.transferEventRegistration.mutationOptions(),
   );
   private readonly config = inject(ConfigService);
 
@@ -204,7 +209,7 @@ export class EventOrganize {
     if (
       organizerRegistrationActionDisabled({
         checkedIn: registration.checkedIn,
-        mutationPending: this.cancelRegistrationMutation.isPending(),
+        mutationPending: this.registrationMutationPending(),
       })
     ) {
       return;
@@ -319,7 +324,7 @@ export class EventOrganize {
     if (
       organizerRegistrationActionDisabled({
         checkedIn: registration.checkedIn,
-        mutationPending: this.transferRegistrationMutation.isPending(),
+        mutationPending: this.registrationMutationPending(),
       })
     ) {
       return;
