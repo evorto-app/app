@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "472c1a7081a0",
+  "session_id": "019eee04-186b-7b81-9d8d-04cc08e75aff",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-29T14:02:08.669912Z",
+  "branch": "codex/pr62-split-02-esncard-coverage",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/server/effect/rpc/handlers/events/event-registration.service.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.spec.ts",
+    "src/app/core/config.service.ts",
+    "src/app/app.component.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.spec.ts",
+    "src/app/events/event-active-registration/event-active-registration.component.html"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "73ea209aa7bb",
+  "token_usage": {
+    "input_tokens": 5930198,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 137789824,
+    "output_tokens": 301888,
+    "api_call_count": 1032
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-29T14:02:08.318127Z",
+    "agent_lines": 53,
+    "agent_removed": 9,
+    "human_added": 17,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 70,
+    "total_lines_changed": 96,
+    "agent_percentage": 64.58333333333334,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
