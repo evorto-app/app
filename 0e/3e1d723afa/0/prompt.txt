@@ -1,5 +1,1 @@
-Update the branch from remote
-
----
-
-Can you exclude the repos folder from dependabot analysis?
+Get this on main, should we do other dependabot config?
