@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "7276d50e89ff",
+  "strategy": "manual-commit",
+  "branch": "codex/launch-critical-test-coverage",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/docs/finance/receipt-review-reimbursement.doc.ts",
+    "tests/docs/templates/templates.doc.ts",
+    "tests/docs/users/create-account.doc.ts",
+    "tests/specs/events/events.test.ts",
+    "tests/specs/finance/receipts-flows.spec.ts",
+    "tests/specs/finance/stripe-webhook-replay.spec.ts",
+    "tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts",
+    "tests/specs/permissions/matrix.spec.ts",
+    "tests/specs/profile/create-account.spec.ts",
+    "tests/specs/scanning/scanner.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/72/76d50e89ff/0/metadata.json",
+      "transcript": "/72/76d50e89ff/0/full.jsonl",
+      "content_hash": "/72/76d50e89ff/0/content_hash.txt",
+      "prompt": "/72/76d50e89ff/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 615803,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 11903232,
+    "output_tokens": 33290,
+    "api_call_count": 111
+  }
+}

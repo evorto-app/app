@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "7276d50e89ff",
+  "session_id": "019f1e1f-cead-7703-8716-984c05bcb15a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-01T15:06:49.152583Z",
+  "branch": "codex/launch-critical-test-coverage",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/specs/events/events.test.ts",
+    "tests/specs/finance/receipts-flows.spec.ts",
+    "tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts",
+    "tests/specs/permissions/matrix.spec.ts",
+    "tests/specs/scanning/scanner.test.ts",
+    "tests/specs/profile/create-account.spec.ts",
+    "tests/docs/users/create-account.doc.ts",
+    "tests/specs/finance/stripe-webhook-replay.spec.ts",
+    "tests/docs/finance/receipt-review-reimbursement.doc.ts",
+    "tests/specs/profile/create-account.spec.ts",
+    "tests/docs/users/create-account.doc.ts",
+    "tests/docs/templates/templates.doc.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "bb96b9bfc7c2",
+  "token_usage": {
+    "input_tokens": 615803,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 11903232,
+    "output_tokens": 33290,
+    "api_call_count": 111
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-01T15:06:49.110123Z",
+    "agent_lines": 554,
+    "agent_removed": 163,
+    "human_added": 7,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 561,
+    "total_lines_changed": 733,
+    "agent_percentage": 97.81718963165075,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
