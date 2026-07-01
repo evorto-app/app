@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "0e3e1d723afa",
+  "session_id": "019f1de7-c5ec-7c42-b48e-5f2f33314b81",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-01T13:44:15.739141Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/dependabot.yml"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "1af881431e73",
+  "token_usage": {
+    "input_tokens": 301589,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1146624,
+    "output_tokens": 6748,
+    "api_call_count": 22
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-01T13:44:15.722466Z",
+    "agent_lines": 8,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 8,
+    "total_lines_changed": 8,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 8,
+      "agent_lines_removed": 0
+    }
+  ]
+}
