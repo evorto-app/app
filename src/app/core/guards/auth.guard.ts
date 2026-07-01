@@ -12,7 +12,7 @@ export const authGuard: CanActivateFn = async (_, state) => {
   if (!context) {
     const isAuthenticated = await rpc.config.isAuthenticated.call();
     if (!isAuthenticated) {
-      globalThis.location.href = `/forward-login?redirectUrl=${state.url}`;
+      globalThis.location.assign(`/forward-login?redirectUrl=${state.url}`);
       return false;
     }
   } else if (!context.authentication.isAuthenticated) {

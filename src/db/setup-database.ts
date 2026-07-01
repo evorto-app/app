@@ -38,9 +38,7 @@ export async function setupDatabase(
       {
         domain: 'localhost',
         name: 'Development',
-        ...(stripeTestAccountId
-          ? { stripeAccountId: stripeTestAccountId }
-          : {}),
+        ...(stripeTestAccountId && { stripeAccountId: stripeTestAccountId }),
       },
     ];
   if (!onlyDevelopmentTenants) {
@@ -48,16 +46,12 @@ export async function setupDatabase(
       {
         domain: 'evorto.fly.dev',
         name: 'Fly Deployment',
-        ...(stripeTestAccountId
-          ? { stripeAccountId: stripeTestAccountId }
-          : {}),
+        ...(stripeTestAccountId && { stripeAccountId: stripeTestAccountId }),
       },
       {
         domain: 'alpha.evorto.app',
         name: 'Evorto alpha',
-        ...(stripeTestAccountId
-          ? { stripeAccountId: stripeTestAccountId }
-          : {}),
+        ...(stripeTestAccountId && { stripeAccountId: stripeTestAccountId }),
       },
     );
   }

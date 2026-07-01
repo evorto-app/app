@@ -43,7 +43,7 @@ export class Auth {
   }
 
   logout(): void {
-    globalThis.location.href = '/logout';
+    globalThis.location.assign('/logout');
   }
 
   // Refresh authentication state

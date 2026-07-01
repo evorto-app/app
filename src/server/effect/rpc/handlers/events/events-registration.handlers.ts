@@ -184,11 +184,11 @@ const cancelRegistration = ({
           userId: true,
         },
         where: {
-          ...(eventId ? { eventId } : {}),
+          ...(eventId && { eventId }),
           id: registrationId,
           status: { NOT: 'CANCELLED' },
           tenantId: tenant.id,
-          ...(requireOrganizerAccess ? {} : { userId: user.id }),
+          ...(!requireOrganizerAccess && { userId: user.id }),
         },
         with: {
           addonPurchases: {
@@ -608,11 +608,11 @@ const transferEventRegistration = ({
           userId: true,
         },
         where: {
-          ...(eventId ? { eventId } : {}),
+          ...(eventId && { eventId }),
           id: registrationId,
           status: { NOT: 'CANCELLED' },
           tenantId: tenant.id,
-          ...(requireOrganizerAccess ? {} : { userId: user.id }),
+          ...(!requireOrganizerAccess && { userId: user.id }),
         },
         with: {
           event: {
@@ -962,7 +962,7 @@ export const eventRegistrationHandlers = {
             const updatedRegistrations = yield* tx
               .update(eventRegistrations)
               .set({
-                ...(registration.checkInTime ? {} : { checkInTime }),
+                ...(!registration.checkInTime && { checkInTime }),
                 checkedInGuestCount: sql`${eventRegistrations.checkedInGuestCount} + ${guestCheckInCount}`,
               })
               .where(
@@ -1236,10 +1236,7 @@ export const eventRegistrationHandlers = {
           const roleEligible =
             registrationOption.roleIds.length === 0 ||
             registrationOption.roleIds.some((roleId) => roleIds.has(roleId));
-          if (!roleEligible) {
-            return false;
-          }
-          return true;
+          return !!roleEligible;
         })
         .map((tenantUser) => ({
           email: tenantUser.email,
@@ -1525,20 +1522,20 @@ export const eventRegistrationHandlers = {
         user,
       });
 
-      const sameUserIssue = registration.userId === user.id;
-      const registrationStatusIssue = registration.status !== 'CONFIRMED';
+      const isSameUserIssue = registration.userId === user.id;
+      const isRegistrationStatusIssue = registration.status !== 'CONFIRMED';
       const remainingGuestCount = Math.max(
         0,
         registration.guestCount - registration.checkedInGuestCount,
       );
-      const alreadyCheckedInIssue =
+      const isAlreadyCheckedInIssue =
         registration.checkInTime !== null && remainingGuestCount === 0;
-      const timingIssue = !isWithinCheckInWindow(registration.event.start);
-      const allowCheckin =
-        !registrationStatusIssue &&
-        !sameUserIssue &&
-        !timingIssue &&
-        !alreadyCheckedInIssue;
+      const isTimingIssue = !isWithinCheckInWindow(registration.event.start);
+      const isAllowCheckin =
+        !isRegistrationStatusIssue &&
+        !isSameUserIssue &&
+        !isTimingIssue &&
+        !isAlreadyCheckedInIssue;
       const discountedTransaction = registration.transactions.find(
         (transaction) =>
           transaction.amount < registration.registrationOption.price,
@@ -1552,8 +1549,8 @@ export const eventRegistrationHandlers = {
         (appliedDiscountedPrice === null ? null : ('esnCard' as const));
 
       return {
-        allowCheckin,
-        alreadyCheckedInIssue,
+        allowCheckin: isAllowCheckin,
+        alreadyCheckedInIssue: isAlreadyCheckedInIssue,
         appliedDiscountType,
         attendeeCheckedIn: registration.checkInTime !== null,
         checkedInGuestCount: registration.checkedInGuestCount,
@@ -1565,9 +1562,9 @@ export const eventRegistrationHandlers = {
         registrationOption: {
           title: registration.registrationOption.title,
         },
-        registrationStatusIssue,
+        registrationStatusIssue: isRegistrationStatusIssue,
         remainingGuestCount,
-        sameUserIssue,
+        sameUserIssue: isSameUserIssue,
         user: {
           firstName: registration.user.firstName,
           lastName: registration.user.lastName,

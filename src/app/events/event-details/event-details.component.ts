@@ -43,9 +43,7 @@ import { SubmitEventDialogComponent } from '../submit-event-dialog/submit-event-
 import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/update-visibility-dialog.component';
 
 export type RegistrationOptionsState =
-  | 'hiddenByEligibility'
-  | 'none'
-  | 'visible';
+  'hiddenByEligibility' | 'none' | 'visible';
 
 export const registrationOptionsState = (event: {
   registrationOptions: readonly unknown[];
@@ -204,9 +202,9 @@ export class EventDetailsComponent {
   );
   private readonly config = inject(ConfigService);
   protected readonly cardExpiresBeforeEvent = computed(() => {
-    const esnCardEnabled =
+    const isEsnCardEnabled =
       this.config.tenant.discountProviders?.esnCard?.status === 'enabled';
-    if (!esnCardEnabled) return false;
+    if (!isEsnCardEnabled) return false;
     if (!this.eventQuery.isSuccess() || !this.myCardsQuery.isSuccess()) {
       return false;
     }

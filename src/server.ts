@@ -83,7 +83,7 @@ const safeDecodePath = (pathname: string) => {
 const resolveStaticPath = (pathname: string) =>
   Effect.gen(function* () {
     const decodedPath = safeDecodePath(pathname);
-    if (!decodedPath || decodedPath.includes('\u0000')) {
+    if (!decodedPath || decodedPath.includes('\u{0}')) {
       return;
     }
 
@@ -587,5 +587,5 @@ const serveEffect = Effect.gen(function* () {
 });
 
 if (import.meta.main) {
-  BunRuntime.runMain(serveEffect);
+  BunRuntime.runMain(serveEffect as Effect.Effect<never, unknown, never>);
 }

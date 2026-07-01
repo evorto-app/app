@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const sourceRoot = path.join(process.cwd(), 'src/app');
-const forbiddenPatterns = ['<mat-' + 'icon', 'Mat' + 'IconModule'] as const;
+const forbiddenPatterns = ['<mat-icon', 'MatIconModule'] as const;
 const materialIconImport = '@angular/material/icon';
 const allowedMaterialIconRegistryFile = path.join(
   sourceRoot,

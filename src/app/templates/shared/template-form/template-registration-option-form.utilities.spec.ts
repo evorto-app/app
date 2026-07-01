@@ -37,7 +37,7 @@ describe('toTemplateRegistrationSubmitData', () => {
     expect(
       toTemplateRegistrationSubmitData(
         createTemplateRegistrationFormModel({
-          description: '   ',
+          description: ' '.repeat(3),
           registeredDescription: '',
           title: '  Participant registration  ',
         }),

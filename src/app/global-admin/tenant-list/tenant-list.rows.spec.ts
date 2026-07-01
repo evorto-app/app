@@ -93,7 +93,7 @@ describe('globalAdminStripeAccountLabel', () => {
 
 describe('filterGlobalAdminTenants', () => {
   it('returns all tenants for blank searches', () => {
-    expect(filterGlobalAdminTenants([tenant], '   ')).toEqual([tenant]);
+    expect(filterGlobalAdminTenants([tenant], ' '.repeat(3))).toEqual([tenant]);
   });
 
   it('matches tenant operational fields case-insensitively', () => {

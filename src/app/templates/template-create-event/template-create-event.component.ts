@@ -221,7 +221,7 @@ export class TemplateCreateEventComponent {
   }
 
   private toDateTime(value: Date | DateTime): DateTime {
-    return DateTime.isDateTime(value) ? value : DateTime.fromJSDate(value);
+    return value instanceof Date ? DateTime.fromJSDate(value) : value;
   }
 
   private updateIfPristine(

@@ -17,10 +17,11 @@ const databaseEffect = <A>(
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
-const decodeHeaderJson = <A>(
+const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
   value: string | undefined,
-  schema: Schema.Decoder<A>,
-): A => Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
+  schema: S,
+): S['Type'] =>
+  Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 export const taxRateHandlers = {
   'taxRates.listActive': (_payload, options) =>

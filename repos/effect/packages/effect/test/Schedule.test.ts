@@ -1,5 +1,5 @@
-import { describe, expect, it } from "@effect/vitest"
-import { Array, Duration, Effect, Fiber, Pull, Random, Schedule } from "effect"
+import { assert, describe, expect, it } from "@effect/vitest"
+import { Array, Duration, Effect, Fiber, Pull, Random, Result, Schedule } from "effect"
 import { constant, constUndefined } from "effect/Function"
 import { TestClock } from "effect/testing"
 
@@ -39,7 +39,47 @@ describe("Schedule", () => {
   })
 
   describe("sequencing", () => {
-    it.effect("andThenResult - executes schedules sequentially to completion", () =>
+    it.effect("tap - provides full metadata", () =>
+      Effect.gen(function*() {
+        const observed: Array<Schedule.Metadata<number, string>> = []
+        const schedule = Schedule.spaced(Duration.millis(250)).pipe(
+          Schedule.tap((metadata: Schedule.Metadata<number, string>) =>
+            Effect.sync(() => {
+              observed.push(metadata)
+            })
+          )
+        )
+        const step = yield* Schedule.toStep(schedule)
+        const first = yield* step(1_000, "a")
+        const second = yield* step(1_250, "b")
+
+        expect(first).toEqual([0, Duration.millis(250)])
+        expect(second).toEqual([1, Duration.millis(250)])
+        expect(observed).toEqual([
+          {
+            input: "a",
+            output: 0,
+            duration: Duration.millis(250),
+            attempt: 1,
+            start: 1_000,
+            now: 1_000,
+            elapsed: 0,
+            elapsedSincePrevious: 0
+          },
+          {
+            input: "b",
+            output: 1,
+            duration: Duration.millis(250),
+            attempt: 2,
+            start: 1_000,
+            now: 1_250,
+            elapsed: 250,
+            elapsedSincePrevious: 250
+          }
+        ])
+      }))
+
+    it.effect("andThenResult - sequences self then other when collecting delays", () =>
       Effect.gen(function*() {
         const left = Schedule.fixed("500 millis").pipe(
           Schedule.while(({ attempt }) => Effect.succeed(attempt <= 3))
@@ -58,7 +98,7 @@ describe("Schedule", () => {
         ])
       }))
 
-    it.effect("andThenResult - emits right completion when right schedule is finite", () =>
+    it.effect("andThenResult - includes finite other completion when collecting delays", () =>
       Effect.gen(function*() {
         const left = Schedule.fixed("500 millis").pipe(
           Schedule.while(({ attempt }) => Effect.succeed(attempt <= 2))
@@ -72,6 +112,23 @@ describe("Schedule", () => {
           Duration.millis(500),
           Duration.seconds(1),
           Duration.zero
+        ])
+      }))
+
+    it.effect("andThenResult - wraps self outputs as Failure and other outputs as Success", () =>
+      Effect.gen(function*() {
+        const left = Schedule.identity<string>().pipe(Schedule.take(2))
+        const right = Schedule.identity<string>()
+        const step = yield* Schedule.toStep(Schedule.andThenResult(left, right))
+
+        const first = yield* step(0, "left-1")
+        const second = yield* step(0, "left-2")
+        const third = yield* step(0, "right-1")
+
+        assert.deepStrictEqual([first, second, third], [
+          [Result.fail("left-1"), Duration.zero],
+          [Result.fail("left-2"), Duration.zero],
+          [Result.succeed("right-1"), Duration.zero]
         ])
       }))
   })
@@ -98,7 +155,7 @@ describe("Schedule", () => {
         ])
       }))
 
-    it.effect("should recur on interval matching cron expression (second granularity))", () =>
+    it.effect("should recur on interval matching cron expression (second granularity)", () =>
       Effect.gen(function*() {
         const now = new Date(2024, 0, 1, 0, 0, 0).getTime()
         // At every third minute

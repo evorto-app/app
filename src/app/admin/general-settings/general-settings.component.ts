@@ -268,7 +268,7 @@ export class GeneralSettingsComponent {
       }
       return;
     }
-    if (file.size <= 0 || file.size > tenantBrandAssetClientMaxSizeBytes) {
+    if (file.size === 0 || file.size > tenantBrandAssetClientMaxSizeBytes) {
       this.notifications.showError(
         'Brand asset file must be between 1 byte and 5 MB',
       );

@@ -223,7 +223,7 @@ const createAuth0Client = (request: HttpServerRequest.HttpServerRequest) =>
     const { auth } = yield* RuntimeConfig;
     const callbackOrigin = normalizeOrigin(auth.BASE_URL);
     const requestOrigin = resolveRequestOrigin(request);
-    const callbackUrl = new URL('/callback', callbackOrigin).toString();
+    const callbackUrl = new URL('/callback', callbackOrigin).href;
     const issuerHostname = yield* Effect.try({
       catch: (cause) =>
         new Error(
@@ -286,10 +286,8 @@ const toAuthSession = (sessionData: SessionData | undefined) => {
     accessToken: primaryTokenSet.accessToken,
     authData,
     expiresAt: primaryTokenSet.expiresAt * 1000,
-    ...(sessionData.idToken ? { idToken: sessionData.idToken } : {}),
-    ...(sessionData.refreshToken
-      ? { refreshToken: sessionData.refreshToken }
-      : {}),
+    ...(sessionData.idToken && { idToken: sessionData.idToken }),
+    ...(sessionData.refreshToken && { refreshToken: sessionData.refreshToken }),
   };
 };
 
@@ -440,7 +438,7 @@ export const handleLogoutRequest = (
     const logoutUrl = yield* runPromiseOrUndefined('handleLogoutRequest', () =>
       auth0Client.logout(
         {
-          returnTo: new URL(returnPath, origin).toString(),
+          returnTo: new URL(returnPath, origin).href,
         },
         storeOptions,
       ),

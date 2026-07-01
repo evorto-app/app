@@ -19,7 +19,7 @@ export class RpcForbiddenError extends Schema.TaggedErrorClass<RpcForbiddenError
 export class RpcInternalServerError extends Schema.TaggedErrorClass<RpcInternalServerError>()(
   'RpcInternalServerError',
   {
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
     message: Schema.String,
   },
 ) {}

@@ -1,8 +1,9 @@
+import jsdocs from "./rules/jsdocs.ts"
 import noBigIntLiterals from "./rules/no-bigint-literals.ts"
 import noImportFromBarrelPackage from "./rules/no-import-from-barrel-package.ts"
 import noJsExtensionImports from "./rules/no-js-extension-imports.ts"
 import noOpaqueInstanceFields from "./rules/no-opaque-instance-fields.ts"
-import standardJsdoc from "./rules/standard-jsdoc.ts"
+import noUnusedInternal from "./rules/no-unused-internal.ts"
 
 export default {
   meta: {
@@ -13,6 +14,7 @@ export default {
     "no-import-from-barrel-package": noImportFromBarrelPackage,
     "no-js-extension-imports": noJsExtensionImports,
     "no-opaque-instance-fields": noOpaqueInstanceFields,
-    "standard-jsdoc": standardJsdoc
+    "no-unused-internal": noUnusedInternal,
+    "jsdocs": jsdocs
   }
 }

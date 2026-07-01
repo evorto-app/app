@@ -58,11 +58,11 @@ const resolveOriginFromHeaders = (headers?: Headers): string | undefined => {
   }
 
   const protocol =
-    headers.get('x-forwarded-proto')?.split(',')[0]?.trim() ??
-    headers.get('x-forwarded-protocol')?.split(',')[0]?.trim() ??
+    headers.get('x-forwarded-proto')?.split(',', 1)[0]?.trim() ??
+    headers.get('x-forwarded-protocol')?.split(',', 1)[0]?.trim() ??
     'http';
   const host =
-    headers.get('x-forwarded-host')?.split(',')[0]?.trim() ??
+    headers.get('x-forwarded-host')?.split(',', 1)[0]?.trim() ??
     headers.get('host')?.trim();
 
   if (!host) {

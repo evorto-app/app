@@ -98,7 +98,7 @@ export const isMeaningfulRichTextHtml = (content: string): boolean => {
     allowedAttributes: {},
     allowedTags: [],
   })
-    .replaceAll('\u00A0', ' ')
+    .replaceAll('\u{A0}', ' ')
     .trim();
 
   if (plainText.length > 0) {

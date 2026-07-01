@@ -8,7 +8,7 @@ describe('editProfileDialogResultFromFormValue', () => {
       editProfileDialogResultFromFormValue({
         communicationEmail: ' events@example.com ',
         firstName: ' Alice ',
-        iban: '   ',
+        iban: ' '.repeat(3),
         lastName: ' Updated ',
         paypalEmail: '',
       }),

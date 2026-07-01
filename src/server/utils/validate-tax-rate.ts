@@ -21,8 +21,7 @@ export interface TaxRateValidationError {
 }
 
 export type TaxRateValidationResult =
-  | TaxRateValidationError
-  | TaxRateValidationSuccess;
+  TaxRateValidationError | TaxRateValidationSuccess;
 
 // Validation result types
 export interface TaxRateValidationSuccess {

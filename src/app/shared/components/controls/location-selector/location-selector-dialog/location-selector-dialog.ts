@@ -86,6 +86,6 @@ export class LocationSelectorDialog {
       return location;
     }
 
-    return `${location?.placePrediction?.mainText ?? ''}`;
+    return location?.placePrediction?.mainText?.text ?? '';
   };
 }

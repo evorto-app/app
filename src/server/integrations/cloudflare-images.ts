@@ -154,9 +154,9 @@ export const cleanupTestingCloudflareImages = (input: {
         try: () =>
           config.client.images.v2.list({
             account_id: config.accountId,
-            ...(continuationToken === undefined
-              ? {}
-              : { continuation_token: continuationToken }),
+            ...(continuationToken !== undefined && {
+              continuation_token: continuationToken,
+            }),
             per_page: 100,
           }),
       });

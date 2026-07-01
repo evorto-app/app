@@ -369,7 +369,7 @@ describe('finance profile receipt reads', () => {
     ).toBe('login@example.com');
     expect(
       financeReceiptSubmitterEmail({
-        submittedByCommunicationEmail: '   ',
+        submittedByCommunicationEmail: ' '.repeat(3),
         submittedByEmail: 'login@example.com',
       }),
     ).toBe('login@example.com');
@@ -425,7 +425,7 @@ describe('finance profile receipt reads', () => {
 describe('finance receipt media permissions', () => {
   it.effect('rejects receipt uploads without receipt-submit access', () =>
     Effect.gen(function* () {
-      let uploadCalled = false;
+      let isUploadCalled = false;
       const error = yield* financeHandlers[
         'finance.receiptMedia.uploadOriginal'
       ](uploadInput, { headers: {} } as never).pipe(
@@ -435,7 +435,7 @@ describe('finance receipt media permissions', () => {
             database: databaseWithNoOrganizerReceiptAccess(),
             receiptMediaService: {
               uploadOriginal: () => {
-                uploadCalled = true;
+                isUploadCalled = true;
                 return Effect.succeed({
                   storageKey: 'receipts/tenant-1/event-1/user-1/file.png',
                   storageUrl: 'local-unavailable://receipt',
@@ -448,7 +448,7 @@ describe('finance receipt media permissions', () => {
 
       expect(error['_tag']).toBe('RpcForbiddenError');
       expect(error.permission).toBe('finance:submitReceipts:event-1');
-      expect(uploadCalled).toBe(false);
+      expect(isUploadCalled).toBe(false);
     }),
   );
 

@@ -73,7 +73,7 @@ const returningInsert = <A>(result: A) => ({
 describe('userHandlers', () => {
   it('normalizes user-list search input for the server query', () => {
     expect(normalizeUsersFindManySearch()).toBeUndefined();
-    expect(normalizeUsersFindManySearch('   ')).toBeUndefined();
+    expect(normalizeUsersFindManySearch(' '.repeat(3))).toBeUndefined();
     expect(normalizeUsersFindManySearch(' alice@example.com ')).toBe(
       '%alice@example.com%',
     );

@@ -42,10 +42,10 @@ const ensureRoleLookupPermission = (): Effect.Effect<
       );
     }
 
-    const allowed = ROLE_LOOKUP_PERMISSIONS.some((permission) =>
+    const isAllowed = ROLE_LOOKUP_PERMISSIONS.some((permission) =>
       includesPermission(permission, context.permissions),
     );
-    if (!allowed) {
+    if (!isAllowed) {
       return yield* Effect.fail(
         new RpcForbiddenError({
           message: 'Missing required role lookup permission',

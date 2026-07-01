@@ -8,8 +8,7 @@ export interface TemplateQuestionFormModel {
 }
 
 export type TemplateQuestionRegistrationOptionKind =
-  | 'organizer'
-  | 'participant';
+  'organizer' | 'participant';
 
 export type TemplateQuestionSubmitData = Omit<
   TemplateQuestionFormModel,
