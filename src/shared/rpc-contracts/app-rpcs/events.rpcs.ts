@@ -364,6 +364,7 @@ export const EventsGetOrganizeOverviewUser = Schema.Struct({
   firstName: Schema.NonEmptyString,
   lastName: Schema.NonEmptyString,
   registrationId: Schema.NonEmptyString,
+  transferAvailable: Schema.Boolean,
   userId: Schema.NonEmptyString,
 });
 

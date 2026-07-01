@@ -31,6 +31,8 @@ test('Manage user profile', async ({
     throw new Error('Expected regular profile user to exist');
   }
   const documentedNotificationEmail = `profile-docs-${seedDate.getTime()}@evorto.app`;
+  const documentedIban = 'DE89370400440532013000';
+  const documentedPaypalEmail = `profile-docs-paypal-${seedDate.getTime()}@evorto.app`;
   const profileReceiptId = getId();
   const profileReceiptFileName = `profile-docs-receipt-${seedDate.getTime()}.pdf`;
   const profileEventId = seeded.scenario.events.freeOpen.eventId;
@@ -147,7 +149,7 @@ The form uses inline validation, and the save button is only enabled when both n
       body: `
 ## Notification Email Persistence
 
-The notification email is user-managed and may differ from the Auth0 login email. After saving, the profile summary displays the updated notification email while the login email remains unchanged.
+The notification email is user-managed and may differ from the Auth0 login email. Optional IBAN and PayPal fields store global reimbursement details for finance teams. After saving, the profile summary displays the updated notification email while the login email remains unchanged.
 `,
     });
 
@@ -156,12 +158,27 @@ The notification email is user-managed and may differ from the Auth0 login email
     await page
       .getByRole('textbox', { name: 'Notification email' })
       .fill(documentedNotificationEmail);
+    await page.getByRole('textbox', { name: 'IBAN' }).fill(documentedIban);
+    await page
+      .getByRole('textbox', { name: 'PayPal email' })
+      .fill(documentedPaypalEmail);
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(editDialog).toHaveCount(0);
     await expect(
       page.getByText(`Notifications: ${documentedNotificationEmail}`),
     ).toBeVisible();
     await expect(page.getByText(`Login: ${originalUser.email}`)).toBeVisible();
+    const updatedProfileUser = await database.query.users.findFirst({
+      where: { id: regularUser.id },
+    });
+    if (!updatedProfileUser) {
+      throw new Error('Expected generated profile docs user after update');
+    }
+    expect(updatedProfileUser.communicationEmail).toBe(
+      documentedNotificationEmail,
+    );
+    expect(updatedProfileUser.iban).toBe(documentedIban);
+    expect(updatedProfileUser.paypalEmail).toBe(documentedPaypalEmail);
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),
@@ -194,7 +211,9 @@ The user profile now uses a two-column layout:
     await expect(
       documentedEventCard.getByText(profileEventCards.confirmed.eventTitle),
     ).toBeVisible();
-    await expect(documentedEventCard.getByText('Confirmed')).toBeVisible();
+    await expect(
+      documentedEventCard.getByText('Confirmed', { exact: true }),
+    ).toBeVisible();
     await expect(
       documentedEventCard.getByText('Includes 1 guest'),
     ).toBeVisible();
@@ -212,6 +231,9 @@ The user profile now uses a two-column layout:
     await expect(
       documentedEventCard.getByRole('link', { name: 'Open event page' }),
     ).toHaveAttribute('href', `/events/${profileEventCards.confirmed.eventId}`);
+    await expect(
+      documentedEventCard.getByRole('link', { name: 'Continue payment' }),
+    ).toHaveCount(0);
     const pendingCheckoutCard = page
       .locator('article')
       .filter({ hasText: profileEventCards.pendingCheckout.title });
@@ -257,6 +279,9 @@ The user profile now uses a two-column layout:
     await expect(
       waitlistCard.getByRole('link', { name: 'Open event page' }),
     ).toHaveAttribute('href', `/events/${profileEventCards.waitlist.eventId}`);
+    await expect(
+      waitlistCard.getByRole('link', { name: 'Continue payment' }),
+    ).toHaveCount(0);
     const checkedInEventCard = page
       .locator('article')
       .filter({ hasText: profileEventCards.checkedIn.addOnTitle });
@@ -264,7 +289,9 @@ The user profile now uses a two-column layout:
     await expect(
       checkedInEventCard.getByText(profileEventCards.checkedIn.eventTitle),
     ).toBeVisible();
-    await expect(checkedInEventCard.getByText('Confirmed')).toBeVisible();
+    await expect(
+      checkedInEventCard.getByText('Confirmed', { exact: true }),
+    ).toBeVisible();
     await expect(checkedInEventCard.getByText('Checked in:')).toBeVisible();
     await expect(
       checkedInEventCard.getByText(
@@ -282,6 +309,109 @@ The user profile now uses a two-column layout:
     await expect(
       checkedInEventCard.getByRole('link', { name: 'Open event page' }),
     ).toHaveAttribute('href', `/events/${profileEventCards.checkedIn.eventId}`);
+    await expect(
+      checkedInEventCard.getByRole('link', { name: 'Continue payment' }),
+    ).toHaveCount(0);
+
+    const confirmedRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: profileEventCards.confirmed.registrationId,
+          status: 'CONFIRMED',
+          userId: regularUser.id,
+        },
+      });
+    expect(confirmedRegistration).toEqual(
+      expect.objectContaining({
+        eventId: profileEventCards.confirmed.eventId,
+        guestCount: 1,
+      }),
+    );
+    const confirmedAddonPurchase =
+      await database.query.eventRegistrationAddonPurchases.findFirst({
+        where: {
+          id: profileEventCards.confirmed.addOnPurchaseId,
+          registrationId: profileEventCards.confirmed.registrationId,
+        },
+      });
+    expect(confirmedAddonPurchase).toEqual(
+      expect.objectContaining({
+        addonId: profileEventCards.confirmed.addonId,
+        quantity: 2,
+      }),
+    );
+
+    const pendingCheckoutTransaction =
+      await database.query.transactions.findFirst({
+        where: {
+          eventRegistrationId: profileEventCards.pendingCheckout.registrationId,
+          id: profileEventCards.pendingCheckout.transactionId,
+          status: 'pending',
+        },
+      });
+    expect(pendingCheckoutTransaction).toEqual(
+      expect.objectContaining({
+        stripeCheckoutUrl: profileEventCards.pendingCheckout.checkoutUrl,
+        type: 'registration',
+      }),
+    );
+    const pendingCheckoutRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: profileEventCards.pendingCheckout.registrationId,
+          status: 'PENDING',
+          userId: regularUser.id,
+        },
+      });
+    expect(pendingCheckoutRegistration).toEqual(
+      expect.objectContaining({
+        eventId: profileEventCards.pendingCheckout.eventId,
+        registrationOptionId: profileEventCards.pendingCheckout.optionId,
+      }),
+    );
+
+    const waitlistRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: profileEventCards.waitlist.registrationId,
+          status: 'WAITLIST',
+          userId: regularUser.id,
+        },
+      });
+    expect(waitlistRegistration).toEqual(
+      expect.objectContaining({
+        eventId: profileEventCards.waitlist.eventId,
+        registrationOptionId: profileEventCards.waitlist.optionId,
+      }),
+    );
+
+    const checkedInRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: {
+          id: profileEventCards.checkedIn.registrationId,
+          status: 'CONFIRMED',
+          userId: regularUser.id,
+        },
+      });
+    expect(checkedInRegistration).toEqual(
+      expect.objectContaining({
+        checkInTime: seedDate,
+        eventId: profileEventCards.checkedIn.eventId,
+      }),
+    );
+    const checkedInAddonPurchase =
+      await database.query.eventRegistrationAddonPurchases.findFirst({
+        where: {
+          id: profileEventCards.checkedIn.addOnPurchaseId,
+          registrationId: profileEventCards.checkedIn.registrationId,
+        },
+      });
+    expect(checkedInAddonPurchase).toEqual(
+      expect.objectContaining({
+        addonId: profileEventCards.checkedIn.addonId,
+        quantity: 1,
+      }),
+    );
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),
@@ -302,6 +432,23 @@ The user profile now uses a two-column layout:
       profileReceiptCard.getByText(profileEvent.title),
     ).toBeVisible();
     await expect(profileReceiptCard.getByText('18.75 €')).toBeVisible();
+    const profileReceipt = await database.query.financeReceipts.findFirst({
+      where: {
+        id: profileReceiptId,
+        submittedByUserId: regularUser.id,
+        tenantId: seeded.tenant.id,
+      },
+    });
+    if (!profileReceipt) {
+      throw new Error('Expected generated profile docs receipt after read');
+    }
+    expect(profileReceipt).toEqual(
+      expect.objectContaining({
+        attachmentFileName: profileReceiptFileName,
+        status: 'submitted',
+        totalAmount: 1875,
+      }),
+    );
     await takeScreenshot(
       testInfo,
       page.locator('app-user-profile'),

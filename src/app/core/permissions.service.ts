@@ -11,15 +11,18 @@ import { ConfigService } from './config.service';
 })
 export class PermissionsService {
   private readonly config = inject(ConfigService);
-  private readonly permissions = this.config.permissions;
 
   public hasPermission(...permissions: Permission[]) {
     return computed(() =>
-      permissions.every((p) => includesPermission(p, this.permissions)),
+      permissions.every((p) =>
+        includesPermission(p, this.config.permissionsSignal()),
+      ),
     );
   }
 
   public hasPermissionSync(...permissions: Permission[]) {
-    return permissions.every((p) => includesPermission(p, this.permissions));
+    return permissions.every((p) =>
+      includesPermission(p, this.config.permissions),
+    );
   }
 }

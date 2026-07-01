@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeEventOrganizeStats,
   organizerRegistrationActionDisabled,
+  organizerRegistrationTransferDisabled,
   receiptSubmissionActionDisabled,
 } from './event-organize';
 import { transferParticipantLabel } from './registration-transfer-dialog.component';
@@ -72,6 +73,39 @@ describe('organizerRegistrationActionDisabled', () => {
       organizerRegistrationActionDisabled({
         checkedIn: false,
         mutationPending: false,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('organizerRegistrationTransferDisabled', () => {
+  it('blocks organizer transfer for checked-in, paid, or in-flight rows', () => {
+    expect(
+      organizerRegistrationTransferDisabled({
+        checkedIn: true,
+        mutationPending: false,
+        transferAvailable: true,
+      }),
+    ).toBe(true);
+    expect(
+      organizerRegistrationTransferDisabled({
+        checkedIn: false,
+        mutationPending: true,
+        transferAvailable: true,
+      }),
+    ).toBe(true);
+    expect(
+      organizerRegistrationTransferDisabled({
+        checkedIn: false,
+        mutationPending: false,
+        transferAvailable: false,
+      }),
+    ).toBe(true);
+    expect(
+      organizerRegistrationTransferDisabled({
+        checkedIn: false,
+        mutationPending: false,
+        transferAvailable: true,
       }),
     ).toBe(false);
   });

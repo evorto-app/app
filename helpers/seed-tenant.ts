@@ -108,6 +108,13 @@ export interface SeedTenantResult {
     description: string;
     icon: string;
     id: string;
+    questions: {
+      id: string;
+      registrationOptionKind: 'organizer' | 'participant';
+      registrationOptionId: string;
+      required: boolean;
+      title: string;
+    }[];
     seedKey: SeedTemplateKey;
     tenantId: string;
     title: string;
@@ -248,6 +255,13 @@ export async function seedTenant(
     eventIds: seededEvents.events.map((event) => event.id),
     tenantId: tenant.id,
   });
+  const refreshedEvents = await database.query.eventInstances.findMany({
+    orderBy: { start: 'asc' },
+    where: { tenantId: tenant.id },
+    with: {
+      registrationOptions: true,
+    },
+  });
 
   if (logSeedMap) {
     const map = {
@@ -264,23 +278,29 @@ export async function seedTenant(
   }
 
   return {
-    events: seededEvents.events.map((event) => ({
+    events: refreshedEvents.map((event) => ({
       id: event.id,
-      registrationOptions: event.registrationOptions.map((option) => ({
-        checkedInSpots: option.checkedInSpots,
-        closeRegistrationTime: option.closeRegistrationTime,
-        confirmedSpots: option.confirmedSpots,
-        id: option.id,
-        isPaid: option.isPaid,
-        openRegistrationTime: option.openRegistrationTime,
-        organizingRegistration: option.organizingRegistration,
-        price: option.price,
-        roleIds: option.roleIds ?? [],
-        spots: option.spots,
-        stripeTaxRateId: option.stripeTaxRateId,
-        title: option.title,
-        waitlistSpots: option.waitlistSpots,
-      })),
+      registrationOptions: event.registrationOptions
+        .toSorted(
+          (a, b) =>
+            Number(a.organizingRegistration) -
+              Number(b.organizingRegistration) || a.id.localeCompare(b.id),
+        )
+        .map((option) => ({
+          checkedInSpots: option.checkedInSpots,
+          closeRegistrationTime: option.closeRegistrationTime,
+          confirmedSpots: option.confirmedSpots,
+          id: option.id,
+          isPaid: option.isPaid,
+          openRegistrationTime: option.openRegistrationTime,
+          organizingRegistration: option.organizingRegistration,
+          price: option.price,
+          roleIds: option.roleIds ?? [],
+          spots: option.spots,
+          stripeTaxRateId: option.stripeTaxRateId,
+          title: option.title,
+          waitlistSpots: option.waitlistSpots,
+        })),
       start: event.start,
       status: event.status,
       tenantId: event.tenantId,
@@ -296,6 +316,7 @@ export async function seedTenant(
       description: t.description,
       icon: t.icon.iconName,
       id: t.id,
+      questions: t.questions,
       seedKey: t.seedKey,
       tenantId: t.tenantId,
       title: t.title,

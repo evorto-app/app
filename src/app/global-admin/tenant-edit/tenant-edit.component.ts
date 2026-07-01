@@ -69,18 +69,22 @@ export class TenantEditComponent {
     }),
   );
   protected readonly tenantModel = linkedSignal<
-    {
-      tenant: GlobalAdminTenantRecord | null | undefined;
-      tenantId: string;
-    },
+    { tenant: GlobalAdminTenantRecord | null | undefined; tenantId: string },
     GlobalAdminTenantFormModel
   >({
-    computation: ({ tenant }) =>
-      tenant
-        ? globalAdminTenantFormModelFromRecord(tenant)
-        : createGlobalAdminTenantFormModel(),
+    computation: ({ tenant, tenantId }, previous) => {
+      if (tenant) {
+        return globalAdminTenantFormModelFromRecord(tenant);
+      }
+
+      return previous?.source.tenantId === tenantId
+        ? previous.value
+        : createGlobalAdminTenantFormModel();
+    },
     source: () => ({
-      tenant: this.tenantQuery.data(),
+      tenant: this.tenantQuery.isSuccess()
+        ? this.tenantQuery.data()
+        : undefined,
       tenantId: this.tenantId(),
     }),
   });
@@ -134,7 +138,19 @@ export class TenantEditComponent {
               getErrorMessage(error, 'Failed to update tenant'),
             );
           },
-          onSuccess: async () => {
+          onSuccess: async (updatedTenant) => {
+            this.queryClient.setQueriesData<GlobalAdminTenantRecord | null>(
+              this.rpc.queryFilter(['globalAdmin', 'tenants.findOne']),
+              (tenant) =>
+                tenant?.id === updatedTenant.id ? updatedTenant : tenant,
+            );
+            this.queryClient.setQueriesData<GlobalAdminTenantRecord[]>(
+              this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
+              (tenants) =>
+                tenants?.map((tenant) =>
+                  tenant.id === updatedTenant.id ? updatedTenant : tenant,
+                ) ?? tenants,
+            );
             await this.queryClient.invalidateQueries(
               this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
             );

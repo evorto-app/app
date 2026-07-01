@@ -84,8 +84,8 @@ export class TemplateEditComponent {
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
   protected readonly simpleTemplateData = computed(() => {
+    if (!this.templateQuery.isSuccess()) return;
     const templateData = this.templateQuery.data();
-    if (!templateData) return templateData;
     const organizerRegistration = templateData.registrationOptions.find(
       (option) => option.organizingRegistration,
     );
@@ -161,7 +161,7 @@ export class TemplateEditComponent {
     event.preventDefault();
     if (
       templateWriteSubmitDisabled({
-        formInvalid: false,
+        formInvalid: this.templateForm().invalid(),
         formSubmitting: this.templateForm().submitting(),
         mutationPending: this.updateTemplateMutation.isPending(),
       })

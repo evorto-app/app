@@ -11,6 +11,7 @@ import {
   profileReceiptAmountLabel,
   profileReceiptStatusLabel,
   profileSectionFromFragment,
+  profileUserAfterEdit,
   registrationPaymentLabel,
   registrationStatusLabel,
 } from './user-profile.component';
@@ -298,6 +299,37 @@ describe('profile edit actions', () => {
         mutationPending: true,
       }),
     ).toBe(true);
+  });
+
+  it('merges saved profile fields into the visible profile cache', () => {
+    expect(
+      profileUserAfterEdit(
+        {
+          communicationEmail: 'old@example.com',
+          email: 'login@example.com',
+          firstName: 'Old',
+          iban: null,
+          id: 'user-1',
+          lastName: 'Name',
+          paypalEmail: null,
+        },
+        {
+          communicationEmail: 'new@example.com',
+          firstName: 'New',
+          iban: 'DE89370400440532013000',
+          lastName: 'Person',
+          paypalEmail: null,
+        },
+      ),
+    ).toEqual({
+      communicationEmail: 'new@example.com',
+      email: 'login@example.com',
+      firstName: 'New',
+      iban: 'DE89370400440532013000',
+      id: 'user-1',
+      lastName: 'Person',
+      paypalEmail: null,
+    });
   });
 });
 

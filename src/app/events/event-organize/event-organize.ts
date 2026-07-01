@@ -83,6 +83,7 @@ export interface EventOrganizeParticipant {
   firstName: string;
   lastName: string;
   registrationId: string;
+  transferAvailable: boolean;
 }
 
 export const organizerRegistrationActionDisabled = ({
@@ -92,6 +93,16 @@ export const organizerRegistrationActionDisabled = ({
   checkedIn: boolean;
   mutationPending: boolean;
 }): boolean => checkedIn || mutationPending;
+
+export const organizerRegistrationTransferDisabled = ({
+  checkedIn,
+  mutationPending,
+  transferAvailable,
+}: {
+  checkedIn: boolean;
+  mutationPending: boolean;
+  transferAvailable: boolean;
+}): boolean => checkedIn || mutationPending || !transferAvailable;
 
 export const receiptSubmissionActionDisabled = ({
   submissionUnavailable,
@@ -136,11 +147,14 @@ export class EventOrganize {
   );
   protected readonly organizerRegistrationActionDisabled =
     organizerRegistrationActionDisabled;
+  protected readonly organizerRegistrationTransferDisabled =
+    organizerRegistrationTransferDisabled;
   protected readonly organizerTableColumns = signal([
     'name',
     'email',
     'checkin',
   ]);
+
   protected readonly organizerTableContent = computed(() => {
     const overview = this.organizerOverviewQuery.data();
     if (!overview) return [];
@@ -158,7 +172,6 @@ export class EventOrganize {
   protected readonly receiptOriginalUploadMutation = injectMutation(() =>
     this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
   );
-
   protected readonly receiptsByEventQuery = injectQuery(() =>
     this.rpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),
@@ -174,20 +187,15 @@ export class EventOrganize {
 
     return null;
   });
-  protected readonly transferRegistrationMutation = injectMutation(() =>
-    this.rpc.events.transferEventRegistration.mutationOptions(),
-  );
 
-  protected readonly registrationMutationPending = computed(
-    () =>
-      this.cancelRegistrationMutation.isPending() ||
-      this.transferRegistrationMutation.isPending(),
-  );
   protected readonly stats = computed(() =>
     computeEventOrganizeStats(this.event()),
   );
   protected readonly submitReceiptMutation = injectMutation(() =>
     this.rpc.finance.receipts.submit.mutationOptions(),
+  );
+  protected readonly transferRegistrationMutation = injectMutation(() =>
+    this.rpc.events.transferEventRegistration.mutationOptions(),
   );
   private readonly config = inject(ConfigService);
 
@@ -214,7 +222,9 @@ export class EventOrganize {
     if (
       organizerRegistrationActionDisabled({
         checkedIn: registration.checkedIn,
-        mutationPending: this.registrationMutationPending(),
+        mutationPending:
+          this.cancelRegistrationMutation.isPending() ||
+          this.transferRegistrationMutation.isPending(),
       })
     ) {
       return;
@@ -327,9 +337,12 @@ export class EventOrganize {
     registration: EventOrganizeParticipant,
   ): Promise<void> {
     if (
-      organizerRegistrationActionDisabled({
+      organizerRegistrationTransferDisabled({
         checkedIn: registration.checkedIn,
-        mutationPending: this.registrationMutationPending(),
+        mutationPending:
+          this.transferRegistrationMutation.isPending() ||
+          this.cancelRegistrationMutation.isPending(),
+        transferAvailable: registration.transferAvailable,
       })
     ) {
       return;

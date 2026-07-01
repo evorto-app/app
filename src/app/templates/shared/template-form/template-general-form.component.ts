@@ -40,5 +40,9 @@ export class TemplateGeneralFormComponent {
   );
   protected readonly templateCategories = computed<
     readonly TemplateCategoryRecord[]
-  >(() => this.templateCategoriesQuery.data() ?? []);
+  >(() =>
+    this.templateCategoriesQuery.isSuccess()
+      ? this.templateCategoriesQuery.data()
+      : [],
+  );
 }

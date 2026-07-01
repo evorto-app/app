@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+// Runtime preflight runs before Docker commands so missing secrets, broken
+// Compose config, or missing browsers fail clearly before the app starts.
 export type RuntimeTarget = 'docker';
 
 type RequiredVariable = {
@@ -70,6 +72,16 @@ export const requiredByTarget = {
     {
       description: 'Stripe connected account id for seeded paid flows',
       name: 'STRIPE_TEST_ACCOUNT_ID',
+    },
+  ],
+} satisfies Record<RuntimeTarget, RequiredVariable[]>;
+
+export const optionalByTarget = {
+  docker: [
+    {
+      description:
+        'Live esncard.org add, refresh, and remove Playwright coverage',
+      name: 'E2E_LIVE_ESN_CARD_IDENTIFIER',
     },
   ],
 } satisfies Record<RuntimeTarget, RequiredVariable[]>;
@@ -152,10 +164,44 @@ const readPlaywrightInstallLocations = (output: string): readonly string[] => {
   return [...locations];
 };
 
+const systemChromeLocations = [
+  '/Applications/Google Chrome.app',
+  '/Applications/Google Chrome Canary.app',
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/opt/google/chrome/chrome',
+] as const;
+
 const playwrightBrowserCheck = (
+  env: NodeJS.ProcessEnv,
   fileExists: (filePath: string) => boolean,
   runCommand: (command: string, args: readonly string[]) => CommandResult,
 ): RuntimeCheck => {
+  if (env['E2E_BROWSER_CHANNEL'] === 'chrome') {
+    const availableChromeLocation = systemChromeLocations.find((location) =>
+      fileExists(location),
+    );
+
+    if (availableChromeLocation) {
+      return {
+        details: [
+          `Using E2E_BROWSER_CHANNEL=chrome with ${availableChromeLocation}`,
+        ],
+        label: 'Playwright system Chrome browser channel',
+        severity: 'ok',
+      };
+    }
+
+    return {
+      details: [
+        'E2E_BROWSER_CHANNEL=chrome is set, but no system Chrome installation was found.',
+        'Unset E2E_BROWSER_CHANNEL and run bun run test:e2e:install, or install Google Chrome for local exploratory runs.',
+      ],
+      label: 'Playwright system Chrome browser channel',
+      severity: 'warning',
+    };
+  }
+
   const result = runCommand('bunx', [
     'playwright',
     'install',
@@ -175,20 +221,11 @@ const playwrightBrowserCheck = (
     };
   }
 
-  const locations = readPlaywrightInstallLocations(
-    `${result.stdout}\n${result.stderr}`,
-  );
-  if (locations.length === 0) {
-    return {
-      details: [
-        'Could not detect Playwright install locations from dry-run output',
-      ],
-      label: 'Playwright Chromium browser installation',
-      severity: 'warning',
-    };
-  }
-
+  const locations = readPlaywrightInstallLocations(result.stdout);
   const missing = locations.filter((location) => !fileExists(location));
+  const availableChromeLocation = systemChromeLocations.find((location) =>
+    fileExists(location),
+  );
 
   if (missing.length === 0) {
     return {
@@ -202,6 +239,11 @@ const playwrightBrowserCheck = (
     details: [
       ...missing.map((location) => `Missing ${location}`),
       'Run bun run test:e2e:install before local Playwright runs.',
+      ...(availableChromeLocation
+        ? [
+            `Or set E2E_BROWSER_CHANNEL=chrome to use ${availableChromeLocation} for local exploratory runs.`,
+          ]
+        : []),
     ],
     label: 'Playwright Chromium browser installation',
     severity: 'warning',
@@ -242,6 +284,12 @@ export const evaluateRuntimePreflight = (
   const presentVariables = requiredByTarget[target].filter(({ name }) =>
     isPresent(env, name),
   );
+  const missingOptionalVariables = optionalByTarget[target].filter(
+    ({ name }) => !isPresent(env, name),
+  );
+  const presentOptionalVariables = optionalByTarget[target].filter(({ name }) =>
+    isPresent(env, name),
+  );
   const checks: RuntimeCheck[] = [
     {
       details:
@@ -261,6 +309,18 @@ export const evaluateRuntimePreflight = (
             )
           : ['No required variables are currently available.'],
       label: `Available ${target} runtime variables`,
+      severity: 'ok',
+    },
+    {
+      details: [
+        ...presentOptionalVariables.map(
+          ({ description, name }) => `${name}: ${description}`,
+        ),
+        ...missingOptionalVariables.map(
+          ({ description, name }) => `missing ${name}: ${description}`,
+        ),
+      ],
+      label: `Optional ${target} live-provider variables`,
       severity: 'ok',
     },
     {
@@ -291,7 +351,7 @@ export const evaluateRuntimePreflight = (
       runCommand,
     ),
     stripeWebhookSecretSourceCheck(env),
-    playwrightBrowserCheck(fileExists, runCommand),
+    playwrightBrowserCheck(env, fileExists, runCommand),
   ];
 
   return {

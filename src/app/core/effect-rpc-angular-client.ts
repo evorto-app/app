@@ -19,15 +19,38 @@ import { AppRpcs } from '../../shared/rpc-contracts/app-rpcs';
 const normalizeBaseUrl = (value: string): string =>
   value.endsWith('/') ? value.slice(0, -1) : value;
 
+const normalizeConfiguredOrigin = (value: string): string => {
+  const url = new URL(value);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('SSR_RPC_ORIGIN must use http or https');
+  }
+  return normalizeBaseUrl(url.origin);
+};
+
 const injectionContextErrorPattern = /\bNG0203\b/;
 
 const isMissingInjectionContextError = (error: unknown): boolean =>
   error instanceof Error && injectionContextErrorPattern.test(error.message);
 
+interface ServerProcessLike {
+  readonly env?: Record<string, string | undefined>;
+}
+
 interface ServerRequestLike {
   readonly headers?: Headers;
   readonly url: string;
 }
+
+const resolveConfiguredServerRpcOrigin = (): string | undefined => {
+  const processLike = (
+    globalThis as typeof globalThis & { readonly process?: ServerProcessLike }
+  ).process;
+  const configuredOrigin = processLike?.env?.['SSR_RPC_ORIGIN']?.trim();
+
+  return configuredOrigin
+    ? normalizeConfiguredOrigin(configuredOrigin)
+    : undefined;
+};
 
 const resolveOriginFromHeaders = (headers?: Headers): string | undefined => {
   if (!headers) {
@@ -66,6 +89,11 @@ const resolveRequest = (): ServerRequestLike | undefined => {
 };
 
 export const resolveServerRpcOrigin = (request?: ServerRequestLike): string => {
+  const configuredOrigin = resolveConfiguredServerRpcOrigin();
+  if (configuredOrigin) {
+    return configuredOrigin;
+  }
+
   if (request) {
     try {
       return normalizeBaseUrl(new URL(request.url).origin);

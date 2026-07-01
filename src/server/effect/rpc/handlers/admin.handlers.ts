@@ -71,6 +71,40 @@ const normalizeOptionalUrl = (
   }
 };
 
+const decodeTenantAssetSegment = (value: string): string | undefined => {
+  try {
+    const decoded = decodeURIComponent(value);
+    return decoded.includes('/') || decoded.includes('\\')
+      ? undefined
+      : decoded;
+  } catch {
+    return;
+  }
+};
+
+const normalizeTenantAssetPath = (value: string): string | undefined => {
+  const parsed = new URL(value, 'https://tenant-assets.invalid');
+  if (
+    parsed.origin !== 'https://tenant-assets.invalid' ||
+    parsed.search !== '' ||
+    parsed.hash !== ''
+  ) {
+    return;
+  }
+
+  const match = /^\/tenant-assets\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(
+    parsed.pathname,
+  );
+  const tenantId = match?.[1] ? decodeTenantAssetSegment(match[1]) : undefined;
+  const kind = match?.[2] ? decodeTenantAssetSegment(match[2]) : undefined;
+  const fileName = match?.[3] ? decodeTenantAssetSegment(match[3]) : undefined;
+  if (!tenantId || (kind !== 'favicon' && kind !== 'logo') || !fileName) {
+    return;
+  }
+
+  return `/tenant-assets/${encodeURIComponent(tenantId)}/${kind}/${encodeURIComponent(fileName)}`;
+};
+
 const normalizeOptionalBrandAssetUrl = (
   value: string | undefined,
   fieldName: string,
@@ -81,17 +115,9 @@ const normalizeOptionalBrandAssetUrl = (
   }
 
   if (trimmedValue.startsWith('/')) {
-    const parsed = new URL(trimmedValue, 'https://tenant-assets.invalid');
-    if (
-      parsed.origin === 'https://tenant-assets.invalid' &&
-      parsed.pathname === trimmedValue &&
-      /^\/tenant-assets\/[^/]+\/(?:favicon|logo)\/[^/]+$/.test(
-        parsed.pathname,
-      ) &&
-      parsed.search === '' &&
-      parsed.hash === ''
-    ) {
-      return parsed.pathname;
+    const assetPath = normalizeTenantAssetPath(trimmedValue);
+    if (assetPath) {
+      return assetPath;
     }
 
     throw new Error(
@@ -128,6 +154,52 @@ const normalizeTenantBrandAssets = (input: {
   faviconUrl: normalizeOptionalBrandAssetUrl(input.faviconUrl, 'faviconUrl'),
   logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, 'logoUrl'),
 });
+
+const localeMoneySettingsChanged = (
+  tenant: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
+  input: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
+): boolean =>
+  tenant.currency !== input.currency ||
+  tenant.locale !== input.locale ||
+  tenant.timezone !== input.timezone;
+
+type TenantLocaleMoneyDependentDataDatabase = Pick<DatabaseClient, 'query'>;
+
+const tenantHasLocaleMoneyDependentData = (
+  database: TenantLocaleMoneyDependentDataDatabase,
+  tenantId: string,
+): Effect.Effect<boolean, unknown> =>
+  Effect.gen(function* () {
+    const existingEvent = yield* database.query.eventInstances.findFirst({
+      columns: {
+        id: true,
+      },
+      where: {
+        tenantId,
+      },
+    });
+    if (existingEvent) {
+      return true;
+    }
+
+    const existingTransaction = yield* database.query.transactions.findFirst({
+      columns: {
+        id: true,
+      },
+      where: {
+        tenantId,
+      },
+    });
+
+    return !!existingTransaction;
+  });
+
+const tenantLocaleMoneySettingsLockedError = () =>
+  new RpcBadRequestError({
+    message: 'Tenant locale and money settings are locked',
+    reason:
+      'Currency, locale, and timezone cannot be changed after event or payment data exists.',
+  });
 
 const normalizeHubRoleRecord = (role: {
   description: null | string;
@@ -599,7 +671,6 @@ export const adminHandlers = {
           }),
         try: () => normalizeTenantBrandAssets(input),
       });
-
       const nextTenant = {
         ...tenant,
         ...brandAssets,
@@ -627,29 +698,64 @@ export const adminHandlers = {
         try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
       });
 
-      const updatedTenants = yield* databaseEffect((database) =>
+      const tenantUpdate = {
+        ...brandAssets,
+        currency: input.currency,
+        defaultLocation: input.defaultLocation,
+        discountProviders,
+        ...legalLinks,
+        locale: input.locale,
+        receiptSettings: resolveTenantReceiptSettings({
+          allowOther: input.allowOther,
+          receiptCountries: input.receiptCountries,
+        }),
+        seoDescription: input.seoDescription?.trim() || null,
+        seoTitle: input.seoTitle?.trim() || null,
+        theme: input.theme,
+        timezone: input.timezone,
+      };
+      const updatedTenants = yield* Database.use((database) =>
         database
-          .update(tenants)
-          .set({
-            ...brandAssets,
-            currency: input.currency,
-            defaultLocation: input.defaultLocation,
-            discountProviders,
-            ...legalLinks,
-            locale: input.locale,
-            receiptSettings: resolveTenantReceiptSettings({
-              allowOther: input.allowOther,
-              receiptCountries: input.receiptCountries,
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              const lockedTenantRows = yield* tx
+                .select({ id: tenants.id })
+                .from(tenants)
+                .where(eq(tenants.id, tenant.id))
+                .for('update');
+
+              if (lockedTenantRows.length === 0) {
+                return [];
+              }
+
+              if (localeMoneySettingsChanged(tenant, input)) {
+                const hasDependentData = yield* tenantHasLocaleMoneyDependentData(
+                  tx,
+                  tenant.id,
+                );
+                if (hasDependentData) {
+                  return yield* Effect.fail(
+                    tenantLocaleMoneySettingsLockedError(),
+                  );
+                }
+              }
+
+              return yield* tx
+                .update(tenants)
+                .set(tenantUpdate)
+                .where(eq(tenants.id, tenant.id))
+                .returning({
+                  id: tenants.id,
+                });
             }),
-            seoDescription: input.seoDescription?.trim() || null,
-            seoTitle: input.seoTitle?.trim() || null,
-            theme: input.theme,
-            timezone: input.timezone,
-          })
-          .where(eq(tenants.id, tenant.id))
-          .returning({
-            id: tenants.id,
-          }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof RpcBadRequestError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
       );
       const updatedTenant = updatedTenants[0];
       if (!updatedTenant) {

@@ -88,6 +88,10 @@ Navigate to the **User roles** page to create or edit tenant roles.
     await expect(createRoleAction).toBeVisible();
     await takeScreenshot(testInfo, createRoleAction, page);
     await createRoleAction.click();
+    await expect(
+      page.getByRole('heading', { name: 'Create Role' }),
+    ).toBeVisible();
+    await page.waitForLoadState('networkidle');
     await testInfo.attach('markdown', {
       body: `
 ## Role definition
@@ -102,25 +106,29 @@ You can also add permissions to the role. The permissions are grouped by categor
 Permissions that are required by another permission are automatically included and shown as non-editable dependent permissions with the same admin-facing labels used in the permission reference.
 `,
     });
-    await page.getByRole('textbox', { name: 'Name' }).fill(roleName);
-    await page
+    const roleForm = page.locator('app-role-form');
+    const roleFormCheckbox = (name: string | RegExp) =>
+      roleForm.getByRole('checkbox', { name });
+    const saveRoleButton = roleForm.locator('button[type="submit"]');
+    await roleForm.getByRole('textbox', { name: 'Name' }).fill(roleName);
+    await roleForm
       .getByRole('textbox', { name: 'Description' })
       .fill(roleDescription);
-    await page.getByRole('checkbox', { exact: true, name: 'Events' }).click();
-    await expect(
-      page.getByRole('checkbox', { name: 'Create events' }),
-    ).toBeChecked();
-    await expect(page.getByText('Includes: View templates')).toBeVisible();
-    await expect(
-      page.getByRole('checkbox', { name: 'View templates' }),
-    ).toBeChecked();
+    await roleFormCheckbox(/^Events$/).setChecked(true);
+    await expect(roleForm.getByRole('textbox', { name: 'Name' })).toHaveValue(
+      roleName,
+    );
+    await expect(roleFormCheckbox(/^Create events$/)).toBeChecked();
+    await expect(roleForm.getByText('Includes: View templates')).toBeVisible();
+    await expect(roleFormCheckbox(/^View templates$/)).toBeChecked();
     await takeScreenshot(
       testInfo,
-      page.locator('app-role-form'),
+      roleForm,
       page,
       'Role form with permission groups',
     );
-    await page.getByRole('button', { name: 'Save role' }).click();
+    await expect(saveRoleButton).toBeEnabled();
+    await saveRoleButton.click();
     await expect(page.getByRole('heading', { name: roleName })).toBeVisible();
     await expect(page.getByText(roleDescription)).toBeVisible();
     await expect(page.getByText('Create events')).toBeVisible();

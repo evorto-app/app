@@ -76,9 +76,11 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
     return selected;
   });
   protected readonly availableRoles = computed(() => {
-    return (this.searchRoleQuery.data() ?? []).filter(
-      (role) => !this.selectedRoleIds().has(role.id),
-    );
+    return this.searchRoleQuery.isSuccess()
+      ? this.searchRoleQuery
+          .data()
+          .filter((role) => !this.selectedRoleIds().has(role.id))
+      : [];
   });
   protected faCircleXmark = faCircleXmark;
 

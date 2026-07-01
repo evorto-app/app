@@ -1,4 +1,4 @@
-import { Config, Effect, Option } from 'effect';
+import { Config, ConfigProvider, Effect, Option } from 'effect';
 import path from 'node:path';
 
 import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
@@ -9,6 +9,13 @@ const INTEGRATION_PROJECT_NAMES = [
   'docs-integration',
   'local-chrome-integration',
 ] as const;
+const PLAYWRIGHT_PROJECT_NAMES = [
+  'setup',
+  'local-chrome-baseline',
+  'docs-baseline',
+  ...INTEGRATION_PROJECT_NAMES,
+] as const;
+const SELECTED_PLAYWRIGHT_PROJECTS_ENV = 'E2E_SELECTED_PROJECTS';
 const PLAYWRIGHT_BROWSER_CHANNELS = ['chromium', 'chrome'] as const;
 const LIST_ONLY_ENVIRONMENT_DEFAULTS = {
   BASE_URL: 'http://localhost:4200',
@@ -20,75 +27,6 @@ const LIST_ONLY_ENVIRONMENT_DEFAULTS = {
   STRIPE_TEST_ACCOUNT_ID: 'acct_playwright_list',
   STRIPE_WEBHOOK_SECRET: 'whsec_playwright_list',
 } as const;
-
-export const testRuntimeConfigState = Config.all({
-  AUTH0_MANAGEMENT_CLIENT_ID: optionalTrimmedString(
-    'AUTH0_MANAGEMENT_CLIENT_ID',
-  ),
-  AUTH0_MANAGEMENT_CLIENT_SECRET: optionalTrimmedString(
-    'AUTH0_MANAGEMENT_CLIENT_SECRET',
-  ),
-  BASE_URL: optionalTrimmedString('BASE_URL'),
-  CI: Config.boolean('CI').pipe(Config.withDefault(false)),
-  CLIENT_ID: optionalTrimmedString('CLIENT_ID'),
-  CLIENT_SECRET: optionalTrimmedString('CLIENT_SECRET'),
-  CLOUDFLARE_ACCOUNT_ID: optionalTrimmedString('CLOUDFLARE_ACCOUNT_ID'),
-  CLOUDFLARE_IMAGES_API_TOKEN: optionalTrimmedString(
-    'CLOUDFLARE_IMAGES_API_TOKEN',
-  ),
-  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalTrimmedString(
-    'CLOUDFLARE_IMAGES_DELIVERY_HASH',
-  ),
-  DATABASE_URL: nonEmptyTrimmedString('DATABASE_URL'),
-  DOCS_IMG_OUT_DIR: optionalTrimmedString('DOCS_IMG_OUT_DIR').pipe(
-    Config.map((value) =>
-      Option.match(value, {
-        onNone: () => path.resolve('test-results/docs/images'),
-        onSome: (outputDirectory) => outputDirectory,
-      }),
-    ),
-  ),
-  DOCS_OUT_DIR: optionalTrimmedString('DOCS_OUT_DIR').pipe(
-    Config.map((value) =>
-      Option.match(value, {
-        onNone: () => path.resolve('test-results/docs'),
-        onSome: (outputDirectory) => outputDirectory,
-      }),
-    ),
-  ),
-  E2E_BROWSER_CHANNEL: optionalTrimmedString('E2E_BROWSER_CHANNEL'),
-  E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO').pipe(
-    Config.map((value) =>
-      Option.match(value, {
-        onNone: () => DEFAULT_TEST_CLOCK_ISO,
-        onSome: (nowIso) => nowIso,
-      }),
-    ),
-  ),
-  E2E_SEED_KEY: optionalTrimmedString('E2E_SEED_KEY').pipe(
-    Config.map((value) =>
-      Option.match(value, {
-        onNone: () => DEFAULT_TEST_SEED_KEY,
-        onSome: (seedKey) => seedKey,
-      }),
-    ),
-  ),
-  ISSUER_BASE_URL: optionalTrimmedString('ISSUER_BASE_URL'),
-  NEON_LOCAL_PROXY: Config.boolean('NEON_LOCAL_PROXY').pipe(
-    Config.withDefault(false),
-  ),
-  NO_WEBSERVER: Config.boolean('NO_WEBSERVER').pipe(Config.withDefault(false)),
-  S3_ACCESS_KEY_ID: optionalTrimmedString('S3_ACCESS_KEY_ID'),
-  S3_BUCKET: optionalTrimmedString('S3_BUCKET'),
-  S3_ENDPOINT: optionalTrimmedString('S3_ENDPOINT'),
-  S3_REGION: optionalTrimmedString('S3_REGION'),
-  S3_SECRET_ACCESS_KEY: optionalTrimmedString('S3_SECRET_ACCESS_KEY'),
-  SECRET: optionalTrimmedString('SECRET'),
-  STRIPE_API_KEY: optionalTrimmedString('STRIPE_API_KEY'),
-  STRIPE_TEST_ACCOUNT_ID: optionalTrimmedString('STRIPE_TEST_ACCOUNT_ID'),
-  STRIPE_WEBHOOK_SECRET: optionalTrimmedString('STRIPE_WEBHOOK_SECRET'),
-  TENANT_DOMAIN: optionalTrimmedString('TENANT_DOMAIN'),
-});
 
 export interface Auth0ManagementEnvironment {
   AUTH0_MANAGEMENT_CLIENT_ID: string;
@@ -173,6 +111,117 @@ const matchesProjectPattern = (pattern: string, projectName: string) => {
   return projectPattern.test(projectName);
 };
 
+const parseSelectedProjectNames = (value: string) =>
+  value
+    .split(',')
+    .map((projectName) => projectName.trim())
+    .filter((projectName) => projectName.length > 0);
+
+const configFailure = (message: string) =>
+  new Config.ConfigError(new ConfigProvider.SourceError({ message }));
+
+const assertKnownProjectNames = (
+  projectNames: readonly string[],
+): Effect.Effect<readonly string[], Config.ConfigError> => {
+  const unknownProjectNames = projectNames.filter(
+    (projectName) =>
+      !PLAYWRIGHT_PROJECT_NAMES.some((knownProjectName) =>
+        matchesProjectPattern(projectName, knownProjectName),
+      ),
+  );
+  if (unknownProjectNames.length > 0) {
+    return Effect.fail(
+      configFailure(
+        `${SELECTED_PLAYWRIGHT_PROJECTS_ENV} contains unknown Playwright project(s): ${unknownProjectNames.join(', ')}`,
+      ),
+    );
+  }
+
+  return Effect.succeed(projectNames);
+};
+
+const selectedProjectNamesConfig = optionalTrimmedString(
+  SELECTED_PLAYWRIGHT_PROJECTS_ENV,
+).pipe(
+  Config.mapOrFail((value) =>
+    Option.match(value, {
+      onNone: () => Effect.succeed([]),
+      onSome: (projectNames) =>
+        assertKnownProjectNames(parseSelectedProjectNames(projectNames)),
+    }),
+  ),
+);
+
+export const testRuntimeConfigState = Config.all({
+  AUTH0_MANAGEMENT_CLIENT_ID: optionalTrimmedString(
+    'AUTH0_MANAGEMENT_CLIENT_ID',
+  ),
+  AUTH0_MANAGEMENT_CLIENT_SECRET: optionalTrimmedString(
+    'AUTH0_MANAGEMENT_CLIENT_SECRET',
+  ),
+  BASE_URL: optionalTrimmedString('BASE_URL'),
+  CI: Config.boolean('CI').pipe(Config.withDefault(false)),
+  CLIENT_ID: optionalTrimmedString('CLIENT_ID'),
+  CLIENT_SECRET: optionalTrimmedString('CLIENT_SECRET'),
+  CLOUDFLARE_ACCOUNT_ID: optionalTrimmedString('CLOUDFLARE_ACCOUNT_ID'),
+  CLOUDFLARE_IMAGES_API_TOKEN: optionalTrimmedString(
+    'CLOUDFLARE_IMAGES_API_TOKEN',
+  ),
+  CLOUDFLARE_IMAGES_DELIVERY_HASH: optionalTrimmedString(
+    'CLOUDFLARE_IMAGES_DELIVERY_HASH',
+  ),
+  DATABASE_URL: nonEmptyTrimmedString('DATABASE_URL'),
+  DOCS_IMG_OUT_DIR: optionalTrimmedString('DOCS_IMG_OUT_DIR').pipe(
+    Config.map((value) =>
+      Option.match(value, {
+        onNone: () => path.resolve('test-results/docs/images'),
+        onSome: (outputDirectory) => outputDirectory,
+      }),
+    ),
+  ),
+  DOCS_OUT_DIR: optionalTrimmedString('DOCS_OUT_DIR').pipe(
+    Config.map((value) =>
+      Option.match(value, {
+        onNone: () => path.resolve('test-results/docs'),
+        onSome: (outputDirectory) => outputDirectory,
+      }),
+    ),
+  ),
+  E2E_BROWSER_CHANNEL: optionalTrimmedString('E2E_BROWSER_CHANNEL'),
+  E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO').pipe(
+    Config.map((value) =>
+      Option.match(value, {
+        onNone: () => DEFAULT_TEST_CLOCK_ISO,
+        onSome: (nowIso) => nowIso,
+      }),
+    ),
+  ),
+  E2E_SEED_KEY: optionalTrimmedString('E2E_SEED_KEY').pipe(
+    Config.map((value) =>
+      Option.match(value, {
+        onNone: () => DEFAULT_TEST_SEED_KEY,
+        onSome: (seedKey) => seedKey,
+      }),
+    ),
+  ),
+  E2E_SELECTED_PROJECTS: selectedProjectNamesConfig,
+  ISSUER_BASE_URL: optionalTrimmedString('ISSUER_BASE_URL'),
+  NEON_LOCAL_PROXY: Config.boolean('NEON_LOCAL_PROXY').pipe(
+    Config.withDefault(false),
+  ),
+  NO_WEBSERVER: Config.boolean('NO_WEBSERVER').pipe(Config.withDefault(false)),
+  S3_ACCESS_KEY_ID: optionalTrimmedString('S3_ACCESS_KEY_ID'),
+  S3_BUCKET: optionalTrimmedString('S3_BUCKET'),
+  S3_ENDPOINT: optionalTrimmedString('S3_ENDPOINT'),
+  S3_REGION: optionalTrimmedString('S3_REGION'),
+  S3_SECRET_ACCESS_KEY: optionalTrimmedString('S3_SECRET_ACCESS_KEY'),
+  SECRET: optionalTrimmedString('SECRET'),
+  STRIPE_API_KEY: optionalTrimmedString('STRIPE_API_KEY'),
+  STRIPE_TEST_ACCOUNT_ID: optionalTrimmedString('STRIPE_TEST_ACCOUNT_ID'),
+  STRIPE_WEBHOOK_SECRET: optionalTrimmedString('STRIPE_WEBHOOK_SECRET'),
+  TENANT_DOMAIN: optionalTrimmedString('TENANT_DOMAIN'),
+});
+
 const resolveRequestedProjectNames = (argv: readonly string[]) => {
   const requestedProjectNames: string[] = [];
 
@@ -210,12 +259,16 @@ const resolveRequestedProjectNames = (argv: readonly string[]) => {
 
 export const requiresIntegrationOnlyPlaywrightEnvironment = (
   argv: readonly string[] = process.argv,
+  selectedProjectNames: readonly string[] = [],
 ) => {
   if (argv.includes('--ui')) {
     return false;
   }
 
-  const requestedProjectNames = resolveRequestedProjectNames(argv);
+  const requestedProjectNames = [
+    ...resolveRequestedProjectNames(argv),
+    ...selectedProjectNames,
+  ];
   if (requestedProjectNames.length === 0) {
     return true;
   }
@@ -242,7 +295,10 @@ const validateCiEnvironment = (
   }
 
   const requiresIntegrationEnvironment =
-    requiresIntegrationOnlyPlaywrightEnvironment(argv);
+    requiresIntegrationOnlyPlaywrightEnvironment(
+      argv,
+      state.E2E_SELECTED_PROJECTS,
+    );
   const errors = collectMissingFieldErrors([
     ['S3_ACCESS_KEY_ID', Option.isSome(state.S3_ACCESS_KEY_ID)],
     ['S3_BUCKET', Option.isSome(state.S3_BUCKET)],

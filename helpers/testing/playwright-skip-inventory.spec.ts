@@ -1,93 +1,71 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const repositoryRoot = new URL('../..', import.meta.url).pathname;
+// Source guard: every skipped browser/doc test needs an explicit reason here so
+// uncovered behavior does not disappear behind permanent `test.skip` calls.
+const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 const testsRoot = join(repositoryRoot, 'tests');
+const testInventoryPath = join(testsRoot, 'test-inventory.md');
 
 const allowedPlaywrightSkipEntries = [
   {
-    entry: 'tests/docs/events/register.doc.ts:11:test.skip',
+    entry: 'tests/docs/finance/receipt-review-reimbursement.doc.ts:3:test.skip',
     reason:
-      'Stripe-backed registration docs are gated while E2E is stabilized.',
+      'Receipt reimbursement docs are completed by a later stacked slice.',
   },
   {
-    entry: 'tests/docs/finance/receipt-review-reimbursement.doc.ts:7:test.skip',
-    reason: 'Finance receipt docs are gated while E2E is stabilized.',
-  },
-  {
-    entry: 'tests/docs/profile/discounts.doc.ts:7:test.skip',
-    reason: 'Discount docs are gated while E2E is stabilized.',
-  },
-  {
-    entry: 'tests/docs/roles/roles.doc.ts:7:test.skip',
-    reason: 'Role docs are gated while E2E is stabilized.',
-  },
-  {
-    entry: 'tests/docs/templates/templates.doc.ts:7:test.skip',
-    reason: 'Template docs are gated while E2E is stabilized.',
-  },
-  {
-    entry: 'tests/docs/users/create-account.doc.ts:20:test.skip',
+    entry: 'tests/docs/users/create-account.doc.ts:91:test.skip',
     reason:
       'Auth0 Management credentials are required for the integration doc.',
   },
   {
-    entry: 'tests/specs/events/events.test.ts:8:test.skip',
-    reason: 'Event creation coverage is gated while E2E is stabilized.',
+    entry: 'tests/specs/events/events.test.ts:9:test.skip',
+    reason: 'Template event creation is stabilized by a later stacked slice.',
   },
   {
-    entry: 'tests/specs/events/unlisted-visibility.test.ts:22:test.skip',
-    reason: 'Unlisted event coverage is gated while E2E is stabilized.',
+    entry: 'tests/specs/finance/receipts-flows.spec.ts:101:test.skip',
+    reason: 'Receipt submission is completed by a later stacked finance slice.',
   },
   {
-    entry: 'tests/specs/events/unlisted-visibility.test.ts:42:test.skip',
-    reason: 'Unlisted event coverage is gated while E2E is stabilized.',
+    entry: 'tests/specs/finance/receipts-flows.spec.ts:139:test.skip',
+    reason: 'Receipt approval is completed by a later stacked finance slice.',
   },
   {
-    entry: 'tests/specs/events/unlisted-visibility.test.ts:62:test.skip',
-    reason: 'Unlisted event coverage is gated while E2E is stabilized.',
+    entry: 'tests/specs/finance/receipts-flows.spec.ts:227:test.skip',
+    reason:
+      'Receipt reimbursement is completed by a later stacked finance slice.',
   },
   {
-    entry: 'tests/specs/finance/receipts-flows.spec.ts:92:test.skip',
-    reason: 'Finance receipt flow coverage is gated while E2E is stabilized.',
+    entry:
+      'tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts:8:test.skip',
+    reason:
+      'Tax-rate import browser coverage is completed by a later stacked finance slice.',
   },
   {
-    entry: 'tests/specs/finance/receipts-flows.spec.ts:130:test.skip',
-    reason: 'Finance receipt flow coverage is gated while E2E is stabilized.',
+    entry: 'tests/specs/permissions/matrix.spec.ts:8:describe.skip',
+    reason:
+      'Permission matrix browser coverage is completed by a later stacked permissions slice.',
   },
   {
-    entry: 'tests/specs/finance/receipts-flows.spec.ts:186:test.skip',
-    reason: 'Finance receipt flow coverage is gated while E2E is stabilized.',
+    entry: 'tests/specs/profile/create-account.spec.ts:24:test.skip',
+    reason:
+      'Auth0 Management credentials are required for create-account integration coverage.',
   },
   {
     entry: 'tests/specs/finance/stripe-webhook-replay.spec.ts:16:test.skip',
     reason: 'A Stripe webhook signing secret is required for replay coverage.',
   },
   {
-    entry:
-      'tests/specs/finance/tax-rates/admin-import-tax-rates.spec.ts:8:test.skip',
-    reason: 'Tax-rate import E2E is gated while E2E is stabilized.',
-  },
-  {
-    entry: 'tests/specs/permissions/matrix.spec.ts:8:describe.skip',
-    reason: 'Permission matrix E2E is gated while E2E is stabilized.',
-  },
-  {
-    entry: 'tests/specs/scanning/scanner.test.ts:12:test.skip',
-    reason: 'Scanner E2E is gated while E2E is stabilized.',
-  },
-  {
-    entry:
-      'tests/specs/templates/paid-option-requires-tax-rate.spec.ts:114:test.fixme',
-    reason: 'Bulk template operations do not have a current UI surface.',
-  },
-  {
-    entry:
-      'tests/specs/templates/paid-option-requires-tax-rate.spec.ts:116:test.fixme',
+    entry: 'tests/specs/profile/user-profile-live-esncard.spec.ts:14:test.skip',
     reason:
-      'No-compatible-tax-rate template behavior needs a page-backed UI path.',
+      'A live ESNcard identifier is required for external provider coverage.',
+  },
+  {
+    entry: 'tests/specs/scanning/scanner.test.ts:72:test.skip',
+    reason: 'Scanner browser coverage is completed by a later stacked slice.',
   },
 ] as const;
 
@@ -97,6 +75,7 @@ const allowedEntries = new Set(
 
 const skipPattern = /\b(?:test|it|describe)\.(skip|fixme)\b/g;
 const placeholderMetadataPattern = /@(track|req|doc)\(/g;
+const fixedWaitPattern = /\.waitForTimeout\s*\(/g;
 
 const allowedPlaceholderMetadataFiles = new Set([
   'tests/specs/reporting/reporter-paths.test.ts',
@@ -112,6 +91,35 @@ const collectTypeScriptFiles = (directory: string): string[] =>
 
     return entry.isFile() && path.endsWith('.ts') ? [path] : [];
   });
+
+const collectPlaywrightSpecAndDocFiles = () =>
+  collectTypeScriptFiles(testsRoot)
+    .map((path) => relative(testsRoot, path).replaceAll('\\', '/'))
+    .filter(
+      (path) =>
+        (path.startsWith('docs/') || path.startsWith('specs/')) &&
+        (path.endsWith('.doc.ts') ||
+          path.endsWith('.spec.ts') ||
+          path.endsWith('.test.ts')),
+    );
+
+const collectActiveInventoryFiles = () => {
+  const source = readFileSync(testInventoryPath, 'utf8');
+  const activeFilesSection = source.match(
+    /## Active Files\n(?<section>[\s\S]*?)\n## Suite Ownership/,
+  )?.groups?.section;
+
+  if (activeFilesSection === undefined) {
+    throw new Error('tests/test-inventory.md is missing the Active Files list');
+  }
+
+  return activeFilesSection
+    .split('\n')
+    .map(
+      (line) => line.match(/^  - (?<path>(?:docs|specs)\/\S+)/)?.groups?.path,
+    )
+    .filter((path): path is string => path !== undefined);
+};
 
 const collectPlaywrightSkipEntries = () =>
   collectTypeScriptFiles(testsRoot).flatMap((path) => {
@@ -144,7 +152,27 @@ const collectPlaceholderMetadataEntries = () =>
     );
   });
 
+const collectFixedWaitEntries = () =>
+  collectPlaywrightSpecAndDocFiles().flatMap((playwrightPath) => {
+    const path = join(testsRoot, playwrightPath);
+    const source = readFileSync(path, 'utf8');
+    const lines = source.split('\n');
+    const relativePath = relative(repositoryRoot, path).replaceAll('\\', '/');
+
+    return lines.flatMap((line, index) =>
+      [...line.matchAll(fixedWaitPattern)].map(
+        (match) => `${relativePath}:${index + 1}:${match[0]}`,
+      ),
+    );
+  });
+
 describe('Playwright skip inventory', () => {
+  it('keeps the active test inventory aligned with Playwright docs and specs on disk', () => {
+    expect(collectActiveInventoryFiles().sort()).toEqual(
+      collectPlaywrightSpecAndDocFiles().sort(),
+    );
+  });
+
   it('keeps every skip and fixme explicitly classified', () => {
     const entries = collectPlaywrightSkipEntries().sort();
 
@@ -153,11 +181,28 @@ describe('Playwright skip inventory', () => {
 
   it('keeps every allowed skip and fixme tied to a reason', () => {
     expect(
-      allowedPlaywrightSkipEntries.every((entry) => entry.reason.trim()),
-    ).toBe(true);
+      allowedPlaywrightSkipEntries.map((entry) => entry.reason.trim()),
+    ).toEqual([
+      'Receipt reimbursement docs are completed by a later stacked slice.',
+      'Auth0 Management credentials are required for the integration doc.',
+      'Template event creation is stabilized by a later stacked slice.',
+      'Receipt submission is completed by a later stacked finance slice.',
+      'Receipt approval is completed by a later stacked finance slice.',
+      'Receipt reimbursement is completed by a later stacked finance slice.',
+      'Tax-rate import browser coverage is completed by a later stacked finance slice.',
+      'Permission matrix browser coverage is completed by a later stacked permissions slice.',
+      'Auth0 Management credentials are required for create-account integration coverage.',
+      'A Stripe webhook signing secret is required for replay coverage.',
+      'A live ESNcard identifier is required for external provider coverage.',
+      'Scanner browser coverage is completed by a later stacked slice.',
+    ]);
   });
 
   it('keeps real Playwright titles free of placeholder metadata', () => {
     expect(collectPlaceholderMetadataEntries()).toEqual([]);
+  });
+
+  it('keeps Playwright specs and docs free of fixed timeout waits', () => {
+    expect(collectFixedWaitEntries()).toEqual([]);
   });
 });

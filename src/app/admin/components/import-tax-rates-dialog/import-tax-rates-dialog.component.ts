@@ -55,7 +55,11 @@ export class ImportTaxRatesDialogComponent {
   );
   protected readonly importedIds = computed(
     () =>
-      new Set((this.importedQuery.data() ?? []).map((r) => r.stripeTaxRateId)),
+      new Set(
+        this.importedQuery.isSuccess()
+          ? this.importedQuery.data().map((r) => r.stripeTaxRateId)
+          : [],
+      ),
   );
 
   protected readonly ratesQuery = injectQuery(() =>

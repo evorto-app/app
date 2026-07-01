@@ -1,5 +1,7 @@
 import consola from 'consola';
 
+// Centralizes noisy seed/test logging so CI stays readable while local debug
+// runs can still opt into detailed setup output.
 const DEFAULT_LOCAL_LEVEL = 3;
 const DEFAULT_CI_LEVEL = 2;
 const DEBUG_LEVEL = 4;

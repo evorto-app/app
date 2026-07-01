@@ -79,25 +79,57 @@ Docker Compose now also runs one-shot `db-expiration` and `db-setup`
 containers before `evorto` starts. `bun run docker:start`,
 `bun run docker:start:foreground`, and `bun run docker:start:watch` run
 `docker compose down` first, then run the equivalent of `bun run db:reset`
-against the Docker database during stack startup. Neon Local still receives
-`DELETE_BRANCH=true` so normal `docker compose down` deletes the branch, and
-`db-expiration` immediately sets a short Neon branch expiration as a fallback
-for interrupted local or CI shutdowns. Use `bun run docker:resume` only for an
-already initialized stack when you want to bring stopped containers back without
-recreating them. The package scripts preload the needed environment with
-`dotenv -c dev` before invoking Docker.
+against the Docker database during stack startup. That Docker reset path drops
+and recreates the `public` schema before running Drizzle so the one-shot
+container cannot get stuck on non-TTY confirmation prompts from older local
+branch state. Neon Local still receives `DELETE_BRANCH=true` so normal
+`docker compose down` deletes the branch, and `db-expiration` immediately sets
+a short Neon branch expiration as a fallback for interrupted local or CI
+shutdowns. Playwright `webServer` uses `bun run docker:webserver`, which starts
+the foreground Compose stack without forcing `docker compose down` first. Use
+`bun run docker:resume` only for an already initialized stack when you want to
+bring stopped containers back without recreating them. Use `bun run docker:ps`
+to inspect the generated worktree Compose project; bare `docker compose ps` can
+point at the wrong project because it does not preload `.env.dev`. The package
+scripts preload the needed environment with `dotenv -c dev` before invoking
+Docker.
+
+Inside Docker, keep `BASE_URL` browser-facing so Auth0 redirects point at the
+host-mapped app URL, and keep `SSR_RPC_ORIGIN` pointed at the app container's
+internal listener (`http://localhost:4200`). Server-side rendering uses
+`SSR_RPC_ORIGIN` for in-container RPC calls; browser-side RPC calls still use the
+normal `/rpc` relative path.
+
+Auth0 callback URLs are configured outside this repository. The runtime helper
+may generate a non-4200 app port for worktree isolation, but authenticated local
+Browser or Playwright runs only work when that exact callback URL is registered
+in Auth0. If the generated port is not registered, free port 4200 and start the
+stack with `APP_HOST_PORT=4200 bun run docker:start`.
+
+Local global-admin e2e coverage can use `E2E_GLOBAL_ADMIN_AUTH0_IDS` as a
+no-secret fallback when the Auth0 tenant user has app metadata but the
+post-login session does not include the namespaced global-admin claim. Keep this
+limited to known local or CI e2e Auth0 ids. The fallback is ignored when
+`NODE_ENV=production`; production global-admin access remains driven by Auth0
+app metadata claims, not tenant roles.
 
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
 containers, including Neon Local, Auth0, Stripe, the app session secret, and
-Font Awesome package registry access for premium and brand icons. It also reports local
-tooling readiness such as Bun, Docker Compose, Compose config validation,
-Playwright CLI availability, and whether the matching Playwright browser cache
-is installed. Required variables that are already available are listed without
-printing their values, so token paths such as Font Awesome registry access can
-be confirmed even when another required secret still blocks startup. Missing
-Playwright browsers are reported as a warning because they block local
-Playwright runs, not Docker startup.
+Font Awesome package registry access for premium and brand icons. It also
+reports local tooling readiness such as Bun, Docker Compose, Compose config
+validation, Playwright CLI availability, and whether the matching Playwright
+browser cache is installed. Required and optional variables that are already
+available are listed without printing their values, so token paths such as
+Font Awesome registry access and optional live-provider coverage inputs can be
+confirmed even when another required secret still blocks startup. The Docker
+Stripe webhook sidecar is pinned in `docker-compose.yml`; if
+its logs report a newer CLI version, update that image pin and rebuild with
+`APP_HOST_PORT=4200 bun run docker:start` before relying on paid-flow webhook
+validation. Missing Playwright browsers are reported as a warning because they
+block local Playwright runs, not Docker startup. Local e2e runs use bundled
+Chromium by default; set `E2E_BROWSER_CHANNEL=chrome` for exploratory runs on a
+machine that already has Google Chrome installed.
 
 Use the tracked `.env.example` file as the no-secret checklist for values that
 belong in your untracked `.env` or exported shell environment. Do not add real
@@ -105,10 +137,7 @@ secret values to `.env.example`, `.env.dev.local`, or `.env.dev`.
 
 Docker Compose passes `STRIPE_TEST_ACCOUNT_ID` into both the `db-setup` service
 and the app container so the seeded local tenants can exercise paid registration
-flows against the intended connected test account. The Stripe listener is the
-standard `stripe/stripe-cli` container; configure the matching
-`STRIPE_WEBHOOK_SECRET` in the local environment instead of deriving it from
-container output.
+flows against the intended connected test account.
 
 Docker Compose also forces the app container to use the in-network MinIO
 endpoint at `http://minio:9000`. This keeps Docker upload/media flows
@@ -120,6 +149,11 @@ after the Docker `db-setup` reset: default user and organizer roles, all
 template seed families, paid and free event options, paid tax-rate wiring,
 scenario handles for open/closed/draft/past registration states, confirmed
 registrations, and at least one checked-in aggregate for scanner review.
+
+The Docker Stripe CLI listener writes its generated webhook signing secret into
+a shared Docker volume. The app container reads that file through
+`STRIPE_WEBHOOK_SECRET_FILE`, so local paid checkout webhooks use the same
+runtime secret that Stripe CLI generated for the listener session.
 
 Testing/runtime context that depends on these seed flows lives in [tests/README.md](../tests/README.md).
 

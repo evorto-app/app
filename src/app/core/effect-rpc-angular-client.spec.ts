@@ -1,8 +1,28 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { resolveServerRpcOrigin } from './effect-rpc-angular-client';
 
 describe('effect-rpc-angular-client', () => {
+  const originalSsrRpcOrigin = process.env['SSR_RPC_ORIGIN'];
+
+  afterEach(() => {
+    if (originalSsrRpcOrigin === undefined) {
+      delete process.env['SSR_RPC_ORIGIN'];
+    } else {
+      process.env['SSR_RPC_ORIGIN'] = originalSsrRpcOrigin;
+    }
+  });
+
+  it('uses the configured server-side RPC origin before the browser-facing request origin', () => {
+    process.env['SSR_RPC_ORIGIN'] = ' http://localhost:4200/ ';
+
+    expect(
+      resolveServerRpcOrigin({
+        url: 'http://localhost:4577/events',
+      }),
+    ).toBe('http://localhost:4200');
+  });
+
   it('uses the incoming request origin for SSR RPC calls', () => {
     expect(
       resolveServerRpcOrigin({

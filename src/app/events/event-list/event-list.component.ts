@@ -3,9 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  effect,
   inject,
-  PendingTasks,
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
@@ -73,17 +71,9 @@ export class EventListComponent {
   protected readonly startFilter = this.eventListService.startFilter;
   private readonly config = inject(ConfigService);
   private readonly dialog = inject(MatDialog);
-  private readonly taskService = inject(PendingTasks);
 
   constructor() {
     this.config.updateTitle('Events');
-    const eventsLoaded = this.taskService.add();
-    effect(() => {
-      const successs = this.eventQuery.isSuccess();
-      if (successs) {
-        eventsLoaded();
-      }
-    });
   }
 
   protected async openFilterPanel() {

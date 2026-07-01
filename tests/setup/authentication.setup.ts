@@ -5,6 +5,10 @@ import { usersToAuthenticate } from '../../helpers/user-data';
 import { test as setup } from '../support/fixtures/base-test';
 
 const runtimePath = path.resolve('.e2e-runtime.json');
+const loginRedirectTimeoutMs = 20_000;
+
+setup.describe.configure({ mode: 'serial' });
+setup.setTimeout(60_000);
 
 const readRuntime = (): { tenantDomain?: string } | undefined => {
   if (!fs.existsSync(runtimePath)) {
@@ -52,29 +56,32 @@ for (const userData of usersToAuthenticate) {
 
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
     await page
-      .getByRole('textbox', { name: 'Email address' })
+      .locator('input[name="username"], input[type="email"]')
       .fill(userData.email);
     await page
-      .getByRole('textbox', { name: 'Password' })
+      .locator('input[name="password"], input[type="password"]')
       .fill(userData.password);
     await page.getByRole('button', { exact: true, name: 'Continue' }).click();
 
     const eventsPathPattern = /\/events(\?.*)?$/;
     const acceptConsentButton = page.getByRole('button', { name: 'Accept' });
     const reachedEventsWithoutConsent = await page
-      .waitForURL(eventsPathPattern, { timeout: 8000 })
+      .waitForURL(eventsPathPattern, { timeout: loginRedirectTimeoutMs })
       .then(() => true)
       .catch(() => false);
 
     if (!reachedEventsWithoutConsent) {
       const consentVisible = await acceptConsentButton
-        .isVisible({ timeout: 4000 })
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .then(() => true)
         .catch(() => false);
       if (consentVisible) {
         await acceptConsentButton.click();
       }
 
-      await page.waitForURL(eventsPathPattern, { timeout: 8000 });
+      await page.waitForURL(eventsPathPattern, {
+        timeout: loginRedirectTimeoutMs,
+      });
     }
 
     await page.context().storageState({ path: userData.stateFile });

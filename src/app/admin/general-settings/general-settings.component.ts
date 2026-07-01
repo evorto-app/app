@@ -118,6 +118,11 @@ export class GeneralSettingsComponent {
   );
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly deferredTenantSettingsRows = deferredTenantSettingsRows;
+  protected readonly faArrowLeft = faArrowLeft;
+  protected readonly faUpload = faUpload;
+  protected readonly generalSettingsSaveDisabled = generalSettingsSaveDisabled;
+  protected readonly localeOptions = supportedTenantLocales;
+  protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsModel = signal<GeneralSettingsModel>({
     allowOther: false,
     buyEsnCardUrl: '',
@@ -139,14 +144,6 @@ export class GeneralSettingsComponent {
     theme: 'evorto',
     timezone: 'Europe/Berlin',
   });
-  protected readonly esnEnabled = computed(
-    () => this.settingsModel().esnCardEnabled,
-  );
-  protected readonly faArrowLeft = faArrowLeft;
-  protected readonly faUpload = faUpload;
-  protected readonly generalSettingsSaveDisabled = generalSettingsSaveDisabled;
-  protected readonly localeOptions = supportedTenantLocales;
-  protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsForm = form(this.settingsModel);
   private readonly configService = inject(ConfigService);
   private readonly currentTenant = computed(
@@ -243,13 +240,6 @@ export class GeneralSettingsComponent {
         );
       }
     });
-  }
-
-  protected setEsnEnabled(checked: boolean) {
-    this.settingsModel.update((current) => ({
-      ...current,
-      esnCardEnabled: checked,
-    }));
   }
 
   protected async uploadBrandAsset(

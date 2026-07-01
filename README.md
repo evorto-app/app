@@ -24,6 +24,10 @@ When a Docker stack has already been initialized and you only need to bring
 stopped containers back, use `bun run docker:resume` to avoid container
 recreation.
 
+Use `bun run docker:ps` to inspect the generated worktree Compose project.
+Bare `docker compose ps` does not load `.env.dev`, so it can show an empty
+project even while the isolated worktree stack is running.
+
 `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 
 ## Git workflow
@@ -88,6 +92,10 @@ Install the matching Playwright browsers once after dependency install or Playwr
 ```bash
 bun run test:e2e:install
 ```
+
+Local runs use Playwright's bundled Chromium by default. For exploratory runs
+on a machine that already has Google Chrome installed, set
+`E2E_BROWSER_CHANNEL=chrome` instead of downloading the bundled browser.
 
 For end-to-end (e2e) testing, run:
 

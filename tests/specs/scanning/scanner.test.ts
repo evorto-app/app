@@ -97,7 +97,7 @@ test.skip('scan confirmed registration records check-in', async ({
     await page.getByRole('button', { name: 'Confirm 3 check-ins' }).click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Confirm 3 check-ins' }),
+      page.getByRole('button', { name: 'Confirm check-in' }),
     ).toBeDisabled();
 
     await expect
@@ -190,7 +190,7 @@ test('scan checked-in registration records remaining guest arrival', async ({
     await page.getByRole('button', { name: 'Confirm check-in' }).click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Confirm check-in' }),
+      page.getByRole('button', { name: 'Checked in' }),
     ).toBeDisabled();
 
     await expect
@@ -223,6 +223,11 @@ test('scan checked-in registration records remaining guest arrival', async ({
         checkedInGuestCount: 2,
         checkedInSpots: checkedInBaseline + 1,
       });
+
+    await page.goto(`/events/${scannerFixture.eventId}/organize`);
+    await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
+      new RegExp(`^${checkedInBaseline + 1}\\s*Checked In$`),
+    );
   } finally {
     await database
       .delete(eventRegistrations)

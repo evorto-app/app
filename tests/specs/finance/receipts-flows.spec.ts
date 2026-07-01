@@ -5,7 +5,10 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
-import { adminStateFile } from '../../../helpers/user-data';
+import {
+  adminStateFile,
+  usersToAuthenticate,
+} from '../../../helpers/user-data';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
@@ -61,6 +64,8 @@ const submitReceiptFromFirstEvent = async (
 const seedPendingReceiptForApproval = async ({
   database,
   eventId,
+  receiptFileName,
+  receiptId,
   seedDate,
   submittedByUserId,
   tenantId,
@@ -138,6 +143,12 @@ test.skip('approve and record receipt reimbursements in finance', async ({
   seeded,
   tenant,
 }) => {
+  const organizerUserId = usersToAuthenticate.find(
+    (user) => user.roles === 'organizer',
+  )?.id;
+  if (!organizerUserId) {
+    throw new Error('Expected seeded organizer user');
+  }
   const seededEventId = seeded.scenario.events.past.eventId;
   const receiptId = getId();
   const receiptFileName = `approval-reimbursement-${seedDate.getTime()}.pdf`;
@@ -147,7 +158,7 @@ test.skip('approve and record receipt reimbursements in finance', async ({
     receiptFileName,
     receiptId,
     seedDate,
-    submittedByUserId: '334967d7626fbd6ad449',
+    submittedByUserId: organizerUserId,
     tenantId: tenant.id,
   });
 

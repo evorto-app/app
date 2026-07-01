@@ -324,12 +324,16 @@ export class TaxRatesSettingsComponent {
   );
 
   protected readonly importedRates = computed(() => {
-    const rates = this.importedQuery.data() ?? [];
+    const rates = this.importedQuery.isSuccess()
+      ? this.importedQuery.data()
+      : [];
     return rates.filter((rate) => rate.inclusive && rate.active);
   });
 
   protected readonly incompatibleRates = computed(() => {
-    const rates = this.importedQuery.data() ?? [];
+    const rates = this.importedQuery.isSuccess()
+      ? this.importedQuery.data()
+      : [];
     return rates.filter((rate) => !rate.inclusive || !rate.active);
   });
 

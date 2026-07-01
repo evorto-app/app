@@ -80,7 +80,9 @@ export class TemplateDetailsComponent {
     this.rpc.taxRates.listActive.queryOptions(),
   );
   protected readonly taxRateById = computed(() => {
-    const rates = this.taxRatesQuery.data() ?? [];
+    const rates = this.taxRatesQuery.isSuccess()
+      ? this.taxRatesQuery.data()
+      : [];
     return Object.fromEntries(rates.map((r) => [r.stripeTaxRateId, r]));
   });
   protected readonly templateAddonPurchaseTiming = templateAddonPurchaseTiming;

@@ -19,6 +19,7 @@ test('Create and manage events', async ({
   database,
   events,
   page,
+  roles,
   seeded,
 }, testInfo) => {
   const target = events.find(
@@ -184,6 +185,72 @@ Note: The event created from the template already has registration options confi
     'Registration options section',
   );
 
+  const draftEvent = events.find(
+    (event) => event.status === 'DRAFT' && event.registrationOptions.length > 0,
+  );
+  if (!draftEvent) {
+    throw new Error(
+      'Expected seeded draft event for event-management role autocomplete docs',
+    );
+  }
+  const registrationOption = draftEvent.registrationOptions[0];
+  const selectedRole = roles.find((role) =>
+    registrationOption.roleIds.includes(role.id),
+  );
+  if (!selectedRole) {
+    throw new Error(
+      `Expected seeded event-management docs draft event "${draftEvent.title}" to have selected registration roles`,
+    );
+  }
+  const unselectedRole = roles.find(
+    (role) => !registrationOption.roleIds.includes(role.id),
+  );
+  if (!unselectedRole) {
+    throw new Error(
+      `Expected seeded event-management docs draft event "${draftEvent.title}" to have an unselected role for autocomplete`,
+    );
+  }
+
+  await page.goto(`/events/${draftEvent.id}/edit`);
+  await expect(page).toHaveURL(`/events/${draftEvent.id}/edit`);
+  await expect(
+    page.locator('app-event-edit').getByRole('heading', {
+      name: draftEvent.title,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText(selectedRole.name).first()).toBeVisible();
+  const roleInput = page.getByPlaceholder('Add Role...').first();
+  await roleInput.click();
+  await expect(
+    page.getByRole('option', {
+      exact: true,
+      name: selectedRole.name,
+    }),
+  ).toHaveCount(0);
+  await page
+    .getByRole('option', { exact: true, name: unselectedRole.name })
+    .click();
+  await roleInput.click();
+  await expect(
+    page.getByRole('option', {
+      exact: true,
+      name: unselectedRole.name,
+    }),
+  ).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  await testInfo.attach('markdown', {
+    body: `
+Role picker behavior: already selected roles are hidden from suggestions to avoid duplicate eligibility entries. The event edit form uses lookup-only role labels for this authoring flow rather than exposing role-management permission details.
+`,
+  });
+  await takeScreenshot(
+    testInfo,
+    page.getByRole('heading', { name: draftEvent.title }).first(),
+    page,
+    'Event edit role picker duplicate prevention',
+  );
+
   await testInfo.attach('markdown', {
     body: `
 ## Event Status and Visibility
@@ -236,10 +303,10 @@ The organizer view currently includes:
 Organizers check in attendees from the dedicated QR scanner. Attendees open their ticket QR code from the event registration page after a confirmed registration, and organizers scan it from **Scan**. The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.
 
 Check-in is available to event organizers and users with event-wide organize access during the current check-in window. The scanner shows a future-event warning before that window opens. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview. When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.
-Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot without promising an automatic refund.
-For unpaid registrations, organizers can transfer a not-yet-checked-in participant registration to another eligible tenant member. Paid registration transfer still remains blocked until the manual refund or resale money flow is handled.
+Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits a Stripe refund when the paid registration has a stored Stripe payment reference. Older or manually seeded payment records still create a pending manual refund record for organizer follow-up.
+For unpaid registrations, organizers can transfer a not-yet-checked-in participant registration to another eligible tenant member. Paid registration transfer shows as unavailable in the organizer overview until the resale money flow is handled.
 
-It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning, participant self-service resale, paid registration transfer, or automatic refund controls.
+It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning, participant self-service resale, paid registration transfer, or participant-facing refund controls.
 Those flows should be documented separately when they exist in the product.
 `,
   });
@@ -260,6 +327,7 @@ Those flows should be documented separately when they exist in the product.
       'Expected seeded participant option for scanner documentation',
     );
   }
+  const initialCheckedInSpots = scannerRegistrationOption.checkedInSpots;
   const scannerUser = usersToAuthenticate.find((user) => user.roles === 'user');
   if (!scannerUser) {
     throw new Error('Expected regular user fixture for scanner documentation');
@@ -294,10 +362,55 @@ Those flows should be documented separately when they exist in the product.
       page,
       'Scanned registration with guest check-in',
     );
+    await page.getByRole('button', { name: 'Confirm 3 check-ins' }).click();
+    await expect(page.getByText('Check-in recorded')).toBeVisible();
+    await expect
+      .poll(async () => {
+        const registration = await database.query.eventRegistrations.findFirst({
+          columns: {
+            checkInTime: true,
+            checkedInGuestCount: true,
+          },
+          where: { id: scannerRegistrationId },
+        });
+        const option = await database.query.eventRegistrationOptions.findFirst({
+          columns: {
+            checkedInSpots: true,
+          },
+          where: { id: scannerRegistrationOption.id },
+        });
+
+        return {
+          checkedIn: registration?.checkInTime !== null,
+          checkedInGuestCount: registration?.checkedInGuestCount,
+          checkedInSpots: option?.checkedInSpots,
+        };
+      })
+      .toEqual({
+        checkedIn: true,
+        checkedInGuestCount: 2,
+        checkedInSpots: initialCheckedInSpots + 3,
+      });
+    await page.goto(`/events/${scannerEventId}/organize`);
+    await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
+      new RegExp(`^${initialCheckedInSpots + 3}\\s*Checked In$`),
+    );
   } finally {
     await database
       .delete(eventRegistrations)
       .where(eq(eventRegistrations.id, scannerRegistrationId));
+    await database
+      .update(eventRegistrationOptions)
+      .set({ checkedInSpots: initialCheckedInSpots })
+      .where(
+        and(
+          eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
+          eq(
+            eventRegistrationOptions.checkedInSpots,
+            initialCheckedInSpots + 3,
+          ),
+        ),
+      );
   }
 
   await testInfo.attach('markdown', {

@@ -8,7 +8,6 @@ import {
   inject,
   input,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
@@ -27,7 +26,7 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { convert } from 'html-to-text';
-import { firstValueFrom, interval, map } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -188,7 +187,9 @@ export class EventDetailsComponent {
     this.rpc.events.canOrganize.queryOptions({ eventId: this.eventId() }),
   );
   protected readonly canOrganize = computed(() => {
-    return this.canOrganizeQuery.data() ?? false;
+    return this.canOrganizeQuery.isSuccess()
+      ? this.canOrganizeQuery.data()
+      : false;
   });
   protected readonly canReview =
     this.permissions.hasPermission('events:review');
@@ -206,9 +207,11 @@ export class EventDetailsComponent {
     const esnCardEnabled =
       this.config.tenant.discountProviders?.esnCard?.status === 'enabled';
     if (!esnCardEnabled) return false;
+    if (!this.eventQuery.isSuccess() || !this.myCardsQuery.isSuccess()) {
+      return false;
+    }
     const event = this.eventQuery.data();
     const cards = this.myCardsQuery.data();
-    if (!event || !cards) return false;
     const verified = cards.filter((c) => c.status === 'verified');
     if (verified.length === 0) return false;
     const latestValidTo = verified
@@ -234,14 +237,6 @@ export class EventDetailsComponent {
     eventSubmitForReviewActionDisabled;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
-  private readonly currentTime = toSignal(
-    interval(60_000).pipe(map(() => new Date())),
-    { initialValue: new Date() },
-  );
-  protected readonly registrationCancellationClosed = computed(() => {
-    const event = this.eventQuery.data();
-    return event ? new Date(event.start) <= this.currentTime() : false;
-  });
   protected readonly registrationOptionsState = computed(() => {
     const event = this.eventQuery.data();
     return event ? registrationOptionsState(event) : 'none';

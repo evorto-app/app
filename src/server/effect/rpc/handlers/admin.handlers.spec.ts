@@ -1,7 +1,8 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
 
-import { Database } from '../../../../db';
+import { Database, type DatabaseClient } from '../../../../db';
 import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -40,6 +41,10 @@ const createAdminHeaders = () => ({
   [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(createTenant()),
 });
 
+const createAdminOptions = () => ({
+  headers: Headers.fromInput(createAdminHeaders()),
+});
+
 const createSettingsAdminHeaders = () => ({
   [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
   [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
@@ -48,15 +53,74 @@ const createSettingsAdminHeaders = () => ({
   [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(createTenant()),
 });
 
+const createSettingsAdminOptions = () => ({
+  headers: Headers.fromInput(createSettingsAdminHeaders()),
+});
+
+const createSettingsInput = () => ({
+  allowOther: true,
+  currency: 'EUR' as const,
+  defaultLocation: null,
+  esnCardEnabled: false,
+  locale: 'en-GB' as const,
+  receiptCountries: ['NL'],
+  theme: 'evorto' as const,
+  timezone: 'Europe/Berlin' as const,
+});
+
+const lockedTenantSelectQuery = {
+  for: () => Effect.succeed([{ id: 'tenant-1' }]),
+};
+
+const lockedTenantFromQuery = {
+  where: () => lockedTenantSelectQuery,
+};
+
+const lockedTenantQuery = {
+  from: () => lockedTenantFromQuery,
+};
+
+const noLocaleMoneyDependentDataQuery = () => ({
+  eventInstances: {
+    findFirst: () => Effect.succeed(null),
+  },
+  transactions: {
+    findFirst: () => Effect.succeed(null),
+  },
+});
+
+const withTenantSettingsTransaction = <T extends object>(database: T) => {
+  const query =
+    'query' in database ? database.query : noLocaleMoneyDependentDataQuery();
+  const transactionDatabase = {
+    ...database,
+    query,
+    select: () => lockedTenantQuery,
+  };
+
+  return {
+    ...transactionDatabase,
+    transaction: <A, E, R>(
+      run: (database: typeof transactionDatabase) => Effect.Effect<A, E, R>,
+    ) => run(transactionDatabase),
+  };
+};
+
+const provideDatabase = (database: object) =>
+  Layer.succeed(Database, database as DatabaseClient);
+
 describe('adminHandlers role permissions', () => {
   it.effect('findMany requires role management permission', () =>
     Effect.gen(function* () {
-      const error = yield* adminHandlers['admin.roles.findMany']({}, {
-        headers: {
-          [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-          [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([]),
+      const error = yield* adminHandlers['admin.roles.findMany'](
+        {},
+        {
+          headers: Headers.fromInput({
+            [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+            [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([]),
+          }),
         },
-      } as never).pipe(Effect.flip);
+      ).pipe(Effect.flip);
 
       expect(error['_tag']).toBe('RpcForbiddenError');
       expect(error.permission).toBe('admin:manageRoles');
@@ -86,8 +150,8 @@ describe('adminHandlers role permissions', () => {
 
       const role = yield* adminHandlers['admin.roles.findOne'](
         { id: 'role-1' },
-        { headers: createAdminHeaders() } as never,
-      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+        createAdminOptions(),
+      ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(role).toMatchObject({
         displayInHub: true,
@@ -118,9 +182,17 @@ describe('adminHandlers tenant settings', () => {
           },
           where: () => updateQuery,
         };
-        const database = {
+        const database = withTenantSettingsTransaction({
+          query: {
+            eventInstances: {
+              findFirst: () => Effect.succeed(null),
+            },
+            transactions: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
           update: () => updateQuery,
-        };
+        });
 
         const result = yield* adminHandlers['admin.tenant.updateSettings'](
           {
@@ -143,8 +215,8 @@ describe('adminHandlers tenant settings', () => {
             theme: 'evorto',
             timezone: 'Australia/Brisbane',
           },
-          { headers: createSettingsAdminHeaders() } as never,
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)));
 
         expect(capturedUpdate).toMatchObject({
           currency: 'AUD',
@@ -199,11 +271,8 @@ describe('adminHandlers tenant settings', () => {
           theme: 'evorto',
           timezone: 'Europe/Berlin',
         },
-        { headers: createSettingsAdminHeaders() } as never,
-      ).pipe(
-        Effect.provide(Layer.succeed(Database, database as never)),
-        Effect.flip,
-      );
+        createSettingsAdminOptions(),
+      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe('Invalid tenant legal links');
@@ -226,9 +295,9 @@ describe('adminHandlers tenant settings', () => {
         },
         where: () => updateQuery,
       };
-      const database = {
+      const database = withTenantSettingsTransaction({
         update: () => updateQuery,
-      };
+      });
 
       const result = yield* adminHandlers['admin.tenant.updateSettings'](
         {
@@ -243,8 +312,8 @@ describe('adminHandlers tenant settings', () => {
           theme: 'evorto',
           timezone: 'Europe/Berlin',
         },
-        { headers: createSettingsAdminHeaders() } as never,
-      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+        createSettingsAdminOptions(),
+      ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(capturedUpdate).toMatchObject({
         faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
@@ -277,45 +346,109 @@ describe('adminHandlers tenant settings', () => {
           theme: 'evorto',
           timezone: 'Europe/Berlin',
         },
-        { headers: createSettingsAdminHeaders() } as never,
-      ).pipe(
-        Effect.provide(Layer.succeed(Database, database as never)),
-        Effect.flip,
-      );
+        createSettingsAdminOptions(),
+      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe('Invalid tenant brand assets');
     }),
   );
 
-  it.effect('rejects dot-segment tenant brand asset paths', () =>
-    Effect.gen(function* () {
-      const database = {
-        update: () => {
-          throw new Error('database should not be touched');
-        },
-      };
+  it.effect(
+    'rejects uploaded tenant brand asset paths with encoded separators',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          update: () => {
+            throw new Error('database should not be touched');
+          },
+        };
 
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
-        {
-          allowOther: true,
-          currency: 'EUR',
-          defaultLocation: null,
-          esnCardEnabled: false,
-          locale: 'en-GB',
-          logoUrl: '/tenant-assets/../logout',
-          receiptCountries: ['NL'],
-          theme: 'evorto',
-          timezone: 'Europe/Berlin',
-        },
-        { headers: createSettingsAdminHeaders() } as never,
-      ).pipe(
-        Effect.provide(Layer.succeed(Database, database as never)),
-        Effect.flip,
-      );
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            allowOther: true,
+            currency: 'EUR',
+            defaultLocation: null,
+            esnCardEnabled: false,
+            locale: 'en-GB',
+            logoUrl: '/tenant-assets/tenant-1/logo/..%2Fsecret.png',
+            receiptCountries: ['NL'],
+            theme: 'evorto',
+            timezone: 'Europe/Berlin',
+          },
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.message).toBe('Invalid tenant brand assets');
-    }),
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe('Invalid tenant brand assets');
+      }),
+  );
+
+  it.effect(
+    'rejects locale and money setting changes when tenant events exist',
+    () =>
+      Effect.gen(function* () {
+        const database = withTenantSettingsTransaction({
+          query: {
+            eventInstances: {
+              findFirst: () => Effect.succeed({ id: 'event-1' }),
+            },
+            transactions: {
+              findFirst: () => {
+                throw new Error('transaction query should not be touched');
+              },
+            },
+          },
+          update: () => {
+            throw new Error('database update should not be touched');
+          },
+        });
+
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            currency: 'CZK',
+          },
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'Tenant locale and money settings are locked',
+        );
+      }),
+  );
+
+  it.effect(
+    'rejects locale and money setting changes when tenant transactions exist',
+    () =>
+      Effect.gen(function* () {
+        const database = withTenantSettingsTransaction({
+          query: {
+            eventInstances: {
+              findFirst: () => Effect.succeed(null),
+            },
+            transactions: {
+              findFirst: () => Effect.succeed({ id: 'transaction-1' }),
+            },
+          },
+          update: () => {
+            throw new Error('database update should not be touched');
+          },
+        });
+
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            timezone: 'Europe/Prague',
+          },
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'Tenant locale and money settings are locked',
+        );
+      }),
   );
 });

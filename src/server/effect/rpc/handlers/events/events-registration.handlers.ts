@@ -24,7 +24,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { Effect } from 'effect';
+import { Effect, Result } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
@@ -95,6 +95,11 @@ const hasAppliedRegistrationDiscount = (registration: {
 }) =>
   registration.appliedDiscountedPrice !== null ||
   registration.appliedDiscountType !== null;
+
+const hasStripeRefundReference = (transaction: {
+  stripeChargeId: null | string;
+  stripePaymentIntentId: null | string;
+}) => Boolean(transaction.stripeChargeId || transaction.stripePaymentIntentId);
 
 const ensureCanScanEventRegistration = ({
   eventId,
@@ -176,6 +181,7 @@ const cancelRegistration = ({
           id: true,
           registrationOptionId: true,
           status: true,
+          userId: true,
         },
         where: {
           ...(eventId ? { eventId } : {}),
@@ -198,10 +204,14 @@ const cancelRegistration = ({
           },
           transactions: {
             columns: {
+              amount: true,
               id: true,
               method: true,
               status: true,
+              stripeChargeId: true,
               stripeCheckoutSessionId: true,
+              stripePaymentIntentId: true,
+              type: true,
             },
           },
         },
@@ -267,6 +277,13 @@ const cancelRegistration = ({
         currentTransaction.status === 'pending' &&
         currentTransaction.method === 'stripe',
     );
+    const successfulPaidRegistrationTransaction =
+      registration.transactions.find(
+        (currentTransaction) =>
+          currentTransaction.status === 'successful' &&
+          currentTransaction.type === 'registration' &&
+          currentTransaction.amount > 0,
+      );
     const stripeCheckoutSessionId =
       pendingStripeTransaction?.stripeCheckoutSessionId;
     const stripeAccount = tenant.stripeAccountId;
@@ -278,7 +295,7 @@ const cancelRegistration = ({
       );
     }
 
-    const cancelledStripeTransaction = yield* Database.use((database) =>
+    const cancellationOutcome = yield* Database.use((database) =>
       database
         .transaction((tx) =>
           Effect.gen(function* () {
@@ -361,8 +378,43 @@ const cancelRegistration = ({
                 .where(eq(eventAddons.id, addOnPurchase.addonId));
             }
 
+            if (
+              registration.status === 'CONFIRMED' &&
+              successfulPaidRegistrationTransaction &&
+              (!stripeAccount ||
+                !hasStripeRefundReference(
+                  successfulPaidRegistrationTransaction,
+                ))
+            ) {
+              yield* tx.insert(transactions).values({
+                amount: -Math.abs(successfulPaidRegistrationTransaction.amount),
+                comment: `Pending registration refund record for cancelled registration ${registration.id}. Stripe refund could not be created automatically from the stored transaction reference.`,
+                currency: tenant.currency,
+                eventId: registration.eventId,
+                eventRegistrationId: registration.id,
+                executiveUserId: user.id,
+                manuallyCreated: true,
+                method: successfulPaidRegistrationTransaction.method,
+                status: 'pending',
+                targetUserId: registration.userId,
+                tenantId: tenant.id,
+                type: 'refund',
+              });
+            }
+
             if (!pendingStripeTransaction) {
-              return null;
+              return {
+                pendingStripeTransaction: null,
+                refundTransaction:
+                  registration.status === 'CONFIRMED' &&
+                  successfulPaidRegistrationTransaction &&
+                  stripeAccount &&
+                  hasStripeRefundReference(
+                    successfulPaidRegistrationTransaction,
+                  )
+                    ? successfulPaidRegistrationTransaction
+                    : null,
+              };
             }
 
             yield* tx
@@ -373,8 +425,17 @@ const cancelRegistration = ({
               .where(eq(transactions.id, pendingStripeTransaction.id));
 
             return {
-              stripeCheckoutSessionId,
-              transactionId: pendingStripeTransaction.id,
+              pendingStripeTransaction: {
+                stripeCheckoutSessionId,
+                transactionId: pendingStripeTransaction.id,
+              },
+              refundTransaction:
+                registration.status === 'CONFIRMED' &&
+                successfulPaidRegistrationTransaction &&
+                stripeAccount &&
+                hasStripeRefundReference(successfulPaidRegistrationTransaction)
+                  ? successfulPaidRegistrationTransaction
+                  : null,
             };
           }),
         )
@@ -394,8 +455,93 @@ const cancelRegistration = ({
         ),
     );
 
+    if (cancellationOutcome.refundTransaction && stripeAccount) {
+      const refundTransaction = cancellationOutcome.refundTransaction;
+      const stripeRefundParameters = refundTransaction.stripeChargeId
+        ? {
+            amount: Math.abs(refundTransaction.amount),
+            charge: refundTransaction.stripeChargeId,
+          }
+        : refundTransaction.stripePaymentIntentId
+          ? {
+              amount: Math.abs(refundTransaction.amount),
+              payment_intent: refundTransaction.stripePaymentIntentId,
+            }
+          : null;
+      if (!stripeRefundParameters) {
+        return;
+      }
+
+      const stripeRefundResult = yield* Effect.result(
+        Effect.tryPromise(() =>
+          Promise.race([
+            stripe.refunds.create(stripeRefundParameters, {
+              stripeAccount,
+            }),
+            new Promise<never>((_, reject) => {
+              setTimeout(
+                () => reject(new Error('Stripe refund creation timed out')),
+                5000,
+              );
+            }),
+          ]),
+        ),
+      );
+
+      if (Result.isFailure(stripeRefundResult)) {
+        const error = stripeRefundResult.failure;
+        yield* Effect.logError(
+          'Failed to create Stripe refund for cancelled registration',
+        ).pipe(
+          Effect.annotateLogs({
+            error,
+            registrationId: registration.id,
+            transactionId: refundTransaction.id,
+          }),
+          Effect.andThen(
+            databaseEffect((database) =>
+              database.insert(transactions).values({
+                amount: -Math.abs(refundTransaction.amount),
+                comment: `Pending registration refund record for cancelled registration ${registration.id}. Automatic Stripe refund failed and must be followed up manually.`,
+                currency: tenant.currency,
+                eventId: registration.eventId,
+                eventRegistrationId: registration.id,
+                executiveUserId: user.id,
+                manuallyCreated: true,
+                method: refundTransaction.method,
+                status: 'pending',
+                targetUserId: registration.userId,
+                tenantId: tenant.id,
+                type: 'refund',
+              }),
+            ),
+          ),
+        );
+        return;
+      }
+
+      const stripeRefund = stripeRefundResult.success;
+      yield* databaseEffect((database) =>
+        database.insert(transactions).values({
+          amount: -Math.abs(refundTransaction.amount),
+          comment: `Stripe refund ${stripeRefund.id} recorded for cancelled registration ${registration.id} with status ${stripeRefund.status}.`,
+          currency: tenant.currency,
+          eventId: registration.eventId,
+          eventRegistrationId: registration.id,
+          executiveUserId: user.id,
+          manuallyCreated: false,
+          method: refundTransaction.method,
+          status:
+            stripeRefund.status === 'succeeded' ? 'successful' : 'pending',
+          targetUserId: registration.userId,
+          tenantId: tenant.id,
+          type: 'refund',
+        }),
+      );
+    }
+
     if (
-      !cancelledStripeTransaction ||
+      !cancellationOutcome.pendingStripeTransaction ||
       !stripeCheckoutSessionId ||
       !stripeAccount
     ) {
@@ -423,7 +569,8 @@ const cancelRegistration = ({
             error,
             registrationId: registration.id,
             stripeCheckoutSessionId,
-            transactionId: cancelledStripeTransaction.transactionId,
+            transactionId:
+              cancellationOutcome.pendingStripeTransaction.transactionId,
           }),
         ),
       ),
@@ -1052,7 +1199,8 @@ export const eventRegistrationHandlers = {
                   ilike(users.searchableInfo, `%${normalizedSearch}%`),
                 )
               : eq(usersToTenants.tenantId, tenant.id),
-          ),
+          )
+          .limit(100),
       );
       const tenantUserIds = tenantUsers.map((tenantUser) => tenantUser.id);
       const tenantUserRoles =

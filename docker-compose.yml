@@ -65,19 +65,7 @@ services:
     command:
       - /bin/sh
       - -lc
-      - >-
-        bun -e 'import { Pool } from "pg"; import { createNodePgPoolConfig } from
-        "./src/db/pg-connection-config.ts"; const pool = new
-        Pool(createNodePgPoolConfig({ databaseUrl: process.env.DATABASE_URL,
-        neonLocalProxy: process.env.NEON_LOCAL_PROXY === "true" })); try { await
-        pool.query("DROP SCHEMA IF EXISTS public CASCADE"); await
-        pool.query("CREATE SCHEMA public"); await pool.query("CREATE EXTENSION IF
-        NOT EXISTS unaccent"); await pool.query("CREATE EXTENSION IF NOT EXISTS
-        pg_trgm"); await pool.query("CREATE OR REPLACE FUNCTION
-        immutable_unaccent(value text) RETURNS text AS " + String.fromCharCode(39)
-        + "SELECT unaccent(value)" + String.fromCharCode(39) + " LANGUAGE sql
-        IMMUTABLE;"); } finally { await pool.end(); }' && bun ./node_modules/drizzle-kit/bin.cjs
-        push --force && bun helpers/database.ts
+      - bun helpers/reset-database-schema.ts && bun ./node_modules/drizzle-kit/bin.cjs push --force && bun helpers/database.ts
     restart: "no"
 
   minio:
@@ -141,6 +129,7 @@ services:
       CLIENT_SECRET:
       CLOUDFLARE_IMAGES_API_TOKEN:
       DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
+      E2E_GLOBAL_ADMIN_AUTH0_IDS:
       ISSUER_BASE_URL:
       NEON_LOCAL_PROXY: "true"
       PORT: "4200"
@@ -150,24 +139,45 @@ services:
       S3_REGION: "${S3_REGION:-us-east-1}"
       S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-minioadmin}"
       SECRET:
+      SSR_RPC_ORIGIN: http://localhost:4200
       STRIPE_API_KEY:
       STRIPE_TEST_ACCOUNT_ID:
       STRIPE_WEBHOOK_SECRET:
+      STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret
     command:
       - /bin/sh
       - -lc
-      - mkdir -p /app/logs && bun --preload ./instrument.mjs dist/evorto/server/server.mjs 2>&1 | tee -a /app/logs/server.log
+      - |
+        mkdir -p /app/logs
+        log_pipe="$(mktemp -u /tmp/evorto-server-log.XXXXXX)"
+        mkfifo "$$log_pipe"
+        tee -a /app/logs/server.log < "$$log_pipe" &
+        tee_pid="$!"
+        bun --preload ./instrument.mjs dist/evorto/server/server.mjs > "$$log_pipe" 2>&1
+        server_status="$?"
+        wait "$$tee_pid"
+        rm -f "$$log_pipe"
+        exit "$$server_status"
     ports:
       - "${APP_HOST_PORT:-4200}:4200"
+    volumes:
+      - stripe-webhook:/run/stripe-webhook:ro
 
   stripe:
-    image: stripe/stripe-cli:v1.25.0
+    image: stripe/stripe-cli:v1.41.1
     restart: always
     environment:
       STRIPE_API_KEY:
       STRIPE_DEVICE_NAME: integration-tests
-    command: "listen --forward-to http://evorto:4200/webhooks/stripe"
+    entrypoint: /bin/sh
+    command: /usr/local/bin/stripe-listen-docker
+    volumes:
+      - ./helpers/testing/stripe-listen-docker.sh:/usr/local/bin/stripe-listen-docker:ro
+      - stripe-webhook:/run/stripe-webhook
 
 secrets:
   FONT_AWESOME_TOKEN:
     environment: FONT_AWESOME_TOKEN
+
+volumes:
+  stripe-webhook:

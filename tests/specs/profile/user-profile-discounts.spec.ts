@@ -11,6 +11,7 @@ test('profile discounts show seeded ESN card state and block invalid saves', asy
   database,
   discounts,
   page,
+  tenant,
 }) => {
   void discounts;
   const regularUser = usersToAuthenticate.find(

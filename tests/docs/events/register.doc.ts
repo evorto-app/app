@@ -191,7 +191,7 @@ test.describe('Register for events', () => {
   You can see this by additional information being available and also your ticket QR code.
   Participant registrations can include guests, registration-time add-ons, and registration-question answers. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
   This code is needed when attending the event. Keep this page available because QR email delivery is not part of the current relaunch flow.
-  You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached, but paid-registration refunds are not automatic yet.`,
+  You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached. If the registration was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.`,
     });
 
     await takeScreenshot(
@@ -224,7 +224,12 @@ test.describe('Register for events', () => {
         'Expected regular user and seeded free registration option',
       );
     }
-
+    const fullEvent = await database.query.eventInstances.findFirst({
+      where: { id: fullEventId, tenantId: tenant.id },
+    });
+    if (!fullEvent) {
+      throw new Error('Expected seeded free registration event');
+    }
     await testInfo.attach('markdown', {
       body: `
   ## Registration unavailable states
@@ -376,6 +381,22 @@ test.describe('Register for events', () => {
   Full participant options expose a distinct **Join waitlist** action. If that option asks required registration questions, participants must answer them before joining the waitlist. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full. Participants can leave the waitlist before the event starts, which cancels the waitlist registration and releases the waitlist position.
 `,
     });
+    await database
+      .update(schema.eventRegistrationOptions)
+      .set({
+        closeRegistrationTime: fullOption.closeRegistrationTime,
+        confirmedSpots: fullOption.confirmedSpots,
+        reservedSpots: fullOption.reservedSpots,
+        waitlistSpots: fullOption.waitlistSpots,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, fullOptionId));
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: fullEvent.end,
+        start: fullEvent.start,
+      })
+      .where(eq(schema.eventInstances.id, fullEventId));
   });
 
   test('Transfer an unpaid registration', async ({
@@ -479,6 +500,222 @@ test.describe('Register for events', () => {
       body: `
   After transfer, the registration belongs to the target tenant member. The original participant no longer sees it as their active registration.`,
     });
+  });
+
+  test('Review paid transfer unavailable state', async ({
+    database,
+    page,
+    seeded,
+    tenant,
+  }, testInfo) => {
+    const regularUser = usersToAuthenticate.find(
+      (user) => user.stateFile === userStateFile,
+    );
+    if (!regularUser) {
+      throw new Error('Expected regular user fixture');
+    }
+
+    const paidEventId = seeded.scenario.events.paidOpen.eventId;
+    const paidOptionId = seeded.scenario.events.paidOpen.optionId;
+    const serverEventWindow = futureServerEventWindow();
+    const paidOption = await database.query.eventRegistrationOptions.findFirst({
+      where: {
+        eventId: paidEventId,
+        id: paidOptionId,
+      },
+    });
+    if (!paidOption || paidOption.price <= 0) {
+      throw new Error('Expected seeded paid registration option for docs');
+    }
+
+    const registrationId = getId();
+    const transactionId = getId();
+    const priorRegularUserRegistrations =
+      await database.query.eventRegistrations.findMany({
+        where: {
+          eventId: paidEventId,
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        },
+      });
+    const priorPaidEvent = await database.query.eventInstances.findFirst({
+      where: {
+        id: paidEventId,
+        tenantId: tenant.id,
+      },
+    });
+    if (!priorPaidEvent) {
+      throw new Error('Expected seeded paid event for docs');
+    }
+
+    try {
+      await database
+        .update(schema.eventRegistrations)
+        .set({ status: 'CANCELLED' })
+        .where(
+          and(
+            eq(schema.eventRegistrations.eventId, paidEventId),
+            eq(schema.eventRegistrations.tenantId, tenant.id),
+            eq(schema.eventRegistrations.userId, regularUser.id),
+          ),
+        );
+      await database.insert(schema.eventRegistrations).values({
+        eventId: paidEventId,
+        id: registrationId,
+        registrationOptionId: paidOptionId,
+        status: 'CONFIRMED',
+        tenantId: tenant.id,
+        userId: regularUser.id,
+      });
+      await database
+        .update(schema.eventRegistrationOptions)
+        .set({
+          confirmedSpots: paidOption.confirmedSpots + 1,
+        })
+        .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
+      await database.insert(schema.transactions).values({
+        amount: paidOption.price,
+        comment: 'Registration docs paid-transfer blocked state',
+        currency: 'EUR',
+        eventId: paidEventId,
+        eventRegistrationId: registrationId,
+        id: transactionId,
+        method: 'stripe',
+        status: 'successful',
+        targetUserId: regularUser.id,
+        tenantId: tenant.id,
+        type: 'registration',
+      });
+      await database
+        .update(schema.eventInstances)
+        .set({
+          end: serverEventWindow.end,
+          start: serverEventWindow.start,
+        })
+        .where(eq(schema.eventInstances.id, paidEventId));
+
+      await page.goto(`/events/${paidEventId}`);
+      await waitForRegistrationStatus(page);
+      await expect(page.getByText('You are registered')).toBeVisible();
+      await expect(
+        page.getByText(
+          'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByText(
+          'If this was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.',
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Transfer unavailable' }),
+      ).toBeDisabled();
+      await expect(
+        page.getByRole('button', { name: 'Transfer registration' }),
+      ).toHaveCount(0);
+
+      const paidRegistration =
+        await database.query.eventRegistrations.findFirst({
+          where: {
+            id: registrationId,
+            tenantId: tenant.id,
+          },
+        });
+      if (!paidRegistration) {
+        throw new Error(
+          'Expected registration docs paid transfer state to persist the registration',
+        );
+      }
+      expect(paidRegistration.userId).toBe(regularUser.id);
+      expect(paidRegistration.status).toBe('CONFIRMED');
+
+      await testInfo.attach('markdown', {
+        body: `
+  ## Paid transfer and resale boundary
+
+  Paid registrations keep transfer unavailable until the refund or resale money movement exists. The event page shows a disabled transfer action and explains that paid registration transfer and resale are not automatic yet.
+
+  Paid confirmed cancellations are still allowed before the event starts. Cancelling one releases the selected spots and submits a Stripe refund when the original payment reference is available; older or manually seeded payment records still create a pending manual refund record for organizer follow-up.`,
+      });
+      await takeScreenshot(
+        testInfo,
+        page.locator('section').filter({ hasText: 'Registration' }),
+        page,
+        'Paid transfer unavailable',
+      );
+
+      await page.getByRole('button', { name: 'Cancel registration' }).click();
+      await expect
+        .poll(async () => {
+          const cancelledRegistration =
+            await database.query.eventRegistrations.findFirst({
+              where: {
+                id: registrationId,
+                tenantId: tenant.id,
+              },
+            });
+          return cancelledRegistration?.status;
+        })
+        .toBe('CANCELLED');
+
+      const refundTransaction = await database.query.transactions.findFirst({
+        where: {
+          eventRegistrationId: registrationId,
+          tenantId: tenant.id,
+          type: 'refund',
+        },
+      });
+      expect(refundTransaction).toEqual(
+        expect.objectContaining({
+          amount: -Math.abs(paidOption.price),
+          currency: 'EUR',
+          eventId: paidEventId,
+          eventRegistrationId: registrationId,
+          manuallyCreated: true,
+          method: 'stripe',
+          status: 'pending',
+          targetUserId: regularUser.id,
+          tenantId: tenant.id,
+          type: 'refund',
+        }),
+      );
+      expect(refundTransaction?.comment).toContain(
+        'Pending registration refund record',
+      );
+    } finally {
+      await database
+        .delete(schema.transactions)
+        .where(
+          and(
+            eq(schema.transactions.eventRegistrationId, registrationId),
+            eq(schema.transactions.tenantId, tenant.id),
+          ),
+        );
+      await database
+        .delete(schema.eventRegistrations)
+        .where(eq(schema.eventRegistrations.id, registrationId));
+      await database
+        .update(schema.eventRegistrationOptions)
+        .set({
+          confirmedSpots: paidOption.confirmedSpots,
+        })
+        .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
+      await Promise.all(
+        priorRegularUserRegistrations.map((registration) =>
+          database
+            .update(schema.eventRegistrations)
+            .set({ status: registration.status })
+            .where(eq(schema.eventRegistrations.id, registration.id)),
+        ),
+      );
+      await database
+        .update(schema.eventInstances)
+        .set({
+          end: priorPaidEvent.end,
+          start: priorPaidEvent.start,
+        })
+        .where(eq(schema.eventInstances.id, paidEventId));
+    }
   });
 
   test.describe('without eligible roles', () => {

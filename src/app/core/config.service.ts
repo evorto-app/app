@@ -22,15 +22,15 @@ import { AppRpc } from './effect-rpc-angular-client';
   providedIn: 'root',
 })
 export class ConfigService {
-  private readonly _tenantSignal = signal<null | Tenant>(null);
-  public readonly tenantSignal = this._tenantSignal.asReadonly();
+  public readonly permissionsSignal = signal<Permission[]>([]);
+  public readonly tenantSignal = signal<null | Tenant>(null);
 
   public get missingContext() {
     return this._missingContext;
   }
 
   public get permissions(): Permission[] {
-    return this._permissions;
+    return this.permissionsSignal();
   }
 
   public get publicConfig() {
@@ -40,9 +40,7 @@ export class ConfigService {
   public get tenant(): Tenant {
     return this._tenant;
   }
-
   private _missingContext = false;
-  private _permissions!: Permission[];
 
   private _publicConfig: {
     googleMapsApiKey: null | string;
@@ -52,8 +50,6 @@ export class ConfigService {
     sentryDsn: null,
   };
   private _tenant!: Tenant;
-  private activeDescription: null | string = null;
-  private activeTitle: null | string = null;
 
   private readonly rpc = AppRpc.injectClient();
 
@@ -97,6 +93,14 @@ export class ConfigService {
       consola.warn('Missing context on server. Skipping config loading.');
       return;
     }
+
+    if (this.requestContext !== null && isPlatformServer(this.platformId)) {
+      this.applyTenantConfig(this.requestContext.tenant);
+      this.permissionsSignal.set([...this.requestContext.permissions]);
+      this._publicConfig = await this.rpc.config.public.call();
+      return;
+    }
+
     const [tenant, permissions, pub] = await Promise.all([
       this.rpc.config.tenant.call(),
       this.rpc.config.permissions.call(),
@@ -104,40 +108,26 @@ export class ConfigService {
     ]);
 
     this.applyTenantConfig(tenant);
-    this._permissions = [...permissions];
+    this.permissionsSignal.set([...permissions]);
 
     this._publicConfig = pub;
   }
 
   public updateDescription(description: string): void {
-    this.activeDescription = description;
     this.meta.updateTag({ content: description, name: 'description' });
   }
 
   public updateTitle(title: string): void {
-    this.activeTitle = title;
     this.title.setTitle(`${title} | ${this.tenant.name}`);
   }
 
   private applyTenantConfig(tenant: Tenant): void {
     this._tenant = tenant;
-    this._tenantSignal.set(tenant);
-    if (this.activeTitle) {
-      this.title.setTitle(`${this.activeTitle} | ${tenant.name}`);
-    } else {
-      this.title.setTitle(tenant.seoTitle ?? tenant.name);
-    }
+    this.tenantSignal.set(tenant);
+    this.title.setTitle(tenant.seoTitle ?? tenant.name);
     this.updateFavicon(tenant.faviconUrl ?? 'favicon.ico');
-    if (this.activeDescription) {
-      this.meta.updateTag({
-        content: this.activeDescription,
-        name: 'description',
-      });
-    } else if (tenant.seoDescription) {
-      this.meta.updateTag({
-        content: tenant.seoDescription,
-        name: 'description',
-      });
+    if (tenant.seoDescription) {
+      this.updateDescription(tenant.seoDescription);
     } else {
       this.meta.removeTag("name='description'");
     }

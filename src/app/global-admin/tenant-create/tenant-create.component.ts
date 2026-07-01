@@ -4,7 +4,13 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { form, FormField, required, submit } from '@angular/forms/signals';
+import {
+  form,
+  FormField,
+  required,
+  submit,
+  validate,
+} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -63,6 +69,16 @@ export class TenantCreateComponent {
   protected readonly tenantForm = form(this.tenantModel, (schema) => {
     required(schema.domain);
     required(schema.name);
+    validate(schema.domain, ({ value }) =>
+      value().trim().length === 0
+        ? { kind: 'required', message: 'Domain is required.' }
+        : undefined,
+    );
+    validate(schema.name, ({ value }) =>
+      value().trim().length === 0
+        ? { kind: 'required', message: 'Name is required.' }
+        : undefined,
+    );
   });
   protected readonly tenantSubmitDisabled = globalAdminTenantSubmitDisabled;
   protected readonly timezoneOptions = supportedTenantTimezones;

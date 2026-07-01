@@ -1,4 +1,4 @@
-import { userStateFile } from '../../../helpers/user-data';
+import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import {
   esnCardActionDisabled,
   esnCardActionLabel,
@@ -11,8 +11,6 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: userStateFile });
-
-const seededEsnCardIdentifier = 'TEST-ESN-0001';
 
 test('Understand ESN discount card states', async ({}, testInfo) => {
   expect(esnCardStatusLabel('verified')).toBe('Verified');
@@ -59,11 +57,21 @@ Provider outages are not treated as invalid cards. When esncard.org or the provi
   });
 });
 
+const seededEsnCardIdentifier = 'TEST-ESN-0001';
+
 test('Manage ESN discount card @finance', async ({
   discounts,
+  database,
   page,
+  tenant,
 }, testInfo) => {
   void discounts;
+  const regularUser = usersToAuthenticate.find(
+    (user) => user.stateFile === userStateFile,
+  );
+  if (!regularUser) {
+    throw new Error('Expected regular profile user fixture');
+  }
 
   await page.goto('/profile#discounts');
 
@@ -73,7 +81,7 @@ test('Manage ESN discount card @finance', async ({
     body: `
 # ESN Discount Card
 
-Add your ESN card to receive discounted prices on eligible events. Your card is validated against esncard.org and discounts apply only while the card is valid.
+Open your profile's **Discounts** section directly when you want to review or update discount cards. Add your ESN card to receive discounted prices on eligible events. Your card is validated against esncard.org and discounts apply only while the card is valid.
 `,
   });
 
@@ -85,6 +93,23 @@ Add your ESN card to receive discounted prices on eligible events. Your card is 
   await expect(page.getByText(/Status: Verified/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible();
+  const seededEsnCard = await database.query.userDiscountCards.findFirst({
+    where: {
+      identifier: seededEsnCardIdentifier,
+      tenantId: tenant.id,
+      type: 'esnCard',
+      userId: regularUser.id,
+    },
+  });
+  expect(seededEsnCard).toEqual(
+    expect.objectContaining({
+      identifier: seededEsnCardIdentifier,
+      status: 'verified',
+      tenantId: tenant.id,
+      type: 'esnCard',
+      userId: regularUser.id,
+    }),
+  );
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { level: 2, name: 'Discount Cards' }),
@@ -104,4 +129,20 @@ If you already added your ESN card, you will see a readable verification status 
   await expect(
     page.getByRole('button', { name: 'Save ESN card' }),
   ).toBeDisabled();
+  const unchangedSeededEsnCard =
+    await database.query.userDiscountCards.findFirst({
+      where: {
+        identifier: seededEsnCardIdentifier,
+        type: 'esnCard',
+        userId: regularUser.id,
+      },
+    });
+  expect(unchangedSeededEsnCard).toEqual(
+    expect.objectContaining({
+      identifier: seededEsnCardIdentifier,
+      status: 'verified',
+      type: 'esnCard',
+      userId: regularUser.id,
+    }),
+  );
 });

@@ -93,17 +93,18 @@
       </mat-form-field>
     </div>
 
+    @let createTenantDisabled =
+      tenantSubmitDisabled({
+        formInvalid: tenantForm().invalid(),
+        formSubmitting: tenantForm().submitting(),
+        mutationPending: createTenantMutation.isPending(),
+      });
     <div class="mt-2 flex flex-wrap gap-2">
       <button
         mat-flat-button
         type="submit"
-        [disabled]="
-          tenantSubmitDisabled({
-            formInvalid: tenantForm().invalid(),
-            formSubmitting: tenantForm().submitting(),
-            mutationPending: createTenantMutation.isPending(),
-          })
-        "
+        [attr.disabled]="createTenantDisabled ? '' : null"
+        [disabled]="createTenantDisabled"
       >
         Create tenant
       </button>
