@@ -1,0 +1,20 @@
+/goal Use your @Browser to debug the tests locally and make sure they pass locally before pushing
+
+Referenced pasted text files:
+- pasted text file: /Users/hedde/.codex/attachments/0db12642-9635-44d5-a788-2157ceceb2a6/pasted-text-1.txt. Read this file before continuing.
+
+---
+
+Open a pr for me and double check that everything is well covered and tested
+
+---
+
+Do we have no skipped tests at all now?
+
+---
+
+Do we have app parts that are not properly covered?
+
+---
+
+Please fill that gap right now
