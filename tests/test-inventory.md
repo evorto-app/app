@@ -111,7 +111,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/roles/about-permissions.doc.ts`
   - `docs/roles/roles.doc.ts`
   - `specs/permissions/**`
+  - `specs/permissions/override.test.ts` grants a regular user the internal
+    page permission and verifies the Members Hub route renders a hub-visible
+    role through the real page.
   - shared permission-guard denial coverage in `src/app/core/guards`
+  - app Members Hub loading, success, and error state coverage in
+    `src/app/internal-pages/members-hub`
   - route-manifest and event-review queue action coverage in `src/app/admin`
   - route-manifest specs in `src/app/finance`, `src/app/global-admin`, and
     `src/app/templates`
