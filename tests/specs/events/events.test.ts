@@ -6,11 +6,7 @@ test.setTimeout(120_000);
 
 test.use({ storageState: organizerStateFile });
 
-test.skip('create event form template', async ({
-  database,
-  page,
-  templates,
-}) => {
+test('create event form template', async ({ database, page, templates }) => {
   const template = templates.find((candidate) => candidate.seedKey === 'hike');
   if (!template) {
     throw new Error('Expected seeded hike template for event creation');

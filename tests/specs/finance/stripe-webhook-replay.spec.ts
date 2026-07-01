@@ -13,10 +13,12 @@ const regularUserId =
   usersToAuthenticate[0].id;
 const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'] ?? '';
 
-test.skip(
-  webhookSecret.length === 0,
-  'STRIPE_WEBHOOK_SECRET is required for webhook replay tests',
-);
+test.beforeAll(() => {
+  expect(
+    webhookSecret.length,
+    'STRIPE_WEBHOOK_SECRET is required for webhook replay tests',
+  ).toBeGreaterThan(0);
+});
 
 test('replaying the same Stripe webhook is idempotent @finance @stripe', async ({
   database,

@@ -730,10 +730,8 @@ export const adminHandlers = {
               }
 
               if (localeMoneySettingsChanged(tenant, input)) {
-                const hasDependentData = yield* tenantHasLocaleMoneyDependentData(
-                  tx,
-                  tenant.id,
-                );
+                const hasDependentData =
+                  yield* tenantHasLocaleMoneyDependentData(tx, tenant.id);
                 if (hasDependentData) {
                   return yield* Effect.fail(
                     tenantLocaleMoneySettingsLockedError(),

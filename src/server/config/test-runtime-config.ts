@@ -123,11 +123,11 @@ const configFailure = (message: string) =>
 const assertKnownProjectNames = (
   projectNames: readonly string[],
 ): Effect.Effect<readonly string[], Config.ConfigError> => {
-  const unknownProjectNames = projectNames.filter(
-    (projectName) =>
-      !PLAYWRIGHT_PROJECT_NAMES.some((knownProjectName) =>
-        matchesProjectPattern(projectName, knownProjectName),
-      ),
+  const unknownProjectNames = projectNames.filter((projectName) =>
+    PLAYWRIGHT_PROJECT_NAMES.every(
+      (knownProjectName) =>
+        !matchesProjectPattern(projectName, knownProjectName),
+    ),
   );
   if (unknownProjectNames.length > 0) {
     return Effect.fail(

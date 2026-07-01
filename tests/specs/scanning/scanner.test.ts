@@ -69,7 +69,7 @@ const requireScannerFixture = async ({
   };
 };
 
-test.skip('scan confirmed registration records check-in', async ({
+test('scan confirmed registration records check-in', async ({
   database,
   page,
   seeded,
@@ -97,7 +97,7 @@ test.skip('scan confirmed registration records check-in', async ({
     await page.getByRole('button', { name: 'Confirm 3 check-ins' }).click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Confirm check-in' }),
+      page.getByRole('button', { name: 'Checked in' }),
     ).toBeDisabled();
 
     await expect
