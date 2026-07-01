@@ -25,20 +25,6 @@ export const templateAddonFormSchema = schema<TemplateAddonFormModel>(
     });
     required(form.title);
     required(form.totalAvailableQuantity);
-    validate(form, ({ value }) => {
-      const addOn = value();
-      if (
-        !addOn.allowPurchaseBeforeEvent &&
-        !addOn.allowPurchaseDuringEvent &&
-        !addOn.allowPurchaseDuringRegistration
-      ) {
-        return {
-          kind: 'purchaseWindow',
-          message: 'Select at least one purchase timing.',
-        };
-      }
-      return;
-    });
     validate(form.quantity, ({ value, valueOf }) => {
       if (value() > valueOf(form.totalAvailableQuantity)) {
         return {

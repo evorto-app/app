@@ -17,6 +17,10 @@ import {
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
+  requireWritableRegistrationMode,
+  writableRegistrationModes,
+} from '@shared/registration-modes';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
@@ -87,7 +91,7 @@ export class EventEdit {
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
-  protected readonly registrationModes = ['fcfs'] as const;
+  protected readonly registrationModes = writableRegistrationModes;
   protected readonly updateEventMutation = injectMutation(() =>
     this.rpc.events.update.mutationOptions(),
   );
@@ -191,7 +195,9 @@ export class EventEdit {
               price: registrationOption.price,
               registeredDescription:
                 registrationOption.registeredDescription || null,
-              registrationMode: registrationOption.registrationMode,
+              registrationMode: requireWritableRegistrationMode(
+                registrationOption.registrationMode,
+              ),
               roleIds: registrationOption.roleIds,
               spots: registrationOption.spots,
               stripeTaxRateId: registrationOption.stripeTaxRateId,

@@ -38,6 +38,20 @@ describe('registrationCancellationCopy', () => {
     });
   });
 
+  it('describes pending manual application cancellation without reserved capacity copy', () => {
+    expect(
+      registrationCancellationCopy({
+        guestCount: 0,
+        paymentPending: false,
+        status: 'PENDING',
+      }),
+    ).toEqual({
+      buttonLabel: 'Cancel registration',
+      helperText:
+        'This withdraws your pending application before organizer approval.',
+    });
+  });
+
   it('describes confirmed cancellation with Stripe refund fallback handling', () => {
     expect(
       registrationCancellationCopy({

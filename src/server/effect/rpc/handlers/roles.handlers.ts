@@ -22,6 +22,7 @@ const ROLE_LOOKUP_PERMISSIONS = [
   'events:organizeAll',
   'templates:create',
   'templates:editAll',
+  'users:assignRoles',
 ] as const satisfies readonly Permission[];
 
 const databaseEffect = <A>(

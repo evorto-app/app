@@ -4,14 +4,21 @@ import {
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
-import { UserConflictError } from '@shared/rpc-contracts/app-rpcs/users.errors';
-import { and, count, eq, ilike, inArray } from 'drizzle-orm';
+import {
+  UserConflictError,
+  UserRoleAssignmentNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/users.errors';
+import { and, count, eq, gte, ilike, inArray, lte } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
+import { DateTime } from 'luxon';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import {
+  eventInstances,
+  eventRegistrationOptions,
+  eventRegistrations,
   roles,
   rolesToTenantUsers,
   users,
@@ -100,6 +107,10 @@ export const normalizeUsersFindManySearch = (
   return escaped ? `%${escaped}%` : undefined;
 };
 
+const uniqueRoleIds = (roleIds: readonly string[]): string[] => [
+  ...new Set(roleIds),
+];
+
 const mapCreateAccountUnexpectedError = (error: unknown) =>
   error instanceof UserConflictError ? Effect.fail(error) : Effect.die(error);
 
@@ -158,9 +169,140 @@ const resolvePendingRegistrationCheckoutUrl = (
       transaction.stripeCheckoutUrl,
   )?.stripeCheckoutUrl ?? null;
 
+const tenantDayBounds = (timezone: string, now = DateTime.now()) => {
+  const tenantNow = now.setZone(timezone);
+  return {
+    end: tenantNow.endOf('day').toJSDate(),
+    start: tenantNow.startOf('day').toJSDate(),
+  };
+};
+
 export const userHandlers = {
+  'users.assignRoles': ({ roleIds, userId }, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'users:assignRoles');
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const nextRoleIds = uniqueRoleIds(roleIds);
+
+      yield* Database.use((database) =>
+        database
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              const membership = yield* tx.query.usersToTenants.findFirst({
+                columns: {
+                  id: true,
+                },
+                where: {
+                  tenantId: tenant.id,
+                  userId,
+                },
+              });
+              if (!membership) {
+                return yield* Effect.fail(
+                  new UserRoleAssignmentNotFoundError({
+                    message: 'Tenant user not found',
+                  }),
+                );
+              }
+
+              if (nextRoleIds.length > 0) {
+                const tenantRoles = yield* tx.query.roles.findMany({
+                  columns: {
+                    id: true,
+                  },
+                  where: {
+                    id: { in: nextRoleIds },
+                    tenantId: tenant.id,
+                  },
+                });
+                if (tenantRoles.length !== nextRoleIds.length) {
+                  return yield* Effect.fail(
+                    new UserRoleAssignmentNotFoundError({
+                      message: 'One or more roles were not found',
+                    }),
+                  );
+                }
+              }
+
+              yield* tx
+                .delete(rolesToTenantUsers)
+                .where(eq(rolesToTenantUsers.userTenantId, membership.id));
+
+              if (nextRoleIds.length > 0) {
+                yield* tx.insert(rolesToTenantUsers).values(
+                  nextRoleIds.map((roleId) => ({
+                    roleId,
+                    userTenantId: membership.id,
+                  })),
+                );
+              }
+            }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof UserRoleAssignmentNotFoundError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
+      );
+    }),
   'users.authData': (_payload, options) =>
     Effect.sync(() => decodeAuthDataHeader(options.headers)),
+  'users.canUseScanner': (_payload, options) =>
+    Effect.gen(function* () {
+      if (options.headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] !== 'true') {
+        return false;
+      }
+
+      const user = yield* decodeUserHeader(options.headers);
+      if (!user) {
+        return false;
+      }
+      if (includesPermission('events:organizeAll', user.permissions)) {
+        return true;
+      }
+
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const { end, start } = tenantDayBounds(tenant.timezone);
+      const organizingRegistrations = yield* databaseEffect((database) =>
+        database
+          .select({
+            id: eventRegistrations.id,
+          })
+          .from(eventRegistrations)
+          .innerJoin(
+            eventRegistrationOptions,
+            eq(
+              eventRegistrationOptions.id,
+              eventRegistrations.registrationOptionId,
+            ),
+          )
+          .innerJoin(
+            eventInstances,
+            eq(eventInstances.id, eventRegistrations.eventId),
+          )
+          .where(
+            and(
+              eq(eventRegistrations.status, 'CONFIRMED'),
+              eq(eventRegistrations.tenantId, tenant.id),
+              eq(eventRegistrations.userId, user.id),
+              eq(eventRegistrationOptions.organizingRegistration, true),
+              lte(eventInstances.start, end),
+              gte(eventInstances.end, start),
+            ),
+          )
+          .limit(1),
+      );
+
+      return organizingRegistrations.length > 0;
+    }),
   'users.createAccount': (input, options) =>
     Effect.gen(function* () {
       yield* ensureAuthenticated(options.headers);
@@ -491,6 +633,7 @@ export const userHandlers = {
         database
           .select({
             role: roles.name,
+            roleId: roles.id,
             userTenantId: usersToTenants.id,
           })
           .from(usersToTenants)
@@ -515,6 +658,7 @@ export const userHandlers = {
           firstName: string;
           id: string;
           lastName: string;
+          roleIds: string[];
           roles: string[];
         }
       > = {};
@@ -524,6 +668,7 @@ export const userHandlers = {
           firstName: user.firstName,
           id: user.id,
           lastName: user.lastName,
+          roleIds: [],
           roles: [],
         };
       }
@@ -532,7 +677,8 @@ export const userHandlers = {
       );
       for (const selectedRole of selectedRoles) {
         const userId = userIdByTenantUserId.get(selectedRole.userTenantId);
-        if (userId && selectedRole.role) {
+        if (userId && selectedRole.role && selectedRole.roleId) {
+          userMap[userId].roleIds.push(selectedRole.roleId);
           userMap[userId].roles.push(selectedRole.role);
         }
       }

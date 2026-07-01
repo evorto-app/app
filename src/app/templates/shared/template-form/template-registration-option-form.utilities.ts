@@ -1,4 +1,8 @@
-import type { RegistrationMode } from '@shared/registration-modes';
+import {
+  type RegistrationMode,
+  requireWritableRegistrationMode,
+  type WritableRegistrationMode,
+} from '@shared/registration-modes';
 
 export interface TemplateRegistrationFormModel {
   closeRegistrationOffset: number;
@@ -23,10 +27,11 @@ export type TemplateRegistrationFormOverrides = Partial<
 
 export type TemplateRegistrationSubmitData = Omit<
   TemplateRegistrationFormModel,
-  'esnCardDiscountedPrice' | 'price'
+  'esnCardDiscountedPrice' | 'price' | 'registrationMode'
 > & {
   esnCardDiscountedPrice: null | number;
   price: number;
+  registrationMode: WritableRegistrationMode;
 };
 
 export const toTemplateRegistrationSubmitData = (
@@ -48,7 +53,9 @@ export const toTemplateRegistrationSubmitData = (
   registeredDescription: registration.registeredDescription?.trim()
     ? registration.registeredDescription
     : '',
-  registrationMode: registration.registrationMode,
+  registrationMode: requireWritableRegistrationMode(
+    registration.registrationMode,
+  ),
   roleIds: registration.roleIds,
   spots: registration.spots,
   stripeTaxRateId: registration.isPaid ? registration.stripeTaxRateId : null,

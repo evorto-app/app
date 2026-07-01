@@ -18,7 +18,10 @@ import {
 describe('registrationOptionAudienceCopy', () => {
   it('keeps participant options on registration copy', () => {
     expect(
-      registrationOptionAudienceCopy({ organizingRegistration: false }),
+      registrationOptionAudienceCopy({
+        organizingRegistration: false,
+        registrationMode: 'fcfs',
+      }),
     ).toEqual({
       actionSuffix: 'register',
       helperText: 'Use this option when you are attending the event.',
@@ -29,12 +32,30 @@ describe('registrationOptionAudienceCopy', () => {
 
   it('uses distinct organizer/helper signup copy', () => {
     expect(
-      registrationOptionAudienceCopy({ organizingRegistration: true }),
+      registrationOptionAudienceCopy({
+        organizingRegistration: true,
+        registrationMode: 'fcfs',
+      }),
     ).toEqual({
       actionSuffix: 'sign up as organizer/helper',
       helperText: 'Use this option when you are helping run the event.',
       label: 'Organizer/helper option',
       primaryAction: 'Sign up as organizer/helper',
+    });
+  });
+
+  it('uses application copy for manual approval participant options', () => {
+    expect(
+      registrationOptionAudienceCopy({
+        organizingRegistration: false,
+        registrationMode: 'application',
+      }),
+    ).toEqual({
+      actionSuffix: 'apply',
+      helperText:
+        'Use this option when you are attending the event. Organizers approve applications before spots are confirmed.',
+      label: 'Manual approval option',
+      primaryAction: 'Apply for approval',
     });
   });
 });

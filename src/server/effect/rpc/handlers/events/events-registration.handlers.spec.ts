@@ -166,17 +166,16 @@ const createGuestCancellationDatabase = ({
       set: (values: unknown) => {
         updateSets.push(values);
         return {
-          where: () => ({
-            returning: () => {
-              if (
-                table === eventRegistrations ||
-                table === eventRegistrationOptions
-              ) {
-                return Effect.succeed([{ id: 'updated' }]);
-              }
-              return Effect.succeed([]);
-            },
-          }),
+          where: () =>
+            table === transactions
+              ? Effect.succeed([])
+              : {
+                  returning: () =>
+                    table === eventRegistrations ||
+                    table === eventRegistrationOptions
+                      ? Effect.succeed([{ id: 'updated' }])
+                      : Effect.succeed([]),
+                },
         };
       },
     }),
@@ -195,7 +194,21 @@ const createGuestCancellationDatabase = ({
             id: 'registration-1',
             registrationOptionId: 'option-1',
             status,
-            transactions: [],
+            transactions:
+              status === 'PENDING'
+                ? [
+                    {
+                      amount: 1000,
+                      id: 'transaction-1',
+                      method: 'stripe',
+                      status: 'pending',
+                      stripeChargeId: null,
+                      stripeCheckoutSessionId: null,
+                      stripePaymentIntentId: null,
+                      type: 'registration',
+                    },
+                  ]
+                : [],
           }),
       },
     },
@@ -917,17 +930,16 @@ describe('event registration cancellation handlers', () => {
           set: (values: unknown) => {
             updateSets.push(values);
             return {
-              where: () => ({
-                returning: () => {
-                  if (
-                    table === eventRegistrations ||
-                    table === eventRegistrationOptions
-                  ) {
-                    return Effect.succeed([{ id: 'updated' }]);
-                  }
-                  return Effect.succeed([]);
-                },
-              }),
+              where: () =>
+                table === transactions
+                  ? Effect.succeed([])
+                  : {
+                      returning: () =>
+                        table === eventRegistrations ||
+                        table === eventRegistrationOptions
+                          ? Effect.succeed([{ id: 'updated' }])
+                          : Effect.succeed([]),
+                    },
             };
           },
         }),
@@ -946,7 +958,18 @@ describe('event registration cancellation handlers', () => {
                 id: 'registration-1',
                 registrationOptionId: 'option-1',
                 status: 'PENDING',
-                transactions: [],
+                transactions: [
+                  {
+                    amount: 1000,
+                    id: 'transaction-1',
+                    method: 'stripe',
+                    status: 'pending',
+                    stripeChargeId: null,
+                    stripeCheckoutSessionId: null,
+                    stripePaymentIntentId: null,
+                    type: 'registration',
+                  },
+                ],
               }),
           },
         },
@@ -963,9 +986,63 @@ describe('event registration cancellation handlers', () => {
       expect(updateSets).toEqual([
         { status: 'CANCELLED' },
         expect.objectContaining({ reservedSpots: expect.anything() }),
+        { status: 'cancelled' },
       ]);
       expect(database.transaction).toHaveBeenCalledOnce();
     }),
+  );
+
+  it.effect(
+    'cancels unapproved manual applications without releasing reserved spots',
+    () =>
+      Effect.gen(function* () {
+        const updateSets: unknown[] = [];
+        const tx = {
+          update: (table: unknown) => ({
+            set: (values: unknown) => {
+              updateSets.push(values);
+              return {
+                where: () => ({
+                  returning: () =>
+                    table === eventRegistrations
+                      ? Effect.succeed([{ id: 'updated' }])
+                      : Effect.succeed([]),
+                }),
+              };
+            },
+          }),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'PENDING',
+                  transactions: [],
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        yield* eventRegistrationHandlers['events.cancelRegistration'](
+          { registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(Effect.provide(createContextLayer({ database })));
+
+        expect(updateSets).toEqual([{ status: 'CANCELLED' }]);
+        expect(database.transaction).toHaveBeenCalledOnce();
+      }),
   );
 
   it.effect(
@@ -1034,17 +1111,16 @@ describe('event registration cancellation handlers', () => {
             set: (values: unknown) => {
               updateSets.push(values);
               return {
-                where: () => ({
-                  returning: () => {
-                    if (
-                      table === eventRegistrations ||
-                      table === eventRegistrationOptions
-                    ) {
-                      return Effect.succeed([{ id: 'updated' }]);
-                    }
-                    return Effect.succeed([]);
-                  },
-                }),
+                where: () =>
+                  table === transactions
+                    ? Effect.succeed([])
+                    : {
+                        returning: () =>
+                          table === eventRegistrations ||
+                          table === eventRegistrationOptions
+                            ? Effect.succeed([{ id: 'updated' }])
+                            : Effect.succeed([]),
+                      },
               };
             },
           }),

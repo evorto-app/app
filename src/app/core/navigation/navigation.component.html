@@ -83,7 +83,7 @@
   <a
     routerLink="/admin"
     class="hidden flex-col items-center gap-1 lg:flex"
-    *appIfPermission="'admin:*'"
+    *appIfAnyPermission="adminNavigationPermissions"
   >
     <div
       class="flex min-w-16 flex-row justify-center rounded-full py-1"
@@ -97,24 +97,37 @@
     title="menu"
     (click)="openSheet()"
     class="flex flex-col items-center gap-1 lg:hidden"
-    *appIfPermission="'admin:*'"
+    *appIfAnyPermission="adminNavigationPermissions"
   >
     <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
       <fa-duotone-icon [icon]="faEllipsisVertical" size="xl" />
     </div>
     <span class="body-medium text-center">More</span>
   </button>
+  @if (scannerAccessQuery.data()) {
+    <a routerLink="/scan" class="flex flex-col items-center gap-1 lg:hidden">
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+      >
+        <fa-duotone-icon [icon]="faScannerGun" size="xl" />
+      </div>
+      <span class="body-medium text-center">Scanner</span>
+    </a>
+  }
   <div class="hidden grow lg:block"></div>
 
-  <a routerLink="/scan" class="hidden flex-col items-center gap-1 lg:flex">
-    <div
-      class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
-    >
-      <fa-duotone-icon [icon]="faScannerGun" size="xl" />
-    </div>
-    <span class="body-medium text-center">Scanner</span>
-  </a>
+  @if (scannerAccessQuery.data()) {
+    <a routerLink="/scan" class="hidden flex-col items-center gap-1 lg:flex">
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+      >
+        <fa-duotone-icon [icon]="faScannerGun" size="xl" />
+      </div>
+      <span class="body-medium text-center">Scanner</span>
+    </a>
+  }
   @if (authenticationQuery.data()) {
     <a href="/logout" class="hidden flex-col items-center gap-1 lg:flex">
       <div class="flex min-w-16 flex-row justify-center rounded-full py-1">
@@ -148,19 +161,21 @@
       </div>
       <span class="body-medium text-center">Global admin</span>
     </a>
-    <a
-      routerLink="/scan"
-      class="flex flex-col items-center gap-1"
-      (click)="closeSheet()"
-    >
-      <div
-        class="flex min-w-16 flex-row justify-center rounded-full py-1"
-        routerLinkActive="bg-secondary-container text-on-secondary-container"
+    @if (scannerAccessQuery.data()) {
+      <a
+        routerLink="/scan"
+        class="flex flex-col items-center gap-1"
+        (click)="closeSheet()"
       >
-        <fa-duotone-icon [icon]="faScannerGun" size="xl" />
-      </div>
-      <span class="body-medium text-center">Scanner</span>
-    </a>
+        <div
+          class="flex min-w-16 flex-row justify-center rounded-full py-1"
+          routerLinkActive="bg-secondary-container text-on-secondary-container"
+        >
+          <fa-duotone-icon [icon]="faScannerGun" size="xl" />
+        </div>
+        <span class="body-medium text-center">Scanner</span>
+      </a>
+    }
     <a
       routerLink="/finance"
       class="flex flex-col items-center gap-1"
@@ -193,7 +208,7 @@
       routerLink="/admin"
       class="flex flex-col items-center gap-1"
       (click)="closeSheet()"
-      *appIfPermission="'admin:*'"
+      *appIfAnyPermission="adminNavigationPermissions"
     >
       <div
         class="flex min-w-16 flex-row justify-center rounded-full py-1"

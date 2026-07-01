@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeEventOrganizeStats,
   organizerRegistrationActionDisabled,
+  organizerRegistrationApprovalDisabled,
   organizerRegistrationTransferDisabled,
   receiptSubmissionActionDisabled,
 } from './event-organize';
@@ -106,6 +107,29 @@ describe('organizerRegistrationTransferDisabled', () => {
         checkedIn: false,
         mutationPending: false,
         transferAvailable: true,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('organizerRegistrationApprovalDisabled', () => {
+  it('blocks approval unless the row is an available manual application and no write is pending', () => {
+    expect(
+      organizerRegistrationApprovalDisabled({
+        manualApprovalAvailable: false,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+    expect(
+      organizerRegistrationApprovalDisabled({
+        manualApprovalAvailable: true,
+        mutationPending: true,
+      }),
+    ).toBe(true);
+    expect(
+      organizerRegistrationApprovalDisabled({
+        manualApprovalAvailable: true,
+        mutationPending: false,
       }),
     ).toBe(false);
   });

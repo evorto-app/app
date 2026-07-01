@@ -13,6 +13,13 @@ export class UserConflictError extends Schema.TaggedErrorClass<UserConflictError
   },
 ) {}
 
+export class UserRoleAssignmentNotFoundError extends Schema.TaggedErrorClass<UserRoleAssignmentNotFoundError>()(
+  'UserRoleAssignmentNotFoundError',
+  {
+    message: Schema.String,
+  },
+) {}
+
 export const UserRpcError = UnauthorizedRpcError;
 export type UserRpcError = UnauthorizedRpcError;
 
@@ -26,3 +33,11 @@ export type UsersCreateAccountError = Schema.Schema.Type<
 
 export const UsersFindManyError = ForbiddenOrUnauthorizedRpcError;
 export type UsersFindManyError = ForbiddenOrUnauthorizedRpcError;
+
+export const UsersAssignRolesError = Schema.Union([
+  ForbiddenOrUnauthorizedRpcError,
+  UserRoleAssignmentNotFoundError,
+]);
+export type UsersAssignRolesError = Schema.Schema.Type<
+  typeof UsersAssignRolesError
+>;

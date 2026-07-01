@@ -11,6 +11,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft, faPlus } from '@fortawesome/duotone-regular-svg-icons';
+import { writableRegistrationModes } from '@shared/registration-modes';
 import {
   injectMutation,
   injectQuery,
@@ -135,7 +136,8 @@ export class TemplateCreateComponent {
 
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faPlus = faPlus;
-  protected readonly registrationModes: readonly RegistrationMode[] = ['fcfs'];
+  protected readonly registrationModes: readonly RegistrationMode[] =
+    writableRegistrationModes;
 
   protected readonly templateWriteSubmitDisabled = templateWriteSubmitDisabled;
   private queryClient = inject(QueryClient);

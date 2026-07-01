@@ -99,7 +99,7 @@ export const eventRegistrationOptionTitle = (
   registrationOptionId: string,
 ): string =>
   event.registrationOptions.find((option) => option.id === registrationOptionId)
-    ?.title ?? 'Unknown registration option';
+    ?.title ?? 'Broken registration option configuration';
 
 export const eventAddonsForRegistrationOption = <
   TAddOn extends {

@@ -841,10 +841,11 @@ export const eventQueryHandlers = {
             discountAmount: true,
             id: true,
             registrationOptionId: true,
+            status: true,
           },
           where: {
             eventId,
-            status: 'CONFIRMED',
+            status: { NOT: 'CANCELLED' },
             tenantId: tenant.id,
           },
           with: {
@@ -871,6 +872,7 @@ export const eventQueryHandlers = {
                 id: true,
                 organizingRegistration: true,
                 price: true,
+                registrationMode: true,
                 title: true,
               },
             },
@@ -895,7 +897,13 @@ export const eventQueryHandlers = {
         }),
       );
       const registrationsWithRelations = registrations.filter(
-        (registration) => registration.registrationOption && registration.user,
+        (registration) =>
+          registration.registrationOption &&
+          registration.user &&
+          (registration.status === 'CONFIRMED' ||
+            (registration.status === 'PENDING' &&
+              registration.registrationOption.registrationMode ===
+                'application')),
       );
 
       type Registration = (typeof registrationsWithRelations)[number];
@@ -987,12 +995,24 @@ export const eventQueryHandlers = {
               email: registration.user.email,
               firstName: registration.user.firstName,
               lastName: registration.user.lastName,
+              manualApprovalAvailable:
+                registration.status === 'PENDING' &&
+                registration.registrationOption.registrationMode ===
+                  'application' &&
+                registration.transactions.every(
+                  (transaction) => transaction.status !== 'pending',
+                ),
+              paymentPending: registration.transactions.some(
+                (transaction) => transaction.status === 'pending',
+              ),
               registrationId: registration.id,
-              transferAvailable: organizerRegistrationTransferAvailable({
-                checkInTime: registration.checkInTime,
-                eventStart: registration.event?.start ?? null,
-                transactions: registration.transactions,
-              }),
+              status: registration.status,
+              transferAvailable:
+                organizerRegistrationTransferAvailable({
+                  checkInTime: registration.checkInTime,
+                  eventStart: registration.event?.start ?? null,
+                  transactions: registration.transactions,
+                }) && registration.status === 'CONFIRMED',
               userId: registration.user.id,
             };
           });

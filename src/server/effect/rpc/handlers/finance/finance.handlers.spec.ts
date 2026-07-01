@@ -158,15 +158,26 @@ const databaseWithReceiptInsert = (event: { end?: Date; id?: string } = {}) => {
 };
 
 const databaseWithSubmittedReceipt = () => ({
-  query: {
-    financeReceipts: {
-      findFirst: () =>
-        Effect.succeed({
-          id: 'receipt-1',
-          status: 'submitted' as const,
+  select: () => ({
+    from: () => ({
+      innerJoin: () => ({
+        innerJoin: () => ({
+          where: () => ({
+            limit: () =>
+              Effect.succeed([
+                {
+                  eventTitle: 'City tour',
+                  id: 'receipt-1',
+                  status: 'submitted' as const,
+                  submittedByCommunicationEmail: null,
+                  submittedByEmail: 'alice@example.com',
+                },
+              ]),
+          }),
         }),
-    },
-  },
+      }),
+    }),
+  }),
   update: () =>
     Effect.die(
       new Error('receipt update should not run after validation fails'),
@@ -176,15 +187,26 @@ const databaseWithSubmittedReceipt = () => ({
 const databaseWithReviewReceiptStatus = (
   status: 'approved' | 'refunded' | 'rejected' | 'submitted',
 ) => ({
-  query: {
-    financeReceipts: {
-      findFirst: () =>
-        Effect.succeed({
-          id: 'receipt-1',
-          status,
+  select: () => ({
+    from: () => ({
+      innerJoin: () => ({
+        innerJoin: () => ({
+          where: () => ({
+            limit: () =>
+              Effect.succeed([
+                {
+                  eventTitle: 'City tour',
+                  id: 'receipt-1',
+                  status,
+                  submittedByCommunicationEmail: null,
+                  submittedByEmail: 'alice@example.com',
+                },
+              ]),
+          }),
         }),
-    },
-  },
+      }),
+    }),
+  }),
   update: () =>
     Effect.die(
       new Error('receipt review update should not run after validation fails'),

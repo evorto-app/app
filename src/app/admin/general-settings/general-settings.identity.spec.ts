@@ -67,21 +67,6 @@ describe('deferredTenantSettingsRows', () => {
         value:
           'Custom-domain verification and multiple domains are not managed here yet.',
       },
-      {
-        label: 'Brand assets',
-        value:
-          'Logo and favicon uploads or externally hosted URLs are editable below.',
-      },
-      {
-        label: 'Legal pages',
-        value:
-          'Imprint, privacy, and terms links or hosted text are editable below.',
-      },
-      {
-        label: 'Operations policy',
-        value:
-          'Email sender, review policy, registration limits, and Stripe account management are not implemented here yet.',
-      },
     ]);
   });
 });

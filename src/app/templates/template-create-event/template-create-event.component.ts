@@ -17,6 +17,10 @@ import {
   faCircleInfo,
 } from '@fortawesome/duotone-regular-svg-icons';
 import {
+  requireWritableRegistrationMode,
+  writableRegistrationModes,
+} from '@shared/registration-modes';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
@@ -45,7 +49,7 @@ export const templateCreateEventSubmitDisabled = ({
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
-    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies them to event registration cards when registration-time purchase is enabled; standalone before-event and during-event add-on sales are not available yet.`
+    ? `This template has ${addOnCount} reusable add-on${addOnCount === 1 ? '' : 's'}. Event creation copies them to event registration cards for registration-time purchase.`
     : null;
 
 @Component({
@@ -95,7 +99,7 @@ export class TemplateCreateEventComponent {
   });
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleInfo = faCircleInfo;
-  protected readonly registrationModes = ['fcfs'] as const;
+  protected readonly registrationModes = writableRegistrationModes;
   protected readonly templateCreateEventSubmitDisabled =
     templateCreateEventSubmitDisabled;
   private readonly initializedTemplateId = signal<null | string>(null);
@@ -196,7 +200,9 @@ export class TemplateCreateEventComponent {
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
               : null,
-            registrationMode: option.registrationMode,
+            registrationMode: requireWritableRegistrationMode(
+              option.registrationMode,
+            ),
             roleIds: option.roleIds,
             sourceTemplateRegistrationOptionId: option.id || undefined,
             spots: option.spots,

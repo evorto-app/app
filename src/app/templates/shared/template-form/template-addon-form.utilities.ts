@@ -29,7 +29,7 @@ export const createTemplateAddonFormModel = (
   overrides: Partial<TemplateAddonFormModel> = {},
 ): TemplateAddonFormModel => ({
   allowMultiple: false,
-  allowPurchaseBeforeEvent: true,
+  allowPurchaseBeforeEvent: false,
   allowPurchaseDuringEvent: false,
   allowPurchaseDuringRegistration: true,
   description: '',
@@ -48,9 +48,9 @@ export const toTemplateAddonSubmitData = (
   addOn: TemplateAddonFormModel,
 ): TemplateAddonSubmitData => ({
   allowMultiple: addOn.allowMultiple,
-  allowPurchaseBeforeEvent: addOn.allowPurchaseBeforeEvent,
-  allowPurchaseDuringEvent: addOn.allowPurchaseDuringEvent,
-  allowPurchaseDuringRegistration: addOn.allowPurchaseDuringRegistration,
+  allowPurchaseBeforeEvent: false,
+  allowPurchaseDuringEvent: false,
+  allowPurchaseDuringRegistration: true,
   description: addOn.description.trim() || null,
   isPaid: addOn.isPaid,
   maxQuantityPerUser: addOn.maxQuantityPerUser,
@@ -132,9 +132,9 @@ export const templateAddonRecordToFormModel = ({
   });
   return createTemplateAddonFormModel({
     allowMultiple: addOn.allowMultiple,
-    allowPurchaseBeforeEvent: addOn.allowPurchaseBeforeEvent,
-    allowPurchaseDuringEvent: addOn.allowPurchaseDuringEvent,
-    allowPurchaseDuringRegistration: addOn.allowPurchaseDuringRegistration,
+    allowPurchaseBeforeEvent: false,
+    allowPurchaseDuringEvent: false,
+    allowPurchaseDuringRegistration: true,
     description: addOn.description ?? '',
     isPaid: addOn.isPaid,
     maxQuantityPerUser: addOn.maxQuantityPerUser,

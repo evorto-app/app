@@ -17,6 +17,7 @@ import {
   transactions,
   users,
 } from '../../../../../db/schema';
+import { sendReceiptReviewedEmail } from '../../../../notifications/email-delivery';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
   canSubmitEventReceipts,
@@ -560,18 +561,30 @@ export const financeReceiptsHandlers = {
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
       const receipt = yield* databaseEffect((database) =>
-        database.query.financeReceipts.findFirst({
-          columns: {
-            id: true,
-            status: true,
-          },
-          where: {
-            id: input.id,
-            tenantId: tenant.id,
-          },
-        }),
+        database
+          .select({
+            eventTitle: eventInstances.title,
+            id: financeReceipts.id,
+            status: financeReceipts.status,
+            submittedByCommunicationEmail: users.communicationEmail,
+            submittedByEmail: users.email,
+          })
+          .from(financeReceipts)
+          .innerJoin(users, eq(financeReceipts.submittedByUserId, users.id))
+          .innerJoin(
+            eventInstances,
+            eq(financeReceipts.eventId, eventInstances.id),
+          )
+          .where(
+            and(
+              eq(financeReceipts.id, input.id),
+              eq(financeReceipts.tenantId, tenant.id),
+            ),
+          )
+          .limit(1),
       );
-      if (!receipt) {
+      const receiptRecord = receipt[0];
+      if (!receiptRecord) {
         return yield* Effect.fail(
           new FinanceReceiptNotFoundError({
             id: input.id,
@@ -580,7 +593,7 @@ export const financeReceiptsHandlers = {
           }),
         );
       }
-      if (receipt.status === 'refunded') {
+      if (receiptRecord.status === 'refunded') {
         return yield* Effect.fail(
           new RpcBadRequestError({
             message: 'Refunded receipts cannot be reviewed again',
@@ -680,6 +693,16 @@ export const financeReceiptsHandlers = {
           }),
         );
       }
+
+      yield* sendReceiptReviewedEmail({
+        eventTitle: receiptRecord.eventTitle,
+        receiptId: updated.id,
+        rejectionReason:
+          input.status === 'rejected' ? (input.rejectionReason ?? null) : null,
+        status: input.status,
+        tenant,
+        to: financeReceiptSubmitterEmail(receiptRecord),
+      });
 
       return {
         id: updated.id,

@@ -37,7 +37,7 @@
         <h2 class="title-small mb-2">Tenant identity</h2>
         <p class="text-on-surface-variant mb-3 text-sm">
           These values identify the active tenant for operators and support.
-          Tenant name, primary domain, and Stripe connection are read-only here.
+          Tenant name and primary domain are read-only here.
         </p>
         <dl class="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
           @for (row of tenantIdentityRows(); track row.label) {
@@ -51,6 +51,51 @@
             </div>
           }
         </dl>
+      </section>
+
+      <section
+        class="border-outline-variant bg-surface-container-low mb-6 rounded-xl border p-4"
+      >
+        <h2 class="title-small mb-2">Operations settings</h2>
+        <p class="text-on-surface-variant mb-3 text-sm">
+          Event reviews are handled by users with the events:review capability.
+        </p>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <mat-form-field>
+            <mat-label>Email sender name</mat-label>
+            <input
+              matInput
+              [formField]="settingsForm.emailSenderName"
+              placeholder="Example Section"
+            />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Email sender email</mat-label>
+            <input
+              matInput
+              type="email"
+              [formField]="settingsForm.emailSenderEmail"
+              placeholder="events@section.example.org"
+            />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Stripe account ID</mat-label>
+            <input
+              matInput
+              [formField]="settingsForm.stripeAccountId"
+              placeholder="acct_..."
+            />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Active registration limit</mat-label>
+            <input
+              matInput
+              type="number"
+              [formField]="settingsForm.maxActiveRegistrationsPerUser"
+            />
+            <mat-hint>Use 0 for no tenant-wide limit.</mat-hint>
+          </mat-form-field>
+        </div>
       </section>
 
       <div class="mb-4">

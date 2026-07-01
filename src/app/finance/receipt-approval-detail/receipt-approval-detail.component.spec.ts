@@ -7,21 +7,21 @@ import {
 } from './receipt-approval-detail.component';
 
 describe('receiptReviewSuccessMessage', () => {
-  it('shows the manual notification caveat before review actions', () => {
+  it('explains that review actions notify the submitter', () => {
     expect(receiptReviewNotificationNotice).toBe(
-      'Approving or rejecting this receipt records the review status only. Notify the submitter manually after saving.',
+      'Approving or rejecting this receipt emails the submitter after saving.',
     );
   });
 
-  it('keeps approval feedback honest about manual submitter notification', () => {
+  it('keeps approval feedback honest about submitter notification', () => {
     expect(receiptReviewSuccessMessage('approved')).toBe(
-      'Receipt approved. Notify the submitter manually.',
+      'Receipt approved and the submitter was notified.',
     );
   });
 
-  it('keeps rejection feedback honest about manual submitter notification', () => {
+  it('keeps rejection feedback honest about submitter notification', () => {
     expect(receiptReviewSuccessMessage('rejected')).toBe(
-      'Receipt rejected. Notify the submitter manually.',
+      'Receipt rejected and the submitter was notified.',
     );
   });
 });

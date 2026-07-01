@@ -22,6 +22,11 @@ export const TemplateRegistrationMode = literalUnion(
   'random',
 );
 
+export const TemplateWritableRegistrationMode = literalUnion(
+  'application',
+  'fcfs',
+);
+
 export const TemplateSimpleRegistrationInput = Schema.Struct({
   closeRegistrationOffset: nonNegativeNumber,
   description: Schema.optional(Schema.NullOr(Schema.String)),
@@ -30,7 +35,7 @@ export const TemplateSimpleRegistrationInput = Schema.Struct({
   openRegistrationOffset: nonNegativeNumber,
   price: nonNegativeNumber,
   registeredDescription: Schema.optional(Schema.NullOr(Schema.String)),
-  registrationMode: TemplateRegistrationMode,
+  registrationMode: TemplateWritableRegistrationMode,
   roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
   spots: positiveNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),

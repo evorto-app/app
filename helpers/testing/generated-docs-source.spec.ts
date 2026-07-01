@@ -28,7 +28,10 @@ describe('generated docs source current behavior', () => {
       '**SEO title** and **SEO description** for tenant-level page metadata.',
     );
     expect(source).toContain(
-      'custom-domain automation, email sender, review policy, registration limit, and Stripe account management gaps',
+      'A **Deferred settings** summary that keeps custom-domain automation visible as a deferred scope item.',
+    );
+    expect(source).toContain(
+      '**Operations settings** for tenant email sender name/email, Stripe account id, and the tenant-wide active registration limit.',
     );
     expect(source).toContain(
       'hosted text appears at \\`/legal/imprint\\`, \\`/legal/privacy\\`, and \\`/legal/terms\\`',
@@ -49,9 +52,7 @@ describe('generated docs source current behavior', () => {
       'When one of those accepted changes is saved, Evorto reloads the app',
     );
     expect(source).not.toContain('Tax rates are configured here');
-    expect(source).not.toContain(
-      'Stripe account management is configured here',
-    );
+    expect(source).not.toContain('Stripe account management gaps');
   });
 
   it('keeps global-admin docs aligned with the relaunch tenant-administration scope', () => {
@@ -186,7 +187,7 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('tenant-specific notification email');
   });
 
-  it('keeps finance receipt docs aligned with manual notification and reimbursement scope', () => {
+  it('keeps finance receipt docs aligned with email notification and reimbursement scope', () => {
     const overviewSource = readSource(
       'tests/docs/finance/finance-overview.doc.ts',
     );
@@ -196,7 +197,7 @@ describe('generated docs source current behavior', () => {
     const combinedSource = `${overviewSource}\n${receiptSource}`;
 
     expect(combinedSource).toContain(
-      'Submitter email notification is still manual in the current relaunch scope.',
+      'sends the submitter a receipt-reviewed email when tenant email delivery is configured.',
     );
     expect(combinedSource).toContain(
       'record the manual reimbursement transaction for the selected batch',
@@ -207,7 +208,9 @@ describe('generated docs source current behavior', () => {
     expect(receiptSource).toContain(
       'the runnable reimbursement documentation flow lands in a',
     );
-    expect(combinedSource).not.toContain('sends an automatic submitter email');
+    expect(combinedSource).not.toContain(
+      'Submitter email notification is still manual',
+    );
     expect(combinedSource).not.toContain('automatic email');
     expect(combinedSource).not.toContain('automatically transfer');
     expect(combinedSource).not.toContain('automatic money movement');
@@ -281,7 +284,7 @@ describe('generated docs source current behavior', () => {
       'Add-ons can be free or paid, attached to either the participant or organizer registration option',
     );
     expect(source).toContain(
-      'standalone before-event and during-event add-on sales are handled separately from this template setup flow',
+      'shown on matching registration cards for registration-time purchase',
     );
     expect(source).toContain(
       'Questions can include help text and can be marked as required.',
@@ -304,6 +307,10 @@ describe('generated docs source current behavior', () => {
       'ESNcard pricing is configured on events only',
     );
     expect(source).not.toContain('standalone add-on sales are configured here');
+    expect(source).not.toContain('Purchase timing');
+    expect(source).not.toContain(
+      'standalone before-event and during-event add-on sales',
+    );
   });
 
   it('keeps template category docs backed by deterministic persistence checks', () => {

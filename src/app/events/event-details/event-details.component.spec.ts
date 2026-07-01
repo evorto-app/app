@@ -164,7 +164,7 @@ describe('eventRegistrationOptionTitle', () => {
         },
         'option-1',
       ),
-    ).toBe('Unknown registration option');
+    ).toBe('Broken registration option configuration');
   });
 });
 

@@ -50,8 +50,6 @@ describe('templateAddOnCopyNotice', () => {
     expect(templateAddOnCopyNotice(2)).toContain(
       'Event creation copies them to event registration cards',
     );
-    expect(templateAddOnCopyNotice(2)).toContain(
-      'standalone before-event and during-event add-on sales are not available yet',
-    );
+    expect(templateAddOnCopyNotice(2)).toContain('registration-time purchase');
   });
 });

@@ -699,14 +699,17 @@ describe('userHandlers', () => {
                     Effect.succeed([
                       {
                         role: 'Admin',
+                        roleId: 'role-admin',
                         userTenantId: 'user-tenant-1',
                       },
                       {
                         role: 'Editor',
+                        roleId: 'role-editor',
                         userTenantId: 'user-tenant-1',
                       },
                       {
                         role: null,
+                        roleId: null,
                         userTenantId: 'user-tenant-2',
                       },
                     ]),
@@ -732,6 +735,7 @@ describe('userHandlers', () => {
             firstName: 'Alice',
             id: 'user-1',
             lastName: 'One',
+            roleIds: ['role-admin', 'role-editor'],
             roles: ['Admin', 'Editor'],
           },
           {
@@ -739,6 +743,7 @@ describe('userHandlers', () => {
             firstName: 'Bob',
             id: 'user-2',
             lastName: 'Two',
+            roleIds: [],
             roles: [],
           },
         ]);

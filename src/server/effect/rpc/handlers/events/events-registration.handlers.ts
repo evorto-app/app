@@ -321,61 +321,66 @@ const cancelRegistration = ({
               );
             }
 
-            const updatedOptions = yield* tx
-              .update(eventRegistrationOptions)
-              .set(
-                registration.status === 'PENDING'
-                  ? {
-                      reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}`,
-                    }
-                  : registration.status === 'CONFIRMED'
-                    ? {
-                        confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} - ${registeredSpotCount}`,
-                      }
-                    : {
-                        waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} - ${registeredSpotCount}`,
-                      },
-              )
-              .where(
-                and(
-                  eq(
-                    eventRegistrationOptions.id,
-                    registration.registrationOptionId,
-                  ),
+            const releasesReservedResources =
+              registration.status !== 'PENDING' || !!pendingStripeTransaction;
+
+            if (releasesReservedResources) {
+              const updatedOptions = yield* tx
+                .update(eventRegistrationOptions)
+                .set(
                   registration.status === 'PENDING'
-                    ? gte(
-                        eventRegistrationOptions.reservedSpots,
-                        registeredSpotCount,
-                      )
+                    ? {
+                        reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}`,
+                      }
                     : registration.status === 'CONFIRMED'
+                      ? {
+                          confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} - ${registeredSpotCount}`,
+                        }
+                      : {
+                          waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} - ${registeredSpotCount}`,
+                        },
+                )
+                .where(
+                  and(
+                    eq(
+                      eventRegistrationOptions.id,
+                      registration.registrationOptionId,
+                    ),
+                    registration.status === 'PENDING'
                       ? gte(
-                          eventRegistrationOptions.confirmedSpots,
+                          eventRegistrationOptions.reservedSpots,
                           registeredSpotCount,
                         )
-                      : gte(
-                          eventRegistrationOptions.waitlistSpots,
-                          registeredSpotCount,
-                        ),
-                ),
-              )
-              .returning({
-                id: eventRegistrationOptions.id,
-              });
-            if (updatedOptions.length === 0) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Registration option missing',
-                }),
-              );
-            }
+                      : registration.status === 'CONFIRMED'
+                        ? gte(
+                            eventRegistrationOptions.confirmedSpots,
+                            registeredSpotCount,
+                          )
+                        : gte(
+                            eventRegistrationOptions.waitlistSpots,
+                            registeredSpotCount,
+                          ),
+                  ),
+                )
+                .returning({
+                  id: eventRegistrationOptions.id,
+                });
+              if (updatedOptions.length === 0) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message: 'Registration option missing',
+                  }),
+                );
+              }
 
-            for (const addOnPurchase of registration.addonPurchases ?? []) {
-              yield* tx
-                .update(eventAddons)
-                .set({
-                  totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
-                })
-                .where(eq(eventAddons.id, addOnPurchase.addonId));
+              for (const addOnPurchase of registration.addonPurchases ?? []) {
+                yield* tx
+                  .update(eventAddons)
+                  .set({
+                    totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+                  })
+                  .where(eq(eventAddons.id, addOnPurchase.addonId));
+              }
             }
 
             if (
@@ -836,6 +841,35 @@ const transferEventRegistration = ({
   });
 
 export const eventRegistrationHandlers = {
+  'events.approveRegistration': ({ eventId, registrationId }, options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+
+      yield* ensureCanScanEventRegistration({
+        eventId,
+        tenantId: tenant.id,
+        user,
+      });
+
+      return yield* EventRegistrationService.approveManualRegistration({
+        eventId,
+        headers: options.headers,
+        registrationId,
+        tenant: {
+          currency: tenant.currency,
+          emailSenderEmail: tenant.emailSenderEmail,
+          emailSenderName: tenant.emailSenderName,
+          id: tenant.id,
+          name: tenant.name,
+          stripeAccountId: tenant.stripeAccountId,
+        },
+        user: {
+          id: user.id,
+        },
+      });
+    }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.cancelEventRegistration': ({ eventId, registrationId }, _options) =>
     cancelRegistration({
       eventId,

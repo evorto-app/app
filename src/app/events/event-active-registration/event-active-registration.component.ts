@@ -40,7 +40,7 @@ export const registrationCancellationCopy = (registration: {
       buttonLabel: 'Cancel registration',
       helperText: registration.paymentPending
         ? `This cancels the pending registration and releases ${pendingSpotNoun}. It does not complete a payment.`
-        : `This cancels the pending registration and releases ${pendingSpotNoun}.`,
+        : 'This withdraws your pending application before organizer approval.',
     };
   }
 
