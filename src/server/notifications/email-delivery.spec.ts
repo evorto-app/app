@@ -7,7 +7,6 @@ const emailConfigProviderLayer = ConfigProvider.layer(
   ConfigProvider.fromEnv({
     env: {
       RESEND_API_KEY: 're_test_123',
-      RESEND_DEFAULT_FROM: 'notifications@example.com',
     },
   }),
 );
@@ -51,7 +50,7 @@ describe('email delivery', () => {
       );
       expect(JSON.parse(String(init?.body))).toEqual(
         expect.objectContaining({
-          from: 'Tenant <notifications@example.com>',
+          from: 'ESN.WORLD <no-reply@notifications.esn.world>',
           subject: 'Receipt approved',
           to: 'alice@example.com',
         }),

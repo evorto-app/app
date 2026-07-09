@@ -27,7 +27,6 @@ interface SendTenantEmailInput {
   html: string;
   idempotencyKey: string;
   subject: string;
-  tenant: Pick<Tenant, 'emailSenderEmail' | 'emailSenderName' | 'name'>;
   to: string;
 }
 
@@ -35,6 +34,11 @@ interface TenantEmailSender {
   email: string;
   name: string;
 }
+
+const defaultEmailSender = {
+  email: 'no-reply@notifications.esn.world',
+  name: 'ESN.WORLD',
+} satisfies TenantEmailSender;
 
 const escapeHtml = (value: string): string =>
   value
@@ -47,34 +51,21 @@ const escapeHtml = (value: string): string =>
 const formatSender = ({ email, name }: TenantEmailSender): string =>
   `${name.replaceAll('"', '').trim()} <${email}>`;
 
-const resolveSender = (
-  tenant: Pick<Tenant, 'emailSenderEmail' | 'emailSenderName' | 'name'>,
-  fallbackEmail: string,
-): TenantEmailSender => {
-  const email = tenant.emailSenderEmail?.trim();
-  return {
-    email: email || fallbackEmail,
-    name: tenant.emailSenderName?.trim() || tenant.name,
-  };
-};
-
 const sendTenantEmail = ({
   html,
   idempotencyKey,
   subject,
-  tenant,
   to,
 }: SendTenantEmailInput): Effect.Effect<void, unknown> =>
   Effect.gen(function* () {
     const emailConfig = yield* serverEmailConfig;
-    const sender = resolveSender(tenant, emailConfig.RESEND_DEFAULT_FROM);
 
     yield* Effect.tryPromise({
       catch: (cause) => cause,
       try: async () => {
         const response = await fetch('https://api.resend.com/emails', {
           body: JSON.stringify({
-            from: formatSender(sender),
+            from: formatSender(defaultEmailSender),
             html,
             subject,
             text: htmlToText(html, { wordwrap: 100 }),
@@ -127,7 +118,6 @@ export const sendReceiptReviewedEmail = (
     idempotencyKey: `receipt-reviewed:${input.tenant.id}:${input.receiptId}:${input.status}`,
     subject:
       input.status === 'approved' ? 'Receipt approved' : 'Receipt rejected',
-    tenant: input.tenant,
     to: input.to,
   }).pipe(Effect.orDie);
 
@@ -164,6 +154,5 @@ export const sendManualApprovalEmail = (
     subject: input.paymentDeadline
       ? 'Registration approved: payment required'
       : 'Registration approved',
-    tenant: input.tenant,
     to: input.to,
   }).pipe(Effect.orDie);

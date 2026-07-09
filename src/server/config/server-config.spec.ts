@@ -19,10 +19,7 @@ const readServerConfig = (provider: ConfigProvider.ConfigProvider) =>
 const providerFromEntries = (entries: readonly (readonly [string, string])[]) =>
   ConfigProvider.fromEnv({ env: Object.fromEntries(entries) });
 
-const requiredServerEntries = [
-  ['RESEND_API_KEY', 're_test_123'],
-  ['RESEND_DEFAULT_FROM', 'Evorto <notifications@example.com>'],
-] as const;
+const requiredServerEntries = [['RESEND_API_KEY', 're_test_123']] as const;
 
 describe('server-config', () => {
   it.effect('only reads PUBLIC_GOOGLE_MAPS_API_KEY', () =>
@@ -87,15 +84,6 @@ describe('server-config', () => {
       );
 
       expect(error.message).toMatch(/RESEND_API_KEY/);
-    }),
-  );
-
-  it.effect('requires a default email sender', () =>
-    Effect.gen(function* () {
-      const provider = providerFromEntries([['RESEND_API_KEY', 're_test_123']]);
-
-      const error = yield* Effect.flip(readServerConfig(provider));
-      expect(error.message).toMatch(/RESEND_DEFAULT_FROM/);
     }),
   );
 });

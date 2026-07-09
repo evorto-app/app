@@ -36,7 +36,6 @@ const publicGoogleMapsApiKeyConfig = optionalTrimmedString(
 );
 const publicSentryDsnConfig = optionalTrimmedString('PUBLIC_SENTRY_DSN');
 const resendApiKeyConfig = nonEmptyTrimmedString('RESEND_API_KEY');
-const resendDefaultFromConfig = nonEmptyTrimmedString('RESEND_DEFAULT_FROM');
 
 const serverLogLevelName = Schema.Literals(serverLogLevelNames);
 const serverLogLevelByName = {
@@ -100,7 +99,6 @@ export const serverTelemetryConfig = Config.all({
 
 export const serverEmailConfig = Config.all({
   RESEND_API_KEY: resendApiKeyConfig,
-  RESEND_DEFAULT_FROM: resendDefaultFromConfig,
 });
 
 export const serverConfig = Config.all({
@@ -114,7 +112,6 @@ export const serverConfig = Config.all({
   PUBLIC_GOOGLE_MAPS_API_KEY: publicGoogleMapsApiKeyConfig,
   PUBLIC_SENTRY_DSN: publicSentryDsnConfig,
   RESEND_API_KEY: resendApiKeyConfig,
-  RESEND_DEFAULT_FROM: resendDefaultFromConfig,
   SERVER_LOG_LEVEL: serverLogLevelConfig,
 });
 

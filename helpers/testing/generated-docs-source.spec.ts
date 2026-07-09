@@ -197,7 +197,7 @@ describe('generated docs source current behavior', () => {
     const combinedSource = `${overviewSource}\n${receiptSource}`;
 
     expect(combinedSource).toContain(
-      'sends the submitter a receipt-reviewed email when tenant email delivery is configured.',
+      'sends the submitter a receipt-reviewed email when Resend delivery is configured.',
     );
     expect(combinedSource).toContain(
       'record the manual reimbursement transaction for the selected batch',
