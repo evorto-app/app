@@ -227,7 +227,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `E2E_LIVE_ESN_CARD_IDENTIFIER`. It is the functional integration path for
   live external ESNcard add, refresh, and remove provider outcomes. Use
   `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` to run only
-  this provider path when a valid live identifier is available.
+  this provider path locally when a valid live identifier is available. The
+  release gate must supply an approved credential and run this path; the local
+  credential gate is not a release exception.
 - `specs/finance/stripe-webhook-replay.spec.ts` is file-level skipped when
   `STRIPE_WEBHOOK_SECRET` is absent, before page/database fixtures are
   requested. That skip is credential-gated, not a substitute for product
@@ -252,7 +254,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 The entries below are the areas to keep aligned as stabilization continues.
 Most are now covered by deterministic specs, generated docs, or source guards;
 the hard external blockers are the in-app Browser manual review queue and the
-live ESNcard provider path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`.
+release-gated live ESNcard provider credential path.
 
 - Profile/account:
   - Docker-backed system-Chrome profile edit persistence now passes against the
@@ -293,9 +295,9 @@ live ESNcard provider path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`.
   - Live external ESNcard add, refresh, and remove provider outcomes with
     readable error states are now represented by
     `specs/profile/user-profile-live-esncard.spec.ts`, an integration-tagged
-    Playwright path gated by `E2E_LIVE_ESN_CARD_IDENTIFIER`. It stays out of
-    deterministic baseline CI but can exercise the real esncard.org provider
-    when a valid card identifier is supplied from local secrets.
+    Playwright path gated locally by `E2E_LIVE_ESN_CARD_IDENTIFIER`. It stays
+    out of deterministic baseline CI but must run in a credentialed release
+    gate against the real esncard.org provider.
     Generated discounts docs now include a helper-backed baseline note for
     readable ESNcard statuses, pending save/refresh/remove labels, shared
     in-flight write guards, trimmed save payloads, and provider-unavailable

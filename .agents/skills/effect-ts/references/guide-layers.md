@@ -1,13 +1,13 @@
 # Layers Guide
 
-This guide is based on the vendored Effect source in `./.repos/effect`.
+This guide is based on the vendored Effect source in `./repos/effect`.
 
 Key source files:
 
-- `./.repos/effect/packages/effect/src/Context.ts`
-- `./.repos/effect/packages/effect/src/Layer.ts`
-- `./.repos/effect/packages/effect/src/Effect.ts`
-- `./.repos/effect/packages/effect/src/ManagedRuntime.ts`
+- `./repos/effect/packages/effect/src/Context.ts`
+- `./repos/effect/packages/effect/src/Layer.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/ManagedRuntime.ts`
 
 ## Mental Model
 
@@ -30,8 +30,8 @@ Effect's model is:
 
 Repo references:
 
-- `./.repos/effect/packages/effect/src/Context.ts`
-- `./.repos/effect/packages/effect/src/Layer.ts`
+- `./repos/effect/packages/effect/src/Context.ts`
+- `./repos/effect/packages/effect/src/Layer.ts`
 
 ## Services
 
@@ -80,11 +80,11 @@ Why this style is preferred:
 
 - the service identifier and shape live in one place
 - it works naturally with `yield* UserRepo`
-- it matches the patterns used across `.repos/effect`
+- it matches the patterns used across `repos/effect`
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/Context.ts`
+- `./repos/effect/packages/effect/src/Context.ts`
 
 ## Service Shape Inference With `make`
 
@@ -163,7 +163,7 @@ Good use cases:
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/Context.ts`
+- `./repos/effect/packages/effect/src/Context.ts`
 
 Use a full service instead when:
 
@@ -641,7 +641,7 @@ Why:
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/ManagedRuntime.ts`
+- `./repos/effect/packages/effect/src/ManagedRuntime.ts`
 
 ## `Effect.provide`
 
@@ -884,7 +884,7 @@ Good use cases:
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/ManagedRuntime.ts`
+- `./repos/effect/packages/effect/src/ManagedRuntime.ts`
 
 ## 10. Prefer explicit test layers
 
@@ -967,11 +967,11 @@ const TestRepo = Layer.succeed(UserRepo)({
 
 ## Good Repo Examples To Study
 
-- `./.repos/effect/packages/effect/src/Context.ts`
-- `./.repos/effect/packages/effect/src/Layer.ts`
-- `./.repos/effect/packages/effect/src/ManagedRuntime.ts`
-- `./.repos/effect/packages/effect/src/Stream.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlClient.ts`
-- `./.repos/effect/packages/effect/src/unstable/persistence/Persistence.ts`
-- `./.repos/effect/packages/effect/src/unstable/rpc/RpcSerialization.ts`
-- `./.repos/effect/packages/effect/src/unstable/reactivity/Reactivity.ts`
+- `./repos/effect/packages/effect/src/Context.ts`
+- `./repos/effect/packages/effect/src/Layer.ts`
+- `./repos/effect/packages/effect/src/ManagedRuntime.ts`
+- `./repos/effect/packages/effect/src/Stream.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlClient.ts`
+- `./repos/effect/packages/effect/src/unstable/persistence/Persistence.ts`
+- `./repos/effect/packages/effect/src/unstable/rpc/RpcSerialization.ts`
+- `./repos/effect/packages/effect/src/unstable/reactivity/Reactivity.ts`

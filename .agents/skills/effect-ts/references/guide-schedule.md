@@ -1,18 +1,18 @@
 # Schedule Guide
 
-This guide is based on the vendored `Schedule` module and its usage across `./.repos/effect`.
+This guide is based on the vendored `Schedule` module and its usage across `./repos/effect`.
 
 Key source files:
 
-- `./.repos/effect/packages/effect/src/Schedule.ts`
-- `./.repos/effect/packages/effect/test/Schedule.test.ts`
+- `./repos/effect/packages/effect/src/Schedule.ts`
+- `./repos/effect/packages/effect/test/Schedule.test.ts`
 
 Representative repo usage:
 
-- `./.repos/effect/packages/effect/src/unstable/workflow/WorkflowEngine.ts`
-- `./.repos/effect/packages/effect/src/unstable/rpc/RpcClient.ts`
-- `./.repos/effect/packages/effect/src/unstable/observability/OtlpExporter.ts`
-- `./.repos/effect/packages/vitest/src/internal/internal.ts`
+- `./repos/effect/packages/effect/src/unstable/workflow/WorkflowEngine.ts`
+- `./repos/effect/packages/effect/src/unstable/rpc/RpcClient.ts`
+- `./repos/effect/packages/effect/src/unstable/observability/OtlpExporter.ts`
+- `./repos/effect/packages/vitest/src/internal/internal.ts`
 
 ## Mental Model
 
@@ -359,9 +359,9 @@ The module tests also use helpers built on `Schedule.toStepWithSleep(...)` to in
 
 ## Good Repo Examples To Study
 
-- `./.repos/effect/packages/effect/src/Schedule.ts`
-- `./.repos/effect/packages/effect/test/Schedule.test.ts`
-- `./.repos/effect/packages/effect/src/unstable/workflow/WorkflowEngine.ts`
-- `./.repos/effect/packages/effect/src/unstable/rpc/RpcClient.ts`
-- `./.repos/effect/packages/effect/src/unstable/observability/OtlpExporter.ts`
-- `./.repos/effect/packages/vitest/src/internal/internal.ts`
+- `./repos/effect/packages/effect/src/Schedule.ts`
+- `./repos/effect/packages/effect/test/Schedule.test.ts`
+- `./repos/effect/packages/effect/src/unstable/workflow/WorkflowEngine.ts`
+- `./repos/effect/packages/effect/src/unstable/rpc/RpcClient.ts`
+- `./repos/effect/packages/effect/src/unstable/observability/OtlpExporter.ts`
+- `./repos/effect/packages/vitest/src/internal/internal.ts`

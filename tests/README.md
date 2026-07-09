@@ -236,13 +236,15 @@ Required only for integration-tagged Playwright projects:
 - `CLOUDFLARE_IMAGES_DELIVERY_HASH`
 - `CLOUDFLARE_IMAGES_API_TOKEN`
 
-Optional live-provider variables for integration-tagged specs:
+Release-required live-provider variable for integration-tagged specs (optional
+for local Docker startup):
 
 - `E2E_LIVE_ESN_CARD_IDENTIFIER` for the profile ESNcard add/refresh/remove
   journey against esncard.org. Use a real valid card identifier only from a
   local secret source; do not check it into the repo. Run it with
   `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` when you
-  want to exercise only that live-provider path.
+  want to exercise only that live-provider path locally. A credentialed release
+  gate must run this path before production release.
 
 ## Local Stack Isolation
 

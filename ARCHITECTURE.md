@@ -63,7 +63,11 @@ Tenants are resolved by domain.
 The current relaunch schema stores one active primary domain per tenant. That
 domain may be an Evorto-provided subdomain or a manually configured custom
 domain, but automated multi-domain/custom-domain verification is outside the
-current runtime model.
+current runtime model. The tenant record must also hold a canonical root URL
+validated against that primary domain. Use it for production email and Stripe
+return links; local development may use an explicit local runtime origin. Never
+derive an external URL from caller-controlled request headers. Only a platform
+administrator may change the saved tenant host or canonical root URL.
 
 If no tenant matches the request domain, fail closed or show a tenant-not-found state. Do not guess a tenant.
 
@@ -78,6 +82,17 @@ Tenant context affects:
 - branding
 - legal pages
 - Stripe/payment configuration where applicable
+
+## Tenant Runtime Formatting
+
+The product's formatting locale is fixed to `de-DE`; it does not provide UI
+translation. Currency and business timezone remain tenant-specific runtime
+configuration. Supported currencies are `EUR`, `CZK`, and `AUD`; the timezone
+is an IANA name and defaults to `Europe/Berlin`. SSR and browser rendering must
+resolve the same tenant values: use currency for money defaults and
+recorded-money display, and use the tenant timezone for scheduling,
+registration/check-in windows, and date/time display. Do not let a viewer's
+browser timezone silently redefine an event's business time.
 
 ## Angular App Boundary
 
@@ -118,6 +133,10 @@ Do not introduce new Express/Hono server paths.
 
 Unexpected runtime failures should remain defects until the boundary where they can be logged and surfaced correctly. Do not hide defects with silent fallbacks.
 
+Permission implications must use shared evaluation semantics in the client and
+server. The client may use them for navigation and affordances, but each server
+read and write remains responsible for enforcing the resolved permission.
+
 ## Data Boundary
 
 Drizzle schema is the source of truth for persisted shapes.
@@ -142,6 +161,7 @@ High-risk data areas:
 - pending paid registrations
 - Stripe payment/refund mapping
 - guest quantities
+- add-on entitlement, redemption, cancellation, and stock state
 - check-in state
 - receipt persistence
 - event archival
@@ -161,13 +181,40 @@ Auth-related changes should preserve:
 - home tenant support
 - social login / lightweight account creation where available
 
+Tenant onboarding is part of the auth boundary. A cross-tenant join records
+acceptance of the tenant's current privacy policy and answers to required
+tenant-wide onboarding questions before creating the tenant membership. That
+first completed membership becomes the user's home tenant. A later automatic
+join must not overwrite it; only an explicit profile action may do so. Every
+privacy-policy change creates a new acceptance requirement and tells the tenant
+administrator making the change that affected users must re-accept it. Supported
+tenant-wide question types are short text and selection from a list. Resolve
+the current policy/version and required answers for every
+authenticated tenant user; block tenant-scoped actions with an immediate,
+accessible completion flow until they are current.
+
 Changing auth provider is possible in the future, but not an incidental task.
+
+## Platform Administration
+
+Platform administrators are independent platform principals. They may perform
+any platform operation for any tenant at any time without a tenant membership.
+Keep that authority explicit in the request context and audit trail rather than
+silently reusing a tenant user's identity or roles. Record immutable actor,
+target tenant, action, before/after data, reason, and timestamp for every
+cross-tenant platform action.
 
 ## Payment Boundary
 
 Stripe is the source of truth for payment state.
 
 Evorto should use local payment data only as application state derived from Stripe and app workflow needs.
+
+Payments belong to each tenant's configured Stripe Connect account. Every
+tenant payment, customer, Checkout, payment-intent, expiry, and refund call
+must pass that account as the connected-account context. Evorto adds only its
+application fee; tenant payment and cancellation settings remain tenant-owned,
+with narrower registration-option overrides where configured.
 
 High-risk payment flows:
 
@@ -181,6 +228,16 @@ High-risk payment flows:
 - financial reporting
 
 Agents must not fake successful payment state locally without respecting Stripe lifecycle.
+Application approval, capacity reservation, and Checkout creation must have one
+durable owner and one live payment transaction per registration. Capacity and
+payment transitions belong in atomic, replay-safe state changes.
+
+## Notification Boundary
+
+Customer-facing email is rendered from React Email components and committed to
+the transactional outbox before delivery through the configured provider. Do
+not bypass the outbox for template rendering, delivery, idempotency, retries, or
+failure observability.
 
 ## Storage Boundary
 
@@ -189,6 +246,9 @@ Object/blob storage is used for uploaded files such as receipts.
 Local development uses MinIO. Production storage may differ behind the same app-level storage boundary.
 
 Agents should avoid tying application behavior to MinIO-specific assumptions unless working on local runtime tooling.
+Authorized receipt-media preflight binds an upload to the current tenant,
+event, and submitting user before object storage accepts it; submission then
+consumes that authorized upload rather than trusting an arbitrary object key.
 
 ## Local Runtime and Worktrees
 
@@ -230,7 +290,8 @@ Use module-local `AGENTS.md` files and READMEs for implementation-specific guida
 
 ## Browser and Playwright Relationship
 
-The Browser plugin is for exploratory verification and manual validation:
+The Codex in-app Browser plugin is for exploratory verification and manual
+validation:
 
 - understand page structure
 - reproduce issues
@@ -282,6 +343,35 @@ Do not: load tenant-scoped data without an explicit tenant boundary.
 ### Registration data model
 
 Current default: registration options are flexible, mutually exclusive per event, role-gated, and used for both participant and organizer signup.
+
+Templates and events own independent simple/advanced configuration modes. A
+template-to-event operation copies a snapshot; it never leaves a live link that
+silently mutates the event later. In simple mode, the UI projects one organizing
+and one non-organizing option. In advanced mode, it uses a stable option-id list
+with an explicit organizing flag. Missing organizer or participant options are
+diagnostic warnings, not persistence blockers, because optionless operational
+events are valid. Mode changes require explicit confirmation; advanced-to-simple
+conversion additionally requires exactly one option of each kind.
+
+Add-ons are reusable event/template entities with explicit many-to-many option
+attachments. Each attachment must keep included entitlement quantity separate
+from optional purchase quantity. A purchase record needs immutable granted,
+included, redeemed, and cancelled quantities so stock changes or later edits do
+not rewrite a settled registration. Guests remain a typed registration-level
+quantity because capacity, price, cancellation, QR scanning, and partial
+check-in have different invariants from ordinary stock add-ons.
+
+Registration configuration UI should keep ownership shallow: the page-level
+Signal Form owns the option and attachment collections; bounded partial forms
+receive their field slice through inputs and use projected slots for option
+actions. Do not build an unbounded nested tree of option → add-on → purchase
+forms or duplicate client/server payload models.
+
+Scanner redemption and its immediate undo are tenant-scoped, conditional writes
+that require organizer/check-in access. Unilateral registration or add-on
+cancellation/refund is a distinct capability and must be checked server-side on
+every mutation. Refund creation remains Stripe-connected-account work and must
+not refund included units or already redeemed/cancelled quantities twice.
 
 Raise this when: changing schema, event setup UI, checkout, capacity, discounts, waitlists, guests, or check-in.
 

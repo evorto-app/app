@@ -38,9 +38,34 @@ Tenant-scoped data includes:
 - legal/privacy configuration
 - payment-related tenant configuration where applicable
 
-Users are global and may belong to multiple tenants. A user should ideally have a home tenant so the app can warn when they are browsing a tenant that is not where they usually belong.
+Users are global and may belong to multiple tenants. For relaunch, every user
+has one home tenant and the app warns when they are browsing another tenant.
+The first tenant a user joins after completing the required onboarding becomes
+their home tenant. Joining another tenant must not silently replace it; a user
+may change it later through an explicit profile action.
 
-Tenants are resolved by domain. For relaunch, each tenant has one active primary domain. That domain may be an Evorto-provided subdomain or a manually configured custom domain, but automated custom-domain verification and multiple active domains per tenant are later tenant-onboarding work. If a domain does not match a tenant, fail closed or show a tenant-not-found state; do not guess a tenant.
+When an authenticated user reaches a tenant they have not joined, the app adds
+them to that tenant automatically only after they accept the tenant's current
+privacy policy and answer every required tenant-wide onboarding question.
+Those acceptances and answers are tenant-scoped records, not merely client-side
+form state. Every tenant privacy-policy change requires a new acceptance; the
+tenant administrator making that change must be told that users will need to
+re-accept it. Required onboarding questions support short text and selection
+from a list. The application checks those requirements for every authenticated
+tenant user and immediately requires completion when an answer or the current
+policy acceptance is missing.
+
+Communication email is user-managed and may differ from the Auth0 login email.
+It is the address used for product notifications across the user's tenants.
+
+Tenants are resolved by domain. For relaunch, each tenant has one active primary
+domain and a configured canonical root URL in its database record. The root URL
+is the source for production email and Stripe return links and must be validated
+against the active primary domain. Local development uses an explicitly
+configured local runtime origin instead; outbound URLs must never be derived
+from a caller-controlled request header. Only a platform administrator may
+change the saved tenant host or canonical root URL. If a domain does not match a
+tenant, fail closed or show a tenant-not-found state; do not guess a tenant.
 
 ## Personas
 
@@ -61,6 +86,13 @@ A tenant may model different organizer categories, such as main organizer and he
 ### Participants
 
 People who browse public/listed events, register, pay if required, attend events, transfer registrations where supported, and receive registration/check-in information.
+
+### Platform administrators
+
+Platform administrators are platform principals, not tenant roles. They may
+perform any platform operation for any tenant at any time without a tenant
+membership. Their access must remain explicit and auditable; it must not depend
+on silently pretending to be a tenant user.
 
 ## Core Workflows
 
@@ -100,6 +132,12 @@ When an event is submitted for review, material fields should be locked. Materia
 
 Minor content edits may remain possible while an event is pending review, such as typo fixes in descriptions, but material changes should require returning the event to draft.
 
+Review permission alone lets a reviewer approve or return an event to draft
+with feedback. Rejection is not a separate durable event state. Review
+permission does not grant event-edit permission; a reviewer may edit an event
+only when they also have the relevant event-edit capability or are otherwise
+authorized as its editor.
+
 Publishing is the approval act. There is no separate "approved but not published" state for now.
 
 Listing is separate from publishing. A published event may be:
@@ -117,6 +155,12 @@ Registration is one of the most important and complex parts of Evorto.
 
 A sign-up event has registration options. Registration options can represent participant tickets, organizer/helper signup, ESN-card discounted access, or other tenant-defined categories. Operational or announcement-style events may have no internal registration options and may later link to an external signup.
 
+First-come-first-served and manual-approval (`application`) are supported
+relaunch registration modes. A manual approval remains pending until an
+authorized organizer approves it; a paid approval then follows the normal
+Stripe Checkout lifecycle. `random` registration is not a supported relaunch
+mode and must not appear as a usable stored-only configuration.
+
 Important rules:
 
 - Registration options are mutually exclusive per event.
@@ -128,6 +172,11 @@ Important rules:
 - Registration options define role-based eligibility.
 - Eligibility should be role-based for now.
 - Special cases such as banned users, ESN-card-only access, and participation in another program should be modeled through roles and registration-option eligibility.
+- Organizer/helper signup uses distinct copy and grouping from participant
+  tickets, even though both use the same registration-option model.
+- A role-ineligible user who follows a direct event link sees an explicit
+  ineligible state and no registration action rather than a misleading empty
+  registration area.
 
 Registration should support:
 
@@ -143,6 +192,68 @@ Registration should support:
 - transfer/resale of a registration
 - limits on how many events a person can register for in a configured time frame
 
+Cancellation and transfer timing, plus whether payment fees are refunded, are
+tenant configuration defaults. A registration option may explicitly override
+those defaults. New tenants seed transfer until the event starts, cancellation
+until five days before the event, and fee refund enabled.
+
+### Simple and advanced registration configuration
+
+Simple configuration is the default for both templates and events. It presents
+one organizing and one non-organizing registration option while retaining the
+same flexible underlying option model. Advanced configuration presents an
+individually named list of any number of registration options, including
+multiple organizer/helper categories.
+
+Templates and event instances each own their configuration mode. An event
+starts as a snapshot of its template's mode and options, then remains
+independently editable; later template edits never rewrite an existing event.
+Moving from simple to advanced preserves the current options. Every mode change
+requires an explicit warning/confirmation. Moving from advanced to simple is
+allowed only after the user has reduced the configuration to exactly one
+organizing and one non-organizing option. Advanced setup warns when either
+category is missing but does not block saving or publishing: operational events
+without registrations remain valid.
+
+Registration questions attach to one concrete registration option. In advanced
+configuration, a shared question is represented by deliberate copies rather
+than an implicit organizer/participant shortcut.
+
+### Add-ons and fulfillment
+
+Add-ons are advanced registration-option configuration and are hidden from the
+default editor. An organizer enables them for a registration option, then
+associates add-ons through an explicit multi-selection. One reusable add-on may
+be attached to more than one registration option.
+
+Each add-on association separately records an included quantity and an optional
+purchase quantity. Included units are granted automatically, cannot be removed
+by the registrant, are priced into the registration option, and reserve their
+stock when the registration becomes effective. Optional units remain a separate
+purchase choice, so an option may include one shirt while still allowing extra
+shirts to be bought. A free optional add-on is not the same thing as an
+included add-on.
+
+Every add-on is redeemable from a scanned registration. The organizer scan view
+shows the registration's add-on overview, supports one-click quantity
+redemption, and allows an immediate undo. This supports included checklist
+items, such as a photo-release acknowledgement task, as well as physical items
+such as shirts and purchased consumables such as drinks. A checklist item is a
+fulfillment record, not a substitute for any separately required versioned
+legal-consent record.
+
+Stock remains editable for future registrations without rewriting settled
+entitlements. A user with the separate cancellation capability may cancel
+unredeemed add-on units with or without a refund; redeemed units stay part of
+the fulfillment record. Refunds apply only to the optional purchased portion,
+not to included units.
+
+Guests remain a dedicated registration feature rather than ordinary stock
+add-ons. They consume the selected option's capacity, use that option's guest
+price rule, and support partial guest check-in. They may share low-level
+fulfillment conventions, but must not gain independent add-on stock or purchase
+windows.
+
 ## Discounts
 
 Discounts belong to registration options.
@@ -150,6 +261,10 @@ Discounts belong to registration options.
 For example, an ESN-card discount should not create a separate capacity pool unless explicitly designed that way. The discounted and regular price should usually draw from the same registration-option capacity.
 
 ESN-card behavior should be opt-in because not every tenant is an ESN section.
+An ESNcard identity belongs to the global user, while each tenant decides
+whether its own ESNcard program is enabled. An enabled program requires live
+external add, refresh, and remove verification; it is not a credential-gated
+deferred integration.
 
 ## Waitlists
 
@@ -160,23 +275,45 @@ They are useful for:
 - showing organizers demand for an event
 - notifying interested users when capacity opens
 
-They do not need to behave like a strict reservation queue. A simple model such as notifying the top people on the waitlist when a spot becomes available is acceptable.
+They do not behave like a reservation queue. Waitlist messages are informative
+only: receiving one never reserves capacity, creates a checkout hold, or
+guarantees a place.
 
 Users should intentionally join a waitlist through a distinct action when an option is full. Do not silently add a user to a waitlist as a side effect of failed registration.
 
 ## Transfers and Resale
 
-A participant should be able to transfer or resell a registration through Evorto.
+A participant must be able to transfer or resell a registration through Evorto.
+This is a production-replacement requirement for paid events, not an optional
+post-launch enhancement.
 
 The intended workflow:
 
 1. Existing participant creates a transfer link or code.
-2. New participant uses the link/code.
-3. New participant completes their registration and payment.
-4. Existing participant's registration is cancelled.
-5. Existing participant receives a refund through Stripe.
+2. New participant signs in and uses the link/code.
+3. New participant completes the entire current flow for that registration
+   option, including its current price, questions, and eligibility checks.
+4. After that flow succeeds, the new registration is confirmed.
+5. Existing participant's registration is cancelled and refunded through
+   Stripe.
 
 The goal is to let users transfer spots without trusting each other directly.
+
+Payments and refunds for a tenant use that tenant's Stripe Connect account. The
+application submits the tenant account id with the Stripe request and adds only
+the platform application fee; all other payment and cancellation configuration
+belongs to the tenant, subject to the registration-option override rules.
+When an option does not refund fees, it refunds the payment amount less the
+applicable fees so the tenant is net zero; a fee-refund option returns the full
+configured refundable amount.
+
+## Check-in
+
+Confirmed organizers/helpers and users with the tenant-wide event-organizing
+capability may check attendees in. Check-in opens during a pre-start window
+appropriate for entrance logistics. Duplicate scans succeed with an explicit
+“already checked in” result, and organizers can check in a buyer and selected
+guest quantity separately so partial arrival is supported.
 
 ## Templates
 
@@ -201,7 +338,11 @@ Templates should include as much reusable information as practical, such as:
 - registration questions
 - organizer notes or checklist-like internal information
 
-An event instance is an editable copy of a template. The user should be able to change relevant details during event setup. Some duplication between templates and event instances is acceptable if it keeps event instances stable and understandable.
+An event instance is an editable snapshot of a template. The user should be able
+to change relevant details during event setup, and later template edits must not
+retroactively alter existing events. Some duplication between templates and
+event instances is acceptable if it keeps event instances stable and
+understandable.
 
 ## Roles, Capabilities, and Eligibility
 
@@ -227,12 +368,22 @@ The exact capability list may evolve with the product, but these areas are expec
 - manage tenant settings
 - manage registrations
 - cancel registrations
+- cancel registrations and add-on units unilaterally, with or without a refund
 - check in attendees
 - review receipts
 - manage financial/reimbursement workflows
 - view unpublished or pending events where required by review/publishing duties
 
+Role and user management are essential tenant-admin workflows. Authorized
+administrators can assign and remove existing users' roles in the current
+tenant without changing the role definitions themselves.
+
 Capability dependencies matter. For example, a user who can publish events likely needs to see pending/unpublished events, including events created by other users.
+
+Dependencies are resolved with the same semantics in the client and server.
+The server remains the authorization source of truth. Template-category
+management and least-privilege organizer role lookup remain distinct from
+general template editing and role administration.
 
 Agents must not bypass capability checks or make authorization behavior more permissive for convenience.
 
@@ -242,9 +393,20 @@ Stripe is the source of truth for payment state.
 
 Evorto may duplicate relevant Stripe data locally for app behavior, reporting, and user experience, but agents should treat payment lifecycle logic, webhook handling, refunds, checkout expiry, and transfer/resale flows as high-risk areas.
 
-Users should receive registration confirmation and QR code only after registration is successful. For paid events, that means after successful payment.
+Each tenant owns its payments through its configured Stripe Connect account.
+Checkout, customer, payment-intent, expiry, and refund calls must execute for
+that connected account. Evorto adds its application fee but does not own or
+silently replace the tenant's other payment configuration.
 
-QR links behave like paper tickets: possession of the unguessable ticket URL is enough to render the QR image so it can be included in email. Check-in must validate registration status and show enough attendee identity for organizers to confirm the right person is presenting the ticket.
+Users should receive registration confirmation and an authenticated link to
+their ticket only after registration is successful. For paid events, that means
+after successful payment.
+
+Rendering a ticket QR requires the confirmed registration owner or an
+authorized organizer to be signed in. The QR may encode the registration id as
+an opaque locator, but that id is never a bearer credential: the scanner still
+requires tenant-scoped organizer authorization and validates the registration
+status before check-in.
 
 ## Receipts and Reimbursements
 
@@ -258,9 +420,13 @@ Receipt review should support email notification when a receipt is reviewed.
 
 Email is the first notification channel.
 
+Customer-facing email templates are rendered with React Email. Rendering stays
+separate from transactional delivery: templates enter the durable outbox and
+retain its recipient, idempotency, retry, and failure-observability rules.
+
 In scope:
 
-- successful registration confirmation, including QR code
+- successful registration confirmation with an authenticated ticket link
 - waitlist spot available
 - event cancelled, when cancellation workflow exists
 - registration cancelled by participant or admin
@@ -279,7 +445,7 @@ Not in scope for now:
 
 Tenants should be able to customize:
 
-- domain
+- primary domain and canonical root URL
 - logo
 - favicon
 - theme choice
@@ -290,6 +456,20 @@ Tenants should be able to customize:
 - registration limits
 - enabled complexity where applicable
 - email sender name, likely derived from tenant config
+- Stripe Connect account and tenant payment/cancellation defaults
+
+Evorto uses the fixed `de-DE` formatting locale for all tenants. This affects
+date, number, and money formatting only; the interface, emails, generated
+documentation, and tenant-authored content remain English-only.
+
+Supported tenant currencies are `EUR`, `CZK`, and `AUD`. The business timezone
+is an IANA timezone name and defaults to `Europe/Berlin`. Currency is the
+default for newly configured event/finance flows, while recorded monetary
+amounts keep their recorded currency. Timezone governs event scheduling,
+registration and check-in windows, and tenant-facing date/time display. Both
+must be applied consistently in SSR and browser rendering. A tenant
+administrator cannot change either after event or payment data exists; a
+platform-administrator override must be explicit and auditable.
 
 Stripe branding is handled in Stripe where possible.
 

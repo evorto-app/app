@@ -14,7 +14,7 @@ const allowedPlaywrightSkipEntries = [
   {
     entry: 'tests/specs/profile/user-profile-live-esncard.spec.ts:14:test.skip',
     reason:
-      'A live ESNcard identifier is required for external provider coverage.',
+      'Local runs need a live ESNcard identifier; the credentialed release gate must run external provider coverage.',
   },
 ] as const;
 
@@ -132,7 +132,7 @@ describe('Playwright skip inventory', () => {
     expect(
       allowedPlaywrightSkipEntries.map((entry) => entry.reason.trim()),
     ).toEqual([
-      'A live ESNcard identifier is required for external provider coverage.',
+      'Local runs need a live ESNcard identifier; the credentialed release gate must run external provider coverage.',
     ]);
   });
 
