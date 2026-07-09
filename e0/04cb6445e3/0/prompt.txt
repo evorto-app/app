@@ -1,0 +1,250 @@
+Prepare a PR for this
+
+---
+
+The receipt-approval UI copy now claims the submitter “was notified” / “emails the submitter”, but email delivery is explicitly best-effort and can be skipped (missing config) or silently fail (caught errors). The UI text should reflect conditional delivery.
+
+This was feedback.
+We have to change the email integration so that it does not work if there is a config issue. Please update so that we need email config for the app to start correctly.
+Tell me if you need more info to get this done
+
+---
+
+How should I supply these keys?
+
+---
+
+Also pull in the latest main
+
+---
+
+The FROM should be 'ESN.WORLD <no-reply@notifications.esn.world>'
+It is okay if we save that in application code, I will add the api key
+
+I will add the key to the main .env
+
+---
+
+I added the api key to the main checkout .env
+
+---
+
+Replace our local .env with the one from main checkout
+
+---
+
+I also updated fly to that it has the key now
+
+---
+
+Consider this please
+
+> ## Documentation Index
+> Fetch the complete documentation index at: https://resend.com/docs/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Send Test Emails
+
+> Simulate different events by sending test emails.
+
+## How to send test emails
+
+During development, it's important to test different deliverability scenarios.
+
+> **Example**: When an email hard bounces or is marked as spam, it's important to stop sending emails to the recipient, as continuing to send emails to those addresses will damage your domain reputation. Consider [creating a webhook endpoint](/webhooks/introduction) to capture these events and remove the addresses from your mailing lists.
+
+When testing, avoid:
+
+* sending to fake email addresses
+* setting up a fake SMTP server
+
+Use the provided `resend.dev` test email addresses to simulate different email events without damaging your domain reputation. These test emails enable the safe use of Resend's Dashboard, Webhooks, and API when developing your application.
+
+<Note>Test emails count against your account's sending quota.</Note>
+
+All test email addresses support labeling, which enables you to send emails to the same test address in multiple ways. You can add a label after the `+` symbol (e.g., `delivered+label1@resend.dev`) to help track and differentiate between different test scenarios in your application.
+
+## Test delivered emails
+
+To test that your emails are being successfully delivered, you can send an email to:
+
+```
+delivered@resend.dev
+```
+
+With labeling support, you can also use:
+
+```
+delivered+user1@resend.dev
+delivered+user2@resend.dev
+delivered+user3@resend.dev
+```
+
+## Test bounced emails
+
+To test that the recipient's email provider rejected your email, you can send an email to:
+
+```
+bounced@resend.dev
+```
+
+With labeling support, you can also use:
+
+```
+bounced+user1@resend.dev
+bounced+user2@resend.dev
+bounced+user3@resend.dev
+```
+
+This will generate a SMTP 550 5.1.1 ("Unknown User") response code.
+
+## Test "Marked as Spam" emails
+
+To test that your emails are being received but marked as spam, you can send an email to:
+
+```
+complained@resend.dev
+```
+
+With labeling support, you can also use:
+
+```
+complained+user1@resend.dev
+complained+user2@resend.dev
+complained+user3@resend.dev
+```
+
+## Test suppressed emails
+
+To test that your emails are being suppressed, you can send an email to:
+
+```
+suppressed@resend.dev
+```
+
+<Info>
+  When using this test email, the suppression reason will indicate the address
+  was previously bounced
+</Info>
+
+## Using labels effectively
+
+<Warning>
+  The suppressed test email address does not support labeling yet
+</Warning>
+
+The labeling feature allows you to use any string as a label after the `+` symbol. This is particularly useful for:
+
+* Testing different email flows (e.g., `delivered+signup@resend.dev`, `delivered+password-reset@resend.dev`)
+* Tracking webhook responses for specific test scenarios
+* Differentiating between multiple test runs
+* Matching responses with the specific email address that triggered the event
+
+---
+
+How are you rendering the emails right now?
+
+---
+
+ALright, we can take that later
+
+---
+
+Mark this as ready for review and wait for the coderabbit review
+
+---
+
+## Code review guidelines:
+# Review Guidelines
+
+You are acting as a reviewer for a proposed code change made by another engineer.
+
+Review the change and respond in normal Markdown. Do not return JSON, XML, a findings object, or any structured review schema.
+
+When feedback should be attached directly to a changed line, emit one `::code-comment{...}` directive for that issue. The directive creates an inline code comment in the review UI; keep the visible response as normal Markdown. Emit no directives when there are no actionable inline comments.
+
+Required `code-comment` attributes: `title`, `body`, and `file`. Optional attributes: `start`, `end`, and `priority`. Use the shortest useful line range. `file` should be an absolute path or include the workspace folder segment.
+
+Focus on discrete, actionable issues the original author would likely fix if they knew about them. Prefer no issues over speculative or low-signal feedback.
+
+General guidelines for whether to call out an issue:
+
+1. It meaningfully impacts correctness, performance, security, or maintainability.
+2. It is discrete and actionable.
+3. It was introduced by the change under review.
+4. The author would likely fix it once aware.
+5. It does not rely on unstated assumptions about intent.
+6. It identifies the affected behavior clearly rather than speculating broadly.
+
+When you call out an issue, include the relevant file and line or function in prose, explain the scenario where it matters, and keep the explanation concise. Use priority labels such as `[P1]` or `[P2]` only when helpful to communicate severity.
+
+If there are no actionable issues, say that directly and briefly.
+Review the code changes against the base branch 'origin/main'. The merge base commit for this comparison is d1662b419c42a1d7ff55954f1ab8ca19bc5ae6ad. Run `git diff d1662b419c42a1d7ff55954f1ab8ca19bc5ae6ad` to inspect the changes relative to origin/main. Provide concise, actionable feedback in a normal Markdown response.
+## My request for Codex:
+Please review changes on codex/relaunch-registration-decisions against origin/main
+
+---
+
+The from field should stay, only the reply to has to be updated. Please make sure all emails go through an outbox and add an overview for the global admin that allows them to see if something is off
+
+---
+
+Take care of [https://github.com/evorto-app/app/pull/83#issuecomment-4926955281](https://github.com/evorto-app/app/pull/83#issuecomment-4926955281)
+Do tha actionable items and resolve the others with a reason why they do not apply
+
+---
+
+Can we update bun?
+I'd prefer using bun for running the various scripts
+
+---
+
+What about this info
+
+Bun reports a **fake/self-reported Node.js version** for compatibility. It is not reading your installed `node`; it is Bun saying “I’m compatible with this Node/N-API/ABI target.” That version matters for `process.version`, `process.versions.node`, Node-API native addons, native addon ABI, and some V8-addon compatibility, so it is not just cosmetic. Bun’s own upgrade guide treats changing it as a coordinated runtime/native-compatibility change, not a simple config knob. ([[GitHub](https://github.com/oven-sh/bun/blob/main/.claude/commands/upgrade-nodejs.md)][1])
+
+If you are seeing **v22.6.0**, your Bun is probably old. Bun v1.2.18 changed its self-reported Node version from **v22.6.0** to **v24.3.0**, updating `process.version`, `process.versions.node`, and the N-API version to improve native addon compatibility. ([[bun.com](https://bun.com/blog/bun-v1.2.18)][2])
+
+Check it with:
+
+```sh
+bun --version
+bun -e "console.log(process.version, process.versions.node, process.versions.bun)"
+```
+
+Then upgrade Bun:
+
+```sh
+bun upgrade
+```
+
+There is **no supported setting that truly changes Bun’s runtime Node identity globally**. A GitHub request to allow changing `process.versions.node` through env/project config was closed as “not planned.” ([[GitHub](https://github.com/oven-sh/bun/issues/21725)][3])
+
+There is, however, a **workaround for pure-JS version gates**: Bun’s `--define` can statically replace property accesses at runtime/build time. Bun documents that `--define` replaces usages of identifiers/properties before code reaches the JS engine. ([[bun.com](https://bun.com/docs/guides/runtime/define-constant)][4])
+
+For example:
+
+```sh
+bun --define process.version="'v22.12.0'" \
+    --define process.versions.node="'22.12.0'" \
+    your-script.ts
+```
+
+Or in `bunfig.toml`:
+
+```toml
+[define]
+"process.version" = "'v22.12.0'"
+"process.versions.node" = "'22.12.0'"
+```
+
+Bun’s `bunfig.toml` docs describe `define` as replacing global identifiers with constant expressions. ([[bun.com](https://bun.com/docs/runtime/bunfig)][5])
+
+Use that only as a last resort. It does **not** change Bun’s real N-API/native-addon compatibility, it may not catch dynamic checks like `process.versions["node"]`, and it can hide a real incompatibility. The safer order is: upgrade Bun, run the package with real Node if it truly requires Node semantics, or patch the dependency’s overly strict version check with `bun patch`. Bun supports persistent dependency patches via `bun patch`. ([[bun.com](https://bun.com/docs/pm/cli/patch)][6])
+
+[1]: https://github.com/oven-sh/bun/blob/main/.claude/commands/upgrade-nodejs.md "bun/.claude/commands/upgrade-nodejs.md at main · oven-sh/bun · GitHub"
+[2]: https://bun.com/blog/bun-v1.2.18 "Bun v1.2.18 | Bun Blog"
+[3]: https://github.com/oven-sh/bun/issues/21725 "Allow changing process.versions.node manually · Issue #21725 · oven-sh/bun · GitHub"
+[4]: https://bun.com/docs/guides/runtime/define-constant "Define and replace static globals & constants - Bun"
+[5]: https://bun.com/docs/runtime/bunfig "bunfig.toml - Bun"
+[6]: https://bun.com/docs/pm/cli/patch "bun patch - Bun"
