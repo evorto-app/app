@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "aecfe1d258b9",
+  "session_id": "019f1e20-8e85-7a12-b45b-bc85c4271faa",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-09T16:51:05.027743Z",
+  "branch": "codex/relaunch-registration-decisions",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/shared/rpc-contracts/app-rpcs/users.errors.ts",
+    "src/server/effect/rpc/handlers/users.handlers.ts",
+    "src/server/effect/rpc/handlers/users.handlers.spec.ts",
+    "src/app/events/event-organize/event-organize.ts",
+    "src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "d1e7effe55dc",
+  "token_usage": {
+    "input_tokens": 3223285,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 78664960,
+    "output_tokens": 218644,
+    "api_call_count": 589
+  },
+  "session_metrics": {
+    "turn_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-09T16:51:04.826682Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 824,
+    "human_modified": 3,
+    "human_removed": 0,
+    "total_committed": 824,
+    "total_lines_changed": 959,
+    "agent_percentage": 0,
+    "metric_version": 2
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "aecfe1d258b9",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-registration-decisions",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/events/event-organize/event-organize.ts",
+    "src/server/effect/rpc/handlers/users.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/users.handlers.ts",
+    "src/shared/rpc-contracts/app-rpcs/admin.rpcs.spec.ts",
+    "src/shared/rpc-contracts/app-rpcs/users.errors.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ae/cfe1d258b9/0/metadata.json",
+      "transcript": "/ae/cfe1d258b9/0/full.jsonl",
+      "content_hash": "/ae/cfe1d258b9/0/content_hash.txt",
+      "prompt": "/ae/cfe1d258b9/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3223285,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 78664960,
+    "output_tokens": 218644,
+    "api_call_count": 589
+  }
+}
