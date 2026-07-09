@@ -9,7 +9,7 @@ Expert guidance for programming with the Effect library, covering error handling
 
 ## Prerequisite
 
-Before doing any other Effect-related work, check that `./.repos/effect` exists at the root of the repository where the skill is being used.
+Before doing any other Effect-related work, check that `./repos/effect` exists at the root of the repository where the skill is being used.
 
 If it does not exist, stop and prompt the user with the setup task documented in `./references/setup.md`.
 
@@ -30,7 +30,7 @@ Only go directly to the vendored Effect repo when:
 
 1. Local skill guides first. Start with the relevant files in `./references/` before doing deeper research.
 2. Codebase patterns second. Examine similar patterns in the current project before implementing. If Effect patterns already exist, follow them for consistency. If no patterns exist, skip this step.
-3. Effect source code last. For gaps in the guides, complex type errors, unclear behavior, or implementation details, examine the vendored Effect source at `./.repos/effect/packages/effect/src/`.
+3. Effect source code last. For gaps in the guides, complex type errors, unclear behavior, or implementation details, examine the vendored Effect source at `./repos/effect/packages/effect/src/`.
 
 ### When To Research
 
@@ -67,7 +67,7 @@ If no Effect patterns exist in the codebase, proceed using canonical patterns fr
 When you need to discover available Effect modules, packages, or capabilities, search `./references/features.md` first.
 
 - Use it to identify the right package or module for a task.
-- Use the listed repo paths to jump directly into the vendored source under `./.repos/effect`.
+- Use the listed repo paths to jump directly into the vendored source under `./repos/effect`.
 - Use it before inventing custom abstractions when Effect may already provide the functionality.
 
 ### Guide Discovery
@@ -84,7 +84,7 @@ When the task touches one of these areas, consult the matching guide before impl
 - `./references/guide-sql.md` for Effect SQL usage, transactions, resolvers, schema-aware SQL, and migrations
 - `./references/guide-testing.md` for detailed `@effect/vitest` usage, layered test setup, property tests, and test services
 
-These guides should be treated as the default implementation guidance. Do not skip them and jump straight to `./.repos/effect` unless you need source-level confirmation or the guides do not answer the question.
+These guides should be treated as the default implementation guidance. Do not skip them and jump straight to `./repos/effect` unless you need source-level confirmation or the guides do not answer the question.
 
 ## Effect Principles
 

@@ -1,15 +1,15 @@
 # SQL Guide
 
-This guide is based on the vendored Effect SQL modules in `./.repos/effect`.
+This guide is based on the vendored Effect SQL modules in `./repos/effect`.
 
 Key source files:
 
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlClient.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/Migrator.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlResolver.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlSchema.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlModel.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlClient.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/Migrator.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlResolver.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlSchema.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlModel.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
 
 ## Preferred Rule
 
@@ -55,7 +55,7 @@ The business layer should depend on Effect SQL abstractions, not on a raw driver
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlClient.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlClient.ts`
 
 Use it when:
 
@@ -225,7 +225,7 @@ Use `SqlClient.withTransaction` for transaction boundaries.
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlClient.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlClient.ts`
 
 Prefer:
 
@@ -279,7 +279,7 @@ Use `SqlResolver` when request-style batching or schema-validated request/respon
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlResolver.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlResolver.ts`
 
 It is especially good for:
 
@@ -325,7 +325,7 @@ Use `Migrator` for migrations.
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/unstable/sql/Migrator.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/Migrator.ts`
 
 The repo shows these best practices:
 
@@ -525,9 +525,9 @@ This keeps:
 
 ## Good Repo Examples To Study
 
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlClient.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/Migrator.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlResolver.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlSchema.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlModel.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlClient.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/Migrator.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlResolver.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlSchema.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlModel.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlError.ts`

@@ -1,14 +1,14 @@
 # Effect Guide
 
-This guide is based on common usage patterns in the vendored repo at `./.repos/effect`.
+This guide is based on common usage patterns in the vendored repo at `./repos/effect`.
 
 Key source areas:
 
-- `./.repos/effect/packages/effect/src/Effect.ts`
-- `./.repos/effect/packages/tools/`
-- `./.repos/effect/packages/platform-*`
-- `./.repos/effect/packages/opentelemetry/`
-- `./.repos/effect/packages/vitest/`
+- `./repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/tools/`
+- `./repos/effect/packages/platform-*`
+- `./repos/effect/packages/opentelemetry/`
+- `./repos/effect/packages/vitest/`
 
 ## Mental Model
 
@@ -64,8 +64,8 @@ Do not treat `Effect.fnUntraced` as the default. If you do not want an explicit 
 
 Repo examples:
 
-- `./.repos/effect/packages/tools/utils/src/Codegen.ts`
-- `./.repos/effect/packages/tools/openapi-generator/src/OpenApiPatch.ts`
+- `./repos/effect/packages/tools/utils/src/Codegen.ts`
+- `./repos/effect/packages/tools/openapi-generator/src/OpenApiPatch.ts`
 
 ## Use `Effect.gen` For Workflows
 
@@ -89,8 +89,8 @@ Use `Effect.gen` when:
 
 Repo examples:
 
-- `./.repos/effect/packages/opentelemetry/src/NodeSdk.ts`
-- `./.repos/effect/packages/tools/openapi-generator/src/OpenApiGenerator.ts`
+- `./repos/effect/packages/opentelemetry/src/NodeSdk.ts`
+- `./repos/effect/packages/tools/openapi-generator/src/OpenApiGenerator.ts`
 
 ## `Effect.fn` vs `Effect.gen`
 
@@ -278,8 +278,8 @@ Do not default to exporting thin accessor functions that just fetch a service an
 
 Repo examples:
 
-- `./.repos/effect/packages/tools/utils/src/bin.ts`
-- `./.repos/effect/packages/tools/openapi-generator/test/`
+- `./repos/effect/packages/tools/utils/src/bin.ts`
+- `./repos/effect/packages/tools/openapi-generator/test/`
 
 ## Error Handling
 
@@ -339,8 +339,8 @@ const program = Effect.scoped(
 
 Repo examples:
 
-- `./.repos/effect/packages/platform-node/`
-- `./.repos/effect/packages/opentelemetry/src/NodeSdk.ts`
+- `./repos/effect/packages/platform-node/`
+- `./repos/effect/packages/opentelemetry/src/NodeSdk.ts`
 
 ## SQL And Runtime Integrations
 
@@ -422,10 +422,10 @@ These are the most practically important `Effect` functions to know first:
 
 ## Good Repo Examples To Study
 
-- `./.repos/effect/packages/tools/utils/src/Codegen.ts`
-- `./.repos/effect/packages/tools/openapi-generator/src/OpenApiPatch.ts`
-- `./.repos/effect/packages/tools/openapi-generator/src/OpenApiGenerator.ts`
-- `./.repos/effect/packages/opentelemetry/src/NodeSdk.ts`
-- `./.repos/effect/packages/opentelemetry/src/Tracer.ts`
-- `./.repos/effect/packages/platform-node/`
-- `./.repos/effect/packages/vitest/src/index.ts`
+- `./repos/effect/packages/tools/utils/src/Codegen.ts`
+- `./repos/effect/packages/tools/openapi-generator/src/OpenApiPatch.ts`
+- `./repos/effect/packages/tools/openapi-generator/src/OpenApiGenerator.ts`
+- `./repos/effect/packages/opentelemetry/src/NodeSdk.ts`
+- `./repos/effect/packages/opentelemetry/src/Tracer.ts`
+- `./repos/effect/packages/platform-node/`
+- `./repos/effect/packages/vitest/src/index.ts`

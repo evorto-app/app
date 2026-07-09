@@ -1,13 +1,13 @@
 # Testing Guide
 
-This guide is based on the vendored `@effect/vitest` package in `./.repos/effect`.
+This guide is based on the vendored `@effect/vitest` package in `./repos/effect`.
 
 Key source files:
 
-- `./.repos/effect/packages/vitest/src/index.ts`
-- `./.repos/effect/packages/vitest/src/internal/internal.ts`
-- `./.repos/effect/packages/vitest/test/index.test.ts`
-- `./.repos/effect/packages/vitest/typetest/index.tst.ts`
+- `./repos/effect/packages/vitest/src/index.ts`
+- `./repos/effect/packages/vitest/src/internal/internal.ts`
+- `./repos/effect/packages/vitest/test/index.test.ts`
+- `./repos/effect/packages/vitest/typetest/index.tst.ts`
 
 ## Preferred Rule
 
@@ -496,7 +496,7 @@ it.effect("uses TestClock", () =>
 
 ## Good Repo Examples To Study
 
-- `./.repos/effect/packages/vitest/test/index.test.ts`
-- `./.repos/effect/packages/vitest/src/index.ts`
-- `./.repos/effect/packages/vitest/src/internal/internal.ts`
-- `./.repos/effect/packages/vitest/typetest/index.tst.ts`
+- `./repos/effect/packages/vitest/test/index.test.ts`
+- `./repos/effect/packages/vitest/src/index.ts`
+- `./repos/effect/packages/vitest/src/internal/internal.ts`
+- `./repos/effect/packages/vitest/typetest/index.tst.ts`

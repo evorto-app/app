@@ -1,14 +1,14 @@
 # Error Handling Guide
 
-This guide is based on the vendored Effect source in `./.repos/effect`.
+This guide is based on the vendored Effect source in `./repos/effect`.
 
 Key source files:
 
-- `./.repos/effect/packages/effect/src/Data.ts`
-- `./.repos/effect/packages/effect/src/Schema.ts`
-- `./.repos/effect/packages/effect/src/Cause.ts`
-- `./.repos/effect/packages/effect/src/Effect.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
+- `./repos/effect/packages/effect/src/Data.ts`
+- `./repos/effect/packages/effect/src/Schema.ts`
+- `./repos/effect/packages/effect/src/Cause.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
 
 ## Mental Model
 
@@ -22,8 +22,8 @@ This distinction is explicit in `Cause`.
 
 Repo references:
 
-- `./.repos/effect/packages/effect/src/Cause.ts`
-- `./.repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/Cause.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
 
 ## Preferred Error Definition Styles
 
@@ -52,8 +52,8 @@ Why:
 
 Repo references:
 
-- `./.repos/effect/packages/effect/src/Schema.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
+- `./repos/effect/packages/effect/src/Schema.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
 
 Example:
 
@@ -87,13 +87,13 @@ Use `Schema.ErrorClass` when you want schema-defined error objects but do not sp
 
 Repo references:
 
-- `./.repos/effect/packages/effect/src/Schema.ts`
-- examples across `./.repos/effect/packages/effect/src/unstable/*`
+- `./repos/effect/packages/effect/src/Schema.ts`
+- examples across `./repos/effect/packages/effect/src/unstable/*`
 
 Example shape from the vendored repo:
 
-- `./.repos/effect/packages/effect/src/unstable/httpapi/HttpApiError.ts`
-- `./.repos/effect/packages/effect/src/unstable/workers/WorkerError.ts`
+- `./repos/effect/packages/effect/src/unstable/httpapi/HttpApiError.ts`
+- `./repos/effect/packages/effect/src/unstable/workers/WorkerError.ts`
 
 ### 3. `Data.TaggedError` for non-serializable or lightweight domain errors
 
@@ -107,7 +107,7 @@ This is mainly the fallback for:
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/Data.ts`
+- `./repos/effect/packages/effect/src/Data.ts`
 
 Example:
 
@@ -148,7 +148,7 @@ When validating external input, Effect's schema APIs return `SchemaError` in the
 
 Repo references:
 
-- `./.repos/effect/packages/effect/src/Schema.ts`
+- `./repos/effect/packages/effect/src/Schema.ts`
 - `Schema.decodeUnknownEffect`
 - `Schema.decodeUnknownExit`
 - `Schema.encodeUnknownEffect`
@@ -203,9 +203,9 @@ The vendored repo uses schema-backed errors in places like SQL, RPC, sockets, an
 
 Strong examples:
 
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
-- `./.repos/effect/packages/effect/src/unstable/socket/Socket.ts`
-- `./.repos/effect/packages/effect/src/unstable/eventlog/EventLogMessage.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
+- `./repos/effect/packages/effect/src/unstable/socket/Socket.ts`
+- `./repos/effect/packages/effect/src/unstable/eventlog/EventLogMessage.ts`
 
 These are good reference points when the error contract matters externally.
 
@@ -217,11 +217,11 @@ This is a very common pattern in the vendored repo.
 
 Good examples:
 
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
-- `./.repos/effect/packages/effect/src/unstable/rpc/RpcClientError.ts`
-- `./.repos/effect/packages/effect/src/unstable/socket/Socket.ts`
-- `./.repos/effect/packages/effect/src/unstable/workers/WorkerError.ts`
-- `./.repos/effect/packages/effect/src/unstable/persistence/Redis.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
+- `./repos/effect/packages/effect/src/unstable/rpc/RpcClientError.ts`
+- `./repos/effect/packages/effect/src/unstable/socket/Socket.ts`
+- `./repos/effect/packages/effect/src/unstable/workers/WorkerError.ts`
+- `./repos/effect/packages/effect/src/unstable/persistence/Redis.ts`
 
 ### Preferred Pattern
 
@@ -318,7 +318,7 @@ Use `catchTag` when your error type has `_tag` and you want focused recovery.
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
 
 Example:
 
@@ -368,8 +368,8 @@ They come from:
 
 Repo references:
 
-- `./.repos/effect/packages/effect/src/Cause.ts`
-- `./.repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/Cause.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
 
 ### Preferred rule
 
@@ -438,8 +438,8 @@ Interrupts are cancellation, not business failure.
 
 Repo references:
 
-- `./.repos/effect/packages/effect/src/Cause.ts`
-- `./.repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/Cause.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
 
 ### Use `Effect.interrupt` to stop work cooperatively
 
@@ -508,12 +508,12 @@ Otherwise prefer the simpler typed error operators.
 
 ## Good Repo Examples To Study
 
-- `./.repos/effect/packages/effect/src/Data.ts`
-- `./.repos/effect/packages/effect/src/Cause.ts`
-- `./.repos/effect/packages/effect/src/Effect.ts`
-- `./.repos/effect/packages/effect/src/Schema.ts`
-- `./.repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
-- `./.repos/effect/packages/effect/src/unstable/http/HttpClientError.ts`
-- `./.repos/effect/packages/effect/src/unstable/http/HttpServerError.ts`
-- `./.repos/effect/packages/effect/src/unstable/socket/Socket.ts`
-- `./.repos/effect/packages/effect/src/unstable/httpapi/HttpApiError.ts`
+- `./repos/effect/packages/effect/src/Data.ts`
+- `./repos/effect/packages/effect/src/Cause.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/Schema.ts`
+- `./repos/effect/packages/effect/src/unstable/sql/SqlError.ts`
+- `./repos/effect/packages/effect/src/unstable/http/HttpClientError.ts`
+- `./repos/effect/packages/effect/src/unstable/http/HttpServerError.ts`
+- `./repos/effect/packages/effect/src/unstable/socket/Socket.ts`
+- `./repos/effect/packages/effect/src/unstable/httpapi/HttpApiError.ts`

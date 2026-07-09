@@ -51,7 +51,8 @@ This is not a rigid ID system. Do not introduce a complex requirements matrix un
 
 ## Browser Plugin vs Playwright
 
-Use the Browser plugin for exploratory and manual-style verification.
+Use the Codex in-app Browser plugin for exploratory and manual-style
+verification.
 
 Good Browser use cases:
 
@@ -98,6 +99,10 @@ Good unit-test targets:
 - date/time calculations
 - registration eligibility calculations
 - capacity/waitlist calculations
+- simple/advanced configuration conversion and warning rules
+- add-on attachment, included-entitlement, stock, redemption, undo, and
+  cancellation calculations
+- organizer/check-in and unilateral-cancellation capability checks
 - transfer/resale state transitions where isolated
 - receipt/payment helper behavior where isolated
 
@@ -112,6 +117,10 @@ High-value Playwright flows include:
 - browsing listed events
 - creating an event from a template
 - configuring participant and organizer signup settings
+- switching simple/advanced registration configuration without mutating existing
+  event snapshots
+- attaching reusable add-ons to one or more registration options, including
+  included and optional quantities
 - submitting an event for review
 - returning an event to draft
 - publishing an event
@@ -123,6 +132,8 @@ High-value Playwright flows include:
 - transferring/reselling a registration
 - checking in participants
 - checking in guest quantities
+- redeeming and immediately undoing registration add-ons from a scanned ticket
+- organizer cancellation of unredeemed add-on units with and without a refund
 - submitting a receipt
 - reviewing a receipt
 - managing roles/capabilities
@@ -183,6 +194,27 @@ For visible UI changes, evidence should usually include:
 - confirmation that console/network behavior was checked when relevant
 - Playwright coverage or explanation why it was not useful
 
+## Manual Review Queue
+
+Use this compact queue when a Codex in-app Browser walkthrough is requested and
+the Browser control transport is healthy. It complements, but does not replace,
+the durable Playwright and generated-documentation coverage.
+
+1. **Anonymous event discovery:** browse the event list and a public event,
+   then open an unlisted event from its direct link.
+2. **Participant registration and profile:** inspect free, paid, waitlist,
+   cancellation, ticket, and receipt states.
+3. **Organizer authoring and check-in:** create or edit a template/event,
+   inspect event management, and exercise scanner feedback, add-on redemption
+   and undo, and guest check-in.
+4. **Tenant administration and finance:** inspect settings, roles, finance
+   navigation, receipt review, reimbursement recording, and tax-rate access.
+5. **Global administration:** inspect tenant list/detail/create/edit behavior
+   and the stated custom-domain and impersonation boundaries.
+6. **Live ESNcard provider:** run
+   `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` as a
+   release requirement, then inspect the add, refresh, remove, and provider UX.
+
 ## Done Criteria
 
 For a typical change, before finishing:
@@ -235,6 +267,7 @@ Use extra caution when touching:
 - capacity limits
 - waitlists
 - guest quantities
+- add-on entitlement, stock, redemption, cancellation, and partial-refund state
 - Stripe checkout/webhooks/refunds
 - transfer/resale
 - QR code check-in

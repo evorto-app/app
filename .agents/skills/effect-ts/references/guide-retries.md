@@ -4,19 +4,19 @@ This guide is based on retry patterns and `ExecutionPlan` usage in the vendored 
 
 Key source files:
 
-- `./.repos/effect/packages/effect/src/Effect.ts`
-- `./.repos/effect/packages/effect/src/Schedule.ts`
-- `./.repos/effect/packages/effect/src/ExecutionPlan.ts`
-- `./.repos/effect/packages/effect/test/Effect.test.ts`
-- `./.repos/effect/packages/effect/test/ExecutionPlan.test.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/Schedule.ts`
+- `./repos/effect/packages/effect/src/ExecutionPlan.ts`
+- `./repos/effect/packages/effect/test/Effect.test.ts`
+- `./repos/effect/packages/effect/test/ExecutionPlan.test.ts`
 
 Representative repo usage:
 
-- `./.repos/effect/packages/effect/src/unstable/workflow/Activity.ts`
-- `./.repos/effect/packages/effect/src/unstable/workflow/WorkflowEngine.ts`
-- `./.repos/effect/packages/effect/src/unstable/rpc/RpcClient.ts`
-- `./.repos/effect/packages/effect/src/unstable/observability/OtlpExporter.ts`
-- `./.repos/effect/packages/vitest/src/internal/internal.ts`
+- `./repos/effect/packages/effect/src/unstable/workflow/Activity.ts`
+- `./repos/effect/packages/effect/src/unstable/workflow/WorkflowEngine.ts`
+- `./repos/effect/packages/effect/src/unstable/rpc/RpcClient.ts`
+- `./repos/effect/packages/effect/src/unstable/observability/OtlpExporter.ts`
+- `./repos/effect/packages/vitest/src/internal/internal.ts`
 
 ## Mental Model
 
@@ -407,11 +407,11 @@ const Plan = ExecutionPlan.make(
 
 ## Good Repo Examples To Study
 
-- `./.repos/effect/packages/effect/test/Effect.test.ts`
-- `./.repos/effect/packages/effect/src/Schedule.ts`
-- `./.repos/effect/packages/effect/src/ExecutionPlan.ts`
-- `./.repos/effect/packages/effect/test/ExecutionPlan.test.ts`
-- `./.repos/effect/packages/effect/src/unstable/workflow/Activity.ts`
-- `./.repos/effect/packages/effect/src/unstable/workflow/WorkflowEngine.ts`
-- `./.repos/effect/packages/effect/src/unstable/rpc/RpcClient.ts`
-- `./.repos/effect/packages/effect/src/unstable/observability/OtlpExporter.ts`
+- `./repos/effect/packages/effect/test/Effect.test.ts`
+- `./repos/effect/packages/effect/src/Schedule.ts`
+- `./repos/effect/packages/effect/src/ExecutionPlan.ts`
+- `./repos/effect/packages/effect/test/ExecutionPlan.test.ts`
+- `./repos/effect/packages/effect/src/unstable/workflow/Activity.ts`
+- `./repos/effect/packages/effect/src/unstable/workflow/WorkflowEngine.ts`
+- `./repos/effect/packages/effect/src/unstable/rpc/RpcClient.ts`
+- `./repos/effect/packages/effect/src/unstable/observability/OtlpExporter.ts`

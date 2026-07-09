@@ -1,15 +1,15 @@
 # Observability Guide
 
-This guide is based on the vendored Effect source in `./.repos/effect`.
+This guide is based on the vendored Effect source in `./repos/effect`.
 
 Key source files:
 
-- `./.repos/effect/packages/effect/src/Effect.ts`
-- `./.repos/effect/packages/effect/src/Tracer.ts`
-- `./.repos/effect/packages/effect/src/Logger.ts`
-- `./.repos/effect/packages/effect/src/Metric.ts`
-- `./.repos/effect/packages/opentelemetry/src/NodeSdk.ts`
-- `./.repos/effect/packages/opentelemetry/src/Tracer.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/Tracer.ts`
+- `./repos/effect/packages/effect/src/Logger.ts`
+- `./repos/effect/packages/effect/src/Metric.ts`
+- `./repos/effect/packages/opentelemetry/src/NodeSdk.ts`
+- `./repos/effect/packages/opentelemetry/src/Tracer.ts`
 
 ## Mental Model
 
@@ -35,7 +35,7 @@ Why:
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
 
 ## Preferred Rule
 
@@ -340,7 +340,7 @@ Use metric tracking on meaningful operations such as:
 
 Repo reference:
 
-- `./.repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
 - `Effect.track`
 
 Example:
@@ -379,8 +379,8 @@ The vendored repo provides `@effect/opentelemetry` layers such as:
 
 Repo references:
 
-- `./.repos/effect/packages/opentelemetry/src/NodeSdk.ts`
-- `./.repos/effect/packages/opentelemetry/src/Tracer.ts`
+- `./repos/effect/packages/opentelemetry/src/NodeSdk.ts`
+- `./repos/effect/packages/opentelemetry/src/Tracer.ts`
 
 Preferred composition style:
 
@@ -402,12 +402,12 @@ This is the preferred integration path when the application needs to participate
 
 Relevant modules:
 
-- `./.repos/effect/packages/opentelemetry/src/NodeSdk.ts`
-- `./.repos/effect/packages/opentelemetry/src/Tracer.ts`
-- `./.repos/effect/packages/opentelemetry/src/Metrics.ts`
-- `./.repos/effect/packages/opentelemetry/src/Logger.ts`
-- `./.repos/effect/packages/opentelemetry/src/Resource.ts`
-- `./.repos/effect/packages/opentelemetry/src/WebSdk.ts`
+- `./repos/effect/packages/opentelemetry/src/NodeSdk.ts`
+- `./repos/effect/packages/opentelemetry/src/Tracer.ts`
+- `./repos/effect/packages/opentelemetry/src/Metrics.ts`
+- `./repos/effect/packages/opentelemetry/src/Logger.ts`
+- `./repos/effect/packages/opentelemetry/src/Resource.ts`
+- `./repos/effect/packages/opentelemetry/src/WebSdk.ts`
 
 ### Preferred Integration Model
 
@@ -688,9 +688,9 @@ const handleRequest = (userId: string) => runtime.runPromise(fetchUser(userId));
 
 ## Good Repo Examples To Study
 
-- `./.repos/effect/packages/effect/src/Effect.ts`
-- `./.repos/effect/packages/effect/src/Tracer.ts`
-- `./.repos/effect/packages/effect/src/Logger.ts`
-- `./.repos/effect/packages/effect/src/Metric.ts`
-- `./.repos/effect/packages/opentelemetry/src/NodeSdk.ts`
-- `./.repos/effect/packages/opentelemetry/src/Tracer.ts`
+- `./repos/effect/packages/effect/src/Effect.ts`
+- `./repos/effect/packages/effect/src/Tracer.ts`
+- `./repos/effect/packages/effect/src/Logger.ts`
+- `./repos/effect/packages/effect/src/Metric.ts`
+- `./repos/effect/packages/opentelemetry/src/NodeSdk.ts`
+- `./repos/effect/packages/opentelemetry/src/Tracer.ts`
