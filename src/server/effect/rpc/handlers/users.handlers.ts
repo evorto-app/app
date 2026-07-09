@@ -7,6 +7,7 @@ import {
 import {
   UserConflictError,
   UserRoleAssignmentNotFoundError,
+  UserSelfRoleRemovalError,
 } from '@shared/rpc-contracts/app-rpcs/users.errors';
 import { and, count, eq, gte, ilike, inArray, lte } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
@@ -185,6 +186,7 @@ export const userHandlers = {
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
       );
+      const currentUser = yield* requireUserHeader(options.headers);
       const nextRoleIds = uniqueRoleIds(roleIds);
 
       yield* Database.use((database) =>
@@ -204,6 +206,14 @@ export const userHandlers = {
                 return yield* Effect.fail(
                   new UserRoleAssignmentNotFoundError({
                     message: 'Tenant user not found',
+                  }),
+                );
+              }
+
+              if (userId === currentUser.id && nextRoleIds.length === 0) {
+                return yield* Effect.fail(
+                  new UserSelfRoleRemovalError({
+                    message: 'You cannot remove all of your own roles',
                   }),
                 );
               }
@@ -243,7 +253,8 @@ export const userHandlers = {
           )
           .pipe(
             Effect.catch((error) =>
-              error instanceof UserRoleAssignmentNotFoundError
+              error instanceof UserRoleAssignmentNotFoundError ||
+              error instanceof UserSelfRoleRemovalError
                 ? Effect.fail(error)
                 : Effect.die(error),
             ),

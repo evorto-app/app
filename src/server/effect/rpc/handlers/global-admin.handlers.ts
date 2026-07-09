@@ -11,7 +11,17 @@ import {
   GlobalAdminTenantRecord,
   type GlobalAdminTenantRecord as GlobalAdminTenantRecordType,
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
-import { and, count, desc, eq, inArray, lte, sql } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  sql,
+} from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -162,68 +172,80 @@ export const globalAdminHandlers = {
       yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
       const now = new Date();
       const staleSendingBefore = new Date(Date.now() - 10 * 60 * 1000);
-      const [statusCounts, waitingForRetryRows, staleSendingRows, itemRows] =
-        yield* databaseEffect((database) =>
-          Effect.all([
-            database
-              .select({
-                status: emailOutbox.status,
-                total: count(),
-              })
-              .from(emailOutbox)
-              .groupBy(emailOutbox.status),
-            database
-              .select({
-                total: count(),
-              })
-              .from(emailOutbox)
-              .where(
-                and(
-                  inArray(emailOutbox.status, ['queued', 'failed']),
-                  lte(emailOutbox.nextAttemptAt, now),
-                  sql`${emailOutbox.attempts} < ${emailOutbox.maxAttempts}`,
-                ),
+      const [
+        statusCounts,
+        waitingForRetryRows,
+        staleSendingRows,
+        exhaustedRows,
+        itemRows,
+      ] = yield* databaseEffect((database) =>
+        Effect.all([
+          database
+            .select({
+              status: emailOutbox.status,
+              total: count(),
+            })
+            .from(emailOutbox)
+            .groupBy(emailOutbox.status),
+          database
+            .select({
+              total: count(),
+            })
+            .from(emailOutbox)
+            .where(
+              and(
+                inArray(emailOutbox.status, ['queued', 'failed']),
+                isNull(emailOutbox.exhaustedAt),
+                lte(emailOutbox.nextAttemptAt, now),
+                sql`${emailOutbox.attempts} < ${emailOutbox.maxAttempts}`,
               ),
-            database
-              .select({
-                total: count(),
-              })
-              .from(emailOutbox)
-              .where(
-                and(
-                  eq(emailOutbox.status, 'sending'),
-                  lte(emailOutbox.updatedAt, staleSendingBefore),
-                ),
+            ),
+          database
+            .select({
+              total: count(),
+            })
+            .from(emailOutbox)
+            .where(
+              and(
+                eq(emailOutbox.status, 'sending'),
+                lte(emailOutbox.updatedAt, staleSendingBefore),
               ),
-            database
-              .select({
-                attempts: emailOutbox.attempts,
-                createdAt: emailOutbox.createdAt,
-                id: emailOutbox.id,
-                kind: emailOutbox.kind,
-                lastAttemptAt: emailOutbox.lastAttemptAt,
-                lastError: emailOutbox.lastError,
-                maxAttempts: emailOutbox.maxAttempts,
-                nextAttemptAt: emailOutbox.nextAttemptAt,
-                recipient: emailOutbox.toEmail,
-                sentAt: emailOutbox.sentAt,
-                status: emailOutbox.status,
-                subject: emailOutbox.subject,
-                tenantDomain: tenants.domain,
-                tenantId: emailOutbox.tenantId,
-                tenantName: tenants.name,
-                updatedAt: emailOutbox.updatedAt,
-              })
-              .from(emailOutbox)
-              .innerJoin(tenants, eq(emailOutbox.tenantId, tenants.id))
-              .where(
-                inArray(emailOutbox.status, ['queued', 'sending', 'failed']),
-              )
-              .orderBy(desc(emailOutbox.updatedAt))
-              .limit(100),
-          ]),
-        );
+            ),
+          database
+            .select({
+              total: count(),
+            })
+            .from(emailOutbox)
+            .where(isNotNull(emailOutbox.exhaustedAt)),
+          database
+            .select({
+              attempts: emailOutbox.attempts,
+              createdAt: emailOutbox.createdAt,
+              exhaustedAt: emailOutbox.exhaustedAt,
+              id: emailOutbox.id,
+              kind: emailOutbox.kind,
+              lastAttemptAt: emailOutbox.lastAttemptAt,
+              lastError: emailOutbox.lastError,
+              maxAttempts: emailOutbox.maxAttempts,
+              nextAttemptAt: emailOutbox.nextAttemptAt,
+              recipient: emailOutbox.toEmail,
+              sentAt: emailOutbox.sentAt,
+              status: emailOutbox.status,
+              subject: emailOutbox.subject,
+              tenantDomain: tenants.domain,
+              tenantId: emailOutbox.tenantId,
+              tenantName: tenants.name,
+              updatedAt: emailOutbox.updatedAt,
+            })
+            .from(emailOutbox)
+            .innerJoin(tenants, eq(emailOutbox.tenantId, tenants.id))
+            .where(inArray(emailOutbox.status, ['queued', 'sending', 'failed']))
+            .orderBy(desc(emailOutbox.updatedAt))
+            .limit(100),
+        ]),
+      );
       const summary = {
+        exhausted: exhaustedRows[0]?.total ?? 0,
         failed: 0,
         queued: 0,
         sending: 0,
@@ -239,6 +261,7 @@ export const globalAdminHandlers = {
         items: itemRows.map((row) => ({
           ...row,
           createdAt: row.createdAt.toISOString(),
+          exhaustedAt: row.exhaustedAt?.toISOString() ?? null,
           lastAttemptAt: row.lastAttemptAt?.toISOString() ?? null,
           nextAttemptAt: row.nextAttemptAt.toISOString(),
           sentAt: row.sentAt?.toISOString() ?? null,

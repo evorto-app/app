@@ -1,3 +1,5 @@
+import type { DatabaseClient } from '@db/index';
+
 import { Database } from '@db/index';
 import { emailOutbox } from '@db/schema';
 import { afterEach, describe, expect, it, vi } from '@effect/vitest';
@@ -19,6 +21,7 @@ const emailConfigProviderLayer = ConfigProvider.layer(
 describe('email delivery', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it.effect(
@@ -45,19 +48,22 @@ describe('email delivery', () => {
           },
         };
 
-        yield* enqueueReceiptReviewedEmail(database as never, {
-          eventTitle: 'City tour',
-          receiptId: 'receipt-1',
-          rejectionReason: null,
-          status: 'approved',
-          tenant: {
-            emailSenderEmail: 'board@example.org',
-            emailSenderName: 'Example Section',
-            id: 'tenant-1',
-            name: 'Tenant',
+        yield* enqueueReceiptReviewedEmail(
+          database as Pick<DatabaseClient, 'insert'>,
+          {
+            eventTitle: 'City tour',
+            receiptId: 'receipt-1',
+            rejectionReason: null,
+            status: 'approved',
+            tenant: {
+              emailSenderEmail: 'board@example.org',
+              emailSenderName: 'Example Section',
+              id: 'tenant-1',
+              name: 'Tenant',
+            },
+            to: 'alice@example.com',
           },
-          to: 'alice@example.com',
-        });
+        );
 
         expect(insertedValue).toEqual(
           expect.objectContaining({
@@ -81,6 +87,7 @@ describe('email delivery', () => {
       const queuedRow = {
         attempts: 0,
         createdAt: now,
+        exhaustedAt: null,
         fromEmail: 'no-reply@notifications.esn.world',
         fromName: 'ESN.WORLD',
         html: '<p>Hello</p>',
@@ -139,7 +146,7 @@ describe('email delivery', () => {
       };
 
       const processed = yield* processDueEmailOutbox(1).pipe(
-        Effect.provide(Layer.succeed(Database, database as never)),
+        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
         Effect.provide(emailConfigProviderLayer),
       );
 
@@ -170,6 +177,178 @@ describe('email delivery', () => {
           expect.objectContaining({
             resendEmailId: 'resend-email-1',
             status: 'sent',
+          }),
+        ]),
+      );
+    }),
+  );
+
+  it.effect('requeues retryable outbox failures with backoff metadata', () =>
+    Effect.gen(function* () {
+      const now = new Date('2026-07-09T10:00:00.000Z');
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+      const queuedRow = {
+        attempts: 0,
+        createdAt: now,
+        exhaustedAt: null,
+        fromEmail: 'no-reply@notifications.esn.world',
+        fromName: 'ESN.WORLD',
+        html: '<p>Hello</p>',
+        id: 'email-1',
+        idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
+        kind: 'receiptReviewed' as const,
+        lastAttemptAt: null,
+        lastError: null,
+        maxAttempts: 8,
+        nextAttemptAt: now,
+        replyToEmail: null,
+        replyToName: null,
+        resendEmailId: null,
+        sentAt: null,
+        status: 'queued' as const,
+        subject: 'Receipt approved',
+        tenantId: 'tenant-1',
+        text: 'Hello',
+        toEmail: 'alice@example.com',
+        updatedAt: now,
+      };
+      const claimedRow = {
+        ...queuedRow,
+        attempts: 1,
+        lastAttemptAt: now,
+        status: 'sending' as const,
+      };
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('{}', { status: 500 })),
+      );
+      const updateSets: unknown[] = [];
+      const database = {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              orderBy: () => ({
+                limit: () => Effect.succeed([queuedRow]),
+              }),
+            }),
+          }),
+        }),
+        update: () => ({
+          set: (values: { status?: string }) => {
+            updateSets.push(values);
+            return {
+              where: () =>
+                values.status === 'sending'
+                  ? {
+                      returning: () => Effect.succeed([claimedRow]),
+                    }
+                  : Effect.void,
+            };
+          },
+        }),
+      };
+
+      const processed = yield* processDueEmailOutbox(1).pipe(
+        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        Effect.provide(emailConfigProviderLayer),
+      );
+
+      expect(processed).toBe(1);
+      expect(updateSets).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ status: 'sending' }),
+          expect.objectContaining({
+            exhaustedAt: null,
+            lastError: 'Resend email request failed: 500',
+            nextAttemptAt: new Date('2026-07-09T10:00:01.000Z'),
+            status: 'queued',
+          }),
+        ]),
+      );
+    }),
+  );
+
+  it.effect('marks non-retryable outbox failures as exhausted', () =>
+    Effect.gen(function* () {
+      const now = new Date('2026-07-09T10:00:00.000Z');
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+      const queuedRow = {
+        attempts: 0,
+        createdAt: now,
+        exhaustedAt: null,
+        fromEmail: 'no-reply@notifications.esn.world',
+        fromName: 'ESN.WORLD',
+        html: '<p>Hello</p>',
+        id: 'email-1',
+        idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
+        kind: 'receiptReviewed' as const,
+        lastAttemptAt: null,
+        lastError: null,
+        maxAttempts: 8,
+        nextAttemptAt: now,
+        replyToEmail: null,
+        replyToName: null,
+        resendEmailId: null,
+        sentAt: null,
+        status: 'queued' as const,
+        subject: 'Receipt approved',
+        tenantId: 'tenant-1',
+        text: 'Hello',
+        toEmail: 'alice@example.com',
+        updatedAt: now,
+      };
+      const claimedRow = {
+        ...queuedRow,
+        attempts: 1,
+        lastAttemptAt: now,
+        status: 'sending' as const,
+      };
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('{}', { status: 400 })),
+      );
+      const updateSets: unknown[] = [];
+      const database = {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              orderBy: () => ({
+                limit: () => Effect.succeed([queuedRow]),
+              }),
+            }),
+          }),
+        }),
+        update: () => ({
+          set: (values: { status?: string }) => {
+            updateSets.push(values);
+            return {
+              where: () =>
+                values.status === 'sending'
+                  ? {
+                      returning: () => Effect.succeed([claimedRow]),
+                    }
+                  : Effect.void,
+            };
+          },
+        }),
+      };
+
+      const processed = yield* processDueEmailOutbox(1).pipe(
+        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        Effect.provide(emailConfigProviderLayer),
+      );
+
+      expect(processed).toBe(1);
+      expect(updateSets).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ status: 'sending' }),
+          expect.objectContaining({
+            exhaustedAt: now,
+            lastError: 'Resend email request failed: 400',
+            nextAttemptAt: now,
+            status: 'failed',
           }),
         ]),
       );

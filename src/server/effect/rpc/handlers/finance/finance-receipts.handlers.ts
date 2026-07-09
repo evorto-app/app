@@ -6,7 +6,14 @@ import {
   FinanceReceiptNotFoundError,
   FinanceResourceNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/finance.errors';
-import { and, desc, eq, inArray, TransactionRollbackError } from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  not,
+  TransactionRollbackError,
+} from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -680,6 +687,7 @@ export const financeReceiptsHandlers = {
                   and(
                     eq(financeReceipts.tenantId, tenant.id),
                     eq(financeReceipts.id, input.id),
+                    not(eq(financeReceipts.status, 'refunded')),
                   ),
                 )
                 .returning({

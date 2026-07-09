@@ -71,6 +71,24 @@ describe('AdminTenantUpdateSettingsInput', () => {
     ).toThrow();
   });
 
+  it('rejects invalid sender email settings', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        emailSenderEmail: 'not-an-email-address',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects negative active-registration limits', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        maxActiveRegistrationsPerUser: -1,
+      }),
+    ).toThrow();
+  });
+
   it('keeps deferred custom-domain fields outside the current update payload', () => {
     const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
       ...currentTenantSettingsInput,

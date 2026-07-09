@@ -60,6 +60,7 @@ export const GlobalAdminEmailOutboxKind = literalUnion(
 export const GlobalAdminEmailOutboxRecord = Schema.Struct({
   attempts: Schema.Number,
   createdAt: Schema.NonEmptyString,
+  exhaustedAt: Schema.NullOr(Schema.NonEmptyString),
   id: Schema.NonEmptyString,
   kind: GlobalAdminEmailOutboxKind,
   lastAttemptAt: Schema.NullOr(Schema.NonEmptyString),
@@ -79,6 +80,7 @@ export const GlobalAdminEmailOutboxRecord = Schema.Struct({
 export const GlobalAdminEmailOutboxOverview = Schema.Struct({
   items: Schema.Array(GlobalAdminEmailOutboxRecord),
   summary: Schema.Struct({
+    exhausted: Schema.Number,
     failed: Schema.Number,
     queued: Schema.Number,
     sending: Schema.Number,

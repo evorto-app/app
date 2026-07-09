@@ -3,8 +3,9 @@ import type { DatabaseClient } from '@db/index';
 import { Database } from '@db/index';
 import { emailOutbox as emailOutboxTable } from '@db/schema';
 import { serverEmailConfig } from '@server/config/server-config';
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
-import { Duration, Effect } from 'effect';
+import { and, asc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { Duration, Effect, Schema } from 'effect';
+import { encode as encodeHtml } from 'he';
 import { htmlToText } from 'html-to-text';
 
 import type { Tenant } from '../../types/custom/tenant';
@@ -27,6 +28,9 @@ export interface EnqueueReceiptReviewedEmailInput {
   to: string;
 }
 
+type EmailDeliveryFailure =
+  EmailDeliveryExternalError | EmailDeliveryRequestError;
+
 type EmailOutboxRow = typeof emailOutboxTable.$inferSelect;
 
 interface TenantEmailMessage {
@@ -43,18 +47,29 @@ interface TenantEmailSender {
   name: string;
 }
 
+class EmailDeliveryExternalError extends Schema.TaggedErrorClass<EmailDeliveryExternalError>()(
+  'EmailDeliveryExternalError',
+  {
+    cause: Schema.Defect(),
+    message: Schema.String,
+    retryable: Schema.Boolean,
+  },
+) {}
+
+class EmailDeliveryRequestError extends Schema.TaggedErrorClass<EmailDeliveryRequestError>()(
+  'EmailDeliveryRequestError',
+  {
+    message: Schema.String,
+    retryable: Schema.Boolean,
+  },
+) {}
+
 const defaultEmailSender = {
   email: 'no-reply@notifications.esn.world',
   name: 'ESN.WORLD',
 } satisfies TenantEmailSender;
 
-const escapeHtml = (value: string): string =>
-  value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+const escapeHtml = (value: string): string => encodeHtml(value);
 
 const formatSender = ({ email, name }: TenantEmailSender): string =>
   `${name.replaceAll('"', '').trim()} <${email}>`;
@@ -195,34 +210,18 @@ const isRetryableResendStatus = (status: number): boolean =>
 const errorMessageFromUnknown = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-const deliveryFailureFromUnknown = (
-  error: unknown,
-): { message: string; retryable: boolean } => {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'message' in error &&
-    'retryable' in error
-  ) {
-    const failure = error as { message: unknown; retryable: unknown };
-    return {
-      message:
-        typeof failure.message === 'string'
-          ? failure.message
-          : String(failure.message),
-      retryable: failure.retryable === true,
-    };
-  }
-
-  return {
-    message: errorMessageFromUnknown(error),
-    retryable: true,
-  };
-};
-
 const sendOutboxRow = (row: EmailOutboxRow) =>
   Effect.gen(function* () {
-    const emailConfig = yield* serverEmailConfig;
+    const emailConfig = yield* serverEmailConfig.pipe(
+      Effect.mapError(
+        (cause) =>
+          new EmailDeliveryExternalError({
+            cause,
+            message: errorMessageFromUnknown(cause),
+            retryable: true,
+          }),
+      ),
+    );
     const body = {
       from: formatSender({ email: row.fromEmail, name: row.fromName }),
       html: row.html,
@@ -238,7 +237,12 @@ const sendOutboxRow = (row: EmailOutboxRow) =>
     };
 
     const response = yield* Effect.tryPromise({
-      catch: (cause) => cause,
+      catch: (cause) =>
+        new EmailDeliveryExternalError({
+          cause,
+          message: errorMessageFromUnknown(cause),
+          retryable: true,
+        }),
       try: () =>
         fetch('https://api.resend.com/emails', {
           body: JSON.stringify(body),
@@ -252,16 +256,17 @@ const sendOutboxRow = (row: EmailOutboxRow) =>
     });
 
     if (!response.ok) {
-      return yield* Effect.fail({
-        message: `Resend email request failed: ${response.status}`,
-        retryable: isRetryableResendStatus(response.status),
-      });
+      return yield* Effect.fail(
+        new EmailDeliveryRequestError({
+          message: `Resend email request failed: ${response.status}`,
+          retryable: isRetryableResendStatus(response.status),
+        }),
+      );
     }
 
-    const responseBody = (yield* Effect.tryPromise({
-      catch: () => null,
-      try: () => response.json(),
-    })) as null | { id?: unknown };
+    const responseBody = yield* Effect.tryPromise(
+      () => response.json() as Promise<null | { id?: unknown }>,
+    ).pipe(Effect.catch(() => Effect.succeed(null)));
 
     return typeof responseBody?.id === 'string' ? responseBody.id : null;
   });
@@ -281,19 +286,20 @@ const markOutboxRowSent = (rowId: string, resendEmailId: null | string) =>
 
 const markOutboxRowFailed = (
   row: EmailOutboxRow,
-  failure: { message: string; retryable: boolean },
+  failure: EmailDeliveryFailure,
 ) =>
   Database.use((database) => {
     const exhausted = !failure.retryable || row.attempts >= row.maxAttempts;
+    const nextAttemptAt = exhausted
+      ? new Date()
+      : new Date(Date.now() + retryDelayMs(row.attempts));
     return database
       .update(emailOutboxTable)
       .set({
+        exhaustedAt: exhausted ? new Date() : null,
         lastError: failure.message,
-        maxAttempts: exhausted ? row.attempts : row.maxAttempts,
-        nextAttemptAt: exhausted
-          ? new Date()
-          : new Date(Date.now() + retryDelayMs(row.attempts)),
-        status: 'failed',
+        nextAttemptAt,
+        status: exhausted ? 'failed' : 'queued',
       })
       .where(eq(emailOutboxTable.id, row.id));
   });
@@ -311,6 +317,7 @@ const claimOutboxRow = (rowId: string) =>
         and(
           eq(emailOutboxTable.id, rowId),
           inArray(emailOutboxTable.status, ['queued', 'failed']),
+          isNull(emailOutboxTable.exhaustedAt),
           lte(emailOutboxTable.nextAttemptAt, new Date()),
           sql`${emailOutboxTable.attempts} < ${emailOutboxTable.maxAttempts}`,
         ),
@@ -327,6 +334,7 @@ export const processDueEmailOutbox = (limit = 10) =>
         .where(
           and(
             inArray(emailOutboxTable.status, ['queued', 'failed']),
+            isNull(emailOutboxTable.exhaustedAt),
             lte(emailOutboxTable.nextAttemptAt, new Date()),
             sql`${emailOutboxTable.attempts} < ${emailOutboxTable.maxAttempts}`,
           ),
@@ -349,7 +357,7 @@ export const processDueEmailOutbox = (limit = 10) =>
         Effect.catch((error) =>
           Effect.succeed({
             _tag: 'Failed' as const,
-            failure: deliveryFailureFromUnknown(error),
+            failure: error,
           }),
         ),
       );

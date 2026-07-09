@@ -21,12 +21,15 @@ test('tenant admin reviews users and manages role definitions @admin @permission
 
   await expect(page.getByRole('heading', { name: 'All users' })).toBeVisible();
   await expect(
-    page.getByText('Existing-user role assignment is deferred for relaunch.'),
+    page.getByText(
+      'Manage tenant role assignments for existing users. Role changes apply only to this tenant.',
+    ),
   ).toBeVisible();
   const userSearchInput = page.getByPlaceholder('Name or email');
   await expect(userSearchInput).toBeVisible();
   await userSearchInput.fill('admin@evorto.app');
   await expect(userSearchInput).toHaveValue('admin@evorto.app');
+  await expect(page.getByText('Assigned roles').first()).toBeVisible();
   await expect(page.getByText('Edit template')).toHaveCount(0);
 
   await page.goto('/admin/roles');

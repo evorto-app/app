@@ -27,6 +27,7 @@ export const emailOutbox = pgTable(
   {
     ...modelOfTenant,
     attempts: integer().notNull().default(0),
+    exhaustedAt: timestamp('exhausted_at'),
     fromEmail: text('from_email').notNull(),
     fromName: text('from_name').notNull(),
     html: text().notNull(),

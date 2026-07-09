@@ -1,6 +1,8 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { AppRpc } from '@app/core/effect-rpc-angular-client';
+import { getErrorMessage } from '@app/core/error-message';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faArrowRotateRight,
@@ -8,9 +10,6 @@ import {
   faCircleExclamation,
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
-
-import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 
 const emailOutboxKindLabel = {
   manualApproval: 'Manual approval',

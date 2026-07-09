@@ -1,3 +1,5 @@
+import type { EventsRegistrationStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+
 import { DatePipe, DecimalPipe, PercentPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -85,7 +87,7 @@ export interface EventOrganizeParticipant {
   manualApprovalAvailable: boolean;
   paymentPending: boolean;
   registrationId: string;
-  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+  status: EventsRegistrationStatus;
   transferAvailable: boolean;
 }
 

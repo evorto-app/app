@@ -49,15 +49,17 @@
     </div>
   </section>
 
-  @if (summary.failed > 0 || summary.staleSending > 0) {
+  @if (
+    summary.failed > 0 || summary.staleSending > 0 || summary.exhausted > 0
+  ) {
     <div class="bg-error-container text-on-error-container mb-4 rounded-lg p-4">
       <div class="flex items-center gap-3">
         <fa-duotone-icon [icon]="faCircleExclamation" size="lg" />
         <div>
           <h2 class="title-medium">Email delivery needs attention</h2>
           <p class="body-medium">
-            {{ summary.failed }} failed, {{ summary.staleSending }} stuck in
-            sending.
+            {{ summary.failed }} failed, {{ summary.exhausted }} exhausted,
+            {{ summary.staleSending }} stuck in sending.
           </p>
         </div>
       </div>
@@ -140,6 +142,14 @@
                 Last error
               </dt>
               <dd class="break-words">{{ item.lastError }}</dd>
+            </div>
+          }
+          @if (item.exhaustedAt) {
+            <div>
+              <dt class="text-on-surface-variant text-xs uppercase">
+                Exhausted
+              </dt>
+              <dd>{{ item.exhaustedAt | date: "medium" }}</dd>
             </div>
           }
         </dl>
