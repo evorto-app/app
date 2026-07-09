@@ -34,11 +34,11 @@ export const receiptReviewSuccessMessage = (
   status: 'approved' | 'rejected',
 ): string =>
   status === 'approved'
-    ? 'Receipt approved and the submitter was notified.'
-    : 'Receipt rejected and the submitter was notified.';
+    ? 'Receipt approved and the submitter notification was queued.'
+    : 'Receipt rejected and the submitter notification was queued.';
 
 export const receiptReviewNotificationNotice =
-  'Approving or rejecting this receipt emails the submitter after saving.';
+  'Approving or rejecting this receipt queues an email to the submitter after saving.';
 
 export const receiptReviewActionDisabled = ({
   formInvalid,

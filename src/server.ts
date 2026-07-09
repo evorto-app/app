@@ -43,6 +43,7 @@ import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-ha
 import { applySecurityHeaders } from './server/http/security-headers';
 import { handleStripeWebhookWebRequest } from './server/http/stripe-webhook.web-handler';
 import { handleTenantBrandAssetWebRequest } from './server/http/tenant-brand-asset.web-handler';
+import { runEmailOutboxProcessor } from './server/notifications/email-delivery';
 import { stripeClientLayer } from './server/stripe-client';
 
 const angularApp = new AngularAppEngine();
@@ -573,6 +574,13 @@ const serveEffect = Effect.gen(function* () {
       const databaseContext = yield* Layer.build(configuredDatabaseLayer);
       const serverFiber = yield* Layer.launch(serverLayer).pipe(
         Effect.provide(databaseContext),
+        Effect.forkScoped,
+      );
+      yield* runEmailOutboxProcessor.pipe(
+        Effect.provide(databaseContext),
+        Effect.provide(
+          ConfigProvider.layer(requestHandlerRuntimeConfigProvider),
+        ),
         Effect.forkScoped,
       );
       yield* Effect.logInfo('Bun Effect server listening').pipe(

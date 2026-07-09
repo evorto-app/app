@@ -11,13 +11,14 @@ import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
+import { Database } from '../../../../../db';
 import {
   eventInstances,
   financeReceipts,
   transactions,
   users,
 } from '../../../../../db/schema';
-import { sendReceiptReviewedEmail } from '../../../../notifications/email-delivery';
+import { enqueueReceiptReviewedEmail } from '../../../../notifications/email-delivery';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
   canSubmitEventReceipts,
@@ -651,37 +652,61 @@ export const financeReceiptsHandlers = {
         );
       }
 
-      const updatedReceipts = yield* databaseEffect((database) =>
+      const updatedReceipts = yield* Database.use((database) =>
         database
-          .update(financeReceipts)
-          .set({
-            alcoholAmount,
-            depositAmount,
-            hasAlcohol: input.hasAlcohol,
-            hasDeposit: input.hasDeposit,
-            purchaseCountry,
-            receiptDate,
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              const updatedRows = yield* tx
+                .update(financeReceipts)
+                .set({
+                  alcoholAmount,
+                  depositAmount,
+                  hasAlcohol: input.hasAlcohol,
+                  hasDeposit: input.hasDeposit,
+                  purchaseCountry,
+                  receiptDate,
 
-            rejectionReason:
-              input.status === 'rejected'
-                ? (input.rejectionReason ?? null)
-                : null,
-            reviewedAt: new Date(),
-            reviewedByUserId: user.id,
-            status: input.status,
-            taxAmount: input.taxAmount,
-            totalAmount: input.totalAmount,
-          })
-          .where(
-            and(
-              eq(financeReceipts.tenantId, tenant.id),
-              eq(financeReceipts.id, input.id),
-            ),
+                  rejectionReason:
+                    input.status === 'rejected'
+                      ? (input.rejectionReason ?? null)
+                      : null,
+                  reviewedAt: new Date(),
+                  reviewedByUserId: user.id,
+                  status: input.status,
+                  taxAmount: input.taxAmount,
+                  totalAmount: input.totalAmount,
+                })
+                .where(
+                  and(
+                    eq(financeReceipts.tenantId, tenant.id),
+                    eq(financeReceipts.id, input.id),
+                  ),
+                )
+                .returning({
+                  id: financeReceipts.id,
+                  status: financeReceipts.status,
+                });
+              const updatedRow = updatedRows[0];
+              if (!updatedRow) {
+                return [];
+              }
+
+              yield* enqueueReceiptReviewedEmail(tx, {
+                eventTitle: receiptRecord.eventTitle,
+                receiptId: updatedRow.id,
+                rejectionReason:
+                  input.status === 'rejected'
+                    ? (input.rejectionReason ?? null)
+                    : null,
+                status: input.status,
+                tenant,
+                to: financeReceiptSubmitterEmail(receiptRecord),
+              });
+
+              return updatedRows;
+            }),
           )
-          .returning({
-            id: financeReceipts.id,
-            status: financeReceipts.status,
-          }),
+          .pipe(Effect.orDie),
       );
       const updated = updatedReceipts[0];
       if (!updated) {
@@ -693,16 +718,6 @@ export const financeReceiptsHandlers = {
           }),
         );
       }
-
-      yield* sendReceiptReviewedEmail({
-        eventTitle: receiptRecord.eventTitle,
-        receiptId: updated.id,
-        rejectionReason:
-          input.status === 'rejected' ? (input.rejectionReason ?? null) : null,
-        status: input.status,
-        tenant,
-        to: financeReceiptSubmitterEmail(receiptRecord),
-      });
 
       return {
         id: updated.id,

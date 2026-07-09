@@ -1,7 +1,10 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faFolders } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  faEnvelopeOpenText,
+  faFolders,
+} from '@fortawesome/duotone-regular-svg-icons';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -11,6 +14,7 @@ import { faFolders } from '@fortawesome/duotone-regular-svg-icons';
   templateUrl: './ga-overview.component.html',
 })
 export class GaOverviewComponent {
+  protected readonly faEnvelopeOpenText = faEnvelopeOpenText;
   protected readonly faFolders = faFolders;
   protected readonly outletActive = signal(false);
 }

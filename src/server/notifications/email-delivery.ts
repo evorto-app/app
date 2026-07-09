@@ -1,11 +1,15 @@
-import { Effect } from 'effect';
+import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { Duration, Effect } from 'effect';
 import { htmlToText } from 'html-to-text';
 
+import type { DatabaseClient } from '../../db';
 import type { Tenant } from '../../types/custom/tenant';
 
+import { Database } from '../../db';
+import { emailOutbox as emailOutboxTable } from '../../db/schema';
 import { serverEmailConfig } from '../config/server-config';
 
-export interface SendManualApprovalEmailInput {
+export interface EnqueueManualApprovalEmailInput {
   eventTitle: string;
   eventUrl: string;
   paymentDeadline: Date | null;
@@ -14,7 +18,7 @@ export interface SendManualApprovalEmailInput {
   to: string;
 }
 
-export interface SendReceiptReviewedEmailInput {
+export interface EnqueueReceiptReviewedEmailInput {
   eventTitle: string;
   receiptId: string;
   rejectionReason: null | string;
@@ -23,10 +27,14 @@ export interface SendReceiptReviewedEmailInput {
   to: string;
 }
 
-interface SendTenantEmailInput {
+type EmailOutboxRow = typeof emailOutboxTable.$inferSelect;
+
+interface TenantEmailMessage {
   html: string;
   idempotencyKey: string;
+  kind: typeof emailOutboxTable.$inferInsert.kind;
   subject: string;
+  tenant: Pick<Tenant, 'emailSenderEmail' | 'emailSenderName' | 'id' | 'name'>;
   to: string;
 }
 
@@ -51,47 +59,62 @@ const escapeHtml = (value: string): string =>
 const formatSender = ({ email, name }: TenantEmailSender): string =>
   `${name.replaceAll('"', '').trim()} <${email}>`;
 
-const sendTenantEmail = ({
+const tenantReplyTo = (
+  tenant: Pick<Tenant, 'emailSenderEmail' | 'emailSenderName' | 'name'>,
+): null | TenantEmailSender => {
+  const email = tenant.emailSenderEmail?.trim();
+  if (!email) {
+    return null;
+  }
+
+  return {
+    email,
+    name: tenant.emailSenderName?.trim() || tenant.name,
+  };
+};
+
+const buildOutboxInsert = ({
   html,
   idempotencyKey,
+  kind,
   subject,
+  tenant,
   to,
-}: SendTenantEmailInput): Effect.Effect<void, unknown> =>
-  Effect.gen(function* () {
-    const emailConfig = yield* serverEmailConfig;
+}: TenantEmailMessage): typeof emailOutboxTable.$inferInsert => {
+  const replyTo = tenantReplyTo(tenant);
 
-    yield* Effect.tryPromise({
-      catch: (cause) => cause,
-      try: async () => {
-        const response = await fetch('https://api.resend.com/emails', {
-          body: JSON.stringify({
-            from: formatSender(defaultEmailSender),
-            html,
-            subject,
-            text: htmlToText(html, { wordwrap: 100 }),
-            to,
-          }),
-          headers: {
-            Authorization: `Bearer ${emailConfig.RESEND_API_KEY}`,
-            'Content-Type': 'application/json',
-            'Idempotency-Key': idempotencyKey,
-          },
-          method: 'POST',
-        });
+  return {
+    fromEmail: defaultEmailSender.email,
+    fromName: defaultEmailSender.name,
+    html,
+    idempotencyKey,
+    kind,
+    replyToEmail: replyTo?.email ?? null,
+    replyToName: replyTo?.name ?? null,
+    subject,
+    tenantId: tenant.id,
+    text: htmlToText(html, { wordwrap: 100 }),
+    toEmail: to,
+  };
+};
 
-        if (!response.ok) {
-          throw new Error(`Resend email request failed: ${response.status}`);
-        }
-      },
+export const enqueueTenantEmail = (
+  database: Pick<DatabaseClient, 'insert'>,
+  message: TenantEmailMessage,
+) =>
+  database
+    .insert(emailOutboxTable)
+    .values(buildOutboxInsert(message))
+    .onConflictDoNothing({
+      target: emailOutboxTable.idempotencyKey,
     });
-  });
 
 const renderReceiptReviewedEmail = ({
   eventTitle,
   rejectionReason,
   status,
 }: Pick<
-  SendReceiptReviewedEmailInput,
+  EnqueueReceiptReviewedEmailInput,
   'eventTitle' | 'rejectionReason' | 'status'
 >): string => {
   const statusLabel = status === 'approved' ? 'approved' : 'rejected';
@@ -110,23 +133,26 @@ const renderReceiptReviewedEmail = ({
 </html>`;
 };
 
-export const sendReceiptReviewedEmail = (
-  input: SendReceiptReviewedEmailInput,
-): Effect.Effect<void> =>
-  sendTenantEmail({
+export const enqueueReceiptReviewedEmail = (
+  database: Pick<DatabaseClient, 'insert'>,
+  input: EnqueueReceiptReviewedEmailInput,
+) =>
+  enqueueTenantEmail(database, {
     html: renderReceiptReviewedEmail(input),
-    idempotencyKey: `receipt-reviewed:${input.tenant.id}:${input.receiptId}:${input.status}`,
+    idempotencyKey: `receipt-reviewed/${input.tenant.id}/${input.receiptId}/${input.status}`,
+    kind: 'receiptReviewed',
     subject:
       input.status === 'approved' ? 'Receipt approved' : 'Receipt rejected',
+    tenant: input.tenant,
     to: input.to,
-  }).pipe(Effect.orDie);
+  });
 
 const renderManualApprovalEmail = ({
   eventTitle,
   eventUrl,
   paymentDeadline,
 }: Pick<
-  SendManualApprovalEmailInput,
+  EnqueueManualApprovalEmailInput,
   'eventTitle' | 'eventUrl' | 'paymentDeadline'
 >): string => {
   const safeEventTitle = escapeHtml(eventTitle);
@@ -145,14 +171,205 @@ const renderManualApprovalEmail = ({
 </html>`;
 };
 
-export const sendManualApprovalEmail = (
-  input: SendManualApprovalEmailInput,
-): Effect.Effect<void> =>
-  sendTenantEmail({
+export const enqueueManualApprovalEmail = (
+  database: Pick<DatabaseClient, 'insert'>,
+  input: EnqueueManualApprovalEmailInput,
+) =>
+  enqueueTenantEmail(database, {
     html: renderManualApprovalEmail(input),
-    idempotencyKey: `manual-approval:${input.tenant.id}:${input.registrationId}:${input.paymentDeadline?.toISOString() ?? 'confirmed'}`,
+    idempotencyKey: `manual-approval/${input.tenant.id}/${input.registrationId}/${input.paymentDeadline?.toISOString() ?? 'confirmed'}`,
+    kind: 'manualApproval',
     subject: input.paymentDeadline
       ? 'Registration approved: payment required'
       : 'Registration approved',
+    tenant: input.tenant,
     to: input.to,
-  }).pipe(Effect.orDie);
+  });
+
+const retryDelayMs = (attempts: number): number =>
+  Math.min(30 * 60 * 1000, 1000 * 2 ** Math.max(0, attempts - 1));
+
+const isRetryableResendStatus = (status: number): boolean =>
+  status === 429 || status >= 500;
+
+const errorMessageFromUnknown = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const deliveryFailureFromUnknown = (
+  error: unknown,
+): { message: string; retryable: boolean } => {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    'retryable' in error
+  ) {
+    const failure = error as { message: unknown; retryable: unknown };
+    return {
+      message:
+        typeof failure.message === 'string'
+          ? failure.message
+          : String(failure.message),
+      retryable: failure.retryable === true,
+    };
+  }
+
+  return {
+    message: errorMessageFromUnknown(error),
+    retryable: true,
+  };
+};
+
+const sendOutboxRow = (row: EmailOutboxRow) =>
+  Effect.gen(function* () {
+    const emailConfig = yield* serverEmailConfig;
+    const body = {
+      from: formatSender({ email: row.fromEmail, name: row.fromName }),
+      html: row.html,
+      ...(row.replyToEmail && {
+        reply_to: formatSender({
+          email: row.replyToEmail,
+          name: row.replyToName ?? row.replyToEmail,
+        }),
+      }),
+      subject: row.subject,
+      text: row.text,
+      to: row.toEmail,
+    };
+
+    const response = yield* Effect.tryPromise({
+      catch: (cause) => cause,
+      try: () =>
+        fetch('https://api.resend.com/emails', {
+          body: JSON.stringify(body),
+          headers: {
+            Authorization: `Bearer ${emailConfig.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+            'Idempotency-Key': row.idempotencyKey,
+          },
+          method: 'POST',
+        }),
+    });
+
+    if (!response.ok) {
+      return yield* Effect.fail({
+        message: `Resend email request failed: ${response.status}`,
+        retryable: isRetryableResendStatus(response.status),
+      });
+    }
+
+    const responseBody = (yield* Effect.tryPromise({
+      catch: () => null,
+      try: () => response.json(),
+    })) as null | { id?: unknown };
+
+    return typeof responseBody?.id === 'string' ? responseBody.id : null;
+  });
+
+const markOutboxRowSent = (rowId: string, resendEmailId: null | string) =>
+  Database.use((database) =>
+    database
+      .update(emailOutboxTable)
+      .set({
+        lastError: null,
+        resendEmailId,
+        sentAt: new Date(),
+        status: 'sent',
+      })
+      .where(eq(emailOutboxTable.id, rowId)),
+  );
+
+const markOutboxRowFailed = (
+  row: EmailOutboxRow,
+  failure: { message: string; retryable: boolean },
+) =>
+  Database.use((database) => {
+    const exhausted = !failure.retryable || row.attempts >= row.maxAttempts;
+    return database
+      .update(emailOutboxTable)
+      .set({
+        lastError: failure.message,
+        maxAttempts: exhausted ? row.attempts : row.maxAttempts,
+        nextAttemptAt: exhausted
+          ? new Date()
+          : new Date(Date.now() + retryDelayMs(row.attempts)),
+        status: 'failed',
+      })
+      .where(eq(emailOutboxTable.id, row.id));
+  });
+
+const claimOutboxRow = (rowId: string) =>
+  Database.use((database) =>
+    database
+      .update(emailOutboxTable)
+      .set({
+        attempts: sql`${emailOutboxTable.attempts} + 1`,
+        lastAttemptAt: new Date(),
+        status: 'sending',
+      })
+      .where(
+        and(
+          eq(emailOutboxTable.id, rowId),
+          inArray(emailOutboxTable.status, ['queued', 'failed']),
+          lte(emailOutboxTable.nextAttemptAt, new Date()),
+          sql`${emailOutboxTable.attempts} < ${emailOutboxTable.maxAttempts}`,
+        ),
+      )
+      .returning(),
+  ).pipe(Effect.map((rows) => rows[0] ?? null));
+
+export const processDueEmailOutbox = (limit = 10) =>
+  Effect.gen(function* () {
+    const dueRows = yield* Database.use((database) =>
+      database
+        .select()
+        .from(emailOutboxTable)
+        .where(
+          and(
+            inArray(emailOutboxTable.status, ['queued', 'failed']),
+            lte(emailOutboxTable.nextAttemptAt, new Date()),
+            sql`${emailOutboxTable.attempts} < ${emailOutboxTable.maxAttempts}`,
+          ),
+        )
+        .orderBy(asc(emailOutboxTable.nextAttemptAt))
+        .limit(limit),
+    );
+
+    for (const dueRow of dueRows) {
+      const claimedRow = yield* claimOutboxRow(dueRow.id);
+      if (!claimedRow) {
+        continue;
+      }
+
+      const delivery = yield* sendOutboxRow(claimedRow).pipe(
+        Effect.map((resendEmailId) => ({
+          _tag: 'Sent' as const,
+          resendEmailId,
+        })),
+        Effect.catch((error) =>
+          Effect.succeed({
+            _tag: 'Failed' as const,
+            failure: deliveryFailureFromUnknown(error),
+          }),
+        ),
+      );
+
+      if (delivery._tag === 'Sent') {
+        yield* markOutboxRowSent(claimedRow.id, delivery.resendEmailId);
+      } else {
+        yield* markOutboxRowFailed(claimedRow, delivery.failure);
+      }
+    }
+
+    return dueRows.length;
+  });
+
+export const runEmailOutboxProcessor = processDueEmailOutbox().pipe(
+  Effect.catchCause((cause) =>
+    Effect.logError('Email outbox processor failed').pipe(
+      Effect.annotateLogs({ cause: String(cause) }),
+    ),
+  ),
+  Effect.andThen(Effect.sleep(Duration.seconds(15))),
+  Effect.forever,
+);

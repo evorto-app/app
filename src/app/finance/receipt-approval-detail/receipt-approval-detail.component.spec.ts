@@ -7,21 +7,21 @@ import {
 } from './receipt-approval-detail.component';
 
 describe('receiptReviewSuccessMessage', () => {
-  it('explains that review actions notify the submitter', () => {
+  it('explains that review actions queue submitter notification', () => {
     expect(receiptReviewNotificationNotice).toBe(
-      'Approving or rejecting this receipt emails the submitter after saving.',
+      'Approving or rejecting this receipt queues an email to the submitter after saving.',
     );
   });
 
-  it('keeps approval feedback honest about submitter notification', () => {
+  it('keeps approval feedback honest about queued submitter notification', () => {
     expect(receiptReviewSuccessMessage('approved')).toBe(
-      'Receipt approved and the submitter was notified.',
+      'Receipt approved and the submitter notification was queued.',
     );
   });
 
-  it('keeps rejection feedback honest about submitter notification', () => {
+  it('keeps rejection feedback honest about queued submitter notification', () => {
     expect(receiptReviewSuccessMessage('rejected')).toBe(
-      'Receipt rejected and the submitter was notified.',
+      'Receipt rejected and the submitter notification was queued.',
     );
   });
 });

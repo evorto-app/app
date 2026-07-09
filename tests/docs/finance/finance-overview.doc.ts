@@ -126,9 +126,9 @@ Cancelled transactions are omitted from this list.
       body: `
 ## Receipt Approvals
 
-The **Receipt approvals** tab shows all receipts waiting for finance review, grouped by event. Reviewers can open each receipt, validate submitted values, and approve or reject it. The detail page notes that the submitter is emailed after the review is saved.
+The **Receipt approvals** tab shows all receipts waiting for finance review, grouped by event. Reviewers can open each receipt, validate submitted values, and approve or reject it. The detail page notes that a submitter email is queued after the review is saved.
 
-Approving or rejecting records the review status in Evorto and sends the submitter a receipt-reviewed email when Resend delivery is configured.
+Approving or rejecting records the review status in Evorto and queues the submitter receipt-reviewed email in the durable email outbox.
 `,
     });
     await page.goto('/finance/receipts-approval');

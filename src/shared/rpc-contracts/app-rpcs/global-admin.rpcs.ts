@@ -1,4 +1,5 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { literalUnion } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -44,6 +45,49 @@ export type GlobalAdminTenantWriteInput = Schema.Schema.Type<
   typeof GlobalAdminTenantWriteInput
 >;
 
+export const GlobalAdminEmailOutboxStatus = literalUnion(
+  'queued',
+  'sending',
+  'sent',
+  'failed',
+);
+
+export const GlobalAdminEmailOutboxKind = literalUnion(
+  'manualApproval',
+  'receiptReviewed',
+);
+
+export const GlobalAdminEmailOutboxRecord = Schema.Struct({
+  attempts: Schema.Number,
+  createdAt: Schema.NonEmptyString,
+  id: Schema.NonEmptyString,
+  kind: GlobalAdminEmailOutboxKind,
+  lastAttemptAt: Schema.NullOr(Schema.NonEmptyString),
+  lastError: Schema.NullOr(Schema.String),
+  maxAttempts: Schema.Number,
+  nextAttemptAt: Schema.NonEmptyString,
+  recipient: Schema.NonEmptyString,
+  sentAt: Schema.NullOr(Schema.NonEmptyString),
+  status: GlobalAdminEmailOutboxStatus,
+  subject: Schema.NonEmptyString,
+  tenantDomain: Schema.NonEmptyString,
+  tenantId: Schema.NonEmptyString,
+  tenantName: Schema.NonEmptyString,
+  updatedAt: Schema.NonEmptyString,
+});
+
+export const GlobalAdminEmailOutboxOverview = Schema.Struct({
+  items: Schema.Array(GlobalAdminEmailOutboxRecord),
+  summary: Schema.Struct({
+    failed: Schema.Number,
+    queued: Schema.Number,
+    sending: Schema.Number,
+    sent: Schema.Number,
+    staleSending: Schema.Number,
+    waitingForRetry: Schema.Number,
+  }),
+});
+
 export const GlobalAdminTenantsFindMany = asRpcQuery(
   Rpc.make('globalAdmin.tenants.findMany', {
     error: GlobalAdminRpcError,
@@ -85,7 +129,16 @@ export const GlobalAdminTenantsUpdate = asRpcMutation(
   }),
 );
 
+export const GlobalAdminEmailOutboxFindOverview = asRpcQuery(
+  Rpc.make('globalAdmin.emailOutbox.findOverview', {
+    error: GlobalAdminRpcError,
+    payload: Schema.Void,
+    success: GlobalAdminEmailOutboxOverview,
+  }),
+);
+
 export class GlobalAdminRpcs extends RpcGroup.make(
+  GlobalAdminEmailOutboxFindOverview,
   GlobalAdminTenantsCreate,
   GlobalAdminTenantsFindOne,
   GlobalAdminTenantsFindMany,

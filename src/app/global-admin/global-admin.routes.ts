@@ -29,6 +29,13 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
       },
       {
         loadComponent: () =>
+          import('./email-outbox/email-outbox.component').then(
+            (m) => m.EmailOutboxComponent,
+          ),
+        path: 'email-outbox',
+      },
+      {
+        loadComponent: () =>
           import('./tenant-list/tenant-list.component').then(
             (m) => m.TenantListComponent,
           ),

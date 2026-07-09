@@ -31,7 +31,7 @@ describe('generated docs source current behavior', () => {
       'A **Deferred settings** summary that keeps custom-domain automation visible as a deferred scope item.',
     );
     expect(source).toContain(
-      '**Operations settings** for tenant email sender name/email, Stripe account id, and the tenant-wide active registration limit.',
+      '**Operations settings** for tenant email reply-to name/email, Stripe account id, and the tenant-wide active registration limit.',
     );
     expect(source).toContain(
       'hosted text appears at \\`/legal/imprint\\`, \\`/legal/privacy\\`, and \\`/legal/terms\\`',
@@ -197,7 +197,7 @@ describe('generated docs source current behavior', () => {
     const combinedSource = `${overviewSource}\n${receiptSource}`;
 
     expect(combinedSource).toContain(
-      'sends the submitter a receipt-reviewed email when Resend delivery is configured.',
+      'queues the submitter receipt-reviewed email in the durable email outbox.',
     );
     expect(receiptSource).toContain(
       'delivered+receipt-doc-${receiptId}@resend.dev',

@@ -34,7 +34,7 @@ import {
   buildCheckoutSessionIdempotencyKey,
   createHostedCheckoutSession,
 } from '../../../../integrations/stripe-checkout';
-import { sendManualApprovalEmail } from '../../../../notifications/email-delivery';
+import { enqueueManualApprovalEmail } from '../../../../notifications/email-delivery';
 import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
@@ -563,6 +563,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           registrationOption.price * registration.guestCount +
           selectedAddonTotalPrice;
         const requiresCheckout = effectiveTotalPrice > 0;
+        const eventUrl = `${resolveRequestOrigin(headers) ?? ''}/events/${eventId}`;
+        const notificationEmail =
+          registration.user.communicationEmail?.trim() ||
+          registration.user.email;
 
         const approvalResult = yield* Database.use((database) =>
           database
@@ -651,6 +655,17 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   );
                 }
 
+                if (!requiresCheckout) {
+                  yield* enqueueManualApprovalEmail(tx, {
+                    eventTitle: registration.event.title,
+                    eventUrl,
+                    paymentDeadline: null,
+                    registrationId: registration.id,
+                    tenant,
+                    to: notificationEmail,
+                  });
+                }
+
                 return { _tag: 'Approved' } as const;
               }),
             )
@@ -670,19 +685,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
           );
         }
-        const eventUrl = `${resolveRequestOrigin(headers) ?? ''}/events/${eventId}`;
-        const notificationEmail =
-          registration.user.communicationEmail?.trim() ||
-          registration.user.email;
         if (!requiresCheckout) {
-          yield* sendManualApprovalEmail({
-            eventTitle: registration.event.title,
-            eventUrl,
-            paymentDeadline: null,
-            registrationId: registration.id,
-            tenant,
-            to: notificationEmail,
-          });
           return;
         }
 
@@ -828,27 +831,39 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             ),
           );
 
-          yield* databaseEffect((database) =>
-            database.insert(transactions).values({
-              amount: effectiveTotalPrice,
-              comment: `Registration approval for event ${registration.event.title} ${registration.eventId}`,
-              currency: tenant.currency,
-              eventId: registration.eventId,
-              eventRegistrationId: registration.id,
-              executiveUserId: user.id,
-              id: transactionId,
-              method: 'stripe',
-              status: 'pending',
-              stripeCheckoutSessionId: session.id,
-              stripeCheckoutUrl: session.url,
-              stripePaymentIntentId:
-                typeof session.payment_intent === 'string'
-                  ? session.payment_intent
-                  : session.payment_intent?.id,
-              targetUserId: registration.userId,
-              tenantId: tenant.id,
-              type: 'registration',
-            }),
+          yield* Database.use((database) =>
+            database.transaction((tx) =>
+              Effect.gen(function* () {
+                yield* tx.insert(transactions).values({
+                  amount: effectiveTotalPrice,
+                  comment: `Registration approval for event ${registration.event.title} ${registration.eventId}`,
+                  currency: tenant.currency,
+                  eventId: registration.eventId,
+                  eventRegistrationId: registration.id,
+                  executiveUserId: user.id,
+                  id: transactionId,
+                  method: 'stripe',
+                  status: 'pending',
+                  stripeCheckoutSessionId: session.id,
+                  stripeCheckoutUrl: session.url,
+                  stripePaymentIntentId:
+                    typeof session.payment_intent === 'string'
+                      ? session.payment_intent
+                      : session.payment_intent?.id,
+                  targetUserId: registration.userId,
+                  tenantId: tenant.id,
+                  type: 'registration',
+                });
+                yield* enqueueManualApprovalEmail(tx, {
+                  eventTitle: registration.event.title,
+                  eventUrl,
+                  paymentDeadline: new Date(checkoutExpiresAt * 1000),
+                  registrationId: registration.id,
+                  tenant,
+                  to: notificationEmail,
+                });
+              }),
+            ),
           );
 
           return {
@@ -864,16 +879,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             ),
           ),
         );
-        yield* sendManualApprovalEmail({
-          eventTitle: registration.event.title,
-          eventUrl,
-          paymentDeadline: new Date(
-            paymentNotification.checkoutExpiresAt * 1000,
-          ),
-          registrationId: registration.id,
-          tenant,
-          to: notificationEmail,
-        });
+        void paymentNotification;
       });
 
       const registerForEvent = Effect.fn(

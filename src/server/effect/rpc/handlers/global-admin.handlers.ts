@@ -7,16 +7,17 @@ import {
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import {
+  GlobalAdminEmailOutboxOverview,
   GlobalAdminTenantRecord,
   type GlobalAdminTenantRecord as GlobalAdminTenantRecordType,
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
-import { eq } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import { tenants } from '../../../../db/schema';
+import { emailOutbox, tenants } from '../../../../db/schema';
 import {
   includesPermission,
   type Permission,
@@ -156,6 +157,96 @@ const globalAdminTenantReturningColumns = {
 } as const;
 
 export const globalAdminHandlers = {
+  'globalAdmin.emailOutbox.findOverview': (_payload, options) =>
+    Effect.gen(function* () {
+      yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
+      const now = new Date();
+      const staleSendingBefore = new Date(Date.now() - 10 * 60 * 1000);
+      const [statusCounts, waitingForRetryRows, staleSendingRows, itemRows] =
+        yield* databaseEffect((database) =>
+          Effect.all([
+            database
+              .select({
+                status: emailOutbox.status,
+                total: count(),
+              })
+              .from(emailOutbox)
+              .groupBy(emailOutbox.status),
+            database
+              .select({
+                total: count(),
+              })
+              .from(emailOutbox)
+              .where(
+                and(
+                  inArray(emailOutbox.status, ['queued', 'failed']),
+                  lte(emailOutbox.nextAttemptAt, now),
+                  sql`${emailOutbox.attempts} < ${emailOutbox.maxAttempts}`,
+                ),
+              ),
+            database
+              .select({
+                total: count(),
+              })
+              .from(emailOutbox)
+              .where(
+                and(
+                  eq(emailOutbox.status, 'sending'),
+                  lte(emailOutbox.updatedAt, staleSendingBefore),
+                ),
+              ),
+            database
+              .select({
+                attempts: emailOutbox.attempts,
+                createdAt: emailOutbox.createdAt,
+                id: emailOutbox.id,
+                kind: emailOutbox.kind,
+                lastAttemptAt: emailOutbox.lastAttemptAt,
+                lastError: emailOutbox.lastError,
+                maxAttempts: emailOutbox.maxAttempts,
+                nextAttemptAt: emailOutbox.nextAttemptAt,
+                recipient: emailOutbox.toEmail,
+                sentAt: emailOutbox.sentAt,
+                status: emailOutbox.status,
+                subject: emailOutbox.subject,
+                tenantDomain: tenants.domain,
+                tenantId: emailOutbox.tenantId,
+                tenantName: tenants.name,
+                updatedAt: emailOutbox.updatedAt,
+              })
+              .from(emailOutbox)
+              .innerJoin(tenants, eq(emailOutbox.tenantId, tenants.id))
+              .where(
+                inArray(emailOutbox.status, ['queued', 'sending', 'failed']),
+              )
+              .orderBy(desc(emailOutbox.updatedAt))
+              .limit(100),
+          ]),
+        );
+      const summary = {
+        failed: 0,
+        queued: 0,
+        sending: 0,
+        sent: 0,
+        staleSending: staleSendingRows[0]?.total ?? 0,
+        waitingForRetry: waitingForRetryRows[0]?.total ?? 0,
+      };
+      for (const row of statusCounts) {
+        summary[row.status] = row.total;
+      }
+
+      return Schema.decodeUnknownSync(GlobalAdminEmailOutboxOverview)({
+        items: itemRows.map((row) => ({
+          ...row,
+          createdAt: row.createdAt.toISOString(),
+          lastAttemptAt: row.lastAttemptAt?.toISOString() ?? null,
+          nextAttemptAt: row.nextAttemptAt.toISOString(),
+          sentAt: row.sentAt?.toISOString() ?? null,
+          updatedAt: row.updatedAt.toISOString(),
+        })),
+        summary,
+      });
+    }),
   'globalAdmin.tenants.create': (input, options) =>
     Effect.gen(function* () {
       yield* ensurePermission(options.headers, 'globalAdmin:manageTenants');
