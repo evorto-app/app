@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ce47608df0e1",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-registration-decisions",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/app/admin/general-settings/general-settings.component.html",
+    "src/app/finance/receipt-approval-detail/receipt-approval-detail.component.spec.ts",
+    "src/app/finance/receipt-approval-detail/receipt-approval-detail.component.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.ts",
+    "src/server/effect/rpc/handlers/finance/finance-receipts.handlers.ts",
+    "tests/docs/admin/general-settings.doc.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ce/47608df0e1/0/metadata.json",
+      "transcript": "/ce/47608df0e1/0/full.jsonl",
+      "content_hash": "/ce/47608df0e1/0/content_hash.txt",
+      "prompt": "/ce/47608df0e1/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2419438,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 64809472,
+    "output_tokens": 171411,
+    "api_call_count": 470
+  }
+}

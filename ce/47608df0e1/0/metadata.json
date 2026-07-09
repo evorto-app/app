@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ce47608df0e1",
+  "session_id": "019f1e20-8e85-7a12-b45b-bc85c4271faa",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-09T15:56:57.86238Z",
+  "branch": "codex/relaunch-registration-decisions",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/server/effect/rpc/handlers/events/event-registration.service.ts",
+    "src/app/admin/general-settings/general-settings.component.html",
+    "tests/docs/admin/general-settings.doc.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.ts",
+    "src/server/effect/rpc/handlers/finance/finance-receipts.handlers.ts",
+    "src/app/finance/receipt-approval-detail/receipt-approval-detail.component.ts",
+    "src/app/finance/receipt-approval-detail/receipt-approval-detail.component.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "30d63d2eb3a5",
+  "token_usage": {
+    "input_tokens": 2419438,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 64809472,
+    "output_tokens": 171411,
+    "api_call_count": 470
+  },
+  "session_metrics": {
+    "turn_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-09T15:56:57.689987Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 878,
+    "human_modified": 140,
+    "human_removed": 0,
+    "total_committed": 878,
+    "total_lines_changed": 1092,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
