@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { DateTime } from 'luxon';
 
 import { getId } from '../../../helpers/get-id';
 import { adminStateFile } from '../../../helpers/user-data';
@@ -25,6 +26,7 @@ test('Manage templates', async ({
   const addOnDescription = 'Reusable snack add-on for docs coverage.';
   const questionTitle = `Docs accessibility needs ${getId().slice(0, 6)}`;
   const questionDescription = 'Tell organizers what support you need.';
+  const eventTitle = `Docs event from template ${getId().slice(0, 6)}`;
 
   await page.goto('.');
   await testInfo.attach('markdown', {
@@ -314,6 +316,94 @@ You will be redirected to the detail page for that template.
       required: true,
     }),
   );
+
+  await testInfo.attach('markdown', {
+    body: `
+## Creating an event from a template
+Open the template detail page and click **Create event**. The event form starts with the template title, description, registration options, reusable add-ons, registration questions, and organizer planning tips already copied into the event draft.
+`,
+  });
+  await page.getByRole('link', { name: 'Create event' }).click();
+  await expect(page).toHaveURL(`/templates/${createdTemplate.id}/create-event`);
+  await expect(page.getByLabel('Event title')).toHaveValue(templateTitle);
+  await page.getByLabel('Event title').fill(eventTitle);
+
+  const eventForm = page.locator('app-event-general-form');
+  const futureStart = DateTime.now().plus({ months: 2 });
+  await eventForm
+    .getByRole('textbox', { name: 'Start date' })
+    .fill(futureStart.toFormat('M/d/yyyy'));
+  await eventForm.getByRole('combobox', { name: 'Start time' }).fill('1:00 PM');
+  await eventForm
+    .getByRole('textbox', { name: 'End date' })
+    .fill(futureStart.toFormat('M/d/yyyy'));
+  await eventForm.getByRole('combobox', { name: 'End time' }).fill('5:00 PM');
+  await takeScreenshot(
+    testInfo,
+    eventForm,
+    page,
+    'Event created from template',
+  );
+
+  await page.getByRole('button', { name: 'Create event' }).click();
+  await page.waitForURL(/\/events\//, { timeout: 20_000 });
+  await expect(
+    page.getByRole('heading', { name: eventTitle }).last(),
+  ).toBeVisible();
+
+  const createdEvent = await database.query.eventInstances.findFirst({
+    where: {
+      templateId: createdTemplate.id,
+      tenantId: tenant.id,
+      title: eventTitle,
+    },
+  });
+  if (!createdEvent) {
+    throw new Error(
+      'Expected template docs flow to persist an event from the template',
+    );
+  }
+  const createdEventOptions =
+    await database.query.eventRegistrationOptions.findMany({
+      where: { eventId: createdEvent.id },
+    });
+  expect(createdEventOptions.length).toBe(registrationOptions.length);
+
+  const createdEventAddOn = await database.query.eventAddons.findFirst({
+    where: {
+      eventId: createdEvent.id,
+      title: addOnTitle,
+    },
+  });
+  if (!createdEventAddOn) {
+    throw new Error(
+      'Expected template docs flow to copy reusable add-ons into the event',
+    );
+  }
+  const createdEventQuestion =
+    await database.query.eventRegistrationQuestions.findFirst({
+      where: {
+        eventId: createdEvent.id,
+        title: questionTitle,
+      },
+    });
+  if (!createdEventQuestion) {
+    throw new Error(
+      'Expected template docs flow to copy registration questions into the event',
+    );
+  }
+
+  await database
+    .delete(schema.eventRegistrationOptions)
+    .where(eq(schema.eventRegistrationOptions.eventId, createdEvent.id));
+  await database
+    .delete(schema.eventInstances)
+    .where(
+      and(
+        eq(schema.eventInstances.id, createdEvent.id),
+        eq(schema.eventInstances.tenantId, tenant.id),
+      ),
+    );
 
   await database
     .delete(schema.addonToTemplateRegistrationOptions)

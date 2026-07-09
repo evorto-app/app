@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { ConfigProvider, Effect } from 'effect';
+import { expect } from '@playwright/test';
 
 import * as schema from '../../../src/db/schema';
 import {
@@ -9,7 +10,7 @@ import {
   createAccountSubmitDisabled,
   isAuthEmailVerifiedForAccountCreation,
 } from '../../../src/app/core/create-account/create-account.helpers';
-import { expect, test } from '../../support/fixtures/parallel-test';
+import { test } from '../../support/fixtures/base-test';
 import { hasAuth0ManagementEnvironment } from '../../support/config/environment';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
@@ -88,19 +89,19 @@ Creating the account joins the current tenant and grants the tenant's default us
 });
 
 test.describe('Auth0-backed account creation docs', () => {
-  test.skip(
-    !hasManagementEnvironment,
-    'AUTH0_MANAGEMENT_CLIENT_ID and AUTH0_MANAGEMENT_CLIENT_SECRET are required for this integration doc',
-  );
+  test.beforeAll(() => {
+    expect(
+      hasManagementEnvironment,
+      'AUTH0_MANAGEMENT_CLIENT_ID and AUTH0_MANAGEMENT_CLIENT_SECRET are required for this integration doc',
+    ).toBe(true);
+  });
 
   test('Create your account @needs-auth0-management', async ({
     database,
     newUser,
     page,
-    roles,
-    tenant,
+    tenantDomain,
   }, testInfo) => {
-    void roles; // Ensure roles are created for this tenant
     let createdUserId: string | undefined;
     let createdTenantUserId: string | undefined;
 
@@ -202,8 +203,15 @@ If the same global login already exists for another tenant, this step joins the 
         lastName: newUser.lastName,
       });
 
+      const currentTenant = await database.query.tenants.findFirst({
+        where: { domain: tenantDomain ?? 'localhost' },
+      });
+      if (!currentTenant) {
+        throw new Error('Expected seeded tenant for current host');
+      }
+
       const tenantUser = await database.query.usersToTenants.findFirst({
-        where: { tenantId: tenant.id, userId: createdUser.id },
+        where: { tenantId: currentTenant.id, userId: createdUser.id },
       });
       if (!tenantUser) {
         throw new Error(
@@ -222,17 +230,18 @@ If the same global login already exists for another tenant, this step joins the 
 You should now be on your profile page for the current tenant. From here you can review your profile, manage discount cards when the tenant supports them, and register for events.`,
       });
     } finally {
-      if (createdTenantUserId) {
-        await database
-          .delete(schema.rolesToTenantUsers)
-          .where(
-            eq(schema.rolesToTenantUsers.userTenantId, createdTenantUserId),
-          );
-        await database
-          .delete(schema.usersToTenants)
-          .where(eq(schema.usersToTenants.id, createdTenantUserId));
-      }
       if (createdUserId) {
+        const tenantUsers = await database.query.usersToTenants.findMany({
+          where: { userId: createdUserId },
+        });
+        for (const tenantUser of tenantUsers) {
+          await database
+            .delete(schema.rolesToTenantUsers)
+            .where(eq(schema.rolesToTenantUsers.userTenantId, tenantUser.id));
+          await database
+            .delete(schema.usersToTenants)
+            .where(eq(schema.usersToTenants.id, tenantUser.id));
+        }
         await database
           .delete(schema.users)
           .where(
@@ -241,6 +250,15 @@ You should now be on your profile page for the current tenant. From here you can
               eq(schema.users.email, newUser.email),
             ),
           );
+      } else if (createdTenantUserId) {
+        await database
+          .delete(schema.rolesToTenantUsers)
+          .where(
+            eq(schema.rolesToTenantUsers.userTenantId, createdTenantUserId),
+          );
+        await database
+          .delete(schema.usersToTenants)
+          .where(eq(schema.usersToTenants.id, createdTenantUserId));
       }
     }
   });

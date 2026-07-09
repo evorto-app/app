@@ -1,9 +1,10 @@
 import { and, eq } from 'drizzle-orm';
 import { ConfigProvider, Effect } from 'effect';
+import { expect } from '@playwright/test';
 
 import * as schema from '../../../src/db/schema';
 import { hasAuth0ManagementEnvironment } from '../../support/config/environment';
-import { expect, test } from '../../support/fixtures/parallel-test';
+import { test } from '../../support/fixtures/base-test';
 
 const hasManagementEnvironment = Effect.runSync(
   hasAuth0ManagementEnvironment.pipe(
@@ -18,15 +19,13 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
   database,
   newUser,
   page,
-  roles,
-  tenant,
+  tenantDomain,
 }) => {
-  test.skip(
-    !hasManagementEnvironment,
+  expect(
+    hasManagementEnvironment,
     'AUTH0_MANAGEMENT_CLIENT_ID and AUTH0_MANAGEMENT_CLIENT_SECRET are required for create-account integration coverage',
-  );
+  ).toBe(true);
 
-  void roles;
   let createdUserId: string | undefined;
   let createdTenantUserId: string | undefined;
 
@@ -107,8 +106,15 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
       lastName: newUser.lastName,
     });
 
+    const currentTenant = await database.query.tenants.findFirst({
+      where: { domain: tenantDomain ?? 'localhost' },
+    });
+    if (!currentTenant) {
+      throw new Error('Expected seeded tenant for current host');
+    }
+
     const tenantUser = await database.query.usersToTenants.findFirst({
-      where: { tenantId: tenant.id, userId: createdUser.id },
+      where: { tenantId: currentTenant.id, userId: createdUser.id },
     });
     if (!tenantUser) {
       throw new Error('Expected account creation to join the current tenant');
@@ -120,15 +126,18 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
     });
     expect(roleAssignments.length).toBeGreaterThan(0);
   } finally {
-    if (createdTenantUserId) {
-      await database
-        .delete(schema.rolesToTenantUsers)
-        .where(eq(schema.rolesToTenantUsers.userTenantId, createdTenantUserId));
-      await database
-        .delete(schema.usersToTenants)
-        .where(eq(schema.usersToTenants.id, createdTenantUserId));
-    }
     if (createdUserId) {
+      const tenantUsers = await database.query.usersToTenants.findMany({
+        where: { userId: createdUserId },
+      });
+      for (const tenantUser of tenantUsers) {
+        await database
+          .delete(schema.rolesToTenantUsers)
+          .where(eq(schema.rolesToTenantUsers.userTenantId, tenantUser.id));
+        await database
+          .delete(schema.usersToTenants)
+          .where(eq(schema.usersToTenants.id, tenantUser.id));
+      }
       await database
         .delete(schema.users)
         .where(
@@ -137,6 +146,13 @@ test('creates tenant account for a new Auth0 user @needs-auth0-management', asyn
             eq(schema.users.email, newUser.email),
           ),
         );
+    } else if (createdTenantUserId) {
+      await database
+        .delete(schema.rolesToTenantUsers)
+        .where(eq(schema.rolesToTenantUsers.userTenantId, createdTenantUserId));
+      await database
+        .delete(schema.usersToTenants)
+        .where(eq(schema.usersToTenants.id, createdTenantUserId));
     }
   }
 });

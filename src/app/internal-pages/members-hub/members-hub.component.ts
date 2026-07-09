@@ -1,8 +1,22 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  Injectable,
+} from '@angular/core';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+
+@Injectable({ providedIn: 'root' })
+export class MembersHubQueries {
+  private readonly rpc = AppRpc.injectClient();
+
+  hubRoles() {
+    return this.rpc.admin.roles.findHubRoles.queryOptions();
+  }
+}
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -14,10 +28,8 @@ import { getErrorMessage } from '../../core/error-message';
   templateUrl: './members-hub.component.html',
 })
 export class MembersHubComponent {
-  private readonly rpc = AppRpc.injectClient();
-  protected readonly rolesQuery = injectQuery(() =>
-    this.rpc.admin.roles.findHubRoles.queryOptions(),
-  );
+  private readonly queries = inject(MembersHubQueries);
+  protected readonly rolesQuery = injectQuery(() => this.queries.hubRoles());
 
   protected errorMessage(error: unknown): string {
     return getErrorMessage(error, 'Unknown error');
