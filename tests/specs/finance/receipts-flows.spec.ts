@@ -163,6 +163,7 @@ test('approve and record receipt reimbursements in finance', async ({
     await database
       .update(schema.users)
       .set({
+        communicationEmail: `delivered+receipt-flow-${receiptId}@resend.dev`,
         iban: 'DE00123456781234567890',
         paypalEmail: 'organizer-refunds@example.com',
       })

@@ -199,6 +199,9 @@ describe('generated docs source current behavior', () => {
     expect(combinedSource).toContain(
       'sends the submitter a receipt-reviewed email when Resend delivery is configured.',
     );
+    expect(receiptSource).toContain(
+      'delivered+receipt-doc-${receiptId}@resend.dev',
+    );
     expect(combinedSource).toContain(
       'record the manual reimbursement transaction for the selected batch',
     );
