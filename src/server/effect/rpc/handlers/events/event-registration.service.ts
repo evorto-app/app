@@ -1,6 +1,11 @@
 import type { Headers } from 'effect/unstable/http';
 import type Stripe from 'stripe';
 
+import { registrationSpotCount } from '@shared/registration-spots';
+import {
+  resolveTenantDiscountProviders,
+  type TenantDiscountProviders,
+} from '@shared/tenant-config';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { ConfigProvider, Context, Effect, Layer, Option } from 'effect';
 
@@ -19,11 +24,6 @@ import {
   transactions,
   userDiscountCards,
 } from '../../../../../db/schema';
-import { registrationSpotCount } from '../../../../../shared/registration-spots';
-import {
-  resolveTenantDiscountProviders,
-  type TenantDiscountProviders,
-} from '../../../../../shared/tenant-config';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
 import { getServerNow } from '../../../../clock';

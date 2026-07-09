@@ -1,3 +1,5 @@
+import type { Permission } from '@shared/permissions/permissions';
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -26,8 +28,6 @@ import {
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
-
-import type { Permission } from '../../../shared/permissions/permissions';
 
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
