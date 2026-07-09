@@ -1,0 +1,237 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "5a385d701f5f",
+  "session_id": "019f480c-df97-7731-9a89-d97538adf694",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-09T21:11:19.734522Z",
+  "branch": "codex/full-application-compliance-audit",
+  "checkpoints_count": 13,
+  "files_touched": [
+    ".agents/skills/effect-ts/SKILL.md",
+    ".agents/skills/effect-ts/references/guide-effect.md",
+    ".agents/skills/effect-ts/references/guide-error-handling.md",
+    ".agents/skills/effect-ts/references/guide-layers.md",
+    ".agents/skills/effect-ts/references/guide-observability.md",
+    ".agents/skills/effect-ts/references/guide-retries.md",
+    ".agents/skills/effect-ts/references/guide-schedule.md",
+    ".agents/skills/effect-ts/references/guide-schema.md",
+    ".agents/skills/effect-ts/references/guide-sql.md",
+    ".agents/skills/effect-ts/references/guide-testing.md",
+    ".agents/skills/effect-ts/references/setup.md",
+    "APPLICATION_COMPLIANCE_AUDIT.md",
+    "ARCHITECTURE.md",
+    "PRODUCT.md",
+    "QUALITY.md",
+    "STABILIZATION.md",
+    "helpers/testing/playwright-skip-inventory.spec.ts",
+    "helpers/testing/quality-source.spec.ts",
+    "helpers/testing/stabilization-source.spec.ts",
+    "tests/README.md",
+    "tests/test-inventory.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-terra",
+  "turn_id": "d3d665418169",
+  "token_usage": {
+    "input_tokens": 2226182,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 57030656,
+    "output_tokens": 217600,
+    "api_call_count": 392
+  },
+  "session_metrics": {
+    "turn_count": 15
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-09T21:11:19.54257Z",
+    "agent_lines": 0,
+    "agent_removed": 2227,
+    "human_added": 1421,
+    "human_modified": 577,
+    "human_removed": 0,
+    "total_committed": 1421,
+    "total_lines_changed": 4225,
+    "agent_percentage": 52.710059171597635,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 404,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 120,
+      "user_lines_removed": 53,
+      "agent_lines_added": 603,
+      "agent_lines_removed": 2529,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 120
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 53
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 79,
+      "user_lines_removed": 31,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 2532,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 79
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 31
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 79,
+      "user_lines_removed": 31,
+      "agent_lines_added": 634,
+      "agent_lines_removed": 2532,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 79
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 31
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 119,
+      "user_lines_removed": 42,
+      "agent_lines_added": 859,
+      "agent_lines_removed": 2730,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 119
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 42
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 119,
+      "user_lines_removed": 42,
+      "agent_lines_added": 859,
+      "agent_lines_removed": 2730,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 119
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 42
+      }
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 119,
+      "user_lines_removed": 42,
+      "agent_lines_added": 859,
+      "agent_lines_removed": 2730,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 119
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 42
+      }
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 119,
+      "user_lines_removed": 42,
+      "agent_lines_added": 859,
+      "agent_lines_removed": 2730,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 119
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 42
+      }
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 146,
+      "user_lines_removed": 47,
+      "agent_lines_added": 885,
+      "agent_lines_removed": 2731,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 146
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 47
+      }
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 196,
+      "user_lines_removed": 47,
+      "agent_lines_added": 923,
+      "agent_lines_removed": 2744,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 195,
+        "helpers/testing/quality-source.spec.ts": 1
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 46,
+        "helpers/testing/quality-source.spec.ts": 1
+      }
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 196,
+      "user_lines_removed": 47,
+      "agent_lines_added": 923,
+      "agent_lines_removed": 2744,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 195,
+        "helpers/testing/quality-source.spec.ts": 1
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 46,
+        "helpers/testing/quality-source.spec.ts": 1
+      }
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 196,
+      "user_lines_removed": 47,
+      "agent_lines_added": 923,
+      "agent_lines_removed": 2744,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 195,
+        "helpers/testing/quality-source.spec.ts": 1
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 46,
+        "helpers/testing/quality-source.spec.ts": 1
+      }
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 249,
+      "user_lines_removed": 47,
+      "agent_lines_added": 1028,
+      "agent_lines_removed": 2745,
+      "user_added_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 248,
+        "helpers/testing/quality-source.spec.ts": 1
+      },
+      "user_removed_per_file": {
+        "APPLICATION_COMPLIANCE_AUDIT.md": 46,
+        "helpers/testing/quality-source.spec.ts": 1
+      }
+    }
+  ]
+}
