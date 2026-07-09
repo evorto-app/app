@@ -1,0 +1,24 @@
+Prepare a PR for this
+
+---
+
+The receipt-approval UI copy now claims the submitter “was notified” / “emails the submitter”, but email delivery is explicitly best-effort and can be skipped (missing config) or silently fail (caught errors). The UI text should reflect conditional delivery.
+
+This was feedback.
+We have to change the email integration so that it does not work if there is a config issue. Please update so that we need email config for the app to start correctly.
+Tell me if you need more info to get this done
+
+---
+
+How should I supply these keys?
+
+---
+
+Also pull in the latest main
+
+---
+
+The FROM should be 'ESN.WORLD <no-reply@notifications.esn.world>'
+It is okay if we save that in application code, I will add the api key
+
+I will add the key to the main .env

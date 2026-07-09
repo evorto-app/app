@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "8ca1ed4eedc0",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-registration-decisions",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "tests/docs/finance/finance-overview.doc.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/8c/a1ed4eedc0/0/metadata.json",
+      "transcript": "/8c/a1ed4eedc0/0/full.jsonl",
+      "content_hash": "/8c/a1ed4eedc0/0/content_hash.txt",
+      "prompt": "/8c/a1ed4eedc0/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1896633,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 46639744,
+    "output_tokens": 123956,
+    "api_call_count": 355
+  }
+}
