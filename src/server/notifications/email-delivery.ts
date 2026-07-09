@@ -1,13 +1,13 @@
+import type { DatabaseClient } from '@db/index';
+
+import { Database } from '@db/index';
+import { emailOutbox as emailOutboxTable } from '@db/schema';
+import { serverEmailConfig } from '@server/config/server-config';
 import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { Duration, Effect } from 'effect';
 import { htmlToText } from 'html-to-text';
 
-import type { DatabaseClient } from '../../db';
 import type { Tenant } from '../../types/custom/tenant';
-
-import { Database } from '../../db';
-import { emailOutbox as emailOutboxTable } from '../../db/schema';
-import { serverEmailConfig } from '../config/server-config';
 
 export interface EnqueueManualApprovalEmailInput {
   eventTitle: string;

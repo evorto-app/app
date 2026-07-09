@@ -1,8 +1,8 @@
+import { Database } from '@db/index';
+import { emailOutbox } from '@db/schema';
 import { afterEach, describe, expect, it, vi } from '@effect/vitest';
 import { ConfigProvider, Effect, Layer } from 'effect';
 
-import { Database } from '../../db';
-import { emailOutbox } from '../../db/schema';
 import {
   enqueueReceiptReviewedEmail,
   processDueEmailOutbox,
