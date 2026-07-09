@@ -8,6 +8,7 @@ import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 import { User } from '../../../types/custom/user';
 import {
   UserRpcError,
+  UsersAssignRolesError,
   UsersCreateAccountError,
   UsersFindManyError,
 } from './users.errors';
@@ -30,6 +31,13 @@ export const UsersAuthDataFind = asRpcQuery(
   Rpc.make('users.authData', {
     payload: Schema.Void,
     success: UsersAuthData,
+  }),
+);
+
+export const UsersCanUseScanner = asRpcQuery(
+  Rpc.make('users.canUseScanner', {
+    payload: Schema.Void,
+    success: Schema.Boolean,
   }),
 );
 
@@ -64,6 +72,7 @@ export const UsersFindManyRecord = Schema.Struct({
   firstName: Schema.String,
   id: Schema.NonEmptyString,
   lastName: Schema.String,
+  roleIds: Schema.Array(Schema.NonEmptyString),
   roles: Schema.Array(Schema.String),
 });
 
@@ -85,6 +94,17 @@ export const UsersFindMany = asRpcQuery(
     error: UsersFindManyError,
     payload: UsersFindManyInput,
     success: UsersFindManyResult,
+  }),
+);
+
+export const UsersAssignRoles = asRpcMutation(
+  Rpc.make('users.assignRoles', {
+    error: UsersAssignRolesError,
+    payload: Schema.Struct({
+      roleIds: Schema.Array(Schema.NonEmptyString),
+      userId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
   }),
 );
 
@@ -165,7 +185,9 @@ export const UsersUserAssigned = asRpcQuery(
 );
 
 export class UsersRpcs extends RpcGroup.make(
+  UsersAssignRoles,
   UsersAuthDataFind,
+  UsersCanUseScanner,
   UsersCreateAccount,
   UsersFindMany,
   UsersEventsFindMany,

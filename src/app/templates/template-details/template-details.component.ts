@@ -31,13 +31,9 @@ import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-sta
 export const templateAddonPurchaseTiming = (
   addOn: TemplateFindOneRecord['addOns'][number],
 ): string => {
-  const windows = [
-    addOn.allowPurchaseDuringRegistration ? 'During registration' : null,
-    addOn.allowPurchaseBeforeEvent ? 'Before event' : null,
-    addOn.allowPurchaseDuringEvent ? 'During event' : null,
-  ].filter((window): window is string => window !== null);
-
-  return windows.length > 0 ? windows.join(', ') : 'Unavailable';
+  return addOn.allowPurchaseDuringRegistration
+    ? 'During registration'
+    : 'Unavailable';
 };
 
 export const templateRegistrationOptionTitle = (
@@ -46,7 +42,7 @@ export const templateRegistrationOptionTitle = (
 ): string =>
   template.registrationOptions.find(
     (option) => option.id === registrationOptionId,
-  )?.title ?? 'Unknown registration option';
+  )?.title ?? 'Broken registration option configuration';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -42,7 +42,7 @@ const createTemplate = (): TemplateFindOneRecord => ({
 });
 
 describe('template detail add-on helpers', () => {
-  it('formats enabled purchase timing windows', () => {
+  it('shows registration-time purchase timing only', () => {
     expect(
       templateAddonPurchaseTiming({
         allowMultiple: true,
@@ -59,7 +59,7 @@ describe('template detail add-on helpers', () => {
         title: 'Dinner',
         totalAvailableQuantity: 40,
       }),
-    ).toBe('During registration, Before event');
+    ).toBe('During registration');
   });
 
   it('marks add-ons without purchase windows as unavailable', () => {
@@ -91,6 +91,6 @@ describe('template detail add-on helpers', () => {
   it('keeps missing add-on registration option labels explicit', () => {
     expect(
       templateRegistrationOptionTitle(createTemplate(), 'missing-option'),
-    ).toBe('Unknown registration option');
+    ).toBe('Broken registration option configuration');
   });
 });

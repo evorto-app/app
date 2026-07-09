@@ -172,15 +172,14 @@ Role selection also avoids duplicate entries by hiding already selected roles fr
     body: `
 #### Reusable add-ons
 Templates can also store optional add-ons such as meals, equipment, or other extras.
-Add-ons can be free or paid, attached to either the participant or organizer registration option, and can limit the included quantity, total availability, maximum quantity per user, and purchase timing.
-When a template creates an event, those reusable add-ons are copied into the event and shown on the event detail page. Registration-time add-ons are available from matching registration cards, while standalone before-event and during-event add-on sales are handled separately from this template setup flow.
+Add-ons can be free or paid, attached to either the participant or organizer registration option, and can limit the included quantity, total availability, and maximum quantity per user.
+When a template creates an event, those reusable add-ons are copied into the event and shown on matching registration cards for registration-time purchase.
 `,
   });
   await page.getByRole('button', { name: 'Add add-on' }).click();
   const addOnForm = page.locator('app-template-addon-form').first();
   await expect(addOnForm.getByLabel('Add-on name')).toBeVisible();
   await expect(addOnForm.getByLabel('Attach to')).toBeVisible();
-  await expect(page.getByText('Purchase timing')).toBeVisible();
   await takeScreenshot(testInfo, addOnForm, page, 'Reusable add-on form');
 
   await testInfo.attach('markdown', {

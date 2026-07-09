@@ -133,7 +133,7 @@
               </span>
             </mat-form-field>
           }
-          @if (selectedTotalPrice() > 0) {
+          @if (paymentDueDuringRegistration()) {
             <button
               (click)="register(registrationOption())"
               mat-flat-button

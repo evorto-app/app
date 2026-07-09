@@ -4,6 +4,7 @@ import {
   type RegistrationMode,
   registrationModeLabel,
   registrationModeLabels,
+  writableRegistrationModes,
 } from './registration-modes';
 
 describe('registrationModeLabel', () => {
@@ -18,9 +19,13 @@ describe('registrationModeLabel', () => {
       [...modes].toSorted(),
     );
     expect(modes.map((mode) => registrationModeLabel(mode))).toEqual([
-      'Application review',
+      'Manual approval',
       'First come, first served',
-      'Random allocation',
+      'Unsupported random allocation',
     ]);
+  });
+
+  it('keeps unsupported random allocation out of writable modes', () => {
+    expect(writableRegistrationModes).toEqual(['fcfs', 'application']);
   });
 });

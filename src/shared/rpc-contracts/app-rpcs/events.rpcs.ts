@@ -48,6 +48,11 @@ export type EventsRegistrationStatus = Schema.Schema.Type<
   typeof EventsRegistrationStatus
 >;
 
+export const EventsWritableRegistrationMode = literalUnion(
+  'application',
+  'fcfs',
+);
+
 export const EventsCanOrganize = asRpcQuery(
   Rpc.make('events.canOrganize', {
     error: EventsRpcError,
@@ -80,6 +85,17 @@ export const EventsCancelRegistration = asRpcMutation(
 
 export const EventsCancelEventRegistration = asRpcMutation(
   Rpc.make('events.cancelEventRegistration', {
+    error: EventsCheckInRegistrationError,
+    payload: Schema.Struct({
+      eventId: Schema.NonEmptyString,
+      registrationId: Schema.NonEmptyString,
+    }),
+    success: Schema.Void,
+  }),
+);
+
+export const EventsApproveRegistration = asRpcMutation(
+  Rpc.make('events.approveRegistration', {
     error: EventsCheckInRegistrationError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
@@ -134,7 +150,7 @@ export const EventsCreateRegistrationOptionInput = Schema.Struct({
   organizingRegistration: Schema.Boolean,
   price: nonNegativeNumber,
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
-  registrationMode: literalUnion('application', 'fcfs', 'random'),
+  registrationMode: EventsWritableRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   sourceTemplateRegistrationOptionId: Schema.optional(Schema.NonEmptyString),
   spots: nonNegativeNumber,
@@ -363,7 +379,10 @@ export const EventsGetOrganizeOverviewUser = Schema.Struct({
   email: Schema.NonEmptyString,
   firstName: Schema.NonEmptyString,
   lastName: Schema.NonEmptyString,
+  manualApprovalAvailable: Schema.Boolean,
+  paymentPending: Schema.Boolean,
   registrationId: Schema.NonEmptyString,
+  status: EventsRegistrationStatus,
   transferAvailable: Schema.Boolean,
   userId: Schema.NonEmptyString,
 });
@@ -577,7 +596,7 @@ export const EventsUpdateRegistrationOptionInput = Schema.Struct({
   organizingRegistration: Schema.Boolean,
   price: nonNegativeNumber,
   registeredDescription: Schema.NullOr(Schema.NonEmptyString),
-  registrationMode: literalUnion('application', 'fcfs', 'random'),
+  registrationMode: EventsWritableRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: nonNegativeNumber,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
@@ -604,6 +623,7 @@ export const EventsUpdate = asRpcMutation(
 );
 
 export class EventsRpcs extends RpcGroup.make(
+  EventsApproveRegistration,
   EventsCancelPendingRegistration,
   EventsCancelRegistration,
   EventsCancelEventRegistration,

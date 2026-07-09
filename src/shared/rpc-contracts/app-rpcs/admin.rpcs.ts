@@ -1,5 +1,6 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { literalUnion } from '@shared/schema-utilities';
+import { notificationEmailPattern } from '@shared/notification-email';
+import { literalUnion, nonNegativeNumber } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -41,6 +42,10 @@ const TenantBrandAssetUrlString = Schema.Union([
     ),
   ),
 ]);
+
+const OptionalSenderEmail = Schema.NonEmptyString.check(
+  Schema.isPattern(notificationEmailPattern),
+);
 
 export const AdminRoleRecord = Schema.Struct({
   collapseMembersInHup: Schema.Boolean,
@@ -229,17 +234,21 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   buyEsnCardUrl: Schema.optional(UrlString),
   currency: Tenant.fields.currency,
   defaultLocation: Schema.NullOr(Schema.Any),
+  emailSenderEmail: Schema.optional(OptionalSenderEmail),
+  emailSenderName: Schema.optional(Schema.NonEmptyString),
   esnCardEnabled: Schema.Boolean,
   faviconUrl: Schema.optional(TenantBrandAssetUrlString),
   legalNoticeText: Schema.optional(Schema.String),
   legalNoticeUrl: Schema.optional(UrlString),
   locale: Tenant.fields.locale,
   logoUrl: Schema.optional(TenantBrandAssetUrlString),
+  maxActiveRegistrationsPerUser: nonNegativeNumber,
   privacyPolicyText: Schema.optional(Schema.String),
   privacyPolicyUrl: Schema.optional(UrlString),
   receiptCountries: Schema.Array(Schema.NonEmptyString),
   seoDescription: Schema.optional(Schema.String),
   seoTitle: Schema.optional(Schema.String),
+  stripeAccountId: Schema.optional(Schema.NonEmptyString),
   termsText: Schema.optional(Schema.String),
   termsUrl: Schema.optional(UrlString),
   theme: literalUnion('evorto', 'esn'),

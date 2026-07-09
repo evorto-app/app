@@ -36,7 +36,7 @@ You can create roles with different permissions.
 A user will have any permission that is assigned to at least one of their roles.
 You can also use roles to group users, for example to make some events only available to specific users.
 
-Start by navigating to **Admin tools**. The current relaunch admin surface separates the read-only **All users** page from role creation and editing.
+Start by navigating to **Admin tools**. The current relaunch admin surface separates existing-user role assignment from role creation and editing.
 `,
     });
     await page.getByRole('link', { name: 'Admin Tools' }).click();
@@ -45,7 +45,7 @@ Start by navigating to **Admin tools**. The current relaunch admin surface separ
       page.getByRole('heading', { name: 'All users' }),
     ).toBeVisible();
     await expect(
-      page.getByText('Existing-user role assignment is deferred for relaunch.'),
+      page.getByText('Manage tenant role assignments for existing users.'),
     ).toBeVisible();
     await expect(page.getByPlaceholder('Name or email')).toBeVisible();
     await expect(
@@ -66,13 +66,13 @@ Start by navigating to **Admin tools**. The current relaunch admin surface separ
       testInfo,
       page.locator('app-user-list'),
       page,
-      'Read-only tenant user list',
+      'Tenant user role assignment list',
     );
     await testInfo.attach('markdown', {
       body: `
 ## User review
 
-The **All users** page is read-only in the relaunch surface. It supports searching tenant users by name or email and shows the roles currently assigned to each user, but it does not expose existing-user role assignment actions. The **users:assignRoles** permission remains reserved for the production migration path and future role-assignment workflows.
+The **All users** page supports searching tenant users by name or email and, for administrators with **users:assignRoles**, exposes tenant-scoped role assignment controls for existing users. Users without that permission still see read-only role chips.
 
 Navigate to the **User roles** page to create or edit tenant roles.
 `,
@@ -148,7 +148,7 @@ Permissions that are required by another permission are automatically included a
       body: `
 After you have saved your newly configured role, you will be redirected to the role details page.
 The role can now be used by flows that reference tenant roles, such as event and template eligibility.
-Assigning roles to existing users is explicitly deferred for relaunch. The **All users** page is read-only and shows current role assignments; the **users:assignRoles** permission is reserved for the production migration path and future role-assignment workflows.
+Assigning roles to existing users happens from the **All users** page and is guarded by **users:assignRoles**. Role changes apply only inside the current tenant.
 `,
     });
   } finally {

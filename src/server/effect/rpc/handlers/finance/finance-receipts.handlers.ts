@@ -6,17 +6,26 @@ import {
   FinanceReceiptNotFoundError,
   FinanceResourceNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/finance.errors';
-import { and, desc, eq, inArray, TransactionRollbackError } from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  not,
+  TransactionRollbackError,
+} from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
+import { Database } from '../../../../../db';
 import {
   eventInstances,
   financeReceipts,
   transactions,
   users,
 } from '../../../../../db/schema';
+import { enqueueReceiptReviewedEmail } from '../../../../notifications/email-delivery';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
   canSubmitEventReceipts,
@@ -560,18 +569,30 @@ export const financeReceiptsHandlers = {
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
       const receipt = yield* databaseEffect((database) =>
-        database.query.financeReceipts.findFirst({
-          columns: {
-            id: true,
-            status: true,
-          },
-          where: {
-            id: input.id,
-            tenantId: tenant.id,
-          },
-        }),
+        database
+          .select({
+            eventTitle: eventInstances.title,
+            id: financeReceipts.id,
+            status: financeReceipts.status,
+            submittedByCommunicationEmail: users.communicationEmail,
+            submittedByEmail: users.email,
+          })
+          .from(financeReceipts)
+          .innerJoin(users, eq(financeReceipts.submittedByUserId, users.id))
+          .innerJoin(
+            eventInstances,
+            eq(financeReceipts.eventId, eventInstances.id),
+          )
+          .where(
+            and(
+              eq(financeReceipts.id, input.id),
+              eq(financeReceipts.tenantId, tenant.id),
+            ),
+          )
+          .limit(1),
       );
-      if (!receipt) {
+      const receiptRecord = receipt[0];
+      if (!receiptRecord) {
         return yield* Effect.fail(
           new FinanceReceiptNotFoundError({
             id: input.id,
@@ -580,7 +601,7 @@ export const financeReceiptsHandlers = {
           }),
         );
       }
-      if (receipt.status === 'refunded') {
+      if (receiptRecord.status === 'refunded') {
         return yield* Effect.fail(
           new RpcBadRequestError({
             message: 'Refunded receipts cannot be reviewed again',
@@ -638,37 +659,62 @@ export const financeReceiptsHandlers = {
         );
       }
 
-      const updatedReceipts = yield* databaseEffect((database) =>
+      const updatedReceipts = yield* Database.use((database) =>
         database
-          .update(financeReceipts)
-          .set({
-            alcoholAmount,
-            depositAmount,
-            hasAlcohol: input.hasAlcohol,
-            hasDeposit: input.hasDeposit,
-            purchaseCountry,
-            receiptDate,
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              const updatedRows = yield* tx
+                .update(financeReceipts)
+                .set({
+                  alcoholAmount,
+                  depositAmount,
+                  hasAlcohol: input.hasAlcohol,
+                  hasDeposit: input.hasDeposit,
+                  purchaseCountry,
+                  receiptDate,
 
-            rejectionReason:
-              input.status === 'rejected'
-                ? (input.rejectionReason ?? null)
-                : null,
-            reviewedAt: new Date(),
-            reviewedByUserId: user.id,
-            status: input.status,
-            taxAmount: input.taxAmount,
-            totalAmount: input.totalAmount,
-          })
-          .where(
-            and(
-              eq(financeReceipts.tenantId, tenant.id),
-              eq(financeReceipts.id, input.id),
-            ),
+                  rejectionReason:
+                    input.status === 'rejected'
+                      ? (input.rejectionReason ?? null)
+                      : null,
+                  reviewedAt: new Date(),
+                  reviewedByUserId: user.id,
+                  status: input.status,
+                  taxAmount: input.taxAmount,
+                  totalAmount: input.totalAmount,
+                })
+                .where(
+                  and(
+                    eq(financeReceipts.tenantId, tenant.id),
+                    eq(financeReceipts.id, input.id),
+                    not(eq(financeReceipts.status, 'refunded')),
+                  ),
+                )
+                .returning({
+                  id: financeReceipts.id,
+                  status: financeReceipts.status,
+                });
+              const updatedRow = updatedRows[0];
+              if (!updatedRow) {
+                return [];
+              }
+
+              yield* enqueueReceiptReviewedEmail(tx, {
+                eventTitle: receiptRecord.eventTitle,
+                receiptId: updatedRow.id,
+                rejectionReason:
+                  input.status === 'rejected'
+                    ? (input.rejectionReason ?? null)
+                    : null,
+                status: input.status,
+                tenant,
+                to: financeReceiptSubmitterEmail(receiptRecord),
+              });
+
+              return updatedRows;
+            }),
           )
-          .returning({
-            id: financeReceipts.id,
-            status: financeReceipts.status,
-          }),
+          .pipe(Effect.orDie),
       );
       const updated = updatedReceipts[0];
       if (!updated) {

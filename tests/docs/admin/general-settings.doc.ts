@@ -36,8 +36,9 @@ Tenant admins can manage the settings that are currently implemented for the act
 
 The current general settings page supports:
 
-- A **Deferred settings** summary that makes custom-domain automation, email sender, review policy, registration limit, and Stripe account management gaps visible in the app instead of hiding them in docs only.
+- A **Deferred settings** summary that keeps custom-domain automation visible as a deferred scope item.
 - A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state.
+- **Operations settings** for tenant email reply-to name/email, Stripe account id, and the tenant-wide active registration limit. Event review remains a simple capability policy: users with **events:review** can review events.
 - **Default Location** for event location search bias.
 - **Site theme** for the tenant theme.
 - **Currency**, **Locale**, and **Timezone** selection within the supported relaunch policy. These values can be changed before the tenant has event or payment data; after that, the server rejects changes unless a migration plan is handled outside this page.
@@ -55,7 +56,7 @@ Tax rates are managed on the separate **Tax Rates** page.
     body: `
 ## Relaunch scope notes
 
-One-domain-per-tenant remains the current relaunch scope in the application schema. The page now exposes the active primary domain for operator review, allows tenant admins to maintain supported currency, locale, timezone, uploaded or externally hosted logo/favicon assets, legal links, and hosted legal text, and keeps an in-app deferred-settings summary for custom domain verification, email sender name, review/publishing policy, registration limits, and Stripe account management. Currency, locale, and timezone changes are only accepted before event or payment data exists for the tenant. When one of those accepted changes is saved, Evorto reloads the app so bootstrap-level formatting defaults use the new tenant settings.
+One-domain-per-tenant remains the current relaunch scope in the application schema. The page now exposes the active primary domain for operator review, allows tenant admins to maintain supported currency, locale, timezone, email reply-to settings, Stripe account id, registration limits, uploaded or externally hosted logo/favicon assets, legal links, and hosted legal text, and keeps an in-app deferred-settings summary for custom domain verification. Currency, locale, and timezone changes are only accepted before event or payment data exists for the tenant. When one of those accepted changes is saved, Evorto reloads the app so bootstrap-level formatting defaults use the new tenant settings.
 `,
   });
 });

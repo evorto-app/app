@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@effect/vitest';
+import { describe, expect, it, vi } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
 
-import { Database } from '../../../../db';
+import { Database, type DatabaseClient } from '../../../../db';
 import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -12,6 +12,9 @@ const createHeaders = (permissions: readonly string[]) => ({
   [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
   [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson(permissions),
 });
+
+const provideDatabase = (database: object) =>
+  Layer.succeed(Database, database as DatabaseClient);
 
 describe('globalAdminHandlers', () => {
   it.effect(
@@ -30,9 +33,7 @@ describe('globalAdminHandlers', () => {
           'globalAdmin.tenants.findMany'
         ](undefined, {
           headers: createHeaders(['globalAdmin:manageTenants']),
-        } as never).pipe(
-          Effect.provide(Layer.succeed(Database, database as never)),
-        );
+        } as never).pipe(Effect.provide(provideDatabase(database)));
 
         expect(tenants).toEqual([]);
       }),
@@ -63,7 +64,7 @@ describe('globalAdminHandlers', () => {
       const tenants = yield* globalAdminHandlers[
         'globalAdmin.tenants.findMany'
       ](undefined, { headers: createHeaders(['globalAdmin:*']) } as never).pipe(
-        Effect.provide(Layer.succeed(Database, database as never)),
+        Effect.provide(provideDatabase(database)),
       );
 
       expect(tenants).toEqual([
@@ -111,7 +112,7 @@ describe('globalAdminHandlers', () => {
         {
           headers: createHeaders(['globalAdmin:manageTenants']),
         } as never,
-      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+      ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(tenant).toEqual({
         currency: 'EUR',
@@ -142,7 +143,7 @@ describe('globalAdminHandlers', () => {
         {
           headers: createHeaders(['globalAdmin:manageTenants']),
         } as never,
-      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+      ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(tenant).toBeNull();
     }),
@@ -165,7 +166,7 @@ describe('globalAdminHandlers', () => {
         ](undefined, {
           headers: createHeaders(['events:viewPublic']),
         } as never).pipe(
-          Effect.provide(Layer.succeed(Database, database as never)),
+          Effect.provide(provideDatabase(database)),
           Effect.flip,
         );
 
@@ -194,12 +195,90 @@ describe('globalAdminHandlers', () => {
             ]),
           },
         } as never,
-      ).pipe(
-        Effect.provide(Layer.succeed(Database, database as never)),
-        Effect.flip,
-      );
+      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcUnauthorizedError');
+    }),
+  );
+
+  it.effect('summarizes email outbox retry and exhaustion state', () =>
+    Effect.gen(function* () {
+      const now = new Date('2026-07-09T10:00:00.000Z');
+      const exhaustedAt = new Date('2026-07-09T09:00:00.000Z');
+      const selectResults = [
+        [
+          { status: 'failed', total: 2 },
+          { status: 'queued', total: 1 },
+        ],
+        [{ total: 1 }],
+        [{ total: 1 }],
+        [{ total: 1 }],
+        [
+          {
+            attempts: 8,
+            createdAt: now,
+            exhaustedAt,
+            id: 'email-1',
+            kind: 'receiptReviewed',
+            lastAttemptAt: exhaustedAt,
+            lastError: 'Resend email request failed: 400',
+            maxAttempts: 8,
+            nextAttemptAt: exhaustedAt,
+            recipient: 'member@example.org',
+            sentAt: null,
+            status: 'failed',
+            subject: 'Receipt rejected',
+            tenantDomain: 'section.example.org',
+            tenantId: 'tenant-1',
+            tenantName: 'Section',
+            updatedAt: exhaustedAt,
+          },
+        ],
+      ];
+      const select = vi.fn(() => {
+        const result = selectResults.shift();
+        if (!result) {
+          throw new Error('unexpected select');
+        }
+        return {
+          from: () => ({
+            groupBy: () => Effect.succeed(result),
+            innerJoin: () => ({
+              where: () => ({
+                orderBy: () => ({
+                  limit: () => Effect.succeed(result),
+                }),
+              }),
+            }),
+            where: () => Effect.succeed(result),
+          }),
+        };
+      });
+      const database = { select };
+
+      const overview = yield* globalAdminHandlers[
+        'globalAdmin.emailOutbox.findOverview'
+      ](undefined, {
+        headers: createHeaders(['globalAdmin:manageTenants']),
+      } as never).pipe(Effect.provide(provideDatabase(database)));
+
+      expect(overview.summary).toEqual({
+        exhausted: 1,
+        failed: 2,
+        queued: 1,
+        sending: 0,
+        sent: 0,
+        staleSending: 1,
+        waitingForRetry: 1,
+      });
+      expect(overview.items).toEqual([
+        expect.objectContaining({
+          exhaustedAt: '2026-07-09T09:00:00.000Z',
+          id: 'email-1',
+          lastError: 'Resend email request failed: 400',
+          status: 'failed',
+        }),
+      ]);
     }),
   );
 
@@ -221,10 +300,7 @@ describe('globalAdminHandlers', () => {
           {
             headers: createHeaders(['events:viewPublic']),
           } as never,
-        ).pipe(
-          Effect.provide(Layer.succeed(Database, database as never)),
-          Effect.flip,
-        );
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcForbiddenError');
         expect(error.permission).toBe('globalAdmin:manageTenants');
@@ -273,7 +349,7 @@ describe('globalAdminHandlers', () => {
           timezone: 'Europe/Prague',
         },
         { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+      ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(capturedInsert).toMatchObject({
         currency: 'CZK',
@@ -318,10 +394,7 @@ describe('globalAdminHandlers', () => {
             timezone: 'Europe/Berlin',
           },
           { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-        ).pipe(
-          Effect.provide(Layer.succeed(Database, database as never)),
-          Effect.flip,
-        );
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe('Tenant domain already exists');
@@ -373,7 +446,7 @@ describe('globalAdminHandlers', () => {
           timezone: 'Europe/Berlin',
         },
         { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+      ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(capturedUpdate).toMatchObject({
         domain: 'tenant.example.com',
@@ -410,10 +483,7 @@ describe('globalAdminHandlers', () => {
             timezone: 'Europe/Berlin',
           },
           { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-        ).pipe(
-          Effect.provide(Layer.succeed(Database, database as never)),
-          Effect.flip,
-        );
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe('Tenant domain already exists');
@@ -439,10 +509,7 @@ describe('globalAdminHandlers', () => {
           timezone: 'Europe/Berlin',
         },
         { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-      ).pipe(
-        Effect.provide(Layer.succeed(Database, database as never)),
-        Effect.flip,
-      );
+      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe('Invalid tenant settings');

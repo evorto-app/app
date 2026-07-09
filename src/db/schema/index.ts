@@ -1,3 +1,4 @@
+export * from './email-outbox';
 export * from './event-addons';
 export * from './event-instances';
 export * from './event-registration-addon-purchases';

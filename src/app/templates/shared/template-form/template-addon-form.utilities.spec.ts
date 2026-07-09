@@ -62,6 +62,24 @@ describe('template add-on form utilities', () => {
     );
   });
 
+  it('submits template add-ons as registration-time purchases only', () => {
+    expect(
+      toTemplateAddonSubmitData(
+        createTemplateAddonFormModel({
+          allowPurchaseBeforeEvent: true,
+          allowPurchaseDuringEvent: true,
+          allowPurchaseDuringRegistration: false,
+        }),
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        allowPurchaseBeforeEvent: false,
+        allowPurchaseDuringEvent: false,
+        allowPurchaseDuringRegistration: true,
+      }),
+    );
+  });
+
   it('keeps paid add-ons without tax rates visible to validation/server checks', () => {
     expect(
       toTemplateAddonSubmitData(
@@ -89,6 +107,9 @@ describe('template add-on form utilities', () => {
       }),
     ).toEqual(
       expect.objectContaining({
+        allowPurchaseBeforeEvent: false,
+        allowPurchaseDuringEvent: false,
+        allowPurchaseDuringRegistration: true,
         quantity: 1,
         registrationOptionKind: 'participant',
         stripeTaxRateId: 'txr_vat_19',

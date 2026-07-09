@@ -156,6 +156,9 @@ const normalizeTenantBrandAssets = (input: {
   logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, 'logoUrl'),
 });
 
+const normalizeMaxActiveRegistrationsPerUser = (value: number): number =>
+  Math.max(0, Math.trunc(value));
+
 const localeMoneySettingsChanged = (
   tenant: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
   input: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
@@ -678,14 +681,20 @@ export const adminHandlers = {
         currency: input.currency,
         defaultLocation: input.defaultLocation,
         discountProviders,
+        emailSenderEmail: input.emailSenderEmail?.trim() || null,
+        emailSenderName: input.emailSenderName?.trim() || null,
         ...legalLinks,
         locale: input.locale,
+        maxActiveRegistrationsPerUser: normalizeMaxActiveRegistrationsPerUser(
+          input.maxActiveRegistrationsPerUser,
+        ),
         receiptSettings: resolveTenantReceiptSettings({
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
         }),
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
+        stripeAccountId: input.stripeAccountId?.trim() || null,
         theme: input.theme,
         timezone: input.timezone,
       };
@@ -704,14 +713,20 @@ export const adminHandlers = {
         currency: input.currency,
         defaultLocation: input.defaultLocation,
         discountProviders,
+        emailSenderEmail: input.emailSenderEmail?.trim() || null,
+        emailSenderName: input.emailSenderName?.trim() || null,
         ...legalLinks,
         locale: input.locale,
+        maxActiveRegistrationsPerUser: normalizeMaxActiveRegistrationsPerUser(
+          input.maxActiveRegistrationsPerUser,
+        ),
         receiptSettings: resolveTenantReceiptSettings({
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
         }),
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
+        stripeAccountId: input.stripeAccountId?.trim() || null,
         theme: input.theme,
         timezone: input.timezone,
       };

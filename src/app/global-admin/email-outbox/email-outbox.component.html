@@ -1,0 +1,163 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <h1 class="title-large">Email outbox</h1>
+  <div class="grow"></div>
+  <button
+    mat-button
+    type="button"
+    [disabled]="outboxQuery.isRefetching()"
+    (click)="outboxQuery.refetch()"
+  >
+    <fa-duotone-icon [icon]="faArrowRotateRight" class="mr-2" />
+    Refresh
+  </button>
+</div>
+
+@if (outboxQuery.isPending()) {
+  <div
+    class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-lg p-4"
+  >
+    <h2 class="title-medium">Loading ...</h2>
+  </div>
+} @else if (outboxQuery.isError()) {
+  <div class="bg-error text-on-error rounded-lg p-4">
+    <h2 class="title-medium mb-4">There was an error</h2>
+    <p class="body-medium">
+      Error:
+      {{ getErrorMessage(outboxQuery.error(), "Failed to load email outbox") }}
+    </p>
+  </div>
+} @else if (outboxQuery.isSuccess()) {
+  @let overview = outboxQuery.data();
+  @let summary = overview.summary;
+
+  <section class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="bg-surface text-on-surface rounded-lg p-4">
+      <p class="text-on-surface-variant text-xs uppercase">Queued</p>
+      <p class="headline-small">{{ summary.queued }}</p>
+    </div>
+    <div class="bg-surface text-on-surface rounded-lg p-4">
+      <p class="text-on-surface-variant text-xs uppercase">Sending</p>
+      <p class="headline-small">{{ summary.sending }}</p>
+    </div>
+    <div class="bg-surface text-on-surface rounded-lg p-4">
+      <p class="text-on-surface-variant text-xs uppercase">Failed</p>
+      <p class="headline-small">{{ summary.failed }}</p>
+    </div>
+    <div class="bg-surface text-on-surface rounded-lg p-4">
+      <p class="text-on-surface-variant text-xs uppercase">Sent</p>
+      <p class="headline-small">{{ summary.sent }}</p>
+    </div>
+  </section>
+
+  @if (
+    summary.failed > 0 || summary.staleSending > 0 || summary.exhausted > 0
+  ) {
+    <div class="bg-error-container text-on-error-container mb-4 rounded-lg p-4">
+      <div class="flex items-center gap-3">
+        <fa-duotone-icon [icon]="faCircleExclamation" size="lg" />
+        <div>
+          <h2 class="title-medium">Email delivery needs attention</h2>
+          <p class="body-medium">
+            {{ summary.failed }} failed, {{ summary.exhausted }} exhausted,
+            {{ summary.staleSending }} stuck in sending.
+          </p>
+        </div>
+      </div>
+    </div>
+  } @else if (summary.waitingForRetry > 0) {
+    <div
+      class="bg-secondary-container text-on-secondary-container mb-4 rounded-lg p-4"
+    >
+      <h2 class="title-medium">Retry backlog</h2>
+      <p class="body-medium">
+        {{ summary.waitingForRetry }} queued or failed emails are due for retry.
+      </p>
+    </div>
+  } @else {
+    <div
+      class="bg-primary-container text-on-primary-container mb-4 rounded-lg p-4"
+    >
+      <div class="flex items-center gap-3">
+        <fa-duotone-icon [icon]="faCheckCircle" size="lg" />
+        <div>
+          <h2 class="title-medium">No outbox issues</h2>
+          <p class="body-medium">There are no failed or stuck emails.</p>
+        </div>
+      </div>
+    </div>
+  }
+
+  <section class="grid gap-3">
+    <h2 class="title-medium">Rows needing delivery</h2>
+    @for (item of overview.items; track item.id) {
+      <div class="bg-surface text-on-surface rounded-lg p-4">
+        <div class="flex flex-wrap items-start gap-3">
+          <div>
+            <h3 class="title-small">{{ item.subject }}</h3>
+            <p class="text-on-surface-variant text-sm">
+              {{ kindLabel[item.kind] }} to {{ item.recipient }}
+            </p>
+          </div>
+          <div class="grow"></div>
+          <span
+            class="rounded px-2 py-1 text-xs"
+            [class.bg-error-container]="item.status === 'failed'"
+            [class.text-on-error-container]="item.status === 'failed'"
+            [class.bg-secondary-container]="item.status !== 'failed'"
+            [class.text-on-secondary-container]="item.status !== 'failed'"
+          >
+            {{ statusLabel[item.status] }}
+          </span>
+        </div>
+        <dl class="mt-3 grid gap-x-6 gap-y-2 text-sm md:grid-cols-2">
+          <div>
+            <dt class="text-on-surface-variant text-xs uppercase">Tenant</dt>
+            <dd>{{ item.tenantName }} ({{ item.tenantDomain }})</dd>
+          </div>
+          <div>
+            <dt class="text-on-surface-variant text-xs uppercase">Attempts</dt>
+            <dd>{{ item.attempts }}/{{ item.maxAttempts }}</dd>
+          </div>
+          <div>
+            <dt class="text-on-surface-variant text-xs uppercase">
+              Next attempt
+            </dt>
+            <dd>{{ item.nextAttemptAt | date: "medium" }}</dd>
+          </div>
+          <div>
+            <dt class="text-on-surface-variant text-xs uppercase">
+              Last attempt
+            </dt>
+            <dd>
+              {{
+                item.lastAttemptAt
+                  ? (item.lastAttemptAt | date: "medium")
+                  : "Not attempted"
+              }}
+            </dd>
+          </div>
+          @if (item.lastError) {
+            <div class="md:col-span-2">
+              <dt class="text-on-surface-variant text-xs uppercase">
+                Last error
+              </dt>
+              <dd class="break-words">{{ item.lastError }}</dd>
+            </div>
+          }
+          @if (item.exhaustedAt) {
+            <div>
+              <dt class="text-on-surface-variant text-xs uppercase">
+                Exhausted
+              </dt>
+              <dd>{{ item.exhaustedAt | date: "medium" }}</dd>
+            </div>
+          }
+        </dl>
+      </div>
+    } @empty {
+      <div class="bg-surface text-on-surface rounded-lg p-4">
+        <p class="body-medium">No queued, sending, or failed email rows.</p>
+      </div>
+    }
+  </section>
+}

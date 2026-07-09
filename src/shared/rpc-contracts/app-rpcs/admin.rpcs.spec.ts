@@ -11,17 +11,21 @@ const currentTenantSettingsInput = {
   buyEsnCardUrl: 'https://esncard.org/',
   currency: 'EUR' as const,
   defaultLocation: null,
+  emailSenderEmail: 'events@section.example.org',
+  emailSenderName: 'Example Section',
   esnCardEnabled: true,
   faviconUrl: 'https://cdn.example.org/favicon.ico',
   legalNoticeText: 'Tenant imprint text',
   legalNoticeUrl: 'https://section.example.org/imprint',
   locale: 'en-GB' as const,
   logoUrl: 'https://cdn.example.org/logo.svg',
+  maxActiveRegistrationsPerUser: 4,
   privacyPolicyText: 'Tenant privacy text',
   privacyPolicyUrl: 'https://section.example.org/privacy',
   receiptCountries: ['DE', 'NL'],
   seoDescription: 'Public tenant description',
   seoTitle: 'Public tenant title',
+  stripeAccountId: 'acct_123',
   termsText: 'Tenant terms text',
   termsUrl: 'https://section.example.org/terms',
   theme: 'esn' as const,
@@ -67,11 +71,28 @@ describe('AdminTenantUpdateSettingsInput', () => {
     ).toThrow();
   });
 
-  it('keeps deferred domain fields outside the current update payload', () => {
+  it('rejects invalid sender email settings', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        emailSenderEmail: 'not-an-email-address',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects negative active-registration limits', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        maxActiveRegistrationsPerUser: -1,
+      }),
+    ).toThrow();
+  });
+
+  it('keeps deferred custom-domain fields outside the current update payload', () => {
     const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
       ...currentTenantSettingsInput,
       customDomain: 'section.example.org',
-      senderName: 'Example Section',
     });
 
     expect(decoded).toEqual(currentTenantSettingsInput);

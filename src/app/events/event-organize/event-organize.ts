@@ -1,3 +1,5 @@
+import type { EventsRegistrationStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+
 import { DatePipe, DecimalPipe, PercentPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -82,7 +84,10 @@ export interface EventOrganizeParticipant {
   email: string;
   firstName: string;
   lastName: string;
+  manualApprovalAvailable: boolean;
+  paymentPending: boolean;
   registrationId: string;
+  status: EventsRegistrationStatus;
   transferAvailable: boolean;
 }
 
@@ -103,6 +108,14 @@ export const organizerRegistrationTransferDisabled = ({
   mutationPending: boolean;
   transferAvailable: boolean;
 }): boolean => checkedIn || mutationPending || !transferAvailable;
+
+export const organizerRegistrationApprovalDisabled = ({
+  manualApprovalAvailable,
+  mutationPending,
+}: {
+  manualApprovalAvailable: boolean;
+  mutationPending: boolean;
+}): boolean => mutationPending || !manualApprovalAvailable;
 
 export const receiptSubmissionActionDisabled = ({
   submissionUnavailable,
@@ -132,6 +145,9 @@ export class EventOrganize {
   eventId = input.required<string>();
 
   private readonly rpc = AppRpc.injectClient();
+  protected readonly approveRegistrationMutation = injectMutation(() =>
+    this.rpc.events.approveRegistration.mutationOptions(),
+  );
   protected readonly cancelRegistrationMutation = injectMutation(() =>
     this.rpc.events.cancelEventRegistration.mutationOptions(),
   );
@@ -147,6 +163,8 @@ export class EventOrganize {
   );
   protected readonly organizerRegistrationActionDisabled =
     organizerRegistrationActionDisabled;
+  protected readonly organizerRegistrationApprovalDisabled =
+    organizerRegistrationApprovalDisabled;
   protected readonly organizerRegistrationTransferDisabled =
     organizerRegistrationTransferDisabled;
   protected readonly organizerTableColumns = signal([
@@ -213,6 +231,52 @@ export class EventOrganize {
     });
   }
 
+  protected approveRegistration(
+    registration: Pick<
+      EventOrganizeParticipant,
+      'manualApprovalAvailable' | 'registrationId'
+    >,
+  ) {
+    if (
+      organizerRegistrationApprovalDisabled({
+        manualApprovalAvailable: registration.manualApprovalAvailable,
+        mutationPending:
+          this.approveRegistrationMutation.isPending() ||
+          this.cancelRegistrationMutation.isPending() ||
+          this.transferRegistrationMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
+    this.approveRegistrationMutation.mutate(
+      {
+        eventId: this.eventId(),
+        registrationId: registration.registrationId,
+      },
+      {
+        onError: (error) => {
+          this.notifications.showError(
+            getErrorMessage(error, 'Failed to approve registration'),
+          );
+        },
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.getOrganizeOverview.queryKey({
+              eventId: this.eventId(),
+            }),
+          });
+          await this.queryClient.invalidateQueries({
+            queryKey: this.rpc.events.findOne.queryKey({
+              id: this.eventId(),
+            }),
+          });
+          this.notifications.showSuccess('Registration approved');
+        },
+      },
+    );
+  }
+
   protected cancelRegistration(
     registration: Pick<
       EventOrganizeParticipant,
@@ -223,6 +287,7 @@ export class EventOrganize {
       organizerRegistrationActionDisabled({
         checkedIn: registration.checkedIn,
         mutationPending:
+          this.approveRegistrationMutation.isPending() ||
           this.cancelRegistrationMutation.isPending() ||
           this.transferRegistrationMutation.isPending(),
       })
@@ -340,6 +405,7 @@ export class EventOrganize {
       organizerRegistrationTransferDisabled({
         checkedIn: registration.checkedIn,
         mutationPending:
+          this.approveRegistrationMutation.isPending() ||
           this.transferRegistrationMutation.isPending() ||
           this.cancelRegistrationMutation.isPending(),
         transferAvailable: registration.transferAvailable,

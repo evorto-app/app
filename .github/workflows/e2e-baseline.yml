@@ -38,6 +38,7 @@ jobs:
       CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
       ISSUER_BASE_URL: ${{ vars.ISSUER_BASE_URL }}
       SECRET: ${{ secrets.SECRET }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 're_test_ci_e2e_no_delivery' }}
       AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
       AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -97,6 +98,10 @@ jobs:
           fi
           if [ -z "${SECRET}" ]; then
             echo "::error::Missing required secret: SECRET"
+            exit 1
+          fi
+          if [ -z "${RESEND_API_KEY}" ]; then
+            echo "::error::Missing required secret: RESEND_API_KEY"
             exit 1
           fi
 

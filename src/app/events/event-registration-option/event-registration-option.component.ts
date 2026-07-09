@@ -71,26 +71,42 @@ export interface EventRegistrationOptionView {
 export type RegistrationAvailability = 'open' | 'tooEarly' | 'tooLate';
 
 export const registrationOptionAudienceCopy = (
-  option: Pick<EventRegistrationOptionView, 'organizingRegistration'>,
+  option: Pick<
+    EventRegistrationOptionView,
+    'organizingRegistration' | 'registrationMode'
+  >,
 ): {
   actionSuffix: string;
   helperText: string;
   label: string;
   primaryAction: string;
-} =>
-  option.organizingRegistration
-    ? {
-        actionSuffix: 'sign up as organizer/helper',
-        helperText: 'Use this option when you are helping run the event.',
-        label: 'Organizer/helper option',
-        primaryAction: 'Sign up as organizer/helper',
-      }
-    : {
-        actionSuffix: 'register',
-        helperText: 'Use this option when you are attending the event.',
-        label: 'Participant option',
-        primaryAction: 'Register',
-      };
+} => {
+  if (option.organizingRegistration) {
+    return {
+      actionSuffix: 'sign up as organizer/helper',
+      helperText: 'Use this option when you are helping run the event.',
+      label: 'Organizer/helper option',
+      primaryAction: 'Sign up as organizer/helper',
+    };
+  }
+
+  if (option.registrationMode === 'application') {
+    return {
+      actionSuffix: 'apply',
+      helperText:
+        'Use this option when you are attending the event. Organizers approve applications before spots are confirmed.',
+      label: 'Manual approval option',
+      primaryAction: 'Apply for approval',
+    };
+  }
+
+  return {
+    actionSuffix: 'register',
+    helperText: 'Use this option when you are attending the event.',
+    label: 'Participant option',
+    primaryAction: 'Register',
+  };
+};
 
 export const registrationOptionIsFull = (
   option: Pick<
@@ -264,7 +280,11 @@ export class EventRegistrationOptionComponent {
     registrationOptionAvailableSpots(this.registrationOption()),
   );
   protected readonly full = computed(() => {
-    return registrationOptionIsFull(this.registrationOption());
+    const option = this.registrationOption();
+    return (
+      option.registrationMode !== 'application' &&
+      registrationOptionIsFull(option)
+    );
   });
   protected readonly guestCount = signal(0);
   protected readonly maxGuestCount = computed(() =>
@@ -282,6 +302,30 @@ export class EventRegistrationOptionComponent {
     () =>
       this.registrationMutation.isPending() ||
       this.waitlistMutation.isPending(),
+  );
+  private readonly addonSelections = signal<Record<string, number>>({});
+  protected readonly selectedAddonTotalPrice = computed(() =>
+    registrationAddonSelectedTotalPrice(
+      this.addOns(),
+      this.addonSelections(),
+      this.registrationOption().id,
+    ),
+  );
+  protected readonly selectedGuestCount = computed(() =>
+    Math.min(this.guestCount(), this.maxGuestCount()),
+  );
+  protected readonly selectedTotalPrice = computed(() => {
+    return (
+      registrationOptionSelectedTotalPrice(
+        this.registrationOption(),
+        this.selectedGuestCount(),
+      ) + this.selectedAddonTotalPrice()
+    );
+  });
+  protected readonly paymentDueDuringRegistration = computed(
+    () =>
+      this.registrationOption().registrationMode !== 'application' &&
+      this.selectedTotalPrice() > 0,
   );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),
@@ -303,28 +347,9 @@ export class EventRegistrationOptionComponent {
       this.registrationQuestionAnswers(),
     ),
   );
-  private readonly addonSelections = signal<Record<string, number>>({});
-  protected readonly selectedAddonTotalPrice = computed(() =>
-    registrationAddonSelectedTotalPrice(
-      this.addOns(),
-      this.addonSelections(),
-      this.registrationOption().id,
-    ),
-  );
-  protected readonly selectedGuestCount = computed(() =>
-    Math.min(this.guestCount(), this.maxGuestCount()),
-  );
   protected readonly selectedSpotCount = computed(
     () => this.selectedGuestCount() + 1,
   );
-  protected readonly selectedTotalPrice = computed(() => {
-    return (
-      registrationOptionSelectedTotalPrice(
-        this.registrationOption(),
-        this.selectedGuestCount(),
-      ) + this.selectedAddonTotalPrice()
-    );
-  });
   protected readonly taxRateInfo = computed(() => {
     const option = this.registrationOption();
     return {

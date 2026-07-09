@@ -3,8 +3,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-// Source guard: unsupported registration modes may remain readable from data,
-// but authoring screens must not quietly advertise them before product support.
+// Source guard: unsupported random registration may remain readable from data,
+// but authoring screens should only expose supported writable modes.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const readSource = (path: string): string =>
@@ -18,15 +18,12 @@ const authoringSurfaces = [
 ] as const;
 
 describe('registration mode source constraints', () => {
-  it('keeps event and template authoring limited to first-come-first-served', () => {
+  it('keeps event and template authoring limited to writable modes', () => {
     for (const path of authoringSurfaces) {
       const source = readSource(path);
 
       expect(source).toContain('registrationModes');
-      expect(source).toContain("['fcfs']");
-      expect(source).not.toContain("['application'");
       expect(source).not.toContain("['random'");
-      expect(source).not.toContain("'application', 'fcfs'");
       expect(source).not.toContain("'fcfs', 'random'");
     }
   });
@@ -37,10 +34,10 @@ describe('registration mode source constraints', () => {
       'src/app/templates/shared/template-form/template-registration-option-form.utilities.ts',
     );
 
-    expect(labelSource).toContain("application: 'Application review'");
-    expect(labelSource).toContain("random: 'Random allocation'");
+    expect(labelSource).toContain("application: 'Manual approval'");
+    expect(labelSource).toContain("random: 'Unsupported random allocation'");
+    expect(labelSource).toContain("'application'");
     expect(formSource).toContain("registrationMode: 'fcfs'");
-    expect(formSource).not.toContain("registrationMode: 'application'");
     expect(formSource).not.toContain("registrationMode: 'random'");
   });
 });

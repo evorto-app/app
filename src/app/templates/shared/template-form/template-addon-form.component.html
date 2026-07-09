@@ -80,19 +80,6 @@
       <mat-label>Max per user</mat-label>
       <input matInput type="number" [formField]="form.maxQuantityPerUser" />
     </mat-form-field>
-
-    <div class="grid gap-2">
-      <span class="text-on-surface-variant text-sm">Purchase timing</span>
-      <mat-slide-toggle [formField]="form.allowPurchaseDuringRegistration">
-        During registration
-      </mat-slide-toggle>
-      <mat-slide-toggle [formField]="form.allowPurchaseBeforeEvent">
-        Before event
-      </mat-slide-toggle>
-      <mat-slide-toggle [formField]="form.allowPurchaseDuringEvent">
-        During event
-      </mat-slide-toggle>
-    </div>
   </section>
 
   <mat-slide-toggle [formField]="form.allowMultiple">

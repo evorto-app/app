@@ -3,14 +3,14 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-// Source guard: the relaunch user-list is review-only, so assignment actions
-// should not reappear until product scope and tests are updated together.
+// Source guard: the relaunch user-list owns tenant-scoped role assignment for
+// existing users, so review-only copy should not reappear.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const readSource = (path: string): string =>
   readFileSync(join(repositoryRoot, path), 'utf8');
 
-describe('read-only tenant user list source', () => {
+describe('tenant user role assignment source', () => {
   it('keeps the user-list table scoped to review columns', () => {
     const source = readSource('src/app/admin/user-list/user-list.component.ts');
 
@@ -21,17 +21,18 @@ describe('read-only tenant user list source', () => {
     expect(source).not.toContain("'actions'");
   });
 
-  it('keeps existing-user role assignment visibly deferred in the UI', () => {
+  it('keeps existing-user role assignment visible in the UI', () => {
     const template = readSource(
       'src/app/admin/user-list/user-list.component.html',
     );
 
     expect(template).toContain(
-      'Existing-user role assignment is deferred for relaunch.',
+      'Manage tenant role assignments for existing users.',
     );
-    expect(template).toContain('This page is read-only');
+    expect(template).toContain('mat-select');
+    expect(template).toContain('Assigned roles');
     expect(template).toContain('Search users');
-    expect(template).not.toContain('Assign role');
+    expect(template).not.toContain('This page is read-only');
     expect(template).not.toContain('Edit user');
     expect(template).not.toContain('mat-checkbox');
   });
@@ -45,19 +46,19 @@ describe('read-only tenant user list source', () => {
     expect(source).toContain('eq(roles.tenantId, tenant.id)');
   });
 
-  it('keeps generated roles docs aligned with the read-only relaunch surface', () => {
+  it('keeps generated roles docs aligned with the role-assignment relaunch surface', () => {
     const source = readSource('tests/docs/roles/roles.doc.ts');
 
     expect(source).toContain(
-      'The **All users** page is read-only in the relaunch surface.',
+      'The **All users** page supports searching tenant users by name or email',
     );
     expect(source).toContain(
-      'The **users:assignRoles** permission remains reserved for the production migration path and future role-assignment workflows.',
+      'exposes tenant-scoped role assignment controls for existing users',
     );
     expect(source).toContain(
-      'Assigning roles to existing users is explicitly deferred for relaunch.',
+      'Assigning roles to existing users happens from the **All users** page and is guarded by **users:assignRoles**.',
     );
-    expect(source).not.toContain('Assign role to user');
+    expect(source).not.toContain('existing-user role assignment is deferred');
     expect(source).not.toContain('Edit user roles');
   });
 });

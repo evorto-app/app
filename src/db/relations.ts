@@ -3,6 +3,13 @@ import { defineRelations } from 'drizzle-orm';
 import * as schema from './schema';
 
 export const relations = defineRelations(schema, (r) => ({
+  emailOutbox: {
+    tenant: r.one.tenants({
+      from: r.emailOutbox.tenantId,
+      optional: false,
+      to: r.tenants.id,
+    }),
+  },
   eventAddons: {
     event: r.one.eventInstances({
       from: r.eventAddons.eventId,
@@ -246,6 +253,7 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   tenants: {
+    emailOutbox: r.many.emailOutbox(),
     eventRegistrations: r.many.eventRegistrations(),
     events: r.many.eventInstances(),
     financeReceipts: r.many.financeReceipts(),

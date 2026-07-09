@@ -76,6 +76,19 @@
                         Checked in
                       </span>
                     }
+                    @if (user.manualApprovalAvailable) {
+                      <span
+                        class="bg-tertiary-container text-on-tertiary-container rounded px-2 py-1 text-xs"
+                      >
+                        Awaiting approval
+                      </span>
+                    } @else if (user.paymentPending) {
+                      <span
+                        class="bg-secondary-container text-on-secondary-container rounded px-2 py-1 text-xs"
+                      >
+                        Payment pending
+                      </span>
+                    }
                   </div>
                   @if (user.addonPurchases.length > 0) {
                     <p class="body-small text-on-surface-variant">
@@ -94,6 +107,25 @@
                 </div>
                 @if (!registrationOption.organizingRegistration) {
                   <div class="flex flex-wrap gap-2">
+                    @if (user.status === "PENDING") {
+                      <button
+                        mat-flat-button
+                        type="button"
+                        (click)="approveRegistration(user)"
+                        [disabled]="
+                          organizerRegistrationApprovalDisabled({
+                            manualApprovalAvailable:
+                              user.manualApprovalAvailable,
+                            mutationPending:
+                              approveRegistrationMutation.isPending() ||
+                              transferRegistrationMutation.isPending() ||
+                              cancelRegistrationMutation.isPending(),
+                          })
+                        "
+                      >
+                        Approve registration
+                      </button>
+                    }
                     <button
                       mat-stroked-button
                       type="button"
@@ -102,6 +134,7 @@
                         organizerRegistrationTransferDisabled({
                           checkedIn: user.checkedIn,
                           mutationPending:
+                            approveRegistrationMutation.isPending() ||
                             transferRegistrationMutation.isPending() ||
                             cancelRegistrationMutation.isPending(),
                           transferAvailable: user.transferAvailable,
@@ -122,6 +155,7 @@
                         organizerRegistrationActionDisabled({
                           checkedIn: user.checkedIn,
                           mutationPending:
+                            approveRegistrationMutation.isPending() ||
                             cancelRegistrationMutation.isPending() ||
                             transferRegistrationMutation.isPending(),
                         })

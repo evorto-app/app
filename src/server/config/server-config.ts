@@ -7,7 +7,7 @@ import {
   Schema,
 } from 'effect';
 
-import { optionalTrimmedString } from './config-string';
+import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
 const serverLogLevelNames = [
   'all',
@@ -35,6 +35,7 @@ const publicGoogleMapsApiKeyConfig = optionalTrimmedString(
   'PUBLIC_GOOGLE_MAPS_API_KEY',
 );
 const publicSentryDsnConfig = optionalTrimmedString('PUBLIC_SENTRY_DSN');
+const resendApiKeyConfig = nonEmptyTrimmedString('RESEND_API_KEY');
 
 const serverLogLevelName = Schema.Literals(serverLogLevelNames);
 const serverLogLevelByName = {
@@ -96,6 +97,10 @@ export const serverTelemetryConfig = Config.all({
   PACKAGE_VERSION: packageVersionConfig,
 });
 
+export const serverEmailConfig = Config.all({
+  RESEND_API_KEY: resendApiKeyConfig,
+});
+
 export const serverConfig = Config.all({
   ACTIONS_STEP_DEBUG: actionsStepDebugConfig,
   BASE_URL: baseUrlConfig,
@@ -106,8 +111,10 @@ export const serverConfig = Config.all({
   PORT: portConfig,
   PUBLIC_GOOGLE_MAPS_API_KEY: publicGoogleMapsApiKeyConfig,
   PUBLIC_SENTRY_DSN: publicSentryDsnConfig,
+  RESEND_API_KEY: resendApiKeyConfig,
   SERVER_LOG_LEVEL: serverLogLevelConfig,
 });
 
 export type ServerConfig = Config.Success<typeof serverConfig>;
+export type ServerEmailConfig = Config.Success<typeof serverEmailConfig>;
 export type ServerLoggingConfig = Config.Success<typeof serverLoggingConfig>;

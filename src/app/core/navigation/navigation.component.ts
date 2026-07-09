@@ -1,3 +1,5 @@
+import type { Permission } from '@shared/permissions/permissions';
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -27,6 +29,7 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
+import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
 import { AppRpc } from '../effect-rpc-angular-client';
 
@@ -38,6 +41,7 @@ import { AppRpc } from '../effect-rpc-angular-client';
     RouterLinkActive,
     MatBottomSheetModule,
     IfPermissionDirective,
+    IfAnyPermissionDirective,
     MatButtonModule,
   ],
   selector: 'app-navigation',
@@ -45,6 +49,13 @@ import { AppRpc } from '../effect-rpc-angular-client';
   templateUrl: './navigation.component.html',
 })
 export class NavigationComponent {
+  protected readonly adminNavigationPermissions: Permission[] = [
+    'admin:manageRoles',
+    'admin:changeSettings',
+    'admin:tax',
+    'users:viewAll',
+    'events:review',
+  ];
   private readonly rpc = AppRpc.injectClient();
   protected readonly authenticationQuery = injectQuery(() =>
     this.rpc.config.isAuthenticated.queryOptions(),
@@ -60,6 +71,9 @@ export class NavigationComponent {
   protected readonly faRightToBracket = faRightToBracket;
   protected readonly faScannerGun = faScannerGun;
   protected readonly faUser = faUser;
+  protected readonly scannerAccessQuery = injectQuery(() =>
+    this.rpc.users.canUseScanner.queryOptions(),
+  );
   protected readonly sheetTemplate =
     viewChild<TemplateRef<unknown>>('navigationSheet');
 

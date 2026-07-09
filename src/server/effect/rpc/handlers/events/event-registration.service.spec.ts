@@ -3,7 +3,7 @@ import { ConfigProvider, Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import Stripe from 'stripe';
 
-import { Database } from '../../../../../db';
+import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventAddons,
   eventRegistrationAddonPurchases,
@@ -28,6 +28,7 @@ const configProviderLayer = ConfigProvider.layer(
       ['DATABASE_URL', 'postgresql://db.example/app'],
       ['E2E_NOW_ISO', '2026-09-15T12:00:00.000Z'],
       ['ISSUER_BASE_URL', 'https://issuer.example'],
+      ['RESEND_API_KEY', 're_test_123'],
       ['SECRET', 'secret'],
     ]),
   }),
@@ -266,7 +267,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -312,7 +315,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -379,7 +384,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -427,7 +432,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -469,7 +476,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -520,7 +527,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -567,7 +574,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -654,7 +661,9 @@ describe('EventRegistrationService', () => {
           },
         }).pipe(
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -705,7 +714,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -751,7 +760,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -801,18 +810,190 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
 
       const error = yield* program;
       expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe(
-        'Registration option mode is not available yet',
-      );
+      expect(error.message).toBe('Registration option mode is not supported');
       expect(updateOptionCounters).not.toHaveBeenCalled();
     }),
+  );
+
+  it.effect(
+    'creates manual approval applications without reserving capacity',
+    () =>
+      Effect.gen(function* () {
+        let insertedRegistration: unknown;
+        const updateOptionCounters = vi.fn();
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () =>
+                Effect.succeed({
+                  ...approvedRegistrationOption,
+                  confirmedSpots: 10,
+                  registrationMode: 'application',
+                  reservedSpots: 0,
+                }),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+          transaction: (
+            callback: (tx: {
+              insert: (table: unknown) => {
+                values: (value: unknown) => {
+                  returning: () => Effect.Effect<{ id: string }[]>;
+                };
+              };
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.Effect<[]>;
+                };
+              };
+              update: ReturnType<typeof vi.fn>;
+            }) => Effect.Effect<unknown>,
+          ) =>
+            callback({
+              insert: (table) => ({
+                values: (value) => {
+                  if (table === eventRegistrations) {
+                    insertedRegistration = value;
+                  }
+                  return {
+                    returning: () => Effect.succeed([{ id: 'registration-1' }]),
+                  };
+                },
+              }),
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.succeed([]),
+                },
+              },
+              update: updateOptionCounters,
+            }),
+        };
+
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 0,
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        yield* program;
+        expect(insertedRegistration).toEqual(
+          expect.objectContaining({
+            status: 'PENDING',
+          }),
+        );
+        expect(updateOptionCounters).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'rejects new registrations when the tenant active registration limit is reached',
+    () =>
+      Effect.gen(function* () {
+        const updateOptionCounters = vi.fn();
+        const selectActiveFutureRegistrations = vi.fn(() => ({
+          from: () => ({
+            innerJoin: () => ({
+              where: () => ({
+                limit: () =>
+                  Effect.succeed([
+                    {
+                      id: 'active-registration-1',
+                    },
+                  ]),
+              }),
+            }),
+          }),
+        }));
+        const mockDatabase = {
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () => Effect.succeed(approvedRegistrationOption),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+          },
+          transaction: (
+            callback: (tx: {
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.Effect<[]>;
+                };
+              };
+              select: typeof selectActiveFutureRegistrations;
+              update: ReturnType<typeof vi.fn>;
+            }) => Effect.Effect<unknown>,
+          ) =>
+            callback({
+              query: {
+                eventRegistrations: {
+                  findMany: () => Effect.succeed([]),
+                },
+              },
+              select: selectActiveFutureRegistrations,
+              update: updateOptionCounters,
+            }),
+        };
+
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 0,
+          headers: Headers.empty,
+          registrationOptionId: 'option-1',
+          tenant: {
+            currency: 'EUR',
+            id: 'tenant-1',
+            maxActiveRegistrationsPerUser: 1,
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        const error = yield* program;
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe('Active registration limit reached');
+        expect(selectActiveFutureRegistrations).toHaveBeenCalled();
+        expect(updateOptionCounters).not.toHaveBeenCalled();
+      }),
   );
 
   it.effect(
@@ -868,7 +1049,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -951,7 +1134,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -1072,7 +1257,9 @@ describe('EventRegistrationService', () => {
           },
         }).pipe(
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -1204,7 +1391,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -1291,7 +1480,7 @@ describe('EventRegistrationService', () => {
         },
       }).pipe(
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provide(configProviderLayer),
       );
 
@@ -1330,7 +1519,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provide(configProviderLayer),
       );
 
@@ -1373,7 +1562,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provide(configProviderLayer),
       );
 

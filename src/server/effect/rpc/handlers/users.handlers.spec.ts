@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
 
-import { Database } from '../../../../db';
+import { Database, type DatabaseClient } from '../../../../db';
 import {
   rolesToTenantUsers,
   users,
@@ -63,6 +63,24 @@ const createCreateAccountHeaders = (
   [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
 });
 
+const createUserHandlerHeaders = ({
+  permissions = [],
+  tenant = createTenant(),
+  user = createUser(),
+}: {
+  permissions?: string[];
+  tenant?: ReturnType<typeof createTenant>;
+  user?: ReturnType<typeof createUser>;
+} = {}) => ({
+  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson(permissions),
+  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
+  [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson({
+    ...user,
+    permissions,
+  }),
+});
+
 const returningInsert = <A>(result: A) => ({
   onConflictDoNothing: () => ({
     returning: () => Effect.succeed(result),
@@ -78,6 +96,315 @@ describe('userHandlers', () => {
       '%alice@example.com%',
     );
   });
+
+  it.effect('assignRoles requires users:assignRoles permission', () =>
+    Effect.gen(function* () {
+      const error = yield* userHandlers['users.assignRoles'](
+        {
+          roleIds: ['role-1'],
+          userId: 'user-2',
+        },
+        { headers: createUserHandlerHeaders() } as never,
+      ).pipe(Effect.flip);
+
+      expect(error['_tag']).toBe('RpcForbiddenError');
+    }),
+  );
+
+  it.effect('assignRoles rejects users outside the current tenant', () =>
+    Effect.gen(function* () {
+      const database = {
+        transaction: (
+          callback: (tx: {
+            query: {
+              usersToTenants: {
+                findFirst: () => Effect.Effect<null>;
+              };
+            };
+          }) => Effect.Effect<unknown>,
+        ) =>
+          callback({
+            query: {
+              usersToTenants: {
+                findFirst: () => Effect.succeed(null),
+              },
+            },
+          }),
+      };
+
+      const error = yield* userHandlers['users.assignRoles'](
+        {
+          roleIds: ['role-1'],
+          userId: 'user-2',
+        },
+        {
+          headers: createUserHandlerHeaders({
+            permissions: ['users:assignRoles'],
+          }),
+        } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+      );
+
+      expect(error['_tag']).toBe('UserRoleAssignmentNotFoundError');
+      expect(error.message).toBe('Tenant user not found');
+    }),
+  );
+
+  it.effect('assignRoles rejects roles outside the current tenant', () =>
+    Effect.gen(function* () {
+      const database = {
+        transaction: (
+          callback: (tx: {
+            query: {
+              roles: {
+                findMany: () => Effect.Effect<{ id: string }[]>;
+              };
+              usersToTenants: {
+                findFirst: () => Effect.Effect<{ id: string }>;
+              };
+            };
+          }) => Effect.Effect<unknown>,
+        ) =>
+          callback({
+            query: {
+              roles: {
+                findMany: () => Effect.succeed([{ id: 'role-1' }]),
+              },
+              usersToTenants: {
+                findFirst: () => Effect.succeed({ id: 'membership-2' }),
+              },
+            },
+          }),
+      };
+
+      const error = yield* userHandlers['users.assignRoles'](
+        {
+          roleIds: ['role-1', 'role-missing'],
+          userId: 'user-2',
+        },
+        {
+          headers: createUserHandlerHeaders({
+            permissions: ['users:assignRoles'],
+          }),
+        } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+      );
+
+      expect(error['_tag']).toBe('UserRoleAssignmentNotFoundError');
+      expect(error.message).toBe('One or more roles were not found');
+    }),
+  );
+
+  it.effect(
+    'assignRoles prevents removing all of the current users own roles',
+    () =>
+      Effect.gen(function* () {
+        const deleteRoles = vi.fn(() => ({
+          where: () => Effect.void,
+        }));
+        const database = {
+          transaction: (
+            callback: (tx: {
+              delete: typeof deleteRoles;
+              query: {
+                usersToTenants: {
+                  findFirst: () => Effect.Effect<{ id: string }>;
+                };
+              };
+            }) => Effect.Effect<unknown>,
+          ) =>
+            callback({
+              delete: deleteRoles,
+              query: {
+                usersToTenants: {
+                  findFirst: () => Effect.succeed({ id: 'membership-1' }),
+                },
+              },
+            }),
+        };
+
+        const error = yield* userHandlers['users.assignRoles'](
+          {
+            roleIds: [],
+            userId: 'user-1',
+          },
+          {
+            headers: createUserHandlerHeaders({
+              permissions: ['users:assignRoles'],
+            }),
+          } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        );
+
+        expect(error['_tag']).toBe('UserSelfRoleRemovalError');
+        expect(error.message).toBe('You cannot remove all of your own roles');
+        expect(deleteRoles).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'assignRoles replaces tenant role assignments transactionally',
+    () =>
+      Effect.gen(function* () {
+        const deleteWhere = vi.fn(() => Effect.void);
+        const insertValues = vi.fn(() => Effect.void);
+        const database = {
+          transaction: (
+            callback: (tx: {
+              delete: (table: unknown) => {
+                where: typeof deleteWhere;
+              };
+              insert: (table: unknown) => {
+                values: typeof insertValues;
+              };
+              query: {
+                roles: {
+                  findMany: () => Effect.Effect<{ id: string }[]>;
+                };
+                usersToTenants: {
+                  findFirst: () => Effect.Effect<{ id: string }>;
+                };
+              };
+            }) => Effect.Effect<unknown>,
+          ) =>
+            callback({
+              delete: (table) => {
+                expect(table).toBe(rolesToTenantUsers);
+                return { where: deleteWhere };
+              },
+              insert: (table) => {
+                expect(table).toBe(rolesToTenantUsers);
+                return { values: insertValues };
+              },
+              query: {
+                roles: {
+                  findMany: () =>
+                    Effect.succeed([{ id: 'role-1' }, { id: 'role-2' }]),
+                },
+                usersToTenants: {
+                  findFirst: () => Effect.succeed({ id: 'membership-2' }),
+                },
+              },
+            }),
+        };
+
+        yield* userHandlers['users.assignRoles'](
+          {
+            roleIds: ['role-1', 'role-2', 'role-1'],
+            userId: 'user-2',
+          },
+          {
+            headers: createUserHandlerHeaders({
+              permissions: ['users:assignRoles'],
+            }),
+          } as never,
+        ).pipe(
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        );
+
+        expect(deleteWhere).toHaveBeenCalledOnce();
+        expect(insertValues).toHaveBeenCalledWith([
+          {
+            roleId: 'role-1',
+            userTenantId: 'membership-2',
+          },
+          {
+            roleId: 'role-2',
+            userTenantId: 'membership-2',
+          },
+        ]);
+      }),
+  );
+
+  it.effect('canUseScanner returns false for anonymous users', () =>
+    Effect.gen(function* () {
+      const result = yield* userHandlers['users.canUseScanner'](undefined, {
+        headers: {},
+      } as never);
+
+      expect(result).toBe(false);
+    }),
+  );
+
+  it.effect(
+    'canUseScanner allows tenant-wide event organizers without a query',
+    () =>
+      Effect.gen(function* () {
+        const result = yield* userHandlers['users.canUseScanner'](undefined, {
+          headers: createUserHandlerHeaders({
+            permissions: ['events:organizeAll'],
+          }),
+        } as never);
+
+        expect(result).toBe(true);
+      }),
+  );
+
+  it.effect(
+    'canUseScanner allows users with an organizing registration today',
+    () =>
+      Effect.gen(function* () {
+        const limit = vi.fn(() => Effect.succeed([{ id: 'registration-1' }]));
+        const database = {
+          select: () => ({
+            from: () => ({
+              innerJoin: () => ({
+                innerJoin: () => ({
+                  where: () => ({
+                    limit,
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
+
+        const result = yield* userHandlers['users.canUseScanner'](undefined, {
+          headers: createUserHandlerHeaders(),
+        } as never).pipe(
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        );
+
+        expect(result).toBe(true);
+        expect(limit).toHaveBeenCalledWith(1);
+      }),
+  );
+
+  it.effect(
+    'canUseScanner rejects users without an organizing registration today',
+    () =>
+      Effect.gen(function* () {
+        const limit = vi.fn(() => Effect.succeed([]));
+        const database = {
+          select: () => ({
+            from: () => ({
+              innerJoin: () => ({
+                innerJoin: () => ({
+                  where: () => ({
+                    limit,
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
+
+        const result = yield* userHandlers['users.canUseScanner'](undefined, {
+          headers: createUserHandlerHeaders(),
+        } as never).pipe(
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        );
+
+        expect(result).toBe(false);
+        expect(limit).toHaveBeenCalledWith(1);
+      }),
+  );
 
   it.effect(
     'createAccount creates the user, tenant assignment, and default roles transactionally',
@@ -699,14 +1026,17 @@ describe('userHandlers', () => {
                     Effect.succeed([
                       {
                         role: 'Admin',
+                        roleId: 'role-admin',
                         userTenantId: 'user-tenant-1',
                       },
                       {
                         role: 'Editor',
+                        roleId: 'role-editor',
                         userTenantId: 'user-tenant-1',
                       },
                       {
                         role: null,
+                        roleId: null,
                         userTenantId: 'user-tenant-2',
                       },
                     ]),
@@ -732,6 +1062,7 @@ describe('userHandlers', () => {
             firstName: 'Alice',
             id: 'user-1',
             lastName: 'One',
+            roleIds: ['role-admin', 'role-editor'],
             roles: ['Admin', 'Editor'],
           },
           {
@@ -739,6 +1070,7 @@ describe('userHandlers', () => {
             firstName: 'Bob',
             id: 'user-2',
             lastName: 'Two',
+            roleIds: [],
             roles: [],
           },
         ]);

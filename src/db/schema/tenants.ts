@@ -1,4 +1,5 @@
 import {
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -38,6 +39,8 @@ export const tenants = pgTable('tenants', {
     .notNull()
     .default(createDefaultTenantDiscountProviders()),
   domain: text().unique().notNull(),
+  emailSenderEmail: text('email_sender_email'),
+  emailSenderName: text('email_sender_name'),
   faviconUrl: text('favicon_url'),
   id: varchar({ length: 20 })
     .$defaultFn(() => createId())
@@ -46,6 +49,9 @@ export const tenants = pgTable('tenants', {
   legalNoticeUrl: text('legal_notice_url'),
   locale: localeEnum().notNull().default('en-GB'),
   logoUrl: text('logo_url'),
+  maxActiveRegistrationsPerUser: integer('max_active_registrations_per_user')
+    .notNull()
+    .default(0),
   name: varchar().notNull(),
   privacyPolicyText: text('privacy_policy_text'),
   privacyPolicyUrl: text('privacy_policy_url'),
