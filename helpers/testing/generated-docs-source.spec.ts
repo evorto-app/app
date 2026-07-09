@@ -203,10 +203,10 @@ describe('generated docs source current behavior', () => {
       'record the manual reimbursement transaction for the selected batch',
     );
     expect(receiptSource).toContain(
-      'Receipt reimbursement docs are completed by a later stacked docs slice.',
+      'Recording reimbursement updates the receipt to **refunded** and creates a successful manual refund transaction in Evorto.',
     );
     expect(receiptSource).toContain(
-      'the runnable reimbursement documentation flow lands in a',
+      'The actual bank or PayPal transfer remains an external finance action.',
     );
     expect(combinedSource).not.toContain(
       'Submitter email notification is still manual',
