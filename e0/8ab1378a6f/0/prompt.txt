@@ -1,0 +1,13 @@
+Update our checkout to the latest from remote
+
+---
+
+Are we using some image manipulation library in our application?
+
+---
+
+Check about https://bun.com/blog/bun-v1.3.14#bun-image-built-in-image-processing and if we should update some of these use cases to make use of the native bun image tools
+
+---
+
+Please land the current skill changes on main

@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "e08ab1378a6f",
+  "session_id": "019f477c-194d-7b60-b6fb-69880925b89f",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-09T16:44:52.00872Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "06c60c96adfa",
+  "token_usage": {
+    "input_tokens": 210686,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1956480,
+    "output_tokens": 11647,
+    "api_call_count": 31
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 10248,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".agents/skills/effect-ts/SKILL.md": 191,
+        ".agents/skills/effect-ts/references/features.md": 504,
+        ".agents/skills/effect-ts/references/guide-effect.md": 447,
+        ".agents/skills/effect-ts/references/guide-error-handling.md": 540,
+        ".agents/skills/effect-ts/references/guide-layers.md": 1018,
+        ".agents/skills/effect-ts/references/guide-observability.md": 724,
+        ".agents/skills/effect-ts/references/guide-retries.md": 433,
+        ".agents/skills/effect-ts/references/guide-schedule.md": 379,
+        ".agents/skills/effect-ts/references/guide-schema.md": 624,
+        ".agents/skills/effect-ts/references/guide-sql.md": 536,
+        ".agents/skills/effect-ts/references/guide-testing.md": 504,
+        ".agents/skills/effect-ts/references/setup.md": 89,
+        ".agents/skills/material-3/.claude-plugin/plugin.json": 18,
+        ".agents/skills/material-3/SKILL.md": 667,
+        ".agents/skills/material-3/references/color-system.md": 358,
+        ".agents/skills/material-3/references/component-catalog.md": 836,
+        ".agents/skills/material-3/references/layout-and-responsive.md": 733,
+        ".agents/skills/material-3/references/navigation-patterns.md": 546,
+        ".agents/skills/material-3/references/theming-and-dynamic-color.md": 484,
+        ".agents/skills/material-3/references/typography-and-shape.md": 400,
+        ".agents/skills/uncodixfy/SKILL.md": 194,
+        "skills-lock.json": 23
+      }
+    }
+  ]
+}
