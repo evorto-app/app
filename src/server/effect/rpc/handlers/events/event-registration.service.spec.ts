@@ -3,7 +3,7 @@ import { ConfigProvider, Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import Stripe from 'stripe';
 
-import { Database } from '../../../../../db';
+import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventAddons,
   eventRegistrationAddonPurchases,
@@ -267,7 +267,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -313,7 +315,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -380,7 +384,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -428,7 +432,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -470,7 +476,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -521,7 +527,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -568,7 +574,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -655,7 +661,9 @@ describe('EventRegistrationService', () => {
           },
         }).pipe(
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -706,7 +714,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -752,7 +760,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -802,7 +810,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provideService(StripeClient, stripeClient),
         Effect.provide(configProviderLayer),
       );
@@ -887,7 +895,9 @@ describe('EventRegistrationService', () => {
           },
         }).pipe(
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -971,7 +981,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -1037,7 +1049,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -1120,7 +1134,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -1241,7 +1257,9 @@ describe('EventRegistrationService', () => {
           },
         }).pipe(
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -1373,7 +1391,9 @@ describe('EventRegistrationService', () => {
         }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
           Effect.provideService(StripeClient, stripeClient),
           Effect.provide(configProviderLayer),
         );
@@ -1460,7 +1480,7 @@ describe('EventRegistrationService', () => {
         },
       }).pipe(
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provide(configProviderLayer),
       );
 
@@ -1499,7 +1519,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provide(configProviderLayer),
       );
 
@@ -1542,7 +1562,7 @@ describe('EventRegistrationService', () => {
       }).pipe(
         Effect.flip,
         Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
         Effect.provide(configProviderLayer),
       );
 
