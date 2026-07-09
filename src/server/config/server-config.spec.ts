@@ -19,13 +19,20 @@ const readServerConfig = (provider: ConfigProvider.ConfigProvider) =>
 const providerFromEntries = (entries: readonly (readonly [string, string])[]) =>
   ConfigProvider.fromEnv({ env: Object.fromEntries(entries) });
 
+const requiredServerEntries = [
+  ['RESEND_API_KEY', 're_test_123'],
+  ['RESEND_DEFAULT_FROM', 'Evorto <notifications@example.com>'],
+] as const;
+
 describe('server-config', () => {
   it.effect('only reads PUBLIC_GOOGLE_MAPS_API_KEY', () =>
     Effect.gen(function* () {
       const legacyProvider = providerFromEntries([
+        ...requiredServerEntries,
         ['GOOGLE_MAPS_API_KEY', 'legacy-key'],
       ]);
       const canonicalProvider = providerFromEntries([
+        ...requiredServerEntries,
         ['PUBLIC_GOOGLE_MAPS_API_KEY', 'canonical-key'],
       ]);
 
@@ -43,6 +50,7 @@ describe('server-config', () => {
     () =>
       Effect.gen(function* () {
         const provider = providerFromEntries([
+          ...requiredServerEntries,
           ['E2E_NOW_ISO', '2026-03-01T12:00:00.000Z'],
           ['npm_package_version', '1.2.3'],
           ['SERVER_LOG_LEVEL', ' warning '],
@@ -62,10 +70,32 @@ describe('server-config', () => {
     'rejects unsupported server log levels at the config boundary',
     () =>
       Effect.gen(function* () {
-        const provider = providerFromEntries([['SERVER_LOG_LEVEL', 'warnng']]);
+        const provider = providerFromEntries([
+          ...requiredServerEntries,
+          ['SERVER_LOG_LEVEL', 'warnng'],
+        ]);
 
         const error = yield* Effect.flip(readServerConfig(provider));
         expect(error.message).toMatch(/Expected SERVER_LOG_LEVEL to be one of/);
       }),
+  );
+
+  it.effect('requires a Resend API key', () =>
+    Effect.gen(function* () {
+      const error = yield* Effect.flip(
+        readServerConfig(providerFromEntries([])),
+      );
+
+      expect(error.message).toMatch(/RESEND_API_KEY/);
+    }),
+  );
+
+  it.effect('requires a default email sender', () =>
+    Effect.gen(function* () {
+      const provider = providerFromEntries([['RESEND_API_KEY', 're_test_123']]);
+
+      const error = yield* Effect.flip(readServerConfig(provider));
+      expect(error.message).toMatch(/RESEND_DEFAULT_FROM/);
+    }),
   );
 });

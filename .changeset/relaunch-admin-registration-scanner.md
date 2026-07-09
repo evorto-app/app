@@ -4,4 +4,4 @@
 - hide Scanner navigation unless the user can scan through permissions or an active organizing registration today
 - expose manual approval as the supported non-FCFS registration mode while rejecting unsupported random allocation on write paths
 - add tenant operations settings for email sender, Stripe account id, and active registration limits
-- send configured tenant emails for manual approval outcomes and receipt review results
+- require Resend delivery config at startup and send configured tenant emails for manual approval outcomes and receipt review results

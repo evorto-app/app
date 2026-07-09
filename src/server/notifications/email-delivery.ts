@@ -1,12 +1,9 @@
-import { Config, Effect, Option } from 'effect';
+import { Effect } from 'effect';
 import { htmlToText } from 'html-to-text';
 
 import type { Tenant } from '../../types/custom/tenant';
 
-import { optionalTrimmedString } from '../config/config-string';
-
-const resendApiKeyConfig = optionalTrimmedString('RESEND_API_KEY');
-const defaultSenderEmailConfig = optionalTrimmedString('RESEND_DEFAULT_FROM');
+import { serverEmailConfig } from '../config/server-config';
 
 export interface SendManualApprovalEmailInput {
   eventTitle: string;
@@ -52,19 +49,13 @@ const formatSender = ({ email, name }: TenantEmailSender): string =>
 
 const resolveSender = (
   tenant: Pick<Tenant, 'emailSenderEmail' | 'emailSenderName' | 'name'>,
-  fallbackEmail: Option.Option<string>,
-): Option.Option<TenantEmailSender> => {
+  fallbackEmail: string,
+): TenantEmailSender => {
   const email = tenant.emailSenderEmail?.trim();
-  const fallback = Option.getOrUndefined(fallbackEmail);
-  const senderEmail = email || fallback;
-  if (!senderEmail) {
-    return Option.none();
-  }
-
-  return Option.some({
-    email: senderEmail,
+  return {
+    email: email || fallbackEmail,
     name: tenant.emailSenderName?.trim() || tenant.name,
-  });
+  };
 };
 
 const sendTenantEmail = ({
@@ -75,32 +66,22 @@ const sendTenantEmail = ({
   to,
 }: SendTenantEmailInput): Effect.Effect<void, unknown> =>
   Effect.gen(function* () {
-    const [apiKey, fallbackSenderEmail] = yield* Config.all([
-      resendApiKeyConfig,
-      defaultSenderEmailConfig,
-    ]);
-    if (Option.isNone(apiKey)) {
-      return;
-    }
-
-    const sender = resolveSender(tenant, fallbackSenderEmail);
-    if (Option.isNone(sender)) {
-      return;
-    }
+    const emailConfig = yield* serverEmailConfig;
+    const sender = resolveSender(tenant, emailConfig.RESEND_DEFAULT_FROM);
 
     yield* Effect.tryPromise({
       catch: (cause) => cause,
       try: async () => {
         const response = await fetch('https://api.resend.com/emails', {
           body: JSON.stringify({
-            from: formatSender(sender.value),
+            from: formatSender(sender),
             html,
             subject,
             text: htmlToText(html, { wordwrap: 100 }),
             to,
           }),
           headers: {
-            Authorization: `Bearer ${apiKey.value}`,
+            Authorization: `Bearer ${emailConfig.RESEND_API_KEY}`,
             'Content-Type': 'application/json',
             'Idempotency-Key': idempotencyKey,
           },
@@ -148,7 +129,7 @@ export const sendReceiptReviewedEmail = (
       input.status === 'approved' ? 'Receipt approved' : 'Receipt rejected',
     tenant: input.tenant,
     to: input.to,
-  }).pipe(Effect.catch(() => Effect.void));
+  }).pipe(Effect.orDie);
 
 const renderManualApprovalEmail = ({
   eventTitle,
@@ -185,4 +166,4 @@ export const sendManualApprovalEmail = (
       : 'Registration approved',
     tenant: input.tenant,
     to: input.to,
-  }).pipe(Effect.catch(() => Effect.void));
+  }).pipe(Effect.orDie);
