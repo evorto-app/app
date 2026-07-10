@@ -87,7 +87,9 @@ const buildSignedCheckoutWebhook = (input: SignedCheckoutWebhookInput) => {
 
 type RejectedCheckoutOwnershipScenario = {
   eventType: 'checkout.session.completed' | 'checkout.session.expired';
+  expectedStatus: 200 | 400 | 409;
   label: string;
+  metadataRegistrationStatus: 'CANCELLED' | 'PENDING';
   registrationMatches: boolean;
   sessionMatches: boolean;
   transactionStatus: 'cancelled' | 'pending';
@@ -117,8 +119,7 @@ const assertCheckoutOwnershipRejected = async (input: {
     eventId: input.appEventId,
     id: metadataRegistrationId,
     registrationOptionId: input.optionId,
-    status:
-      localRegistrationId === metadataRegistrationId ? 'PENDING' : 'CANCELLED',
+    status: input.scenario.metadataRegistrationStatus,
     tenantId: input.tenantId,
     userId: regularUserId,
   });
@@ -197,8 +198,8 @@ const assertCheckoutOwnershipRejected = async (input: {
   const body = await delivery.text();
   expect(
     delivery.status(),
-    `Expected rejected ownership to be safely acknowledged, received ${delivery.status()} with body "${body}"`,
-  ).toBe(200);
+    `Expected rejected ownership status ${input.scenario.expectedStatus}, received ${delivery.status()} with body "${body}"`,
+  ).toBe(input.scenario.expectedStatus);
 
   const metadataRegistration =
     await input.database.query.eventRegistrations.findFirst({
@@ -221,9 +222,13 @@ const assertCheckoutOwnershipRejected = async (input: {
     });
 
   expect(metadataRegistration?.status).toBe(
-    localRegistrationId === metadataRegistrationId ? 'PENDING' : 'CANCELLED',
+    input.scenario.metadataRegistrationStatus,
   );
-  expect(localRegistration?.status).toBe('PENDING');
+  expect(localRegistration?.status).toBe(
+    localRegistrationId === metadataRegistrationId
+      ? input.scenario.metadataRegistrationStatus
+      : 'PENDING',
+  );
   expect({
     chargeId: localTransaction?.stripeChargeId,
     paymentIntentId: localTransaction?.stripePaymentIntentId,
@@ -461,24 +466,30 @@ test('an exact pending transaction and checkout session match completes once und
 for (const rejectedOwnership of [
   {
     eventType: 'checkout.session.completed',
+    expectedStatus: 400,
     label:
       'completed checkout webhook cannot use a checkout session id that differs from the local transaction',
+    metadataRegistrationStatus: 'PENDING',
     registrationMatches: true,
     sessionMatches: false,
     transactionStatus: 'pending',
   },
   {
     eventType: 'checkout.session.completed',
+    expectedStatus: 400,
     label:
       'completed checkout webhook cannot use registration metadata that differs from the local transaction',
+    metadataRegistrationStatus: 'CANCELLED',
     registrationMatches: false,
     sessionMatches: true,
     transactionStatus: 'pending',
   },
   {
     eventType: 'checkout.session.expired',
+    expectedStatus: 200,
     label:
       'expired checkout webhook cannot release capacity after the local transaction was cancelled',
+    metadataRegistrationStatus: 'CANCELLED',
     registrationMatches: true,
     sessionMatches: true,
     transactionStatus: 'cancelled',
@@ -825,6 +836,7 @@ test('invalid checkout bindings and stale state leave registrations, payments, a
       created: 1_706_784_000,
       data: {
         object: {
+          ...(!isExpired && { amount_total: 2500, currency: 'eur' }),
           id: checkoutSessionId,
           metadata,
           object: 'checkout.session',
