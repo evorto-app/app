@@ -1,0 +1,60 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "c03c501ade75",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/harden-tenant-brand-assets.md",
+    "APPLICATION_COMPLIANCE_AUDIT.md",
+    "ARCHITECTURE.md",
+    "helpers/testing/generated-docs-source.spec.ts",
+    "helpers/testing/platform-authority-source.spec.ts",
+    "src/app/global-admin/platform-audit/platform-audit.component.spec.ts",
+    "src/app/global-admin/platform-event-operations/platform-event-create.component.html",
+    "src/app/global-admin/platform-event-operations/platform-scanner.component.html",
+    "src/app/global-admin/platform-event-operations/platform-template-editor.component.html",
+    "src/app/global-admin/platform-tenant-admin/platform-finance.component.html",
+    "src/app/global-admin/platform-tenant-admin/platform-tenant-users.component.html",
+    "src/app/global-admin/tenant-create/tenant-create.component.html",
+    "src/app/global-admin/tenant-edit/tenant-edit.component.html",
+    "src/app/scanning/handle-registration/handle-registration.component.spec.ts",
+    "src/app/scanning/handle-registration/handle-registration.component.ts",
+    "src/db/schema/platform-audit-entries.spec.ts",
+    "src/server/effect/rpc/handlers/admin.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/admin.handlers.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.ts",
+    "src/server/effect/rpc/handlers/global-admin.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/platform/platform-templates.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/platform/platform.handlers.spec.ts",
+    "src/server/registrations/addon-fulfillment.postgres.spec.ts",
+    "src/server/registrations/addon-fulfillment.service.spec.ts",
+    "src/server/registrations/addon-fulfillment.service.ts",
+    "src/server/registrations/expired-checkout-cleanup.postgres.spec.ts",
+    "src/server/registrations/expired-checkout-cleanup.spec.ts",
+    "src/server/registrations/expired-checkout-cleanup.ts",
+    "src/server/registrations/registration-transfer-finalization.ts",
+    "tests/docs/admin/email-outbox.doc.ts",
+    "tests/docs/admin/general-settings.doc.ts",
+    "tests/docs/admin/global-admin.doc.ts",
+    "tests/specs/admin/email-outbox.spec.ts",
+    "tests/specs/admin/general-settings.spec.ts",
+    "tests/test-inventory.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c0/3c501ade75/0/metadata.json",
+      "transcript": "/c0/3c501ade75/0/full.jsonl",
+      "content_hash": "/c0/3c501ade75/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 226670,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 15242752,
+    "output_tokens": 20608,
+    "api_call_count": 132
+  }
+}
