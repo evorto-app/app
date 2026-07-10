@@ -607,8 +607,11 @@ test('competing completion and expiry webhooks leave one coherent registration o
       method: 'POST',
     }),
   ]);
-  expect(completedDelivery.status()).toBe(200);
-  expect(expiredDelivery.status()).toBe(200);
+  const completedStatus = completedDelivery.status();
+  const expiredStatus = expiredDelivery.status();
+  expect(
+    [completedStatus, expiredStatus].toSorted((left, right) => left - right),
+  ).toEqual([200, 409]);
 
   const finalRegistration = await database.query.eventRegistrations.findFirst({
     where: { id: registrationId, tenantId: tenant.id },
@@ -626,12 +629,16 @@ test('competing completion and expiry webhooks leave one coherent registration o
 
   expect(finalOption?.reservedSpots).toBe(originalOption?.reservedSpots);
   if (finalRegistration?.status === 'CONFIRMED') {
+    expect(completedStatus).toBe(200);
+    expect(expiredStatus).toBe(409);
     expect(finalTransaction?.status).toBe('successful');
     expect(finalTransaction?.stripePaymentIntentId).toBe(paymentIntentId);
     expect(finalOption?.confirmedSpots).toBe(
       (originalOption?.confirmedSpots ?? 0) + 1,
     );
   } else {
+    expect(completedStatus).toBe(409);
+    expect(expiredStatus).toBe(200);
     expect(finalRegistration?.status).toBe('CANCELLED');
     expect(finalTransaction?.status).toBe('cancelled');
     expect(finalTransaction?.stripePaymentIntentId).toBeNull();
