@@ -1,1 +1,1 @@
-Can you improve our envrinment setup so that it also is able to copy the .env from the main checkout to any new worktree
+Get this on main
