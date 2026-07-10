@@ -95,12 +95,13 @@ test('add a valid template icon and explain invalid icon names', async ({
     tenantId: tenant.id,
   });
 
-  const addRequestPromise = page.waitForRequest((request) =>
-    Boolean(
-      request.url().endsWith('/rpc') &&
-      request.postData()?.includes('"tag":"icons.add"'),
-    ),
-  );
+  const addRequestPromise = page.waitForRequest((request) => {
+    const rpcPath = new URL(request.url()).pathname.replace(/\/+$/, '');
+    return (
+      rpcPath === '/rpc' &&
+      request.postData()?.includes('"tag":"icons.add"') === true
+    );
+  });
   await directAccessIcon.click();
   const addRequest = await addRequestPromise;
   const requestBody: unknown = JSON.parse(addRequest.postData() ?? 'null');
