@@ -1,0 +1,13 @@
+Get us to latest origin main
+
+---
+
+I think we can get the .env from the main checkout for these missing variables
+
+---
+
+Some less important sidequest, the neon container never seems to stop, maybe look into that as well on the side
+
+---
+
+For the scanner, if it is likely, you can use playwright to simulate the camera. If that is too much work I would say it is okay to just open a scanner result URL and manually review the camera integration. It is probably too hard to fake the camera reliably.

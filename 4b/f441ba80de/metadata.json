@@ -1,0 +1,55 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "4bf441ba80de",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/restore-scanner-camera-policy.md",
+    "APPLICATION_COMPLIANCE_AUDIT.md",
+    "docker-compose.yml",
+    "helpers/README.md",
+    "helpers/testing/deterministic-test-defaults.ts",
+    "helpers/testing/generated-docs-source.spec.ts",
+    "helpers/testing/runtime-environment.ts",
+    "helpers/testing/runtime-preflight.spec.ts",
+    "playwright.config.ts",
+    "src/app/scanning/handle-registration/handle-registration.component.html",
+    "src/app/scanning/handle-registration/handle-registration.component.ts",
+    "src/app/scanning/scanner/scanner.component.html",
+    "src/app/scanning/scanner/scanner.component.ts",
+    "src/server/config/server-config.ts",
+    "src/server/config/test-runtime-config.spec.ts",
+    "src/server/config/test-runtime-config.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.ts",
+    "src/server/http/security-headers.spec.ts",
+    "src/server/http/security-headers.ts",
+    "src/shared/permissions/permissions.spec.ts",
+    "src/shared/rpc-contracts/app-rpcs/events.rpcs.ts",
+    "src/shared/testing/deterministic-test-defaults.ts",
+    "tests/README.md",
+    "tests/docs/scanning/check-in.doc.ts",
+    "tests/specs/reporting/reporter-paths.test.ts",
+    "tests/specs/scanning/scanner.test.ts",
+    "tests/support/reporters/documentation-reporter/take-screenshot.ts",
+    "tests/support/utils/mock-camera.ts",
+    "tests/support/utils/server-test-clock.ts",
+    "tests/test-inventory.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/4b/f441ba80de/0/metadata.json",
+      "transcript": "/4b/f441ba80de/0/full.jsonl",
+      "content_hash": "/4b/f441ba80de/0/content_hash.txt",
+      "prompt": "/4b/f441ba80de/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1239521,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 54631936,
+    "output_tokens": 91537,
+    "api_call_count": 339
+  }
+}
