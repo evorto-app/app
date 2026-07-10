@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "4ec3084557ca",
+  "session_id": "019f4ad3-b8c0-7f22-82fa-1f72046bb6a5",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-10T17:43:27.519502Z",
+  "branch": "codex/security-registration-concurrency",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/db/schema/event-registrations.spec.ts",
+    "src/db/schema/event-registrations.ts",
+    "src/db/schema/registration-concurrency.postgres.spec.ts",
+    "src/db/schema/transactions.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.spec.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.ts",
+    "src/server/http/stripe-webhook.web-handler.spec.ts",
+    "src/server/http/stripe-webhook.web-handler.ts",
+    "tools/audit-registration-concurrency-invariants.sql"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "3a0aa83dae10",
+  "token_usage": {
+    "input_tokens": 3537552,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 238411776,
+    "output_tokens": 411335,
+    "api_call_count": 1544
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-10T17:43:27.24479Z",
+    "agent_lines": 2858,
+    "agent_removed": 518,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2858,
+    "total_lines_changed": 3376,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
