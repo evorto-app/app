@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "e5944315cd96",
+  "session_id": "019f4ad3-b8c0-7f22-82fa-1f72046bb6a5",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-10T08:10:25.835364Z",
+  "branch": "codex/security-registration-concurrency",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/security-findings-remediation.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "18e7b70ff08f",
+  "checkpoint_transcript_start": 2030,
+  "transcript_lines_at_start": 2030,
+  "token_usage": {
+    "input_tokens": 4895,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 962560,
+    "output_tokens": 586,
+    "api_call_count": 4
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-10T08:10:25.760085Z",
+    "agent_lines": 10,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 10,
+    "total_lines_changed": 10,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
