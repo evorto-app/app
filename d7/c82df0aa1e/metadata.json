@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "d7c82df0aa1e",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/server/effect/rpc/handlers/templates/simple-template.service.spec.ts",
+    "src/server/effect/rpc/handlers/templates/simple-template.service.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d7/c82df0aa1e/0/metadata.json",
+      "transcript": "/d7/c82df0aa1e/0/full.jsonl",
+      "content_hash": "/d7/c82df0aa1e/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 132569,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 16448000,
+    "output_tokens": 17671,
+    "api_call_count": 99
+  }
+}
