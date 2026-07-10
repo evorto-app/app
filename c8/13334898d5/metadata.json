@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "c813334898d5",
+  "strategy": "manual-commit",
+  "branch": "codex/copy-main-env-to-worktrees",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "AGENTS.md",
+    "README.md",
+    "helpers/testing/codex-environment-setup.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c8/13334898d5/0/metadata.json",
+      "transcript": "/c8/13334898d5/0/full.jsonl",
+      "content_hash": "/c8/13334898d5/0/content_hash.txt",
+      "prompt": "/c8/13334898d5/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 249076,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 11557120,
+    "output_tokens": 35526,
+    "api_call_count": 112
+  }
+}
