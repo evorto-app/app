@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "59969c615264",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-10T17:37:24.807337Z",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/enable-post-registration-addon-purchases.md",
+    "APPLICATION_COMPLIANCE_AUDIT.md",
+    "helpers/testing/generated-docs-source.spec.ts",
+    "tests/docs/events/register.doc.ts",
+    "tests/specs/events/registration-addons.test.ts",
+    "tests/support/utils/post-registration-addon-purchase-scenario.ts",
+    "tests/support/utils/seed-registration-addons.ts",
+    "tests/test-inventory.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "5043562dbba9",
+  "checkpoint_transcript_start": 13749,
+  "transcript_lines_at_start": 13749,
+  "token_usage": {
+    "input_tokens": 115231,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 17460736,
+    "output_tokens": 16586,
+    "api_call_count": 97
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-10T17:37:24.379334Z",
+    "agent_lines": 1866,
+    "agent_removed": 26,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1866,
+    "total_lines_changed": 1892,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

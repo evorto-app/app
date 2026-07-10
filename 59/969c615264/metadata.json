@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "59969c615264",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/enable-post-registration-addon-purchases.md",
+    "APPLICATION_COMPLIANCE_AUDIT.md",
+    "helpers/testing/generated-docs-source.spec.ts",
+    "tests/docs/events/register.doc.ts",
+    "tests/specs/events/registration-addons.test.ts",
+    "tests/support/utils/post-registration-addon-purchase-scenario.ts",
+    "tests/support/utils/seed-registration-addons.ts",
+    "tests/test-inventory.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/59/969c615264/0/metadata.json",
+      "transcript": "/59/969c615264/0/full.jsonl",
+      "content_hash": "/59/969c615264/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 115231,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 17460736,
+    "output_tokens": 16586,
+    "api_call_count": 97
+  }
+}
