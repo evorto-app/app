@@ -181,7 +181,20 @@ test.describe('Register for events', () => {
       .getByRole('button', { name: 'Register' })
       .click();
     await expect(page.getByText('You are registered')).toBeVisible();
-    await expect(page.getByText('2 x Snack voucher')).toBeVisible();
+    await waitForActiveRegistration(page);
+    const snackVoucherRow = registrationAddOnRow(page, 'Snack voucher');
+    await expect(
+      page
+        .locator('app-event-active-registration')
+        .getByRole('heading', { exact: true, level: 4, name: 'Add-ons' }),
+    ).toBeVisible();
+    await expect(snackVoucherRow).toBeVisible();
+    await expect(
+      registrationAddOnCount(snackVoucherRow, 'Purchased'),
+    ).toHaveText('2');
+    await expect(
+      registrationAddOnCount(snackVoucherRow, 'Available to use'),
+    ).toHaveText('2');
 
     const registration = await database.query.eventRegistrations.findFirst({
       where: {

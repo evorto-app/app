@@ -189,8 +189,20 @@ test('registers with a free add-on and required registration question', async ({
       .click();
 
     await expect(page.getByText('You are registered')).toBeVisible();
-    await expect(page.getByText('Selected add-ons')).toBeVisible();
-    await expect(page.getByText('2 x Snack voucher')).toBeVisible();
+    await waitForRegistrationStatus(page);
+    const snackVoucherRow = registrationAddOnRow(page, 'Snack voucher');
+    await expect(
+      page
+        .locator('app-event-active-registration')
+        .getByRole('heading', { exact: true, level: 4, name: 'Add-ons' }),
+    ).toBeVisible();
+    await expect(snackVoucherRow).toBeVisible();
+    await expect(
+      registrationAddOnCount(snackVoucherRow, 'Purchased'),
+    ).toHaveText('2');
+    await expect(
+      registrationAddOnCount(snackVoucherRow, 'Available to use'),
+    ).toHaveText('2');
 
     const [registration] = await database
       .select()
