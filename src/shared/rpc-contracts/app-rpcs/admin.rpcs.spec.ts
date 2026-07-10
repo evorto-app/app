@@ -2,9 +2,54 @@ import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import {
+  AdminRolesCreateInput,
+  AdminRolesUpdateInput,
   AdminTenantBrandAssetKind,
   AdminTenantUpdateSettingsInput,
 } from './admin.rpcs';
+
+const currentRoleInput = {
+  collapseMembersInHup: false,
+  defaultOrganizerRole: false,
+  defaultUserRole: true,
+  description: 'Default tenant member',
+  displayInHub: true,
+  name: 'Member',
+  permissions: ['events:viewPublic', 'events:*'],
+};
+
+describe('admin role input schemas', () => {
+  it('accepts tenant-scoped role permissions for create and update', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminRolesCreateInput)(currentRoleInput),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(AdminRolesUpdateInput)({
+        ...currentRoleInput,
+        id: 'role-1',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects platform-global permissions on create and update', () => {
+    for (const permission of ['globalAdmin:*', 'globalAdmin:manageTenants']) {
+      expect(() =>
+        Schema.decodeUnknownSync(AdminRolesCreateInput)({
+          ...currentRoleInput,
+          defaultUserRole: true,
+          permissions: [permission],
+        }),
+      ).toThrow();
+      expect(() =>
+        Schema.decodeUnknownSync(AdminRolesUpdateInput)({
+          ...currentRoleInput,
+          id: 'role-1',
+          permissions: [permission],
+        }),
+      ).toThrow();
+    }
+  });
+});
 
 const currentTenantSettingsInput = {
   allowOther: true,

@@ -145,7 +145,11 @@ describe('adminHandlers role permissions', () => {
                 displayInHub: true,
                 id: 'role-1',
                 name: 'Member',
-                permissions: ['events:viewPublic'],
+                permissions: [
+                  'events:viewPublic',
+                  'globalAdmin:*',
+                  'globalAdmin:manageTenants',
+                ],
                 sortOrder: 1,
               }),
           },
@@ -161,6 +165,7 @@ describe('adminHandlers role permissions', () => {
         displayInHub: true,
         id: 'role-1',
         name: 'Member',
+        permissions: ['events:viewPublic'],
       });
       expect(role).not.toHaveProperty('showInHub');
     }),

@@ -7,8 +7,8 @@ import { faArrowLeft, faEdit } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import {
-  Permission,
   PERMISSION_GROUPS,
+  type TenantRolePermission,
 } from '../../../shared/permissions/permissions';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
@@ -33,7 +33,7 @@ export class RoleDetailsComponent {
     }),
   );
 
-  hasPermission(permission: Permission) {
+  hasPermission(permission: TenantRolePermission) {
     return this.roleQuery.data()?.permissions.includes(permission) ?? false;
   }
 

@@ -7,7 +7,7 @@ import {
   unique,
 } from 'drizzle-orm/pg-core';
 
-import { Permission } from '../../shared/permissions/permissions';
+import { TenantRolePermission } from '../../shared/permissions/permissions';
 import { modelOfTenant } from './model';
 
 export const roles = pgTable(
@@ -20,7 +20,7 @@ export const roles = pgTable(
     description: text(),
     displayInHub: boolean().notNull().default(false),
     name: text().notNull(),
-    permissions: jsonb().$type<Permission[]>().notNull().default([]),
+    permissions: jsonb().$type<TenantRolePermission[]>().notNull().default([]),
     sortOrder: integer().notNull().default(2_147_483_647),
   },
   (t) => [unique().on(t.tenantId, t.name)],

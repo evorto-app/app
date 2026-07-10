@@ -376,7 +376,12 @@ The exact capability list may evolve with the product, but these areas are expec
 
 Role and user management are essential tenant-admin workflows. Authorized
 administrators can assign and remove existing users' roles in the current
-tenant without changing the role definitions themselves.
+tenant without changing the role definitions themselves. The
+`users:assignRoles` capability deliberately grants unrestricted assignment of
+any existing tenant role, including self-assignment, and must therefore be
+treated as full tenant-administrator authority rather than limited delegation.
+Tenant roles never grant platform-global permissions; those belong only to an
+explicit platform principal.
 
 Capability dependencies matter. For example, a user who can publish events likely needs to see pending/unpublished events, including events created by other users.
 

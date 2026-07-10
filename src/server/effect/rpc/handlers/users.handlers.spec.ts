@@ -249,7 +249,7 @@ describe('userHandlers', () => {
   );
 
   it.effect(
-    'assignRoles replaces tenant role assignments transactionally',
+    'assignRoles allows full tenant-admin self-assignment transactionally',
     () =>
       Effect.gen(function* () {
         const deleteWhere = vi.fn(() => Effect.void);
@@ -297,7 +297,7 @@ describe('userHandlers', () => {
         yield* userHandlers['users.assignRoles'](
           {
             roleIds: ['role-1', 'role-2', 'role-1'],
-            userId: 'user-2',
+            userId: 'user-1',
           },
           {
             headers: createUserHandlerHeaders({

@@ -61,7 +61,7 @@ const FINANCE_GROUP = {
   ] as const,
 } as const;
 
-// Union type of all possible permissions
+// Union type of all effective permissions and permission checks.
 export type Permission =
   | AdminPermissions
   | AdminPermissionsLegacy
@@ -81,9 +81,13 @@ export interface PermissionGroup {
 
 export interface PermissionMeta {
   description?: string;
-  key: Permission;
+  key: TenantRolePermission;
   label: string;
 }
+
+// Tenant roles may grant tenant-scoped capabilities and tenant-group
+// wildcards. Platform globals are resolved outside tenant role persistence.
+export type TenantRolePermission = Exclude<Permission, GlobalAdminPermissions>;
 
 // Type definitions using the const groups
 
@@ -225,8 +229,8 @@ const PERMISSION_METADATA = {
   },
   'users:assignRoles': {
     description:
-      'Assign and remove existing users from tenant roles without changing the role definitions.',
-    label: 'Assign user roles',
+      'Assign any existing tenant role to any tenant user, including yourself. Treat this as full tenant-administrator authority because assigned roles can grant every tenant capability.',
+    label: 'Assign all user roles (tenant admin)',
   },
   'users:viewAll': {
     description:
@@ -234,14 +238,11 @@ const PERMISSION_METADATA = {
     label: 'View all users',
   },
 } satisfies Record<
-  Exclude<
-    Permission,
-    'admin:manageTaxes' | `${string}:*` | `globalAdmin:${string}`
-  >,
+  Exclude<TenantRolePermission, 'admin:manageTaxes' | `${string}:*`>,
   Omit<PermissionMeta, 'key'>
 >;
 
-const permissionMeta = (key: Permission): PermissionMeta => ({
+const permissionMeta = (key: TenantRolePermission): PermissionMeta => ({
   key,
   ...PERMISSION_METADATA[key as keyof typeof PERMISSION_METADATA],
 });
@@ -256,7 +257,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     key: ADMIN_GROUP.key,
     label: 'Admin',
     permissions: ADMIN_GROUP.permissions.map((perm) =>
-      permissionMeta(`${ADMIN_GROUP.key}:${perm}` as Permission),
+      permissionMeta(`${ADMIN_GROUP.key}:${perm}` as TenantRolePermission),
     ),
   },
   {
@@ -264,7 +265,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     key: INTERNAL_GROUP.key,
     label: 'Internal',
     permissions: INTERNAL_GROUP.permissions.map((perm) =>
-      permissionMeta(`${INTERNAL_GROUP.key}:${perm}` as Permission),
+      permissionMeta(`${INTERNAL_GROUP.key}:${perm}` as TenantRolePermission),
     ),
   },
   {
@@ -272,7 +273,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     key: EVENTS_GROUP.key,
     label: 'Events',
     permissions: EVENTS_GROUP.permissions.map((perm) =>
-      permissionMeta(`${EVENTS_GROUP.key}:${perm}` as Permission),
+      permissionMeta(`${EVENTS_GROUP.key}:${perm}` as TenantRolePermission),
     ),
   },
   {
@@ -280,7 +281,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     key: TEMPLATES_GROUP.key,
     label: 'Templates',
     permissions: TEMPLATES_GROUP.permissions.map((perm) =>
-      permissionMeta(`${TEMPLATES_GROUP.key}:${perm}` as Permission),
+      permissionMeta(`${TEMPLATES_GROUP.key}:${perm}` as TenantRolePermission),
     ),
   },
   {
@@ -288,7 +289,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     key: USERS_GROUP.key,
     label: 'Users',
     permissions: USERS_GROUP.permissions.map((perm) =>
-      permissionMeta(`${USERS_GROUP.key}:${perm}` as Permission),
+      permissionMeta(`${USERS_GROUP.key}:${perm}` as TenantRolePermission),
     ),
   },
   {
@@ -296,7 +297,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     key: FINANCE_GROUP.key,
     label: 'Finance',
     permissions: FINANCE_GROUP.permissions.map((perm) =>
-      permissionMeta(`${FINANCE_GROUP.key}:${perm}` as Permission),
+      permissionMeta(`${FINANCE_GROUP.key}:${perm}` as TenantRolePermission),
     ),
   },
 ] as const;
@@ -344,43 +345,85 @@ export const PERMISSIONS = {
 // Get all permission keys as a flat array with proper typing
 export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap((group) =>
   group.permissions.map((perm) => perm.key),
-) satisfies Permission[];
+) satisfies TenantRolePermission[];
+
+const TENANT_ROLE_PERMISSION_LITERALS = [
+  'admin:manageTaxes',
+  'admin:*',
+  'events:*',
+  'finance:*',
+  'internal:*',
+  'templates:*',
+  'users:*',
+  ...ALL_PERMISSIONS,
+] as const satisfies readonly TenantRolePermission[];
+
+export const TenantRolePermissionSchema = Schema.Union(
+  TENANT_ROLE_PERMISSION_LITERALS.map((permission) =>
+    Schema.Literal(permission),
+  ),
+);
+
+const isPlatformGlobalPermission = (
+  permission: Permission,
+): permission is GlobalAdminPermissions =>
+  permission === 'globalAdmin:*' || permission === 'globalAdmin:manageTenants';
+
+export const partitionTenantRolePermissions = (
+  permissions: readonly Permission[],
+): {
+  accepted: TenantRolePermission[];
+  rejected: GlobalAdminPermissions[];
+} => {
+  const accepted: TenantRolePermission[] = [];
+  const rejected: GlobalAdminPermissions[] = [];
+
+  for (const permission of permissions) {
+    if (isPlatformGlobalPermission(permission)) {
+      rejected.push(permission);
+    } else {
+      accepted.push(permission);
+    }
+  }
+
+  return { accepted, rejected };
+};
 
 const PERMISSION_LITERALS = [
-  'admin:manageTaxes',
+  ...TENANT_ROLE_PERMISSION_LITERALS,
   'globalAdmin:*',
   'globalAdmin:manageTenants',
-  ...ALL_PERMISSIONS,
 ] as const satisfies readonly Permission[];
 
 export const PermissionSchema = Schema.Union(
   PERMISSION_LITERALS.map((permission) => Schema.Literal(permission)),
 );
 
-export const PERMISSION_DEPENDENCIES: Record<Permission, Permission[]> =
-  Object.fromEntries(
-    PERMISSION_GROUPS.flatMap((group) =>
-      group.permissions.map((perm) => {
-        switch (perm.key) {
-          case 'events:changeListing': {
-            return [perm.key, ['events:seeUnlisted']];
-          }
-          case 'events:create': {
-            return [perm.key, ['templates:view']];
-          }
-          case 'events:review': {
-            return [perm.key, ['events:seeDrafts', 'events:seeUnlisted']];
-          }
-          case 'users:assignRoles': {
-            return [perm.key, ['users:viewAll']];
-          }
-          default: {
-            return [perm.key, []];
-          }
+export const PERMISSION_DEPENDENCIES: Partial<
+  Record<TenantRolePermission, TenantRolePermission[]>
+> = Object.fromEntries(
+  PERMISSION_GROUPS.flatMap((group) =>
+    group.permissions.map((perm) => {
+      switch (perm.key) {
+        case 'events:changeListing': {
+          return [perm.key, ['events:seeUnlisted']];
         }
-      }),
-    ),
-  ) as Record<Permission, Permission[]>;
+        case 'events:create': {
+          return [perm.key, ['templates:view']];
+        }
+        case 'events:review': {
+          return [perm.key, ['events:seeDrafts', 'events:seeUnlisted']];
+        }
+        case 'users:assignRoles': {
+          return [perm.key, ['users:viewAll']];
+        }
+        default: {
+          return [perm.key, []];
+        }
+      }
+    }),
+  ),
+) as Partial<Record<TenantRolePermission, TenantRolePermission[]>>;
 
 export const includesPermission = (
   permission: Permission,
@@ -402,6 +445,10 @@ export const includesPermission = (
   const [group] = permission.split(':');
   if (permissions.includes(`${group}:*` as Permission)) {
     return true;
+  }
+
+  if (isPlatformGlobalPermission(permission)) {
+    return false;
   }
 
   return Object.entries(PERMISSION_DEPENDENCIES).some(

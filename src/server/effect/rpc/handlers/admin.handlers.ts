@@ -22,6 +22,7 @@ import { Database, type DatabaseClient } from '../../../../db';
 import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
 import {
   includesPermission,
+  partitionTenantRolePermissions,
   type Permission,
 } from '../../../../shared/permissions/permissions';
 import { type AdminHubRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
@@ -230,6 +231,15 @@ const normalizeHubRoleRecord = (role: {
   };
 };
 
+const normalizeAdminRoleRecord = <
+  Role extends { permissions: readonly Permission[] },
+>(
+  role: Role,
+) => ({
+  ...role,
+  permissions: partitionTenantRolePermissions(role.permissions).accepted,
+});
+
 const ensureAuthenticated = (
   headers: Headers.Headers,
 ): Effect.Effect<void, RpcUnauthorizedError> =>
@@ -295,7 +305,7 @@ export const adminHandlers = {
         return yield* Effect.die(new Error('Role insert returned no rows'));
       }
 
-      return createdRole;
+      return normalizeAdminRoleRecord(createdRole);
     }),
   'admin.roles.delete': ({ id }, options) =>
     Effect.gen(function* () {
@@ -391,7 +401,7 @@ export const adminHandlers = {
         }),
       );
 
-      return tenantRoles;
+      return tenantRoles.map((role) => normalizeAdminRoleRecord(role));
     }),
   'admin.roles.findOne': ({ id }, options) =>
     Effect.gen(function* () {
@@ -422,7 +432,7 @@ export const adminHandlers = {
         );
       }
 
-      return role;
+      return normalizeAdminRoleRecord(role);
     }),
   'admin.roles.search': ({ search }, options) =>
     Effect.gen(function* () {
@@ -453,7 +463,7 @@ export const adminHandlers = {
         }),
       );
 
-      return matchingRoles;
+      return matchingRoles.map((role) => normalizeAdminRoleRecord(role));
     }),
   'admin.roles.update': ({ id, ...input }, options) =>
     Effect.gen(function* () {
@@ -494,7 +504,7 @@ export const adminHandlers = {
         );
       }
 
-      return updatedRole;
+      return normalizeAdminRoleRecord(updatedRole);
     }),
   'admin.tenant.importStripeTaxRates': ({ ids }, options) =>
     Effect.gen(function* () {

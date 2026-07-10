@@ -53,6 +53,9 @@ export class EventRegistrationNotFoundError extends Schema.TaggedErrorClass<Even
 export const EventsRpcError = UnauthorizedRpcError;
 export type EventsRpcError = UnauthorizedRpcError;
 
+export const EventsOrganizeRpcError = ForbiddenOrUnauthorizedRpcError;
+export type EventsOrganizeRpcError = ForbiddenOrUnauthorizedRpcError;
+
 export const EventsReviewRpcError = ForbiddenOrUnauthorizedRpcError;
 export type EventsReviewRpcError = ForbiddenOrUnauthorizedRpcError;
 

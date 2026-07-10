@@ -5,6 +5,7 @@ import { Database, type DatabaseClient } from '../../db';
 import { getPreparedStatements } from '../../db/prepared-statements';
 import {
   ALL_PERMISSIONS,
+  partitionTenantRolePermissions,
   type Permission,
 } from '../../shared/permissions/permissions';
 import { type Authentication } from '../../types/custom/authentication';
@@ -60,11 +61,16 @@ export const resolveRequestPermissions = (input: {
     | {
         permissions: readonly Permission[];
       };
-}) =>
-  normalizePermissions([
+}) => {
+  const tenantPermissions = partitionTenantRolePermissions(
+    input.user?.permissions ?? [],
+  ).accepted;
+
+  return normalizePermissions([
     ...resolveGlobalAdminPermissions(input.oidcUser),
-    ...(input.user?.permissions ?? []),
+    ...tenantPermissions,
   ]);
+};
 
 const asString = (value: unknown): string | undefined =>
   typeof value === 'string' ? value : undefined;
@@ -196,13 +202,33 @@ export const resolveUserContext = (input: {
       return;
     }
 
-    const permissions = user.tenantAssignments
+    const assignedRoles = user.tenantAssignments
       .flatMap((assignment) => assignment.roles)
-      .flatMap((role) => role.permissions);
+      .map((role) => ({
+        ...role,
+        permissions: partitionTenantRolePermissions(role.permissions),
+      }));
 
-    const roleIds = user.tenantAssignments
-      .flatMap((assignment) => assignment.roles)
-      .flatMap((role) => role.id);
+    for (const role of assignedRoles) {
+      if (role.permissions.rejected.length === 0) continue;
+
+      yield* Effect.logWarning(
+        'Discarded platform-global permissions from tenant role',
+      ).pipe(
+        Effect.annotateLogs({
+          rejectedPermissions: role.permissions.rejected,
+          roleId: role.id,
+          tenantId: input.tenantId,
+          userId: user.id,
+        }),
+      );
+    }
+
+    const permissions = assignedRoles.flatMap(
+      (role) => role.permissions.accepted,
+    );
+
+    const roleIds = assignedRoles.map((role) => role.id);
 
     const attributeResponse = yield* databaseEffect((database) =>
       Effect.map(
