@@ -22,7 +22,10 @@
       <div class="grid gap-6">
         <section class="bg-surface text-on-surface rounded-2xl p-4">
           <h2 class="title-large mb-4">Event Details</h2>
-          <app-event-general-form [generalForm]="createEventForm" />
+          <app-event-general-form
+            [generalForm]="createEventForm"
+            [iconUsage]="iconUsage"
+          />
         </section>
 
         <section

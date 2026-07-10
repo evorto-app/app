@@ -2,12 +2,19 @@ import type { Tenant } from '../../../types/custom/tenant';
 
 export type TenantIdentity = Pick<
   Tenant,
-  'currency' | 'domain' | 'locale' | 'name' | 'stripeAccountId' | 'timezone'
+  | 'canonicalRootUrl'
+  | 'currency'
+  | 'domain'
+  | 'locale'
+  | 'name'
+  | 'stripeAccountId'
+  | 'timezone'
 >;
 
 export const tenantIdentityRows = (tenant: TenantIdentity) => [
   { label: 'Tenant name', value: tenant.name },
   { label: 'Primary domain', value: tenant.domain },
+  { label: 'Canonical root URL', value: tenant.canonicalRootUrl },
   { label: 'Currency', value: tenant.currency },
   { label: 'Locale', value: tenant.locale },
   { label: 'Timezone', value: tenant.timezone },

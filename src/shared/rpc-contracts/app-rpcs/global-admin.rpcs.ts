@@ -12,6 +12,7 @@ export const GlobalAdminRpcError = BadRequestForbiddenOrUnauthorizedRpcError;
 export type GlobalAdminRpcError = BadRequestForbiddenOrUnauthorizedRpcError;
 
 export const GlobalAdminTenantRecord = Schema.Struct({
+  canonicalRootUrl: Schema.NonEmptyString,
   currency: Tenant.fields.currency,
   domain: Schema.NonEmptyString,
   id: Schema.NonEmptyString,
@@ -32,6 +33,7 @@ export const GlobalAdminTenantIdInput = Schema.Struct({
 });
 
 export const GlobalAdminTenantWriteInput = Schema.Struct({
+  canonicalRootUrl: Schema.NonEmptyString,
   currency: Tenant.fields.currency,
   domain: Schema.NonEmptyString,
   locale: Tenant.fields.locale,
@@ -118,6 +120,7 @@ export const GlobalAdminTenantsUpdate = asRpcMutation(
   Rpc.make('globalAdmin.tenants.update', {
     error: GlobalAdminRpcError,
     payload: Schema.Struct({
+      canonicalRootUrl: Schema.NonEmptyString,
       currency: Tenant.fields.currency,
       domain: Schema.NonEmptyString,
       id: Schema.NonEmptyString,

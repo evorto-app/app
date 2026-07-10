@@ -16,6 +16,7 @@ const expectedStripeAccountId =
 
 const expectTenantRows = async (page: Page) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
+  await expect(page.getByText('Canonical root URL').first()).toBeVisible();
   await expect(page.getByText('Tenant ID').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
   await expect(page.getByText('Locale').first()).toBeVisible();
@@ -38,7 +39,9 @@ const expectTenantFormScope = async (
     page.getByRole('heading', { name: 'Relaunch tenant scope' }),
   ).toBeVisible();
   await expect(
-    page.getByText('One active primary domain is managed here.'),
+    page.getByText(
+      'One active primary domain and its canonical root URL are managed here.',
+    ),
   ).toBeVisible();
   await expect(
     page.getByText(
@@ -53,6 +56,9 @@ const expectTenantFormScope = async (
   await expect(form.locator('input').first()).toBeVisible();
   if (options.expectCreatePlaceholders) {
     await expect(form.getByPlaceholder('section.example.org')).toBeVisible();
+    await expect(
+      form.getByPlaceholder('https://section.example.org'),
+    ).toBeVisible();
     await expect(form.getByPlaceholder('acct_...')).toBeVisible();
   }
   await expect(form.getByRole('combobox').first()).toBeVisible();
@@ -71,6 +77,7 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     throw new Error('Expected seeded global-admin tenant');
   }
   const createdTenantDomain = `created-${getId().slice(0, 8)}.example.test`;
+  const createdTenantCanonicalRootUrl = `https://${createdTenantDomain}`;
   const createdTenantName = 'Created Section';
 
   try {
@@ -107,6 +114,7 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     const createTenantInputs = page.locator('form input');
     await createTenantInputs.first().fill(createdTenantName);
     await createTenantInputs.nth(1).fill('section.example.org/path');
+    await createTenantInputs.nth(2).fill('https://section.example.org');
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -116,10 +124,12 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await createTenantInputs.nth(1).fill(originalTenant.domain);
+    await createTenantInputs.nth(2).fill(originalTenant.canonicalRootUrl);
     await page.getByRole('button', { name: 'Create tenant' }).click();
     await expect(page.getByText('Tenant domain already exists')).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await createTenantInputs.nth(1).fill(createdTenantDomain);
+    await createTenantInputs.nth(2).fill(createdTenantCanonicalRootUrl);
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -139,6 +149,7 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     }
     expect(createdTenant).toEqual(
       expect.objectContaining({
+        canonicalRootUrl: createdTenantCanonicalRootUrl,
         currency: 'EUR',
         domain: createdTenantDomain,
         locale: 'en-GB',
@@ -167,8 +178,8 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     ).toBeVisible();
     await expectTenantRows(page);
     await expect(
-      page.getByRole('link', { name: 'Open tenant domain' }),
-    ).toHaveAttribute('href', 'https://localhost');
+      page.getByRole('link', { name: 'Open canonical URL' }),
+    ).toHaveAttribute('href', originalTenant.canonicalRootUrl);
     await expect(
       page.getByRole('link', { name: 'Edit tenant' }),
     ).toHaveAttribute('href', `${reviewTenantHref}/edit`);
@@ -182,6 +193,9 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     const tenantFormInputs = page.locator('form input');
     await expect(tenantFormInputs.first()).toHaveValue(/.+/);
     await expect(tenantFormInputs.nth(1)).toHaveValue('localhost');
+    await expect(tenantFormInputs.nth(2)).toHaveValue(
+      originalTenant.canonicalRootUrl,
+    );
     await expect(
       page.getByRole('button', { name: 'Save tenant' }),
     ).toBeEnabled();
@@ -202,6 +216,7 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
       .limit(1);
     expect(updatedTenant).toEqual(
       expect.objectContaining({
+        canonicalRootUrl: originalTenant.canonicalRootUrl,
         domain: originalTenant.domain,
         id: originalTenant.id,
         name: updatedTenantName,
@@ -214,6 +229,7 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     await database
       .update(schema.tenants)
       .set({
+        canonicalRootUrl: originalTenant.canonicalRootUrl,
         currency: originalTenant.currency,
         domain: originalTenant.domain,
         locale: originalTenant.locale,

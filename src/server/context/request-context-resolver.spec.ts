@@ -9,6 +9,7 @@ import {
 } from './request-context-resolver';
 
 const createTenant = (domain: string) => ({
+  canonicalRootUrl: `https://${domain}`,
   currency: 'EUR',
   defaultLocation: null,
   discountProviders: null,

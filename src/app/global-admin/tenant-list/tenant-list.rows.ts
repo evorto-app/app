@@ -6,6 +6,7 @@ export const globalAdminTenantListErrorMessage = (error: unknown): string =>
   getErrorMessage(error, 'Failed to load tenants');
 
 const searchableTenantFields = (tenant: GlobalAdminTenantRecord): string[] => [
+  tenant.canonicalRootUrl,
   tenant.currency,
   tenant.domain,
   tenant.id,
@@ -47,6 +48,7 @@ export const filterGlobalAdminTenants = (
 
 export const globalAdminTenantRows = (tenant: GlobalAdminTenantRecord) => [
   { label: 'Primary domain', value: tenant.domain },
+  { label: 'Canonical root URL', value: tenant.canonicalRootUrl },
   { label: 'Tenant ID', monospace: true, value: tenant.id },
   { label: 'Theme', value: tenant.theme },
   { label: 'Locale', value: tenant.locale },

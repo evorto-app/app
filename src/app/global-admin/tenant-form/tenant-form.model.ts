@@ -3,7 +3,13 @@ import type {
   GlobalAdminTenantWriteInput,
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
+import {
+  normalizeTenantCanonicalRootUrl,
+  normalizeTenantDomain,
+} from '@shared/tenant-origin';
+
 export interface GlobalAdminTenantFormModel {
+  canonicalRootUrl: string;
   currency: GlobalAdminTenantWriteInput['currency'];
   domain: string;
   locale: GlobalAdminTenantWriteInput['locale'];
@@ -14,13 +20,14 @@ export interface GlobalAdminTenantFormModel {
 }
 
 export const globalAdminTenantRelaunchScopeItems = [
-  'One active primary domain is managed here.',
+  'One active primary domain and its canonical root URL are managed here.',
   'Custom-domain verification and multi-domain automation are deferred.',
   'Tenant-admin impersonation is not available in the current relaunch surface.',
 ] as const;
 
 export const createGlobalAdminTenantFormModel =
   (): GlobalAdminTenantFormModel => ({
+    canonicalRootUrl: '',
     currency: 'EUR',
     domain: '',
     locale: 'en-GB',
@@ -33,6 +40,7 @@ export const createGlobalAdminTenantFormModel =
 export const globalAdminTenantFormModelFromRecord = (
   tenant: GlobalAdminTenantRecord,
 ): GlobalAdminTenantFormModel => ({
+  canonicalRootUrl: tenant.canonicalRootUrl,
   currency: tenant.currency,
   domain: tenant.domain,
   locale: tenant.locale,
@@ -45,40 +53,28 @@ export const globalAdminTenantFormModelFromRecord = (
 const optionalTrimmed = (value: string): string | undefined =>
   value.trim() || undefined;
 
-export const normalizeGlobalAdminTenantDomain = (value: string): string => {
-  const trimmedValue = value.trim().toLowerCase();
-  if (!trimmedValue) {
-    throw new Error('Domain is required');
-  }
-
-  const url = new URL(
-    trimmedValue.includes('://') ? trimmedValue : `https://${trimmedValue}`,
-  );
-  if (
-    !url.hostname ||
-    url.pathname !== '/' ||
-    url.search ||
-    url.hash ||
-    url.username ||
-    url.password
-  ) {
-    throw new Error('Domain must be a single host name');
-  }
-
-  return url.hostname;
-};
+export const normalizeGlobalAdminTenantDomain = (value: string): string =>
+  normalizeTenantDomain(value);
 
 export const globalAdminTenantPayloadFromForm = (
   model: GlobalAdminTenantFormModel,
-): GlobalAdminTenantWriteInput => ({
-  currency: model.currency,
-  domain: normalizeGlobalAdminTenantDomain(model.domain),
-  locale: model.locale,
-  name: model.name.trim(),
-  stripeAccountId: optionalTrimmed(model.stripeAccountId),
-  theme: model.theme,
-  timezone: model.timezone,
-});
+): GlobalAdminTenantWriteInput => {
+  const domain = normalizeTenantDomain(model.domain);
+
+  return {
+    canonicalRootUrl: normalizeTenantCanonicalRootUrl(
+      model.canonicalRootUrl,
+      domain,
+    ),
+    currency: model.currency,
+    domain,
+    locale: model.locale,
+    name: model.name.trim(),
+    stripeAccountId: optionalTrimmed(model.stripeAccountId),
+    theme: model.theme,
+    timezone: model.timezone,
+  };
+};
 
 export const globalAdminTenantSubmitDisabled = ({
   formInvalid,

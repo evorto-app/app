@@ -4,6 +4,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTimepickerModule } from '@angular/material/timepicker';
+import { type IconAddUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 
 import { EditorComponent } from '../../controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../controls/icon-selector/icon-selector-field/icon-selector-field.component';
@@ -29,4 +30,5 @@ import { EventGeneralFormModel } from './event-general-form.schema';
 export class EventGeneralForm {
   public readonly generalForm =
     input.required<FieldTree<EventGeneralFormModel>>();
+  public readonly iconUsage = input.required<IconAddUsage>();
 }

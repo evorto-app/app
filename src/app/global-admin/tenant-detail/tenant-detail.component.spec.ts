@@ -1,23 +1,32 @@
 import { describe, expect, it } from 'vitest';
 
-import { globalAdminTenantDomainUrl } from './tenant-detail.component';
+import { globalAdminTenantCanonicalRootUrl } from './tenant-detail.component';
 
-describe('globalAdminTenantDomainUrl', () => {
-  it('builds tenant-domain links from single host names', () => {
-    expect(globalAdminTenantDomainUrl(' Tenant.Example.Org ')).toBe(
-      'https://tenant.example.org',
-    );
-    expect(globalAdminTenantDomainUrl('localhost')).toBe('https://localhost');
+describe('globalAdminTenantCanonicalRootUrl', () => {
+  it('uses a validated canonical origin for tenant links', () => {
+    expect(
+      globalAdminTenantCanonicalRootUrl(
+        ' https://Tenant.Example.Org ',
+        'tenant.example.org',
+      ),
+    ).toBe('https://tenant.example.org');
   });
 
-  it('fails closed for URL-shaped or malformed tenant domains', () => {
-    expect(globalAdminTenantDomainUrl('https://tenant.example.org')).toBeNull();
-    expect(globalAdminTenantDomainUrl('tenant.example.org/path')).toBeNull();
+  it('fails closed for mismatched or malformed canonical origins', () => {
     expect(
-      globalAdminTenantDomainUrl('tenant.example.org?next=/admin'),
+      globalAdminTenantCanonicalRootUrl(
+        'https://attacker.example',
+        'tenant.example.org',
+      ),
     ).toBeNull();
-    expect(globalAdminTenantDomainUrl('tenant.example.org#admin')).toBeNull();
-    expect(globalAdminTenantDomainUrl('user@tenant.example.org')).toBeNull();
-    expect(globalAdminTenantDomainUrl('')).toBeNull();
+    expect(
+      globalAdminTenantCanonicalRootUrl(
+        'https://tenant.example.org/path',
+        'tenant.example.org',
+      ),
+    ).toBeNull();
+    expect(
+      globalAdminTenantCanonicalRootUrl('', 'tenant.example.org'),
+    ).toBeNull();
   });
 });

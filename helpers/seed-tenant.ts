@@ -44,6 +44,7 @@ const resolveStripeSeedAccountId = (
 };
 
 export interface SeedTenantOptions {
+  canonicalRootUrl?: string;
   domain?: string;
   ensureUsers?: boolean;
   includeExampleUsers?: boolean;
@@ -119,7 +120,12 @@ export interface SeedTenantResult {
     tenantId: string;
     title: string;
   }[];
-  tenant: { domain: string; id: string; name: string };
+  tenant: {
+    canonicalRootUrl: string;
+    domain: string;
+    id: string;
+    name: string;
+  };
 }
 
 export const seedBaseUsers = async (
@@ -148,6 +154,7 @@ export const seedBaseUsers = async (
 export async function seedTenant(
   database: NodePgDatabase<typeof relations>,
   {
+    canonicalRootUrl,
     domain,
     ensureUsers = false,
     includeExampleUsers = false,
@@ -174,6 +181,7 @@ export async function seedTenant(
   );
 
   const tenantInput: Partial<InferInsertModel<typeof schema.tenants>> = {
+    ...(canonicalRootUrl ? { canonicalRootUrl } : {}),
     ...(resolvedStripeAccountId
       ? { stripeAccountId: resolvedStripeAccountId }
       : {}),
@@ -321,6 +329,11 @@ export async function seedTenant(
       tenantId: t.tenantId,
       title: t.title,
     })),
-    tenant: { domain: tenant.domain, id: tenant.id, name: tenant.name },
+    tenant: {
+      canonicalRootUrl: tenant.canonicalRootUrl,
+      domain: tenant.domain,
+      id: tenant.id,
+      name: tenant.name,
+    },
   } satisfies SeedTenantResult;
 }

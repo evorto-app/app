@@ -33,6 +33,7 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.users.id,
     }),
     financeReceipts: r.many.financeReceipts(),
+    financeReceiptUploads: r.many.financeReceiptUploads(),
     questions: r.many.eventRegistrationQuestions(),
     registrationOptions: r.many.eventRegistrationOptions(),
     registrations: r.many.eventRegistrations(),
@@ -154,6 +155,11 @@ export const relations = defineRelations(schema, (r) => ({
     templateEventAddons: r.many.templateEventAddons(),
   },
   financeReceipts: {
+    attachmentUpload: r.one.financeReceiptUploads({
+      from: r.financeReceipts.attachmentUploadId,
+      optional: false,
+      to: r.financeReceiptUploads.id,
+    }),
     event: r.one.eventInstances({
       from: r.financeReceipts.eventId,
       optional: false,
@@ -182,6 +188,28 @@ export const relations = defineRelations(schema, (r) => ({
     user_reviewedByUserId: r.one.users({
       alias: 'financeReceipts_reviewedByUserId_users_id',
       from: r.financeReceipts.reviewedByUserId,
+      to: r.users.id,
+    }),
+  },
+  financeReceiptUploads: {
+    event: r.one.eventInstances({
+      from: r.financeReceiptUploads.eventId,
+      optional: false,
+      to: r.eventInstances.id,
+    }),
+    receipt: r.one.financeReceipts({
+      from: r.financeReceiptUploads.id,
+      to: r.financeReceipts.attachmentUploadId,
+    }),
+    tenant: r.one.tenants({
+      from: r.financeReceiptUploads.tenantId,
+      optional: false,
+      to: r.tenants.id,
+    }),
+    uploadedByUser: r.one.users({
+      alias: 'financeReceiptUploads_uploadedByUserId_users_id',
+      from: r.financeReceiptUploads.uploadedByUserId,
+      optional: false,
       to: r.users.id,
     }),
   },
@@ -257,6 +285,7 @@ export const relations = defineRelations(schema, (r) => ({
     eventRegistrations: r.many.eventRegistrations(),
     events: r.many.eventInstances(),
     financeReceipts: r.many.financeReceipts(),
+    financeReceiptUploads: r.many.financeReceiptUploads(),
     icons: r.many.icons(),
     roles: r.many.roles(),
     stripeTaxRates: r.many.tenantStripeTaxRates(),
@@ -316,6 +345,9 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     financeReceipts_submittedByUserId: r.many.financeReceipts({
       alias: 'financeReceipts_submittedByUserId_users_id',
+    }),
+    financeReceiptUploads_uploadedByUserId: r.many.financeReceiptUploads({
+      alias: 'financeReceiptUploads_uploadedByUserId_users_id',
     }),
     tenantAssignments: r.many.usersToTenants(),
     tenants: r.many.tenants(),

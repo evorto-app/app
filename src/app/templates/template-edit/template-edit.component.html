@@ -12,7 +12,10 @@
       class="text-on-surface flex flex-col gap-6"
     >
       <div class="bg-surface rounded-2xl p-4">
-        <app-template-general-form [generalForm]="templateForm" />
+        <app-template-general-form
+          [generalForm]="templateForm"
+          [iconUsage]="iconUsage()"
+        />
       </div>
 
       <div class="bg-surface rounded-2xl p-4">

@@ -2,8 +2,9 @@ import path from 'node:path';
 
 import type { Page } from '@playwright/test';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 
+import { addConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
 import {
   adminStateFile,
@@ -78,11 +79,20 @@ const seedPendingReceiptForApproval = async ({
   submittedByUserId: string;
   tenantId: string;
 }) => {
+  const receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
+    eventId,
+    fileName: receiptFileName,
+    mimeType: 'application/pdf',
+    sizeBytes: 1024,
+    tenantId,
+    uploadedByUserId: submittedByUserId,
+  });
   await database.insert(schema.financeReceipts).values({
     alcoholAmount: 150,
     attachmentFileName: receiptFileName,
     attachmentMimeType: 'application/pdf',
     attachmentSizeBytes: 1024,
+    attachmentUploadId: receiptUploadId,
     depositAmount: 150,
     eventId,
     hasAlcohol: true,
@@ -96,6 +106,8 @@ const seedPendingReceiptForApproval = async ({
     tenantId,
     totalAmount: 1450,
   });
+
+  return receiptUploadId;
 };
 
 test('submit receipt from event organize page', async ({
@@ -113,6 +125,8 @@ test('submit receipt from event organize page', async ({
   if (!event) {
     throw new Error('Expected seeded past event for receipt submission flow');
   }
+  let submittedReceiptId: string | undefined;
+  let submittedUploadId: string | undefined;
 
   try {
     const now = new Date();
@@ -125,7 +139,52 @@ test('submit receipt from event organize page', async ({
       .where(eq(schema.eventInstances.id, eventId));
 
     await submitReceiptFromFirstEvent(page, eventId, receiptFile);
+
+    const [submittedReceipt] = await database
+      .select()
+      .from(schema.financeReceipts)
+      .where(
+        and(
+          eq(schema.financeReceipts.eventId, eventId),
+          eq(
+            schema.financeReceipts.attachmentFileName,
+            path.basename(receiptFile),
+          ),
+        ),
+      )
+      .orderBy(desc(schema.financeReceipts.createdAt))
+      .limit(1);
+    if (!submittedReceipt) {
+      throw new Error('Expected submitted receipt after upload flow');
+    }
+    submittedReceiptId = submittedReceipt.id;
+    submittedUploadId = submittedReceipt.attachmentUploadId;
+
+    const uploadedReceipt =
+      await database.query.financeReceiptUploads.findFirst({
+        where: { id: submittedReceipt.attachmentUploadId },
+      });
+    expect(uploadedReceipt).toEqual(
+      expect.objectContaining({
+        consumedAt: expect.any(Date),
+        eventId,
+        id: submittedReceipt.attachmentUploadId,
+        tenantId: submittedReceipt.tenantId,
+        uploadedAt: expect.any(Date),
+        uploadedByUserId: submittedReceipt.submittedByUserId,
+      }),
+    );
   } finally {
+    if (submittedReceiptId) {
+      await database
+        .delete(schema.financeReceipts)
+        .where(eq(schema.financeReceipts.id, submittedReceiptId));
+    }
+    if (submittedUploadId) {
+      await database
+        .delete(schema.financeReceiptUploads)
+        .where(eq(schema.financeReceiptUploads.id, submittedUploadId));
+    }
     await database
       .update(schema.eventInstances)
       .set({
@@ -158,6 +217,7 @@ test('approve and record receipt reimbursements in finance', async ({
   const seededEventId = seeded.scenario.events.past.eventId;
   const receiptId = getId();
   const receiptFileName = `approval-reimbursement-${seedDate.getTime()}.pdf`;
+  let receiptUploadId: string | undefined;
   let refundTransactionId: string | undefined;
   try {
     await database
@@ -169,7 +229,7 @@ test('approve and record receipt reimbursements in finance', async ({
       })
       .where(eq(schema.users.id, organizerUser.id));
 
-    await seedPendingReceiptForApproval({
+    receiptUploadId = await seedPendingReceiptForApproval({
       database,
       eventId: seededEventId,
       receiptFileName,
@@ -263,6 +323,11 @@ test('approve and record receipt reimbursements in finance', async ({
     await database
       .delete(schema.financeReceipts)
       .where(eq(schema.financeReceipts.id, receiptId));
+    if (receiptUploadId) {
+      await database
+        .delete(schema.financeReceiptUploads)
+        .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
+    }
     if (refundTransactionId) {
       await database
         .delete(schema.transactions)

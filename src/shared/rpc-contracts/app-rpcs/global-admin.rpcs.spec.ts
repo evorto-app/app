@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { GlobalAdminTenantWriteInput } from './global-admin.rpcs';
 
 const tenantWriteInput = {
+  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   domain: 'tenant.example.com',
   locale: 'en-GB' as const,
@@ -18,6 +19,17 @@ describe('GlobalAdminTenantWriteInput', () => {
     expect(() =>
       Schema.decodeUnknownSync(GlobalAdminTenantWriteInput)(tenantWriteInput),
     ).not.toThrow();
+  });
+
+  it('requires a canonical root URL on tenant writes', () => {
+    const { canonicalRootUrl: _canonicalRootUrl, ...missingCanonicalRootUrl } =
+      tenantWriteInput;
+
+    expect(() =>
+      Schema.decodeUnknownSync(GlobalAdminTenantWriteInput)(
+        missingCanonicalRootUrl,
+      ),
+    ).toThrow();
   });
 
   it('rejects unsupported tenant runtime settings', () => {

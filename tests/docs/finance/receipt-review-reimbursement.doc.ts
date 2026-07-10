@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 
+import { addConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
 import {
   adminStateFile,
@@ -35,6 +36,7 @@ test('Review and reimburse receipts @finance', async ({
   const eventId = seeded.scenario.events.past.eventId;
   const receiptId = getId();
   const receiptFileName = `receipt-review-doc-${seedDate.getTime()}.pdf`;
+  let receiptUploadId: string | undefined;
   let refundTransactionId: string | undefined;
 
   try {
@@ -47,11 +49,20 @@ test('Review and reimburse receipts @finance', async ({
       })
       .where(eq(schema.users.id, organizerUser.id));
 
+    receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
+      eventId,
+      fileName: receiptFileName,
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      tenantId: tenant.id,
+      uploadedByUserId: organizerUser.id,
+    });
     await database.insert(schema.financeReceipts).values({
       alcoholAmount: 150,
       attachmentFileName: receiptFileName,
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 1024,
+      attachmentUploadId: receiptUploadId,
       depositAmount: 150,
       eventId,
       hasAlcohol: true,
@@ -192,6 +203,11 @@ Recording reimbursement updates the receipt to **refunded** and creates a succes
     await database
       .delete(schema.financeReceipts)
       .where(eq(schema.financeReceipts.id, receiptId));
+    if (receiptUploadId) {
+      await database
+        .delete(schema.financeReceiptUploads)
+        .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
+    }
     if (refundTransactionId) {
       await database
         .delete(schema.transactions)

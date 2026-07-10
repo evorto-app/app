@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from '@effect/vitest';
 import { ConfigProvider, Effect, Layer } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -19,6 +18,10 @@ import {
 import { EventRegistrationConflictError } from './events.errors';
 
 const stripeClient = new Stripe('sk_test_123');
+const tenantPublicOrigin = {
+  canonicalRootUrl: 'https://tenant.example.com',
+  domain: 'tenant.example.com',
+} as const;
 const configProviderLayer = ConfigProvider.layer(
   ConfigProvider.fromEnv({
     env: Object.fromEntries([
@@ -231,6 +234,53 @@ describe('EventRegistrationService', () => {
   });
 
   it.effect(
+    'rejects an invalid tenant canonical origin before reading or writing registration data',
+    () =>
+      Effect.gen(function* () {
+        const findRegistration = vi.fn(() => Effect.succeed(null));
+        const mockDatabase = {
+          query: {
+            eventRegistrations: {
+              findFirst: findRegistration,
+            },
+          },
+        };
+
+        const error = yield* EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 0,
+          registrationOptionId: 'option-1',
+          tenant: {
+            canonicalRootUrl: 'https://attacker.example',
+            currency: 'EUR',
+            domain: 'tenant.example.com',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(
+            Layer.succeed(Database, mockDatabase as DatabaseClient),
+          ),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationInternalError');
+        expect(error.message).toBe(
+          'Invalid tenant canonical root URL configuration',
+        );
+        expect(findRegistration).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
     'rejects a second registration for the same event before looking up another option',
     () =>
       Effect.gen(function* () {
@@ -252,9 +302,9 @@ describe('EventRegistrationService', () => {
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
           guestCount: 0,
-          headers: Headers.empty,
           registrationOptionId: 'organizer-option-1',
           tenant: {
+            ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
             stripeAccountId: undefined,
@@ -300,9 +350,9 @@ describe('EventRegistrationService', () => {
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
           guestCount: 0,
-          headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
+            ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
             stripeAccountId: undefined,
@@ -369,9 +419,9 @@ describe('EventRegistrationService', () => {
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
         guestCount: 0,
-        headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
+          ...tenantPublicOrigin,
           currency: 'EUR',
           id: 'tenant-1',
           stripeAccountId: undefined,
@@ -417,9 +467,9 @@ describe('EventRegistrationService', () => {
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
           guestCount: 0,
-          headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
+            ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
             stripeAccountId: undefined,
@@ -461,9 +511,9 @@ describe('EventRegistrationService', () => {
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
         guestCount: 0,
-        headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
+          ...tenantPublicOrigin,
           currency: 'EUR',
           id: 'tenant-1',
           stripeAccountId: undefined,
@@ -512,9 +562,9 @@ describe('EventRegistrationService', () => {
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
         guestCount: 0,
-        headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
+          ...tenantPublicOrigin,
           currency: 'EUR',
           id: 'tenant-1',
           stripeAccountId: undefined,
@@ -559,9 +609,9 @@ describe('EventRegistrationService', () => {
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
         guestCount: 0,
-        headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
+          ...tenantPublicOrigin,
           currency: 'EUR',
           id: 'tenant-1',
           stripeAccountId: undefined,
@@ -647,9 +697,9 @@ describe('EventRegistrationService', () => {
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
           guestCount: 2,
-          headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
+            ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
             stripeAccountId: undefined,
@@ -699,9 +749,9 @@ describe('EventRegistrationService', () => {
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
         guestCount: 2,
-        headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
+          ...tenantPublicOrigin,
           currency: 'EUR',
           id: 'tenant-1',
           stripeAccountId: undefined,
@@ -745,9 +795,9 @@ describe('EventRegistrationService', () => {
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
         guestCount: 1,
-        headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
+          ...tenantPublicOrigin,
           currency: 'EUR',
           id: 'tenant-1',
           stripeAccountId: undefined,
@@ -795,9 +845,9 @@ describe('EventRegistrationService', () => {
       const program = EventRegistrationService.registerForEvent({
         eventId: 'event-1',
         guestCount: 0,
-        headers: Headers.empty,
         registrationOptionId: 'option-1',
         tenant: {
+          ...tenantPublicOrigin,
           currency: 'EUR',
           id: 'tenant-1',
           stripeAccountId: undefined,
@@ -881,9 +931,9 @@ describe('EventRegistrationService', () => {
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
           guestCount: 0,
-          headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
+            ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
             stripeAccountId: undefined,
@@ -965,9 +1015,9 @@ describe('EventRegistrationService', () => {
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
           guestCount: 0,
-          headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
+            ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
             maxActiveRegistrationsPerUser: 1,
@@ -1034,9 +1084,9 @@ describe('EventRegistrationService', () => {
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
           guestCount: 0,
-          headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
+            ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
             stripeAccountId: undefined,
@@ -1119,9 +1169,9 @@ describe('EventRegistrationService', () => {
         const program = EventRegistrationService.registerForEvent({
           eventId: 'event-1',
           guestCount: 0,
-          headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
+            ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
             stripeAccountId: undefined,
@@ -1243,9 +1293,9 @@ describe('EventRegistrationService', () => {
           addOns: [{ addOnId: 'addon-1', quantity: 1 }],
           eventId: 'event-1',
           guestCount: 0,
-          headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
+            ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
             stripeAccountId: undefined,
@@ -1376,9 +1426,9 @@ describe('EventRegistrationService', () => {
           addOns: [{ addOnId: 'addon-1', quantity: 1 }],
           eventId: 'event-1',
           guestCount: 0,
-          headers: Headers.empty,
           registrationOptionId: 'option-1',
           tenant: {
+            ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
             stripeAccountId: undefined,

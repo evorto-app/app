@@ -20,6 +20,7 @@ import {
   requireWritableRegistrationMode,
   writableRegistrationModes,
 } from '@shared/registration-modes';
+import { EventCreateIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
   injectQuery,
@@ -99,6 +100,7 @@ export class TemplateCreateEventComponent {
   });
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleInfo = faCircleInfo;
+  protected readonly iconUsage = EventCreateIconUsage.make({});
   protected readonly registrationModes = writableRegistrationModes;
   protected readonly templateCreateEventSubmitDisabled =
     templateCreateEventSubmitDisabled;

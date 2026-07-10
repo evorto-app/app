@@ -34,6 +34,10 @@ import {
 } from '../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import {
+  normalizeTenantCanonicalRootUrl,
+  normalizeTenantDomain,
+} from '../../../../shared/tenant-origin';
+import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from '../rpc-context-headers';
@@ -77,6 +81,7 @@ const ensurePermission = (
   });
 
 const toGlobalAdminTenantRecord = (tenant: {
+  canonicalRootUrl: string;
   currency: string;
   domain: string;
   id: string;
@@ -92,29 +97,6 @@ const toGlobalAdminTenantRecord = (tenant: {
   });
 };
 
-const normalizeTenantDomain = (value: string): string => {
-  const trimmedValue = value.trim().toLocaleLowerCase();
-  if (!trimmedValue) {
-    throw new Error('Domain is required');
-  }
-
-  const url = new URL(
-    trimmedValue.includes('://') ? trimmedValue : `https://${trimmedValue}`,
-  );
-  if (
-    !url.hostname ||
-    url.pathname !== '/' ||
-    url.search ||
-    url.hash ||
-    url.username ||
-    url.password
-  ) {
-    throw new Error('Domain must be a single host name');
-  }
-
-  return url.hostname;
-};
-
 const normalizeTenantWriteInput = (
   input: GlobalAdminTenantWriteInput,
 ): GlobalAdminTenantWriteInput => {
@@ -123,9 +105,15 @@ const normalizeTenantWriteInput = (
     throw new Error('Tenant name is required');
   }
 
+  const domain = normalizeTenantDomain(input.domain);
+
   return {
+    canonicalRootUrl: normalizeTenantCanonicalRootUrl(
+      input.canonicalRootUrl,
+      domain,
+    ),
     currency: input.currency,
-    domain: normalizeTenantDomain(input.domain),
+    domain,
     locale: input.locale,
     name,
     stripeAccountId: input.stripeAccountId?.trim() || undefined,
@@ -145,6 +133,7 @@ const normalizeTenantWritePayload = (input: GlobalAdminTenantWriteInput) =>
   });
 
 const globalAdminTenantColumns = {
+  canonicalRootUrl: true,
   currency: true,
   domain: true,
   id: true,
@@ -156,6 +145,7 @@ const globalAdminTenantColumns = {
 } as const;
 
 const globalAdminTenantReturningColumns = {
+  canonicalRootUrl: tenants.canonicalRootUrl,
   currency: tenants.currency,
   domain: tenants.domain,
   id: tenants.id,

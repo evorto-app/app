@@ -1,7 +1,7 @@
 @let form = generalForm();
 <div class="grid gap-4">
   <div class="grid grid-cols-1 gap-2 2xl:grid-cols-[auto_1fr_1fr]">
-    <app-icon-selector-field [formField]="form.icon" />
+    <app-icon-selector-field [formField]="form.icon" [usage]="iconUsage()" />
     <mat-form-field>
       <mat-label>Template title</mat-label>
       <input matInput [formField]="form.title" />

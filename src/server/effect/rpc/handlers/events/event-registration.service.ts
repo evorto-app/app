@@ -1,4 +1,3 @@
-import type { Headers } from 'effect/unstable/http';
 import type Stripe from 'stripe';
 
 import { registrationSpotCount } from '@shared/registration-spots';
@@ -6,6 +5,7 @@ import {
   resolveTenantDiscountProviders,
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
+import { resolveTenantPublicOrigin } from '@shared/tenant-origin';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { ConfigProvider, Context, Effect, Layer, Option } from 'effect';
 
@@ -83,18 +83,31 @@ export const isUserEligibleForRegistrationOption = ({
   optionRoleIds.length === 0 ||
   optionRoleIds.some((roleId) => userRoleIds.includes(roleId));
 
-const resolveRequestOrigin = (headers: Headers.Headers): string | undefined => {
-  const forwardedProtocol = headers['x-forwarded-proto']
-    ?.split(',', 1)[0]
-    ?.trim();
-  const forwardedHost = headers['x-forwarded-host']?.split(',', 1)[0]?.trim();
-  const host = forwardedHost ?? headers['host'];
-
-  return (
-    headers['origin'] ??
-    (host ? `${forwardedProtocol ?? 'http'}://${host}` : undefined)
-  );
-};
+const resolveRegistrationPublicOrigin = ({
+  baseUrl,
+  canonicalRootUrl,
+  domain,
+  nodeEnvironment,
+}: {
+  baseUrl: string | undefined;
+  canonicalRootUrl: string;
+  domain: string;
+  nodeEnvironment: string | undefined;
+}) =>
+  Effect.try({
+    catch: (cause) =>
+      new EventRegistrationInternalError({
+        cause,
+        message: 'Invalid tenant canonical root URL configuration',
+      }),
+    try: () =>
+      resolveTenantPublicOrigin({
+        baseUrl,
+        canonicalRootUrl,
+        nodeEnvironment,
+        primaryDomain: domain,
+      }),
+  });
 
 const resolveDiscount = ({
   basePrice,
@@ -154,11 +167,12 @@ const resolveDiscount = ({
 
 interface ApproveManualRegistrationArguments {
   eventId: string;
-  headers: Headers.Headers;
   registrationId: string;
   tenant: Pick<
     Tenant,
+    | 'canonicalRootUrl'
     | 'currency'
+    | 'domain'
     | 'emailSenderEmail'
     | 'emailSenderName'
     | 'id'
@@ -181,10 +195,12 @@ interface RegisterForEventArguments {
   answers?: readonly RegistrationQuestionAnswerInput[] | undefined;
   eventId: string;
   guestCount: number;
-  headers: Headers.Headers;
   registrationOptionId: string;
   tenant: Partial<Pick<Tenant, 'maxActiveRegistrationsPerUser'>> &
-    Pick<Tenant, 'currency' | 'id' | 'stripeAccountId'>;
+    Pick<
+      Tenant,
+      'canonicalRootUrl' | 'currency' | 'domain' | 'id' | 'stripeAccountId'
+    >;
   user: Pick<User, 'email' | 'id' | 'roleIds'>;
 }
 
@@ -324,7 +340,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         'EventRegistrationService.approveManualRegistration',
       )(function* ({
         eventId,
-        headers,
         registrationId,
         tenant,
         user,
@@ -343,6 +358,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const pinnedNowIso = Option.getOrUndefined(
           serverEnvironment.E2E_NOW_ISO,
         );
+        const publicOrigin = yield* resolveRegistrationPublicOrigin({
+          baseUrl: Option.getOrUndefined(serverEnvironment.BASE_URL),
+          canonicalRootUrl: tenant.canonicalRootUrl,
+          domain: tenant.domain,
+          nodeEnvironment: Option.getOrUndefined(serverEnvironment.NODE_ENV),
+        });
 
         const registration = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findFirst({
@@ -563,7 +584,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           registrationOption.price * registration.guestCount +
           selectedAddonTotalPrice;
         const requiresCheckout = effectiveTotalPrice > 0;
-        const eventUrl = `${resolveRequestOrigin(headers) ?? ''}/events/${eventId}`;
+        const eventUrl = `${publicOrigin}/events/${eventId}`;
         const notificationEmail =
           registration.user.communicationEmail?.trim() ||
           registration.user.email;
@@ -889,7 +910,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         answers,
         eventId,
         guestCount,
-        headers,
         registrationOptionId,
         tenant,
         user,
@@ -908,6 +928,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const pinnedNowIso = Option.getOrUndefined(
           serverEnvironment.E2E_NOW_ISO,
         );
+        const publicOrigin = yield* resolveRegistrationPublicOrigin({
+          baseUrl: Option.getOrUndefined(serverEnvironment.BASE_URL),
+          canonicalRootUrl: tenant.canonicalRootUrl,
+          domain: tenant.domain,
+          nodeEnvironment: Option.getOrUndefined(serverEnvironment.NODE_ENV),
+        });
         const now = getServerNow(pinnedNowIso).toJSDate();
         if (!Number.isInteger(guestCount) || guestCount < 0) {
           return yield* Effect.fail(
@@ -1390,8 +1416,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
         const paymentFlow = Effect.gen(function* () {
           const transactionId = createId();
-          const origin = resolveRequestOrigin(headers);
-          const eventUrl = `${origin ?? ''}/events/${eventId}`;
+          const eventUrl = `${publicOrigin}/events/${eventId}`;
 
           // Phase 3: resolve the effective price (including discount provider/card logic).
           const basePrice = registrationOption.price;

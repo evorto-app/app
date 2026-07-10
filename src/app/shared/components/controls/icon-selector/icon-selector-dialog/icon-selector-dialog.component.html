@@ -9,6 +9,11 @@
         [formField]="searchForm.query"
       />
     </mat-form-field>
+    @if (!searchWithinLimit()) {
+      <p class="text-error text-sm" role="alert">
+        Search terms are limited to 64 characters.
+      </p>
+    }
     <div class="grid grid-cols-4 gap-1 lg:grid-cols-6 lg:gap-2">
       @for (icon of iconChoices(); track icon.id) {
         <div
@@ -28,21 +33,20 @@
         class="hover:bg-surface-container-high m-4 flex cursor-pointer flex-col items-center gap-2 self-center rounded p-2"
         (click)="saveIconDirectly()"
         data-testid="direct-access-icon"
+        [disabled]="addIconMutation.isPending()"
       >
         <app-icon size="40" [iconCommonName]="directAccessIcon()" />
         <span class="bg-surface rounded px-2 py-1">{{ searchValue() }}</span>
       </button>
-      <!-- <app-notification>
-        <h3 class="text-sm font-medium">Direct Icon Access</h3>
-        <div class="mt-2 text-sm">
-          <p>
-            If you know the name of the icon you want to use, you can directly
-            access it by typing the name in the search field above. <br />
-            If you then see the icon you want, select it. It will be added to
-            the library.
-          </p>
-        </div>
-      </app-notification> -->
+    }
+    @if (invalidDirectAccessName()) {
+      <p class="text-on-surface-variant text-sm">
+        To add an Icons8 icon, use a lowercase name such as
+        <code>calendar:color</code>. Letters, numbers, and hyphens are allowed.
+      </p>
+    }
+    @if (addIconError()) {
+      <p class="text-error text-sm" role="alert">{{ addIconError() }}</p>
     }
   </div>
 </mat-dialog-content>

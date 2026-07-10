@@ -12,6 +12,7 @@ import {
   eventRegistrationOptions,
   eventRegistrations,
   financeReceipts,
+  financeReceiptUploads,
 } from '../../../../../db/schema';
 import {
   includesPermission,
@@ -70,8 +71,15 @@ export const validateReceiptCountryForTenant = (
 export const financeReceiptView = {
   alcoholAmount: financeReceipts.alcoholAmount,
   attachmentFileName: financeReceipts.attachmentFileName,
-  attachmentMimeType: financeReceipts.attachmentMimeType,
-  attachmentStorageKey: financeReceipts.attachmentStorageKey,
+  attachmentMimeType: financeReceiptUploads.mimeType,
+  attachmentStorageKey: financeReceiptUploads.storageKey,
+  attachmentStorageUrl: financeReceiptUploads.storageUrl,
+  attachmentUploadConsumedAt: financeReceiptUploads.consumedAt,
+  attachmentUploadedAt: financeReceiptUploads.uploadedAt,
+  attachmentUploadedByUserId: financeReceiptUploads.uploadedByUserId,
+  attachmentUploadEventId: financeReceiptUploads.eventId,
+  attachmentUploadId: financeReceiptUploads.id,
+  attachmentUploadTenantId: financeReceiptUploads.tenantId,
   createdAt: financeReceipts.createdAt,
   depositAmount: financeReceipts.depositAmount,
   eventId: financeReceipts.eventId,
@@ -88,6 +96,7 @@ export const financeReceiptView = {
   status: financeReceipts.status,
   submittedByUserId: financeReceipts.submittedByUserId,
   taxAmount: financeReceipts.taxAmount,
+  tenantId: financeReceipts.tenantId,
   totalAmount: financeReceipts.totalAmount,
   updatedAt: financeReceipts.updatedAt,
 } as const;

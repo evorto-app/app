@@ -67,8 +67,14 @@ export class TenantCreateComponent {
   protected readonly relaunchScopeItems = globalAdminTenantRelaunchScopeItems;
   protected readonly tenantModel = signal(createGlobalAdminTenantFormModel());
   protected readonly tenantForm = form(this.tenantModel, (schema) => {
+    required(schema.canonicalRootUrl);
     required(schema.domain);
     required(schema.name);
+    validate(schema.canonicalRootUrl, ({ value }) =>
+      value().trim().length === 0
+        ? { kind: 'required', message: 'Canonical root URL is required.' }
+        : undefined,
+    );
     validate(schema.domain, ({ value }) =>
       value().trim().length === 0
         ? { kind: 'required', message: 'Domain is required.' }

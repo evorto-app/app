@@ -10,6 +10,7 @@ import {
 import { adminHandlers } from './admin.handlers';
 
 const createTenant = (id = 'tenant-1') => ({
+  canonicalRootUrl: `https://${id}.example.com`,
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {

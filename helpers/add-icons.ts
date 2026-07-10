@@ -1,5 +1,5 @@
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import consola from 'consola';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
@@ -44,22 +44,22 @@ export const addIcons = async (
       friendlyName: 'Canyon Landscape',
     },
   ];
-  const values = await Promise.all(
-    seed.map(async (icon) => {
-      const t0 = Date.now();
-      const sourceColor = await computeIconSourceColor(icon.commonName);
-      consola.debug(
-        `Computed color for ${icon.commonName} in ${Date.now() - t0}ms`,
-      );
-      return {
-        commonName: icon.commonName,
-        friendlyName: icon.friendlyName,
-        id: getId(),
-        sourceColor,
-        tenantId: tenant.id,
-      } as const;
-    }),
-  );
+  const values: (typeof schema.icons.$inferInsert)[] = [];
+  for (const icon of seed) {
+    const t0 = Date.now();
+    const sourceResult = await computeIconSourceColor(icon.commonName);
+    consola.debug(
+      `Computed color for ${icon.commonName} in ${Date.now() - t0}ms`,
+    );
+    values.push({
+      commonName: icon.commonName,
+      friendlyName: icon.friendlyName,
+      id: getId(),
+      sourceColor:
+        sourceResult._tag === 'success' ? sourceResult.sourceColor : undefined,
+      tenantId: tenant.id,
+    });
+  }
   const inserted = await database
     .insert(schema.icons)
     .values(values)

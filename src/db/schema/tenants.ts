@@ -31,6 +31,7 @@ export const timezoneEnum = pgEnum('timezone', [
 ]);
 
 export const tenants = pgTable('tenants', {
+  canonicalRootUrl: text('canonical_root_url').notNull(),
   createdAt: timestamp().notNull().defaultNow(),
   currency: currencyEnum().notNull().default('EUR'),
   defaultLocation: jsonb('default_location').$type<GoogleLocationType>(),

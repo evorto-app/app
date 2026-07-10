@@ -10,6 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
+import { type IconAddUsage } from '../../../../shared/rpc-contracts/app-rpcs/icons.rpcs';
 import { type TemplateCategoryRecord } from '../../../../shared/rpc-contracts/app-rpcs/template-categories.rpcs';
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
 import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
@@ -33,6 +34,7 @@ import { TemplateFormData } from './template-form.utilities';
 })
 export class TemplateGeneralFormComponent {
   public readonly generalForm = input.required<FieldTree<TemplateFormData>>();
+  public readonly iconUsage = input.required<IconAddUsage>();
 
   private readonly rpc = AppRpc.injectClient();
   protected readonly templateCategoriesQuery = injectQuery(() =>

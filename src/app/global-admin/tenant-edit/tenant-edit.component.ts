@@ -89,6 +89,7 @@ export class TenantEditComponent {
     }),
   });
   protected readonly tenantForm = form(this.tenantModel, (schema) => {
+    required(schema.canonicalRootUrl);
     required(schema.domain);
     required(schema.name);
   });

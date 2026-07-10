@@ -480,10 +480,7 @@ export class EventOrganize {
 
     return {
       fileName: attachmentName,
-      mimeType: file.type,
-      sizeBytes: originalUpload.sizeBytes,
-      storageKey: originalUpload.storageKey,
-      storageUrl: originalUpload.storageUrl,
+      uploadId: originalUpload.uploadId,
     };
   }
 
@@ -509,11 +506,9 @@ export class EventOrganize {
     });
   }
 
-  private async uploadReceiptOriginal(file: File): Promise<{
-    sizeBytes: number;
-    storageKey: string;
-    storageUrl: string;
-  }> {
+  private async uploadReceiptOriginal(
+    file: File,
+  ): Promise<{ uploadId: string }> {
     return this.receiptOriginalUploadMutation.mutateAsync({
       eventId: this.eventId(),
       fileBase64: await this.readFileAsBase64(file),

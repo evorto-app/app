@@ -11,6 +11,8 @@ import {
   desc,
   eq,
   inArray,
+  isNotNull,
+  isNull,
   not,
   TransactionRollbackError,
 } from 'drizzle-orm';
@@ -22,6 +24,7 @@ import { Database } from '../../../../../db';
 import {
   eventInstances,
   financeReceipts,
+  financeReceiptUploads,
   transactions,
   users,
 } from '../../../../../db/schema';
@@ -45,6 +48,13 @@ const isTransactionRollbackError = (
   error: unknown,
 ): error is TransactionRollbackError =>
   error instanceof TransactionRollbackError;
+
+const financeReceiptUploadJoin = and(
+  eq(financeReceipts.attachmentUploadId, financeReceiptUploads.id),
+  eq(financeReceipts.tenantId, financeReceiptUploads.tenantId),
+  eq(financeReceipts.eventId, financeReceiptUploads.eventId),
+  eq(financeReceipts.submittedByUserId, financeReceiptUploads.uploadedByUserId),
+);
 
 export const financeReceiptSubmitterEmail = (submitter: {
   submittedByCommunicationEmail: null | string;
@@ -78,6 +88,7 @@ export const financeReceiptsHandlers = {
             submittedByLastName: users.lastName,
           })
           .from(financeReceipts)
+          .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
           .innerJoin(users, eq(financeReceipts.submittedByUserId, users.id))
           .where(
             and(
@@ -310,6 +321,7 @@ export const financeReceiptsHandlers = {
             submittedByLastName: users.lastName,
           })
           .from(financeReceipts)
+          .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
           .innerJoin(
             eventInstances,
             eq(financeReceipts.eventId, eventInstances.id),
@@ -357,6 +369,7 @@ export const financeReceiptsHandlers = {
             eventTitle: eventInstances.title,
           })
           .from(financeReceipts)
+          .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
           .innerJoin(
             eventInstances,
             eq(financeReceipts.eventId, eventInstances.id),
@@ -369,8 +382,9 @@ export const financeReceiptsHandlers = {
           )
           .orderBy(desc(financeReceipts.createdAt)),
       );
+      const signedReceipts = yield* withSignedReceiptPreviewUrls(receipts);
 
-      return receipts.map((receipt) => ({
+      return signedReceipts.map((receipt) => ({
         ...normalizeFinanceReceiptBaseRecord(receipt),
         eventStart: receipt.eventStart.toISOString(),
         eventTitle: receipt.eventTitle,
@@ -392,6 +406,7 @@ export const financeReceiptsHandlers = {
             submittedByLastName: users.lastName,
           })
           .from(financeReceipts)
+          .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
           .innerJoin(
             eventInstances,
             eq(financeReceipts.eventId, eventInstances.id),
@@ -405,6 +420,8 @@ export const financeReceiptsHandlers = {
           )
           .orderBy(desc(eventInstances.start), desc(financeReceipts.createdAt)),
       );
+      const signedPendingReceipts =
+        yield* withSignedReceiptPreviewUrls(pendingReceipts);
 
       const groupedByEvent = new Map<
         string,
@@ -420,7 +437,7 @@ export const financeReceiptsHandlers = {
         }
       >();
 
-      for (const receipt of pendingReceipts) {
+      for (const receipt of signedPendingReceipts) {
         const existing = groupedByEvent.get(receipt.eventId);
         const normalizedReceipt = {
           ...normalizeFinanceReceiptBaseRecord(receipt),
@@ -462,6 +479,7 @@ export const financeReceiptsHandlers = {
             submittedByLastName: users.lastName,
           })
           .from(financeReceipts)
+          .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
           .innerJoin(
             eventInstances,
             eq(financeReceipts.eventId, eventInstances.id),
@@ -750,15 +768,6 @@ export const financeReceiptsHandlers = {
           }),
         );
       }
-      if (!isAllowedReceiptMimeType(input.attachment.mimeType)) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Receipt attachment mime type is not supported',
-            reason: 'invalid_mime_type',
-          }),
-        );
-      }
-
       const event = yield* databaseEffect((database) =>
         database.query.eventInstances.findFirst({
           columns: {
@@ -825,40 +834,131 @@ export const financeReceiptsHandlers = {
         );
       }
 
-      const createdReceipts = yield* databaseEffect((database) =>
-        database
-          .insert(financeReceipts)
-          .values({
-            alcoholAmount,
-            attachmentFileName: input.attachment.fileName,
-            attachmentMimeType: input.attachment.mimeType,
-            attachmentSizeBytes: input.attachment.sizeBytes,
-            attachmentStorageKey: input.attachment.storageKey ?? null,
-            attachmentStorageUrl: input.attachment.storageUrl ?? null,
-            depositAmount,
-            eventId: input.eventId,
-            hasAlcohol: input.fields.hasAlcohol,
-            hasDeposit: input.fields.hasDeposit,
-            purchaseCountry,
-            receiptDate,
-            status: 'submitted',
-            submittedByUserId: user.id,
-            taxAmount: input.fields.taxAmount,
-            tenantId: tenant.id,
-            totalAmount: input.fields.totalAmount,
-          })
-          .returning({
-            id: financeReceipts.id,
+      let submissionFailure: null | RpcBadRequestError = null;
+      const created = yield* databaseEffect((database) =>
+        database.transaction((tx) =>
+          Effect.gen(function* () {
+            const uploads = yield* tx
+              .select({
+                id: financeReceiptUploads.id,
+                mimeType: financeReceiptUploads.mimeType,
+                sizeBytes: financeReceiptUploads.sizeBytes,
+              })
+              .from(financeReceiptUploads)
+              .where(
+                and(
+                  eq(financeReceiptUploads.id, input.attachment.uploadId),
+                  eq(financeReceiptUploads.tenantId, tenant.id),
+                  eq(financeReceiptUploads.eventId, input.eventId),
+                  eq(financeReceiptUploads.uploadedByUserId, user.id),
+                  isNotNull(financeReceiptUploads.uploadedAt),
+                  isNull(financeReceiptUploads.consumedAt),
+                ),
+              )
+              .for('update');
+            const upload = uploads[0];
+            if (
+              !upload ||
+              !isAllowedReceiptMimeType(upload.mimeType) ||
+              upload.sizeBytes <= 0
+            ) {
+              submissionFailure = new RpcBadRequestError({
+                message:
+                  'The receipt upload is unavailable or does not match this submission',
+                reason: 'receipt_upload_unavailable',
+              });
+              return yield* tx.rollback();
+            }
+
+            const existingReceipts = yield* tx
+              .select({ id: financeReceipts.id })
+              .from(financeReceipts)
+              .where(
+                eq(
+                  financeReceipts.attachmentUploadId,
+                  input.attachment.uploadId,
+                ),
+              )
+              .limit(1);
+            if (existingReceipts.length > 0) {
+              submissionFailure = new RpcBadRequestError({
+                message: 'The receipt upload has already been submitted',
+                reason: 'receipt_upload_unavailable',
+              });
+              return yield* tx.rollback();
+            }
+
+            const consumedUploads = yield* tx
+              .update(financeReceiptUploads)
+              .set({ consumedAt: new Date() })
+              .where(
+                and(
+                  eq(financeReceiptUploads.id, upload.id),
+                  eq(financeReceiptUploads.tenantId, tenant.id),
+                  eq(financeReceiptUploads.eventId, input.eventId),
+                  eq(financeReceiptUploads.uploadedByUserId, user.id),
+                  isNotNull(financeReceiptUploads.uploadedAt),
+                  isNull(financeReceiptUploads.consumedAt),
+                ),
+              )
+              .returning({ id: financeReceiptUploads.id });
+            if (consumedUploads.length !== 1) {
+              submissionFailure = new RpcBadRequestError({
+                message: 'The receipt upload has already been submitted',
+                reason: 'receipt_upload_unavailable',
+              });
+              return yield* tx.rollback();
+            }
+
+            const createdReceipts = yield* tx
+              .insert(financeReceipts)
+              .values({
+                alcoholAmount,
+                attachmentFileName: input.attachment.fileName,
+                attachmentMimeType: upload.mimeType,
+                attachmentSizeBytes: upload.sizeBytes,
+                attachmentUploadId: upload.id,
+                depositAmount,
+                eventId: input.eventId,
+                hasAlcohol: input.fields.hasAlcohol,
+                hasDeposit: input.fields.hasDeposit,
+                purchaseCountry,
+                receiptDate,
+                status: 'submitted',
+                submittedByUserId: user.id,
+                taxAmount: input.fields.taxAmount,
+                tenantId: tenant.id,
+                totalAmount: input.fields.totalAmount,
+              })
+              .returning({
+                id: financeReceipts.id,
+              });
+            const createdReceipt = createdReceipts[0];
+            if (!createdReceipt) {
+              return yield* Effect.die(
+                new Error(
+                  `Receipt insert returned no rows for event ${input.eventId}`,
+                ),
+              );
+            }
+
+            return createdReceipt;
           }),
+        ),
+      ).pipe(
+        Effect.catchDefect((defect) => {
+          if (!isTransactionRollbackError(defect)) {
+            return Effect.die(defect);
+          }
+          return submissionFailure === null
+            ? Effect.die(
+                new Error(
+                  'Receipt submission rollback triggered without a tracked failure',
+                ),
+              )
+            : Effect.fail(submissionFailure);
+        }),
       );
-      const created = createdReceipts[0];
-      if (!created) {
-        return yield* Effect.die(
-          new Error(
-            `Receipt insert returned no rows for event ${input.eventId}`,
-          ),
-        );
-      }
 
       return {
         id: created.id,

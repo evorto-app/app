@@ -1,3 +1,4 @@
+import type { IconAddUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import type { IconValue } from '@shared/types/icon';
 
 import {
@@ -29,6 +30,7 @@ export class IconSelectorFieldComponent implements FormValueControl<IconValue | 
   readonly invalid = input<boolean>(false);
   readonly readonly = input<boolean>(false);
   readonly touched = model<boolean>(false);
+  readonly usage = input.required<IconAddUsage>();
   readonly value = model<IconValue | null>(null);
   protected readonly showError = computed(
     () => this.touched() && this.invalid(),
@@ -40,7 +42,10 @@ export class IconSelectorFieldComponent implements FormValueControl<IconValue | 
     if (this.disabled() || this.readonly()) return;
     const icon = await firstValueFrom(
       this.dialog
-        .open(IconSelectorDialogComponent, { minWidth: '70dvw' })
+        .open(IconSelectorDialogComponent, {
+          data: { usage: this.usage() },
+          minWidth: '70dvw',
+        })
         .afterClosed(),
     );
     this.touched.set(true);

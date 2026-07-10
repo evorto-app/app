@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 
+import { addConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
@@ -35,6 +36,7 @@ test('Manage user profile', async ({
   const documentedPaypalEmail = `profile-docs-paypal-${seedDate.getTime()}@evorto.app`;
   const profileReceiptId = getId();
   const profileReceiptFileName = `profile-docs-receipt-${seedDate.getTime()}.pdf`;
+  let profileReceiptUploadId: string | undefined;
   const profileEventId = seeded.scenario.events.freeOpen.eventId;
   const profileEvent = seeded.events.find(
     (event) => event.id === profileEventId,
@@ -51,10 +53,19 @@ test('Manage user profile', async ({
       seeded,
       userId: regularUser.id,
     });
+    profileReceiptUploadId = await addConsumedFinanceReceiptUpload(database, {
+      eventId: profileEventId,
+      fileName: profileReceiptFileName,
+      mimeType: 'application/pdf',
+      sizeBytes: 2048,
+      tenantId: seeded.tenant.id,
+      uploadedByUserId: regularUser.id,
+    });
     await database.insert(schema.financeReceipts).values({
       attachmentFileName: profileReceiptFileName,
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 2048,
+      attachmentUploadId: profileReceiptUploadId,
       eventId: profileEventId,
       id: profileReceiptId,
       purchaseCountry: 'DE',
@@ -469,6 +480,11 @@ The user profile now uses a two-column layout:
     await database
       .delete(schema.financeReceipts)
       .where(eq(schema.financeReceipts.id, profileReceiptId));
+    if (profileReceiptUploadId) {
+      await database
+        .delete(schema.financeReceiptUploads)
+        .where(eq(schema.financeReceiptUploads.id, profileReceiptUploadId));
+    }
     await profileEventCards?.cleanup();
   }
 });

@@ -14,6 +14,7 @@ import {
 import { normalizeUsersFindManySearch, userHandlers } from './users.handlers';
 
 const createTenant = () => ({
+  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {

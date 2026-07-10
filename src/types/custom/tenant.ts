@@ -110,6 +110,7 @@ const OptionalTenantReceiptSettings = Schema.NullishOr(
 );
 
 export class Tenant extends Schema.Class<Tenant>('Tenant')({
+  canonicalRootUrl: Schema.NonEmptyString,
   currency: SupportedTenantCurrency,
   defaultLocation: OptionalGoogleLocation,
   discountProviders: Schema.optional(

@@ -841,7 +841,7 @@ const transferEventRegistration = ({
   });
 
 export const eventRegistrationHandlers = {
-  'events.approveRegistration': ({ eventId, registrationId }, options) =>
+  'events.approveRegistration': ({ eventId, registrationId }, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
@@ -855,10 +855,11 @@ export const eventRegistrationHandlers = {
 
       return yield* EventRegistrationService.approveManualRegistration({
         eventId,
-        headers: options.headers,
         registrationId,
         tenant: {
+          canonicalRootUrl: tenant.canonicalRootUrl,
           currency: tenant.currency,
+          domain: tenant.domain,
           emailSenderEmail: tenant.emailSenderEmail,
           emailSenderName: tenant.emailSenderName,
           id: tenant.id,
@@ -1462,7 +1463,7 @@ export const eventRegistrationHandlers = {
     }),
   'events.registerForEvent': (
     { addOns, answers, eventId, guestCount, registrationOptionId },
-    options,
+    _options,
   ) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
@@ -1474,10 +1475,11 @@ export const eventRegistrationHandlers = {
         answers,
         eventId,
         guestCount,
-        headers: options.headers,
         registrationOptionId,
         tenant: {
+          canonicalRootUrl: tenant.canonicalRootUrl,
           currency: tenant.currency,
+          domain: tenant.domain,
           id: tenant.id,
           stripeAccountId: tenant.stripeAccountId,
         },
