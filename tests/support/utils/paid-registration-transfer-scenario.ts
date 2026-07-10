@@ -16,6 +16,11 @@ import { and, eq, like } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
 
+import {
+  futureServerEventWindow,
+  latestServerOrWallNow,
+} from './server-test-clock';
+
 const sourcePrice = 1800;
 const recipientPrice = 2100;
 const recipientApplicationFee = 150;
@@ -85,9 +90,11 @@ export const seedPaidRegistrationTransferScenario = async (
   const chargeId = `ch_transfer_${recipientTransactionId}`;
   const sourceChargeId = `ch_transfer_source_${sourceTransactionId}`;
   const terminalRefundId = `re_transfer_${sourceTransactionId}`;
-  const now = new Date();
-  const startsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const checkoutExpiresAt = new Date(now.getTime() + 60 * 60 * 1000);
+  const eventWindow = futureServerEventWindow();
+  const startsAt = eventWindow.start;
+  const checkoutExpiresAt = new Date(
+    latestServerOrWallNow().getTime() + 60 * 60 * 1000,
+  );
   const originalTenant = await input.database.query.tenants.findFirst({
     columns: { stripeAccountId: true },
     where: { id: input.tenant.id },
@@ -103,7 +110,7 @@ export const seedPaidRegistrationTransferScenario = async (
   await input.database.insert(schema.eventInstances).values({
     creatorId: input.source.id,
     description: 'Deterministic paid transfer lifecycle scenario',
-    end: new Date(startsAt.getTime() + 2 * 60 * 60 * 1000),
+    end: eventWindow.end,
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
     start: startsAt,
@@ -114,12 +121,12 @@ export const seedPaidRegistrationTransferScenario = async (
     unlisted: true,
   });
   await input.database.insert(schema.eventRegistrationOptions).values({
-    closeRegistrationTime: new Date(startsAt.getTime() - 60 * 60 * 1000),
+    closeRegistrationTime: eventWindow.closeRegistrationTime,
     confirmedSpots: 1,
     eventId,
     id: optionId,
     isPaid: true,
-    openRegistrationTime: new Date(now.getTime() - 60 * 60 * 1000),
+    openRegistrationTime: eventWindow.openRegistrationTime,
     organizingRegistration: false,
     price: recipientPrice,
     refundFeesOnCancellation: true,

@@ -4,30 +4,21 @@ import type { Locator, Page } from '@playwright/test';
 import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
-import { fillTestCard } from '../../support/utils/fill-test-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { deliverCompletedRegistrationCheckoutWebhook } from '../../support/utils/registration-checkout-webhook';
 import { seedPostRegistrationAddonPurchaseScenario } from '../../support/utils/post-registration-addon-purchase-scenario';
 import {
   seedFreeRegistrationAddon,
   seedRequiredRegistrationQuestion,
 } from '../../support/utils/seed-registration-addons';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
+import { waitForRegistrationPage as waitForRegistrationStatus } from '../../support/utils/event-registration-page';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
-const waitForRegistrationStatus = async (page: Page) => {
-  await page
-    .getByText('Loading registration status')
-    .first()
-    .waitFor({ state: 'detached' });
-};
-
 const waitForActiveRegistration = async (page: Page) => {
-  await page
-    .getByText('Loading registration status')
-    .first()
-    .waitFor({ state: 'detached', timeout: 15_000 });
+  await waitForRegistrationStatus(page);
   await page.locator('app-event-active-registration').waitFor({
     state: 'visible',
     timeout: 15_000,
@@ -129,8 +120,13 @@ test.describe('Register for events', () => {
     await page.goto('.');
     await testInfo.attach('markdown', {
       body: `
-  To register for an event, open the app and browse the events available to you.
-  Click one that interests you to learn more and see the registration options.`,
+  {% callout type="note" title="Before you start" %}
+  This guide is for a signed-in participant whose account belongs to the same tenant as the event. Use the account that should own the ticket. The account must match any participant-role restrictions shown on the registration option; no organizer or administrator permission is required for an ordinary participant registration.
+
+  A paid registration also requires the tenant's Stripe payments to be available and a payment method accepted by Stripe.
+  {% /callout %}
+
+  Open **Events** from the main navigation and browse the events available to you. Select an event to read its details and registration options.`,
     });
     await takeScreenshot(testInfo, freeEventLink, page);
     await freeEventLink.click();
@@ -142,7 +138,7 @@ test.describe('Register for events', () => {
     await testInfo.attach('markdown', {
       body: `
   After you have selected your event, you can see the event description and your options for registration.
-  _Note:_ If you are not logged it, please follow the instructions to do so.
+  If you arrived while signed out, select **Log in**, sign in with the participant account that should own the ticket, and return to the event.
 
   ### Free events
   Here we will make a distinction for free events and paid events (covered further down).
@@ -236,7 +232,7 @@ test.describe('Register for events', () => {
   You should now have a successful registration.
   You can see this by additional information being available and also your ticket QR code.
   Participant registrations can include guests, registration-time add-ons, and registration-question answers. Guest spots are attached to the logged-in buyer's registration and count against the same option capacity. Add-ons are shown with the confirmed registration and can be reviewed by organizers.
-  This code is needed when attending the event. Evorto also queues a confirmation email with a link back to this authenticated ticket page. The link is not a bearer credential: the participant must still sign in as the ticket owner.
+  Show this ticket QR code when attending the event. Evorto also queues a confirmation email with a link back to this authenticated ticket page. The link is not a bearer credential: the participant must still sign in as the ticket owner.
   You can cancel a pending or confirmed registration from this event page before the event starts. Confirmed cancellation releases your selected spots, including guests when attached. If the registration was paid, Evorto submits a Stripe refund when the original payment reference is available; otherwise it creates a pending manual refund record for organizers.`,
     });
 
@@ -284,8 +280,6 @@ test.describe('Register for events', () => {
       await expect(eventLink).toBeVisible();
       await testInfo.attach('markdown', {
         body: `
-  ## Buy add-ons after registration
-
   A confirmed participant can return to a listed event and buy optional add-ons from the existing ticket. The organizer controls whether each add-on is sold before the event, during the event, or in both windows.`,
       });
       await takeScreenshot(
@@ -370,13 +364,50 @@ test.describe('Register for events', () => {
         ),
       ).toBeVisible();
 
-      const pendingCheckout = await scenario.beginPaidCheckout(2);
-      await page.reload();
-      await waitForActiveRegistration(page);
       const paidAddOnRow = registrationAddOnRow(
         page,
         scenario.addOns.paid.title,
       );
+      await testInfo.attach('markdown', {
+        body: `
+  For a paid add-on, choose the quantity and select **Continue to Stripe**. Evorto creates one pending order, reserves that stock, and opens Stripe Checkout. Leaving Checkout does not add the items to the ticket: return to this event and continue the same payment link instead of starting another purchase.`,
+      });
+      await paidAddOnRow
+        .getByLabel(`Quantity for ${scenario.addOns.paid.title}`, {
+          exact: true,
+        })
+        .fill('2');
+      await takeScreenshot(
+        testInfo,
+        paidAddOnRow,
+        page,
+        'Start a paid add-on purchase from the participant ticket',
+      );
+      await Promise.all([
+        page.waitForURL(/checkout\.stripe\.com/, { timeout: 90_000 }),
+        paidAddOnRow
+          .getByRole('button', { exact: true, name: 'Continue to Stripe' })
+          .click(),
+      ]);
+      await expect
+        .poll(
+          async () => {
+            try {
+              return (await scenario.readPendingCheckout()).checkoutUrl;
+            } catch {
+              return null;
+            }
+          },
+          {
+            message:
+              'Timed out waiting for the participant UI to create the paid add-on checkout',
+            timeout: 20_000,
+          },
+        )
+        .not.toBeNull();
+      const pendingCheckout = await scenario.readPendingCheckout();
+      await page.goto(`/events/${scenario.eventId}`);
+      await waitForActiveRegistration(page);
       await expect(
         paidAddOnRow.getByText('Payment is pending', { exact: true }),
       ).toBeVisible();
@@ -560,8 +591,6 @@ test.describe('Register for events', () => {
     }
     await testInfo.attach('markdown', {
       body: `
-  ## Registration unavailable states
-
   Event pages stay readable when registration is not currently possible. The registration card explains the current state instead of showing an action that cannot succeed.
 `,
     });
@@ -813,6 +842,7 @@ test.describe('Register for events', () => {
     database,
     events,
     page,
+    request,
     seeded,
     tenant,
   }, testInfo) => {
@@ -952,32 +982,46 @@ test.describe('Register for events', () => {
       });
       checkoutUrl = pendingTransaction?.stripeCheckoutUrl ?? null;
     }
-    const checkoutPagePromise = page.context().waitForEvent('page', {
-      timeout: 5_000,
+    const pendingTransaction = await database.query.transactions.findFirst({
+      orderBy: { createdAt: 'desc' },
+      where: {
+        eventId: paidEvent.id,
+        method: 'stripe',
+        status: 'pending',
+        targetUserId: regularUserId,
+        tenantId: tenant.id,
+        type: 'registration',
+      },
     });
-    if (await payNowLink.isVisible().catch(() => false)) {
-      await payNowLink.click();
-    } else if (checkoutUrl) {
-      await page.goto(checkoutUrl);
-    } else {
-      throw new Error(
-        'Stripe checkout URL missing after creating pending payment',
-      );
+    if (
+      !checkoutUrl ||
+      !pendingTransaction?.eventRegistrationId ||
+      !pendingTransaction.stripeAccountId ||
+      !pendingTransaction.stripeCheckoutSessionId ||
+      !pendingTransaction.stripeCheckoutUrl
+    ) {
+      throw new Error('Expected exact pending paid registration ownership');
     }
-    const checkoutPopup = await checkoutPagePromise.catch(() => null);
-    const checkoutPage = checkoutPopup ?? page;
-    await expect
-      .poll(() => checkoutPage.url(), {
-        message: 'Timed out waiting for Stripe Checkout page navigation',
-        timeout: 30_000,
-      })
-      .toMatch(/checkout\.stripe\.com/);
-    await takeScreenshot(testInfo, checkoutPage.locator('main'), checkoutPage);
-    await fillTestCard(checkoutPage);
-    const submitButton = checkoutPage.getByTestId(
-      'hosted-payment-submit-button',
-    );
-    await submitButton.click();
+    expect(pendingTransaction.stripeCheckoutUrl).toBe(checkoutUrl);
+    expect(new URL(checkoutUrl).hostname).toBe('checkout.stripe.com');
+
+    await testInfo.attach('markdown', {
+      body: `
+  Stripe Checkout opens on Stripe's website. Review the event and amount there, enter a payment method, and submit the payment. Closing Checkout leaves this registration pending, so return here and use the same **Pay now** link instead of starting another registration.
+
+  This guide verifies the exact Stripe destination and the signed completion event Evorto accepts for this registration. It shows Evorto immediately before and after payment instead of reproducing Stripe's changing card form.`,
+    });
+    await deliverCompletedRegistrationCheckoutWebhook({
+      amount: pendingTransaction.amount,
+      currency: pendingTransaction.currency,
+      paymentIntentId: pendingTransaction.stripePaymentIntentId,
+      registrationId: pendingTransaction.eventRegistrationId,
+      request,
+      sessionId: pendingTransaction.stripeCheckoutSessionId,
+      stripeAccountId: pendingTransaction.stripeAccountId,
+      tenantId: tenant.id,
+      transactionId: pendingTransaction.id,
+    });
 
     const getStripeRegistrationState = async () => {
       const transaction = await database.query.transactions.findFirst({
@@ -1013,53 +1057,24 @@ test.describe('Register for events', () => {
       return `${transaction.status}:${registration?.status ?? 'missing-registration'}`;
     };
 
-    try {
-      await expect
-        .poll(getStripeRegistrationState, {
-          intervals: [1_000, 2_000, 4_000],
-          message:
-            'Timed out waiting for Stripe checkout side-effects to be mirrored in the application database',
-          timeout: 90_000,
-        })
-        .toBe('successful:CONFIRMED');
-    } catch (error) {
-      const checkoutUrl = checkoutPage.isClosed()
-        ? 'closed'
-        : checkoutPage.url();
-      const submitButtonText =
-        (await submitButton.textContent().catch(() => null))?.trim() ??
-        'missing';
-      const postalCodeValue = await checkoutPage
-        .locator('input[aria-label="ZIP"], input[aria-label*="Postal"]')
-        .first()
-        .inputValue()
-        .catch(() => '');
-      const phoneValue = await checkoutPage
-        .locator('input[aria-label="Phone number"], input[aria-label*="Phone"]')
-        .first()
-        .inputValue()
-        .catch(() => '');
-      throw new Error(
-        `Timed out waiting for Stripe checkout side-effects to be mirrored in the application database (checkoutUrl=${checkoutUrl}, submitButton=${submitButtonText}, zip=${postalCodeValue || 'empty'}, phone=${phoneValue || 'empty'})`,
-        { cause: error },
-      );
-    }
+    await expect
+      .poll(getStripeRegistrationState, {
+        intervals: [1_000, 2_000, 4_000],
+        message:
+          'Timed out waiting for Stripe checkout side-effects to be mirrored in the application database',
+        timeout: 90_000,
+      })
+      .toBe('successful:CONFIRMED');
 
     await page.goto(`/events/${paidEvent.id}`);
     await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
-    const registrationStatus = page
-      .getByText('Loading registration status')
-      .first();
-    await registrationStatus
-      .waitFor({ state: 'attached', timeout: 10_000 })
-      .catch(() => {});
-    await registrationStatus.waitFor({ state: 'detached', timeout: 20_000 });
+    await waitForRegistrationStatus(page);
     const registeredMessage = page.getByText('You are registered');
     await expect(registeredMessage).toBeVisible({ timeout: 20_000 });
     await testInfo.attach('markdown', {
       body: `
   ### Successful paid registration
-  After successful payment, you are redirected back to the event page and shown your registration confirmation.
+  After Stripe accepts the payment, return to the event page to see your registration confirmation.
   Your ticket details and QR code are now available.`,
     });
     await takeScreenshot(

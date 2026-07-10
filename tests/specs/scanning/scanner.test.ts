@@ -220,10 +220,18 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
     await expect(tote).toContainText(
       '1 included (1 unredeemed) · 2 optional (2 unredeemed)',
     );
-    await expect(tote.getByText('Total').locator('..')).toContainText('3');
-    await expect(tote.getByText('Redeemed').locator('..')).toContainText('0');
-    await expect(tote.getByText('Cancelled').locator('..')).toContainText('0');
-    await expect(tote.getByText('Remaining').locator('..')).toContainText('3');
+    await expect(
+      tote.getByText('Total', { exact: true }).locator('..'),
+    ).toContainText('3');
+    await expect(
+      tote.getByText('Redeemed', { exact: true }).locator('..'),
+    ).toContainText('0');
+    await expect(
+      tote.getByText('Cancelled', { exact: true }).locator('..'),
+    ).toContainText('0');
+    await expect(
+      tote.getByText('Remaining', { exact: true }).locator('..'),
+    ).toContainText('3');
     await expect(tote.getByText('No refund requested')).toBeVisible();
 
     await tote.getByRole('button', { name: 'Cancel unredeemed units' }).click();
@@ -253,20 +261,28 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
 
     await tote.getByRole('button', { name: 'Redeem 1' }).click();
     await expect(page.getByText(`${toteTitle} redeemed.`)).toBeVisible();
-    await expect(tote.getByText('Redeemed').locator('..')).toContainText('1');
+    await expect(
+      tote.getByText('Redeemed', { exact: true }).locator('..'),
+    ).toContainText('1');
     await tote.getByRole('button', { name: 'Undo last redemption' }).click();
     await expect(
       page.getByText(`${toteTitle} redemption undone.`),
     ).toBeVisible();
-    await expect(tote.getByText('Redeemed').locator('..')).toContainText('0');
+    await expect(
+      tote.getByText('Redeemed', { exact: true }).locator('..'),
+    ).toContainText('0');
     await expect(
       tote.getByRole('button', { name: 'Undo last redemption' }),
     ).toHaveCount(0);
 
     await tote.getByRole('button', { name: 'Redeem 1' }).click();
-    await expect(tote.getByText('Redeemed').locator('..')).toContainText('1');
+    await expect(
+      tote.getByText('Redeemed', { exact: true }).locator('..'),
+    ).toContainText('1');
     await tote.getByRole('button', { name: 'Redeem 1' }).click();
-    await expect(tote.getByText('Redeemed').locator('..')).toContainText('2');
+    await expect(
+      tote.getByText('Redeemed', { exact: true }).locator('..'),
+    ).toContainText('2');
 
     await tote.getByRole('button', { name: 'Cancel unredeemed units' }).click();
     const refundDialog = page.getByRole('dialog');
@@ -286,8 +302,12 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
     await expect(
       page.getByText('Cancellation recorded. No monetary refund was required.'),
     ).toBeVisible();
-    await expect(tote.getByText('Cancelled').locator('..')).toContainText('1');
-    await expect(tote.getByText('Remaining').locator('..')).toContainText('0');
+    await expect(
+      tote.getByText('Cancelled', { exact: true }).locator('..'),
+    ).toContainText('1');
+    await expect(
+      tote.getByText('Remaining', { exact: true }).locator('..'),
+    ).toContainText('0');
     await expect(tote.getByText('No monetary refund required')).toBeVisible();
     await expect(tote.getByRole('button', { name: 'Redeem 1' })).toHaveCount(0);
     await expect(
@@ -308,9 +328,9 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
       .getByRole('button', { name: 'Cancel selected units' })
       .click();
     await expect(voucher.getByText('Cancelled without refund')).toBeVisible();
-    await expect(voucher.getByText('Cancelled').locator('..')).toContainText(
-      '1',
-    );
+    await expect(
+      voucher.getByText('Cancelled', { exact: true }).locator('..'),
+    ).toContainText('1');
 
     await checklist
       .getByRole('button', { name: 'Cancel unredeemed units' })
@@ -330,12 +350,12 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
     await includedDialog
       .getByRole('button', { name: 'Cancel selected units' })
       .click();
-    await expect(checklist.getByText('Cancelled').locator('..')).toContainText(
-      '1',
-    );
-    await expect(checklist.getByText('Remaining').locator('..')).toContainText(
-      '0',
-    );
+    await expect(
+      checklist.getByText('Cancelled', { exact: true }).locator('..'),
+    ).toContainText('1');
+    await expect(
+      checklist.getByText('Remaining', { exact: true }).locator('..'),
+    ).toContainText('0');
     await expect(
       checklist.getByText('No monetary refund required'),
     ).toBeVisible();
@@ -659,9 +679,9 @@ test.describe('organizer add-on cancellation permissions', () => {
         addOn.getByRole('button', { name: 'Undo last redemption' }),
       ).toBeVisible();
       await addOn.getByRole('button', { name: 'Undo last redemption' }).click();
-      await expect(addOn.getByText('Redeemed').locator('..')).toContainText(
-        '0',
-      );
+      await expect(
+        addOn.getByText('Redeemed', { exact: true }).locator('..'),
+      ).toContainText('0');
 
       await permissionOverride({
         add: ['events:cancelRegistrations'],

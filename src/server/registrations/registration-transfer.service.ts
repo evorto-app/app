@@ -1,8 +1,4 @@
 import type { DatabaseClient } from '@db/index';
-import type {
-  RegistrationTransferAddonInput,
-  RegistrationTransferAnswerInput,
-} from '@shared/rpc-contracts/app-rpcs/registration-transfers.rpcs';
 import type Stripe from 'stripe';
 
 import { createId } from '@db/create-id';
@@ -37,6 +33,14 @@ import {
   RegistrationTransferNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/registration-transfers.errors';
 import {
+  type RegistrationTransferAddonInput,
+  type RegistrationTransferAnswerInput,
+  RegistrationTransferClaimRecord,
+  RegistrationTransferClaimResult,
+  RegistrationTransferOfferResult,
+  RegistrationTransferRetryCheckoutResult,
+} from '@shared/rpc-contracts/app-rpcs/registration-transfers.rpcs';
+import {
   resolveTenantDiscountProviders,
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
@@ -59,6 +63,7 @@ import {
   createHostedCheckoutSession,
   expireHostedCheckoutSession,
   retrieveHostedCheckoutSession,
+  stripeCheckoutMinimumRemainingMinutes,
 } from '../integrations/stripe-checkout';
 import { enqueueRegistrationTransferredEmail } from '../notifications/email-delivery';
 import { lockTenantStripeAccount } from '../payments/pending-stripe-obligations';
@@ -853,12 +858,12 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
       });
     }
 
-    return {
+    return RegistrationTransferOfferResult.make({
       claimCode: credentials.claimCode,
       claimUrl: transferResult.claimUrl,
       expiresAt: expiresAt.toISOString(),
       status: 'open' as const,
-    };
+    });
   },
 );
 
@@ -986,7 +991,7 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
     { concurrency: 'unbounded' },
   );
 
-  return {
+  return RegistrationTransferClaimRecord.make({
     event: {
       end: transfer.eventEnd.toISOString(),
       id: transfer.eventId,
@@ -1007,7 +1012,7 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
     },
     status,
     transferId: transfer.transferId,
-  };
+  });
 });
 
 const cancel = Effect.fn('RegistrationTransferService.cancel')(function* ({
@@ -1557,18 +1562,18 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             'Transfer payment setup is incomplete. Retry Checkout without creating another transfer.',
         });
       }
-      return {
+      return RegistrationTransferClaimResult.make({
         checkoutUrl,
         eventId: transfer.eventId,
         registrationId: recipientRegistrationId,
         status: 'paymentPending' as const,
-      };
+      });
     }
-    return {
+    return RegistrationTransferClaimResult.make({
       eventId: transfer.eventId,
       registrationId: transfer.recipientRegistrationId,
       status: 'confirmed' as const,
-    };
+    });
   }
   if (transfer.status !== 'open') {
     return yield* new RegistrationTransferConflictError({
@@ -2059,7 +2064,8 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             : undefined;
           if (
             checkoutExpiresAt !== undefined &&
-            checkoutExpiresAt * 1000 <= now.getTime() + 30 * 60 * 1000
+            checkoutExpiresAt * 1000 <=
+              now.getTime() + stripeCheckoutMinimumRemainingMinutes * 60 * 1000
           ) {
             return { _tag: 'CheckoutWindowTooShort' as const };
           }
@@ -2599,11 +2605,11 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           ),
         );
       }
-      return {
+      return RegistrationTransferClaimResult.make({
         eventId: transfer.eventId,
         registrationId: recipientRegistrationId,
         status: 'confirmed' as const,
-      };
+      });
     }
     case 'GuestsUnavailable': {
       return yield* new RegistrationTransferConflictError({
@@ -2627,12 +2633,12 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
         tenantId: tenant.id,
         transferId: transfer.transferId,
       });
-      return {
+      return RegistrationTransferClaimResult.make({
         checkoutUrl,
         eventId: transfer.eventId,
         registrationId: recipientRegistrationId,
         status: 'paymentPending' as const,
-      };
+      });
     }
     case 'StripeUnavailable': {
       return yield* new RegistrationTransferInternalError({
@@ -2726,10 +2732,10 @@ const retryCheckout = Effect.fn('RegistrationTransferService.retryCheckout')(
         ),
       );
       if (checkoutSession.status === 'open') {
-        return {
+        return RegistrationTransferRetryCheckoutResult.make({
           checkoutUrl: row.stripeCheckoutUrl,
           status: 'paymentPending' as const,
-        };
+        });
       }
       if (checkoutSession.status === 'complete') {
         yield* completePaidRegistrationCheckout(
@@ -2751,7 +2757,9 @@ const retryCheckout = Effect.fn('RegistrationTransferService.retryCheckout')(
               }),
           ),
         );
-        return { status: 'reconciled' as const };
+        return RegistrationTransferRetryCheckoutResult.make({
+          status: 'reconciled' as const,
+        });
       }
       if (checkoutSession.status === 'expired') {
         yield* databaseEffect((database) =>
@@ -2805,7 +2813,10 @@ const retryCheckout = Effect.fn('RegistrationTransferService.retryCheckout')(
         transferId,
       }),
     );
-    return { checkoutUrl, status: 'paymentPending' as const };
+    return RegistrationTransferRetryCheckoutResult.make({
+      checkoutUrl,
+      status: 'paymentPending' as const,
+    });
   },
 );
 

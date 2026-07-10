@@ -70,7 +70,7 @@ describe('stripe-checkout helpers', () => {
 
     const expected = Math.ceil(
       DateTime.fromISO('2026-03-01T12:00:00.000Z', { zone: 'utc' })
-        .plus({ minutes: 30 })
+        .plus({ minutes: 35 })
         .toSeconds(),
     );
     expect(
@@ -80,18 +80,34 @@ describe('stripe-checkout helpers', () => {
     ).toBe(expected);
   });
 
-  it("clamps checkout expiry to Stripe's 24-hour maximum", () => {
+  it("keeps checkout expiry valid after Stripe's minimum-window request delay", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-01T12:00:00.000Z'));
+
+    const expiresAt = buildCheckoutSessionExpiresAt();
+
+    vi.setSystemTime(new Date('2026-03-01T12:05:00.000Z'));
+    expect(expiresAt - DateTime.now().setZone('utc').toSeconds()).toBe(30 * 60);
+  });
+
+  it("clamps checkout expiry safely below Stripe's 24-hour maximum", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
 
     const expected = Math.ceil(
-      DateTime.fromISO('2026-01-16T12:00:00.000Z', { zone: 'utc' }).toSeconds(),
+      DateTime.fromISO('2026-01-16T11:55:00.000Z', { zone: 'utc' }).toSeconds(),
     );
+    const expiresAt = buildCheckoutSessionExpiresAt(30, {
+      pinnedNowIso: '2026-01-17T18:00:00.000Z',
+    });
+
+    expect(expiresAt).toBe(expected);
     expect(
-      buildCheckoutSessionExpiresAt(30, {
-        pinnedNowIso: '2026-01-17T18:00:00.000Z',
-      }),
-    ).toBe(expected);
+      expiresAt -
+        DateTime.fromISO('2026-01-15T12:00:00.000Z', {
+          zone: 'utc',
+        }).toSeconds(),
+    ).toBeLessThan(24 * 60 * 60);
   });
 
   it.effect(

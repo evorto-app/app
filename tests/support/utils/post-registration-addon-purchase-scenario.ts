@@ -52,7 +52,7 @@ class JsonStripeResponse extends StripeClientLibrary.HttpClientResponse {
   }
 }
 
-interface StripeCheckoutIdentity {
+export interface StripeCheckoutIdentity {
   readonly chargeId: string;
   readonly checkoutUrl: string;
   readonly expiresAtEpoch: number;
@@ -60,6 +60,10 @@ interface StripeCheckoutIdentity {
   readonly paymentIntentId: string;
   readonly sessionId: string;
   readonly transactionId: string;
+}
+
+export interface PaidAddonCheckout extends StripeCheckoutIdentity {
+  readonly expiresAt: Date;
 }
 
 interface StripeCompletionClaim {
@@ -145,6 +149,14 @@ class ProductionAddonPurchaseStripeHttpClient
     this.expectedQuantity = quantity;
   }
 
+  adoptExistingPurchase(
+    identity: StripeCheckoutIdentity,
+    quantity: number,
+  ): void {
+    this.preparePurchase(quantity);
+    this.identity = identity;
+  }
+
   prepareCompletion(claim: StripeCompletionClaim): void {
     const identity = this.requireIdentity();
     if (
@@ -166,6 +178,10 @@ class ProductionAddonPurchaseStripeHttpClient
 
   readIdentity(): StripeCheckoutIdentity {
     return this.requireIdentity();
+  }
+
+  readPreparedIdentity(): StripeCheckoutIdentity | undefined {
+    return this.identity;
   }
 
   assertCompletionRequestsConsumed(): void {
@@ -447,17 +463,10 @@ export interface PostRegistrationAddonPurchaseScenario {
   readonly optionId: string;
   readonly registrationId: string;
   readonly title: string;
-  beginPaidCheckout: (quantity?: number) => Promise<{
-    readonly chargeId: string;
-    readonly checkoutUrl: string;
-    readonly expiresAt: Date;
-    readonly orderId: string;
-    readonly paymentIntentId: string;
-    readonly sessionId: string;
-    readonly transactionId: string;
-  }>;
+  beginPaidCheckout: (quantity?: number) => Promise<PaidAddonCheckout>;
   cleanup: () => Promise<void>;
   completeCheckout: () => Promise<'alreadyCompleted' | 'finalized'>;
+  readPendingCheckout: () => Promise<PaidAddonCheckout>;
   setWindow: (window: 'before' | 'during') => Promise<void>;
 }
 
@@ -709,6 +718,84 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
     }
   };
 
+  const readPendingCheckout = async (): Promise<PaidAddonCheckout> => {
+    const order =
+      await input.database.query.eventRegistrationAddonPurchaseOrders.findFirst(
+        {
+          where: {
+            addonId: paidAddOn.id,
+            registrationId,
+            tenantId: input.tenant.id,
+          },
+        },
+      );
+    if (!order?.transactionId || !order.expiresAt) {
+      throw new Error('Expected the production-created paid add-on order');
+    }
+    const transaction = await input.database.query.transactions.findFirst({
+      where: {
+        eventRegistrationId: registrationId,
+        id: order.transactionId,
+        tenantId: input.tenant.id,
+        type: 'addon',
+      },
+    });
+    if (
+      !transaction?.stripeCheckoutSessionId ||
+      !transaction.stripeCheckoutUrl ||
+      order.addonId !== paidAddOn.id ||
+      order.quantity !== paidPurchaseQuantity ||
+      order.status !== 'pending_payment' ||
+      transaction.amount !== paidGrossAmount ||
+      transaction.appFee !== applicationFee ||
+      transaction.status !== 'pending' ||
+      transaction.stripeAccountId !== stripeAccountId ||
+      transaction.stripeChargeId !== null ||
+      transaction.stripeFee !== null ||
+      transaction.stripeNetAmount !== null ||
+      transaction.stripePaymentIntentId !== null ||
+      transaction.targetUserId !== user.id
+    ) {
+      throw new Error(
+        'Production paid add-on reservation did not preserve its exact pending state',
+      );
+    }
+
+    const persistedIdentity: StripeCheckoutIdentity = {
+      chargeId: `ch_addon_${order.transactionId}`,
+      checkoutUrl: transaction.stripeCheckoutUrl,
+      expiresAtEpoch: Math.floor(order.expiresAt.getTime() / 1000),
+      orderId: order.id,
+      paymentIntentId: `pi_addon_${order.transactionId}`,
+      sessionId: transaction.stripeCheckoutSessionId,
+      transactionId: order.transactionId,
+    };
+    const preparedIdentity = stripeHttpClient.readPreparedIdentity();
+    if (preparedIdentity) {
+      if (
+        preparedIdentity.checkoutUrl !== persistedIdentity.checkoutUrl ||
+        preparedIdentity.expiresAtEpoch !== persistedIdentity.expiresAtEpoch ||
+        preparedIdentity.orderId !== persistedIdentity.orderId ||
+        preparedIdentity.sessionId !== persistedIdentity.sessionId ||
+        preparedIdentity.transactionId !== persistedIdentity.transactionId
+      ) {
+        throw new Error(
+          'Prepared paid add-on Checkout does not match the persisted checkout',
+        );
+      }
+    } else {
+      stripeHttpClient.adoptExistingPurchase(
+        persistedIdentity,
+        paidPurchaseQuantity,
+      );
+    }
+
+    return {
+      ...persistedIdentity,
+      expiresAt: order.expiresAt,
+    };
+  };
+
   const beginPaidCheckout = async (quantity = 2) => {
     const existingOrder =
       await input.database.query.eventRegistrationAddonPurchaseOrders.findFirst(
@@ -739,68 +826,22 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
     if (result.status !== 'checkout_required') {
       throw new Error('Expected production paid add-on Checkout reservation');
     }
-    const identity = stripeHttpClient.readIdentity();
-    const order =
-      await input.database.query.eventRegistrationAddonPurchaseOrders.findFirst(
-        {
-          where: {
-            id: result.orderId,
-            registrationId,
-            tenantId: input.tenant.id,
-          },
-        },
-      );
-    if (!order?.transactionId || !order.expiresAt) {
-      throw new Error('Expected the production-created paid add-on order');
-    }
-    const transaction = await input.database.query.transactions.findFirst({
-      where: {
-        eventRegistrationId: registrationId,
-        id: order.transactionId,
-        tenantId: input.tenant.id,
-        type: 'addon',
-      },
-    });
+    const checkout = await readPendingCheckout();
     if (
-      !transaction ||
-      result.orderId !== identity.orderId ||
-      order.addonId !== paidAddOn.id ||
-      order.quantity !== quantity ||
-      order.status !== 'pending_payment' ||
-      order.transactionId !== identity.transactionId ||
-      Math.floor(order.expiresAt.getTime() / 1000) !==
-        identity.expiresAtEpoch ||
-      result.expiresAt.getTime() !== order.expiresAt.getTime() ||
-      result.checkoutUrl !== identity.checkoutUrl ||
-      transaction.amount !== paidGrossAmount ||
-      transaction.appFee !== applicationFee ||
-      transaction.status !== 'pending' ||
-      transaction.stripeAccountId !== stripeAccountId ||
-      transaction.stripeChargeId !== null ||
-      transaction.stripeCheckoutSessionId !== identity.sessionId ||
-      transaction.stripeCheckoutUrl !== identity.checkoutUrl ||
-      transaction.stripeFee !== null ||
-      transaction.stripeNetAmount !== null ||
-      transaction.stripePaymentIntentId !== null ||
-      transaction.targetUserId !== user.id
+      quantity !== paidPurchaseQuantity ||
+      result.orderId !== checkout.orderId ||
+      result.expiresAt.getTime() !== checkout.expiresAt.getTime() ||
+      result.checkoutUrl !== checkout.checkoutUrl
     ) {
       throw new Error(
         'Production paid add-on reservation did not preserve its exact pending state',
       );
     }
-
-    return {
-      chargeId: identity.chargeId,
-      checkoutUrl: identity.checkoutUrl,
-      expiresAt: order.expiresAt,
-      orderId: order.id,
-      paymentIntentId: identity.paymentIntentId,
-      sessionId: identity.sessionId,
-      transactionId: order.transactionId,
-    };
+    return checkout;
   };
 
   const completeCheckout = async () => {
+    await readPendingCheckout();
     const identity = stripeHttpClient.readIdentity();
     const pendingOrder =
       await input.database.query.eventRegistrationAddonPurchaseOrders.findFirst(
@@ -1019,6 +1060,7 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
     completeCheckout,
     eventId,
     optionId,
+    readPendingCheckout,
     registrationId,
     setWindow,
     title: input.title,

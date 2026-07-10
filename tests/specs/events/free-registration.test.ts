@@ -2,6 +2,7 @@ import { usersToAuthenticate } from '../../../helpers/user-data';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 test.use({
@@ -99,11 +100,7 @@ test('register for a free event as regular user', async ({
     // Navigate to event and register
     await page.goto(`/events/${targetEventId}`);
     await expect(page).toHaveURL(`/events/${targetEventId}`);
-    // wait until loading state is gone before interacting
-    await page
-      .getByText('Loading registration status')
-      .first()
-      .waitFor({ state: 'detached' });
+    await waitForRegistrationPage(page);
     await page.getByRole('button', { name: 'Register' }).first().click();
 
     // After registering, the status refetches; wait for the loading indicator

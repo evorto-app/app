@@ -470,6 +470,9 @@ describe('generated docs source current behavior', () => {
     const paidTransferScenarioSource = readSource(
       'tests/support/utils/paid-registration-transfer-scenario.ts',
     );
+    const registrationPageSource = readSource(
+      'tests/support/utils/event-registration-page.ts',
+    );
 
     expect(source).toContain(
       'When a participant option is full, registration changes to a distinct **Join waitlist** action',
@@ -483,13 +486,40 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'This event is visible from the direct link, but your account is not eligible for the available registration options.',
     );
-    expect(source).toContain('## Buy add-ons after registration');
+    expect(source).toContain("test('Buy add-ons after registration'");
+    expect(source).not.toContain('## Buy add-ons after registration');
+    expect(source).not.toContain('## Registration unavailable states');
+    expect(source).toContain(
+      'This guide is for a signed-in participant whose account belongs to the same tenant as the event.',
+    );
+    expect(source).toContain(
+      "A paid registration also requires the tenant's Stripe payments to be available",
+    );
+    expect(source).toContain(
+      'Show this ticket QR code when attending the event.',
+    );
+    expect(source).not.toContain('not logged it');
+    expect(source).not.toContain(
+      'This code is needed when attending the event.',
+    );
     expect(source).toContain('seedPostRegistrationAddonPurchaseScenario');
+    expect(source).toContain('waitForRegistrationPage');
+    expect(source).toContain('deliverCompletedRegistrationCheckoutWebhook({');
+    expect(source).not.toContain('fillTestCard');
+    expect(source).toContain(
+      'After Stripe accepts the payment, return to the event page to see your registration confirmation.',
+    );
+    expect(source).not.toContain(
+      'After successful payment, you are redirected back to the event page',
+    );
     expect(source).toContain('This add-on is not sold before the event.');
     expect(source).toContain('This add-on is not sold during the event.');
     expect(source).toContain('Payment is pending');
     expect(source).toContain('Continue Stripe checkout');
-    expect(source).toContain('await scenario.beginPaidCheckout(2)');
+    expect(source).not.toContain('await scenario.beginPaidCheckout(2)');
+    expect(source).toContain("name: 'Continue to Stripe'");
+    expect(source).toContain('page.waitForURL(/checkout\\.stripe\\.com/');
+    expect(source).toContain('scenario.readPendingCheckout()');
     expect(source).toContain('scenario.completeCheckout()');
     expect(source).toContain('eventRegistrationAddonPurchaseOrders');
     expect(source).toContain('database.query.transactions');
@@ -500,6 +530,7 @@ describe('generated docs source current behavior', () => {
     expect(addOnScenarioSource).toContain(
       'class ProductionAddonPurchaseStripeHttpClient',
     );
+    expect(addOnScenarioSource).toContain('adoptExistingPurchase(');
     expect(addOnScenarioSource).toContain(
       'extends StripeClientLibrary.HttpClient',
     );
@@ -518,6 +549,16 @@ describe('generated docs source current behavior', () => {
     expect(addOnScenarioSource).not.toContain('.insert(schema.transactions)');
     expect(addOnScenarioSource).not.toContain('.update(schema.eventAddons)');
     expect(transferSource).toContain('# Transfer a registration');
+    expect(transferSource).toContain('waitForRegistrationPage');
+    expect(transferSource).toContain(
+      'This guide uses two signed-in participant accounts that belong to the same tenant:',
+    );
+    expect(transferSource).toContain(
+      '/docs/complete-a-paid-transfer-and-recover-its-source-refund',
+    );
+    expect(transferSource).toContain(
+      '/docs/transfer-a-registration-with-a-private-link',
+    );
     expect(transferSource).toContain(
       'The transfer link and manual code are bearer credentials.',
     );
@@ -538,6 +579,10 @@ describe('generated docs source current behavior', () => {
       'must use the recovery action to requeue the existing refund',
     );
     expect(transferSource).toContain(
+      'A platform administrator must use the recovery action',
+    );
+    expect(transferSource).not.toContain('finance or platform administrator');
+    expect(transferSource).toContain(
       'queues a full recipient refund including the platform fee',
     );
     expect(transferSource).toContain(
@@ -552,7 +597,17 @@ describe('generated docs source current behavior', () => {
     expect(transferSource).toContain('seedPaidRegistrationTransferScenario');
     expect(transferSource).toContain('await scenario.completeCheckout()');
     expect(transferSource).toContain('await scenario.failSourceRefund()');
-    expect(transferSource).toContain('await scenario.requeueSourceRefund()');
+    expect(transferSource).not.toContain(
+      'await scenario.requeueSourceRefund()',
+    );
+    expect(transferSource).toContain('storageState: gaStateFile');
+    expect(transferSource).toContain(
+      "getByRole('tab', { name: 'Refund recovery' })",
+    );
+    expect(transferSource).toContain(
+      "getByLabel('Operational recovery reason')",
+    );
+    expect(transferSource).toContain("name: 'Schedule new refund generation'");
     expect(transferSource).toContain("name: 'Payment still required'");
     expect(transferSource).toContain(
       "name: 'Transfer complete — refund processing'",
@@ -566,7 +621,20 @@ describe('generated docs source current behavior', () => {
     expect(transferSource).toContain(
       "expect(sourceRegistration).toEqual({ status: 'CANCELLED' })",
     );
+    expect(transferSource).toContain(
+      "expect(sourceRegistration?.status).toBe('CANCELLED')",
+    );
+    expect(transferSource).toContain(
+      'toEqual({ confirmedSpots: 1, reservedSpots: 0 })',
+    );
+    expect(transferSource).toContain("status: 'completed'");
+    expect(transferSource).toContain(
+      "eq(schema.emailOutbox.kind, 'registrationTransferred')",
+    );
+    expect(transferSource).toContain(').toHaveLength(2)');
     expect(paidTransferScenarioSource).toContain('isPaid: true');
+    expect(paidTransferScenarioSource).toContain('futureServerEventWindow()');
+    expect(paidTransferScenarioSource).toContain('latestServerOrWallNow()');
     expect(paidTransferScenarioSource).toContain(
       'completePaidRegistrationCheckout(',
     );
@@ -578,6 +646,19 @@ describe('generated docs source current behavior', () => {
     );
     expect(paidTransferScenarioSource).toContain(
       'markRegistrationTransferRefundRequeued(tx',
+    );
+    expect(registrationPageSource).toContain('level: 2');
+    expect(registrationPageSource).toContain("name: 'Registration'");
+    expect(registrationPageSource).toContain(
+      ".getByText('Loading registration status')",
+    );
+    expect(registrationPageSource).toContain(
+      ".getByText('Failed to load registration status.')",
+    );
+    expect(registrationPageSource.indexOf("name: 'Registration'")).toBeLessThan(
+      registrationPageSource.indexOf(
+        ".getByText('Loading registration status')",
+      ),
     );
     expect(source).not.toContain(
       'Paid registration transfer and resale are not automatic yet.',
@@ -627,7 +708,8 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Selecting **Approve application** reserves one spot and prepares one Stripe Checkout session.',
     );
-    expect(source).toContain('fillTestCard(checkoutPage)');
+    expect(source).toContain('deliverCompletedRegistrationCheckoutWebhook({');
+    expect(source).not.toContain('fillTestCard');
     expect(source).toContain(".toBe('successful:CONFIRMED')");
     expect(source).toContain('approvalEmailsForRegistration');
     expect(source).toContain('Payment setup needs retry');

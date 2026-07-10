@@ -20,12 +20,20 @@ test('event list icon actions are named and keyboard operable', async ({
   });
   await page.goto('/events');
 
+  const eventNavigation = page.locator('app-event-list nav');
+  await expect(
+    eventNavigation.locator('a[href^="/events/"]').first(),
+  ).toBeVisible({ timeout: 20_000 });
+  await expect(eventNavigation).not.toContainText('Error:');
+
   const filterButton = page.getByRole('button', { name: 'Filter events' });
   const listActionsButton = page.getByRole('button', {
     name: 'Open event list actions',
   });
   await expect(filterButton).toBeVisible();
+  await expect(filterButton).toBeEnabled();
   await expect(listActionsButton).toBeVisible();
+  await expect(listActionsButton).toBeEnabled();
 
   const accessibilityScan = await makeAxeBuilder()
     .include('app-event-list > div > div > div:first-child')
@@ -33,15 +41,21 @@ test('event list icon actions are named and keyboard operable', async ({
   expect(accessibilityScan.violations).toEqual([]);
 
   await filterButton.focus();
-  await page.keyboard.press('Enter');
-  await expect(
-    page.getByRole('heading', { name: 'Filter events' }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Ok' }).click();
+  await expect(filterButton).toBeFocused();
+  await filterButton.press('Enter');
+  const filterDialog = page.getByRole('dialog', { name: 'Filter events' });
+  await expect(filterDialog).toBeVisible();
+  await filterDialog.getByRole('button', { name: 'Ok' }).click();
+  await expect(filterDialog).toBeHidden();
 
   await listActionsButton.focus();
-  await page.keyboard.press('Enter');
-  await expect(page.getByRole('menu')).toBeVisible();
+  await expect(listActionsButton).toBeFocused();
+  await listActionsButton.press('Enter');
+  const eventListMenu = page.getByRole('menu');
+  await expect(eventListMenu).toBeVisible();
+  await expect(
+    eventListMenu.getByRole('menuitem', { name: 'Create Event' }),
+  ).toBeVisible();
 });
 
 test('event authoring controls expose accessible names and keyboard interaction', async ({

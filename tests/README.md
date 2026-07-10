@@ -284,6 +284,11 @@ when those specs are run outside the Docker listener path. Local non-CI
 Playwright runs may omit the static secret; the replay spec file then skips
 itself before page/database fixtures are requested.
 
+Registration payment docs and functional tests that deliver an exact signed
+completion event prefer the running Compose app container's file-backed secret,
+resolved through its project/service labels without logging it, and fall back
+to `STRIPE_WEBHOOK_SECRET` when no Docker runtime is available.
+
 Required in CI baseline docs/functional jobs:
 
 - `S3_ENDPOINT`

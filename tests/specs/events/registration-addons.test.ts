@@ -8,6 +8,7 @@ import { expect, test } from '../../support/fixtures/axe-test';
 import { seedPostRegistrationAddonPurchaseScenario } from '../../support/utils/post-registration-addon-purchase-scenario';
 import { seedFreeRegistrationAddon } from '../../support/utils/seed-registration-addons';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
+import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 
 const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
 
@@ -15,10 +16,7 @@ test.use({ storageState: userStateFile });
 test.setTimeout(120_000);
 
 const waitForRegistrationStatus = async (page: Page) => {
-  await page
-    .getByText('Loading registration status')
-    .first()
-    .waitFor({ state: 'detached', timeout: 15_000 });
+  await waitForRegistrationPage(page);
   await page.locator('app-event-active-registration').waitFor({
     state: 'visible',
     timeout: 15_000,
@@ -159,10 +157,7 @@ test('registers with a free add-on and required registration question', async ({
     });
 
     await page.goto(`/events/${targetEventId}`);
-    await page
-      .getByText('Loading registration status')
-      .first()
-      .waitFor({ state: 'detached' });
+    await waitForRegistrationPage(page);
 
     const participantRegistrationCard = page
       .locator('app-event-registration-option')

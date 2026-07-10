@@ -5,6 +5,12 @@ import {
   TenantOnboardingRequirementsChangedError,
   TenantOnboardingValidationError,
 } from '@shared/rpc-contracts/app-rpcs/onboarding.errors';
+import {
+  TenantOnboardingProfileRecord,
+  TenantOnboardingQuestionRecord,
+  TenantOnboardingRequirementsRecord,
+  TenantPrivacyPolicyVersionRecord,
+} from '@shared/rpc-contracts/app-rpcs/onboarding.rpcs';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -159,12 +165,20 @@ export const onboardingHandlers = {
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('admin:changeSettings');
       const context = yield* RpcAccess.current();
-      return yield* Database.use((database) =>
+      const settings = yield* Database.use((database) =>
         resolveCurrentTenantOnboardingSettings(
           database,
           context.tenant.id,
         ).pipe(Effect.orDie),
       );
+      return {
+        policy: settings.policy
+          ? TenantPrivacyPolicyVersionRecord.make(settings.policy)
+          : null,
+        questions: settings.questions.map((question) =>
+          TenantOnboardingQuestionRecord.make(question),
+        ),
+      };
     }),
 
   'onboarding.complete': (input) =>
@@ -531,13 +545,25 @@ export const onboardingHandlers = {
             'Your authenticated account is missing a stable identifier. Log out and sign in again.',
         });
       }
-      return yield* Database.use((database) =>
+      const requirements = yield* Database.use((database) =>
         resolveTenantOnboardingRequirements(database, {
           auth0Id,
           tenantId: context.tenant.id,
           tenantName: context.tenant.name,
         }).pipe(Effect.orDie),
       );
+      return TenantOnboardingRequirementsRecord.make({
+        ...requirements,
+        policy: requirements.policy
+          ? TenantPrivacyPolicyVersionRecord.make(requirements.policy)
+          : null,
+        profile: requirements.profile
+          ? TenantOnboardingProfileRecord.make(requirements.profile)
+          : null,
+        questions: requirements.questions.map((question) =>
+          TenantOnboardingQuestionRecord.make(question),
+        ),
+      });
     }),
 
   'onboarding.status': () =>

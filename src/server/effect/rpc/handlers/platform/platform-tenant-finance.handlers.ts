@@ -5,10 +5,17 @@ import { type PlatformAuditSnapshot } from '@shared/platform-audit';
 import { RegistrationTransferStatus } from '@shared/registration-transfer';
 import {
   PlatformFinancePayoutType,
+  PlatformFinanceReceiptApprovalDetailRecord,
+  PlatformFinanceReceiptApprovalGroup,
   type PlatformFinanceReceiptReviewInput,
+  PlatformFinanceReceiptWithSubmitterRecord,
   type PlatformFinanceRecordReimbursementInput,
   PlatformFinanceRefundClaimStatus,
   PlatformFinanceRefundRecoveryMode,
+  PlatformFinanceRefundRecoveryRecord,
+  PlatformFinanceRefundTransferRecord,
+  PlatformFinanceReimbursementGroup,
+  PlatformFinanceReimbursementReceipt,
   type PlatformFinanceRequeueRefundClaimInput,
   PlatformFinanceTenantContext,
   PlatformTenantFinanceRpcs,
@@ -222,7 +229,7 @@ const recoveryMode = (
     : null;
 };
 
-const toRefundRecoveryRecord = (claim: RefundRecoveryCandidate) => {
+export const toRefundRecoveryRecord = (claim: RefundRecoveryCandidate) => {
   const mode = recoveryMode(claim);
   if (
     !mode ||
@@ -247,16 +254,16 @@ const toRefundRecoveryRecord = (claim: RefundRecoveryCandidate) => {
     ) {
       return null;
     }
-    transfer = {
+    transfer = PlatformFinanceRefundTransferRecord.make({
       eventId: claim.transferEventId,
       id: claim.transferId,
       recipientRegistrationId: claim.transferRecipientRegistrationId,
       sourceRegistrationId: claim.transferSourceRegistrationId,
       status: claim.transferStatus,
-    };
+    });
   }
 
-  return {
+  return PlatformFinanceRefundRecoveryRecord.make({
     amount: Math.abs(claim.amount),
     createdAt: claim.createdAt.toISOString(),
     currency: claim.currency,
@@ -272,7 +279,7 @@ const toRefundRecoveryRecord = (claim: RefundRecoveryCandidate) => {
     stripeRefundStatus: claim.stripeRefundStatus,
     transfer,
     updatedAt: claim.updatedAt.toISOString(),
-  };
+  });
 };
 
 const toPlatformReceiptRecord = (receipt: FinanceReceiptRow) => {
@@ -304,14 +311,13 @@ const toPlatformReceiptRecord = (receipt: FinanceReceiptRow) => {
   };
 };
 
-const toPlatformReceiptWithSubmitter = (
-  receipt: FinanceReceiptSubmitterRow,
-) => ({
-  ...toPlatformReceiptRecord(receipt),
-  submittedByEmail: submitterEmail(receipt),
-  submittedByFirstName: receipt.submittedByFirstName,
-  submittedByLastName: receipt.submittedByLastName,
-});
+const toPlatformReceiptWithSubmitter = (receipt: FinanceReceiptSubmitterRow) =>
+  PlatformFinanceReceiptWithSubmitterRecord.make({
+    ...toPlatformReceiptRecord(receipt),
+    submittedByEmail: submitterEmail(receipt),
+    submittedByFirstName: receipt.submittedByFirstName,
+    submittedByLastName: receipt.submittedByLastName,
+  });
 
 const loadLockedTargetTenant = Effect.fn(
   'PlatformTenantFinance.loadLockedTargetTenant',
@@ -1145,11 +1151,11 @@ export const platformTenantFinanceHandlers = {
           const signedReceipt = yield* withSignedReceiptPreviewUrl(receipt);
 
           return {
-            receipt: {
+            receipt: PlatformFinanceReceiptApprovalDetailRecord.make({
               ...toPlatformReceiptWithSubmitter(signedReceipt),
               eventStart: signedReceipt.eventStart.toISOString(),
               eventTitle: signedReceipt.eventTitle,
-            },
+            }),
             tenantContext: toTenantContext(tenant),
           };
         }),
@@ -1218,7 +1224,9 @@ export const platformTenantFinanceHandlers = {
           }
 
           return {
-            groups: [...grouped.values()],
+            groups: [...grouped.values()].map((group) =>
+              PlatformFinanceReceiptApprovalGroup.make(group),
+            ),
             tenantContext: toTenantContext(tenant),
           };
         }),
@@ -1276,10 +1284,7 @@ export const platformTenantFinanceHandlers = {
                 iban: null | string;
                 paypal: null | string;
               };
-              receipts: (ReturnType<typeof toPlatformReceiptWithSubmitter> & {
-                eventStart: string;
-                eventTitle: string;
-              })[];
+              receipts: PlatformFinanceReimbursementReceipt[];
               submittedByEmail: string;
               submittedByFirstName: string;
               submittedByLastName: string;
@@ -1288,11 +1293,11 @@ export const platformTenantFinanceHandlers = {
             }
           >();
           for (const receipt of signedReceipts) {
-            const normalized = {
+            const normalized = PlatformFinanceReimbursementReceipt.make({
               ...toPlatformReceiptWithSubmitter(receipt),
               eventStart: receipt.eventStart.toISOString(),
               eventTitle: receipt.eventTitle,
-            };
+            });
             const groupKey = `${receipt.submittedByUserId}\u{0}${receipt.currency}`;
             const existing = grouped.get(groupKey);
             if (existing) {
@@ -1324,7 +1329,9 @@ export const platformTenantFinanceHandlers = {
           }
 
           return {
-            groups: [...grouped.values()],
+            groups: [...grouped.values()].map((group) =>
+              PlatformFinanceReimbursementGroup.make(group),
+            ),
             tenantContext: toTenantContext(tenant),
           };
         }),

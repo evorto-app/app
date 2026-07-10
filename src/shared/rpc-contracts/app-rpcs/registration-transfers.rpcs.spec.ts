@@ -9,6 +9,10 @@ import {
   RegistrationTransferCredential,
   RegistrationTransferOfferResult,
   RegistrationTransferRetryCheckoutResult,
+  RegistrationTransfersClaim,
+  RegistrationTransfersCreateOffer,
+  RegistrationTransfersGetClaim,
+  RegistrationTransfersRetryCheckout,
 } from './registration-transfers.rpcs';
 
 const validClaimRecord = {
@@ -51,7 +55,24 @@ const validClaimRecord = {
   },
   status: 'open',
   transferId: 'transfer-1',
-};
+} satisfies Parameters<typeof RegistrationTransferClaimRecord.make>[0];
+
+const validOfferResult = {
+  claimCode: 'claim-code',
+  claimUrl: '/registration-transfers/claim/claim-code',
+  expiresAt: '2026-08-20T18:00:00.000Z',
+  status: 'open',
+} satisfies Parameters<typeof RegistrationTransferOfferResult.make>[0];
+
+const validClaimResult = {
+  eventId: 'event-1',
+  registrationId: 'registration-2',
+  status: 'confirmed',
+} satisfies Parameters<typeof RegistrationTransferClaimResult.make>[0];
+
+const validRetryCheckoutResult = {
+  status: 'reconciled',
+} satisfies Parameters<typeof RegistrationTransferRetryCheckoutResult.make>[0];
 
 describe('registration transfer credential schema', () => {
   it('accepts non-empty opaque credentials up to 512 characters', () => {
@@ -71,21 +92,26 @@ describe('registration transfer credential schema', () => {
 });
 
 describe('registration transfer offer schema', () => {
+  it('encodes a schema-backed offer result for RPC transport', () => {
+    const rpcSuccess = RegistrationTransferOfferResult.make(validOfferResult);
+
+    expect(
+      Schema.encodeUnknownSync(RegistrationTransfersCreateOffer.successSchema)(
+        rpcSuccess,
+      ),
+    ).toEqual(validOfferResult);
+  });
+
   it('accepts only a newly opened offer result', () => {
     expect(() =>
-      Schema.decodeUnknownSync(RegistrationTransferOfferResult)({
-        claimCode: 'claim-code',
-        claimUrl: '/registration-transfers/claim/claim-code',
-        expiresAt: '2026-08-20T18:00:00.000Z',
-        status: 'open',
-      }),
+      Schema.decodeUnknownSync(RegistrationTransferOfferResult)(
+        validOfferResult,
+      ),
     ).not.toThrow();
 
     expect(() =>
       Schema.decodeUnknownSync(RegistrationTransferOfferResult)({
-        claimCode: 'claim-code',
-        claimUrl: '/registration-transfers/claim/claim-code',
-        expiresAt: '2026-08-20T18:00:00.000Z',
+        ...validOfferResult,
         status: 'completed',
       }),
     ).toThrow();
@@ -93,6 +119,16 @@ describe('registration transfer offer schema', () => {
 });
 
 describe('registration transfer claim record schema', () => {
+  it('encodes a schema-backed claim result for RPC transport', () => {
+    const rpcSuccess = RegistrationTransferClaimRecord.make(validClaimRecord);
+
+    expect(
+      Schema.encodeUnknownSync(RegistrationTransfersGetClaim.successSchema)(
+        rpcSuccess,
+      ),
+    ).toEqual(validClaimRecord);
+  });
+
   it('decodes current event, option, price, questions, add-ons, guest allowance, and state', () => {
     const decoded = Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
       ...validClaimRecord,
@@ -201,6 +237,28 @@ describe('registration transfer claim input schema', () => {
 });
 
 describe('registration transfer outcome schemas', () => {
+  it('encodes a schema-backed claim outcome for RPC transport', () => {
+    const rpcSuccess = RegistrationTransferClaimResult.make(validClaimResult);
+
+    expect(
+      Schema.encodeUnknownSync(RegistrationTransfersClaim.successSchema)(
+        rpcSuccess,
+      ),
+    ).toEqual(validClaimResult);
+  });
+
+  it('encodes a schema-backed retry outcome for RPC transport', () => {
+    const rpcSuccess = RegistrationTransferRetryCheckoutResult.make(
+      validRetryCheckoutResult,
+    );
+
+    expect(
+      Schema.encodeUnknownSync(
+        RegistrationTransfersRetryCheckout.successSchema,
+      )(rpcSuccess),
+    ).toEqual(validRetryCheckoutResult);
+  });
+
   it.each(['confirmed', 'paymentPending'])(
     'accepts the supported claim outcome',
     (status) => {

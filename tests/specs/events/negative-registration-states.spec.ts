@@ -1,20 +1,13 @@
 import { and, eq } from 'drizzle-orm';
-import type { Page } from '@playwright/test';
 
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { waitForRegistrationPage as waitForRegistrationStatus } from '../../support/utils/event-registration-page';
 import { seedRequiredRegistrationQuestion } from '../../support/utils/seed-registration-addons';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
-
-const waitForRegistrationStatus = async (page: Pick<Page, 'getByText'>) => {
-  await page
-    .getByText('Loading registration status')
-    .first()
-    .waitFor({ state: 'detached' });
-};
 
 test.describe('Negative registration states', () => {
   test.describe('regular user', () => {

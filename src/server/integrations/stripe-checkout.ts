@@ -6,6 +6,11 @@ import { DateTime } from 'luxon';
 import { getServerNow } from '../clock';
 import { StripeClient } from '../stripe-client';
 
+const stripeExpirySafetyMinutes = 5;
+const stripeMinimumExpiryMinutes = 30;
+export const stripeCheckoutMinimumRemainingMinutes =
+  stripeMinimumExpiryMinutes + stripeExpirySafetyMinutes;
+
 export const buildCheckoutSessionExpiresAt = (
   expiresInMinutes = 30,
   options?: {
@@ -17,11 +22,21 @@ export const buildCheckoutSessionExpiresAt = (
   const baseNow =
     pinnedNow.toMillis() > wallClockNow.toMillis() ? pinnedNow : wallClockNow;
   const requestedExpiry = baseNow.plus({ minutes: expiresInMinutes });
-  const stripeMaximumExpiry = wallClockNow.plus({ hours: 24 });
-  const effectiveExpiry =
-    requestedExpiry.toMillis() > stripeMaximumExpiry.toMillis()
-      ? stripeMaximumExpiry
+  const stripeMinimumExpiry = wallClockNow.plus({
+    minutes: stripeCheckoutMinimumRemainingMinutes,
+  });
+  const stripeMaximumExpiry = wallClockNow.plus({
+    hours: 24,
+    minutes: -stripeExpirySafetyMinutes,
+  });
+  const minimumBoundedExpiry =
+    requestedExpiry.toMillis() < stripeMinimumExpiry.toMillis()
+      ? stripeMinimumExpiry
       : requestedExpiry;
+  const effectiveExpiry =
+    minimumBoundedExpiry.toMillis() > stripeMaximumExpiry.toMillis()
+      ? stripeMaximumExpiry
+      : minimumBoundedExpiry;
 
   return Math.ceil(effectiveExpiry.toSeconds());
 };

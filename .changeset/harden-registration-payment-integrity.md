@@ -12,4 +12,5 @@ evorto: patch
 - finalize transfer Checkouts and transfer refunds through transfer-specific atomic paths instead of generic capacity cleanup,
 - lease and reconcile bound Checkouts through their persisted Connect account, recovering missed paid completion for direct, manual, and transfer registrations only after exact gross-amount and currency validation,
 - route delayed-payment success through the same idempotent completion transition and preserve only Stripe-confirmed retryable failures, and
+- keep Checkout expirations safely inside Stripe's minimum and maximum creation windows, and
 - block connected-account changes while registration Checkouts or refunds remain pending.

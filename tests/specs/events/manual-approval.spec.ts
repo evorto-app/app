@@ -7,12 +7,12 @@ import { adminStateFile, userStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
-import { fillTestCard } from '../../support/utils/fill-test-card';
 import {
   type ManualApprovalScenario,
   seedManualApprovalScenario,
   waitForRegistrationStatus,
 } from '../../support/utils/manual-approval-scenario';
+import { deliverCompletedRegistrationCheckoutWebhook } from '../../support/utils/registration-checkout-webhook';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
@@ -245,6 +245,7 @@ test.describe('Manual approval registrations', () => {
     browser,
     database,
     page,
+    request,
     seeded,
     testClock,
   }) => {
@@ -254,7 +255,6 @@ test.describe('Manual approval registrations', () => {
       kind: 'paid',
       seeded,
     });
-    let checkoutPage: Page | undefined;
     let organizer:
       Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
 
@@ -316,9 +316,16 @@ test.describe('Manual approval registrations', () => {
           type: 'registration',
         },
       });
-      if (!pendingTransaction?.stripeCheckoutUrl) {
-        throw new Error('Expected paid approval Checkout URL');
+      if (
+        !pendingTransaction?.stripeAccountId ||
+        !pendingTransaction.stripeCheckoutSessionId ||
+        !pendingTransaction.stripeCheckoutUrl
+      ) {
+        throw new Error('Expected paid approval Checkout ownership details');
       }
+      expect(pendingTransaction.stripeAccountId).toBe(
+        scenario.tenant.stripeAccountId,
+      );
       expect(
         await database.query.eventRegistrationOptions.findFirst({
           columns: { confirmedSpots: true, reservedSpots: true },
@@ -349,11 +356,17 @@ test.describe('Manual approval registrations', () => {
         page.getByRole('img', { name: 'QR code for the registration' }),
       ).toHaveCount(0);
 
-      checkoutPage = await page.context().newPage();
-      await checkoutPage.goto(pendingTransaction.stripeCheckoutUrl);
-      await expect(checkoutPage).toHaveURL(/checkout\.stripe\.com/);
-      await fillTestCard(checkoutPage);
-      await checkoutPage.getByTestId('hosted-payment-submit-button').click();
+      await deliverCompletedRegistrationCheckoutWebhook({
+        amount: pendingTransaction.amount,
+        currency: pendingTransaction.currency,
+        paymentIntentId: pendingTransaction.stripePaymentIntentId,
+        registrationId: registration.id,
+        request,
+        sessionId: pendingTransaction.stripeCheckoutSessionId,
+        stripeAccountId: pendingTransaction.stripeAccountId,
+        tenantId: scenario.tenant.id,
+        transactionId: pendingTransaction.id,
+      });
 
       await expect
         .poll(
@@ -399,9 +412,6 @@ test.describe('Manual approval registrations', () => {
         await approvalOutboxRows(database, registration.id, scenario.tenant.id),
       ).toHaveLength(1);
     } finally {
-      if (checkoutPage && !checkoutPage.isClosed()) {
-        await checkoutPage.close();
-      }
       await organizer?.context.close();
       await scenario.cleanup();
     }
@@ -445,6 +455,12 @@ test.describe('Manual approval registrations', () => {
         baseUrl: new URL(page.url()).origin,
         registrationId: registration.id,
       });
+      expect(
+        await database.query.transactions.findFirst({
+          columns: { stripeAccountId: true },
+          where: { id: transactionId },
+        }),
+      ).toEqual({ stripeAccountId: scenario.tenant.stripeAccountId });
       await organizer.page.reload();
       await expect(
         organizer.page.getByText('Payment setup needs retry'),

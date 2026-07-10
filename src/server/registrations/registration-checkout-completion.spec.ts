@@ -1,8 +1,11 @@
-import type Stripe from 'stripe';
+import { describe, expect, it, vi } from '@effect/vitest';
+import { Effect } from 'effect';
+import Stripe from 'stripe';
 
-import { describe, expect, it } from '@effect/vitest';
-
+import { Database, type DatabaseClient } from '../../db';
+import { StripeClient } from '../stripe-client';
 import {
+  completePaidRegistrationCheckout,
   registrationCheckoutInitialReconcileAt,
   registrationCheckoutMetadataOwnsClaim,
   registrationCheckoutPaymentIntentId,
@@ -30,8 +33,57 @@ const checkoutSession = (input: {
       tenantId: identity.tenantId,
       transactionId: identity.transactionId,
     },
-    payment_intent: input.paymentIntent ?? 'pi_persisted',
+    payment_intent:
+      input.paymentIntent === undefined ? 'pi_persisted' : input.paymentIntent,
+    payment_status: 'paid',
+    status: 'complete',
   }) as Stripe.Checkout.Session;
+
+const registrationPreflightDatabase = (): DatabaseClient =>
+  ({
+    query: {
+      eventRegistrations: {
+        findFirst: () =>
+          Effect.succeed({
+            event: { title: 'Registration event' },
+            eventId: 'event-1',
+            id: identity.registrationId,
+            registrationOptionId: 'option-1',
+            user: {
+              communicationEmail: '',
+              email: 'participant@example.com',
+            },
+          }),
+      },
+      tenants: {
+        findFirst: () =>
+          Effect.succeed({
+            domain: 'tenant.example.com',
+            emailSenderEmail: 'events@tenant.example.com',
+            emailSenderName: 'Tenant events',
+            id: identity.tenantId,
+            name: 'Tenant',
+          }),
+      },
+    },
+    select: () => ({
+      from: () => ({
+        leftJoin: () => ({
+          where: () => ({
+            limit: () =>
+              Effect.succeed([
+                {
+                  amount: 2500,
+                  currency: 'EUR',
+                  persistedPaymentIntentId: null,
+                  transferId: null,
+                },
+              ]),
+          }),
+        }),
+      }),
+    }),
+  }) as DatabaseClient;
 
 describe('registration Checkout completion ownership', () => {
   it('schedules a newly bound Checkout shortly after binding', () => {
@@ -154,4 +206,68 @@ describe('registration Checkout completion ownership', () => {
       ),
     ).toBe('pi_expanded');
   });
+
+  it.effect(
+    'retrieves a string payment intent through the exact connected account and rejects a mismatched Stripe identity',
+    () =>
+      Effect.gen(function* () {
+        const stripe = new Stripe('sk_test_123');
+        const retrieve = vi
+          .spyOn(stripe.paymentIntents, 'retrieve')
+          .mockResolvedValue({
+            id: 'pi_foreign',
+            latest_charge: 'ch_foreign',
+          } as never);
+
+        const error = yield* completePaidRegistrationCheckout(
+          identity,
+          checkoutSession({
+            paymentIntent: 'pi_string',
+          }),
+        ).pipe(
+          Effect.flip,
+          Effect.provideService(Database, registrationPreflightDatabase()),
+          Effect.provideService(StripeClient, stripe),
+        );
+
+        expect(retrieve).toHaveBeenCalledWith(
+          'pi_string',
+          { expand: ['latest_charge'] },
+          { stripeAccount: identity.stripeAccountId },
+        );
+        expect(error.kind).toBe('invalidBinding');
+        expect(error.message).toBe(
+          'Stripe payment intent ownership does not match Checkout',
+        );
+      }),
+  );
+
+  it.effect(
+    'rejects a completed Checkout with no payment intent before database or Stripe access',
+    () =>
+      Effect.gen(function* () {
+        const select = vi.fn(registrationPreflightDatabase().select);
+        const stripe = new Stripe('sk_test_123');
+        const retrieve = vi.spyOn(stripe.paymentIntents, 'retrieve');
+
+        const error = yield* completePaidRegistrationCheckout(
+          identity,
+          checkoutSession({ paymentIntent: null }),
+        ).pipe(
+          Effect.flip,
+          Effect.provideService(Database, {
+            ...registrationPreflightDatabase(),
+            select,
+          }),
+          Effect.provideService(StripeClient, stripe),
+        );
+
+        expect(error.kind).toBe('invalidBinding');
+        expect(error.message).toBe(
+          'Registration Checkout payment intent is missing',
+        );
+        expect(select).not.toHaveBeenCalled();
+        expect(retrieve).not.toHaveBeenCalled();
+      }),
+  );
 });

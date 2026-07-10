@@ -1,5 +1,4 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type { Page } from '@playwright/test';
 
 import { and, eq, inArray, like } from 'drizzle-orm';
 
@@ -10,6 +9,8 @@ import { usersToAuthenticate } from '../../../helpers/user-data';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { futureServerEventWindow } from './server-test-clock';
+
+export { waitForRegistrationPage as waitForRegistrationStatus } from './event-registration-page';
 
 type TestDatabase = NodePgDatabase<typeof relations>;
 
@@ -34,6 +35,7 @@ export interface ManualApprovalScenario {
     currency: 'AUD' | 'CZK' | 'EUR';
     domain: string;
     id: string;
+    stripeAccountId: null | string;
   };
 }
 
@@ -45,14 +47,6 @@ const requiredTestUser = (role: 'admin' | 'user') => {
     throw new Error(`Expected canonical ${role} test user`);
   }
   return user;
-};
-
-export const waitForRegistrationStatus = async (page: Page): Promise<void> => {
-  const loadingState = page.getByText('Loading registration status').first();
-  await loadingState
-    .waitFor({ state: 'attached', timeout: 2_000 })
-    .catch(() => undefined);
-  await loadingState.waitFor({ state: 'detached', timeout: 20_000 });
 };
 
 export const seedManualApprovalScenario = async ({
@@ -240,8 +234,10 @@ export const seedManualApprovalScenario = async ({
     optionTitle: option.title,
     participant,
     preparePaymentSetupRetry: async ({ baseUrl, registrationId }) => {
-      if (kind !== 'paid') {
-        throw new Error('Payment setup recovery requires a paid scenario');
+      if (kind !== 'paid' || !tenant.stripeAccountId) {
+        throw new Error(
+          'Payment setup recovery requires a paid scenario with a Stripe account',
+        );
       }
       const transactionId = getId();
       const eventUrl = new URL(
@@ -264,6 +260,7 @@ export const seedManualApprovalScenario = async ({
         id: transactionId,
         method: 'stripe',
         status: 'pending',
+        stripeAccountId: tenant.stripeAccountId,
         stripeCheckoutRequest: {
           customerEmail: participant.email,
           eventTitle: event.title,
@@ -289,6 +286,7 @@ export const seedManualApprovalScenario = async ({
       currency: tenant.currency,
       domain: tenant.domain,
       id: tenant.id,
+      stripeAccountId: tenant.stripeAccountId,
     },
   };
 };

@@ -1,15 +1,18 @@
 import { createId } from '@db/create-id';
 import * as schema from '@db/schema';
-import { eq, like } from 'drizzle-orm';
+import { and, eq, like } from 'drizzle-orm';
 
 import {
   adminStateFile,
+  gaStateFile,
   userStateFile,
   usersToAuthenticate,
 } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
+import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
+import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 import { seedPaidRegistrationTransferScenario } from '../../support/utils/paid-registration-transfer-scenario';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
@@ -32,7 +35,8 @@ test('Transfer a registration with a private link', async ({
   const eventId = createId();
   const optionId = createId();
   const sourceRegistrationId = createId();
-  const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const eventWindow = futureServerEventWindow();
+  const startsAt = eventWindow.start;
   let recipientRegistrationId: string | undefined;
   let recipientPage:
     Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
@@ -40,7 +44,7 @@ test('Transfer a registration with a private link', async ({
   await database.insert(schema.eventInstances).values({
     creatorId: source.id,
     description: 'A documented registration transfer.',
-    end: new Date(startsAt.getTime() + 2 * 60 * 60 * 1000),
+    end: eventWindow.end,
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
     start: startsAt,
@@ -51,12 +55,12 @@ test('Transfer a registration with a private link', async ({
     unlisted: true,
   });
   await database.insert(schema.eventRegistrationOptions).values({
-    closeRegistrationTime: new Date(startsAt.getTime() - 60 * 60 * 1000),
+    closeRegistrationTime: eventWindow.closeRegistrationTime,
     confirmedSpots: 1,
     eventId,
     id: optionId,
     isPaid: false,
-    openRegistrationTime: new Date(Date.now() - 60 * 60 * 1000),
+    openRegistrationTime: eventWindow.openRegistrationTime,
     organizingRegistration: false,
     price: 0,
     registeredDescription: 'Your transferred registration is confirmed.',
@@ -80,6 +84,13 @@ test('Transfer a registration with a private link', async ({
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="Before you start" %}
+This guide uses two signed-in participant accounts that belong to the same tenant:
+
+- the current ticket owner, who has a confirmed registration; and
+- a different intended recipient, whose current tenant roles are eligible for the registration option.
+
+Neither account needs organizer or administrator permission for this participant transfer. A paid transfer additionally requires the tenant's connected Stripe account to be available. Platform-administrator permission is only needed if a refund later requires operator recovery.
+
 Only a confirmed registration that has not been checked in can be transferred. The tenant or event option may close transfers a configured number of hours before the event starts.
 
 The transfer link and manual code are bearer credentials. Share one of them privately with exactly one intended recipient.
@@ -96,10 +107,7 @@ Open the event while signed in as the current registration owner. Under the conf
     });
 
     await page.goto(`/events/${eventId}`);
-    await page
-      .getByText('Loading registration status')
-      .first()
-      .waitFor({ state: 'detached' });
+    await waitForRegistrationPage(page);
     const createButton = page.getByRole('button', {
       name: 'Create transfer link',
     });
@@ -164,6 +172,10 @@ Open the private link while signed in to the same tenant. Review the event, regi
       'Confirmed recipient after the source registration is cancelled',
     );
 
+    const sourceRegistration =
+      await database.query.eventRegistrations.findFirst({
+        where: { id: sourceRegistrationId, tenantId: tenant.id },
+      });
     const recipientRegistration =
       await database.query.eventRegistrations.findFirst({
         where: {
@@ -177,17 +189,58 @@ Open the private link while signed in to the same tenant. Review the event, regi
       throw new Error('Expected documented recipient registration');
     }
     recipientRegistrationId = recipientRegistration.id;
+    expect(sourceRegistration?.status).toBe('CANCELLED');
+    expect(recipientRegistration).toMatchObject({
+      basePriceAtRegistration: 0,
+      guestCount: 0,
+      registrationOptionId: optionId,
+      status: 'CONFIRMED',
+    });
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: optionId },
+      }),
+    ).toEqual({ confirmedSpots: 1, reservedSpots: 0 });
+    expect(
+      await database.query.registrationTransfers.findFirst({
+        where: { sourceRegistrationId, tenantId: tenant.id },
+      }),
+    ).toMatchObject({
+      recipientRegistrationId,
+      recipientUserId: recipient.id,
+      status: 'completed',
+    });
+    expect(
+      await database
+        .select({ id: schema.emailOutbox.id })
+        .from(schema.emailOutbox)
+        .where(
+          and(
+            eq(schema.emailOutbox.kind, 'registrationTransferred'),
+            eq(schema.emailOutbox.tenantId, tenant.id),
+            like(
+              schema.emailOutbox.idempotencyKey,
+              `%/${recipientRegistrationId}/%`,
+            ),
+          ),
+        ),
+    ).toHaveLength(2);
 
     await testInfo.attach('markdown', {
       body: `
+The completed transfer cancels the previous owner's registration, confirms the recipient without changing the option's occupied capacity, records the completed ownership handoff, and queues separate transfer notifications for both people.
+
 ## What paid transfers add
 
 For a paid transfer, **Claim registration** opens Stripe Checkout on the tenant's connected account and includes the platform application fee. The recipient is confirmed first; only then is the source registration cancelled and its persisted refund queued.
 
 - **Transfer complete — refund processing** means the recipient owns the ticket and the source refund is still running asynchronously.
-- **Transfer complete — refund needs attention** still means the recipient owns the ticket. A finance or platform administrator must use the recovery action to requeue the existing refund; the participant must not pay or claim again.
+- **Transfer complete — refund needs attention** still means the recipient owns the ticket. A platform administrator must use the recovery action to requeue the existing refund; the participant must not pay or claim again.
 - If the original ticket is cancelled, checked in, or otherwise changes after the recipient pays but before the transfer commits, Evorto cancels the recipient reservation and queues a full recipient refund including the platform fee. **Transfer stopped — refund processing** and **Transfer stopped — refund needs attention** mean the recipient does not own the ticket and must not pay or claim again.
 - If Checkout expires or the offer is cancelled before payment, the recipient reservation is released and the source keeps the confirmed ticket.
+
+Continue with [Complete a paid registration transfer](/docs/complete-a-paid-transfer-and-recover-its-source-refund) for the paid Checkout and refund-recovery states.
 `,
     });
   } finally {
@@ -236,6 +289,8 @@ test('Complete a paid transfer and recover its source refund', async ({
   if (!source || !recipient || !template) {
     throw new Error('Expected documented paid-transfer users and template');
   }
+  const operatorRecoveryReason =
+    'Retry the failed source refund after operator review.';
 
   const scenario = await seedPaidRegistrationTransferScenario({
     database,
@@ -247,11 +302,17 @@ test('Complete a paid transfer and recover its source refund', async ({
   });
   let recipientPage:
     Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
+  let operatorPage:
+    Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
 
   try {
     await testInfo.attach('markdown', {
       body: `
 # Complete a paid registration transfer
+
+{% callout type="note" title="Before you start" %}
+This guide continues after a current ticket owner has created a private transfer and the intended recipient, signed in to the same tenant with an eligible account, has started the paid claim. The tenant's connected Stripe account must be available. If you still need to create the private offer, start with [Transfer a registration with a private link](/docs/transfer-a-registration-with-a-private-link).
+{% /callout %}
 
 After a recipient claims a paid registration, Evorto keeps one Stripe Checkout attached to that private offer. The recipient reservation is not a ticket yet, and the previous owner keeps their confirmed ticket until payment succeeds.
 
@@ -356,10 +417,70 @@ If Stripe reports a terminal refund failure, the recipient still owns the ticket
       'A completed transfer whose source refund needs operator attention',
     );
 
-    expect(await scenario.requeueSourceRefund()).toEqual({
-      recoveryMode: 'newGeneration',
-      transferStatus: 'requeued',
+    await testInfo.attach('markdown', {
+      body: `
+## Operator recovery
+
+A platform administrator opens the affected tenant, selects **Review finance**, and then opens **Refund recovery**. Find the terminal refund by its transfer and error details, select **Review recovery**, enter the required operational reason, and choose **Schedule new refund generation**.
+
+Evorto preserves the failed Stripe refund in immutable history, starts a new idempotency generation, and returns the participant page to **Transfer complete — refund processing**. Recovery never creates a second transfer, registration, payment, or refund obligation.
+`,
     });
+    operatorPage = await openAuthenticatedTestPage({
+      baseUrl: new URL(page.url()).origin,
+      browser,
+      storageState: gaStateFile,
+      tenantDomain: tenant.domain,
+      testClock,
+    });
+    await operatorPage.page.goto(`/global-admin/tenants/${tenant.id}/finance`);
+    await expect(
+      operatorPage.page.getByRole('heading', {
+        level: 1,
+        name: 'Tenant finance',
+      }),
+    ).toBeVisible();
+    await operatorPage.page
+      .getByRole('tab', { name: 'Refund recovery' })
+      .click();
+    const recoveryRow = operatorPage.page
+      .locator('div.border-b')
+      .filter({ hasText: `Transfer ${scenario.transferId}` });
+    await expect(recoveryRow).toBeVisible({ timeout: 20_000 });
+    await expect(recoveryRow).toContainText(
+      'Deterministic terminal Stripe refund failure',
+    );
+    await recoveryRow.getByRole('button', { name: 'Review recovery' }).click();
+    await expect(
+      operatorPage.page.getByRole('heading', {
+        level: 2,
+        name: 'Retry terminal refund',
+      }),
+    ).toBeVisible();
+    await operatorPage.page
+      .getByLabel('Operational recovery reason')
+      .fill(operatorRecoveryReason);
+    await takeScreenshot(
+      testInfo,
+      operatorPage.page.locator('app-platform-finance'),
+      operatorPage.page,
+      'Review and schedule the failed source refund',
+    );
+    await operatorPage.page
+      .getByRole('button', { name: 'Schedule new refund generation' })
+      .click();
+    await expect(
+      operatorPage.page.getByText(
+        'Terminal refund scheduled as a new safe generation',
+        { exact: true },
+      ),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(
+      operatorPage.page.getByRole('heading', {
+        level: 2,
+        name: 'Retry terminal refund',
+      }),
+    ).toHaveCount(0);
     await recipientPage.page.reload();
     await expect(
       recipientPage.page.getByRole('heading', {
@@ -390,16 +511,31 @@ If Stripe reports a terminal refund failure, the recipient still owns the ticket
       stripeRefundStatus: null,
     });
     expect(recoveredRefund?.stripeRefundNextAttemptAt).not.toBeNull();
-
-    await testInfo.attach('markdown', {
-      body: `
-## Operator recovery
-
-A finance or platform administrator requeues the existing refund claim with a reason. Evorto preserves the failed Stripe refund in the claim history, starts a new idempotency generation, and returns the participant page to **Transfer complete — refund processing**. Recovery never creates a second transfer, registration, payment, or refund obligation.
-`,
+    expect(
+      await database.query.platformAuditEntries.findFirst({
+        where: {
+          action: 'refundClaim.requeue',
+          reason: operatorRecoveryReason,
+          targetTenantId: tenant.id,
+        },
+      }),
+    ).toMatchObject({
+      action: 'refundClaim.requeue',
+      reason: operatorRecoveryReason,
+      targetTenantId: tenant.id,
     });
   } finally {
+    await operatorPage?.context.close();
     await recipientPage?.context.close();
+    await database
+      .delete(schema.platformAuditEntries)
+      .where(
+        and(
+          eq(schema.platformAuditEntries.action, 'refundClaim.requeue'),
+          eq(schema.platformAuditEntries.reason, operatorRecoveryReason),
+          eq(schema.platformAuditEntries.targetTenantId, tenant.id),
+        ),
+      );
     await scenario.cleanup();
   }
 });

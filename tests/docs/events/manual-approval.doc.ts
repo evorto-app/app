@@ -5,12 +5,12 @@ import { adminStateFile, userStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
-import { fillTestCard } from '../../support/utils/fill-test-card';
 import {
   type ManualApprovalScenario,
   seedManualApprovalScenario,
   waitForRegistrationStatus,
 } from '../../support/utils/manual-approval-scenario';
+import { deliverCompletedRegistrationCheckoutWebhook } from '../../support/utils/registration-checkout-webhook';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
@@ -343,6 +343,7 @@ The application and approval actions disappear after completion. Refreshing or s
     browser,
     database,
     page,
+    request,
     seeded,
     testClock,
   }, testInfo) => {
@@ -352,7 +353,6 @@ The application and approval actions disappear after completion. Refreshing or s
       kind: 'paid',
       seeded,
     });
-    let checkoutPage: Page | undefined;
     let organizer:
       Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
 
@@ -432,9 +432,18 @@ Selecting **Approve application** reserves one spot and prepares one Stripe Chec
           type: 'registration',
         },
       });
-      if (!pendingTransaction?.stripeCheckoutUrl) {
-        throw new Error('Expected documented paid approval Checkout URL');
+      if (
+        !pendingTransaction?.stripeAccountId ||
+        !pendingTransaction.stripeCheckoutSessionId ||
+        !pendingTransaction.stripeCheckoutUrl
+      ) {
+        throw new Error(
+          'Expected documented paid approval Checkout ownership details',
+        );
       }
+      expect(pendingTransaction.stripeAccountId).toBe(
+        scenario.tenant.stripeAccountId,
+      );
       expect(
         await database.query.eventRegistrationOptions.findFirst({
           columns: { confirmedSpots: true, reservedSpots: true },
@@ -463,6 +472,10 @@ Refresh or reopen the event as the participant. The pending registration now exp
 4. Return to Evorto after Stripe accepts it.
 
 Only Stripe payment success confirms the registration. Closing Checkout leaves the registration pending, and the same **Pay now** link can be used again while the session is active.
+
+{% callout type="note" title="About the payment screen" %}
+Stripe Checkout opens on Stripe's website, and the available payment methods can vary. This guide verifies the exact **Pay now** destination and the signed completion event Evorto accepts from Stripe, so it shows Evorto immediately before and after payment instead of reproducing Stripe's card form.
+{% /callout %}
 `,
       });
       await page.reload();
@@ -485,17 +498,17 @@ Only Stripe payment success confirms the registration. Closing Checkout leaves t
         'Paid application awaiting Checkout',
       );
 
-      checkoutPage = await page.context().newPage();
-      await checkoutPage.goto(pendingTransaction.stripeCheckoutUrl);
-      await expect(checkoutPage).toHaveURL(/checkout\.stripe\.com/);
-      await takeScreenshot(
-        testInfo,
-        checkoutPage.locator('main'),
-        checkoutPage,
-        'Review the payment in Stripe Checkout',
-      );
-      await fillTestCard(checkoutPage);
-      await checkoutPage.getByTestId('hosted-payment-submit-button').click();
+      await deliverCompletedRegistrationCheckoutWebhook({
+        amount: pendingTransaction.amount,
+        currency: pendingTransaction.currency,
+        paymentIntentId: pendingTransaction.stripePaymentIntentId,
+        registrationId: registration.id,
+        request,
+        sessionId: pendingTransaction.stripeCheckoutSessionId,
+        stripeAccountId: pendingTransaction.stripeAccountId,
+        tenantId: scenario.tenant.id,
+        transactionId: pendingTransaction.id,
+      });
 
       await expect
         .poll(
@@ -557,9 +570,6 @@ After Stripe reports successful payment, Evorto moves the reserved spot to confi
         }),
       ).toEqual({ confirmedSpots: 1, reservedSpots: 0 });
     } finally {
-      if (checkoutPage && !checkoutPage.isClosed()) {
-        await checkoutPage.close();
-      }
       await organizer?.context.close();
       await scenario.cleanup();
     }

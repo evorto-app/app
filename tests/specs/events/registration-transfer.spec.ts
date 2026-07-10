@@ -9,7 +9,9 @@ import {
 } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
+import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 import { seedPaidRegistrationTransferScenario } from '../../support/utils/paid-registration-transfer-scenario';
+import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
@@ -31,8 +33,8 @@ test('transfers a free registration through a private claim URL', async ({
   const eventId = createId();
   const optionId = createId();
   const sourceRegistrationId = createId();
-  const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  const endsAt = new Date(startsAt.getTime() + 2 * 60 * 60 * 1000);
+  const eventWindow = futureServerEventWindow();
+  const startsAt = eventWindow.start;
   let recipientRegistrationId: string | undefined;
   let recipientPage:
     Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
@@ -40,7 +42,7 @@ test('transfers a free registration through a private claim URL', async ({
   await database.insert(schema.eventInstances).values({
     creatorId: source.id,
     description: 'Transfer state-machine Playwright scenario',
-    end: endsAt,
+    end: eventWindow.end,
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
     start: startsAt,
@@ -51,12 +53,12 @@ test('transfers a free registration through a private claim URL', async ({
     unlisted: true,
   });
   await database.insert(schema.eventRegistrationOptions).values({
-    closeRegistrationTime: new Date(startsAt.getTime() - 60 * 60 * 1000),
+    closeRegistrationTime: eventWindow.closeRegistrationTime,
     confirmedSpots: 1,
     eventId,
     id: optionId,
     isPaid: false,
-    openRegistrationTime: new Date(Date.now() - 60 * 60 * 1000),
+    openRegistrationTime: eventWindow.openRegistrationTime,
     organizingRegistration: false,
     price: 0,
     registeredDescription: 'Your transferred registration is confirmed.',
@@ -79,11 +81,12 @@ test('transfers a free registration through a private claim URL', async ({
 
   try {
     await page.goto(`/events/${eventId}`);
-    await page
-      .getByText('Loading registration status')
-      .first()
-      .waitFor({ state: 'detached' });
-    await page.getByRole('button', { name: 'Create transfer link' }).click();
+    await waitForRegistrationPage(page);
+    const createTransferLink = page.getByRole('button', {
+      name: 'Create transfer link',
+    });
+    await expect(createTransferLink).toBeVisible();
+    await createTransferLink.click();
     await expect(
       page.getByRole('heading', { name: 'Private transfer link created' }),
     ).toBeVisible();
@@ -235,14 +238,15 @@ test('offers a paid registration privately while rejecting a source self-claim',
   const optionId = createId();
   const sourceRegistrationId = createId();
   const sourceTransactionId = createId();
-  const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const eventWindow = futureServerEventWindow();
+  const startsAt = eventWindow.start;
   let recipientPage:
     Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
 
   await database.insert(schema.eventInstances).values({
     creatorId: source.id,
     description: 'Paid transfer offer Playwright scenario',
-    end: new Date(startsAt.getTime() + 2 * 60 * 60 * 1000),
+    end: eventWindow.end,
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
     start: startsAt,
@@ -253,12 +257,12 @@ test('offers a paid registration privately while rejecting a source self-claim',
     unlisted: true,
   });
   await database.insert(schema.eventRegistrationOptions).values({
-    closeRegistrationTime: new Date(startsAt.getTime() - 60 * 60 * 1000),
+    closeRegistrationTime: eventWindow.closeRegistrationTime,
     confirmedSpots: 1,
     eventId,
     id: optionId,
     isPaid: true,
-    openRegistrationTime: new Date(Date.now() - 60 * 60 * 1000),
+    openRegistrationTime: eventWindow.openRegistrationTime,
     organizingRegistration: false,
     price: 1800,
     refundFeesOnCancellation: true,
@@ -295,10 +299,7 @@ test('offers a paid registration privately while rejecting a source self-claim',
 
   try {
     await page.goto(`/events/${eventId}`);
-    await page
-      .getByText('Loading registration status')
-      .first()
-      .waitFor({ state: 'detached' });
+    await waitForRegistrationPage(page);
     await expect(
       page.getByRole('button', { name: 'Create transfer link' }),
     ).toBeVisible();
@@ -318,7 +319,11 @@ test('offers a paid registration privately while rejecting a source self-claim',
 
     await page.goto(claimPath);
     await expect(
-      page.getByRole('heading', { name: 'Transfer could not be opened' }),
+      page.getByRole('heading', { name: 'Review before you claim' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Claim registration' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Claim did not complete' }),
     ).toBeVisible();
     await expect(page.getByText(/cannot claim your own/i)).toBeVisible();
 
@@ -562,12 +567,13 @@ test('cancels a paid non-Stripe registration into one pending manual refund', as
   const optionId = createId();
   const registrationId = createId();
   const sourceTransactionId = createId();
-  const startsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const eventWindow = futureServerEventWindow();
+  const startsAt = eventWindow.start;
 
   await database.insert(schema.eventInstances).values({
     creatorId: source.id,
     description: 'Paid cancellation Playwright scenario',
-    end: new Date(startsAt.getTime() + 2 * 60 * 60 * 1000),
+    end: eventWindow.end,
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
     start: startsAt,
@@ -579,12 +585,12 @@ test('cancels a paid non-Stripe registration into one pending manual refund', as
   });
   await database.insert(schema.eventRegistrationOptions).values({
     cancellationDeadlineHoursBeforeStart: 0,
-    closeRegistrationTime: new Date(startsAt.getTime() - 60 * 60 * 1000),
+    closeRegistrationTime: eventWindow.closeRegistrationTime,
     confirmedSpots: 1,
     eventId,
     id: optionId,
     isPaid: true,
-    openRegistrationTime: new Date(Date.now() - 60 * 60 * 1000),
+    openRegistrationTime: eventWindow.openRegistrationTime,
     organizingRegistration: false,
     price: 2400,
     registrationMode: 'fcfs',
@@ -616,12 +622,15 @@ test('cancels a paid non-Stripe registration into one pending manual refund', as
 
   try {
     await page.goto(`/events/${eventId}`);
-    await page
-      .getByText('Loading registration status')
-      .first()
-      .waitFor({ state: 'detached' });
-    await expect(page.getByText('You are registered')).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel registration' }).click();
+    await waitForRegistrationPage(page);
+    await expect(
+      page.getByText('Your registration is confirmed'),
+    ).toBeVisible();
+    const cancelRegistration = page.getByRole('button', {
+      name: 'Cancel registration',
+    });
+    await expect(cancelRegistration).toBeVisible();
+    await cancelRegistration.click();
 
     await expect
       .poll(async () => {
