@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "9a4a348d4210",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/specs/finance/stripe-webhook-replay.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9a/4a348d4210/0/metadata.json",
+      "transcript": "/9a/4a348d4210/0/full.jsonl",
+      "content_hash": "/9a/4a348d4210/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 69148,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 11726592,
+    "output_tokens": 10890,
+    "api_call_count": 66
+  }
+}
