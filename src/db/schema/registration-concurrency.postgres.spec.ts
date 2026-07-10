@@ -175,7 +175,6 @@ const runCancellation = ({
     authenticated: true,
     permissions,
     tenant: {
-      canonicalRootUrl: `https://${tenantDomainForFixture(fixture)}`,
       currency: 'EUR',
       defaultLocation: null,
       discountProviders: {
@@ -257,7 +256,6 @@ const seedFixture = async (
   const now = Date.now();
 
   await database.insert(tenants).values({
-    canonicalRootUrl: `https://${suffix}.concurrency.example`,
     domain: `${suffix}.concurrency.example`,
     id: tenantId,
     name: `Concurrency ${suffix}`,
@@ -459,7 +457,6 @@ describeWithPostgres('registration service concurrency invariants', () => {
             guestCount: 0,
             registrationOptionId: fixture.optionId,
             tenant: {
-              canonicalRootUrl: `https://${tenantDomainForFixture(fixture)}`,
               currency: 'EUR',
               domain: tenantDomainForFixture(fixture),
               id: fixture.tenantId,
@@ -577,7 +574,6 @@ describeWithPostgres('registration service concurrency invariants', () => {
             eventId: fixture.eventId,
             registrationId,
             tenant: {
-              canonicalRootUrl: `https://${tenantDomainForFixture(fixture)}`,
               currency: 'EUR',
               domain: tenantDomainForFixture(fixture),
               emailSenderEmail: null,
@@ -708,7 +704,6 @@ describeWithPostgres('registration service concurrency invariants', () => {
           eventId: fixture.eventId,
           registrationId,
           tenant: {
-            canonicalRootUrl: `https://${tenantDomainForFixture(fixture)}`,
             currency: 'EUR',
             domain: tenantDomainForFixture(fixture),
             emailSenderEmail: null,

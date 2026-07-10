@@ -58,6 +58,23 @@ describe('event registration schema', () => {
     );
   });
 
+  it('indexes active registrations by tenant and user for membership-scoped locking', () => {
+    const eventRegistrationsSource = readFileSync(
+      new URL('event-registrations.ts', import.meta.url),
+      'utf8',
+    );
+
+    expect(eventRegistrationsSource).toContain(
+      "'event_registrations_active_tenant_user_idx'",
+    );
+    expect(eventRegistrationsSource).toContain(
+      '.on(table.tenantId, table.userId)',
+    );
+    expect(eventRegistrationsSource).toContain(
+      ".where(sql`${table.status} <> 'CANCELLED'`)",
+    );
+  });
+
   it('enforces one pending registration payment claim', () => {
     const transactionsSource = readFileSync(
       new URL('transactions.ts', import.meta.url),
@@ -72,6 +89,23 @@ describe('event registration schema', () => {
     );
     expect(transactionsSource).toContain(
       "${table.status} = 'pending' AND ${table.type} = 'registration' AND ${table.eventRegistrationId} IS NOT NULL",
+    );
+  });
+
+  it('indexes registration transactions by tenant, registration, and type', () => {
+    const transactionsSource = readFileSync(
+      new URL('transactions.ts', import.meta.url),
+      'utf8',
+    );
+
+    expect(transactionsSource).toContain(
+      "'transactions_tenant_event_registration_type_idx'",
+    );
+    expect(transactionsSource).toContain(
+      '.on(table.tenantId, table.eventRegistrationId, table.type)',
+    );
+    expect(transactionsSource).toContain(
+      '.where(sql`${table.eventRegistrationId} IS NOT NULL`)',
     );
   });
 });

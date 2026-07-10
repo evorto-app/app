@@ -33,7 +33,10 @@ import {
   ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,
   isUniqueConstraintViolation,
 } from './database-constraint-errors';
-import { EventRegistrationService } from './event-registration.service';
+import {
+  EventRegistrationService,
+  orderRegistrationAddonPurchases,
+} from './event-registration.service';
 import { databaseEffect } from './events.shared';
 
 const isRegistrationScanRpcError = (
@@ -220,6 +223,10 @@ const cancelRegistration = ({
         }),
       );
     }
+
+    const orderedAddonPurchases = orderRegistrationAddonPurchases(
+      registration.addonPurchases ?? [],
+    );
 
     if (requireOrganizerAccess) {
       yield* ensureCanScanEventRegistration({
@@ -436,7 +443,7 @@ const cancelRegistration = ({
                 );
               }
 
-              for (const addOnPurchase of registration.addonPurchases ?? []) {
+              for (const addOnPurchase of orderedAddonPurchases) {
                 yield* tx
                   .update(eventAddons)
                   .set({

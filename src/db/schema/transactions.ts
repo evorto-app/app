@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  index,
   integer,
   pgEnum,
   pgTable,
@@ -66,5 +67,10 @@ export const transactions = pgTable(
       .where(
         sql`${table.status} = 'pending' AND ${table.type} = 'registration' AND ${table.eventRegistrationId} IS NOT NULL`,
       ),
+    registrationLookupIndex: index(
+      'transactions_tenant_event_registration_type_idx',
+    )
+      .on(table.tenantId, table.eventRegistrationId, table.type)
+      .where(sql`${table.eventRegistrationId} IS NOT NULL`),
   }),
 );

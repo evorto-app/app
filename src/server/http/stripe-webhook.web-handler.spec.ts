@@ -258,6 +258,21 @@ describe('runCheckoutWebhookTransition', () => {
     },
   );
 
+  it('orders checkout-expiry add-on releases before updating stock rows', () => {
+    const expirySource = handlerSource.slice(
+      handlerSource.indexOf("case 'checkout.session.expired':"),
+      handlerSource.indexOf('default: {'),
+    );
+    const addOnOrder = expirySource.indexOf('.orderBy(');
+    const addOnUpdate = expirySource.indexOf('.update(schema.eventAddons)');
+
+    expect(addOnOrder).toBeGreaterThanOrEqual(0);
+    expect(expirySource).toMatch(
+      /\.orderBy\(\s*schema\.eventRegistrationAddonPurchases\.addonId,\s*\)/u,
+    );
+    expect(addOnUpdate).toBeGreaterThan(addOnOrder);
+  });
+
   it.effect(
     'locks registration before transaction update and registration mutation',
     () =>

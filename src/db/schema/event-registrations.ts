@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  index,
   integer,
   pgTable,
   text,
@@ -43,6 +44,9 @@ export const eventRegistrations = pgTable(
       .references(() => users.id),
   },
   (table) => ({
+    activeByTenantUserIndex: index('event_registrations_active_tenant_user_idx')
+      .on(table.tenantId, table.userId)
+      .where(sql`${table.status} <> 'CANCELLED'`),
     oneActiveRegistrationPerUserAndEvent: uniqueIndex(
       'event_registrations_active_user_event_unique',
     )

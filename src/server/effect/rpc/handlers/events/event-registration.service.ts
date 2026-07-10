@@ -257,6 +257,18 @@ interface RegistrationQuestionRecord {
   required: boolean;
 }
 
+const compareCodeUnitStrings = (left: string, right: string): number =>
+  left < right ? -1 : left > right ? 1 : 0;
+
+export const orderRegistrationAddonPurchases = <
+  Purchase extends { readonly addonId: string },
+>(
+  purchases: readonly Purchase[],
+): Purchase[] =>
+  purchases.toSorted((left, right) =>
+    compareCodeUnitStrings(left.addonId, right.addonId),
+  );
+
 export const validateRegistrationQuestionAnswers = ({
   answers,
   questions,
@@ -324,36 +336,40 @@ export const validateRegistrationAddons = ({
     );
   }
 
-  return [...selectedAddOns].map(([addOnId, selectedQuantity]) => {
-    const availableAddOn = availableAddOnById.get(addOnId);
-    if (!availableAddOn) {
-      throw new EventRegistrationConflictError({
-        message: 'Add-on is not available during registration',
-      });
-    }
-    if (!availableAddOn.allowMultiple && selectedQuantity > 1) {
-      throw new EventRegistrationConflictError({
-        message: 'Add-on can only be selected once',
-      });
-    }
-    if (selectedQuantity > availableAddOn.maxQuantityPerUser) {
-      throw new EventRegistrationConflictError({
-        message: 'Add-on quantity exceeds the per-user limit',
-      });
-    }
-    const fulfilledQuantity = selectedQuantity * availableAddOn.quantity;
-    if (fulfilledQuantity > availableAddOn.totalAvailableQuantity) {
-      throw new EventRegistrationConflictError({
-        message: 'Add-on quantity is no longer available',
-      });
-    }
+  return [...selectedAddOns]
+    .toSorted(([leftAddOnId], [rightAddOnId]) =>
+      compareCodeUnitStrings(leftAddOnId, rightAddOnId),
+    )
+    .map(([addOnId, selectedQuantity]) => {
+      const availableAddOn = availableAddOnById.get(addOnId);
+      if (!availableAddOn) {
+        throw new EventRegistrationConflictError({
+          message: 'Add-on is not available during registration',
+        });
+      }
+      if (!availableAddOn.allowMultiple && selectedQuantity > 1) {
+        throw new EventRegistrationConflictError({
+          message: 'Add-on can only be selected once',
+        });
+      }
+      if (selectedQuantity > availableAddOn.maxQuantityPerUser) {
+        throw new EventRegistrationConflictError({
+          message: 'Add-on quantity exceeds the per-user limit',
+        });
+      }
+      const fulfilledQuantity = selectedQuantity * availableAddOn.quantity;
+      if (fulfilledQuantity > availableAddOn.totalAvailableQuantity) {
+        throw new EventRegistrationConflictError({
+          message: 'Add-on quantity is no longer available',
+        });
+      }
 
-    return {
-      ...availableAddOn,
-      fulfilledQuantity,
-      selectedQuantity,
-    };
-  });
+      return {
+        ...availableAddOn,
+        fulfilledQuantity,
+        selectedQuantity,
+      };
+    });
 };
 
 export class EventRegistrationService extends Context.Service<EventRegistrationService>()(
@@ -521,10 +537,13 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         }
 
         const registrationOption = registration.registrationOption;
+        const orderedAddonPurchases = orderRegistrationAddonPurchases(
+          registration.addonPurchases,
+        );
         const registeredSpotCount = registrationSpotCount(
           registration.guestCount,
         );
-        const selectedAddonTotalPrice = registration.addonPurchases.reduce(
+        const selectedAddonTotalPrice = orderedAddonPurchases.reduce(
           (total, purchase) => total + purchase.unitPrice * purchase.quantity,
           0,
         );
@@ -687,7 +706,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   return { _tag: 'CapacityFull' } as const;
                 }
 
-                for (const addOnPurchase of registration.addonPurchases) {
+                for (const addOnPurchase of orderedAddonPurchases) {
                   const updatedAddOns = yield* tx
                     .update(eventAddons)
                     .set({
@@ -895,7 +914,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     );
                   }
 
-                  for (const addOnPurchase of registration.addonPurchases) {
+                  for (const addOnPurchase of orderedAddonPurchases) {
                     const releasedAddOns = yield* tx
                       .update(eventAddons)
                       .set({
@@ -976,7 +995,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               });
             }
           }
-          for (const addOnPurchase of registration.addonPurchases) {
+          for (const addOnPurchase of orderedAddonPurchases) {
             if (addOnPurchase.unitPrice <= 0 || !addOnPurchase.addOn) {
               continue;
             }

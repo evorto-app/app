@@ -981,6 +981,9 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                                 .registrationId,
                               lockedRegistration.id,
                             ),
+                          )
+                          .orderBy(
+                            schema.eventRegistrationAddonPurchases.addonId,
                           );
                         for (const addOnPurchase of addOnPurchases) {
                           yield* tx

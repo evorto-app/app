@@ -15,6 +15,7 @@ import { StripeClient } from '../../../../stripe-client';
 import {
   EventRegistrationService,
   isUserEligibleForRegistrationOption,
+  orderRegistrationAddonPurchases,
   validateRegistrationAddons,
   validateRegistrationQuestionAnswers,
 } from './event-registration.service';
@@ -262,6 +263,32 @@ describe('EventRegistrationService', () => {
       ]);
     });
 
+    it('orders reversed selections by add-on ID code units', () => {
+      const uppercaseAddOn = {
+        ...availableAddOn,
+        addOnId: 'addon-Z',
+        title: 'Early add-on',
+      };
+      const lowercaseAddOn = {
+        ...availableAddOn,
+        addOnId: 'addon-a',
+        title: 'Later add-on',
+      };
+
+      const validatedAddOns = validateRegistrationAddons({
+        addOns: [
+          { addOnId: lowercaseAddOn.addOnId, quantity: 1 },
+          { addOnId: uppercaseAddOn.addOnId, quantity: 1 },
+        ],
+        availableAddOns: [lowercaseAddOn, uppercaseAddOn],
+      });
+
+      expect(validatedAddOns.map((addOn) => addOn.addOnId)).toEqual([
+        'addon-Z',
+        'addon-a',
+      ]);
+    });
+
     it('rejects add-ons that are not available during registration', () => {
       expect(() =>
         validateRegistrationAddons({
@@ -306,6 +333,26 @@ describe('EventRegistrationService', () => {
           ],
         }),
       ).toThrow('Add-on quantity is no longer available');
+    });
+  });
+
+  describe('orderRegistrationAddonPurchases', () => {
+    it('orders reversed persisted rows by add-on ID without mutating the query result', () => {
+      const purchases = [
+        { addonId: 'addon-a', quantity: 1 },
+        { addonId: 'addon-Z', quantity: 2 },
+      ] as const;
+
+      const orderedPurchases = orderRegistrationAddonPurchases(purchases);
+
+      expect(orderedPurchases.map((purchase) => purchase.addonId)).toEqual([
+        'addon-Z',
+        'addon-a',
+      ]);
+      expect(purchases.map((purchase) => purchase.addonId)).toEqual([
+        'addon-a',
+        'addon-Z',
+      ]);
     });
   });
 
