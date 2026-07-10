@@ -64,6 +64,8 @@ More specific guidance may exist deeper in some subtrees.
 Codex environment setup refreshes a clean worktree to the parent/source branch
 tip before installing dependencies and generating `.env.dev`. If local changes
 already exist, setup skips branch refresh rather than overwriting work.
+For a new linked worktree, setup also copies a missing `.env` from the primary
+checkout with owner-only permissions. An existing worktree `.env` is preserved.
 
 Supported local env files:
 
