@@ -37,6 +37,7 @@ import {
   cancelRegistrationForTenant,
   eventRegistrationHandlers,
   hasReachedRegistrationCancellationDeadline,
+  mapRegistrationMutationInternalError,
   planNonStripeCancellationRefund,
   registrationAddonPurchaseAvailability,
   registrationCancellationStripeRefundTerms,
@@ -1345,6 +1346,22 @@ describe('event registration owner add-on status', () => {
   });
 
   it.effect(
+    'removes internal causes before a registration mutation error crosses RPC',
+    () =>
+      Effect.gen(function* () {
+        const sanitized = yield* mapRegistrationMutationInternalError(
+          new EventRegistrationInternalError({
+            cause: new Error('duplicate key violates secret_constraint_name'),
+            message: 'Registration payment setup failed',
+          }),
+        ).pipe(Effect.flip);
+
+        expect(sanitized.message).toBe('Registration payment setup failed');
+        expect(sanitized).not.toHaveProperty('cause');
+      }),
+  );
+
+  it.effect(
     'returns every configured add-on and owner-scoped pending checkout recovery data',
     () =>
       Effect.gen(function* () {
@@ -1696,7 +1713,12 @@ describe('event registration trusted URLs', () => {
                     ? Effect.succeed([{ stripeAccountId: 'acct_123' }])
                     : table === eventRegistrations
                       ? Effect.succeed([{ status: 'PENDING' }])
-                      : Effect.succeed([{ stripeCheckoutSessionId: null }]),
+                      : Effect.succeed([
+                          {
+                            stripeCheckoutCancellationRequestedAt: null,
+                            stripeCheckoutSessionId: null,
+                          },
+                        ]),
               }),
             }),
           }),

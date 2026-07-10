@@ -36,6 +36,7 @@ import {
   buildCheckoutSessionExpiresAt,
   buildCheckoutSessionIdempotencyKey,
   createHostedCheckoutSession,
+  StripeCheckoutError,
 } from '../../../../integrations/stripe-checkout';
 import {
   enqueueManualApprovalEmail,
@@ -67,14 +68,19 @@ const databaseEffect = <A>(
 
 export const isDefinitiveCheckoutSessionCreateFailure = (
   error: unknown,
-): boolean =>
-  error instanceof Stripe.errors.StripeInvalidRequestError &&
-  error.statusCode === 400 &&
-  error.rawType === 'invalid_request_error' &&
-  typeof error.requestId === 'string' &&
-  error.requestId.length > 0 &&
-  error.code !== 'idempotency_key_in_use' &&
-  error.headers?.['stripe-should-retry'] !== 'true';
+): boolean => {
+  const stripeError =
+    error instanceof StripeCheckoutError ? error.cause : error;
+  return (
+    stripeError instanceof Stripe.errors.StripeInvalidRequestError &&
+    stripeError.statusCode === 400 &&
+    stripeError.rawType === 'invalid_request_error' &&
+    typeof stripeError.requestId === 'string' &&
+    stripeError.requestId.length > 0 &&
+    stripeError.code !== 'idempotency_key_in_use' &&
+    stripeError.headers?.['stripe-should-retry'] !== 'true'
+  );
+};
 
 const expireCheckoutSession = (
   sessionId: string,
@@ -779,9 +785,14 @@ const resumeDirectRegistrationCheckout = Effect.fn(
               ),
             )
             .returning({ id: transactions.id });
-          return boundClaims.length === 1
-            ? ({ _tag: 'Bound' } as const)
-            : ({ _tag: 'RegistrationUnavailable' } as const);
+          if (boundClaims.length !== 1) {
+            return yield* Effect.fail(
+              new EventRegistrationInternalError({
+                message: 'Failed to bind stripe checkout session',
+              }),
+            );
+          }
+          return { _tag: 'Bound' } as const;
         }),
       )
       .pipe(
@@ -2126,7 +2137,11 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   )
                   .returning({ id: transactions.id });
                 if (boundClaims.length !== 1) {
-                  return { _tag: 'RegistrationUnavailable' as const };
+                  return yield* Effect.fail(
+                    new EventRegistrationInternalError({
+                      message: 'Failed to bind stripe checkout session',
+                    }),
+                  );
                 }
 
                 yield* enqueueManualApprovalEmail(tx, {

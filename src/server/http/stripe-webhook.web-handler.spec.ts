@@ -10,6 +10,7 @@ import * as dbSchema from '../../db/schema';
 import { StripeClient } from '../stripe-client';
 import {
   asyncCheckoutFailureAction,
+  checkoutSessionBindingsMatch,
   handleStripeWebhookWebRequest,
   isSupportedStripeWebhookEventType,
   MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES,
@@ -183,16 +184,39 @@ describe('validateCheckoutSessionBinding', () => {
   });
 
   it('dispatches add-on Checkout only from an exact persisted add-on transaction', () => {
-    expect(
-      validateCheckoutSessionBinding({
-        ...validBindingInput,
-        persisted: { ...persistedBinding, type: 'addon' },
-      }),
-    ).toMatchObject({
+    const addonBinding = validateCheckoutSessionBinding({
+      ...validBindingInput,
+      persisted: { ...persistedBinding, type: 'addon' },
+    });
+
+    expect(addonBinding).toMatchObject({
       transactionId: 'transaction-1',
       transactionType: 'addon',
       type: 'resolved',
     });
+    if (addonBinding.type !== 'resolved') {
+      throw new Error('Expected an exact add-on Checkout binding');
+    }
+
+    expect(checkoutSessionBindingsMatch(addonBinding, addonBinding)).toBe(true);
+    expect(
+      checkoutSessionBindingsMatch(addonBinding, {
+        ...addonBinding,
+        paymentIntentId: 'pi_foreign',
+      }),
+    ).toBe(false);
+    expect(
+      checkoutSessionBindingsMatch(addonBinding, {
+        ...addonBinding,
+        stripeAccountId: 'acct_foreign',
+      }),
+    ).toBe(false);
+    expect(
+      checkoutSessionBindingsMatch(addonBinding, {
+        ...addonBinding,
+        transactionType: 'registration',
+      }),
+    ).toBe(false);
   });
 
   it('rejects partial or conflicting metadata', () => {

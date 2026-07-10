@@ -115,6 +115,41 @@ const mapRegistrationScanInternalError = (error: unknown) =>
         }),
       );
 
+const isRegistrationMutationRpcError = (
+  error: unknown,
+): error is
+  | EventRegistrationConflictError
+  | EventRegistrationInternalError
+  | EventRegistrationNotFoundError
+  | RpcUnauthorizedError =>
+  error instanceof EventRegistrationConflictError ||
+  error instanceof EventRegistrationInternalError ||
+  error instanceof EventRegistrationNotFoundError ||
+  error instanceof RpcUnauthorizedError;
+
+export const mapRegistrationMutationInternalError = (error: unknown) => {
+  if (error instanceof EventRegistrationInternalError) {
+    return Effect.logError(
+      'Event registration mutation failed internally',
+    ).pipe(
+      Effect.annotateLogs({ cause: error.cause ?? error }),
+      Effect.andThen(Effect.fail(withoutRegistrationInternalErrorCause(error))),
+    );
+  }
+  return isRegistrationMutationRpcError(error)
+    ? Effect.fail(error)
+    : Effect.logError('Event registration mutation failed internally').pipe(
+        Effect.annotateLogs({ cause: error }),
+        Effect.andThen(
+          Effect.fail(
+            new EventRegistrationInternalError({
+              message: 'Internal server error',
+            }),
+          ),
+        ),
+      );
+};
+
 export const withoutRegistrationInternalErrorCause = (
   error: EventRegistrationInternalError,
 ): EventRegistrationInternalError =>
@@ -662,6 +697,12 @@ export interface CancelRegistrationForTenantArguments {
   readonly targetTenant: Tenant;
 }
 
+export interface RegistrationCancellationOutcome {
+  readonly refundClaimId: null | string;
+  readonly refundTransactionId: null | string;
+  readonly status: 'alreadyCancelled' | 'cancelled';
+}
+
 export interface RegistrationCancellationTransition {
   readonly checkInTime: Date | null;
   readonly eventId: string;
@@ -675,6 +716,11 @@ export interface RegistrationCancellationTransition {
   readonly userId: string;
 }
 
+type CancelRegistrationForTenantError =
+  | EventRegistrationConflictError
+  | EventRegistrationInternalError
+  | EventRegistrationNotFoundError;
+
 export const cancelRegistrationForTenant = Effect.fn(
   'cancelRegistrationForTenant',
 )(function* ({
@@ -687,7 +733,11 @@ export const cancelRegistrationForTenant = Effect.fn(
   onCancelled = () => Effect.void,
   registrationId,
   targetTenant: tenant,
-}: CancelRegistrationForTenantArguments) {
+}: CancelRegistrationForTenantArguments): Effect.fn.Return<
+  RegistrationCancellationOutcome,
+  CancelRegistrationForTenantError,
+  Database | StripeClient
+> {
   const stripe = yield* StripeClient;
   const now = new Date();
 
@@ -3873,7 +3923,7 @@ export const eventRegistrationHandlers = {
           roleIds: user.roleIds,
         },
       });
-    }),
+    }).pipe(Effect.catch(mapRegistrationMutationInternalError)),
   'events.registrationScanned': ({ registrationId }, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();

@@ -400,6 +400,23 @@ type CheckoutSessionBindingResult =
   | { readonly type: 'already-finalized-expiry' }
   | { readonly type: 'state-conflict' };
 
+type ResolvedCheckoutSessionBinding = Extract<
+  CheckoutSessionBindingResult,
+  { readonly type: 'resolved' }
+>;
+
+export const checkoutSessionBindingsMatch = (
+  expected: ResolvedCheckoutSessionBinding,
+  candidate: CheckoutSessionBindingResult | { readonly type: 'unresolved' },
+): candidate is ResolvedCheckoutSessionBinding =>
+  candidate.type === 'resolved' &&
+  candidate.paymentIntentId === expected.paymentIntentId &&
+  candidate.registrationId === expected.registrationId &&
+  candidate.stripeAccountId === expected.stripeAccountId &&
+  candidate.tenantId === expected.tenantId &&
+  candidate.transactionId === expected.transactionId &&
+  candidate.transactionType === expected.transactionType;
+
 export const validateCheckoutSessionBinding = ({
   allowFinalizedExpiry = false,
   eventAccount,
@@ -1152,7 +1169,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
           const checkoutSession = yield* resolveCheckoutSession(
             event,
             eventSession,
-            true,
+            { requirePaymentIntent: true },
           );
           if (checkoutSession.type === 'unresolved') {
             return responseText('Missing checkout session mapping', 400);
@@ -1167,7 +1184,10 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
             );
             return responseText('Invalid checkout session binding', 400);
           }
-          if (checkoutSession.type === 'state-conflict') {
+          if (
+            checkoutSession.type === 'state-conflict' ||
+            checkoutSession.type === 'already-finalized-expiry'
+          ) {
             return responseText('Checkout transaction state conflict', 409);
           }
 
@@ -1192,17 +1212,13 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
             const currentBinding = yield* resolveCheckoutSession(
               event,
               currentSession,
-              true,
+              { requirePaymentIntent: true },
             );
             if (currentBinding.type === 'state-conflict') {
               return responseText('Checkout transaction state conflict', 409);
             }
             if (
-              currentBinding.type !== 'resolved' ||
-              currentBinding.registrationId !== registrationId ||
-              currentBinding.tenantId !== tenantId ||
-              currentBinding.transactionId !== transactionId ||
-              currentBinding.transactionType !== transactionType
+              !checkoutSessionBindingsMatch(checkoutSession, currentBinding)
             ) {
               return responseText('Invalid checkout session binding', 400);
             }

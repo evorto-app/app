@@ -32,7 +32,18 @@ import {
   EventRegistrationInternalError,
 } from './events.errors';
 
-const stripeClient = new Stripe('sk_test_123');
+const createStripeTestClient = (): Stripe => {
+  const client = new Stripe('sk_test_123');
+  vi.spyOn(client.checkout.sessions, 'create').mockRejectedValue(
+    new Error('Unexpected unmocked Stripe Checkout create request'),
+  );
+  vi.spyOn(client.checkout.sessions, 'expire').mockRejectedValue(
+    new Error('Unexpected unmocked Stripe Checkout expire request'),
+  );
+  return client;
+};
+
+const stripeClient = createStripeTestClient();
 const tenantPublicOrigin = {
   domain: 'tenant.example.com',
 } as const;
@@ -126,143 +137,14 @@ const createPaidManualApprovalDatabase = ({
   operationOrder: string[];
   persistCommittedEmail?: boolean;
   registrationStatuses?: readonly ('CANCELLED' | 'PENDING')[];
-}) => {
-  let claimExists = false;
-  let claimStatus: 'cancelled' | 'pending' = 'pending';
-  let checkoutSessionId: null | string = null;
-  let emailEnqueued = false;
-  let registrationLockCount = 0;
-  let transactionCallCount = 0;
-  let optionUpdateCount = 0;
-  const tx = {
-    delete: (table: unknown) => ({
-      where: () => {
-        if (table === emailOutbox) {
-          operationOrder.push('discard-email');
-        }
-        return Effect.succeed([]);
-      },
-    }),
-    insert: (table: unknown) => ({
-      values: () => {
-        if (table === transactions) {
-          claimExists = true;
-          operationOrder.push('claim');
-          return Effect.succeed([]);
-        }
-        if (table === emailOutbox) {
-          return {
-            onConflictDoNothing: () => {
-              emailEnqueued = persistCommittedEmail;
-              operationOrder.push('email');
-              return Effect.succeed([]);
-            },
-          };
-        }
-        return Effect.succeed([]);
-      },
-    }),
-    select: () => ({
-      from: (table: unknown) => ({
-        where: () => ({
-          for: () => {
-            if (table === eventRegistrations) {
-              const status =
-                registrationStatuses[
-                  Math.min(
-                    registrationLockCount,
-                    registrationStatuses.length - 1,
-                  )
-                ] ?? 'PENDING';
-              registrationLockCount += 1;
-              return Effect.succeed([{ status }]);
-            }
-            if (table === transactions) {
-              return Effect.succeed(
-                claimExists
-                  ? [
-                      {
-                        method: 'stripe',
-                        status: claimStatus,
-                        stripeCheckoutCancellationRequestedAt: null,
-                        stripeCheckoutSessionId: checkoutSessionId,
-                        type: 'registration',
-                      },
-                    ]
-                  : [],
-              );
-            }
-            if (table === emailOutbox) {
-              return Effect.succeed(emailEnqueued ? [{ id: 'email-1' }] : []);
-            }
-            return Effect.succeed([]);
-          },
-        }),
-      }),
-    }),
-    update: (table: unknown) => ({
-      set: (values: Record<string, unknown>) => ({
-        where: () => ({
-          returning: () => {
-            if (table === eventRegistrationOptions) {
-              optionUpdateCount += 1;
-              if (optionUpdateCount > 1) {
-                operationOrder.push('release-capacity');
-              }
-              return Effect.succeed([{ id: 'option-1' }]);
-            }
-            if (table === eventRegistrations) {
-              return Effect.succeed([{ id: 'registration-1' }]);
-            }
-            if (table === transactions) {
-              if (values['status'] === 'cancelled') {
-                claimStatus = 'cancelled';
-                operationOrder.push('release-claim');
-                return Effect.succeed([{ id: 'transaction-1' }]);
-              }
-              operationOrder.push('bind');
-              if (bindingSucceeds) {
-                checkoutSessionId =
-                  typeof values['stripeCheckoutSessionId'] === 'string'
-                    ? values['stripeCheckoutSessionId']
-                    : null;
-              }
-              return Effect.succeed(
-                bindingSucceeds ? [{ id: 'transaction-1' }] : [],
-              );
-            }
-            return Effect.succeed([]);
-          },
-        }),
-      }),
-    }),
-  };
-  const database = {
-    query: {
-      eventRegistrations: {
-        findFirst: () => Effect.succeed(paidManualApprovalRegistration),
-      },
-      userDiscountCards: {
-        findMany: () => Effect.succeed([]),
-      },
-    },
-    transaction: (
-      callback: (transaction: typeof tx) => Effect.Effect<unknown>,
-    ) => {
-      transactionCallCount += 1;
-      const result = callback(tx);
-      return bindingCommitAmbiguous && transactionCallCount === 2
-        ? result.pipe(
-            Effect.andThen(
-              Effect.die(new Error('binding commit acknowledgement lost')),
-            ),
-          )
-        : result;
-    },
-  };
-
-  return database;
-};
+}) =>
+  createManualApprovalDatabase({
+    bindingCommitAmbiguous,
+    bindingSucceeds,
+    operationOrder,
+    persistCommittedEmail,
+    registrationStatuses,
+  }).database;
 
 const createPaidDirectRegistrationDatabase = ({
   bindingSucceeds,
@@ -272,114 +154,12 @@ const createPaidDirectRegistrationDatabase = ({
   bindingSucceeds: boolean;
   operationOrder: string[];
   registrationOption?: { isPaid?: boolean; price?: number };
-}) => {
-  let optionUpdateCount = 0;
-  const tx = {
-    insert: (table: unknown) => ({
-      values: (values: Record<string, unknown>) => {
-        if (table === eventRegistrations) {
-          if (values['status'] === 'CONFIRMED') {
-            operationOrder.push('confirm-registration');
-          }
-          return {
-            returning: () => Effect.succeed([{ id: 'registration-1' }]),
-          };
-        }
-        if (table === transactions) {
-          operationOrder.push('claim');
-        }
-        return Effect.succeed([]);
-      },
-    }),
-    query: {
-      eventRegistrations: {
-        findMany: () => Effect.succeed([]),
-      },
-    },
-    select: () => ({
-      from: (table: unknown) => ({
-        where: () => ({
-          for: () => {
-            if (table === usersToTenants) {
-              return Effect.succeed([{ id: 'tenant-user-1' }]);
-            }
-            if (table === eventRegistrations) {
-              return Effect.succeed([{ status: 'PENDING' }]);
-            }
-            if (table === transactions) {
-              return Effect.succeed([
-                {
-                  method: 'stripe',
-                  status: 'pending',
-                  stripeCheckoutSessionId: null,
-                  type: 'registration',
-                },
-              ]);
-            }
-            return Effect.succeed([]);
-          },
-        }),
-      }),
-    }),
-    update: (table: unknown) => ({
-      set: (values: Record<string, unknown>) => ({
-        where: () => ({
-          returning: () => {
-            if (table === eventRegistrationOptions) {
-              optionUpdateCount += 1;
-              operationOrder.push(
-                optionUpdateCount === 1
-                  ? 'confirmedSpots' in values
-                    ? 'confirm-capacity'
-                    : 'reserve'
-                  : 'release-capacity',
-              );
-              return Effect.succeed([{ id: 'option-1' }]);
-            }
-            if (table === transactions) {
-              if (values['status'] === 'cancelled') {
-                operationOrder.push('release-claim');
-                return Effect.succeed([{ id: 'transaction-1' }]);
-              }
-              operationOrder.push('bind');
-              return Effect.succeed(
-                bindingSucceeds ? [{ id: 'transaction-1' }] : [],
-              );
-            }
-            if (table === eventRegistrations) {
-              operationOrder.push('cancel-registration');
-              return Effect.succeed([{ id: 'registration-1' }]);
-            }
-            return Effect.succeed([]);
-          },
-        }),
-      }),
-    }),
-  };
-
-  return {
-    query: {
-      eventRegistrationOptions: {
-        findFirst: () =>
-          Effect.succeed({
-            ...approvedRegistrationOption,
-            isPaid: true,
-            price: 1000,
-            ...registrationOption,
-          }),
-      },
-      eventRegistrations: {
-        findFirst: () => Effect.succeed(null),
-      },
-      userDiscountCards: {
-        findMany: () => Effect.succeed([]),
-      },
-    },
-    transaction: (
-      callback: (transaction: typeof tx) => Effect.Effect<unknown>,
-    ) => callback(tx),
-  };
-};
+}) =>
+  createDirectCheckoutDatabase({
+    bindingSucceeds,
+    operationOrder,
+    registrationOption,
+  }).database;
 
 const freeManualApprovalRegistration = {
   ...paidManualApprovalRegistration,
@@ -434,23 +214,37 @@ type ManualApprovalClaim = Pick<
 >;
 
 const createManualApprovalDatabase = ({
+  bindingCommitAmbiguous = false,
+  bindingSucceeds = true,
   existingClaim = null,
+  lockedStripeAccountId = 'acct_123',
+  operationOrder = [],
+  persistCommittedEmail = true,
   registration = paidManualApprovalRegistration,
+  registrationStatuses = ['PENDING'],
 }: {
+  bindingCommitAmbiguous?: boolean;
+  bindingSucceeds?: boolean;
   existingClaim?: ManualApprovalClaim | null;
+  lockedStripeAccountId?: null | string;
+  operationOrder?: string[];
+  persistCommittedEmail?: boolean;
   registration?:
     | typeof freeManualApprovalRegistration
     | typeof paidManualApprovalRegistration;
+  registrationStatuses?: readonly ('CANCELLED' | 'PENDING')[];
 } = {}) => {
   let bindingUpdateCount = 0;
   let claim: ManualApprovalClaim | null = existingClaim;
   let claimExecutiveUserId: null | string | undefined;
+  let claimInsertValues: Record<string, unknown> | undefined;
   let claimInsertCount = 0;
   let emailInsertCount = 0;
   const emailKinds: string[] = [];
   let reservationUpdateCount = 0;
+  let registrationLockCount = 0;
   let transactionCount = 0;
-  const operationOrder: string[] = [];
+  let persistedEmail = false;
 
   const createTransaction = (binding: boolean) => {
     let transactionSelectCount = 0;
@@ -464,6 +258,7 @@ const createManualApprovalDatabase = ({
                 returning: () => {
                   claimInsertCount += 1;
                   operationOrder.push('claim');
+                  claimInsertValues = values;
                   claimExecutiveUserId = Schema.decodeUnknownSync(
                     Schema.NullOr(Schema.String),
                   )(values['executiveUserId']);
@@ -494,6 +289,7 @@ const createManualApprovalDatabase = ({
             return {
               onConflictDoNothing: () => {
                 emailInsertCount += 1;
+                persistedEmail = persistCommittedEmail;
                 emailKinds.push(
                   Schema.decodeUnknownSync(Schema.String)(values['kind']),
                 );
@@ -510,14 +306,30 @@ const createManualApprovalDatabase = ({
         from: (table: unknown) => ({
           where: () => {
             if (table === eventRegistrations) {
+              const status =
+                registrationStatuses[
+                  Math.min(
+                    registrationLockCount,
+                    registrationStatuses.length - 1,
+                  )
+                ] ?? 'PENDING';
+              registrationLockCount += 1;
               return {
-                for: () => Effect.succeed([{ status: 'PENDING' }]),
+                for: () => Effect.succeed([{ status }]),
               };
             }
 
             if (table === tenants) {
               return {
-                for: () => Effect.succeed([{ stripeAccountId: 'acct_123' }]),
+                for: () =>
+                  Effect.succeed([{ stripeAccountId: lockedStripeAccountId }]),
+              };
+            }
+
+            if (table === emailOutbox) {
+              return {
+                for: () =>
+                  Effect.succeed(persistedEmail ? [{ id: 'email-1' }] : []),
               };
             }
 
@@ -526,7 +338,17 @@ const createManualApprovalDatabase = ({
             }
 
             transactionSelectCount += 1;
-            const claimRows = claim ? [claim] : [];
+            const claimRows = claim
+              ? [
+                  {
+                    ...claim,
+                    method: 'stripe' as const,
+                    status: 'pending' as const,
+                    stripeCheckoutCancellationRequestedAt: null,
+                    type: 'registration' as const,
+                  },
+                ]
+              : [];
             if (binding || transactionSelectCount === 1) {
               return {
                 for: () => Effect.succeed(claimRows),
@@ -545,7 +367,11 @@ const createManualApprovalDatabase = ({
                   returning: () => {
                     if (table === eventRegistrationOptions) {
                       reservationUpdateCount += 1;
-                      operationOrder.push('reserve');
+                      operationOrder.push(
+                        reservationUpdateCount === 1
+                          ? 'reserve'
+                          : 'release-capacity',
+                      );
                       return Effect.succeed([{ id: 'option-1' }]);
                     }
 
@@ -555,8 +381,17 @@ const createManualApprovalDatabase = ({
                     }
 
                     if (table === transactions && claim) {
+                      if (values['status'] === 'cancelled') {
+                        operationOrder.push('release-claim');
+                        const releasedClaimId = claim.id;
+                        claim = null;
+                        return Effect.succeed([{ id: releasedClaimId }]);
+                      }
                       bindingUpdateCount += 1;
                       operationOrder.push('bind');
+                      if (!bindingSucceeds) {
+                        return Effect.succeed([]);
+                      }
                       claim = {
                         ...claim,
                         stripeCheckoutSessionId: Schema.decodeUnknownSync(
@@ -592,7 +427,14 @@ const createManualApprovalDatabase = ({
       ) => Effect.Effect<unknown, unknown, unknown>,
     ) => {
       transactionCount += 1;
-      return callback(createTransaction(transactionCount > 1));
+      const result = callback(createTransaction(transactionCount > 1));
+      return bindingCommitAmbiguous && transactionCount === 2
+        ? result.pipe(
+            Effect.andThen(
+              Effect.die(new Error('binding commit acknowledgement lost')),
+            ),
+          )
+        : result;
     },
   };
 
@@ -600,6 +442,7 @@ const createManualApprovalDatabase = ({
     bindingUpdateCount: () => bindingUpdateCount,
     claimExecutiveUserId: () => claimExecutiveUserId,
     claimInsertCount: () => claimInsertCount,
+    claimInsertValues: () => claimInsertValues,
     database,
     emailInsertCount: () => emailInsertCount,
     emailKinds,
@@ -643,24 +486,33 @@ const runManualApproval = ({
     Effect.provide(configProviderLayer),
   );
 
-const createDirectCheckoutDatabase = () => {
+const createDirectCheckoutDatabase = ({
+  bindingSucceeds = true,
+  operationOrder = [],
+  registrationOption = {},
+}: {
+  bindingSucceeds?: boolean;
+  operationOrder?: string[];
+  registrationOption?: { isPaid?: boolean; price?: number };
+} = {}) => {
   let bindingUpdateCount = 0;
   let claim: ManualApprovalClaim | null = null;
   let claimInsertCount = 0;
   let registration:
     | undefined
     | {
+        guestCount: number;
         id: string;
         registrationOptionId: string;
-        status: 'PENDING';
+        status: 'CANCELLED' | 'CONFIRMED' | 'PENDING';
       };
   let reservationUpdateCount = 0;
-  const operationOrder: string[] = [];
 
   const transaction = (
     callback: (tx: {
       insert: (table: unknown) => {
         values: (values: Record<string, unknown>) => {
+          onConflictDoNothing?: () => Effect.Effect<void>;
           returning?: (
             selection?: unknown,
           ) => Effect.Effect<ManualApprovalClaim[] | { id: string }[]>;
@@ -693,11 +545,21 @@ const createDirectCheckoutDatabase = () => {
           if (table === eventRegistrations) {
             return {
               returning: () => {
-                operationOrder.push('registration');
+                const status = Schema.decodeUnknownSync(
+                  Schema.Literals(['CONFIRMED', 'PENDING']),
+                )(values['status']);
+                operationOrder.push(
+                  status === 'CONFIRMED'
+                    ? 'confirm-registration'
+                    : 'registration',
+                );
                 registration = {
+                  guestCount: Schema.decodeUnknownSync(Schema.Number)(
+                    values['guestCount'],
+                  ),
                   id: 'registration-direct',
                   registrationOptionId: 'option-1',
-                  status: 'PENDING',
+                  status,
                 };
                 return Effect.succeed([{ id: registration.id }]);
               },
@@ -729,6 +591,11 @@ const createDirectCheckoutDatabase = () => {
               },
             };
           }
+          if (table === emailOutbox) {
+            return {
+              onConflictDoNothing: () => Effect.void,
+            };
+          }
           return {};
         },
       }),
@@ -740,23 +607,32 @@ const createDirectCheckoutDatabase = () => {
       select: () => ({
         from: (table) => ({
           where: () => ({
-            for: () =>
-              Effect.succeed(
-                table === tenants
-                  ? [{ stripeAccountId: 'acct_123' }]
-                  : table === eventRegistrations
-                    ? registration
-                      ? [{ status: registration.status }]
-                      : []
-                    : claim
-                      ? [
-                          {
-                            stripeCheckoutSessionId:
-                              claim.stripeCheckoutSessionId,
-                          },
-                        ]
-                      : [],
-              ),
+            for: () => {
+              if (table === usersToTenants) {
+                return Effect.succeed([{ id: 'tenant-user-1' }]);
+              }
+              if (table === tenants) {
+                return Effect.succeed([{ stripeAccountId: 'acct_123' }]);
+              }
+              if (table === eventRegistrations) {
+                return Effect.succeed(registration ? [registration] : []);
+              }
+              if (table === eventRegistrationAddonPurchases) {
+                return Effect.succeed([]);
+              }
+              if (table === transactions && claim) {
+                return Effect.succeed([
+                  {
+                    ...claim,
+                    method: 'stripe' as const,
+                    status: 'pending' as const,
+                    stripeCheckoutCancellationRequestedAt: null,
+                    type: 'registration' as const,
+                  },
+                ]);
+              }
+              return Effect.succeed([]);
+            },
           }),
         }),
       }),
@@ -766,12 +642,27 @@ const createDirectCheckoutDatabase = () => {
             returning: () => {
               if (table === eventRegistrationOptions) {
                 reservationUpdateCount += 1;
-                operationOrder.push('reserve');
+                operationOrder.push(
+                  'confirmedSpots' in values
+                    ? 'confirm-capacity'
+                    : reservationUpdateCount === 1
+                      ? 'reserve'
+                      : 'release-capacity',
+                );
                 return Effect.succeed([{ id: 'option-1' }]);
               }
               if (table === transactions && claim) {
+                if (values['status'] === 'cancelled') {
+                  operationOrder.push('release-claim');
+                  const releasedClaimId = claim.id;
+                  claim = null;
+                  return Effect.succeed([{ id: releasedClaimId }]);
+                }
                 bindingUpdateCount += 1;
                 operationOrder.push('bind');
+                if (!bindingSucceeds) {
+                  return Effect.succeed([]);
+                }
                 claim = {
                   ...claim,
                   stripeCheckoutSessionId: Schema.decodeUnknownSync(
@@ -782,6 +673,17 @@ const createDirectCheckoutDatabase = () => {
                   ),
                 };
                 return Effect.succeed([{ id: claim.id }]);
+              }
+              if (table === eventRegistrations && registration) {
+                operationOrder.push('cancel-registration');
+                registration = {
+                  ...registration,
+                  status: 'CANCELLED',
+                };
+                return Effect.succeed([{ id: registration.id }]);
+              }
+              if (table === eventAddons) {
+                return Effect.succeed([{ id: 'addon-1' }]);
               }
               throw new Error('Unexpected direct checkout update table');
             },
@@ -798,6 +700,7 @@ const createDirectCheckoutDatabase = () => {
             ...approvedRegistrationOption,
             isPaid: true,
             price: 1000,
+            ...registrationOption,
           }),
       },
       eventRegistrations: {
@@ -864,6 +767,24 @@ const runDirectCheckout = ({
     Effect.provide(configProviderLayer),
   );
 
+const approveManualRegistrationForTest = ({
+  eventId,
+  registrationId,
+  tenant,
+  user,
+}: {
+  eventId: string;
+  registrationId: string;
+  tenant: ApproveManualRegistrationArguments['targetTenant'];
+  user: { id: string };
+}) =>
+  EventRegistrationService.approveManualRegistration({
+    executiveUserId: user.id,
+    expectedEventId: eventId,
+    registrationId,
+    targetTenant: tenant,
+  });
+
 describe('EventRegistrationService', () => {
   describe('isDefinitiveCheckoutSessionCreateFailure', () => {
     const invalidRequest = (overrides: Record<string, unknown> = {}) =>
@@ -919,31 +840,14 @@ describe('EventRegistrationService', () => {
     });
   });
 
-  describe('isUserEligibleForRegistrationOption', () => {
-    it('treats an empty role list as open to all users', () => {
-      expect(
-        isUserEligibleForRegistrationOption({
-          optionRoleIds: [],
-          userRoleIds: ['role-2'],
-        }),
-      ).toBe(true);
-    });
-
-    it('requires at least one matching role when the option has role constraints', () => {
-      expect(
-        isUserEligibleForRegistrationOption({
-          optionRoleIds: ['role-1'],
-          userRoleIds: ['role-2'],
-        }),
-      ).toBe(false);
-    });
-  });
-
   describe('validateRegistrationAddons', () => {
     const availableAddOn = {
       addOnId: 'addon-1',
       allowMultiple: true,
+      allowPurchaseDuringRegistration: true,
+      includedQuantity: 0,
       maxQuantityPerUser: 2,
+      optionalPurchaseQuantity: 2,
       price: 500,
       quantity: 2,
       stripeTaxRateId: 'txr_1',
@@ -953,30 +857,6 @@ describe('EventRegistrationService', () => {
       title: 'Lunch',
       totalAvailableQuantity: 5,
     } as const;
-
-    it('normalizes selected registration add-ons', () => {
-      expect(
-        validateRegistrationAddons({
-          addOns: [
-            {
-              addOnId: 'addon-1',
-              quantity: 1,
-            },
-            {
-              addOnId: 'addon-1',
-              quantity: 1,
-            },
-          ],
-          availableAddOns: [availableAddOn],
-        }),
-      ).toEqual([
-        {
-          ...availableAddOn,
-          fulfilledQuantity: 4,
-          selectedQuantity: 2,
-        },
-      ]);
-    });
 
     it('orders reversed selections by add-on ID code units', () => {
       const uppercaseAddOn = {
@@ -1003,52 +883,6 @@ describe('EventRegistrationService', () => {
         'addon-a',
       ]);
     });
-
-    it('rejects add-ons that are not available during registration', () => {
-      expect(() =>
-        validateRegistrationAddons({
-          addOns: [
-            {
-              addOnId: 'other-addon',
-              quantity: 1,
-            },
-          ],
-          availableAddOns: [availableAddOn],
-        }),
-      ).toThrow('Add-on is not available during registration');
-    });
-
-    it('rejects quantities above the per-user limit or remaining availability', () => {
-      expect(() =>
-        validateRegistrationAddons({
-          addOns: [
-            {
-              addOnId: 'addon-1',
-              quantity: 3,
-            },
-          ],
-          availableAddOns: [availableAddOn],
-        }),
-      ).toThrow('Add-on quantity exceeds the per-user limit');
-
-      expect(() =>
-        validateRegistrationAddons({
-          addOns: [
-            {
-              addOnId: 'addon-1',
-              quantity: 2,
-            },
-          ],
-          availableAddOns: [
-            {
-              ...availableAddOn,
-              maxQuantityPerUser: 5,
-              totalAvailableQuantity: 3,
-            },
-          ],
-        }),
-      ).toThrow('Add-on quantity is no longer available');
-    });
   });
 
   describe('orderRegistrationAddonPurchases', () => {
@@ -1071,846 +905,31 @@ describe('EventRegistrationService', () => {
     });
   });
 
-  describe('validateRegistrationQuestionAnswers', () => {
-    it('trims submitted answers and ignores blank optional answers', () => {
-      expect(
-        validateRegistrationQuestionAnswers({
-          answers: [
-            {
-              answer: '  Alice  ',
-              questionId: 'question-1',
-            },
-            {
-              answer: ' '.repeat(3),
-              questionId: 'question-2',
-            },
-          ],
-          questions: [
-            {
-              id: 'question-1',
-              required: true,
-            },
-            {
-              id: 'question-2',
-              required: false,
-            },
-          ],
-        }),
-      ).toEqual([
-        {
-          answer: 'Alice',
-          questionId: 'question-1',
-        },
-      ]);
-    });
-
-    it('rejects missing required answers', () => {
-      expect(() =>
-        validateRegistrationQuestionAnswers({
-          answers: [],
-          questions: [
-            {
-              id: 'question-1',
-              required: true,
-            },
-          ],
-        }),
-      ).toThrow('Required registration question is missing');
-    });
-
-    it('rejects answers for questions outside the selected option', () => {
-      expect(() =>
-        validateRegistrationQuestionAnswers({
-          answers: [
-            {
-              answer: 'Alice',
-              questionId: 'other-question',
-            },
-          ],
-          questions: [
-            {
-              id: 'question-1',
-              required: false,
-            },
-          ],
-        }),
-      ).toThrow('Registration question does not belong to this option');
-    });
-  });
-
   it.effect(
-    'rejects an invalid tenant domain before reading or writing registration data',
+    'fails paid manual approval inside the locked claim transaction when Stripe is not configured',
     () =>
       Effect.gen(function* () {
-        const findRegistration = vi.fn(() => Effect.succeed(null));
-        const mockDatabase = {
-          query: {
-            eventRegistrations: {
-              findFirst: findRegistration,
-            },
-          },
-        };
-
-        const error = yield* EventRegistrationService.registerForEvent({
-          eventId: 'event-1',
-          guestCount: 0,
-          registrationOptionId: 'option-1',
-          tenant: {
-            currency: 'EUR',
-            domain: 'tenant.example.com/path',
-            id: 'tenant-1',
-            stripeAccountId: undefined,
-          },
-          user: {
-            email: 'alice@example.com',
-            id: 'user-1',
-            roleIds: ['role-1'],
-          },
-        }).pipe(
-          Effect.flip,
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(
-            Layer.succeed(Database, mockDatabase as DatabaseClient),
-          ),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
+        const approvalDatabase = createManualApprovalDatabase({
+          lockedStripeAccountId: null,
+        });
+        const checkoutStripeClient = createStripeTestClient();
+        const createSession = vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
         );
 
-        expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Invalid tenant domain configuration');
-        expect(findRegistration).not.toHaveBeenCalled();
-      }),
-  );
-
-  it.effect(
-    'rejects a second registration for the same event before looking up another option',
-    () =>
-      Effect.gen(function* () {
-        const findRegistrationOption = vi.fn(() => Effect.succeed(null));
-        const mockDatabase = {
-          query: {
-            eventRegistrationOptions: {
-              findFirst: findRegistrationOption,
-            },
-            eventRegistrations: {
-              findFirst: () =>
-                Effect.succeed({
-                  id: 'existing-registration',
-                }),
-            },
-          },
-        };
-
-        const program = EventRegistrationService.registerForEvent({
-          eventId: 'event-1',
-          guestCount: 0,
-          registrationOptionId: 'organizer-option-1',
-          tenant: {
-            ...tenantPublicOrigin,
-            currency: 'EUR',
-            id: 'tenant-1',
-            stripeAccountId: undefined,
-          },
-          user: {
-            email: 'alice@example.com',
-            id: 'user-1',
-            roleIds: ['role-1'],
-          },
-        }).pipe(
-          Effect.flip,
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(
-            Layer.succeed(Database, mockDatabase as DatabaseClient),
-          ),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
-        );
-
-        const error = yield* program;
-        expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe('User is already registered for this event');
-        expect(findRegistrationOption).not.toHaveBeenCalled();
-      }),
-  );
-
-  it.effect(
-    'queries registration options with explicit projection columns',
-    () =>
-      Effect.gen(function* () {
-        const findRegistrationOption = vi.fn(() => Effect.succeed(null));
-        const mockDatabase = {
-          query: {
-            eventRegistrationOptions: {
-              findFirst: findRegistrationOption,
-            },
-            eventRegistrations: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-        };
-
-        const program = EventRegistrationService.registerForEvent({
-          eventId: 'event-1',
-          guestCount: 0,
-          registrationOptionId: 'option-1',
-          tenant: {
-            ...tenantPublicOrigin,
-            currency: 'EUR',
-            id: 'tenant-1',
-            stripeAccountId: undefined,
-          },
-          user: {
-            email: 'alice@example.com',
-            id: 'user-1',
-            roleIds: ['role-1'],
-          },
-        }).pipe(
-          Effect.flip,
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(
-            Layer.succeed(Database, mockDatabase as DatabaseClient),
-          ),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
-        );
-
-        const error = yield* program;
-        expect(error['_tag']).toBe('EventRegistrationNotFoundError');
-        expect(findRegistrationOption).toHaveBeenCalledWith(
-          expect.objectContaining({
-            columns: expect.objectContaining({
-              closeRegistrationTime: true,
-              confirmedSpots: true,
-              eventId: true,
-              id: true,
-              isPaid: true,
-              openRegistrationTime: true,
-              organizingRegistration: true,
-              price: true,
-              registrationMode: true,
-              reservedSpots: true,
-              roleIds: true,
-              spots: true,
-              stripeTaxRateId: true,
-            }),
-          }),
-        );
-      }),
-  );
-
-  it.effect('rejects registration for an unpublished event', () =>
-    Effect.gen(function* () {
-      const mockDatabase = {
-        query: {
-          eventRegistrationOptions: {
-            findFirst: () =>
-              Effect.succeed({
-                ...approvedRegistrationOption,
-                event: {
-                  ...approvedRegistrationOption.event,
-                  status: 'DRAFT',
-                },
-              }),
-          },
-          eventRegistrations: {
-            findFirst: () => Effect.succeed(null),
-          },
-        },
-      };
-
-      const program = EventRegistrationService.registerForEvent({
-        eventId: 'event-1',
-        guestCount: 0,
-        registrationOptionId: 'option-1',
-        tenant: {
-          ...tenantPublicOrigin,
-          currency: 'EUR',
-          id: 'tenant-1',
+        const error = yield* runManualApproval({
+          database: approvalDatabase.database,
+          stripe: checkoutStripeClient,
           stripeAccountId: undefined,
-        },
-        user: {
-          email: 'alice@example.com',
-          id: 'user-1',
-          roleIds: ['role-1'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
-        Effect.provideService(StripeClient, stripeClient),
-        Effect.provide(configProviderLayer),
-      );
-
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Event is not open for registration');
-    }),
-  );
-
-  it.effect(
-    'rejects registration outside the server-side registration window',
-    () =>
-      Effect.gen(function* () {
-        const mockDatabase = {
-          query: {
-            eventRegistrationOptions: {
-              findFirst: () =>
-                Effect.succeed({
-                  ...approvedRegistrationOption,
-                  openRegistrationTime: new Date('2026-09-20T10:00:00.000Z'),
-                }),
-            },
-            eventRegistrations: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-        };
-
-        const program = EventRegistrationService.registerForEvent({
-          eventId: 'event-1',
-          guestCount: 0,
-          registrationOptionId: 'option-1',
-          tenant: {
-            ...tenantPublicOrigin,
-            currency: 'EUR',
-            id: 'tenant-1',
-            stripeAccountId: undefined,
-          },
-          user: {
-            email: 'alice@example.com',
-            id: 'user-1',
-            roleIds: ['role-1'],
-          },
-        }).pipe(
-          Effect.flip,
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(
-            Layer.succeed(Database, mockDatabase as DatabaseClient),
-          ),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
-        );
-
-        const error = yield* program;
-        expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe('Registration is not open');
-      }),
-  );
-
-  it.effect('rejects registration when user roles are not eligible', () =>
-    Effect.gen(function* () {
-      const mockDatabase = {
-        query: {
-          eventRegistrationOptions: {
-            findFirst: () => Effect.succeed(approvedRegistrationOption),
-          },
-          eventRegistrations: {
-            findFirst: () => Effect.succeed(null),
-          },
-        },
-      };
-
-      const program = EventRegistrationService.registerForEvent({
-        eventId: 'event-1',
-        guestCount: 0,
-        registrationOptionId: 'option-1',
-        tenant: {
-          ...tenantPublicOrigin,
-          currency: 'EUR',
-          id: 'tenant-1',
-          stripeAccountId: undefined,
-        },
-        user: {
-          email: 'alice@example.com',
-          id: 'user-1',
-          roleIds: ['role-2'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
-        Effect.provideService(StripeClient, stripeClient),
-        Effect.provide(configProviderLayer),
-      );
-
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe(
-        'User is not eligible for this registration option',
-      );
-    }),
-  );
-
-  it.effect('rejects registration for another tenant event', () =>
-    Effect.gen(function* () {
-      const mockDatabase = {
-        query: {
-          eventRegistrationOptions: {
-            findFirst: () =>
-              Effect.succeed({
-                ...approvedRegistrationOption,
-                event: {
-                  ...approvedRegistrationOption.event,
-                  tenantId: 'tenant-2',
-                },
-              }),
-          },
-          eventRegistrations: {
-            findFirst: () => Effect.succeed(null),
-          },
-        },
-      };
-
-      const program = EventRegistrationService.registerForEvent({
-        eventId: 'event-1',
-        guestCount: 0,
-        registrationOptionId: 'option-1',
-        tenant: {
-          ...tenantPublicOrigin,
-          currency: 'EUR',
-          id: 'tenant-1',
-          stripeAccountId: undefined,
-        },
-        user: {
-          email: 'alice@example.com',
-          id: 'user-1',
-          roleIds: ['role-1'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
-        Effect.provideService(StripeClient, stripeClient),
-        Effect.provide(configProviderLayer),
-      );
-
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationNotFoundError');
-      expect(error.message).toBe('Registration option not found');
-    }),
-  );
-
-  it.effect('rejects registration when the selected option is full', () =>
-    Effect.gen(function* () {
-      const mockDatabase = {
-        query: {
-          eventRegistrationOptions: {
-            findFirst: () =>
-              Effect.succeed({
-                ...approvedRegistrationOption,
-                confirmedSpots: 8,
-                reservedSpots: 2,
-              }),
-          },
-          eventRegistrations: {
-            findFirst: () => Effect.succeed(null),
-          },
-        },
-      };
-
-      const program = EventRegistrationService.registerForEvent({
-        eventId: 'event-1',
-        guestCount: 0,
-        registrationOptionId: 'option-1',
-        tenant: {
-          ...tenantPublicOrigin,
-          currency: 'EUR',
-          id: 'tenant-1',
-          stripeAccountId: undefined,
-        },
-        user: {
-          email: 'alice@example.com',
-          id: 'user-1',
-          roleIds: ['role-1'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
-        Effect.provideService(StripeClient, stripeClient),
-        Effect.provide(configProviderLayer),
-      );
-
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Registration option has no available spots');
-    }),
-  );
-
-  it.effect(
-    'stores guest count when registering multiple participant spots',
-    () =>
-      Effect.gen(function* () {
-        let insertedRegistration: unknown;
-        const mockDatabase = {
-          query: {
-            eventRegistrationOptions: {
-              findFirst: () => Effect.succeed(approvedRegistrationOption),
-            },
-            eventRegistrations: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-          transaction: (
-            callback: (tx: {
-              insert: () => {
-                values: (value: unknown) => {
-                  returning: () => Effect.Effect<{ id: string }[]>;
-                };
-              };
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.Effect<[]>;
-                };
-              };
-              select: typeof selectLockedTenantMembership;
-              update: () => {
-                set: () => {
-                  where: () => {
-                    returning: () => Effect.Effect<{ id: string }[]>;
-                  };
-                };
-              };
-            }) => Effect.Effect<unknown>,
-          ) =>
-            callback({
-              insert: () => ({
-                values: (value) => {
-                  insertedRegistration = value;
-                  return {
-                    returning: () => Effect.succeed([{ id: 'registration-1' }]),
-                  };
-                },
-              }),
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.succeed([]),
-                },
-              },
-              select: selectLockedTenantMembership,
-              update: () => ({
-                set: () => ({
-                  where: () => ({
-                    returning: () => Effect.succeed([{ id: 'option-1' }]),
-                  }),
-                }),
-              }),
-            }),
-        };
-
-        const program = EventRegistrationService.registerForEvent({
-          eventId: 'event-1',
-          guestCount: 2,
-          registrationOptionId: 'option-1',
-          tenant: {
-            ...tenantPublicOrigin,
-            currency: 'EUR',
-            id: 'tenant-1',
-            stripeAccountId: undefined,
-          },
-          user: {
-            email: 'alice@example.com',
-            id: 'user-1',
-            roleIds: ['role-1'],
-          },
-        }).pipe(
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(
-            Layer.succeed(Database, mockDatabase as DatabaseClient),
-          ),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
-        );
-
-        yield* program;
-        expect(insertedRegistration).toEqual(
-          expect.objectContaining({
-            guestCount: 2,
-            status: 'CONFIRMED',
-          }),
-        );
-      }),
-  );
-
-  it.effect('rejects guest registration when not enough spots remain', () =>
-    Effect.gen(function* () {
-      const mockDatabase = {
-        query: {
-          eventRegistrationOptions: {
-            findFirst: () =>
-              Effect.succeed({
-                ...approvedRegistrationOption,
-                confirmedSpots: 8,
-                reservedSpots: 0,
-              }),
-          },
-          eventRegistrations: {
-            findFirst: () => Effect.succeed(null),
-          },
-        },
-      };
-
-      const program = EventRegistrationService.registerForEvent({
-        eventId: 'event-1',
-        guestCount: 2,
-        registrationOptionId: 'option-1',
-        tenant: {
-          ...tenantPublicOrigin,
-          currency: 'EUR',
-          id: 'tenant-1',
-          stripeAccountId: undefined,
-        },
-        user: {
-          email: 'alice@example.com',
-          id: 'user-1',
-          roleIds: ['role-1'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
-        Effect.provideService(StripeClient, stripeClient),
-        Effect.provide(configProviderLayer),
-      );
-
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Registration option has no available spots');
-    }),
-  );
-
-  it.effect('rejects guest spots for organizer/helper registration', () =>
-    Effect.gen(function* () {
-      const mockDatabase = {
-        query: {
-          eventRegistrationOptions: {
-            findFirst: () =>
-              Effect.succeed({
-                ...approvedRegistrationOption,
-                organizingRegistration: true,
-              }),
-          },
-          eventRegistrations: {
-            findFirst: () => Effect.succeed(null),
-          },
-        },
-      };
-
-      const program = EventRegistrationService.registerForEvent({
-        eventId: 'event-1',
-        guestCount: 1,
-        registrationOptionId: 'option-1',
-        tenant: {
-          ...tenantPublicOrigin,
-          currency: 'EUR',
-          id: 'tenant-1',
-          stripeAccountId: undefined,
-        },
-        user: {
-          email: 'alice@example.com',
-          id: 'user-1',
-          roleIds: ['role-1'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
-        Effect.provideService(StripeClient, stripeClient),
-        Effect.provide(configProviderLayer),
-      );
-
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe(
-        'Guest spots are only available for participant options',
-      );
-    }),
-  );
-
-  it.effect('rejects registration for unsupported registration modes', () =>
-    Effect.gen(function* () {
-      const updateOptionCounters = vi.fn();
-      const mockDatabase = {
-        query: {
-          eventRegistrationOptions: {
-            findFirst: () =>
-              Effect.succeed({
-                ...approvedRegistrationOption,
-                registrationMode: 'random',
-              }),
-          },
-          eventRegistrations: {
-            findFirst: () => Effect.succeed(null),
-          },
-        },
-        update: updateOptionCounters,
-      };
-
-      const program = EventRegistrationService.registerForEvent({
-        eventId: 'event-1',
-        guestCount: 0,
-        registrationOptionId: 'option-1',
-        tenant: {
-          ...tenantPublicOrigin,
-          currency: 'EUR',
-          id: 'tenant-1',
-          stripeAccountId: undefined,
-        },
-        user: {
-          email: 'alice@example.com',
-          id: 'user-1',
-          roleIds: ['role-1'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
-        Effect.provideService(StripeClient, stripeClient),
-        Effect.provide(configProviderLayer),
-      );
-
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Registration option mode is not supported');
-      expect(updateOptionCounters).not.toHaveBeenCalled();
-    }),
-  );
-
-  it.effect(
-    'creates manual approval applications without reserving capacity',
-    () =>
-      Effect.gen(function* () {
-        let insertedRegistration: unknown;
-        const updateOptionCounters = vi.fn();
-        const mockDatabase = {
-          query: {
-            eventRegistrationOptions: {
-              findFirst: () =>
-                Effect.succeed({
-                  ...approvedRegistrationOption,
-                  confirmedSpots: 10,
-                  registrationMode: 'application',
-                  reservedSpots: 0,
-                }),
-            },
-            eventRegistrations: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-          transaction: (
-            callback: (tx: {
-              insert: (table: unknown) => {
-                values: (value: unknown) => {
-                  returning: () => Effect.Effect<{ id: string }[]>;
-                };
-              };
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.Effect<[]>;
-                };
-              };
-              select: typeof selectLockedTenantMembership;
-              update: ReturnType<typeof vi.fn>;
-            }) => Effect.Effect<unknown>,
-          ) =>
-            callback({
-              insert: (table) => ({
-                values: (value) => {
-                  if (table === eventRegistrations) {
-                    insertedRegistration = value;
-                  }
-                  return {
-                    returning: () => Effect.succeed([{ id: 'registration-1' }]),
-                  };
-                },
-              }),
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.succeed([]),
-                },
-              },
-              select: selectLockedTenantMembership,
-              update: updateOptionCounters,
-            }),
-        };
-
-        const program = EventRegistrationService.registerForEvent({
-          eventId: 'event-1',
-          guestCount: 0,
-          registrationOptionId: 'option-1',
-          tenant: {
-            ...tenantPublicOrigin,
-            currency: 'EUR',
-            id: 'tenant-1',
-            stripeAccountId: undefined,
-          },
-          user: {
-            email: 'alice@example.com',
-            id: 'user-1',
-            roleIds: ['role-1'],
-          },
-        }).pipe(
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(
-            Layer.succeed(Database, mockDatabase as DatabaseClient),
-          ),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
-        );
-
-        yield* program;
-        expect(insertedRegistration).toEqual(
-          expect.objectContaining({
-            status: 'PENDING',
-          }),
-        );
-        expect(updateOptionCounters).not.toHaveBeenCalled();
-      }),
-  );
-
-  it.effect(
-    'fails paid manual approval before reserving capacity when Stripe is not configured',
-    () =>
-      Effect.gen(function* () {
-        const transaction = vi.fn();
-        const database = {
-          query: {
-            eventRegistrations: {
-              findFirst: () => Effect.succeed(paidManualApprovalRegistration),
-            },
-            userDiscountCards: {
-              findMany: () => Effect.succeed([]),
-            },
-          },
-          transaction,
-        };
-
-        const error = yield* EventRegistrationService.approveManualRegistration(
-          {
-            eventId: 'event-1',
-            registrationId: 'registration-1',
-            tenant: {
-              ...tenantPublicOrigin,
-              currency: 'EUR',
-              emailSenderEmail: null,
-              emailSenderName: null,
-              id: 'tenant-1',
-              name: 'Tenant',
-              stripeAccountId: undefined,
-            },
-            user: { id: 'organizer-1' },
-          },
-        ).pipe(
-          Effect.flip,
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
-        );
+        }).pipe(Effect.flip);
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
         expect(error.message).toBe('Stripe account not found');
-        expect(transaction).not.toHaveBeenCalled();
+        expect(approvalDatabase.claimInsertCount()).toBe(0);
+        expect(approvalDatabase.reservationUpdateCount()).toBe(0);
+        expect(approvalDatabase.operationOrder).toEqual([]);
+        expect(createSession).not.toHaveBeenCalled();
       }),
   );
 
@@ -1918,108 +937,35 @@ describe('EventRegistrationService', () => {
     'persists a manual approval payment claim before creating and binding Stripe Checkout',
     () =>
       Effect.gen(function* () {
-        const operationOrder: string[] = [];
-        let claimedTransaction: Record<string, unknown> | undefined;
-        const tx = {
-          insert: (table: unknown) => ({
-            values: (values: Record<string, unknown>) => {
-              if (table === transactions) {
-                operationOrder.push('claim');
-                claimedTransaction = values;
-                return Effect.succeed([]);
-              }
-              if (table === emailOutbox) {
-                return {
-                  onConflictDoNothing: () => {
-                    operationOrder.push('email');
-                    return Effect.succeed([]);
-                  },
-                };
-              }
-              return Effect.succeed([]);
-            },
-          }),
-          select: () => ({
-            from: (table: unknown) => ({
-              where: () => ({
-                for: () =>
-                  Effect.succeed(
-                    table === eventRegistrations ? [{ status: 'PENDING' }] : [],
-                  ),
-              }),
-            }),
-          }),
-          update: (table: unknown) => ({
-            set: () => ({
-              where: () => ({
-                returning: () => {
-                  if (table === transactions) {
-                    operationOrder.push('bind');
-                  }
-                  return Effect.succeed([
-                    {
-                      id:
-                        table === eventRegistrationOptions
-                          ? 'option-1'
-                          : table === eventRegistrations
-                            ? 'registration-1'
-                            : 'transaction-1',
-                    },
-                  ]);
-                },
-              }),
-            }),
-          }),
-        };
-        const database = {
-          query: {
-            eventRegistrations: {
-              findFirst: () => Effect.succeed(paidManualApprovalRegistration),
-            },
-            userDiscountCards: {
-              findMany: () => Effect.succeed([]),
-            },
-          },
-          transaction: (
-            callback: (transaction: typeof tx) => Effect.Effect<unknown>,
-          ) => callback(tx),
-        };
+        const approvalDatabase = createManualApprovalDatabase();
         const createSession = vi.fn(() => {
-          operationOrder.push('stripe');
+          approvalDatabase.operationOrder.push('stripe');
           return Promise.resolve({
             id: 'cs_test_1',
             payment_intent: null,
             url: 'https://checkout.stripe.test/session',
           });
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
         ).mockImplementation(createSession);
 
-        yield* EventRegistrationService.approveManualRegistration({
-          eventId: 'event-1',
-          registrationId: 'registration-1',
-          tenant: {
-            ...tenantPublicOrigin,
-            currency: 'EUR',
-            emailSenderEmail: null,
-            emailSenderName: null,
-            id: 'tenant-1',
-            name: 'Tenant',
-            stripeAccountId: 'acct_123',
-          },
-          user: { id: 'organizer-1' },
-        }).pipe(
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
-          Effect.provideService(StripeClient, checkoutStripeClient),
-          Effect.provide(configProviderLayer),
-        );
+        yield* runManualApproval({
+          database: approvalDatabase.database,
+          stripe: checkoutStripeClient,
+        });
 
-        expect(operationOrder).toEqual(['claim', 'stripe', 'bind', 'email']);
-        expect(claimedTransaction).toEqual(
+        expect(approvalDatabase.operationOrder).toEqual([
+          'claim',
+          'reserve',
+          'registration',
+          'stripe',
+          'bind',
+          'email',
+        ]);
+        expect(approvalDatabase.claimInsertValues()).toEqual(
           expect.objectContaining({
             amount: 1000,
             eventRegistrationId: 'registration-1',
@@ -2028,7 +974,7 @@ describe('EventRegistrationService', () => {
             type: 'registration',
           }),
         );
-        expect(claimedTransaction).not.toHaveProperty(
+        expect(approvalDatabase.claimInsertValues()).not.toHaveProperty(
           'stripeCheckoutSessionId',
         );
         expect(createSession).toHaveBeenCalledOnce();
@@ -2044,7 +990,7 @@ describe('EventRegistrationService', () => {
           operationOrder,
           registrationStatuses: ['PENDING', 'CANCELLED'],
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         const createSession = vi.fn(() => {
           operationOrder.push('stripe');
           return Promise.resolve({
@@ -2066,22 +1012,20 @@ describe('EventRegistrationService', () => {
           'expire',
         ).mockImplementation(expireSession);
 
-        const error = yield* EventRegistrationService.approveManualRegistration(
-          {
-            eventId: 'event-1',
-            registrationId: 'registration-1',
-            tenant: {
-              ...tenantPublicOrigin,
-              currency: 'EUR',
-              emailSenderEmail: null,
-              emailSenderName: null,
-              id: 'tenant-1',
-              name: 'Tenant',
-              stripeAccountId: 'acct_123',
-            },
-            user: { id: 'organizer-1' },
+        const error = yield* approveManualRegistrationForTest({
+          eventId: 'event-1',
+          registrationId: 'registration-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            emailSenderEmail: null,
+            emailSenderName: null,
+            id: 'tenant-1',
+            name: 'Tenant',
+            stripeAccountId: 'acct_123',
           },
-        ).pipe(
+          user: { id: 'organizer-1' },
+        }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
           Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
@@ -2093,7 +1037,13 @@ describe('EventRegistrationService', () => {
         expect(error.message).toBe(
           'Registration is no longer awaiting payment',
         );
-        expect(operationOrder).toEqual(['claim', 'stripe', 'expire']);
+        expect(operationOrder).toEqual([
+          'claim',
+          'reserve',
+          'registration',
+          'stripe',
+          'expire',
+        ]);
         expect(createSession).toHaveBeenCalledOnce();
         expect(expireSession).toHaveBeenCalledOnce();
       }),
@@ -2108,7 +1058,7 @@ describe('EventRegistrationService', () => {
           bindingSucceeds: false,
           operationOrder,
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
@@ -2132,22 +1082,20 @@ describe('EventRegistrationService', () => {
           }),
         );
 
-        const error = yield* EventRegistrationService.approveManualRegistration(
-          {
-            eventId: 'event-1',
-            registrationId: 'registration-1',
-            tenant: {
-              ...tenantPublicOrigin,
-              currency: 'EUR',
-              emailSenderEmail: null,
-              emailSenderName: null,
-              id: 'tenant-1',
-              name: 'Tenant',
-              stripeAccountId: 'acct_123',
-            },
-            user: { id: 'organizer-1' },
+        const error = yield* approveManualRegistrationForTest({
+          eventId: 'event-1',
+          registrationId: 'registration-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            emailSenderEmail: null,
+            emailSenderName: null,
+            id: 'tenant-1',
+            name: 'Tenant',
+            stripeAccountId: 'acct_123',
           },
-        ).pipe(
+          user: { id: 'organizer-1' },
+        }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
           Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
@@ -2159,6 +1107,8 @@ describe('EventRegistrationService', () => {
         expect(error.message).toBe('Failed to bind stripe checkout session');
         expect(operationOrder).toEqual([
           'claim',
+          'reserve',
+          'registration',
           'stripe',
           'bind',
           'expire',
@@ -2177,7 +1127,7 @@ describe('EventRegistrationService', () => {
           bindingCommitAmbiguous: true,
           operationOrder,
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
@@ -2201,7 +1151,7 @@ describe('EventRegistrationService', () => {
         ).mockImplementation(expireSession);
 
         const exit = yield* Effect.exit(
-          EventRegistrationService.approveManualRegistration({
+          approveManualRegistrationForTest({
             eventId: 'event-1',
             registrationId: 'registration-1',
             tenant: {
@@ -2223,7 +1173,14 @@ describe('EventRegistrationService', () => {
         );
 
         expect(exit._tag).toBe('Success');
-        expect(operationOrder).toEqual(['claim', 'stripe', 'bind', 'email']);
+        expect(operationOrder).toEqual([
+          'claim',
+          'reserve',
+          'registration',
+          'stripe',
+          'bind',
+          'email',
+        ]);
         expect(expireSession).not.toHaveBeenCalled();
       }),
   );
@@ -2238,7 +1195,7 @@ describe('EventRegistrationService', () => {
           operationOrder,
           persistCommittedEmail: false,
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
@@ -2258,7 +1215,7 @@ describe('EventRegistrationService', () => {
         );
 
         const exit = yield* Effect.exit(
-          EventRegistrationService.approveManualRegistration({
+          approveManualRegistrationForTest({
             eventId: 'event-1',
             registrationId: 'registration-1',
             tenant: {
@@ -2280,7 +1237,14 @@ describe('EventRegistrationService', () => {
         );
 
         expect(exit._tag).toBe('Failure');
-        expect(operationOrder).toEqual(['claim', 'stripe', 'bind', 'email']);
+        expect(operationOrder).toEqual([
+          'claim',
+          'reserve',
+          'registration',
+          'stripe',
+          'bind',
+          'email',
+        ]);
         expect(expireSession).not.toHaveBeenCalled();
       }),
   );
@@ -2294,7 +1258,7 @@ describe('EventRegistrationService', () => {
           bindingSucceeds: false,
           operationOrder,
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
@@ -2317,22 +1281,20 @@ describe('EventRegistrationService', () => {
           'expire',
         ).mockImplementation(expireSession);
 
-        const error = yield* EventRegistrationService.approveManualRegistration(
-          {
-            eventId: 'event-1',
-            registrationId: 'registration-1',
-            tenant: {
-              ...tenantPublicOrigin,
-              currency: 'EUR',
-              emailSenderEmail: null,
-              emailSenderName: null,
-              id: 'tenant-1',
-              name: 'Tenant',
-              stripeAccountId: 'acct_123',
-            },
-            user: { id: 'organizer-1' },
+        const error = yield* approveManualRegistrationForTest({
+          eventId: 'event-1',
+          registrationId: 'registration-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            emailSenderEmail: null,
+            emailSenderName: null,
+            id: 'tenant-1',
+            name: 'Tenant',
+            stripeAccountId: 'acct_123',
           },
-        ).pipe(
+          user: { id: 'organizer-1' },
+        }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
           Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
@@ -2342,7 +1304,14 @@ describe('EventRegistrationService', () => {
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
         expect(error.message).toBe('Failed to bind stripe checkout session');
-        expect(operationOrder).toEqual(['claim', 'stripe', 'bind', 'expire']);
+        expect(operationOrder).toEqual([
+          'claim',
+          'reserve',
+          'registration',
+          'stripe',
+          'bind',
+          'expire',
+        ]);
         expect(expireSession).toHaveBeenCalledOnce();
       }),
   );
@@ -2353,7 +1322,7 @@ describe('EventRegistrationService', () => {
       Effect.gen(function* () {
         const operationOrder: string[] = [];
         const database = createPaidManualApprovalDatabase({ operationOrder });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
@@ -2376,22 +1345,20 @@ describe('EventRegistrationService', () => {
           'expire',
         );
 
-        const error = yield* EventRegistrationService.approveManualRegistration(
-          {
-            eventId: 'event-1',
-            registrationId: 'registration-1',
-            tenant: {
-              ...tenantPublicOrigin,
-              currency: 'EUR',
-              emailSenderEmail: null,
-              emailSenderName: null,
-              id: 'tenant-1',
-              name: 'Tenant',
-              stripeAccountId: 'acct_123',
-            },
-            user: { id: 'organizer-1' },
+        const error = yield* approveManualRegistrationForTest({
+          eventId: 'event-1',
+          registrationId: 'registration-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            emailSenderEmail: null,
+            emailSenderName: null,
+            id: 'tenant-1',
+            name: 'Tenant',
+            stripeAccountId: 'acct_123',
           },
-        ).pipe(
+          user: { id: 'organizer-1' },
+        }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
           Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
@@ -2402,6 +1369,8 @@ describe('EventRegistrationService', () => {
         expect(error['_tag']).toBe('EventRegistrationInternalError');
         expect(operationOrder).toEqual([
           'claim',
+          'reserve',
+          'registration',
           'stripe',
           'release-claim',
           'release-capacity',
@@ -2416,7 +1385,7 @@ describe('EventRegistrationService', () => {
       Effect.gen(function* () {
         const operationOrder: string[] = [];
         const database = createPaidManualApprovalDatabase({ operationOrder });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
@@ -2439,22 +1408,20 @@ describe('EventRegistrationService', () => {
           'expire',
         );
 
-        const error = yield* EventRegistrationService.approveManualRegistration(
-          {
-            eventId: 'event-1',
-            registrationId: 'registration-1',
-            tenant: {
-              ...tenantPublicOrigin,
-              currency: 'EUR',
-              emailSenderEmail: null,
-              emailSenderName: null,
-              id: 'tenant-1',
-              name: 'Tenant',
-              stripeAccountId: 'acct_123',
-            },
-            user: { id: 'organizer-1' },
+        const error = yield* approveManualRegistrationForTest({
+          eventId: 'event-1',
+          registrationId: 'registration-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            emailSenderEmail: null,
+            emailSenderName: null,
+            id: 'tenant-1',
+            name: 'Tenant',
+            stripeAccountId: 'acct_123',
           },
-        ).pipe(
+          user: { id: 'organizer-1' },
+        }).pipe(
           Effect.flip,
           Effect.provide(EventRegistrationService.Default),
           Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
@@ -2463,8 +1430,15 @@ describe('EventRegistrationService', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Failed to create stripe checkout session');
-        expect(operationOrder).toEqual(['claim', 'stripe']);
+        expect(error.message).toBe(
+          'Payment setup is still pending. Retry approval or cancel the registration.',
+        );
+        expect(operationOrder).toEqual([
+          'claim',
+          'reserve',
+          'registration',
+          'stripe',
+        ]);
         expect(expire).not.toHaveBeenCalled();
       }),
   );
@@ -2479,7 +1453,7 @@ describe('EventRegistrationService', () => {
           operationOrder,
           registrationOption: { isPaid: false, price: 1000 },
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         const createSession = vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
@@ -2492,10 +1466,14 @@ describe('EventRegistrationService', () => {
           tenant: {
             ...tenantPublicOrigin,
             currency: 'EUR',
+            emailSenderEmail: null,
+            emailSenderName: null,
             id: 'tenant-1',
+            name: 'Tenant',
             stripeAccountId: null,
           },
           user: {
+            communicationEmail: 'alice@example.com',
             email: 'alice@example.com',
             id: 'user-1',
             roleIds: ['role-1'],
@@ -2524,7 +1502,7 @@ describe('EventRegistrationService', () => {
           bindingSucceeds: true,
           operationOrder,
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
@@ -2573,6 +1551,7 @@ describe('EventRegistrationService', () => {
         expect(error['_tag']).toBe('EventRegistrationInternalError');
         expect(operationOrder).toEqual([
           'reserve',
+          'registration',
           'claim',
           'stripe',
           'release-claim',
@@ -2592,7 +1571,7 @@ describe('EventRegistrationService', () => {
           bindingSucceeds: true,
           operationOrder,
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
@@ -2639,8 +1618,15 @@ describe('EventRegistrationService', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Failed to create stripe checkout session');
-        expect(operationOrder).toEqual(['reserve', 'claim', 'stripe']);
+        expect(error.message).toBe(
+          'Payment setup is still pending. Retry registration or cancel it.',
+        );
+        expect(operationOrder).toEqual([
+          'reserve',
+          'registration',
+          'claim',
+          'stripe',
+        ]);
         expect(expire).not.toHaveBeenCalled();
       }),
   );
@@ -2654,7 +1640,7 @@ describe('EventRegistrationService', () => {
           bindingSucceeds: false,
           operationOrder,
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
@@ -2708,6 +1694,7 @@ describe('EventRegistrationService', () => {
         expect(error.message).toBe('Failed to bind stripe checkout session');
         expect(operationOrder).toEqual([
           'reserve',
+          'registration',
           'claim',
           'stripe',
           'bind',
@@ -2728,7 +1715,7 @@ describe('EventRegistrationService', () => {
           bindingSucceeds: false,
           operationOrder,
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         vi.spyOn(
           checkoutStripeClient.checkout.sessions,
           'create',
@@ -2779,693 +1766,13 @@ describe('EventRegistrationService', () => {
         expect(error.message).toBe('Failed to bind stripe checkout session');
         expect(operationOrder).toEqual([
           'reserve',
+          'registration',
           'claim',
           'stripe',
           'bind',
           'expire',
         ]);
       }),
-  );
-
-  it.effect(
-    'rejects new registrations when the tenant active registration limit is reached',
-    () =>
-      Effect.gen(function* () {
-        const updateOptionCounters = vi.fn();
-        let selectionCount = 0;
-        const selectActiveFutureRegistrations = vi.fn(() => {
-          selectionCount += 1;
-          return selectionCount === 1
-            ? selectLockedTenantMembership()
-            : {
-                from: () => ({
-                  innerJoin: () => ({
-                    where: () => ({
-                      limit: () =>
-                        Effect.succeed([
-                          {
-                            id: 'active-registration-1',
-                          },
-                        ]),
-                    }),
-                  }),
-                }),
-              };
-        });
-        const mockDatabase = {
-          query: {
-            eventRegistrationOptions: {
-              findFirst: () => Effect.succeed(approvedRegistrationOption),
-            },
-            eventRegistrations: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-          transaction: (
-            callback: (tx: {
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.Effect<[]>;
-                };
-              };
-              select: typeof selectActiveFutureRegistrations;
-              update: ReturnType<typeof vi.fn>;
-            }) => Effect.Effect<unknown>,
-          ) =>
-            callback({
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.succeed([]),
-                },
-              },
-              select: selectActiveFutureRegistrations,
-              update: updateOptionCounters,
-            }),
-        };
-
-        const program = EventRegistrationService.registerForEvent({
-          eventId: 'event-1',
-          guestCount: 0,
-          registrationOptionId: 'option-1',
-          tenant: {
-            ...tenantPublicOrigin,
-            currency: 'EUR',
-            id: 'tenant-1',
-            maxActiveRegistrationsPerUser: 1,
-            stripeAccountId: undefined,
-          },
-          user: {
-            email: 'alice@example.com',
-            id: 'user-1',
-            roleIds: ['role-1'],
-          },
-        }).pipe(
-          Effect.flip,
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(
-            Layer.succeed(Database, mockDatabase as DatabaseClient),
-          ),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
-        );
-
-        const error = yield* program;
-        expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe('Active registration limit reached');
-        expect(selectActiveFutureRegistrations).toHaveBeenCalled();
-        expect(updateOptionCounters).not.toHaveBeenCalled();
-      }),
-  );
-
-  it.effect(
-    'rejects when a concurrent registration appears inside the reservation transaction',
-    () =>
-      Effect.gen(function* () {
-        const updateOptionCounters = vi.fn();
-        const mockDatabase = {
-          query: {
-            eventRegistrationOptions: {
-              findFirst: () => Effect.succeed(approvedRegistrationOption),
-            },
-            eventRegistrations: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-          transaction: (
-            callback: (tx: {
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.Effect<{ id: string }[]>;
-                };
-              };
-              select: typeof selectLockedTenantMembership;
-              update: ReturnType<typeof vi.fn>;
-            }) => Effect.Effect<unknown>,
-          ) =>
-            callback({
-              query: {
-                eventRegistrations: {
-                  findMany: () =>
-                    Effect.succeed([{ id: 'concurrent-registration' }]),
-                },
-              },
-              select: selectLockedTenantMembership,
-              update: updateOptionCounters,
-            }),
-        };
-
-        const program = EventRegistrationService.registerForEvent({
-          eventId: 'event-1',
-          guestCount: 0,
-          registrationOptionId: 'option-1',
-          tenant: {
-            ...tenantPublicOrigin,
-            currency: 'EUR',
-            id: 'tenant-1',
-            stripeAccountId: undefined,
-          },
-          user: {
-            email: 'alice@example.com',
-            id: 'user-1',
-            roleIds: ['role-1'],
-          },
-        }).pipe(
-          Effect.flip,
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(
-            Layer.succeed(Database, mockDatabase as DatabaseClient),
-          ),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
-        );
-
-        const error = yield* program;
-        expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe('User is already registered for this event');
-        expect(updateOptionCounters).not.toHaveBeenCalled();
-      }),
-  );
-
-  it.effect(
-    'rejects when the transactional capacity counter update loses the race',
-    () =>
-      Effect.gen(function* () {
-        const insertRegistration = vi.fn();
-        const mockDatabase = {
-          query: {
-            eventRegistrationOptions: {
-              findFirst: () =>
-                Effect.succeed({
-                  ...approvedRegistrationOption,
-                  confirmedSpots: 9,
-                  reservedSpots: 0,
-                }),
-            },
-            eventRegistrations: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-          transaction: (
-            callback: (tx: {
-              insert: ReturnType<typeof vi.fn>;
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.Effect<[]>;
-                };
-              };
-              select: typeof selectLockedTenantMembership;
-              update: () => {
-                set: () => {
-                  where: () => {
-                    returning: () => Effect.Effect<[]>;
-                  };
-                };
-              };
-            }) => Effect.Effect<unknown>,
-          ) =>
-            callback({
-              insert: insertRegistration,
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.succeed([]),
-                },
-              },
-              select: selectLockedTenantMembership,
-              update: () => ({
-                set: () => ({
-                  where: () => ({
-                    returning: () => Effect.succeed([]),
-                  }),
-                }),
-              }),
-            }),
-        };
-
-        const program = EventRegistrationService.registerForEvent({
-          eventId: 'event-1',
-          guestCount: 0,
-          registrationOptionId: 'option-1',
-          tenant: {
-            ...tenantPublicOrigin,
-            currency: 'EUR',
-            id: 'tenant-1',
-            stripeAccountId: undefined,
-          },
-          user: {
-            email: 'alice@example.com',
-            id: 'user-1',
-            roleIds: ['role-1'],
-          },
-        }).pipe(
-          Effect.flip,
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(
-            Layer.succeed(Database, mockDatabase as DatabaseClient),
-          ),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
-        );
-
-        const error = yield* program;
-        expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe(
-          'Registration option has no available spots',
-        );
-        expect(insertRegistration).not.toHaveBeenCalled();
-      }),
-  );
-
-  it.effect(
-    'persists the configured add-on attachment quantity for a selected add-on',
-    () =>
-      Effect.gen(function* () {
-        const insertAddonPurchase = vi.fn();
-        const mockDatabase = {
-          query: {
-            eventRegistrationOptions: {
-              findFirst: () => Effect.succeed(approvedRegistrationOption),
-            },
-            eventRegistrations: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-          select: () => ({
-            from: () => ({
-              innerJoin: () => ({
-                leftJoin: () => ({
-                  where: () =>
-                    Effect.succeed([
-                      {
-                        addOnId: 'addon-1',
-                        allowMultiple: false,
-                        maxQuantityPerUser: 1,
-                        price: 0,
-                        quantity: 2,
-                        stripeTaxRateId: null,
-                        taxRateDisplayName: null,
-                        taxRateInclusive: null,
-                        taxRatePercentage: null,
-                        title: 'Lunch',
-                        totalAvailableQuantity: 2,
-                      },
-                    ]),
-                }),
-              }),
-            }),
-          }),
-          transaction: (
-            callback: (tx: {
-              insert: (table: unknown) => {
-                values: (value: unknown) => {
-                  returning?: () => Effect.Effect<{ id: string }[]>;
-                };
-              };
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.Effect<[]>;
-                };
-              };
-              select: typeof selectLockedTenantMembership;
-              update: () => {
-                set: () => {
-                  where: () => {
-                    returning: () => Effect.Effect<{ id: string }[]>;
-                  };
-                };
-              };
-            }) => Effect.Effect<unknown, unknown>,
-          ) =>
-            callback({
-              insert: (table) => ({
-                values: (value) => {
-                  if (table === eventRegistrations) {
-                    return {
-                      returning: () =>
-                        Effect.succeed([{ id: 'registration-1' }]),
-                    };
-                  }
-                  if (table === eventRegistrationAddonPurchases) {
-                    insertAddonPurchase(value);
-                  }
-                  return Effect.void;
-                },
-              }),
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.succeed([]),
-                },
-              },
-              select: selectLockedTenantMembership,
-              update: () => ({
-                set: () => ({
-                  where: () => ({
-                    returning: () => Effect.succeed([{ id: 'updated' }]),
-                  }),
-                }),
-              }),
-            }),
-        };
-
-        yield* EventRegistrationService.registerForEvent({
-          addOns: [{ addOnId: 'addon-1', quantity: 1 }],
-          eventId: 'event-1',
-          guestCount: 0,
-          registrationOptionId: 'option-1',
-          tenant: {
-            ...tenantPublicOrigin,
-            currency: 'EUR',
-            id: 'tenant-1',
-            stripeAccountId: undefined,
-          },
-          user: {
-            email: 'alice@example.com',
-            id: 'user-1',
-            roleIds: ['role-1'],
-          },
-        }).pipe(
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(
-            Layer.succeed(Database, mockDatabase as DatabaseClient),
-          ),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
-        );
-
-        expect(insertAddonPurchase).toHaveBeenCalledWith(
-          expect.objectContaining({
-            addonId: 'addon-1',
-            quantity: 2,
-            registrationId: 'registration-1',
-          }),
-        );
-      }),
-  );
-
-  it.effect(
-    'fails the reservation transaction when add-on stock is no longer available',
-    () =>
-      Effect.gen(function* () {
-        let isTransactionFailed = false;
-        const insertAddonPurchase = vi.fn();
-        const mockDatabase = {
-          query: {
-            eventRegistrationOptions: {
-              findFirst: () => Effect.succeed(approvedRegistrationOption),
-            },
-            eventRegistrations: {
-              findFirst: () => Effect.succeed(null),
-            },
-            userDiscountCards: {
-              findMany: () => Effect.succeed([]),
-            },
-          },
-          select: () => ({
-            from: () => ({
-              innerJoin: () => ({
-                leftJoin: () => ({
-                  where: () =>
-                    Effect.succeed([
-                      {
-                        addOnId: 'addon-1',
-                        allowMultiple: false,
-                        maxQuantityPerUser: 1,
-                        price: 500,
-                        quantity: 1,
-                        stripeTaxRateId: null,
-                        taxRateDisplayName: null,
-                        taxRateInclusive: null,
-                        taxRatePercentage: null,
-                        title: 'Lunch',
-                        totalAvailableQuantity: 1,
-                      },
-                    ]),
-                }),
-              }),
-            }),
-          }),
-          transaction: (
-            callback: (tx: {
-              insert: (table: unknown) => {
-                values: (value: unknown) => {
-                  returning?: () => Effect.Effect<{ id: string }[]>;
-                };
-              };
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.Effect<[]>;
-                };
-              };
-              select: typeof selectLockedTenantMembership;
-              update: (table: unknown) => {
-                set: () => {
-                  where: () => {
-                    returning: () => Effect.Effect<{ id: string }[]>;
-                  };
-                };
-              };
-            }) => Effect.Effect<unknown, unknown>,
-          ) =>
-            callback({
-              insert: (table) => ({
-                values: (value) => {
-                  if (table !== eventRegistrations) {
-                    insertAddonPurchase(value);
-                    return {};
-                  }
-
-                  return {
-                    returning: () => Effect.succeed([{ id: 'registration-1' }]),
-                  };
-                },
-              }),
-              query: {
-                eventRegistrations: {
-                  findMany: () => Effect.succeed([]),
-                },
-              },
-              select: selectLockedTenantMembership,
-              update: (table) => ({
-                set: () => ({
-                  where: () => ({
-                    returning: () =>
-                      Effect.succeed(
-                        table === eventAddons ? [] : [{ id: 'option-1' }],
-                      ),
-                  }),
-                }),
-              }),
-            }).pipe(
-              Effect.tapError((error) =>
-                Effect.sync(() => {
-                  isTransactionFailed =
-                    error instanceof EventRegistrationConflictError;
-                }),
-              ),
-            ),
-        };
-
-        const program = EventRegistrationService.registerForEvent({
-          addOns: [{ addOnId: 'addon-1', quantity: 1 }],
-          eventId: 'event-1',
-          guestCount: 0,
-          registrationOptionId: 'option-1',
-          tenant: {
-            ...tenantPublicOrigin,
-            currency: 'EUR',
-            id: 'tenant-1',
-            stripeAccountId: 'acct_123',
-          },
-          user: {
-            email: 'alice@example.com',
-            id: 'user-1',
-            roleIds: ['role-1'],
-          },
-        }).pipe(
-          Effect.flip,
-          Effect.provide(EventRegistrationService.Default),
-          Effect.provide(
-            Layer.succeed(Database, mockDatabase as DatabaseClient),
-          ),
-          Effect.provideService(StripeClient, stripeClient),
-          Effect.provide(configProviderLayer),
-        );
-
-        const error = yield* program;
-        expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toBe('Add-on quantity is no longer available');
-        expect(isTransactionFailed).toBe(true);
-        expect(insertAddonPurchase).not.toHaveBeenCalled();
-      }),
-  );
-
-  it.effect('joins the waitlist for a full public participant option', () =>
-    Effect.gen(function* () {
-      const insertWaitlistRegistration = vi.fn(() => ({
-        values: vi.fn((values) => ({
-          returning: vi.fn(() =>
-            Effect.succeed([
-              {
-                id: values.status === 'WAITLIST' ? 'waitlist-1' : undefined,
-              },
-            ]),
-          ),
-        })),
-      }));
-      const mockDatabase = {
-        query: {
-          eventRegistrationOptions: {
-            findFirst: () =>
-              Effect.succeed({
-                ...approvedRegistrationOption,
-                confirmedSpots: 10,
-                organizingRegistration: false,
-                roleIds: [],
-              }),
-          },
-          eventRegistrations: {
-            findFirst: () => Effect.succeed(null),
-          },
-        },
-        transaction: (
-          callback: (tx: {
-            insert: ReturnType<typeof vi.fn>;
-            query: {
-              eventRegistrations: {
-                findMany: () => Effect.Effect<[]>;
-              };
-            };
-            select: typeof selectLockedTenantMembership;
-            update: () => {
-              set: (values: unknown) => {
-                where: () => {
-                  returning: () => Effect.Effect<{ id: string }[]>;
-                };
-              };
-            };
-          }) => Effect.Effect<unknown>,
-        ) =>
-          callback({
-            insert: insertWaitlistRegistration,
-            query: {
-              eventRegistrations: {
-                findMany: () => Effect.succeed([]),
-              },
-            },
-            select: selectLockedTenantMembership,
-            update: () => ({
-              set: () => ({
-                where: () => ({
-                  returning: () => Effect.succeed([{ id: 'option-1' }]),
-                }),
-              }),
-            }),
-          }),
-      };
-
-      const program = EventRegistrationService.joinWaitlist({
-        eventId: 'event-1',
-        registrationOptionId: 'option-1',
-        tenant: {
-          id: 'tenant-1',
-        },
-        user: {
-          id: 'user-1',
-          roleIds: [],
-        },
-      }).pipe(
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
-        Effect.provide(configProviderLayer),
-      );
-
-      yield* program;
-      expect(insertWaitlistRegistration).toHaveBeenCalled();
-    }),
-  );
-
-  it.effect('rejects waitlist joining while capacity remains', () =>
-    Effect.gen(function* () {
-      const mockDatabase = {
-        query: {
-          eventRegistrationOptions: {
-            findFirst: () =>
-              Effect.succeed({
-                ...approvedRegistrationOption,
-                organizingRegistration: false,
-              }),
-          },
-          eventRegistrations: {
-            findFirst: () => Effect.succeed(null),
-          },
-        },
-      };
-
-      const program = EventRegistrationService.joinWaitlist({
-        eventId: 'event-1',
-        registrationOptionId: 'option-1',
-        tenant: {
-          id: 'tenant-1',
-        },
-        user: {
-          id: 'user-1',
-          roleIds: ['role-1'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
-        Effect.provide(configProviderLayer),
-      );
-
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe(
-        'Registration option still has available spots',
-      );
-    }),
-  );
-
-  it.effect('rejects waitlist joining for organizer/helper options', () =>
-    Effect.gen(function* () {
-      const mockDatabase = {
-        query: {
-          eventRegistrationOptions: {
-            findFirst: () =>
-              Effect.succeed({
-                ...approvedRegistrationOption,
-                confirmedSpots: 10,
-                organizingRegistration: true,
-              }),
-          },
-          eventRegistrations: {
-            findFirst: () => Effect.succeed(null),
-          },
-        },
-      };
-
-      const program = EventRegistrationService.joinWaitlist({
-        eventId: 'event-1',
-        registrationOptionId: 'option-1',
-        tenant: {
-          id: 'tenant-1',
-        },
-        user: {
-          id: 'user-1',
-          roleIds: ['role-1'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(Layer.succeed(Database, mockDatabase as DatabaseClient)),
-        Effect.provide(configProviderLayer),
-      );
-
-      const error = yield* program;
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe(
-        'Waitlist is only available for participant options',
-      );
-    }),
   );
 });
 
@@ -4081,6 +2388,7 @@ describe('EventRegistrationService', () => {
                   findMany: () => Effect.Effect<[]>;
                 };
               };
+              select: typeof selectLockedTenantMembership;
               update: () => {
                 set: () => {
                   where: () => {
@@ -4111,6 +2419,7 @@ describe('EventRegistrationService', () => {
                   findMany: () => Effect.succeed([]),
                 },
               },
+              select: selectLockedTenantMembership,
               update: () => ({
                 set: () => ({
                   where: () => ({
@@ -4212,6 +2521,7 @@ describe('EventRegistrationService', () => {
               findFirst: findNotificationUser,
             },
           },
+          select: selectLockedTenantMembership,
           update: () => ({
             set: () => ({
               where: () => ({
@@ -4466,6 +2776,7 @@ describe('EventRegistrationService', () => {
                   findMany: () => Effect.Effect<[]>;
                 };
               };
+              select: typeof selectLockedTenantMembership;
               update: ReturnType<typeof vi.fn>;
             }) => Effect.Effect<unknown>,
           ) =>
@@ -4485,6 +2796,7 @@ describe('EventRegistrationService', () => {
                   findMany: () => Effect.succeed([]),
                 },
               },
+              select: selectLockedTenantMembership,
               update: updateOptionCounters,
             }),
         };
@@ -4528,7 +2840,7 @@ describe('EventRegistrationService', () => {
       const approvalDatabase = createManualApprovalDatabase({
         registration: freeManualApprovalRegistration,
       });
-      const checkoutStripeClient = new Stripe('sk_test_123');
+      const checkoutStripeClient = createStripeTestClient();
       const createSession = vi.fn(() =>
         Promise.resolve({
           id: 'cs_test_unexpected',
@@ -4562,7 +2874,7 @@ describe('EventRegistrationService', () => {
       Effect.gen(function* () {
         const approvalDatabase = createManualApprovalDatabase();
         let auditedTransition: unknown;
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         const createSession = vi.fn(() => {
           approvalDatabase.operationOrder.push('stripe');
           return Promise.resolve({
@@ -4667,7 +2979,7 @@ describe('EventRegistrationService', () => {
         const approvalDatabase = createManualApprovalDatabase({
           existingClaim,
         });
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         const createSession = vi.fn(() => {
           approvalDatabase.operationOrder.push('stripe');
           return Promise.resolve({
@@ -4739,7 +3051,7 @@ describe('EventRegistrationService', () => {
     () =>
       Effect.gen(function* () {
         const approvalDatabase = createManualApprovalDatabase();
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         const stripeCause = new Error('connection reset after request');
         const createSession = vi.fn(() => {
           approvalDatabase.operationOrder.push('stripe');
@@ -4791,7 +3103,7 @@ describe('EventRegistrationService', () => {
     () =>
       Effect.gen(function* () {
         const directDatabase = createDirectCheckoutDatabase();
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         const createSession = vi.fn(() => {
           directDatabase.operationOrder.push('stripe');
           return Promise.resolve({
@@ -4859,7 +3171,7 @@ describe('EventRegistrationService', () => {
     () =>
       Effect.gen(function* () {
         const directDatabase = createDirectCheckoutDatabase();
-        const checkoutStripeClient = new Stripe('sk_test_123');
+        const checkoutStripeClient = createStripeTestClient();
         const stripeCause = new Error('connection reset after request');
         let attempt = 0;
         const createSession = vi.fn(() => {
@@ -5091,6 +3403,7 @@ describe('EventRegistrationService', () => {
                   findMany: () => Effect.Effect<{ id: string }[]>;
                 };
               };
+              select: typeof selectLockedTenantMembership;
               update: ReturnType<typeof vi.fn>;
             }) => Effect.Effect<unknown>,
           ) =>
@@ -5101,6 +3414,7 @@ describe('EventRegistrationService', () => {
                     Effect.succeed([{ id: 'concurrent-registration' }]),
                 },
               },
+              select: selectLockedTenantMembership,
               update: updateOptionCounters,
             }),
         };
@@ -5165,6 +3479,7 @@ describe('EventRegistrationService', () => {
                   findMany: () => Effect.Effect<[]>;
                 };
               };
+              select: typeof selectLockedTenantMembership;
               update: () => {
                 set: () => {
                   where: () => {
@@ -5181,6 +3496,7 @@ describe('EventRegistrationService', () => {
                   findMany: () => Effect.succeed([]),
                 },
               },
+              select: selectLockedTenantMembership,
               update: () => ({
                 set: () => ({
                   where: () => ({
@@ -5279,6 +3595,7 @@ describe('EventRegistrationService', () => {
                   findMany: () => Effect.Effect<[]>;
                 };
               };
+              select: typeof selectLockedTenantMembership;
               update: () => {
                 set: () => {
                   where: () => {
@@ -5316,6 +3633,7 @@ describe('EventRegistrationService', () => {
                   findMany: () => Effect.succeed([]),
                 },
               },
+              select: selectLockedTenantMembership,
               update: () => ({
                 set: () => ({
                   where: () => ({
@@ -5564,6 +3882,7 @@ describe('EventRegistrationService', () => {
                 findMany: () => Effect.Effect<[]>;
               };
             };
+            select: typeof selectLockedTenantMembership;
             update: () => {
               set: (values: unknown) => {
                 where: () => {
@@ -5580,6 +3899,7 @@ describe('EventRegistrationService', () => {
                 findMany: () => Effect.succeed([]),
               },
             },
+            select: selectLockedTenantMembership,
             update: () => ({
               set: () => ({
                 where: () => ({

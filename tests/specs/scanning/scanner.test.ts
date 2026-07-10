@@ -3,10 +3,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
-import {
-  adminStateFile,
-  organizerStateFile,
-} from '../../../helpers/user-data';
+import { adminStateFile, organizerStateFile } from '../../../helpers/user-data';
 import type { relations } from '../../../src/db/relations';
 import {
   eventAddons,
