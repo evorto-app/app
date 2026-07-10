@@ -1,4 +1,6 @@
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatChipGridHarness } from '@angular/material/chips/testing';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -86,5 +88,27 @@ describe('RoleSelectComponent', () => {
 
     roleInput.focus();
     expect(document.activeElement).toBe(roleInput);
+  });
+
+  it('removes a selected role through the chip keyboard action', async () => {
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('mat-chip-row'),
+      ).not.toBeNull();
+    });
+
+    const loader = TestbedHarnessEnvironment.loader(fixture);
+    const chipGrid = await loader.getHarness(MatChipGridHarness);
+    const selectedRoles = await chipGrid.getRows();
+    const selectedRole = selectedRoles[0];
+    if (!selectedRole) {
+      throw new Error('Expected the selected role chip to be rendered');
+    }
+
+    await selectedRole.remove();
+
+    expect(fixture.componentInstance.value()).toEqual([]);
+    expect(fixture.componentInstance.touched()).toBe(true);
   });
 });

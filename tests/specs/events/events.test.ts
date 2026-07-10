@@ -94,7 +94,8 @@ test('event authoring controls expose accessible names and keyboard interaction'
   const roleChips = roleSelect.locator('mat-chip-row');
   const initialRoleCount = await roleChips.count();
   await roleSelect.getByPlaceholder('Add Role...').focus();
-  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Backspace');
+  await expect(roleChips.last().getByRole('gridcell').first()).toBeFocused();
   await page.keyboard.press('Delete');
   await expect(roleChips).toHaveCount(initialRoleCount - 1);
 
