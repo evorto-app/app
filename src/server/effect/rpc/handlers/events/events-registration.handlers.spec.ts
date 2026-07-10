@@ -9,6 +9,7 @@ import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
   activeEventRegistrationUniqueIndexName,
+  addonToEventRegistrationOptions,
   emailOutbox,
   eventAddons,
   eventRegistrationAddonFulfillmentEvents,
@@ -37,11 +38,17 @@ import {
   eventRegistrationHandlers,
   hasReachedRegistrationCancellationDeadline,
   planNonStripeCancellationRefund,
+  registrationAddonPurchaseAvailability,
   registrationCancellationStripeRefundTerms,
+  registrationTransferBlockedReason,
   resolveCancellationDeadlineHoursBeforeStart,
   resolveRefundFeesOnCancellation,
+  withoutRegistrationInternalErrorCause,
 } from './events-registration.handlers';
-import { EventRegistrationConflictError } from './events.errors';
+import {
+  EventRegistrationConflictError,
+  EventRegistrationInternalError,
+} from './events.errors';
 
 type StripeClientDouble = Pick<Stripe, 'checkout' | 'refunds'>;
 
@@ -1222,6 +1229,421 @@ const createTransferTargetsDatabase = ({
 
   return database;
 };
+
+describe('event registration owner add-on status', () => {
+  const now = new Date('2026-09-18T09:00:00.000Z');
+  const eventStart = new Date('2026-09-19T09:00:00.000Z');
+  const eventEnd = new Date('2026-09-19T12:00:00.000Z');
+  const availableAddonInput = {
+    activeTransfer: false,
+    allowMultiple: true,
+    allowPurchaseBeforeEvent: true,
+    allowPurchaseDuringEvent: false,
+    eventEnd,
+    eventStart,
+    eventStatus: 'APPROVED',
+    maxQuantityPerUser: 3,
+    now,
+    optionalPurchaseQuantity: 2,
+    paymentConfigured: true,
+    pendingOptionalQuantity: 0,
+    pendingOrder: false,
+    purchasedOptionalQuantity: 0,
+    registrationStatus: 'CONFIRMED',
+    stockAvailableQuantity: 4,
+    taxConfigured: true,
+  } as const;
+
+  it('keeps a free add-on available when no Stripe payment configuration is needed', () => {
+    expect(registrationAddonPurchaseAvailability(availableAddonInput)).toEqual({
+      currentPurchaseWindow: 'beforeEvent',
+      maxPurchasableQuantity: 2,
+      purchaseAvailable: true,
+      purchaseBlockedReason: 'none',
+      purchaseStatus: 'available',
+    });
+  });
+
+  it('blocks every add-on while any add-on checkout is pending', () => {
+    expect(
+      registrationAddonPurchaseAvailability({
+        ...availableAddonInput,
+        pendingOrder: true,
+      }),
+    ).toEqual({
+      currentPurchaseWindow: 'beforeEvent',
+      maxPurchasableQuantity: 0,
+      purchaseAvailable: false,
+      purchaseBlockedReason: 'paymentPending',
+      purchaseStatus: 'paymentPending',
+    });
+  });
+
+  it('blocks transfer for add-on payment state but not an ordinary paid registration', () => {
+    const transferableInput = {
+      activeTransfer: false,
+      checkInTime: null,
+      eventStart,
+      eventStatus: 'APPROVED',
+      hasAddonFulfillmentState: false,
+      hasPendingAddonOrder: false,
+      hasSuccessfulPaidAddon: false,
+      hasUnsupportedPaymentMethod: false,
+      now,
+      registrationStatus: 'CONFIRMED',
+      transferDeadlineHoursBeforeStart: 0,
+    } as const;
+
+    expect(registrationTransferBlockedReason(transferableInput)).toBe('none');
+    expect(
+      registrationTransferBlockedReason({
+        ...transferableInput,
+        hasSuccessfulPaidAddon: true,
+      }),
+    ).toBe('paidAddon');
+    expect(
+      registrationTransferBlockedReason({
+        ...transferableInput,
+        hasAddonFulfillmentState: true,
+        hasPendingAddonOrder: true,
+        hasSuccessfulPaidAddon: true,
+        hasUnsupportedPaymentMethod: true,
+      }),
+    ).toBe('addonPaymentPending');
+    expect(
+      registrationTransferBlockedReason({
+        ...transferableInput,
+        hasAddonFulfillmentState: true,
+        hasSuccessfulPaidAddon: true,
+      }),
+    ).toBe('addonFulfillmentState');
+    expect(
+      registrationTransferBlockedReason({
+        ...transferableInput,
+        hasSuccessfulPaidAddon: true,
+        hasUnsupportedPaymentMethod: true,
+      }),
+    ).toBe('unsupportedPaymentMethod');
+    expect(
+      registrationTransferBlockedReason({
+        ...transferableInput,
+        activeTransfer: true,
+      }),
+    ).toBe('activeTransfer');
+  });
+
+  it('removes internal causes before an add-on purchase error crosses RPC', () => {
+    const sanitized = withoutRegistrationInternalErrorCause(
+      new EventRegistrationInternalError({
+        cause: new Error('duplicate key violates secret_constraint_name'),
+        message: 'Add-on purchase reservation failed',
+      }),
+    );
+
+    expect(sanitized.message).toBe('Add-on purchase reservation failed');
+    expect(sanitized).not.toHaveProperty('cause');
+  });
+
+  it.effect(
+    'returns every configured add-on and owner-scoped pending checkout recovery data',
+    () =>
+      Effect.gen(function* () {
+        const pendingCheckoutExpiresAt = new Date('2026-09-18T09:30:00.000Z');
+        const includedPurchase = {
+          addOn: { title: 'Included lunch' },
+          addonId: 'addon-included',
+          cancelledQuantity: 0,
+          includedQuantity: 2,
+          purchasedQuantity: 1,
+          quantity: 3,
+          redeemedQuantity: 0,
+          unitPrice: 0,
+        };
+        const baseRegistration = {
+          addonPurchases: [includedPurchase],
+          appliedDiscountedPrice: null,
+          appliedDiscountType: null,
+          basePriceAtRegistration: null,
+          checkInTime: null,
+          discountAmount: null,
+          event: {
+            end: eventEnd,
+            start: eventStart,
+            status: 'APPROVED',
+          },
+          guestCount: 0,
+          id: 'registration-1',
+          registrationOption: {
+            price: 1200,
+            registeredDescription: null,
+            title: 'Participant',
+            transferDeadlineHoursBeforeStart: 0,
+          },
+          registrationOptionId: 'option-1',
+          status: 'CONFIRMED',
+          transactions: [
+            {
+              amount: 1200,
+              method: 'stripe',
+              status: 'successful',
+              stripeCheckoutUrl: null,
+              type: 'registration',
+            },
+          ],
+        };
+        let statusReadCount = 0;
+        const findMany = vi.fn(() => {
+          const readIndex = statusReadCount++;
+          const addonPurchaseOrders =
+            readIndex === 1
+              ? [
+                  {
+                    addonId: 'addon-paid',
+                    expiresAt: pendingCheckoutExpiresAt,
+                    operationKey: 'operation-paid-1',
+                    quantity: 2,
+                    transaction: {
+                      stripeCheckoutUrl:
+                        'https://checkout.stripe.com/c/pay/cs_test_addon',
+                    },
+                  },
+                ]
+              : [];
+          const addonPurchases =
+            readIndex === 2
+              ? [
+                  {
+                    ...includedPurchase,
+                    cancelledQuantity: 1,
+                    redeemedQuantity: 1,
+                  },
+                ]
+              : [includedPurchase];
+          const currentTransactions =
+            readIndex === 3
+              ? baseRegistration.transactions.map((transaction) => ({
+                  ...transaction,
+                  method: 'other',
+                }))
+              : baseRegistration.transactions;
+          return Effect.succeed([
+            {
+              ...baseRegistration,
+              addonPurchaseOrders,
+              addonPurchases,
+              transactions: currentTransactions,
+            },
+          ]);
+        });
+        const registrationAddOnOptions = [
+          {
+            addOnId: 'addon-included',
+            allowMultiple: true,
+            allowPurchaseBeforeEvent: true,
+            allowPurchaseDuringEvent: false,
+            description: 'Included with the registration',
+            isPaid: false,
+            maxQuantityPerUser: 3,
+            nextPurchaseTaxRateDisplayName: null,
+            nextPurchaseTaxRateInclusive: null,
+            nextPurchaseTaxRatePercentage: null,
+            nextPurchaseUnitPrice: 0,
+            optionalPurchaseQuantity: 0,
+            registrationOptionId: 'option-1',
+            stockAvailableQuantity: 5,
+            stripeTaxRateId: null,
+            title: 'Included lunch',
+          },
+          {
+            addOnId: 'addon-free',
+            allowMultiple: true,
+            allowPurchaseBeforeEvent: true,
+            allowPurchaseDuringEvent: false,
+            description: null,
+            isPaid: false,
+            maxQuantityPerUser: 3,
+            nextPurchaseTaxRateDisplayName: null,
+            nextPurchaseTaxRateInclusive: null,
+            nextPurchaseTaxRatePercentage: null,
+            nextPurchaseUnitPrice: 0,
+            optionalPurchaseQuantity: 2,
+            registrationOptionId: 'option-1',
+            stockAvailableQuantity: 4,
+            stripeTaxRateId: null,
+            title: 'Free city map',
+          },
+          {
+            addOnId: 'addon-paid',
+            allowMultiple: true,
+            allowPurchaseBeforeEvent: true,
+            allowPurchaseDuringEvent: true,
+            description: 'A paid upgrade',
+            isPaid: true,
+            maxQuantityPerUser: 3,
+            nextPurchaseTaxRateDisplayName: 'VAT',
+            nextPurchaseTaxRateInclusive: false,
+            nextPurchaseTaxRatePercentage: '21',
+            nextPurchaseUnitPrice: 499,
+            optionalPurchaseQuantity: 3,
+            registrationOptionId: 'option-1',
+            stockAvailableQuantity: 3,
+            stripeTaxRateId: 'txr_21',
+            title: 'Paid upgrade',
+          },
+        ];
+        const database = {
+          query: {
+            eventRegistrations: { findMany },
+          },
+          select: () => ({
+            from: (table: unknown) => {
+              if (table === addonToEventRegistrationOptions) {
+                return {
+                  innerJoin: () => ({
+                    innerJoin: () => ({
+                      leftJoin: () => ({
+                        where: () => ({
+                          orderBy: () =>
+                            Effect.succeed(registrationAddOnOptions),
+                        }),
+                      }),
+                    }),
+                  }),
+                };
+              }
+              if (table === registrationTransfers) {
+                return { where: () => Effect.succeed([]) };
+              }
+              throw new Error('Unexpected registration status select table');
+            },
+          }),
+        };
+        const getRegistrationStatus = () =>
+          eventRegistrationHandlers['events.getRegistrationStatus'](
+            { eventId: 'event-1' },
+            emptyHandlerOptions,
+          ).pipe(
+            Effect.provide(
+              createContextLayer({
+                database,
+                nowIso: now.toISOString(),
+              }),
+            ),
+          );
+
+        const availableResult = yield* getRegistrationStatus();
+        const availableRegistration = availableResult.registrations[0];
+        expect(availableRegistration).toBeDefined();
+        expect(findMany).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({
+            where: {
+              eventId: 'event-1',
+              status: { NOT: 'CANCELLED' },
+              tenantId: 'tenant-1',
+              userId: 'scanner-1',
+            },
+          }),
+        );
+        expect(
+          availableRegistration?.registrationAddOns.map(
+            ({ addOnId }) => addOnId,
+          ),
+        ).toEqual(['addon-included', 'addon-free', 'addon-paid']);
+        expect(availableRegistration?.registrationAddOns[0]).toEqual(
+          expect.objectContaining({
+            cancelledQuantity: 0,
+            includedQuantity: 2,
+            remainingQuantity: 3,
+            settledPurchasedQuantity: 1,
+            totalQuantity: 3,
+          }),
+        );
+        expect(availableRegistration?.registrationAddOns[1]).toEqual(
+          expect.objectContaining({
+            maxPurchasableQuantity: 2,
+            purchaseAvailable: true,
+            purchaseBlockedReason: 'none',
+            purchaseStatus: 'available',
+          }),
+        );
+        expect(availableRegistration?.registrationAddOns[2]).toEqual(
+          expect.objectContaining({
+            nextPurchaseUnitGrossAmount: 604,
+            nextPurchaseUnitTaxAmount: 105,
+            purchaseBlockedReason: 'paymentUnavailable',
+          }),
+        );
+        expect(availableRegistration).toEqual(
+          expect.objectContaining({
+            transferAvailable: true,
+            transferBlockedReason: 'none',
+          }),
+        );
+
+        const pendingResult = yield* getRegistrationStatus();
+        const pendingRegistration = pendingResult.registrations[0];
+        expect(
+          pendingRegistration?.registrationAddOns.every(
+            (addOn) =>
+              addOn.purchaseStatus === 'paymentPending' &&
+              addOn.maxPurchasableQuantity === 0,
+          ),
+        ).toBe(true);
+        expect(pendingRegistration?.registrationAddOns[1]).toEqual(
+          expect.objectContaining({
+            pendingCheckoutExpiresAt: null,
+            pendingCheckoutUrl: null,
+            pendingOperationKey: null,
+            pendingQuantity: 0,
+          }),
+        );
+        expect(pendingRegistration?.registrationAddOns[2]).toEqual(
+          expect.objectContaining({
+            pendingCheckoutExpiresAt: pendingCheckoutExpiresAt.toISOString(),
+            pendingCheckoutUrl:
+              'https://checkout.stripe.com/c/pay/cs_test_addon',
+            pendingOperationKey: 'operation-paid-1',
+            pendingQuantity: 2,
+          }),
+        );
+        expect(pendingRegistration?.registrationAddOns[2]).not.toHaveProperty(
+          'stripeTaxRateId',
+        );
+        expect(pendingRegistration).toEqual(
+          expect.objectContaining({
+            transferAvailable: false,
+            transferBlockedReason: 'addonPaymentPending',
+          }),
+        );
+
+        const fulfillmentResult = yield* getRegistrationStatus();
+        expect(fulfillmentResult.registrations[0]).toEqual(
+          expect.objectContaining({
+            transferAvailable: false,
+            transferBlockedReason: 'addonFulfillmentState',
+          }),
+        );
+        expect(
+          fulfillmentResult.registrations[0]?.registrationAddOns[0],
+        ).toEqual(
+          expect.objectContaining({
+            cancelledQuantity: 1,
+            redeemedQuantity: 1,
+            remainingQuantity: 1,
+          }),
+        );
+
+        const unsupportedPaymentResult = yield* getRegistrationStatus();
+        expect(unsupportedPaymentResult.registrations[0]).toEqual(
+          expect.objectContaining({
+            transferAvailable: false,
+            transferBlockedReason: 'unsupportedPaymentMethod',
+          }),
+        );
+      }),
+  );
+});
 
 describe('event registration trusted URLs', () => {
   it.effect(

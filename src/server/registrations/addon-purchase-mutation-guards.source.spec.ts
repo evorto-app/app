@@ -13,6 +13,46 @@ describe('post-registration add-on mutation guards', () => {
     expect(source).toContain('getServerNow(undefined)');
   });
 
+  it('derives purchase ownership in the RPC handler and forwards only participant intent', () => {
+    const source = readSource(
+      '../effect/rpc/handlers/events/events-registration.handlers.ts',
+    );
+    const handlerStart = source.indexOf("'events.purchaseRegistrationAddon':");
+    const handlerEnd = source.indexOf(
+      "'events.redeemRegistrationAddon':",
+      handlerStart,
+    );
+    const handler = source.slice(handlerStart, handlerEnd);
+
+    expect(handlerStart).toBeGreaterThanOrEqual(0);
+    expect(handlerEnd).toBeGreaterThan(handlerStart);
+    expect(handler).toContain('yield* RpcAccess.ensureAuthenticated()');
+    expect(handler).toContain('const { tenant } = yield* RpcAccess.current()');
+    expect(handler).toContain('const user = yield* RpcAccess.requireUser()');
+    expect(handler).toContain('yield* purchaseRegistrationAddon({');
+    expect(handler).toContain('addonId: addOnId');
+    expect(handler).toContain('tenantId: tenant.id');
+    expect(handler).toContain('userId: user.id');
+    expect(handler).not.toContain('pinnedNowIso');
+    expect(handler).not.toContain('stripeAccountId');
+  });
+
+  it('uses the deterministic registration handler clock for owner add-on availability', () => {
+    const source = readSource(
+      '../effect/rpc/handlers/events/events-registration.handlers.ts',
+    );
+    const handlerStart = source.indexOf("'events.getRegistrationStatus':");
+    const handlerEnd = source.indexOf("'events.joinWaitlist':", handlerStart);
+    const handler = source.slice(handlerStart, handlerEnd);
+
+    expect(handlerStart).toBeGreaterThanOrEqual(0);
+    expect(handlerEnd).toBeGreaterThan(handlerStart);
+    expect(handler).toContain(
+      'const now = yield* registrationHandlerNow.pipe(Effect.orDie)',
+    );
+    expect(handler).not.toContain('getServerNow(undefined)');
+  });
+
   it('blocks registration cancellation while an add-on payment is pending', () => {
     const source = readSource(
       '../effect/rpc/handlers/events/events-registration.handlers.ts',

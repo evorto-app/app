@@ -12,7 +12,10 @@ import {
   EventsFindOneRegistrationOption,
   EventsGetOrganizeOverviewUser,
   EventsJoinWaitlistPayload,
+  EventsPurchaseRegistrationAddonPayload,
+  EventsPurchaseRegistrationAddonResult,
   EventsRegisterForEventPayload,
+  EventsRegistrationAddonRecord,
   EventsRegistrationStatus,
   EventsRegistrationStatusRecord,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
@@ -62,10 +65,12 @@ describe('events RPC registration status schema', () => {
         guestCount: 0,
         id: 'registration-1',
         paymentPending: false,
+        registrationAddOns: [],
         registrationOptionId: 'option-1',
         registrationOptionTitle: 'Participant',
         status: 'UNKNOWN',
         transferAvailable: false,
+        transferBlockedReason: 'registrationStatus',
       }),
     ).toThrow();
   });
@@ -84,10 +89,141 @@ describe('events RPC registration status schema', () => {
         guestCount: 0,
         id: 'registration-1',
         paymentPending: false,
+        registrationAddOns: [],
         registrationOptionId: 'option-1',
         registrationOptionTitle: 'Participant',
         status: 'CONFIRMED',
         transferAvailable: false,
+        transferBlockedReason: 'paidAddon',
+      }),
+    ).not.toThrow();
+  });
+
+  it('represents transfer blockers enforced by the offer flow', () => {
+    for (const transferBlockedReason of [
+      'addonFulfillmentState',
+      'unsupportedPaymentMethod',
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
+          activeTransfer: null,
+          addonPurchases: [],
+          guestCount: 0,
+          id: 'registration-1',
+          paymentPending: false,
+          registrationAddOns: [],
+          registrationOptionId: 'option-1',
+          registrationOptionTitle: 'Participant',
+          status: 'CONFIRMED',
+          transferAvailable: false,
+          transferBlockedReason,
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it('represents every active transfer state in the owner registration response', () => {
+    for (const status of [
+      'checkout_pending',
+      'open',
+      'refund_pending',
+      'refund_failed',
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
+          activeTransfer: {
+            expiresAt: '2026-08-01T17:00:00.000Z',
+            registrationSide: 'source',
+            status,
+            transferId: 'transfer-1',
+          },
+          addonPurchases: [],
+          guestCount: 0,
+          id: 'registration-1',
+          paymentPending: false,
+          registrationAddOns: [],
+          registrationOptionId: 'option-1',
+          registrationOptionTitle: 'Participant',
+          status: 'CONFIRMED',
+          transferAvailable: false,
+          transferBlockedReason: 'activeTransfer',
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it('carries comprehensive participant add-on state without Stripe identifiers', () => {
+    const record = Schema.decodeUnknownSync(EventsRegistrationAddonRecord)({
+      addOnId: 'addon-1',
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: false,
+      cancelledQuantity: 1,
+      currency: 'EUR',
+      currentPurchaseWindow: 'beforeEvent',
+      description: 'Workshop materials',
+      includedQuantity: 1,
+      isPaid: true,
+      maxPurchasableQuantity: 1,
+      maxQuantityPerUser: 4,
+      nextPurchaseTaxRateDisplayName: 'VAT',
+      nextPurchaseTaxRateInclusive: false,
+      nextPurchaseTaxRatePercentage: '19',
+      nextPurchaseUnitGrossAmount: 595,
+      nextPurchaseUnitPrice: 500,
+      nextPurchaseUnitTaxAmount: 95,
+      optionalPurchaseQuantity: 3,
+      pendingCheckoutExpiresAt: '2026-08-01T17:00:00.000Z',
+      pendingCheckoutUrl: null,
+      pendingOperationKey: 'purchase-addon-1',
+      pendingQuantity: 1,
+      purchaseAvailable: false,
+      purchaseBlockedReason: 'paymentPending',
+      purchaseStatus: 'paymentPending',
+      redeemedQuantity: 1,
+      remainingQuantity: 1,
+      settledPurchasedQuantity: 1,
+      title: 'Workshop kit',
+      totalAvailableQuantity: 8,
+      totalQuantity: 2,
+    });
+
+    expect(record).not.toHaveProperty('stripeAccountId');
+    expect(record).not.toHaveProperty('stripeTaxRateId');
+    expect(record.pendingOperationKey).toBe('purchase-addon-1');
+  });
+
+  it('limits purchase input to participant intent and distinguishes result variants', () => {
+    expect(
+      Schema.decodeUnknownSync(EventsPurchaseRegistrationAddonPayload)({
+        addOnId: 'addon-1',
+        operationKey: 'purchase-addon-1',
+        pinnedNowIso: '2026-08-01T12:00:00.000Z',
+        price: 1,
+        quantity: 2,
+        registrationId: 'registration-1',
+        stripeAccountId: 'acct_secret',
+        tenantId: 'tenant-other',
+        userId: 'user-other',
+      }),
+    ).toEqual({
+      addOnId: 'addon-1',
+      operationKey: 'purchase-addon-1',
+      quantity: 2,
+      registrationId: 'registration-1',
+    });
+    expect(() =>
+      Schema.decodeUnknownSync(EventsPurchaseRegistrationAddonResult)({
+        orderId: 'order-1',
+        status: 'completed',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsPurchaseRegistrationAddonResult)({
+        checkoutUrl: 'https://checkout.stripe.com/session',
+        expiresAt: '2026-08-01T17:00:00.000Z',
+        orderId: 'order-2',
+        status: 'checkoutRequired',
       }),
     ).not.toThrow();
   });

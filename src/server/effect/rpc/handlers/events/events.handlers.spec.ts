@@ -119,6 +119,7 @@ describe('eventHandlers composition', () => {
       'events.getRegistrationAddonFulfillment',
       'events.getRegistrationStatus',
       'events.joinWaitlist',
+      'events.purchaseRegistrationAddon',
       'events.redeemRegistrationAddon',
       'events.registerForEvent',
       'events.registrationScanned',

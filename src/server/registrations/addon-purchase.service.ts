@@ -109,7 +109,6 @@ const mapStorageError = <A, E, R>(
   message: string,
 ): Effect.Effect<
   A,
-  | E
   | EventRegistrationConflictError
   | EventRegistrationInternalError
   | EventRegistrationNotFoundError,
