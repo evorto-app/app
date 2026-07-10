@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "2c01850ec548",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/specs/discounts/esn-discounts.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2c/01850ec548/0/metadata.json",
+      "transcript": "/2c/01850ec548/0/full.jsonl",
+      "content_hash": "/2c/01850ec548/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 70281,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 14117632,
+    "output_tokens": 5662,
+    "api_call_count": 54
+  }
+}
