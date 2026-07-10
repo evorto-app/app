@@ -12,18 +12,7 @@ import {
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import {
-  and,
-  eq,
-  gte,
-  ilike,
-  inArray,
-  isNull,
-  not,
-  notExists,
-  sql,
-} from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
+import { and, eq, gte, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { Effect, Result } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -40,6 +29,10 @@ import {
 } from '../../../../../db/schema';
 import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
+import {
+  ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,
+  isUniqueConstraintViolation,
+} from './database-constraint-errors';
 import { EventRegistrationService } from './event-registration.service';
 import { databaseEffect } from './events.shared';
 
@@ -68,6 +61,8 @@ const mapRegistrationScanInternalError = (error: unknown) =>
       );
 
 const CHECK_IN_PRE_START_WINDOW_MS = 60 * 60 * 1000;
+const isActiveRegistrationUniqueViolation = (error: unknown): boolean =>
+  isUniqueConstraintViolation(error, ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT);
 
 const isWithinCheckInWindow = (eventStart: Date, now = new Date()): boolean =>
   eventStart.getTime() - now.getTime() <= CHECK_IN_PRE_START_WINDOW_MS;
@@ -270,35 +265,98 @@ const cancelRegistration = ({
         }),
       );
     }
-    const registeredSpotCount = registrationSpotCount(registration.guestCount);
-
-    const pendingStripeTransaction = registration.transactions.find(
-      (currentTransaction) =>
-        currentTransaction.status === 'pending' &&
-        currentTransaction.method === 'stripe',
-    );
-    const successfulPaidRegistrationTransaction =
-      registration.transactions.find(
-        (currentTransaction) =>
-          currentTransaction.status === 'successful' &&
-          currentTransaction.type === 'registration' &&
-          currentTransaction.amount > 0,
-      );
-    const stripeCheckoutSessionId =
-      pendingStripeTransaction?.stripeCheckoutSessionId;
     const stripeAccount = tenant.stripeAccountId;
-    if (stripeCheckoutSessionId && !stripeAccount) {
-      return yield* Effect.fail(
-        new EventRegistrationInternalError({
-          message: 'Stripe account not found',
-        }),
-      );
-    }
 
     const cancellationOutcome = yield* Database.use((database) =>
       database
         .transaction((tx) =>
           Effect.gen(function* () {
+            const lockedRegistrations = yield* tx
+              .select({
+                checkInTime: eventRegistrations.checkInTime,
+                eventId: eventRegistrations.eventId,
+                guestCount: eventRegistrations.guestCount,
+                id: eventRegistrations.id,
+                registrationOptionId: eventRegistrations.registrationOptionId,
+                status: eventRegistrations.status,
+                userId: eventRegistrations.userId,
+              })
+              .from(eventRegistrations)
+              .where(
+                and(
+                  eq(eventRegistrations.id, registration.id),
+                  eq(eventRegistrations.tenantId, tenant.id),
+                  inArray(eventRegistrations.status, [
+                    'PENDING',
+                    'CONFIRMED',
+                    'WAITLIST',
+                  ]),
+                  ...(eventId ? [eq(eventRegistrations.eventId, eventId)] : []),
+                  ...(requireOrganizerAccess
+                    ? []
+                    : [eq(eventRegistrations.userId, user.id)]),
+                ),
+              )
+              .for('update');
+            const lockedRegistration = lockedRegistrations[0];
+            if (!lockedRegistration) {
+              return yield* Effect.fail(
+                new EventRegistrationNotFoundError({
+                  message: 'Registration not found',
+                }),
+              );
+            }
+            if (lockedRegistration.checkInTime) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: 'Checked-in registrations cannot be cancelled',
+                }),
+              );
+            }
+
+            const lockedRegistrationTransactions = yield* tx
+              .select({
+                amount: transactions.amount,
+                id: transactions.id,
+                method: transactions.method,
+                status: transactions.status,
+                stripeChargeId: transactions.stripeChargeId,
+                stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
+                stripePaymentIntentId: transactions.stripePaymentIntentId,
+                type: transactions.type,
+              })
+              .from(transactions)
+              .where(
+                and(
+                  eq(transactions.tenantId, tenant.id),
+                  eq(transactions.eventRegistrationId, lockedRegistration.id),
+                  eq(transactions.type, 'registration'),
+                ),
+              )
+              .for('update');
+            const pendingStripeTransaction =
+              lockedRegistrationTransactions.find(
+                (currentTransaction) =>
+                  currentTransaction.status === 'pending' &&
+                  currentTransaction.method === 'stripe',
+              );
+            const successfulPaidRegistrationTransaction =
+              lockedRegistrationTransactions.find(
+                (currentTransaction) =>
+                  currentTransaction.status === 'successful' &&
+                  currentTransaction.amount > 0,
+              );
+            if (
+              pendingStripeTransaction?.stripeCheckoutSessionId &&
+              !stripeAccount
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message: 'Stripe account not found',
+                }),
+              );
+            }
+
             const cancelledRegistrations = yield* tx
               .update(eventRegistrations)
               .set({
@@ -306,8 +364,9 @@ const cancelRegistration = ({
               })
               .where(
                 and(
-                  eq(eventRegistrations.id, registration.id),
-                  eq(eventRegistrations.status, registration.status),
+                  eq(eventRegistrations.id, lockedRegistration.id),
+                  eq(eventRegistrations.tenantId, tenant.id),
+                  eq(eventRegistrations.status, lockedRegistration.status),
                 ),
               )
               .returning({
@@ -321,18 +380,22 @@ const cancelRegistration = ({
               );
             }
 
+            const registeredSpotCount = registrationSpotCount(
+              lockedRegistration.guestCount,
+            );
             const releasesReservedResources =
-              registration.status !== 'PENDING' || !!pendingStripeTransaction;
+              lockedRegistration.status !== 'PENDING' ||
+              !!pendingStripeTransaction;
 
             if (releasesReservedResources) {
               const updatedOptions = yield* tx
                 .update(eventRegistrationOptions)
                 .set(
-                  registration.status === 'PENDING'
+                  lockedRegistration.status === 'PENDING'
                     ? {
                         reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}`,
                       }
-                    : registration.status === 'CONFIRMED'
+                    : lockedRegistration.status === 'CONFIRMED'
                       ? {
                           confirmedSpots: sql`${eventRegistrationOptions.confirmedSpots} - ${registeredSpotCount}`,
                         }
@@ -344,14 +407,14 @@ const cancelRegistration = ({
                   and(
                     eq(
                       eventRegistrationOptions.id,
-                      registration.registrationOptionId,
+                      lockedRegistration.registrationOptionId,
                     ),
-                    registration.status === 'PENDING'
+                    lockedRegistration.status === 'PENDING'
                       ? gte(
                           eventRegistrationOptions.reservedSpots,
                           registeredSpotCount,
                         )
-                      : registration.status === 'CONFIRMED'
+                      : lockedRegistration.status === 'CONFIRMED'
                         ? gte(
                             eventRegistrationOptions.confirmedSpots,
                             registeredSpotCount,
@@ -384,7 +447,7 @@ const cancelRegistration = ({
             }
 
             if (
-              registration.status === 'CONFIRMED' &&
+              lockedRegistration.status === 'CONFIRMED' &&
               successfulPaidRegistrationTransaction &&
               (!stripeAccount ||
                 !hasStripeRefundReference(
@@ -393,15 +456,15 @@ const cancelRegistration = ({
             ) {
               yield* tx.insert(transactions).values({
                 amount: -Math.abs(successfulPaidRegistrationTransaction.amount),
-                comment: `Pending registration refund record for cancelled registration ${registration.id}. Stripe refund could not be created automatically from the stored transaction reference.`,
+                comment: `Pending registration refund record for cancelled registration ${lockedRegistration.id}. Stripe refund could not be created automatically from the stored transaction reference.`,
                 currency: tenant.currency,
-                eventId: registration.eventId,
-                eventRegistrationId: registration.id,
+                eventId: lockedRegistration.eventId,
+                eventRegistrationId: lockedRegistration.id,
                 executiveUserId: user.id,
                 manuallyCreated: true,
                 method: successfulPaidRegistrationTransaction.method,
                 status: 'pending',
-                targetUserId: registration.userId,
+                targetUserId: lockedRegistration.userId,
                 tenantId: tenant.id,
                 type: 'refund',
               });
@@ -411,7 +474,7 @@ const cancelRegistration = ({
               return {
                 pendingStripeTransaction: null,
                 refundTransaction:
-                  registration.status === 'CONFIRMED' &&
+                  lockedRegistration.status === 'CONFIRMED' &&
                   successfulPaidRegistrationTransaction &&
                   stripeAccount &&
                   hasStripeRefundReference(
@@ -422,20 +485,36 @@ const cancelRegistration = ({
               };
             }
 
-            yield* tx
+            const cancelledTransactions = yield* tx
               .update(transactions)
               .set({
                 status: 'cancelled',
               })
-              .where(eq(transactions.id, pendingStripeTransaction.id));
+              .where(
+                and(
+                  eq(transactions.id, pendingStripeTransaction.id),
+                  eq(transactions.tenantId, tenant.id),
+                  eq(transactions.status, 'pending'),
+                  eq(transactions.type, 'registration'),
+                ),
+              )
+              .returning({ id: transactions.id });
+            if (cancelledTransactions.length !== 1) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message: 'Failed to cancel pending payment claim',
+                }),
+              );
+            }
 
             return {
               pendingStripeTransaction: {
-                stripeCheckoutSessionId,
+                stripeCheckoutSessionId:
+                  pendingStripeTransaction.stripeCheckoutSessionId,
                 transactionId: pendingStripeTransaction.id,
               },
               refundTransaction:
-                registration.status === 'CONFIRMED' &&
+                lockedRegistration.status === 'CONFIRMED' &&
                 successfulPaidRegistrationTransaction &&
                 stripeAccount &&
                 hasStripeRefundReference(successfulPaidRegistrationTransaction)
@@ -545,8 +624,12 @@ const cancelRegistration = ({
       );
     }
 
+    const pendingStripeTransaction =
+      cancellationOutcome.pendingStripeTransaction;
+    const stripeCheckoutSessionId =
+      pendingStripeTransaction?.stripeCheckoutSessionId;
     if (
-      !cancellationOutcome.pendingStripeTransaction ||
+      !pendingStripeTransaction ||
       !stripeCheckoutSessionId ||
       !stripeAccount
     ) {
@@ -574,8 +657,7 @@ const cancelRegistration = ({
             error,
             registrationId: registration.id,
             stripeCheckoutSessionId,
-            transactionId:
-              cancellationOutcome.pendingStripeTransaction.transactionId,
+            transactionId: pendingStripeTransaction.transactionId,
           }),
         ),
       ),
@@ -792,46 +874,119 @@ const transferEventRegistration = ({
       );
     }
 
-    const transferredRegistrations = yield* databaseEffect((database) => {
-      const targetRegistrations = alias(
-        eventRegistrations,
-        'target_registrations',
-      );
-      return database
-        .update(eventRegistrations)
-        .set({
-          userId: targetUserId,
-        })
-        .where(
-          and(
-            eq(eventRegistrations.id, registration.id),
-            eq(eventRegistrations.tenantId, tenant.id),
-            eq(eventRegistrations.status, 'CONFIRMED'),
-            not(eq(eventRegistrations.userId, targetUserId)),
-            notExists(
-              database
-                .select({ id: targetRegistrations.id })
-                .from(targetRegistrations)
-                .where(
-                  and(
-                    eq(targetRegistrations.tenantId, tenant.id),
-                    eq(targetRegistrations.eventId, registration.eventId),
-                    eq(targetRegistrations.userId, targetUserId),
-                    not(eq(targetRegistrations.status, 'CANCELLED')),
-                  ),
+    const transferResult = yield* Database.use((database) =>
+      database
+        .transaction((tx) =>
+          Effect.gen(function* () {
+            const membershipUserIds = [
+              registration.userId,
+              targetUserId,
+            ].toSorted();
+            const lockedMemberships = yield* tx
+              .select({ userId: usersToTenants.userId })
+              .from(usersToTenants)
+              .where(
+                and(
+                  eq(usersToTenants.tenantId, tenant.id),
+                  inArray(usersToTenants.userId, membershipUserIds),
                 ),
-            ),
-            ...(requireOrganizerAccess
-              ? []
-              : [eq(eventRegistrations.userId, user.id)]),
-          ),
-        )
-        .returning({
-          id: eventRegistrations.id,
-        });
-    });
+              )
+              .orderBy(usersToTenants.userId)
+              .for('update');
+            if (
+              lockedMemberships.every(
+                (membership) => membership.userId !== targetUserId,
+              )
+            ) {
+              return { _tag: 'TargetMembershipMissing' } as const;
+            }
 
-    if (transferredRegistrations.length === 0) {
+            const lockedRegistrations = yield* tx
+              .select({
+                id: eventRegistrations.id,
+                status: eventRegistrations.status,
+                userId: eventRegistrations.userId,
+              })
+              .from(eventRegistrations)
+              .where(
+                and(
+                  eq(eventRegistrations.id, registration.id),
+                  eq(eventRegistrations.tenantId, tenant.id),
+                ),
+              )
+              .for('update');
+            const lockedRegistration = lockedRegistrations[0];
+            if (
+              !lockedRegistration ||
+              lockedRegistration.status !== 'CONFIRMED' ||
+              lockedRegistration.userId !== registration.userId
+            ) {
+              return { _tag: 'RegistrationChanged' } as const;
+            }
+
+            const activeTargetRegistrations =
+              yield* tx.query.eventRegistrations.findMany({
+                columns: { id: true },
+                where: {
+                  eventId: registration.eventId,
+                  status: { NOT: 'CANCELLED' },
+                  tenantId: tenant.id,
+                  userId: targetUserId,
+                },
+              });
+            if (activeTargetRegistrations.length > 0) {
+              return { _tag: 'AlreadyRegistered' } as const;
+            }
+
+            const transferredRegistrations = yield* tx
+              .update(eventRegistrations)
+              .set({ userId: targetUserId })
+              .where(
+                and(
+                  eq(eventRegistrations.id, registration.id),
+                  eq(eventRegistrations.tenantId, tenant.id),
+                  eq(eventRegistrations.status, 'CONFIRMED'),
+                  eq(eventRegistrations.userId, registration.userId),
+                  ...(requireOrganizerAccess
+                    ? []
+                    : [eq(eventRegistrations.userId, user.id)]),
+                ),
+              )
+              .returning({ id: eventRegistrations.id });
+
+            return transferredRegistrations.length === 1
+              ? ({ _tag: 'Transferred' } as const)
+              : ({ _tag: 'RegistrationChanged' } as const);
+          }),
+        )
+        .pipe(
+          Effect.catch((error) => {
+            if (isActiveRegistrationUniqueViolation(error)) {
+              return Effect.succeed({ _tag: 'AlreadyRegistered' } as const);
+            }
+            return error instanceof EventRegistrationConflictError ||
+              error instanceof EventRegistrationNotFoundError
+              ? Effect.fail(error)
+              : Effect.die(error);
+          }),
+        ),
+    );
+
+    if (transferResult._tag === 'TargetMembershipMissing') {
+      return yield* Effect.fail(
+        new EventRegistrationNotFoundError({
+          message: 'Target tenant user not found',
+        }),
+      );
+    }
+    if (transferResult._tag === 'AlreadyRegistered') {
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Target user already has an active registration',
+        }),
+      );
+    }
+    if (transferResult._tag === 'RegistrationChanged') {
       return yield* Effect.fail(
         new EventRegistrationNotFoundError({
           message: 'Registration not found',

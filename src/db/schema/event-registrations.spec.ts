@@ -40,4 +40,38 @@ describe('event registration schema', () => {
     );
     expect(eventRegistrationsSource).toContain('.notNull().default(0)');
   });
+
+  it('enforces one non-cancelled registration per tenant event and user', () => {
+    const eventRegistrationsSource = readFileSync(
+      new URL('event-registrations.ts', import.meta.url),
+      'utf8',
+    );
+
+    expect(eventRegistrationsSource).toContain(
+      "'event_registrations_active_user_event_unique'",
+    );
+    expect(eventRegistrationsSource).toContain(
+      '.on(table.tenantId, table.eventId, table.userId)',
+    );
+    expect(eventRegistrationsSource).toContain(
+      ".where(sql`${table.status} <> 'CANCELLED'`)",
+    );
+  });
+
+  it('enforces one pending registration payment claim', () => {
+    const transactionsSource = readFileSync(
+      new URL('transactions.ts', import.meta.url),
+      'utf8',
+    );
+
+    expect(transactionsSource).toContain(
+      "'transactions_pending_registration_unique'",
+    );
+    expect(transactionsSource).toContain(
+      '.on(table.tenantId, table.eventRegistrationId)',
+    );
+    expect(transactionsSource).toContain(
+      "${table.status} = 'pending' AND ${table.type} = 'registration' AND ${table.eventRegistrationId} IS NOT NULL",
+    );
+  });
 });

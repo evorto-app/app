@@ -6,7 +6,7 @@ import {
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
 import { resolveTenantPublicOrigin } from '@shared/tenant-origin';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { ConfigProvider, Context, Effect, Layer, Option } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -23,6 +23,7 @@ import {
   tenantStripeTaxRates,
   transactions,
   userDiscountCards,
+  usersToTenants,
 } from '../../../../../db/schema';
 import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
@@ -35,6 +36,12 @@ import {
   createHostedCheckoutSession,
 } from '../../../../integrations/stripe-checkout';
 import { enqueueManualApprovalEmail } from '../../../../notifications/email-delivery';
+import { StripeClient } from '../../../../stripe-client';
+import {
+  ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,
+  isUniqueConstraintViolation,
+  PENDING_REGISTRATION_TRANSACTION_UNIQUE_CONSTRAINT,
+} from './database-constraint-errors';
 import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
@@ -47,6 +54,30 @@ const databaseEffect = <A>(
   // Registration write flows should fail fast on unexpected DB errors so
   // callers get deterministic domain errors instead of partial success.
   Database.use((database) => operation(database).pipe(Effect.orDie));
+
+const expireCheckoutSession = (sessionId: string, stripeAccount: string) =>
+  Effect.gen(function* () {
+    const stripe = yield* StripeClient;
+    yield* Effect.tryPromise({
+      catch: (cause) =>
+        new EventRegistrationInternalError({
+          cause,
+          message: 'Failed to expire unbound stripe checkout session',
+        }),
+      try: () =>
+        Promise.race([
+          stripe.checkout.sessions.expire(sessionId, undefined, {
+            stripeAccount,
+          }),
+          new Promise<never>((_, reject) => {
+            setTimeout(
+              () => reject(new Error('Stripe checkout expiry timed out')),
+              5000,
+            );
+          }),
+        ]),
+    });
+  });
 
 type DiscountCardRecord = Pick<
   typeof userDiscountCards.$inferSelect,
@@ -584,15 +615,61 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           registrationOption.price * registration.guestCount +
           selectedAddonTotalPrice;
         const requiresCheckout = effectiveTotalPrice > 0;
+        const appFee = Math.round(effectiveTotalPrice * 0.035);
+        const stripeAccount = tenant.stripeAccountId;
+        if (requiresCheckout && !stripeAccount) {
+          return yield* Effect.fail(
+            new EventRegistrationInternalError({
+              message: 'Stripe account not found',
+            }),
+          );
+        }
         const eventUrl = `${publicOrigin}/events/${eventId}`;
         const notificationEmail =
           registration.user.communicationEmail?.trim() ||
           registration.user.email;
+        const transactionId = createId();
 
         const approvalResult = yield* Database.use((database) =>
           database
             .transaction((tx) =>
               Effect.gen(function* () {
+                const lockedRegistrations = yield* tx
+                  .select({ status: eventRegistrations.status })
+                  .from(eventRegistrations)
+                  .where(
+                    and(
+                      eq(eventRegistrations.id, registration.id),
+                      eq(eventRegistrations.tenantId, tenant.id),
+                      eq(eventRegistrations.eventId, eventId),
+                    ),
+                  )
+                  .for('update');
+                const lockedRegistration = lockedRegistrations[0];
+                if (
+                  !lockedRegistration ||
+                  lockedRegistration.status !== 'PENDING'
+                ) {
+                  return { _tag: 'RegistrationUnavailable' } as const;
+                }
+
+                const pendingClaims = yield* tx
+                  .select({ id: transactions.id })
+                  .from(transactions)
+                  .where(
+                    and(
+                      eq(transactions.tenantId, tenant.id),
+                      eq(transactions.eventRegistrationId, registration.id),
+                      eq(transactions.method, 'stripe'),
+                      eq(transactions.status, 'pending'),
+                      eq(transactions.type, 'registration'),
+                    ),
+                  )
+                  .for('update');
+                if (pendingClaims.length > 0) {
+                  return { _tag: 'AlreadyAwaitingPayment' } as const;
+                }
+
                 const updatedOptions = yield* tx
                   .update(eventRegistrationOptions)
                   .set(
@@ -676,7 +753,23 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   );
                 }
 
-                if (!requiresCheckout) {
+                if (requiresCheckout) {
+                  yield* tx.insert(transactions).values({
+                    amount: effectiveTotalPrice,
+                    appFee,
+                    comment: `Registration approval for event ${registration.event.title} ${registration.eventId}`,
+                    currency: tenant.currency,
+                    eventId: registration.eventId,
+                    eventRegistrationId: registration.id,
+                    executiveUserId: user.id,
+                    id: transactionId,
+                    method: 'stripe',
+                    status: 'pending',
+                    targetUserId: registration.userId,
+                    tenantId: tenant.id,
+                    type: 'registration',
+                  });
+                } else {
                   yield* enqueueManualApprovalEmail(tx, {
                     eventTitle: registration.event.title,
                     eventUrl,
@@ -691,12 +784,22 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               }),
             )
             .pipe(
-              Effect.catch((error) =>
-                error instanceof EventRegistrationConflictError ||
-                error instanceof EventRegistrationNotFoundError
+              Effect.catch((error) => {
+                if (
+                  isUniqueConstraintViolation(
+                    error,
+                    PENDING_REGISTRATION_TRANSACTION_UNIQUE_CONSTRAINT,
+                  )
+                ) {
+                  return Effect.succeed({
+                    _tag: 'AlreadyAwaitingPayment',
+                  } as const);
+                }
+                return error instanceof EventRegistrationConflictError ||
+                  error instanceof EventRegistrationNotFoundError
                   ? Effect.fail(error)
-                  : Effect.die(error),
-              ),
+                  : Effect.die(error);
+              }),
             ),
         );
         if (approvalResult._tag === 'CapacityFull') {
@@ -706,51 +809,135 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             }),
           );
         }
+        if (approvalResult._tag === 'AlreadyAwaitingPayment') {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message: 'Registration is already awaiting payment',
+            }),
+          );
+        }
+        if (approvalResult._tag === 'RegistrationUnavailable') {
+          return yield* Effect.fail(
+            new EventRegistrationConflictError({
+              message:
+                'Only pending manual approval registrations can be approved',
+            }),
+          );
+        }
         if (!requiresCheckout) {
           return;
         }
 
-        const rollbackApprovalReservation = Effect.fn(
-          'EventRegistrationService.approveManualRegistration.rollbackApprovalReservation',
+        const releaseApprovalClaim = Effect.fn(
+          'EventRegistrationService.approveManualRegistration.releaseApprovalClaim',
         )(() =>
-          Effect.gen(function* () {
-            yield* databaseEffect((database) =>
-              database
-                .update(eventRegistrationOptions)
-                .set({
-                  reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}`,
-                })
-                .where(
-                  and(
-                    eq(eventRegistrationOptions.id, registrationOption.id),
-                    eq(eventRegistrationOptions.eventId, eventId),
-                    sql`${eventRegistrationOptions.reservedSpots} >= ${registeredSpotCount}`,
-                  ),
-                ),
-            );
+          Database.use((database) =>
+            database
+              .transaction((tx) =>
+                Effect.gen(function* () {
+                  const lockedRegistrations = yield* tx
+                    .select({ status: eventRegistrations.status })
+                    .from(eventRegistrations)
+                    .where(
+                      and(
+                        eq(eventRegistrations.id, registration.id),
+                        eq(eventRegistrations.tenantId, tenant.id),
+                        eq(eventRegistrations.eventId, eventId),
+                      ),
+                    )
+                    .for('update');
+                  const lockedRegistration = lockedRegistrations[0];
+                  if (!lockedRegistration) {
+                    return yield* Effect.fail(
+                      new EventRegistrationInternalError({
+                        message:
+                          'Registration missing while releasing checkout claim',
+                      }),
+                    );
+                  }
+                  if (lockedRegistration.status === 'CANCELLED') {
+                    return;
+                  }
 
-            for (const addOnPurchase of registration.addonPurchases) {
-              yield* databaseEffect((database) =>
-                database
-                  .update(eventAddons)
-                  .set({
-                    totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
-                  })
-                  .where(
-                    and(
-                      eq(eventAddons.id, addOnPurchase.addonId),
-                      eq(eventAddons.eventId, eventId),
-                    ),
-                  ),
-              );
-            }
-          }),
+                  const cancelledClaims = yield* tx
+                    .update(transactions)
+                    .set({ status: 'cancelled' })
+                    .where(
+                      and(
+                        eq(transactions.id, transactionId),
+                        eq(transactions.tenantId, tenant.id),
+                        eq(transactions.eventRegistrationId, registration.id),
+                        eq(transactions.method, 'stripe'),
+                        eq(transactions.status, 'pending'),
+                        eq(transactions.type, 'registration'),
+                        isNull(transactions.stripeCheckoutSessionId),
+                      ),
+                    )
+                    .returning({ id: transactions.id });
+                  if (cancelledClaims.length !== 1) {
+                    return yield* Effect.fail(
+                      new EventRegistrationInternalError({
+                        message: 'Failed to release checkout claim',
+                      }),
+                    );
+                  }
+
+                  const releasedOptions = yield* tx
+                    .update(eventRegistrationOptions)
+                    .set({
+                      reservedSpots: sql`${eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}`,
+                    })
+                    .where(
+                      and(
+                        eq(eventRegistrationOptions.id, registrationOption.id),
+                        eq(eventRegistrationOptions.eventId, eventId),
+                        sql`${eventRegistrationOptions.reservedSpots} >= ${registeredSpotCount}`,
+                      ),
+                    )
+                    .returning({ id: eventRegistrationOptions.id });
+                  if (releasedOptions.length !== 1) {
+                    return yield* Effect.fail(
+                      new EventRegistrationInternalError({
+                        message: 'Failed to release registration capacity',
+                      }),
+                    );
+                  }
+
+                  for (const addOnPurchase of registration.addonPurchases) {
+                    const releasedAddOns = yield* tx
+                      .update(eventAddons)
+                      .set({
+                        totalAvailableQuantity: sql`${eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+                      })
+                      .where(
+                        and(
+                          eq(eventAddons.id, addOnPurchase.addonId),
+                          eq(eventAddons.eventId, eventId),
+                        ),
+                      )
+                      .returning({ id: eventAddons.id });
+                    if (releasedAddOns.length !== 1) {
+                      return yield* Effect.fail(
+                        new EventRegistrationInternalError({
+                          message:
+                            'Failed to release registration add-on stock',
+                        }),
+                      );
+                    }
+                  }
+                }),
+              )
+              .pipe(
+                Effect.catch((error) =>
+                  error instanceof EventRegistrationInternalError
+                    ? Effect.fail(error)
+                    : Effect.die(error),
+                ),
+              ),
+          ),
         );
 
         const paymentFlow = Effect.gen(function* () {
-          const transactionId = createId();
-          const appFee = Math.round(effectiveTotalPrice * 0.035);
-          const stripeAccount = tenant.stripeAccountId;
           if (!stripeAccount) {
             return yield* Effect.fail(
               new EventRegistrationInternalError({
@@ -845,61 +1032,109 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             },
           ).pipe(
             Effect.mapError(
-              () =>
+              (cause) =>
                 new EventRegistrationInternalError({
+                  cause,
                   message: 'Failed to create stripe checkout session',
                 }),
             ),
           );
 
-          yield* Database.use((database) =>
-            database.transaction((tx) =>
-              Effect.gen(function* () {
-                yield* tx.insert(transactions).values({
-                  amount: effectiveTotalPrice,
-                  comment: `Registration approval for event ${registration.event.title} ${registration.eventId}`,
-                  currency: tenant.currency,
-                  eventId: registration.eventId,
-                  eventRegistrationId: registration.id,
-                  executiveUserId: user.id,
-                  id: transactionId,
-                  method: 'stripe',
-                  status: 'pending',
-                  stripeCheckoutSessionId: session.id,
-                  stripeCheckoutUrl: session.url,
-                  stripePaymentIntentId:
-                    typeof session.payment_intent === 'string'
-                      ? session.payment_intent
-                      : session.payment_intent?.id,
-                  targetUserId: registration.userId,
-                  tenantId: tenant.id,
-                  type: 'registration',
-                });
-                yield* enqueueManualApprovalEmail(tx, {
-                  eventTitle: registration.event.title,
-                  eventUrl,
-                  paymentDeadline: new Date(checkoutExpiresAt * 1000),
-                  registrationId: registration.id,
-                  tenant,
-                  to: notificationEmail,
-                });
-              }),
+          const bindingResult = yield* Database.use((database) =>
+            database
+              .transaction((tx) =>
+                Effect.gen(function* () {
+                  const lockedRegistrations = yield* tx
+                    .select({ status: eventRegistrations.status })
+                    .from(eventRegistrations)
+                    .where(
+                      and(
+                        eq(eventRegistrations.id, registration.id),
+                        eq(eventRegistrations.tenantId, tenant.id),
+                        eq(eventRegistrations.eventId, eventId),
+                      ),
+                    )
+                    .for('update');
+                  const lockedRegistration = lockedRegistrations[0];
+                  if (
+                    !lockedRegistration ||
+                    lockedRegistration.status !== 'PENDING'
+                  ) {
+                    return { _tag: 'RegistrationUnavailable' } as const;
+                  }
+
+                  const boundClaims = yield* tx
+                    .update(transactions)
+                    .set({
+                      stripeCheckoutSessionId: session.id,
+                      stripeCheckoutUrl: session.url,
+                      stripePaymentIntentId:
+                        typeof session.payment_intent === 'string'
+                          ? session.payment_intent
+                          : session.payment_intent?.id,
+                    })
+                    .where(
+                      and(
+                        eq(transactions.id, transactionId),
+                        eq(transactions.tenantId, tenant.id),
+                        eq(transactions.eventRegistrationId, registration.id),
+                        eq(transactions.method, 'stripe'),
+                        eq(transactions.status, 'pending'),
+                        eq(transactions.type, 'registration'),
+                        isNull(transactions.stripeCheckoutSessionId),
+                      ),
+                    )
+                    .returning({ id: transactions.id });
+                  if (boundClaims.length !== 1) {
+                    return yield* Effect.fail(
+                      new EventRegistrationInternalError({
+                        message: 'Failed to bind stripe checkout session',
+                      }),
+                    );
+                  }
+
+                  yield* enqueueManualApprovalEmail(tx, {
+                    eventTitle: registration.event.title,
+                    eventUrl,
+                    paymentDeadline: new Date(checkoutExpiresAt * 1000),
+                    registrationId: registration.id,
+                    tenant,
+                    to: notificationEmail,
+                  });
+
+                  return { _tag: 'Bound' } as const;
+                }),
+              )
+              .pipe(
+                Effect.catch((error) =>
+                  error instanceof EventRegistrationInternalError
+                    ? Effect.fail(error)
+                    : Effect.die(error),
+                ),
+              ),
+          ).pipe(
+            Effect.catchCause((bindingCause) =>
+              expireCheckoutSession(session.id, stripeAccount).pipe(
+                Effect.andThen(releaseApprovalClaim()),
+                Effect.andThen(Effect.failCause(bindingCause)),
+              ),
             ),
           );
+          if (bindingResult._tag === 'RegistrationUnavailable') {
+            yield* expireCheckoutSession(session.id, stripeAccount);
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message: 'Registration is no longer awaiting payment',
+              }),
+            );
+          }
 
           return {
             checkoutExpiresAt,
           };
         });
 
-        const paymentNotification = yield* paymentFlow.pipe(
-          Effect.catchCause((cause) =>
-            rollbackApprovalReservation().pipe(
-              Effect.orDie,
-              Effect.andThen(Effect.failCause(cause)),
-            ),
-          ),
-        );
+        const paymentNotification = yield* paymentFlow;
         void paymentNotification;
       });
 
@@ -1181,6 +1416,24 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           database
             .transaction((tx) =>
               Effect.gen(function* () {
+                const lockedMemberships = yield* tx
+                  .select({ id: usersToTenants.id })
+                  .from(usersToTenants)
+                  .where(
+                    and(
+                      eq(usersToTenants.tenantId, tenant.id),
+                      eq(usersToTenants.userId, user.id),
+                    ),
+                  )
+                  .for('update');
+                if (lockedMemberships.length === 0) {
+                  return yield* Effect.fail(
+                    new EventRegistrationNotFoundError({
+                      message: 'Tenant membership not found',
+                    }),
+                  );
+                }
+
                 const activeRegistrations =
                   yield* tx.query.eventRegistrations.findMany({
                     columns: {
@@ -1335,11 +1588,22 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               }),
             )
             .pipe(
-              Effect.catch((error) =>
-                error instanceof EventRegistrationConflictError
+              Effect.catch((error) => {
+                if (
+                  isUniqueConstraintViolation(
+                    error,
+                    ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,
+                  )
+                ) {
+                  return Effect.succeed({
+                    _tag: 'AlreadyRegistered',
+                  } as const);
+                }
+                return error instanceof EventRegistrationConflictError ||
+                  error instanceof EventRegistrationNotFoundError
                   ? Effect.fail(error)
-                  : Effect.die(error),
-              ),
+                  : Effect.die(error);
+              }),
             ),
         );
         if (reservationResult._tag === 'AlreadyRegistered') {
@@ -1821,73 +2085,109 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               }),
           });
 
-          const waitlistResult = yield* databaseEffect((database) =>
-            database.transaction((tx) =>
-              Effect.gen(function* () {
-                const activeRegistrations =
-                  yield* tx.query.eventRegistrations.findMany({
-                    columns: {
-                      id: true,
-                    },
-                    where: {
+          const waitlistResult = yield* Database.use((database) =>
+            database
+              .transaction((tx) =>
+                Effect.gen(function* () {
+                  const lockedMemberships = yield* tx
+                    .select({ id: usersToTenants.id })
+                    .from(usersToTenants)
+                    .where(
+                      and(
+                        eq(usersToTenants.tenantId, tenant.id),
+                        eq(usersToTenants.userId, user.id),
+                      ),
+                    )
+                    .for('update');
+                  if (lockedMemberships.length === 0) {
+                    return yield* Effect.fail(
+                      new EventRegistrationNotFoundError({
+                        message: 'Tenant membership not found',
+                      }),
+                    );
+                  }
+
+                  const activeRegistrations =
+                    yield* tx.query.eventRegistrations.findMany({
+                      columns: {
+                        id: true,
+                      },
+                      where: {
+                        eventId,
+                        status: { NOT: 'CANCELLED' },
+                        tenantId: tenant.id,
+                        userId: user.id,
+                      },
+                    });
+                  if (activeRegistrations.length > 0) {
+                    return { _tag: 'AlreadyRegistered' } as const;
+                  }
+
+                  const updatedOptions = yield* tx
+                    .update(eventRegistrationOptions)
+                    .set({
+                      waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} + 1`,
+                    })
+                    .where(
+                      and(
+                        eq(eventRegistrationOptions.id, registrationOption.id),
+                        eq(eventRegistrationOptions.eventId, eventId),
+                        sql`${eventRegistrationOptions.confirmedSpots} + ${eventRegistrationOptions.reservedSpots} >= ${eventRegistrationOptions.spots}`,
+                      ),
+                    )
+                    .returning({
+                      id: eventRegistrationOptions.id,
+                    });
+                  if (updatedOptions.length === 0) {
+                    return { _tag: 'CapacityAvailable' } as const;
+                  }
+
+                  const createdRegistrations = yield* tx
+                    .insert(eventRegistrations)
+                    .values({
                       eventId,
-                      status: { NOT: 'CANCELLED' },
+                      registrationOptionId: registrationOption.id,
+                      status: 'WAITLIST',
                       tenantId: tenant.id,
                       userId: user.id,
-                    },
-                  });
-                if (activeRegistrations.length > 0) {
-                  return { _tag: 'AlreadyRegistered' } as const;
-                }
+                    })
+                    .returning({
+                      id: eventRegistrations.id,
+                    });
+                  if (!createdRegistrations[0]) {
+                    return { _tag: 'CapacityAvailable' } as const;
+                  }
 
-                const updatedOptions = yield* tx
-                  .update(eventRegistrationOptions)
-                  .set({
-                    waitlistSpots: sql`${eventRegistrationOptions.waitlistSpots} + 1`,
-                  })
-                  .where(
-                    and(
-                      eq(eventRegistrationOptions.id, registrationOption.id),
-                      eq(eventRegistrationOptions.eventId, eventId),
-                      sql`${eventRegistrationOptions.confirmedSpots} + ${eventRegistrationOptions.reservedSpots} >= ${eventRegistrationOptions.spots}`,
-                    ),
-                  )
-                  .returning({
-                    id: eventRegistrationOptions.id,
-                  });
-                if (updatedOptions.length === 0) {
-                  return { _tag: 'CapacityAvailable' } as const;
-                }
+                  if (answerInserts.length > 0) {
+                    yield* tx.insert(eventRegistrationQuestionAnswers).values(
+                      answerInserts.map((answer) => ({
+                        answer: answer.answer,
+                        questionId: answer.questionId,
+                        registrationId: createdRegistrations[0].id,
+                      })),
+                    );
+                  }
 
-                const createdRegistrations = yield* tx
-                  .insert(eventRegistrations)
-                  .values({
-                    eventId,
-                    registrationOptionId: registrationOption.id,
-                    status: 'WAITLIST',
-                    tenantId: tenant.id,
-                    userId: user.id,
-                  })
-                  .returning({
-                    id: eventRegistrations.id,
-                  });
-                if (!createdRegistrations[0]) {
-                  return { _tag: 'CapacityAvailable' } as const;
-                }
-
-                if (answerInserts.length > 0) {
-                  yield* tx.insert(eventRegistrationQuestionAnswers).values(
-                    answerInserts.map((answer) => ({
-                      answer: answer.answer,
-                      questionId: answer.questionId,
-                      registrationId: createdRegistrations[0].id,
-                    })),
-                  );
-                }
-
-                return { _tag: 'Joined' } as const;
-              }),
-            ),
+                  return { _tag: 'Joined' } as const;
+                }),
+              )
+              .pipe(
+                Effect.catch((error) => {
+                  if (
+                    isUniqueConstraintViolation(
+                      error,
+                      ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,
+                    )
+                  ) {
+                    return Effect.succeed({
+                      _tag: 'AlreadyRegistered',
+                    } as const);
+                  }
+                  return error instanceof EventRegistrationNotFoundError
+                    ? Effect.fail(error)
+                    : Effect.die(error);
+                }),
+              ),
           );
 
           if (waitlistResult._tag === 'AlreadyRegistered') {
