@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "6fad44166bcf",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/specs/resilience/core-load-recovery.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6f/ad44166bcf/0/metadata.json",
+      "transcript": "/6f/ad44166bcf/0/full.jsonl",
+      "content_hash": "/6f/ad44166bcf/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 147438,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 11204352,
+    "output_tokens": 15669,
+    "api_call_count": 94
+  }
+}
