@@ -610,10 +610,34 @@ without being deleted. Focused unit, functional Playwright, generated-document
 source, and inventory coverage now pin mode confirmation, mapping quantities,
 snapshot independence, and legacy-random blocking.
 
-Separate follow-up remains for participant post-registration add-on purchase and
-the broader cancellation/refund capability. Platform compatibility event
-mutations also still need to adopt the ordinary graph updater's mapping diff and
-complete event-mode audit state before they provide equivalent guarantees.
+Participant post-registration add-on purchase is now delivered through the
+authenticated, tenant-scoped server path: free orders fulfill atomically, while
+paid orders reserve stock without exposing an entitlement until the exact
+Stripe Checkout completes. The active ticket explains before/during sales
+windows, preserves the same pending Checkout across reloads, and blocks
+cancellation or transfer while payment is pending. Focused Playwright coverage
+pins the mobile/accessibility surface, pending and settled database state, and
+production-finalizer settlement; the registration guide documents the same
+owner journey from the ordinary event list.
+
+Authentication plus current-user/tenant forwarding is pinned by focused handler
+and RPC unit/source evidence. The free Playwright path exercises that page RPC.
+For paid initiation, Playwright deliberately calls the production
+`purchaseRegistrationAddon` service under the exact fixture owner/tenant and
+real Database/Stripe layers rather than claiming a browser-level Stripe launch.
+Its fail-closed Stripe client validates the connected-account Checkout POST and
+idempotency key, preserves the production-created pending fields, then validates
+the completion-session and expanded-charge reads that persist the real fee
+snapshot. No test helper writes the paid stock reservation, order, or
+transaction directly.
+
+Platform compatibility event mutations are aligned with the ordinary graph
+updater: they apply the mapping diff, persist simple mode, enforce the typed
+paid-price guard, and record the event mode in audit state. Existing focused
+unit and source evidence pins those compatibility guarantees.
+
+Separate follow-up remains only for the broader unilateral
+cancellation/refund capability.
 
 ## Recommended execution order
 

@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
@@ -7,6 +7,7 @@ import * as schema from '../../../src/db/schema';
 import { fillTestCard } from '../../support/utils/fill-test-card';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { seedPostRegistrationAddonPurchaseScenario } from '../../support/utils/post-registration-addon-purchase-scenario';
 import {
   seedFreeRegistrationAddon,
   seedRequiredRegistrationQuestion,
@@ -21,6 +22,28 @@ const waitForRegistrationStatus = async (page: Page) => {
     .first()
     .waitFor({ state: 'detached' });
 };
+
+const waitForActiveRegistration = async (page: Page) => {
+  await page
+    .getByText('Loading registration status')
+    .first()
+    .waitFor({ state: 'detached', timeout: 15_000 });
+  await page.locator('app-event-active-registration').waitFor({
+    state: 'visible',
+    timeout: 15_000,
+  });
+};
+
+const registrationAddOnRow = (page: Page, title: string): Locator =>
+  page
+    .locator('app-event-active-registration')
+    .getByRole('listitem')
+    .filter({
+      has: page.getByRole('heading', { exact: true, level: 5, name: title }),
+    });
+
+const registrationAddOnCount = (addOnRow: Locator, label: string): Locator =>
+  addOnRow.getByText(label, { exact: true }).locator('..').locator('dd');
 
 const requireUserFixture = (
   predicate: (user: (typeof usersToAuthenticate)[number]) => boolean,
@@ -210,6 +233,288 @@ test.describe('Register for events', () => {
       page,
       'Event details after registration',
     );
+  });
+
+  test('Buy add-ons after registration', async ({
+    database,
+    page,
+    templates,
+    tenant,
+    testClock,
+  }, testInfo) => {
+    const regularUser = requireUserFixture(
+      (user) => user.roles === 'user',
+      'regular',
+    );
+    const template = templates.find(
+      (candidate) => candidate.seedKey === 'hike',
+    );
+    if (!template) {
+      throw new Error(
+        'Expected seeded hike template for participant add-on documentation',
+      );
+    }
+    const scenario = await seedPostRegistrationAddonPurchaseScenario({
+      database,
+      templateId: template.id,
+      tenant,
+      testClock,
+      title: 'Participant add-ons after registration',
+      userId: regularUser.id,
+    });
+
+    try {
+      await page.goto('/events');
+      const eventLink = page
+        .getByRole('link', { name: scenario.title })
+        .first();
+      await expect(eventLink).toBeVisible();
+      await testInfo.attach('markdown', {
+        body: `
+  ## Buy add-ons after registration
+
+  A confirmed participant can return to a listed event and buy optional add-ons from the existing ticket. The organizer controls whether each add-on is sold before the event, during the event, or in both windows.`,
+      });
+      await takeScreenshot(
+        testInfo,
+        eventLink,
+        page,
+        'Registered event with participant add-ons',
+      );
+      await eventLink.click();
+      await expect(
+        page.getByRole('heading', { level: 1, name: scenario.title }),
+      ).toBeVisible();
+      await waitForActiveRegistration(page);
+
+      const freeAddOnRow = registrationAddOnRow(
+        page,
+        scenario.addOns.free.title,
+      );
+      const duringOnlyAddOnRow = registrationAddOnRow(
+        page,
+        scenario.addOns.duringOnly.title,
+      );
+      await expect(
+        duringOnlyAddOnRow.getByText(
+          'This add-on is not sold before the event.',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await freeAddOnRow
+        .getByLabel(`Quantity for ${scenario.addOns.free.title}`, {
+          exact: true,
+        })
+        .fill('2');
+      await freeAddOnRow
+        .getByRole('button', { exact: true, name: 'Add to ticket' })
+        .click();
+      await expect(freeAddOnRow.getByRole('status')).toContainText(
+        `2 × ${scenario.addOns.free.title} added to your ticket.`,
+        { timeout: 15_000 },
+      );
+      await expect(
+        registrationAddOnCount(freeAddOnRow, 'Purchased'),
+      ).toHaveText('2');
+      const freePurchase =
+        await database.query.eventRegistrationAddonPurchases.findFirst({
+          where: {
+            addonId: scenario.addOns.free.id,
+            registrationId: scenario.registrationId,
+            tenantId: tenant.id,
+          },
+        });
+      expect(freePurchase).toEqual(
+        expect.objectContaining({
+          includedQuantity: 0,
+          purchasedQuantity: 2,
+          quantity: 2,
+          unitPrice: 0,
+        }),
+      );
+      await testInfo.attach('markdown', {
+        body: `
+  Free add-ons are added immediately. The ticket shows the settled **Purchased** and **Available to use** quantities, while a before-event restriction remains visible instead of showing an unusable purchase action.`,
+      });
+      await takeScreenshot(
+        testInfo,
+        page.locator('app-event-active-registration'),
+        page,
+        'Free add-on added to a confirmed ticket',
+      );
+
+      await scenario.setWindow('during');
+      await page.reload();
+      await waitForActiveRegistration(page);
+      const beforeOnlyAddOnRow = registrationAddOnRow(
+        page,
+        scenario.addOns.beforeOnly.title,
+      );
+      await expect(
+        beforeOnlyAddOnRow.getByText(
+          'This add-on is not sold during the event.',
+          { exact: true },
+        ),
+      ).toBeVisible();
+
+      const pendingCheckout = await scenario.beginPaidCheckout(2);
+      await page.reload();
+      await waitForActiveRegistration(page);
+      const paidAddOnRow = registrationAddOnRow(
+        page,
+        scenario.addOns.paid.title,
+      );
+      await expect(
+        paidAddOnRow.getByText('Payment is pending', { exact: true }),
+      ).toBeVisible();
+      await expect(
+        paidAddOnRow.getByRole('link', {
+          exact: true,
+          name: 'Continue Stripe checkout',
+        }),
+      ).toHaveAttribute('href', pendingCheckout.checkoutUrl);
+      await expect(
+        registrationAddOnCount(paidAddOnRow, 'Payment pending'),
+      ).toHaveText('2');
+      const pendingOrder =
+        await database.query.eventRegistrationAddonPurchaseOrders.findFirst({
+          where: { id: pendingCheckout.orderId, tenantId: tenant.id },
+        });
+      const pendingTransaction = await database.query.transactions.findFirst({
+        where: { id: pendingCheckout.transactionId, tenantId: tenant.id },
+      });
+      const prematurePaidPurchase =
+        await database.query.eventRegistrationAddonPurchases.findFirst({
+          where: {
+            addonId: scenario.addOns.paid.id,
+            registrationId: scenario.registrationId,
+            tenantId: tenant.id,
+          },
+        });
+      const prematurePaidLot =
+        await database.query.eventRegistrationAddonPurchaseLots.findFirst({
+          where: {
+            sourceTransactionId: pendingCheckout.transactionId,
+            tenantId: tenant.id,
+          },
+        });
+      expect(pendingOrder).toEqual(
+        expect.objectContaining({
+          applicationFeeAmount: 35,
+          expectedGrossAmount: 1_000,
+          expiresAt: pendingCheckout.expiresAt,
+          status: 'pending_payment',
+          transactionId: pendingCheckout.transactionId,
+        }),
+      );
+      expect(pendingTransaction).toEqual(
+        expect.objectContaining({
+          appFee: 35,
+          status: 'pending',
+          stripeChargeId: null,
+          stripeCheckoutSessionId: pendingCheckout.sessionId,
+          stripeCheckoutUrl: pendingCheckout.checkoutUrl,
+          stripeFee: null,
+          stripeNetAmount: null,
+          stripePaymentIntentId: null,
+        }),
+      );
+      expect(prematurePaidPurchase).toBeUndefined();
+      expect(prematurePaidLot).toBeUndefined();
+      await testInfo.attach('markdown', {
+        body: `
+  A paid add-on first reserves stock and shows **Payment is pending**. Pending payment is not an entitlement: reloading keeps the same **Continue Stripe checkout** link, and the purchased quantity changes only after Stripe confirms payment. While checkout is pending, cancellation and transfer stay disabled so the ticket cannot change ownership underneath the reservation.`,
+      });
+      await takeScreenshot(
+        testInfo,
+        page.locator('app-event-active-registration'),
+        page,
+        'Paid add-on checkout pending after reload',
+      );
+
+      await expect(scenario.completeCheckout()).resolves.toBe('finalized');
+      await page.reload();
+      await waitForActiveRegistration(page);
+      await expect(
+        paidAddOnRow.getByText('Payment is pending', { exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        registrationAddOnCount(paidAddOnRow, 'Purchased'),
+      ).toHaveText('2');
+      await expect(
+        registrationAddOnCount(paidAddOnRow, 'Available to use'),
+      ).toHaveText('2');
+      await expect(
+        beforeOnlyAddOnRow.getByText(
+          'This add-on is not sold during the event.',
+          { exact: true },
+        ),
+      ).toBeVisible();
+
+      const settledOrder =
+        await database.query.eventRegistrationAddonPurchaseOrders.findFirst({
+          where: { id: pendingCheckout.orderId, tenantId: tenant.id },
+        });
+      const settledTransaction = await database.query.transactions.findFirst({
+        where: { id: pendingCheckout.transactionId, tenantId: tenant.id },
+      });
+      const settledPurchase =
+        await database.query.eventRegistrationAddonPurchases.findFirst({
+          where: {
+            addonId: scenario.addOns.paid.id,
+            registrationId: scenario.registrationId,
+            tenantId: tenant.id,
+          },
+        });
+      const settledLot =
+        await database.query.eventRegistrationAddonPurchaseLots.findFirst({
+          where: {
+            sourceTransactionId: pendingCheckout.transactionId,
+            tenantId: tenant.id,
+          },
+        });
+      expect(settledOrder?.status).toBe('completed');
+      expect(settledTransaction).toEqual(
+        expect.objectContaining({
+          appFee: 35,
+          status: 'successful',
+          stripeChargeId: pendingCheckout.chargeId,
+          stripeFee: 29,
+          stripeNetAmount: 936,
+          stripePaymentIntentId: pendingCheckout.paymentIntentId,
+        }),
+      );
+      expect(settledPurchase).toEqual(
+        expect.objectContaining({
+          includedQuantity: 0,
+          purchasedQuantity: 2,
+          quantity: 2,
+        }),
+      );
+      expect(settledLot).toEqual(
+        expect.objectContaining({
+          applicationFeeAmount: 35,
+          grossAmount: 1_000,
+          netAmount: 936,
+          paymentAllocationFinalizedAt: expect.any(Date),
+          quantity: 2,
+          sourceTransactionId: pendingCheckout.transactionId,
+          stripeFeeAmount: 29,
+        }),
+      );
+      await testInfo.attach('markdown', {
+        body: `
+  After settlement, the pending state disappears and the paid quantity becomes available to use. The order, successful transaction, aggregate purchase, and immutable purchase lot provide the matching server-side record. During-event restrictions continue to be explained explicitly.`,
+      });
+      await takeScreenshot(
+        testInfo,
+        page.locator('app-event-active-registration'),
+        page,
+        'Paid add-on settled on the participant ticket',
+      );
+    } finally {
+      await scenario.cleanup();
+    }
   });
 
   test('Review unavailable registration states', async ({

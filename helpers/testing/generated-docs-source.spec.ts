@@ -459,8 +459,11 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('Test category edited');
   });
 
-  it('keeps registration docs aligned with unavailable states and the current transfer flow', () => {
+  it('keeps registration docs aligned with unavailable states, participant add-ons, and the current transfer flow', () => {
     const source = readSource('tests/docs/events/register.doc.ts');
+    const addOnScenarioSource = readSource(
+      'tests/support/utils/post-registration-addon-purchase-scenario.ts',
+    );
     const transferSource = readSource(
       'tests/docs/events/registration-transfer.doc.ts',
     );
@@ -480,6 +483,40 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'This event is visible from the direct link, but your account is not eligible for the available registration options.',
     );
+    expect(source).toContain('## Buy add-ons after registration');
+    expect(source).toContain('seedPostRegistrationAddonPurchaseScenario');
+    expect(source).toContain('This add-on is not sold before the event.');
+    expect(source).toContain('This add-on is not sold during the event.');
+    expect(source).toContain('Payment is pending');
+    expect(source).toContain('Continue Stripe checkout');
+    expect(source).toContain('await scenario.beginPaidCheckout(2)');
+    expect(source).toContain('scenario.completeCheckout()');
+    expect(source).toContain('eventRegistrationAddonPurchaseOrders');
+    expect(source).toContain('database.query.transactions');
+    expect(source).toContain('eventRegistrationAddonPurchases');
+    expect(source).toContain('eventRegistrationAddonPurchaseLots');
+    expect(addOnScenarioSource).toContain('purchaseRegistrationAddon({');
+    expect(addOnScenarioSource).toContain('completePaidAddonPurchaseCheckout(');
+    expect(addOnScenarioSource).toContain(
+      'class ProductionAddonPurchaseStripeHttpClient',
+    );
+    expect(addOnScenarioSource).toContain(
+      'extends StripeClientLibrary.HttpClient',
+    );
+    expect(addOnScenarioSource).toContain('Idempotency-Key');
+    expect(addOnScenarioSource).toContain('?expand[0]=balance_transaction');
+    expect(addOnScenarioSource).toContain(
+      'throw new Error(`Unexpected Stripe request: ${method} ${path}`)',
+    );
+    expect(addOnScenarioSource).toContain('resolveScenarioEventWindow');
+    expect(addOnScenarioSource).toContain('const wallClock = DateTime.utc()');
+    expect(addOnScenarioSource).toContain('const latestNow =');
+    expect(addOnScenarioSource).toContain('const earliestNow =');
+    expect(addOnScenarioSource).not.toContain(
+      '.insert(schema.eventRegistrationAddonPurchaseOrders)',
+    );
+    expect(addOnScenarioSource).not.toContain('.insert(schema.transactions)');
+    expect(addOnScenarioSource).not.toContain('.update(schema.eventAddons)');
     expect(transferSource).toContain('# Transfer a registration');
     expect(transferSource).toContain(
       'The transfer link and manual code are bearer credentials.',

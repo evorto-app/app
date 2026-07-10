@@ -233,7 +233,18 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   event, including required answer gating, persisted add-on purchase, persisted
   question answer, active-registration readback, and add-on availability
   decrement, then cleans up generated add-on/question data and restores touched
-  registration rows and counters.
+  registration rows and counters. Two isolated post-registration cases cover a
+  free keyboard purchase through the authenticated page RPC at a mobile
+  viewport with Axe and overflow checks, plus the explicit before/during
+  sales-window denials. The paid case calls the production
+  `purchaseRegistrationAddon` service under the exact fixture owner/tenant and
+  Database/Stripe layers; a fail-closed Stripe client pins the connected-account
+  Checkout POST, idempotency key, completion GET, and expanded charge GET. It
+  proves canonical stock reservation, pending reload without entitlement,
+  cancellation/transfer locks, production-finalizer settlement, real fee
+  snapshot persistence, and order/transaction/purchase/immutable-lot/stock
+  readback with exact cleanup. Handler/RPC unit and source coverage separately
+  pins authenticated current-user and tenant forwarding into that service.
 - `specs/events/registration-transfer.spec.ts` creates a free confirmed
   registration, persists a private bearer-link offer using hashed credentials,
   claims it as a second authenticated tenant user, and reads back the cancelled
@@ -666,7 +677,11 @@ and the release-gated live ESNcard provider credential path.
   - `docs/events/register.doc.ts` now includes generated documentation
     journeys for closed registration windows, full participant options with a
     waitlist action, and role-ineligible direct links, in addition to free and
-    paid registration walkthroughs. The dedicated
+    paid registration walkthroughs. Its **Buy add-ons after registration**
+    journey starts from the ordinary event list, documents before/during sales
+    windows, immediate free fulfillment, the durable paid pending state and
+    same Checkout link after reload, and settled entitlement readback. The
+    dedicated
     `docs/events/registration-transfer.doc.ts` owns transfer guidance.
 
 ## Current Notes
