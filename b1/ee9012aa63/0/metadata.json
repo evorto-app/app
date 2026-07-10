@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b1ee9012aa63",
+  "session_id": "019f4ad3-b8c0-7f22-82fa-1f72046bb6a5",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-10T10:52:18.831982Z",
+  "branch": "codex/security-trusted-urls-media",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "helpers/add-finance-receipt-upload.ts",
+    "helpers/add-finance-receipts.ts",
+    "src/app/shared/components/controls/icon-selector/icon-selector-dialog/icon-selector-dialog.component.spec.ts",
+    "src/app/templates/shared/template-form/template-general-form.component.ts",
+    "src/server/effect/rpc/handlers/icons.handlers.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "aa0bdeede5d5",
+  "checkpoint_transcript_start": 2308,
+  "transcript_lines_at_start": 2308,
+  "token_usage": {
+    "input_tokens": 601201,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 45976064,
+    "output_tokens": 55329,
+    "api_call_count": 275
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-10T10:52:18.685063Z",
+    "agent_lines": 33,
+    "agent_removed": 3,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 33,
+    "total_lines_changed": 36,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
