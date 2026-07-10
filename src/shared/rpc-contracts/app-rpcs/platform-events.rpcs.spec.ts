@@ -2,6 +2,7 @@ import { describe, expect, it } from '@effect/vitest';
 import { Effect, Schema } from 'effect';
 
 import {
+  PlatformEventDetailRecord,
   PlatformEventRegistrationOptionRecord,
   PlatformEventsCreateInput,
   PlatformEventsReviewInput,
@@ -87,6 +88,41 @@ describe('platform event administration RPC schemas', () => {
           (yield* Schema.decodeUnknownEffect(PlatformEventsUpdateInput)(update))
             .registrationOptions[0]?.registrationMode,
         ).toBe('fcfs');
+
+        const detail = {
+          addOns: [],
+          creator: {
+            email: 'owner@example.org',
+            firstName: 'Event',
+            id: 'owner-1',
+            lastName: 'Owner',
+          },
+          description: update.description,
+          end: update.end,
+          icon: update.icon,
+          id: update.eventId,
+          location: update.location,
+          questions: [],
+          registrationCount: 0,
+          registrationOptions: update.registrationOptions,
+          reviewedAt: null,
+          simpleModeEnabled: true,
+          start: update.start,
+          status: 'DRAFT' as const,
+          statusComment: null,
+          title: update.title,
+          unlisted: false,
+        };
+        expect(
+          (yield* Schema.decodeUnknownEffect(PlatformEventDetailRecord)(detail))
+            .simpleModeEnabled,
+        ).toBe(true);
+        const { simpleModeEnabled: _simpleModeEnabled, ...detailWithoutMode } =
+          detail;
+        const detailError = yield* Schema.decodeUnknownEffect(
+          PlatformEventDetailRecord,
+        )(detailWithoutMode).pipe(Effect.flip);
+        expect(detailError['_tag']).toBe('SchemaError');
 
         const randomOption = {
           ...registrationOption,

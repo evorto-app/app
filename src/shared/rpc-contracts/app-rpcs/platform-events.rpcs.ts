@@ -111,6 +111,7 @@ export const PlatformEventDetailRecord = Schema.Struct({
   registrationCount: nonNegativeInteger,
   registrationOptions: Schema.Array(PlatformEventRegistrationOptionRecord),
   reviewedAt: Schema.NullOr(Schema.NonEmptyString),
+  simpleModeEnabled: Schema.Boolean,
   start: Schema.NonEmptyString,
   status: EventReviewStatus,
   statusComment: Schema.NullOr(Schema.String),

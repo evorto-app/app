@@ -18,7 +18,10 @@ import {
 } from '../shared/platform-operation.service';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
+  planPlatformEventAddonMappingChanges,
+  platformEventAddonMappingRemovalError,
   platformEventAuditSnapshot,
+  platformEventGraphCompatibilityError,
   platformEventStateError,
   platformUnsupportedRegistrationModeError,
   validatePlatformEventCreateReferences,
@@ -72,6 +75,7 @@ const eventRecord = {
     },
   ],
   reviewedAt: null,
+  simpleModeEnabled: false,
   start: '2026-07-10T12:00:00.000Z',
   status: 'DRAFT' as const,
   statusComment: null,
@@ -291,6 +295,116 @@ describe('platform event, template, and registration handlers', () => {
     ).toBeNull();
   });
 
+  it('keeps simple platform events on one organizing and one non-organizing option', () => {
+    const participant = eventRecord.registrationOptions[0];
+    if (!participant) throw new Error('Expected participant fixture');
+    const organizer = {
+      ...participant,
+      id: 'option-organizer',
+      organizingRegistration: true,
+      title: 'Organizer',
+    };
+
+    expect(
+      platformEventGraphCompatibilityError({
+        before: { simpleModeEnabled: true },
+        input: {
+          addOns: [],
+          registrationOptions: [organizer, participant],
+        },
+      }),
+    ).toBeNull();
+    expect(
+      platformEventGraphCompatibilityError({
+        before: { simpleModeEnabled: true },
+        input: {
+          addOns: [],
+          registrationOptions: [participant],
+        },
+      }),
+    ).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      reason: 'simpleEventGraphRequiresTwoOptions',
+    });
+  });
+
+  it('rejects zero-price paid platform event add-ons before persistence', () => {
+    const paidAddOn = {
+      allowMultiple: false,
+      allowPurchaseBeforeEvent: false,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      description: null,
+      isPaid: true,
+      maxQuantityPerUser: 1,
+      price: 0,
+      registrationOptions: [],
+      stripeTaxRateId: 'tax-rate-1',
+      title: 'Paid add-on',
+      totalAvailableQuantity: 10,
+    };
+
+    expect(
+      platformEventGraphCompatibilityError({
+        before: { simpleModeEnabled: false },
+        input: {
+          addOns: [paidAddOn],
+          registrationOptions: eventRecord.registrationOptions,
+        },
+      }),
+    ).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      reason: 'paidEventAddonRequiresPositivePrice',
+    });
+    expect(
+      platformEventGraphCompatibilityError({
+        before: { simpleModeEnabled: false },
+        input: {
+          addOns: [{ ...paidAddOn, isPaid: false, stripeTaxRateId: null }],
+          registrationOptions: eventRecord.registrationOptions,
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it('diffs event add-on mappings without deleting retained purchased associations', () => {
+    const existing = [
+      {
+        includedQuantity: 1,
+        optionalPurchaseQuantity: 0,
+        registrationOptionId: 'option-1',
+      },
+      {
+        includedQuantity: 0,
+        optionalPurchaseQuantity: 2,
+        registrationOptionId: 'option-removed',
+      },
+    ];
+    const retained = {
+      includedQuantity: 2,
+      optionalPurchaseQuantity: 1,
+      registrationOptionId: 'option-1',
+    };
+    const added = {
+      includedQuantity: 0,
+      optionalPurchaseQuantity: 1,
+      registrationOptionId: 'option-added',
+    };
+
+    expect(
+      planPlatformEventAddonMappingChanges(existing, [retained, added]),
+    ).toEqual({
+      added: [added],
+      removed: [existing[1]],
+      retained: [retained],
+    });
+    expect(platformEventAddonMappingRemovalError(false)).toBeNull();
+    expect(platformEventAddonMappingRemovalError(true)).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      reason: 'eventAddonMappingInUse',
+    });
+  });
+
   it.effect(
     'rejects random event updates before opening a target mutation',
     () =>
@@ -476,6 +590,7 @@ describe('platform event, template, and registration handlers', () => {
     const templateSnapshot = platformTemplateAuditSnapshot(templateRecord);
 
     expect(eventSnapshot.resourceType).toBe('event');
+    expect(eventSnapshot.state).toMatchObject({ simpleModeEnabled: false });
     expect(registrationSnapshot.resourceType).toBe('registration');
     expect(templateSnapshot.resourceType).toBe('template');
     const encoded = JSON.stringify([

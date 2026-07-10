@@ -38,5 +38,6 @@ describe('platform event registration-mode compatibility', () => {
     expect(template).toMatch(/<mat-option\s+disabled\s+value="random"/);
     expect(template).not.toContain('<mat-option value="random"');
     expect(template).toContain('unsupportedRegistrationOptions().length > 0');
+    expect(template).toContain('event.simpleModeEnabled');
   });
 });

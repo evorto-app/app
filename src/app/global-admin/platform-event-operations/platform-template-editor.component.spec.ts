@@ -2,8 +2,12 @@ import '@angular/compiler';
 
 import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
+
 import {
   platformTemplateFormToPayload,
+  platformTemplateModeTransitionIssue,
   platformTemplateRecordToFormModel,
 } from './platform-template-editor.component';
 
@@ -255,5 +259,72 @@ describe('platform template editor graph mapping', () => {
       error:
         'This template graph contains a registration-option reference that does not belong to the template.',
     });
+  });
+
+  it('uses the canonical persisted-shape guard before switching to simple mode', () => {
+    const source = completeTemplate();
+    const [organizerOption, participantOption] = source.registrationOptions;
+    if (!organizerOption || !participantOption) {
+      throw new Error('Expected two registration options');
+    }
+    const currentOptions = [organizerOption, participantOption];
+    const incompatiblePersisted = {
+      ...source,
+      registrationOptions: [
+        ...currentOptions,
+        {
+          ...participantOption,
+          id: 'extra-participant-option',
+        },
+      ],
+      simpleModeEnabled: false,
+    };
+
+    expect(
+      platformTemplateModeTransitionIssue(
+        'simple',
+        incompatiblePersisted,
+        currentOptions,
+      ),
+    ).toContain('Save the compatible advanced changes first');
+    expect(
+      platformTemplateModeTransitionIssue(
+        'advanced',
+        incompatiblePersisted,
+        currentOptions,
+      ),
+    ).toBeNull();
+    expect(
+      platformTemplateModeTransitionIssue('simple', source, [
+        organizerOption,
+        { ...participantOption, organizingRegistration: true },
+      ]),
+    ).toContain('exactly one organizing and one non-organizing option');
+  });
+
+  it('validates paid add-ons at one cent and confirms mode changes', () => {
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-template-editor.component.ts',
+      ),
+      'utf8',
+    );
+    const template = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-template-editor.component.html',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain('min(addOn.price, 1');
+    expect(source).toContain('TemplateModeConfirmationDialogComponent');
+    expect(source).toContain('persistedAdvancedToSimpleModeIssue');
+    expect(template).toContain("requestMode('simple')");
+    expect(template).toContain("requestMode('advanced')");
+    expect(template).not.toContain(
+      '[formField]="templateForm.simpleModeEnabled"',
+    );
   });
 });

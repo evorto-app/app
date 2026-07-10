@@ -61,11 +61,86 @@ import {
 import { loadTemplateGraphDetail } from '../templates/template-graph.query';
 
 type DatabaseReader = Pick<DatabaseClient, 'select'>;
+type PlatformEventAddonMapping =
+  PlatformEventDetailRecord['addOns'][number]['registrationOptions'][number];
+
 interface PlatformEventMutationTarget {
   readonly eventId: string;
   readonly reason: string;
   readonly targetTenantId: string;
 }
+
+const hasSimplePlatformEventShape = (
+  options: readonly { organizingRegistration: boolean }[],
+): boolean =>
+  options.length === 2 &&
+  options.filter((option) => option.organizingRegistration).length === 1;
+
+export const platformEventGraphCompatibilityError = ({
+  before,
+  input,
+}: {
+  before: Pick<PlatformEventDetailRecord, 'simpleModeEnabled'>;
+  input: Pick<PlatformEventsUpdateInput, 'addOns' | 'registrationOptions'>;
+}): null | RpcBadRequestError => {
+  if (
+    before.simpleModeEnabled &&
+    !hasSimplePlatformEventShape(input.registrationOptions)
+  ) {
+    return new RpcBadRequestError({
+      message:
+        'Simple event configuration requires exactly one organizing and one non-organizing registration option',
+      reason: 'simpleEventGraphRequiresTwoOptions',
+    });
+  }
+
+  if (input.addOns.some((addOn) => addOn.isPaid && addOn.price <= 0)) {
+    return new RpcBadRequestError({
+      message: 'Paid event add-ons require a positive price',
+      reason: 'paidEventAddonRequiresPositivePrice',
+    });
+  }
+
+  return null;
+};
+
+export const planPlatformEventAddonMappingChanges = (
+  existing: readonly PlatformEventAddonMapping[],
+  submitted: readonly PlatformEventAddonMapping[],
+): {
+  added: PlatformEventAddonMapping[];
+  removed: PlatformEventAddonMapping[];
+  retained: PlatformEventAddonMapping[];
+} => {
+  const existingOptionIds = new Set(
+    existing.map((mapping) => mapping.registrationOptionId),
+  );
+  const submittedOptionIds = new Set(
+    submitted.map((mapping) => mapping.registrationOptionId),
+  );
+
+  return {
+    added: submitted.filter(
+      (mapping) => !existingOptionIds.has(mapping.registrationOptionId),
+    ),
+    removed: existing.filter(
+      (mapping) => !submittedOptionIds.has(mapping.registrationOptionId),
+    ),
+    retained: submitted.filter((mapping) =>
+      existingOptionIds.has(mapping.registrationOptionId),
+    ),
+  };
+};
+
+export const platformEventAddonMappingRemovalError = (
+  hasPurchases: boolean,
+): null | RpcBadRequestError =>
+  hasPurchases
+    ? new RpcBadRequestError({
+        message: 'Purchased add-on mappings cannot be removed',
+        reason: 'eventAddonMappingInUse',
+      })
+    : null;
 
 const PlatformEventAuditState = Schema.Struct({
   addOns: Schema.Array(PlatformEventAddonRecord),
@@ -80,6 +155,7 @@ const PlatformEventAuditState = Schema.Struct({
   registrationCount: Schema.Number,
   registrationOptions: Schema.Array(PlatformEventRegistrationOptionRecord),
   reviewedAt: Schema.NullOr(Schema.NonEmptyString),
+  simpleModeEnabled: Schema.Boolean,
   start: Schema.NonEmptyString,
   status: Schema.Literals(['APPROVED', 'DRAFT', 'PENDING_REVIEW']),
   statusComment: Schema.NullOr(Schema.String),
@@ -125,6 +201,7 @@ export const loadPlatformEventDetail = Effect.fn(
       id: eventInstances.id,
       location: eventInstances.location,
       reviewedAt: eventInstances.reviewedAt,
+      simpleModeEnabled: eventInstances.simpleModeEnabled,
       start: eventInstances.start,
       status: eventInstances.status,
       statusComment: eventInstances.statusComment,
@@ -363,6 +440,7 @@ export const loadPlatformEventDetail = Effect.fn(
       stripeTaxRateId: option.stripeTaxRateId ?? null,
     })),
     reviewedAt: event.reviewedAt?.toISOString() ?? null,
+    simpleModeEnabled: event.simpleModeEnabled,
     start: event.start.toISOString(),
     status: event.status,
     statusComment: event.statusComment ?? null,
@@ -389,6 +467,7 @@ export const platformEventAuditSnapshot = (
     registrationCount: event.registrationCount,
     registrationOptions: event.registrationOptions,
     reviewedAt: event.reviewedAt,
+    simpleModeEnabled: event.simpleModeEnabled,
     start: event.start,
     status: event.status,
     statusComment: event.statusComment,
@@ -459,6 +538,12 @@ const updatePlatformEventGraph = Effect.fn(
   before: PlatformEventDetailRecord,
   esnCardEnabled: boolean,
 ) {
+  const compatibilityError = platformEventGraphCompatibilityError({
+    before,
+    input,
+  });
+  if (compatibilityError) return yield* Effect.fail(compatibilityError);
+
   const existingOptionIds = new Set(
     before.registrationOptions.map((option) => option.id),
   );
@@ -727,20 +812,80 @@ const updatePlatformEventGraph = Effect.fn(
     if (!addOnId) {
       return yield* Effect.die(new Error('Event add-on write returned no id'));
     }
-    yield* database
-      .delete(addonToEventRegistrationOptions)
-      .where(eq(addonToEventRegistrationOptions.addonId, addOnId))
-      .pipe(Effect.orDie);
-    if (addOn.registrationOptions.length > 0) {
+
+    const existingMappings = addOn.id
+      ? (before.addOns.find((existing) => existing.id === addOn.id)
+          ?.registrationOptions ?? [])
+      : [];
+    const mappingChanges = planPlatformEventAddonMappingChanges(
+      existingMappings,
+      addOn.registrationOptions,
+    );
+    for (const removedMapping of mappingChanges.removed) {
+      const purchases = yield* database
+        .select({ id: eventRegistrationAddonPurchases.id })
+        .from(eventRegistrationAddonPurchases)
+        .where(
+          and(
+            eq(eventRegistrationAddonPurchases.eventId, input.eventId),
+            eq(eventRegistrationAddonPurchases.tenantId, input.targetTenantId),
+            eq(eventRegistrationAddonPurchases.addonId, addOnId),
+            eq(
+              eventRegistrationAddonPurchases.registrationOptionId,
+              removedMapping.registrationOptionId,
+            ),
+          ),
+        )
+        .limit(1)
+        .pipe(Effect.orDie);
+      const removalError = platformEventAddonMappingRemovalError(
+        purchases.length > 0,
+      );
+      if (removalError) return yield* Effect.fail(removalError);
+
+      yield* database
+        .delete(addonToEventRegistrationOptions)
+        .where(
+          and(
+            eq(addonToEventRegistrationOptions.eventId, input.eventId),
+            eq(addonToEventRegistrationOptions.addonId, addOnId),
+            eq(
+              addonToEventRegistrationOptions.registrationOptionId,
+              removedMapping.registrationOptionId,
+            ),
+          ),
+        )
+        .pipe(Effect.orDie);
+    }
+    for (const mapping of mappingChanges.retained) {
+      yield* database
+        .update(addonToEventRegistrationOptions)
+        .set({
+          includedQuantity: mapping.includedQuantity,
+          optionalPurchaseQuantity: mapping.optionalPurchaseQuantity,
+        })
+        .where(
+          and(
+            eq(addonToEventRegistrationOptions.eventId, input.eventId),
+            eq(addonToEventRegistrationOptions.addonId, addOnId),
+            eq(
+              addonToEventRegistrationOptions.registrationOptionId,
+              mapping.registrationOptionId,
+            ),
+          ),
+        )
+        .pipe(Effect.orDie);
+    }
+    if (mappingChanges.added.length > 0) {
       yield* database
         .insert(addonToEventRegistrationOptions)
         .values(
-          addOn.registrationOptions.map((option) => ({
+          mappingChanges.added.map((mapping) => ({
             addonId: addOnId,
             eventId: input.eventId,
-            includedQuantity: option.includedQuantity,
-            optionalPurchaseQuantity: option.optionalPurchaseQuantity,
-            registrationOptionId: option.registrationOptionId,
+            includedQuantity: mapping.includedQuantity,
+            optionalPurchaseQuantity: mapping.optionalPurchaseQuantity,
+            registrationOptionId: mapping.registrationOptionId,
           })),
         )
         .pipe(Effect.orDie);

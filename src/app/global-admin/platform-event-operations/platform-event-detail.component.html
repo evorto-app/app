@@ -42,6 +42,14 @@
           <dd class="body-medium">{{ event.registrationCount }}</dd>
         </div>
         <div>
+          <dt class="label-medium text-on-surface-variant">
+            Registration configuration
+          </dt>
+          <dd class="body-medium">
+            {{ event.simpleModeEnabled ? "Simple" : "Advanced" }}
+          </dd>
+        </div>
+        <div>
           <dt class="label-medium text-on-surface-variant">Starts</dt>
           <dd class="body-medium">{{ event.start | date: "medium" }}</dd>
         </div>

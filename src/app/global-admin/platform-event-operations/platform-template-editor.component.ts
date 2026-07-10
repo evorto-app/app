@@ -6,6 +6,7 @@ import type {
   PlatformRoleRecord,
   PlatformStripeTaxRateRecord,
 } from '@shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
+import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
 import {
   ChangeDetectionStrategy,
@@ -32,6 +33,7 @@ import {
 } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -43,11 +45,14 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { persistedAdvancedToSimpleModeIssue } from '../../shared/components/forms/registration-mode-transition';
 import {
+  isSimpleCompatibleRegistrationOptions,
   templateGraphFormToPayload,
   templateGraphRecordToFormModel,
 } from '../../shared/components/forms/template-graph-editor/template-graph-form.mapper';
@@ -58,6 +63,11 @@ import {
   createTemplateGraphRegistrationOptionFormModel,
   type TemplateGraphFormModel,
 } from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
+import {
+  type TemplateConfigurationMode,
+  type TemplateModeConfirmationData,
+  TemplateModeConfirmationDialogComponent,
+} from '../../shared/components/forms/template-graph-editor/template-mode-confirmation-dialog.component';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 
 export type PlatformTemplateFormLoadResult =
@@ -78,6 +88,21 @@ export const createPlatformTemplateAddonFormModel =
 export const createPlatformTemplateQuestionFormModel =
   createTemplateGraphQuestionFormModel;
 export const platformTemplateFormToPayload = templateGraphFormToPayload;
+
+export const platformTemplateModeTransitionIssue = (
+  targetMode: TemplateConfigurationMode,
+  persistedTemplate: TemplateGraphRecord | undefined,
+  currentOptions: readonly {
+    id: string;
+    organizingRegistration: boolean;
+  }[],
+): null | string => {
+  if (targetMode === 'advanced') return null;
+  if (!isSimpleCompatibleRegistrationOptions(currentOptions)) {
+    return 'Simple configuration requires exactly one organizing and one non-organizing option. Reclassify or remove options first; nothing was deleted.';
+  }
+  return persistedAdvancedToSimpleModeIssue(persistedTemplate, currentOptions);
+};
 
 export const platformTemplateRecordToFormModel = (
   template: Parameters<typeof templateGraphRecordToFormModel>[0],
@@ -174,6 +199,7 @@ export class PlatformTemplateEditorComponent {
   );
   protected readonly faPlus = faPlus;
   protected readonly faTrashCan = faTrashCan;
+  protected readonly modeBlockMessage = signal('');
   protected readonly rolesQuery = injectQuery(() =>
     this.operations.roles(this.tenantId()),
   );
@@ -280,7 +306,9 @@ export class PlatformTemplateEditorComponent {
     applyEach(template.addOns, (addOn) => {
       required(addOn.title, { message: 'Enter an add-on title.' });
       min(addOn.maxQuantityPerUser, 1);
-      min(addOn.price, 0);
+      min(addOn.price, 1, {
+        message: 'Paid add-ons must cost at least one cent.',
+      });
       min(addOn.totalAvailableQuantity, 1);
       required(addOn.stripeTaxRateId, {
         message: 'Select an imported inclusive tax rate.',
@@ -329,6 +357,19 @@ export class PlatformTemplateEditorComponent {
       min(question.sortOrder, 0);
     });
 
+    validate(template.simpleModeEnabled, ({ value, valueOf }) =>
+      !value() ||
+      isSimpleCompatibleRegistrationOptions(
+        valueOf(template.registrationOptions),
+      )
+        ? undefined
+        : {
+            kind: 'simpleModeShape',
+            message:
+              'Simple configuration requires exactly one organizing and one non-organizing option.',
+          },
+    );
+
     required(template.reason, { message: 'Enter an operational reason.' });
     maxLength(template.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
@@ -341,6 +382,7 @@ export class PlatformTemplateEditorComponent {
   protected readonly updateMutation = injectMutation(() =>
     this.operations.update(),
   );
+  private readonly dialog = inject(MatDialog);
   private readonly initializedNewTemplate = signal(false);
   private readonly initializedTemplateId = signal<null | string>(null);
   private readonly notifications = inject(NotificationService);
@@ -465,6 +507,7 @@ export class PlatformTemplateEditorComponent {
   }
 
   protected addRegistrationOption(): void {
+    if (this.isSimpleMode()) return;
     this.templateModel.update((model) => ({
       ...model,
       registrationOptions: [
@@ -481,6 +524,10 @@ export class PlatformTemplateEditorComponent {
         .data()
         .categories.some((category) => category.id === categoryId)
     );
+  }
+
+  protected isSimpleMode(): boolean {
+    return this.templateModel().simpleModeEnabled;
   }
 
   protected missingRoleIds(roleIds: readonly string[]): readonly string[] {
@@ -551,6 +598,7 @@ export class PlatformTemplateEditorComponent {
   }
 
   protected removeRegistrationOption(index: number): void {
+    if (this.isSimpleMode()) return;
     const option = this.templateModel().registrationOptions[index];
     if (!option || this.registrationReferenceCount(option.key) > 0) return;
     this.templateModel.update((model) => ({
@@ -558,6 +606,44 @@ export class PlatformTemplateEditorComponent {
       registrationOptions: model.registrationOptions.filter(
         (_registration, registrationIndex) => registrationIndex !== index,
       ),
+    }));
+  }
+
+  protected async requestMode(
+    targetMode: TemplateConfigurationMode,
+  ): Promise<void> {
+    const currentMode: TemplateConfigurationMode = this.isSimpleMode()
+      ? 'simple'
+      : 'advanced';
+    if (currentMode === targetMode) return;
+
+    const issue = platformTemplateModeTransitionIssue(
+      targetMode,
+      this.templateQuery.isSuccess() ? this.templateQuery.data() : undefined,
+      this.templateModel().registrationOptions,
+    );
+    if (issue) {
+      this.modeBlockMessage.set(issue);
+      return;
+    }
+
+    this.modeBlockMessage.set('');
+    const result = await firstValueFrom(
+      this.dialog
+        .open<
+          TemplateModeConfirmationDialogComponent,
+          TemplateModeConfirmationData,
+          TemplateConfigurationMode | undefined
+        >(TemplateModeConfirmationDialogComponent, {
+          data: { targetMode },
+          maxWidth: '34rem',
+        })
+        .afterClosed(),
+    );
+    if (result !== targetMode) return;
+    this.templateModel.update((model) => ({
+      ...model,
+      simpleModeEnabled: targetMode === 'simple',
     }));
   }
 
