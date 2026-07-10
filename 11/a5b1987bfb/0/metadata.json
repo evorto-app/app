@@ -1,0 +1,62 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "11a5b1987bfb",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-10T16:13:41.056051Z",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/db/relations.ts",
+    "src/db/schema/event-registration-addon-purchase-orders.spec.ts",
+    "src/db/schema/event-registration-addon-purchase-orders.ts",
+    "src/db/schema/event-registrations.ts",
+    "src/db/schema/index.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.ts",
+    "src/server/http/stripe-webhook.web-handler.spec.ts",
+    "src/server/http/stripe-webhook.web-handler.ts",
+    "src/server/payments/addon-payment-allocation.ts",
+    "src/server/payments/pending-stripe-obligations.spec.ts",
+    "src/server/payments/pending-stripe-obligations.ts",
+    "src/server/payments/registration-payment-fee-snapshot.ts",
+    "src/server/payments/registration-refund.spec.ts",
+    "src/server/payments/registration-refund.ts",
+    "src/server/registrations/addon-purchase-checkout.spec.ts",
+    "src/server/registrations/addon-purchase-checkout.ts",
+    "src/server/registrations/addon-purchase-mutation-guards.source.spec.ts",
+    "src/server/registrations/addon-purchase.postgres.spec.ts",
+    "src/server/registrations/addon-purchase.service.spec.ts",
+    "src/server/registrations/addon-purchase.service.ts",
+    "src/server/registrations/expired-checkout-cleanup.spec.ts",
+    "src/server/registrations/expired-checkout-cleanup.ts",
+    "src/server/registrations/registration-transfer.service.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "5043562dbba9",
+  "checkpoint_transcript_start": 12374,
+  "transcript_lines_at_start": 12374,
+  "token_usage": {
+    "input_tokens": 97101,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 7723264,
+    "output_tokens": 6986,
+    "api_call_count": 39
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-10T16:13:40.643245Z",
+    "agent_lines": 4537,
+    "agent_removed": 162,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 4537,
+    "total_lines_changed": 4699,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
