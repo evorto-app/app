@@ -89,11 +89,7 @@ interface BaseFixtures {
     tenantId: string;
     title: string;
   }[];
-  tenant: {
-    domain: string;
-    id: string;
-    name: string;
-  };
+  tenant: SeedTenantResult['tenant'];
   tenantDomain: string;
 }
 

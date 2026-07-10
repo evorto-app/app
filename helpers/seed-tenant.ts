@@ -1,5 +1,6 @@
 import type { InferInsertModel } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { SupportedTenantCurrency } from '../src/types/custom/tenant';
 
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
 import consola from 'consola';
@@ -120,6 +121,7 @@ export interface SeedTenantResult {
     title: string;
   }[];
   tenant: {
+    currency: SupportedTenantCurrency;
     domain: string;
     id: string;
     name: string;
@@ -327,6 +329,7 @@ export async function seedTenant(
       title: t.title,
     })),
     tenant: {
+      currency: tenant.currency,
       domain: tenant.domain,
       id: tenant.id,
       name: tenant.name,
