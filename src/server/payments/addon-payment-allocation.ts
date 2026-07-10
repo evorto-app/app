@@ -41,29 +41,34 @@ const percentageRatio = (
   return { denominator, numerator };
 };
 
-const taxAllocation = (
-  lot: AddonPaymentLotTerms,
+export const resolveAddonTaxAmounts = (
+  input: Pick<
+    AddonPaymentLotTerms,
+    'baseAmount' | 'taxRateInclusive' | 'taxRatePercentage'
+  >,
 ): undefined | { expectedGrossAmount: number; taxAmount: number } => {
-  const ratio = percentageRatio(lot.taxRatePercentage);
+  if (!Number.isSafeInteger(input.baseAmount) || input.baseAmount < 0) return;
+  const ratio = percentageRatio(input.taxRatePercentage);
   if (!ratio) {
-    return lot.taxRatePercentage === null && lot.taxRateInclusive === null
-      ? { expectedGrossAmount: lot.baseAmount, taxAmount: 0 }
+    return input.taxRatePercentage === null && input.taxRateInclusive === null
+      ? { expectedGrossAmount: input.baseAmount, taxAmount: 0 }
       : undefined;
   }
-  if (lot.taxRateInclusive === null) return;
-  if (lot.taxRateInclusive) {
+  if (input.taxRateInclusive === null) return;
+  const taxNumerator = input.baseAmount * ratio.numerator;
+  if (!Number.isSafeInteger(taxNumerator)) return;
+  if (input.taxRateInclusive) {
     const taxAmount = roundFraction(
-      lot.baseAmount * ratio.numerator,
+      taxNumerator,
       100 * ratio.denominator + ratio.numerator,
     );
-    return { expectedGrossAmount: lot.baseAmount, taxAmount };
+    return { expectedGrossAmount: input.baseAmount, taxAmount };
   }
-  const taxAmount = roundFraction(
-    lot.baseAmount * ratio.numerator,
-    100 * ratio.denominator,
-  );
+  const taxAmount = roundFraction(taxNumerator, 100 * ratio.denominator);
+  const expectedGrossAmount = input.baseAmount + taxAmount;
+  if (!Number.isSafeInteger(expectedGrossAmount)) return;
   return {
-    expectedGrossAmount: lot.baseAmount + taxAmount,
+    expectedGrossAmount,
     taxAmount,
   };
 };
@@ -195,7 +200,7 @@ export const finalizeAddonPaymentAllocations = Effect.fn(
     ) {
       return yield* allocationError('Purchase lot terms are invalid');
     }
-    const tax = taxAllocation(lot);
+    const tax = resolveAddonTaxAmounts(lot);
     if (!tax) {
       return yield* allocationError('Purchase lot tax terms are invalid');
     }

@@ -229,7 +229,7 @@ export const ensureRegistrationPaymentFeeSnapshot = Effect.fn(
           source.stripeChargeId
             ? eq(transactions.stripeChargeId, source.stripeChargeId)
             : isNull(transactions.stripeChargeId),
-          eq(transactions.type, 'registration'),
+          inArray(transactions.type, ['registration', 'addon']),
         ),
       )
       .returning({ id: transactions.id }),

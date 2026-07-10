@@ -12,6 +12,7 @@ import {
   eventAddons,
   eventInstances,
   eventRegistrationAddonPurchaseLots,
+  eventRegistrationAddonPurchaseOrders,
   eventRegistrationAddonPurchases,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
@@ -608,6 +609,97 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
                     'Source payment changed before the transfer offer could be created',
                 });
               }
+            }
+            const pendingAddonOrderCandidates = yield* tx
+              .select({
+                id: eventRegistrationAddonPurchaseOrders.id,
+                transactionId:
+                  eventRegistrationAddonPurchaseOrders.transactionId,
+              })
+              .from(eventRegistrationAddonPurchaseOrders)
+              .where(
+                and(
+                  eq(
+                    eventRegistrationAddonPurchaseOrders.registrationId,
+                    lockedSource.id,
+                  ),
+                  eq(
+                    eventRegistrationAddonPurchaseOrders.status,
+                    'pending_payment',
+                  ),
+                  eq(eventRegistrationAddonPurchaseOrders.tenantId, tenant.id),
+                ),
+              )
+              .limit(1);
+            const pendingAddonOrder = pendingAddonOrderCandidates[0];
+            if (pendingAddonOrder?.transactionId) {
+              const pendingAddonTransactions = yield* tx
+                .select({ id: transactions.id })
+                .from(transactions)
+                .where(
+                  and(
+                    eq(transactions.id, pendingAddonOrder.transactionId),
+                    eq(transactions.eventRegistrationId, lockedSource.id),
+                    eq(transactions.method, 'stripe'),
+                    eq(transactions.status, 'pending'),
+                    eq(transactions.tenantId, tenant.id),
+                    eq(transactions.type, 'addon'),
+                  ),
+                )
+                .for('update');
+              const lockedAddonOrders = yield* tx
+                .select({ id: eventRegistrationAddonPurchaseOrders.id })
+                .from(eventRegistrationAddonPurchaseOrders)
+                .where(
+                  and(
+                    eq(
+                      eventRegistrationAddonPurchaseOrders.id,
+                      pendingAddonOrder.id,
+                    ),
+                    eq(
+                      eventRegistrationAddonPurchaseOrders.status,
+                      'pending_payment',
+                    ),
+                    eq(
+                      eventRegistrationAddonPurchaseOrders.transactionId,
+                      pendingAddonOrder.transactionId,
+                    ),
+                  ),
+                )
+                .for('update');
+              if (
+                pendingAddonTransactions.length !== 1 ||
+                lockedAddonOrders.length !== 1
+              ) {
+                return yield* new RegistrationTransferInternalError({
+                  message:
+                    'Pending add-on payment ownership changed before the transfer could be created',
+                });
+              }
+              return yield* new RegistrationTransferConflictError({
+                message:
+                  'Finish or let the pending add-on Checkout expire before transferring this registration.',
+              });
+            }
+            const successfulPaidAddonTransactions = yield* tx
+              .select({ id: transactions.id })
+              .from(transactions)
+              .where(
+                and(
+                  eq(transactions.eventRegistrationId, lockedSource.id),
+                  eq(transactions.status, 'successful'),
+                  eq(transactions.tenantId, tenant.id),
+                  eq(transactions.type, 'addon'),
+                  sql`${transactions.amount} > 0`,
+                ),
+              )
+              .orderBy(transactions.id)
+              .for('update');
+            if (successfulPaidAddonTransactions.length > 0) {
+              return yield* new RegistrationTransferConflictError({
+                message:
+                  'Registrations with a paid add-on cannot be transferred until multi-source transfer refunds are implemented.',
+              });
             }
             const sourceAddOnEntitlements = yield* tx
               .select({

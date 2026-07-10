@@ -7,6 +7,7 @@ import {
   and,
   asc,
   eq,
+  inArray,
   isNotNull,
   isNull,
   lt,
@@ -25,6 +26,22 @@ const refundClaimLeaseMs = 10 * 60 * 1000;
 const refundWorkerInterval = Schedule.spaced('30 seconds');
 const defaultRefundBatchSize = 25;
 const maximumRefundBatchSize = 100;
+
+export const registrationRefundSourcePaymentPredicate = (input: {
+  readonly eventRegistrationId: string;
+  readonly sourceTransactionId: string;
+  readonly stripeAccountId: string;
+  readonly tenantId: string;
+}) =>
+  and(
+    eq(transactions.id, input.sourceTransactionId),
+    eq(transactions.eventRegistrationId, input.eventRegistrationId),
+    eq(transactions.method, 'stripe'),
+    eq(transactions.status, 'successful'),
+    eq(transactions.stripeAccountId, input.stripeAccountId),
+    eq(transactions.tenantId, input.tenantId),
+    inArray(transactions.type, ['registration', 'addon']),
+  );
 
 export interface CreateRegistrationRefundClaimInput {
   readonly amount: number;
@@ -705,14 +722,12 @@ const claimRegistrationRefund = Effect.fn('claimRegistrationRefund')(function* (
           })
           .from(transactions)
           .where(
-            and(
-              eq(transactions.id, sourceTransactionId),
-              eq(transactions.eventRegistrationId, eventRegistrationId),
-              eq(transactions.method, 'stripe'),
-              eq(transactions.status, 'successful'),
-              eq(transactions.tenantId, claim.tenantId),
-              eq(transactions.type, 'registration'),
-            ),
+            registrationRefundSourcePaymentPredicate({
+              eventRegistrationId,
+              sourceTransactionId,
+              stripeAccountId,
+              tenantId: claim.tenantId,
+            }),
           );
         const source = sourceRows[0];
         const stripeReference = source?.stripeChargeId
@@ -732,7 +747,7 @@ const claimRegistrationRefund = Effect.fn('claimRegistrationRefund')(function* (
               stripeRefundClaimLeaseExpiresAt: null,
               stripeRefundClaimLeaseId: null,
               stripeRefundLastError:
-                'Refund source is not a successful Stripe registration payment',
+                'Refund source is not a successful Stripe registration or add-on payment',
               stripeRefundNextAttemptAt: null,
             })
             .where(
@@ -988,13 +1003,12 @@ export const reconcileRegistrationRefundWebhook = Effect.fn(
           })
           .from(transactions)
           .where(
-            and(
-              eq(transactions.id, sourceTransactionId),
-              eq(transactions.method, 'stripe'),
-              eq(transactions.status, 'successful'),
-              eq(transactions.tenantId, tenantId),
-              eq(transactions.type, 'registration'),
-            ),
+            registrationRefundSourcePaymentPredicate({
+              eventRegistrationId: registrationId,
+              sourceTransactionId,
+              stripeAccountId: eventAccount,
+              tenantId,
+            }),
           );
         const source = sourceRows[0];
         const stripeReference = source?.stripeChargeId

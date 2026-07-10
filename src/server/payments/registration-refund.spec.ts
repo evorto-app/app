@@ -13,6 +13,7 @@ import {
   registrationRefundMatchesPersistedClaim,
   registrationRefundRequeueEligibility,
   registrationRefundRetryDelayMs,
+  registrationRefundSourcePaymentPredicate,
   registrationRefundStatusCanAdvance,
 } from './registration-refund';
 
@@ -174,6 +175,32 @@ describe('registration refund claims', () => {
         refundGeneration: 1,
       }),
     ).toBe(false);
+  });
+
+  it('accepts exact registration or add-on Stripe sources without weakening ownership', () => {
+    const query = dialect.sqlToQuery(
+      registrationRefundSourcePaymentPredicate({
+        eventRegistrationId: 'registration-1',
+        sourceTransactionId: 'source-1',
+        stripeAccountId: 'acct_1',
+        tenantId: 'tenant-1',
+      }),
+    );
+    const statement = normalizeSql(query.sql);
+
+    expect(statement).toContain('"transactions"."eventRegistrationId" =');
+    expect(statement).toContain('"transactions"."stripe_account_id" =');
+    expect(statement).toContain('"transactions"."type" in');
+    expect(query.params).toEqual([
+      'source-1',
+      'registration-1',
+      'stripe',
+      'successful',
+      'acct_1',
+      'tenant-1',
+      'registration',
+      'addon',
+    ]);
   });
 
   it('reclaims stale leases without requiring another retry budget slot', () => {

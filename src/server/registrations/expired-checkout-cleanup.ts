@@ -1,6 +1,7 @@
 import { Database, type DatabaseClient } from '@db/index';
 import {
   eventAddons,
+  eventRegistrationAddonPurchaseOrders,
   eventRegistrationAddonPurchases,
   eventRegistrationOptions,
   eventRegistrations,
@@ -12,6 +13,7 @@ import {
   and,
   asc,
   eq,
+  exists,
   gte,
   isNotNull,
   isNull,
@@ -34,6 +36,10 @@ import {
   expireHostedCheckoutSession,
   retrieveHostedCheckoutSession,
 } from '../integrations/stripe-checkout';
+import {
+  completePaidAddonPurchaseCheckout,
+  expirePaidAddonPurchaseCheckout,
+} from './addon-purchase-checkout';
 import {
   completePaidRegistrationCheckout,
   type RegistrationCheckoutCompletionIdentity,
@@ -987,6 +993,404 @@ export const processExpiredRegistrationTransferCheckouts = Effect.fn(
   } satisfies ExpiredCheckoutCleanupSummary;
 });
 
+export interface DueBoundAddonPurchaseCheckoutCandidate extends Omit<
+  AddonPurchaseCheckoutCandidate,
+  'stripeCheckoutSessionId'
+> {
+  readonly attempts: number;
+  readonly leaseId: string;
+  readonly stripeCheckoutSessionId: string;
+}
+
+interface AddonPurchaseCheckoutCandidate {
+  readonly expiresAt: Date;
+  readonly orderId: string;
+  readonly registrationId: string;
+  readonly stripeAccountId: string;
+  readonly stripeCheckoutSessionId: null | string;
+  readonly tenantId: string;
+  readonly transactionId: string;
+}
+
+const dueBoundAddonPurchaseTransactionPredicate = (now: Date) =>
+  and(
+    eq(transactions.method, 'stripe'),
+    eq(transactions.status, 'pending'),
+    eq(transactions.type, 'addon'),
+    isNotNull(transactions.eventRegistrationId),
+    isNotNull(transactions.stripeAccountId),
+    isNotNull(transactions.stripeCheckoutRequest),
+    isNotNull(transactions.stripeCheckoutSessionId),
+    or(
+      isNull(transactions.stripeCheckoutReconcileNextAt),
+      lte(transactions.stripeCheckoutReconcileNextAt, now),
+    ),
+    or(
+      isNull(transactions.stripeCheckoutReconcileLeaseExpiresAt),
+      lte(transactions.stripeCheckoutReconcileLeaseExpiresAt, now),
+    ),
+  );
+
+export const dueBoundAddonPurchaseCheckoutPredicate = (now: Date) =>
+  and(
+    eq(eventRegistrationAddonPurchaseOrders.status, 'pending_payment'),
+    dueBoundAddonPurchaseTransactionPredicate(now),
+  );
+
+export const claimedAddonPurchaseCheckoutPredicate = (
+  candidate: DueBoundAddonPurchaseCheckoutCandidate,
+) =>
+  and(
+    eq(transactions.id, candidate.transactionId),
+    eq(transactions.eventRegistrationId, candidate.registrationId),
+    eq(transactions.method, 'stripe'),
+    eq(transactions.status, 'pending'),
+    eq(transactions.stripeAccountId, candidate.stripeAccountId),
+    eq(transactions.stripeCheckoutReconcileLeaseId, candidate.leaseId),
+    eq(transactions.stripeCheckoutSessionId, candidate.stripeCheckoutSessionId),
+    eq(transactions.tenantId, candidate.tenantId),
+    eq(transactions.type, 'addon'),
+  );
+
+/**
+ * Commits a bounded lease batch before any worker calls Stripe. Parallel
+ * sweepers skip the transaction rows claimed by another worker and continue
+ * to later due add-on Checkouts.
+ */
+export const claimDueBoundAddonPurchaseCheckoutCandidates = Effect.fn(
+  'claimDueBoundAddonPurchaseCheckoutCandidates',
+)(function* (
+  database: DatabaseClient,
+  input: {
+    readonly leaseDurationMs?: number;
+    readonly limit: number;
+    readonly now: Date;
+  },
+) {
+  return yield* database.transaction((tx) =>
+    Effect.gen(function* () {
+      const dueClaims = yield* tx
+        .select({
+          checkoutRequest: transactions.stripeCheckoutRequest,
+          expiresAt: eventRegistrationAddonPurchaseOrders.expiresAt,
+          orderId: eventRegistrationAddonPurchaseOrders.id,
+          registrationId: eventRegistrationAddonPurchaseOrders.registrationId,
+          stripeAccountId: transactions.stripeAccountId,
+          stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
+          tenantId: eventRegistrationAddonPurchaseOrders.tenantId,
+          transactionId: transactions.id,
+        })
+        .from(eventRegistrationAddonPurchaseOrders)
+        .innerJoin(
+          transactions,
+          and(
+            eq(
+              transactions.id,
+              eventRegistrationAddonPurchaseOrders.transactionId,
+            ),
+            eq(
+              transactions.eventRegistrationId,
+              eventRegistrationAddonPurchaseOrders.registrationId,
+            ),
+            eq(
+              transactions.tenantId,
+              eventRegistrationAddonPurchaseOrders.tenantId,
+            ),
+          ),
+        )
+        .where(dueBoundAddonPurchaseCheckoutPredicate(input.now))
+        .orderBy(
+          sql`${transactions.stripeCheckoutReconcileNextAt} asc nulls first`,
+          asc(transactions.createdAt),
+          asc(transactions.id),
+        )
+        .limit(input.limit)
+        .for('update', { of: transactions, skipLocked: true });
+
+      const candidates: DueBoundAddonPurchaseCheckoutCandidate[] = [];
+      for (const dueClaim of dueClaims) {
+        if (
+          !dueClaim.checkoutRequest ||
+          !dueClaim.expiresAt ||
+          !dueClaim.stripeAccountId ||
+          !dueClaim.stripeCheckoutSessionId
+        ) {
+          continue;
+        }
+        const leaseId = randomUUID();
+        const leaseExpiresAt = new Date(
+          input.now.getTime() +
+            (input.leaseDurationMs ?? checkoutReconcileLeaseDurationMs),
+        );
+        const claimed = yield* tx
+          .update(transactions)
+          .set({
+            stripeCheckoutReconcileAttempts: sql`${transactions.stripeCheckoutReconcileAttempts} + 1`,
+            stripeCheckoutReconcileLeaseExpiresAt: leaseExpiresAt,
+            stripeCheckoutReconcileLeaseId: leaseId,
+          })
+          .where(
+            and(
+              dueBoundAddonPurchaseTransactionPredicate(input.now),
+              eq(transactions.id, dueClaim.transactionId),
+              eq(transactions.eventRegistrationId, dueClaim.registrationId),
+              eq(transactions.stripeAccountId, dueClaim.stripeAccountId),
+              eq(
+                transactions.stripeCheckoutSessionId,
+                dueClaim.stripeCheckoutSessionId,
+              ),
+              eq(transactions.tenantId, dueClaim.tenantId),
+              exists(
+                tx
+                  .select({ id: eventRegistrationAddonPurchaseOrders.id })
+                  .from(eventRegistrationAddonPurchaseOrders)
+                  .where(
+                    and(
+                      eq(
+                        eventRegistrationAddonPurchaseOrders.id,
+                        dueClaim.orderId,
+                      ),
+                      eq(
+                        eventRegistrationAddonPurchaseOrders.registrationId,
+                        dueClaim.registrationId,
+                      ),
+                      eq(
+                        eventRegistrationAddonPurchaseOrders.status,
+                        'pending_payment',
+                      ),
+                      eq(
+                        eventRegistrationAddonPurchaseOrders.tenantId,
+                        dueClaim.tenantId,
+                      ),
+                      eq(
+                        eventRegistrationAddonPurchaseOrders.transactionId,
+                        transactions.id,
+                      ),
+                    ),
+                  ),
+              ),
+            ),
+          )
+          .returning({
+            attempts: transactions.stripeCheckoutReconcileAttempts,
+          });
+        const claim = claimed[0];
+        if (!claim) continue;
+
+        candidates.push({
+          attempts: claim.attempts,
+          expiresAt: dueClaim.expiresAt,
+          leaseId,
+          orderId: dueClaim.orderId,
+          registrationId: dueClaim.registrationId,
+          stripeAccountId: dueClaim.stripeAccountId,
+          stripeCheckoutSessionId: dueClaim.stripeCheckoutSessionId,
+          tenantId: dueClaim.tenantId,
+          transactionId: dueClaim.transactionId,
+        });
+      }
+      return candidates;
+    }),
+  );
+});
+
+export const nextAddonPurchaseCheckoutReconcileAt = (
+  candidate: Pick<
+    DueBoundAddonPurchaseCheckoutCandidate,
+    'attempts' | 'expiresAt'
+  >,
+  input: { readonly noLaterThanExpiry: boolean; readonly now: Date },
+) =>
+  nextRegistrationCheckoutReconcileAt({
+    attempts: candidate.attempts,
+    expiresAt: Math.floor(candidate.expiresAt.getTime() / 1000),
+    noLaterThanExpiry: input.noLaterThanExpiry,
+    now: input.now,
+  });
+
+const selectExpiredUnboundAddonPurchaseCheckoutCandidates = Effect.fn(
+  'selectExpiredUnboundAddonPurchaseCheckoutCandidates',
+)(function* (database: DatabaseClient, input: { limit: number; now: Date }) {
+  const rows = yield* database
+    .select({
+      expiresAt: eventRegistrationAddonPurchaseOrders.expiresAt,
+      orderId: eventRegistrationAddonPurchaseOrders.id,
+      registrationId: eventRegistrationAddonPurchaseOrders.registrationId,
+      stripeAccountId: transactions.stripeAccountId,
+      tenantId: eventRegistrationAddonPurchaseOrders.tenantId,
+      transactionId: transactions.id,
+    })
+    .from(eventRegistrationAddonPurchaseOrders)
+    .innerJoin(
+      transactions,
+      and(
+        eq(transactions.id, eventRegistrationAddonPurchaseOrders.transactionId),
+        eq(
+          transactions.eventRegistrationId,
+          eventRegistrationAddonPurchaseOrders.registrationId,
+        ),
+        eq(
+          transactions.tenantId,
+          eventRegistrationAddonPurchaseOrders.tenantId,
+        ),
+      ),
+    )
+    .where(
+      and(
+        eq(eventRegistrationAddonPurchaseOrders.status, 'pending_payment'),
+        lte(eventRegistrationAddonPurchaseOrders.expiresAt, input.now),
+        eq(transactions.method, 'stripe'),
+        eq(transactions.status, 'pending'),
+        eq(transactions.type, 'addon'),
+        isNotNull(transactions.stripeAccountId),
+        isNull(transactions.stripeCheckoutSessionId),
+      ),
+    )
+    .orderBy(asc(transactions.createdAt), asc(transactions.id))
+    .limit(input.limit);
+
+  return rows.flatMap((row) =>
+    row.expiresAt && row.stripeAccountId
+      ? [
+          {
+            ...row,
+            expiresAt: row.expiresAt,
+            stripeAccountId: row.stripeAccountId,
+            stripeCheckoutSessionId: null,
+          } satisfies AddonPurchaseCheckoutCandidate,
+        ]
+      : [],
+  );
+});
+
+const rescheduleAddonPurchaseCheckout = Effect.fn(
+  'rescheduleAddonPurchaseCheckout',
+)(function* (
+  candidate: DueBoundAddonPurchaseCheckoutCandidate,
+  input: {
+    readonly error?: string;
+    readonly noLaterThanExpiry: boolean;
+    readonly now: Date;
+  },
+) {
+  const nextAt = nextAddonPurchaseCheckoutReconcileAt(candidate, input);
+  return yield* Database.use((database) =>
+    database
+      .update(transactions)
+      .set({
+        stripeCheckoutReconcileLastError: input.error?.slice(0, 2000) ?? null,
+        stripeCheckoutReconcileLeaseExpiresAt: null,
+        stripeCheckoutReconcileLeaseId: null,
+        stripeCheckoutReconcileNextAt: nextAt,
+      })
+      .where(claimedAddonPurchaseCheckoutPredicate(candidate))
+      .returning({ id: transactions.id })
+      .pipe(
+        Effect.map((rows) =>
+          rows.length === 1 ? ('rescheduled' as const) : ('skipped' as const),
+        ),
+      ),
+  );
+});
+
+export const processDueAddonPurchaseCheckouts = Effect.fn(
+  'processDueAddonPurchaseCheckouts',
+)(function* (options: ExpiredCheckoutCleanupOptions = {}) {
+  const now =
+    options.nowEpochSeconds === undefined
+      ? new Date(yield* Clock.currentTimeMillis)
+      : new Date(options.nowEpochSeconds * 1000);
+  const limit = normalizeExpiredCheckoutCleanupBatchSize(options.batchSize);
+  const [bound, unbound] = yield* Database.use((database) =>
+    Effect.all([
+      claimDueBoundAddonPurchaseCheckoutCandidates(database, { limit, now }),
+      selectExpiredUnboundAddonPurchaseCheckoutCandidates(database, {
+        limit,
+        now,
+      }),
+    ]),
+  );
+
+  let cancelled = 0;
+  let failed = 0;
+  let skipped = 0;
+  for (const candidate of unbound) {
+    const outcome = yield* Effect.result(
+      expirePaidAddonPurchaseCheckout({ ...candidate, now }),
+    );
+    if (Result.isFailure(outcome)) failed += 1;
+    else if (outcome.success === 'expired') cancelled += 1;
+    else skipped += 1;
+  }
+  for (const candidate of bound) {
+    const outcome = yield* Effect.result(
+      Effect.gen(function* () {
+        const session = yield* retrieveHostedCheckoutSession(
+          candidate.stripeCheckoutSessionId,
+          candidate.stripeAccountId,
+        );
+        if (
+          session.status === 'complete' &&
+          session.payment_status === 'paid'
+        ) {
+          yield* completePaidAddonPurchaseCheckout(candidate, session);
+          return 'completed' as const;
+        }
+        if (session.status === 'expired') {
+          return yield* expirePaidAddonPurchaseCheckout({ ...candidate, now });
+        }
+        if (session.status === 'open' && now >= candidate.expiresAt) {
+          const expiredSession = yield* expireHostedCheckoutSession(
+            candidate.stripeCheckoutSessionId,
+            candidate.stripeAccountId,
+          );
+          if (expiredSession.status === 'expired') {
+            return yield* expirePaidAddonPurchaseCheckout({
+              ...candidate,
+              now,
+            });
+          }
+        }
+        yield* rescheduleAddonPurchaseCheckout(candidate, {
+          noLaterThanExpiry:
+            session.status === 'open' && now < candidate.expiresAt,
+          now,
+        });
+        return 'skipped' as const;
+      }),
+    );
+    if (Result.isFailure(outcome)) {
+      failed += 1;
+      const error = checkoutReconcileFailureMessage(outcome.failure);
+      yield* rescheduleAddonPurchaseCheckout(candidate, {
+        error,
+        noLaterThanExpiry: false,
+        now,
+      }).pipe(Effect.ignore);
+      yield* Effect.logError(
+        'Failed to reconcile participant add-on Checkout',
+      ).pipe(
+        Effect.annotateLogs({
+          error,
+          orderId: candidate.orderId,
+          transactionId: candidate.transactionId,
+        }),
+      );
+    } else if (outcome.success === 'expired') {
+      cancelled += 1;
+    } else {
+      skipped += 1;
+    }
+  }
+
+  return {
+    cancelled,
+    failed,
+    scanned: bound.length + unbound.length,
+    skipped,
+  } satisfies ExpiredCheckoutCleanupSummary;
+});
+
 export const processExpiredRegistrationCheckouts = Effect.fn(
   'processExpiredRegistrationCheckouts',
 )(function* (options: ExpiredCheckoutCleanupOptions = {}) {
@@ -999,12 +1403,27 @@ export const processExpiredRegistrationCheckouts = Effect.fn(
   const bound = yield* processDueBoundRegistrationCheckouts(effectiveOptions);
   const transfers =
     yield* processExpiredRegistrationTransferCheckouts(effectiveOptions);
+  const addonPurchases =
+    yield* processDueAddonPurchaseCheckouts(effectiveOptions);
 
   return {
-    cancelled: unbound.cancelled + bound.cancelled + transfers.cancelled,
-    failed: unbound.failed + bound.failed + transfers.failed,
-    scanned: unbound.scanned + bound.scanned + transfers.scanned,
-    skipped: unbound.skipped + bound.skipped + transfers.skipped,
+    cancelled:
+      unbound.cancelled +
+      bound.cancelled +
+      transfers.cancelled +
+      addonPurchases.cancelled,
+    failed:
+      unbound.failed + bound.failed + transfers.failed + addonPurchases.failed,
+    scanned:
+      unbound.scanned +
+      bound.scanned +
+      transfers.scanned +
+      addonPurchases.scanned,
+    skipped:
+      unbound.skipped +
+      bound.skipped +
+      transfers.skipped +
+      addonPurchases.skipped,
   } satisfies ExpiredCheckoutCleanupSummary;
 });
 

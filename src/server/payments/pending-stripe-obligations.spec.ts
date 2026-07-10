@@ -7,7 +7,7 @@ const normalizeSql = (statement: string): string =>
   statement.replaceAll(/\s+/g, ' ').trim();
 
 describe('pending Stripe obligations', () => {
-  it('includes pending registration Checkouts and refunds for one tenant', () => {
+  it('includes pending registration, add-on, and refund obligations for one tenant', () => {
     const query = new PgDialect().sqlToQuery(
       pendingStripeObligationPredicate('tenant-1'),
     );
@@ -23,6 +23,7 @@ describe('pending Stripe obligations', () => {
       'tenant-1',
       'registration',
       'refund',
+      'addon',
     ]);
   });
 });

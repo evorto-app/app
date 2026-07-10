@@ -71,6 +71,27 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.tenants.id,
     }),
   },
+  eventRegistrationAddonPurchaseOrders: {
+    addOn: r.one.eventAddons({
+      from: r.eventRegistrationAddonPurchaseOrders.addonId,
+      optional: false,
+      to: r.eventAddons.id,
+    }),
+    registration: r.one.eventRegistrations({
+      from: r.eventRegistrationAddonPurchaseOrders.registrationId,
+      optional: false,
+      to: r.eventRegistrations.id,
+    }),
+    requestedBy: r.one.users({
+      from: r.eventRegistrationAddonPurchaseOrders.requestedByUserId,
+      optional: false,
+      to: r.users.id,
+    }),
+    transaction: r.one.transactions({
+      from: r.eventRegistrationAddonPurchaseOrders.transactionId,
+      to: r.transactions.id,
+    }),
+  },
   eventRegistrationAddonPurchases: {
     addOn: r.one.eventAddons({
       from: r.eventRegistrationAddonPurchases.addonId,
@@ -129,6 +150,7 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   eventRegistrations: {
+    addonPurchaseOrders: r.many.eventRegistrationAddonPurchaseOrders(),
     addonPurchases: r.many.eventRegistrationAddonPurchases(),
     event: r.one.eventInstances({
       from: r.eventRegistrations.eventId,

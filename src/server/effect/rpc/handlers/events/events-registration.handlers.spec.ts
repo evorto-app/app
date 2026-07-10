@@ -503,6 +503,7 @@ const createNonStripeAddonCancellationDatabase = ({
     stripeFee: mixedPaymentMethods ? 50 : null,
     stripeNetAmount: mixedPaymentMethods ? 1350 : null,
     stripePaymentIntentId: mixedPaymentMethods ? 'pi_registration' : null,
+    targetUserId: 'attendee-1',
     type: 'registration' as const,
   };
   const addonSourceTransaction = {
@@ -547,14 +548,19 @@ const createNonStripeAddonCancellationDatabase = ({
     redeemedQuantity: 1,
   };
   const lot = {
+    applicationFeeAmount: grossAmount === null ? null : 0,
     baseAmount: 1000,
     cancelledQuantity: 1,
     grossAmount,
     id: 'lot-1',
+    netAmount: grossAmount,
+    paymentAllocationFinalizedAt:
+      grossAmount === null ? null : new Date('2026-07-10T12:00:00.000Z'),
     quantity: 4,
     redeemedQuantity: 1,
     refundAllocatedQuantity: 0,
     sourceTransactionId: lotSourceTransactionId,
+    stripeFeeAmount: grossAmount === null ? null : 0,
     unitPrice: 250,
   };
   const tx = {
@@ -659,6 +665,161 @@ const createNonStripeAddonCancellationDatabase = ({
   };
 };
 
+const createStripeAddonOnlyCancellationDatabase = () => {
+  const insertedRefundAllocations: Record<string, unknown>[] = [];
+  const insertedTransactions: Record<string, unknown>[] = [];
+  const sourceTransaction = {
+    amount: 1000,
+    appFee: 100,
+    currency: 'EUR' as const,
+    eventId: 'event-1',
+    eventRegistrationId: 'registration-1',
+    id: 'addon-transaction-1',
+    method: 'stripe' as const,
+    status: 'successful' as const,
+    stripeAccountId: 'acct_persisted',
+    stripeChargeId: 'ch_addon',
+    stripeCheckoutSessionId: 'checkout-addon-1',
+    stripeFee: 50,
+    stripeNetAmount: 850,
+    stripePaymentIntentId: 'pi_addon',
+    targetUserId: 'attendee-1',
+    tenantId: 'tenant-1',
+    type: 'addon' as const,
+  };
+  const purchase = {
+    addonId: 'addon-1',
+    cancelledQuantity: 0,
+    id: 'purchase-1',
+    includedQuantity: 0,
+    purchasedQuantity: 4,
+    quantity: 4,
+    redeemedQuantity: 1,
+  };
+  const lot = {
+    applicationFeeAmount: 100,
+    baseAmount: 1000,
+    cancelledQuantity: 0,
+    currency: 'EUR' as const,
+    grossAmount: 1000,
+    id: 'lot-1',
+    netAmount: 850,
+    paymentAllocationFinalizedAt: new Date('2026-07-10T12:00:00.000Z'),
+    quantity: 4,
+    redeemedQuantity: 1,
+    refundAllocatedApplicationFeeAmount: 0,
+    refundAllocatedGrossAmount: 0,
+    refundAllocatedNetAmount: 0,
+    refundAllocatedQuantity: 0,
+    sourceTransactionId: sourceTransaction.id,
+    stripeFeeAmount: 50,
+    taxRateInclusive: null,
+    taxRatePercentage: null,
+    unitPrice: 250,
+  };
+  const tx = {
+    ...createCancellationTransactionSelect({
+      addonLots: [lot],
+      addonPurchases: [purchase],
+      status: 'CONFIRMED',
+      transactions: [sourceTransaction],
+    }),
+    insert: (table: unknown) => ({
+      values: (values: Record<string, unknown>) => {
+        if (table === transactions) {
+          insertedTransactions.push(values);
+          return {
+            onConflictDoNothing: () => ({
+              returning: () => Effect.succeed([{ id: String(values['id']) }]),
+            }),
+          };
+        }
+        if (table === eventRegistrationAddonRefundAllocations) {
+          insertedRefundAllocations.push(values);
+        }
+        return Effect.void;
+      },
+    }),
+    update: (table: unknown) => ({
+      set: (values: Record<string, unknown>) => ({
+        where: () => {
+          if (
+            table === eventRegistrationAddonPurchaseLots ||
+            table === eventRegistrationAddonFulfillmentEvents
+          ) {
+            return Effect.void;
+          }
+          if (
+            table === eventRegistrationAddonPurchases &&
+            'refundAllocatedPurchasedQuantity' in values
+          ) {
+            return Effect.void;
+          }
+          if (table === transactions) {
+            return {
+              returning: () => Effect.succeed([]),
+            };
+          }
+          return {
+            returning: () => Effect.succeed([{ id: 'updated' }]),
+          };
+        },
+      }),
+    }),
+  };
+  const database = {
+    query: {
+      eventRegistrations: {
+        findFirst: () =>
+          Effect.succeed({
+            addonPurchases: [
+              {
+                addonId: purchase.addonId,
+                purchasedQuantity: purchase.purchasedQuantity,
+                quantity: purchase.quantity,
+              },
+            ],
+            checkInTime: null,
+            event: {
+              start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+            eventId: 'event-1',
+            guestCount: 0,
+            id: 'registration-1',
+            registrationOption: {
+              cancellationDeadlineHoursBeforeStart: 0,
+              id: 'option-1',
+              refundFeesOnCancellation: true,
+            },
+            registrationOptionId: 'option-1',
+            status: 'CONFIRMED',
+            transactions: [sourceTransaction],
+            userId: 'attendee-1',
+          }),
+      },
+    },
+    select: () => ({
+      from: (table: unknown) => ({
+        where: () =>
+          table === transactions
+            ? {
+                limit: () => Effect.succeed([sourceTransaction]),
+              }
+            : Effect.succeed(
+                table === eventRegistrationAddonPurchaseLots
+                  ? [{ sourceTransactionId: sourceTransaction.id }]
+                  : [],
+              ),
+      }),
+    }),
+    transaction: vi.fn((callback: (transaction: typeof tx) => unknown) =>
+      callback(tx),
+    ),
+  };
+
+  return { database, insertedRefundAllocations, insertedTransactions };
+};
+
 const createTransferDatabase = ({
   activeTargetRegistrations = [],
   concurrentTargetRegistration = null,
@@ -732,7 +893,7 @@ const createTransferDatabase = ({
     transactions: readonly {
       amount: number;
       status: 'cancelled' | 'pending' | 'successful';
-      type: 'other' | 'refund' | 'registration';
+      type: 'addon' | 'other' | 'refund' | 'registration';
     }[];
     user?: {
       communicationEmail: string;
@@ -807,9 +968,12 @@ const createTransferDatabase = ({
         };
       }
       return {
-        where: () => ({
-          limit: () => Effect.succeed([]),
-        }),
+        where: () =>
+          Object.assign(Effect.succeed([]), {
+            for: () => Effect.succeed([]),
+            limit: () => Effect.succeed([]),
+            orderBy: () => ({ for: () => Effect.succeed([]) }),
+          }),
       };
     },
   });
@@ -1767,6 +1931,7 @@ describe('event registration cancellation handlers', () => {
                 stripeChargeId: null,
                 stripeCheckoutSessionId: 'checkout-1',
                 stripePaymentIntentId: null,
+                targetUserId: 'attendee-1',
                 type: 'registration',
               },
             ],
@@ -1822,6 +1987,7 @@ describe('event registration cancellation handlers', () => {
                       method: 'cash',
                       status: 'successful',
                       stripeCheckoutSessionId: 'checkout-1',
+                      targetUserId: 'attendee-1',
                       type: 'registration',
                     },
                   ],
@@ -1999,6 +2165,54 @@ describe('event registration cancellation handlers', () => {
         expect(error.message).toContain('pending manual refund review');
         expect(insertedTransactions).toEqual([]);
         expect(writeCount()).toBe(0);
+      }),
+  );
+
+  it.effect(
+    'creates an exact Stripe refund claim when a free registration has only a paid add-on source',
+    () =>
+      Effect.gen(function* () {
+        const { database, insertedRefundAllocations, insertedTransactions } =
+          createStripeAddonOnlyCancellationDatabase();
+
+        const outcome = yield* cancelRegistrationForTenant({
+          cancelledBy: 'organizer',
+          enforceParticipantDeadline: false,
+          executiveUserId: 'organizer-1',
+          registrationId: 'registration-1',
+          targetTenant: tenant,
+        }).pipe(Effect.provide(createContextLayer({ database })));
+
+        expect(outcome).toEqual(
+          expect.objectContaining({
+            refundClaimId: expect.any(String),
+            refundTransactionId: expect.any(String),
+            status: 'cancelled',
+          }),
+        );
+        expect(insertedTransactions).toEqual([
+          expect.objectContaining({
+            amount: -750,
+            eventRegistrationId: 'registration-1',
+            method: 'stripe',
+            sourceTransactionId: 'addon-transaction-1',
+            status: 'pending',
+            targetUserId: 'attendee-1',
+            type: 'refund',
+          }),
+        ]);
+        expect(insertedRefundAllocations).toEqual([
+          expect.objectContaining({
+            applicationFeeAmount: 75,
+            fulfillmentEventId: expect.any(String),
+            grossEntitlementAmount: 750,
+            netEntitlementAmount: 638,
+            purchaseId: 'purchase-1',
+            purchaseLotId: 'lot-1',
+            quantity: 3,
+            refundAmount: 750,
+          }),
+        ]);
       }),
   );
 
@@ -3335,8 +3549,52 @@ describe('event registration transfer handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Paid registration transfer is not available until the refund/resale flow is implemented',
+          'Registrations with a paid registration or paid add-on cannot be transferred until multi-source transfer refunds are implemented',
         );
+        expect(updateSets).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    'rejects direct transfer when the registration has a completed paid add-on',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          registration: {
+            appliedDiscountedPrice: null,
+            appliedDiscountType: null,
+            checkInTime: null,
+            event: {
+              start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+            eventId: 'event-1',
+            id: 'registration-1',
+            registrationOptionId: 'option-1',
+            status: 'CONFIRMED',
+            transactions: [
+              {
+                amount: 1200,
+                status: 'successful',
+                type: 'addon',
+              },
+            ],
+            userId: 'attendee-1',
+          },
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferEventRegistration'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            targetUserId: 'target-user-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toContain('paid registration or paid add-on');
         expect(updateSets).toEqual([]);
       }),
   );

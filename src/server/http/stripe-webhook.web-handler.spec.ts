@@ -27,6 +27,7 @@ const persistedBinding = {
   id: 'transaction-1',
   method: 'stripe',
   status: 'pending',
+  stripeAccountId: 'acct_tenant',
   stripeCheckoutSessionId: 'checkout-1',
   stripePaymentIntentId: null,
   tenantId: 'tenant-1',
@@ -167,6 +168,7 @@ describe('validateCheckoutSessionBinding', () => {
       stripeAccountId: 'acct_tenant',
       tenantId: 'tenant-1',
       transactionId: 'transaction-1',
+      transactionType: 'registration',
       type: 'resolved',
     });
   });
@@ -178,6 +180,19 @@ describe('validateCheckoutSessionBinding', () => {
         metadata: null,
       }),
     ).toMatchObject({ type: 'resolved' });
+  });
+
+  it('dispatches add-on Checkout only from an exact persisted add-on transaction', () => {
+    expect(
+      validateCheckoutSessionBinding({
+        ...validBindingInput,
+        persisted: { ...persistedBinding, type: 'addon' },
+      }),
+    ).toMatchObject({
+      transactionId: 'transaction-1',
+      transactionType: 'addon',
+      type: 'resolved',
+    });
   });
 
   it('rejects partial or conflicting metadata', () => {
@@ -199,6 +214,12 @@ describe('validateCheckoutSessionBinding', () => {
   });
 
   it('rejects a missing or mismatched connected account', () => {
+    expect(
+      validateCheckoutSessionBinding({
+        ...validBindingInput,
+        persisted: { ...persistedBinding, stripeAccountId: null },
+      }),
+    ).toMatchObject({ type: 'invalid-binding' });
     expect(
       validateCheckoutSessionBinding({
         ...validBindingInput,

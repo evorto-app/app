@@ -37,6 +37,7 @@ import {
   eventInstances,
   eventRegistrationAddonFulfillmentEvents,
   eventRegistrationAddonPurchaseLots,
+  eventRegistrationAddonPurchaseOrders,
   eventRegistrationAddonPurchases,
   eventRegistrationAddonRefundAllocations,
   eventRegistrationOptions,
@@ -156,7 +157,7 @@ const hasSuccessfulPaidRegistrationTransaction = (
 ) =>
   transactionsToCheck.some(
     (transaction) =>
-      transaction.type === 'registration' &&
+      (transaction.type === 'registration' || transaction.type === 'addon') &&
       transaction.status === 'successful' &&
       transaction.amount > 0,
   );
@@ -889,6 +890,7 @@ export const cancelRegistrationForTenant = Effect.fn(
               stripeFee: transactions.stripeFee,
               stripeNetAmount: transactions.stripeNetAmount,
               stripePaymentIntentId: transactions.stripePaymentIntentId,
+              targetUserId: transactions.targetUserId,
               type: transactions.type,
             })
             .from(transactions)
@@ -907,13 +909,60 @@ export const cancelRegistrationForTenant = Effect.fn(
               currentTransaction.method === 'stripe' &&
               currentTransaction.type === 'registration',
           );
-          const successfulPaidRegistrationTransaction =
-            lockedRegistrationTransactions.find(
-              (currentTransaction) =>
-                currentTransaction.type === 'registration' &&
-                currentTransaction.status === 'successful' &&
-                currentTransaction.amount > 0,
+          const pendingAddonTransaction = lockedRegistrationTransactions.find(
+            (currentTransaction) =>
+              currentTransaction.status === 'pending' &&
+              currentTransaction.method === 'stripe' &&
+              currentTransaction.type === 'addon',
+          );
+          if (pendingAddonTransaction) {
+            const pendingAddonOrders = yield* tx
+              .select({ id: eventRegistrationAddonPurchaseOrders.id })
+              .from(eventRegistrationAddonPurchaseOrders)
+              .where(
+                and(
+                  eq(
+                    eventRegistrationAddonPurchaseOrders.registrationId,
+                    lockedRegistration.id,
+                  ),
+                  eq(
+                    eventRegistrationAddonPurchaseOrders.status,
+                    'pending_payment',
+                  ),
+                  eq(eventRegistrationAddonPurchaseOrders.tenantId, tenant.id),
+                  eq(
+                    eventRegistrationAddonPurchaseOrders.transactionId,
+                    pendingAddonTransaction.id,
+                  ),
+                ),
+              )
+              .for('update');
+            if (pendingAddonOrders.length !== 1) {
+              return yield* Effect.fail(
+                new EventRegistrationInternalError({
+                  message:
+                    'Pending add-on payment ownership is inconsistent, so this request did not cancel the registration or release inventory.',
+                }),
+              );
+            }
+            return yield* Effect.fail(
+              new EventRegistrationConflictError({
+                message:
+                  'An add-on payment is still in progress. Finish or let that Checkout expire before cancelling the registration.',
+              }),
             );
+          }
+          const successfulPaymentSources =
+            lockedRegistrationTransactions.filter(
+              (transaction) =>
+                (transaction.type === 'registration' ||
+                  transaction.type === 'addon') &&
+                transaction.status === 'successful' &&
+                transaction.amount > 0,
+            );
+          const shouldRefundPaidSources =
+            lockedRegistration.status === 'CONFIRMED' &&
+            successfulPaymentSources.length > 0;
           if (lockedRegistration.status === 'CANCELLED') {
             if (expiredCheckout) {
               const checkoutCancellationAlreadyFinalized =
@@ -1097,30 +1146,23 @@ export const cancelRegistrationForTenant = Effect.fn(
                   .for('update');
           if (
             lockedRegistration.status === 'CONFIRMED' &&
-            successfulPaidRegistrationTransaction
+            successfulPaymentSources.length > 0
           ) {
             const successfulRegistrationSources =
-              lockedRegistrationTransactions.filter(
-                (transaction) =>
-                  transaction.type === 'registration' &&
-                  transaction.status === 'successful' &&
-                  transaction.amount > 0,
-              );
-            const successfulPaymentSources =
-              lockedRegistrationTransactions.filter(
-                (transaction) =>
-                  (transaction.type === 'registration' ||
-                    transaction.type === 'addon') &&
-                  transaction.status === 'successful' &&
-                  transaction.amount > 0,
+              successfulPaymentSources.filter(
+                (transaction) => transaction.type === 'registration',
               );
             const sourceById = new Map(
               successfulPaymentSources.map((source) => [source.id, source]),
             );
-            const registrationSource = successfulRegistrationSources[0];
+            const referenceSource = successfulPaymentSources[0];
             const hasMixedPaymentMethods = successfulPaymentSources.some(
-              (source) => source.method !== registrationSource?.method,
+              (source) => source.method !== referenceSource?.method,
             );
+            const hasPaymentSourceOwnershipMismatch =
+              successfulPaymentSources.some(
+                (source) => source.targetUserId !== lockedRegistration.userId,
+              );
             const positiveLots = lockedAddonLots.filter(
               (lot) =>
                 lot.baseAmount > 0 ||
@@ -1135,11 +1177,12 @@ export const cancelRegistrationForTenant = Effect.fn(
                 lot.sourceTransactionId !== null &&
                 !sourceById.has(lot.sourceTransactionId),
             );
-            const hasUnfinalizedNonStripeLot = positiveLots.some((lot) => {
-              if (!lot.sourceTransactionId) return false;
-              const source = sourceById.get(lot.sourceTransactionId);
-              return source?.method !== 'stripe' && lot.grossAmount === null;
-            });
+            const hasUnfinalizedPositiveLot = positiveLots.some(
+              (lot) =>
+                lot.grossAmount === null ||
+                lot.netAmount === null ||
+                lot.applicationFeeAmount === null,
+            );
             const sourceIdsWithPositiveLots = new Set(
               positiveLots.flatMap((lot) =>
                 lot.sourceTransactionId ? [lot.sourceTransactionId] : [],
@@ -1151,11 +1194,12 @@ export const cancelRegistrationForTenant = Effect.fn(
                 !sourceIdsWithPositiveLots.has(source.id),
             );
             if (
-              successfulRegistrationSources.length !== 1 ||
+              successfulRegistrationSources.length > 1 ||
               hasMixedPaymentMethods ||
+              hasPaymentSourceOwnershipMismatch ||
               hasUnassignedPositiveLot ||
               hasUnknownPositiveLotSource ||
-              hasUnfinalizedNonStripeLot ||
+              hasUnfinalizedPositiveLot ||
               hasUnassignedAddonSource
             ) {
               return yield* Effect.fail(
@@ -1241,29 +1285,25 @@ export const cancelRegistrationForTenant = Effect.fn(
             lockedRegistrationOption.refundFeesOnCancellation,
             lockedTenant.refundFeesOnCancellation,
           );
-          const stripeRefundTerms =
-            successfulPaidRegistrationTransaction?.method === 'stripe'
-              ? registrationCancellationStripeRefundTerms({
-                  grossAmount: successfulPaidRegistrationTransaction.amount,
+          const invalidStripeSource = successfulPaymentSources.find(
+            (source) =>
+              source.method === 'stripe' &&
+              (source.stripeAccountId !== lockedTenant.stripeAccountId ||
+                source.appFee === null ||
+                source.stripeFee === null ||
+                source.stripeNetAmount === null ||
+                !hasStripeRefundReference(source) ||
+                !registrationCancellationStripeRefundTerms({
+                  grossAmount: source.amount,
                   refundFeesOnCancellation,
-                  stripeNetAmount:
-                    successfulPaidRegistrationTransaction.stripeNetAmount,
-                })
-              : undefined;
-          if (
-            successfulPaidRegistrationTransaction?.method === 'stripe' &&
-            (successfulPaidRegistrationTransaction.stripeAccountId !==
-              lockedTenant.stripeAccountId ||
-              successfulPaidRegistrationTransaction.appFee === null ||
-              successfulPaidRegistrationTransaction.stripeFee === null ||
-              successfulPaidRegistrationTransaction.stripeNetAmount === null ||
-              !successfulPaidRegistrationTransaction.stripeChargeId ||
-              !stripeRefundTerms)
-          ) {
+                  stripeNetAmount: source.stripeNetAmount,
+                })),
+          );
+          if (shouldRefundPaidSources && invalidStripeSource) {
             return yield* Effect.fail(
               new EventRegistrationConflictError({
                 message:
-                  'Payment fees or Stripe account ownership changed during cancellation, so this request did not cancel the registration, create a refund, or release its spots. Reconcile the payment and retry cancellation.',
+                  'Payment fees or Stripe account ownership changed for a registration or add-on source, so this request did not cancel the registration, create a refund, or release inventory. Reconcile the payment and retry cancellation.',
               }),
             );
           }
@@ -1278,10 +1318,7 @@ export const cancelRegistrationForTenant = Effect.fn(
                   },
               eventId: lockedRegistration.eventId,
               reason: `Registration cancelled by ${cancelledBy}`,
-              refundRequested: Boolean(
-                lockedRegistration.status === 'CONFIRMED' &&
-                successfulPaidRegistrationTransaction,
-              ),
+              refundRequested: shouldRefundPaidSources,
               registrationId: lockedRegistration.id,
               tenantId: tenant.id,
             });
@@ -1369,39 +1406,16 @@ export const cancelRegistrationForTenant = Effect.fn(
 
           let refundTransactionId: null | string = null;
           let stripeRefundClaimId: null | string = null;
-          if (
-            lockedRegistration.status === 'CONFIRMED' &&
-            successfulPaidRegistrationTransaction
-          ) {
+          if (shouldRefundPaidSources) {
             const cancellationEventIds = new Set(
               addonCancellationAllocations.map(
                 ({ fulfillmentEventId }) => fulfillmentEventId,
               ),
             );
             const monetaryCancellationEventIds = new Set<string>();
-            if (successfulPaidRegistrationTransaction.method === 'stripe') {
-              if (
-                !successfulPaidRegistrationTransaction.stripeAccountId ||
-                !hasStripeRefundReference(
-                  successfulPaidRegistrationTransaction,
-                ) ||
-                !stripeRefundTerms
-              ) {
-                return yield* Effect.fail(
-                  new EventRegistrationInternalError({
-                    message:
-                      'The paid registration is missing its persisted Stripe refund ownership, so this request did not cancel the registration or release its spot. Reconcile the payment and retry cancellation.',
-                  }),
-                );
-              }
-
-              const stripeSources = lockedRegistrationTransactions.filter(
-                (transaction) =>
-                  transaction.method === 'stripe' &&
-                  transaction.status === 'successful' &&
-                  transaction.amount > 0 &&
-                  (transaction.type === 'registration' ||
-                    transaction.type === 'addon'),
+            if (successfulPaymentSources[0]?.method === 'stripe') {
+              const stripeSources = successfulPaymentSources.filter(
+                (transaction) => transaction.method === 'stripe',
               );
               for (const source of stripeSources) {
                 if (
@@ -1559,24 +1573,12 @@ export const cancelRegistrationForTenant = Effect.fn(
                 }
               }
             } else {
-              const nonStripeSources = lockedRegistrationTransactions.filter(
+              const nonStripeSources = successfulPaymentSources.filter(
                 (
                   transaction,
                 ): transaction is typeof transaction & {
                   type: 'addon' | 'registration';
-                } =>
-                  transaction.method !== 'stripe' &&
-                  transaction.status === 'successful' &&
-                  transaction.amount > 0 &&
-                  (transaction.type === 'registration' ||
-                    transaction.type === 'addon'),
-              );
-              const hasMixedStripeSource = lockedRegistrationTransactions.some(
-                (transaction) =>
-                  transaction.method === 'stripe' &&
-                  transaction.status === 'successful' &&
-                  transaction.amount > 0 &&
-                  transaction.type === 'addon',
+                } => transaction.method !== 'stripe',
               );
               const nonStripeSourceIds = new Set(
                 nonStripeSources.map(({ id }) => id),
@@ -1597,11 +1599,7 @@ export const cancelRegistrationForTenant = Effect.fn(
               const manualReviewPlan = plans.find(
                 ({ plan }) => plan._tag === 'ManualReviewRequired',
               );
-              if (
-                hasMixedStripeSource ||
-                hasUnownedSourceLot ||
-                manualReviewPlan
-              ) {
+              if (hasUnownedSourceLot || manualReviewPlan) {
                 const detail =
                   manualReviewPlan?.plan._tag === 'ManualReviewRequired'
                     ? ` ${manualReviewPlan.plan.reason}`
@@ -2115,7 +2113,7 @@ const transferEventRegistration = ({
       return yield* Effect.fail(
         new EventRegistrationConflictError({
           message:
-            'Paid registration transfer is not available until the refund/resale flow is implemented',
+            'Registrations with a paid registration or paid add-on cannot be transferred until multi-source transfer refunds are implemented',
         }),
       );
     }
@@ -2312,6 +2310,105 @@ const transferEventRegistration = ({
               });
             if (activeTargetRegistrations.length > 0) {
               return { _tag: 'AlreadyRegistered' } as const;
+            }
+
+            const pendingAddonOrderCandidates = yield* tx
+              .select({
+                id: eventRegistrationAddonPurchaseOrders.id,
+                transactionId:
+                  eventRegistrationAddonPurchaseOrders.transactionId,
+              })
+              .from(eventRegistrationAddonPurchaseOrders)
+              .where(
+                and(
+                  eq(
+                    eventRegistrationAddonPurchaseOrders.registrationId,
+                    registration.id,
+                  ),
+                  eq(
+                    eventRegistrationAddonPurchaseOrders.status,
+                    'pending_payment',
+                  ),
+                  eq(eventRegistrationAddonPurchaseOrders.tenantId, tenant.id),
+                ),
+              )
+              .limit(1);
+            const pendingAddonOrder = pendingAddonOrderCandidates[0];
+            if (pendingAddonOrder?.transactionId) {
+              const pendingAddonTransactions = yield* tx
+                .select({ id: transactions.id })
+                .from(transactions)
+                .where(
+                  and(
+                    eq(transactions.id, pendingAddonOrder.transactionId),
+                    eq(transactions.eventRegistrationId, registration.id),
+                    eq(transactions.method, 'stripe'),
+                    eq(transactions.status, 'pending'),
+                    eq(transactions.tenantId, tenant.id),
+                    eq(transactions.type, 'addon'),
+                  ),
+                )
+                .for('update');
+              const lockedAddonOrders = yield* tx
+                .select({ id: eventRegistrationAddonPurchaseOrders.id })
+                .from(eventRegistrationAddonPurchaseOrders)
+                .where(
+                  and(
+                    eq(
+                      eventRegistrationAddonPurchaseOrders.id,
+                      pendingAddonOrder.id,
+                    ),
+                    eq(
+                      eventRegistrationAddonPurchaseOrders.status,
+                      'pending_payment',
+                    ),
+                    eq(
+                      eventRegistrationAddonPurchaseOrders.transactionId,
+                      pendingAddonOrder.transactionId,
+                    ),
+                  ),
+                )
+                .for('update');
+              if (
+                pendingAddonTransactions.length !== 1 ||
+                lockedAddonOrders.length !== 1
+              ) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message:
+                      'Pending add-on payment ownership changed before the registration transfer could start',
+                  }),
+                );
+              }
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'Finish or let the pending add-on Checkout expire before transferring this registration.',
+                }),
+              );
+            }
+
+            const successfulPaidAddonTransactions = yield* tx
+              .select({ id: transactions.id })
+              .from(transactions)
+              .where(
+                and(
+                  eq(transactions.eventRegistrationId, registration.id),
+                  eq(transactions.status, 'successful'),
+                  eq(transactions.tenantId, tenant.id),
+                  eq(transactions.type, 'addon'),
+                  sql`${transactions.amount} > 0`,
+                ),
+              )
+              .orderBy(transactions.id)
+              .for('update');
+            if (successfulPaidAddonTransactions.length > 0) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'Registrations with a paid add-on cannot be transferred until multi-source transfer refunds are implemented.',
+                }),
+              );
             }
 
             const activeRegistrationLimit = Math.max(

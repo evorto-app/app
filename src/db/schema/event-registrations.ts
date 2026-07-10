@@ -28,6 +28,8 @@ export const eventRegistrationOptionEventForeignKeyName =
   'event_registrations_option_event_fk';
 export const eventRegistrationTenantIdentityUniqueConstraintName =
   'event_registrations_id_tenant_unique';
+export const eventRegistrationPurchaseOwnerUniqueConstraintName =
+  'event_registrations_purchase_owner_unique';
 
 export const eventRegistrations = pgTable(
   'event_registrations',
@@ -77,6 +79,12 @@ export const eventRegistrations = pgTable(
     index('event_registrations_active_tenant_user_idx')
       .on(table.tenantId, table.userId)
       .where(sql`${table.status} <> 'CANCELLED'`),
+    unique(eventRegistrationPurchaseOwnerUniqueConstraintName).on(
+      table.id,
+      table.eventId,
+      table.registrationOptionId,
+      table.tenantId,
+    ),
     uniqueIndex(activeEventRegistrationUniqueIndexName)
       .on(table.eventId, table.userId)
       .where(sql`${table.status} <> 'CANCELLED'`),

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from '@effect/vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { Effect } from 'effect';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../db';
@@ -8,9 +10,12 @@ import { StripeClient } from '../stripe-client';
 import {
   boundExpiredCheckoutReconciliationAction,
   checkoutReconcileBackoffMs,
+  claimedAddonPurchaseCheckoutPredicate,
+  dueBoundAddonPurchaseCheckoutPredicate,
   dueBoundRegistrationCheckoutPredicate,
   expiredBoundRegistrationClaimPredicate,
   expiredUnboundRegistrationClaimPredicate,
+  nextAddonPurchaseCheckoutReconcileAt,
   nextRegistrationCheckoutReconcileAt,
   normalizeExpiredCheckoutCleanupBatchSize,
   reconcileExpiredBoundRegistrationCheckout,
@@ -101,6 +106,133 @@ describe('expired checkout cleanup', () => {
         now,
       }),
     ).toEqual(new Date('2026-07-10T12:00:10.000Z'));
+  });
+
+  it('matches only due unleased bound add-on Checkout claims', () => {
+    const now = new Date('2026-07-10T12:00:00.000Z');
+    const query = new PgDialect().sqlToQuery(
+      dueBoundAddonPurchaseCheckoutPredicate(now),
+    );
+
+    expect(query.sql).toContain(
+      '"event_registration_addon_purchase_orders"."status" =',
+    );
+    expect(query.sql).toContain(
+      '"transactions"."stripe_checkout_request" is not null',
+    );
+    expect(query.sql).toContain(
+      '"transactions"."stripeCheckoutSessionId" is not null',
+    );
+    expect(query.sql).toContain(
+      '"transactions"."stripe_checkout_reconcile_next_at"',
+    );
+    expect(query.sql).toContain(
+      '"transactions"."stripe_checkout_reconcile_lease_expires_at"',
+    );
+    expect(query.params).toEqual([
+      'pending_payment',
+      'stripe',
+      'pending',
+      'addon',
+      now.toISOString(),
+      now.toISOString(),
+    ]);
+  });
+
+  it('reschedules only the worker that still owns the exact add-on lease', () => {
+    const query = new PgDialect().sqlToQuery(
+      claimedAddonPurchaseCheckoutPredicate({
+        attempts: 3,
+        expiresAt: new Date('2026-07-10T12:30:00.000Z'),
+        leaseId: 'lease-1',
+        orderId: 'order-1',
+        registrationId: 'registration-1',
+        stripeAccountId: 'acct_1',
+        stripeCheckoutSessionId: 'cs_1',
+        tenantId: 'tenant-1',
+        transactionId: 'transaction-1',
+      }),
+    );
+
+    expect(query.params).toEqual([
+      'transaction-1',
+      'registration-1',
+      'stripe',
+      'pending',
+      'acct_1',
+      'lease-1',
+      'cs_1',
+      'tenant-1',
+      'addon',
+    ]);
+  });
+
+  it('backs add-on retries off by attempt and clamps only open sessions to expiry', () => {
+    const now = new Date('2026-07-10T12:00:00.000Z');
+    const candidate = {
+      attempts: 4,
+      expiresAt: new Date('2026-07-10T12:00:10.000Z'),
+    };
+
+    expect(
+      nextAddonPurchaseCheckoutReconcileAt(candidate, {
+        noLaterThanExpiry: true,
+        now,
+      }),
+    ).toEqual(candidate.expiresAt);
+    expect(
+      nextAddonPurchaseCheckoutReconcileAt(candidate, {
+        noLaterThanExpiry: false,
+        now,
+      }),
+    ).toEqual(new Date('2026-07-10T12:00:40.000Z'));
+  });
+
+  it('claims add-on Checkouts fairly with row locks and clears terminal leases', () => {
+    const cleanupSource = readFileSync(
+      fileURLToPath(new URL('expired-checkout-cleanup.ts', import.meta.url)),
+      'utf8',
+    );
+    const claimStart = cleanupSource.indexOf(
+      'export const claimDueBoundAddonPurchaseCheckoutCandidates',
+    );
+    const unboundStart = cleanupSource.indexOf(
+      'const selectExpiredUnboundAddonPurchaseCheckoutCandidates',
+      claimStart,
+    );
+    const claimSource = cleanupSource.slice(claimStart, unboundStart);
+
+    expect(claimStart).toBeGreaterThanOrEqual(0);
+    expect(unboundStart).toBeGreaterThan(claimStart);
+    expect(claimSource).toContain(
+      'sql`${transactions.stripeCheckoutReconcileNextAt} asc nulls first`',
+    );
+    expect(claimSource).toContain(
+      ".for('update', { of: transactions, skipLocked: true })",
+    );
+    expect(claimSource).toContain('exists(');
+    expect(claimSource).toContain(
+      'eventRegistrationAddonPurchaseOrders.transactionId',
+    );
+    expect(claimSource).toContain(
+      'eventRegistrationAddonPurchaseOrders.registrationId',
+    );
+    expect(claimSource).toContain(
+      'eventRegistrationAddonPurchaseOrders.tenantId',
+    );
+
+    const checkoutSource = readFileSync(
+      fileURLToPath(new URL('addon-purchase-checkout.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(
+      checkoutSource.match(/stripeCheckoutReconcileLeaseExpiresAt: null/g)
+        ?.length ?? 0,
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      checkoutSource.match(/stripeCheckoutReconcileLeaseId: null/g)?.length ??
+        0,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it('leaves only unbound expired transfers to the transfer-specific pass', () => {

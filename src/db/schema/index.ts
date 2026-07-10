@@ -4,6 +4,7 @@ export * from './event-instances';
 export * from './event-registration-addon-fulfillment-allocations';
 export * from './event-registration-addon-fulfillment-events';
 export * from './event-registration-addon-purchase-lots';
+export * from './event-registration-addon-purchase-orders';
 export * from './event-registration-addon-purchases';
 export * from './event-registration-addon-refund-allocations';
 export * from './event-registration-option-discounts';

@@ -9,13 +9,13 @@ export const pendingStripeObligationPredicate = (tenantId: string) =>
     eq(transactions.method, 'stripe'),
     eq(transactions.status, 'pending'),
     eq(transactions.tenantId, tenantId),
-    inArray(transactions.type, ['registration', 'refund']),
+    inArray(transactions.type, ['registration', 'refund', 'addon']),
   );
 
 /**
- * A pending registration Checkout or registration refund is owned by its
- * persisted Connect account. Account changes stay blocked until every such
- * obligation reaches a durable terminal outcome.
+ * A pending registration/add-on Checkout or registration refund is owned by
+ * its persisted Connect account. Account changes stay blocked until every
+ * such obligation reaches a durable terminal outcome.
  */
 export const tenantHasPendingStripeObligations = Effect.fn(
   'tenantHasPendingStripeObligations',
