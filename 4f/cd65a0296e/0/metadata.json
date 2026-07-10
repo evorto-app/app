@@ -1,0 +1,76 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "4fcd65a0296e",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-10T15:46:48.842597Z",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/server/http/stripe-webhook.web-handler.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "5043562dbba9",
+  "checkpoint_transcript_start": 11384,
+  "transcript_lines_at_start": 11384,
+  "token_usage": {
+    "input_tokens": 160787,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 22206208,
+    "output_tokens": 15414,
+    "api_call_count": 98
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-10T15:46:48.480966Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 26,
+    "total_committed": 0,
+    "total_lines_changed": 26,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 2884,
+      "user_lines_removed": 52,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "src/app/global-admin/platform-event-operations/platform-scanner.component.html": 2,
+        "src/app/global-admin/platform-event-operations/platform-scanner.component.spec.ts": 26,
+        "src/app/global-admin/platform-event-operations/platform-scanner.component.ts": 6,
+        "src/db/relations.ts": 22,
+        "src/db/schema/event-registration-addon-purchase-orders.spec.ts": 93,
+        "src/db/schema/event-registration-addon-purchase-orders.ts": 177,
+        "src/db/schema/event-registrations.ts": 8,
+        "src/db/schema/index.ts": 1,
+        "src/server/http/stripe-webhook.web-handler.ts": 106,
+        "src/server/payments/addon-payment-allocation.ts": 20,
+        "src/server/payments/registration-payment-fee-snapshot.ts": 1,
+        "src/server/registrations/addon-purchase-checkout.spec.ts": 129,
+        "src/server/registrations/addon-purchase-checkout.ts": 837,
+        "src/server/registrations/addon-purchase.service.spec.ts": 176,
+        "src/server/registrations/addon-purchase.service.ts": 1007,
+        "src/server/registrations/expired-checkout-cleanup.ts": 263,
+        "tests/docs/admin/platform-tenant-operations.doc.ts": 5,
+        "tests/specs/admin/platform-tenant-operations.spec.ts": 5
+      },
+      "user_removed_per_file": {
+        "src/server/http/stripe-webhook.web-handler.ts": 26,
+        "src/server/payments/addon-payment-allocation.ts": 15,
+        "src/server/payments/registration-payment-fee-snapshot.ts": 1,
+        "src/server/registrations/expired-checkout-cleanup.ts": 4,
+        "tests/docs/admin/platform-tenant-operations.doc.ts": 3,
+        "tests/specs/admin/platform-tenant-operations.spec.ts": 3
+      }
+    }
+  ]
+}
