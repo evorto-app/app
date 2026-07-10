@@ -103,7 +103,7 @@ Use the search field to find the person by name or email. Open **Assigned roles*
 
     let { roleSelect, userRow } = await findAssignmentTarget();
     await expect(roleSelect).toBeEnabled();
-    await roleSelect.click();
+    await roleSelect.press('Enter');
     let assignmentOption = page.getByRole('option', {
       exact: true,
       name: assignmentScenario.role.name,
@@ -125,7 +125,7 @@ Use the search field to find the person by name or email. Open **Assigned roles*
       page,
       'Existing user with assigned tenant role',
     );
-    await roleSelect.click();
+    await roleSelect.press('Enter');
     assignmentOption = page.getByRole('option', {
       exact: true,
       name: assignmentScenario.role.name,
@@ -143,7 +143,7 @@ Open **Assigned roles** again and deselect the role. Removal is also saved immed
 `,
     });
 
-    await roleSelect.click();
+    await roleSelect.press('Enter');
     assignmentOption = page.getByRole('option', {
       exact: true,
       name: assignmentScenario.role.name,
@@ -156,7 +156,7 @@ Open **Assigned roles** again and deselect the role. Removal is also saved immed
     await page.reload();
     ({ roleSelect, userRow } = await findAssignmentTarget());
     await expect(roleSelect).not.toContainText(assignmentScenario.role.name);
-    await roleSelect.click();
+    await roleSelect.press('Enter');
     await expect(
       page.getByRole('option', {
         exact: true,

@@ -45,7 +45,7 @@ test.describe('with users:assignRoles', () => {
     try {
       let { roleSelect } = await openUserAssignment(page, scenario);
       await expect(roleSelect).toBeEnabled();
-      await roleSelect.click();
+      await roleSelect.press('Enter');
       let roleOption = page.getByRole('option', {
         exact: true,
         name: scenario.role.name,
@@ -60,7 +60,7 @@ test.describe('with users:assignRoles', () => {
 
       ({ roleSelect } = await openUserAssignment(page, scenario));
       await expect(roleSelect).toContainText(scenario.role.name);
-      await roleSelect.click();
+      await roleSelect.press('Enter');
       roleOption = page.getByRole('option', {
         exact: true,
         name: scenario.role.name,
@@ -72,7 +72,7 @@ test.describe('with users:assignRoles', () => {
 
       ({ roleSelect } = await openUserAssignment(page, scenario));
       await expect(roleSelect).not.toContainText(scenario.role.name);
-      await roleSelect.click();
+      await roleSelect.press('Enter');
       await expect(
         page.getByRole('option', {
           exact: true,
