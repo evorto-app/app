@@ -1,0 +1,10 @@
+Prepare a PR and wait for the coderabbit review please
+
+---
+
+Dont we already have a tenant root url in the db?
+Also are we sure that any of the serialization does not introduce performance issues?
+
+---
+
+Alright, clean up the schema and then move on
