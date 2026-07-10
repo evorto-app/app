@@ -6,6 +6,7 @@ import {
   pgEnum,
   pgTable,
   text,
+  timestamp,
   uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -52,6 +53,9 @@ export const transactions = pgTable(
     method: transactionMethod().notNull(),
     status: transactionStatus().notNull(),
     stripeChargeId: varchar().unique(),
+    stripeCheckoutCancellationRequestedAt: timestamp(
+      'stripe_checkout_cancellation_requested_at',
+    ),
     stripeCheckoutSessionId: varchar().unique(),
     stripeCheckoutUrl: varchar().unique(),
     stripeFee: integer(),
@@ -63,7 +67,7 @@ export const transactions = pgTable(
     onePendingPaymentPerRegistration: uniqueIndex(
       'transactions_pending_registration_unique',
     )
-      .on(table.tenantId, table.eventRegistrationId)
+      .on(table.eventRegistrationId)
       .where(
         sql`${table.status} = 'pending' AND ${table.type} = 'registration' AND ${table.eventRegistrationId} IS NOT NULL`,
       ),

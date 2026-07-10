@@ -227,10 +227,13 @@ export interface PersistedCheckoutSessionBinding {
 }
 
 interface CheckoutSessionBindingInput {
+  readonly allowFinalizedExpiry?: boolean | undefined;
   readonly eventAccount: null | string | undefined;
   readonly metadata: null | Readonly<Record<string, string | undefined>>;
   readonly paymentIntentId: string | undefined;
   readonly persisted: PersistedCheckoutSessionBinding;
+  readonly registrationStatus?:
+    'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST' | undefined;
   readonly requirePaymentIntent: boolean;
   readonly sessionId: string;
   readonly stripeAccountId: null | string | undefined;
@@ -246,13 +249,16 @@ type CheckoutSessionBindingResult =
       readonly type: 'resolved';
     }
   | { readonly reason: string; readonly type: 'invalid-binding' }
+  | { readonly type: 'already-finalized-expiry' }
   | { readonly type: 'state-conflict' };
 
 export const validateCheckoutSessionBinding = ({
+  allowFinalizedExpiry = false,
   eventAccount,
   metadata,
   paymentIntentId,
   persisted,
+  registrationStatus,
   requirePaymentIntent,
   sessionId,
   stripeAccountId,
@@ -304,6 +310,13 @@ export const validateCheckoutSessionBinding = ({
       type: 'invalid-binding',
     };
   }
+  if (
+    allowFinalizedExpiry &&
+    persisted.status === 'cancelled' &&
+    registrationStatus === 'CANCELLED'
+  ) {
+    return { type: 'already-finalized-expiry' };
+  }
   if (persisted.status !== 'pending') {
     return { type: 'state-conflict' };
   }
@@ -321,7 +334,10 @@ export const validateCheckoutSessionBinding = ({
 const resolveCheckoutSession = (
   event: Stripe.Event,
   eventSession: Stripe.Checkout.Session,
-  requirePaymentIntent: boolean,
+  options: {
+    readonly allowFinalizedExpiry?: boolean | undefined;
+    readonly requirePaymentIntent: boolean;
+  },
 ) =>
   databaseEffect((database) =>
     Effect.gen(function* () {
@@ -343,16 +359,31 @@ const resolveCheckoutSession = (
         return { type: 'unresolved' } as const;
       }
 
+      const finalizedRegistration =
+        options.allowFinalizedExpiry &&
+        persisted.status === 'cancelled' &&
+        persisted.eventRegistrationId
+          ? yield* database.query.eventRegistrations.findFirst({
+              columns: { status: true },
+              where: {
+                id: persisted.eventRegistrationId,
+                tenantId: persisted.tenantId,
+              },
+            })
+          : undefined;
+
       const tenant = yield* database.query.tenants.findFirst({
         columns: { stripeAccountId: true },
         where: { id: persisted.tenantId },
       });
       const binding = validateCheckoutSessionBinding({
+        allowFinalizedExpiry: options.allowFinalizedExpiry,
         eventAccount: event.account,
         metadata: eventSession.metadata,
         paymentIntentId,
         persisted,
-        requirePaymentIntent,
+        registrationStatus: finalizedRegistration?.status,
+        requirePaymentIntent: options.requirePaymentIntent,
         sessionId: eventSession.id,
         stripeAccountId: tenant?.stripeAccountId,
       });
@@ -667,7 +698,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
           const checkoutSession = yield* resolveCheckoutSession(
             event,
             eventSession,
-            true,
+            { requirePaymentIntent: true },
           );
           if (checkoutSession.type === 'unresolved') {
             return responseText('Missing checkout session mapping', 400);
@@ -683,6 +714,9 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
             return responseText('Invalid checkout session binding', 400);
           }
           if (checkoutSession.type === 'state-conflict') {
+            return responseText('Checkout transaction state conflict', 409);
+          }
+          if (checkoutSession.type === 'already-finalized-expiry') {
             return responseText('Checkout transaction state conflict', 409);
           }
 
@@ -823,6 +857,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                         .set({
                           status: 'successful',
                           stripeChargeId,
+                          stripeCheckoutCancellationRequestedAt: null,
                           stripePaymentIntentId,
                         })
                         .where(
@@ -885,8 +920,14 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
           const checkoutSession = yield* resolveCheckoutSession(
             event,
             eventSession,
-            false,
+            {
+              allowFinalizedExpiry: true,
+              requirePaymentIntent: false,
+            },
           );
+          if (checkoutSession.type === 'already-finalized-expiry') {
+            return responseText('Success');
+          }
           if (checkoutSession.type === 'unresolved') {
             return responseText('Missing checkout session mapping', 400);
           }

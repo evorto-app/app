@@ -10,10 +10,12 @@ import {
   eventRegistrationOptions,
   eventRegistrations,
   transactions,
+  usersToTenants,
 } from '../../../../../db/schema';
 import { StripeClient } from '../../../../stripe-client';
 import {
   EventRegistrationService,
+  isDefinitiveCheckoutSessionCreateFailure,
   isUserEligibleForRegistrationOption,
   orderRegistrationAddonPurchases,
   validateRegistrationAddons,
@@ -103,27 +105,45 @@ const paidManualApprovalRegistration = {
 } as const;
 
 const createPaidManualApprovalDatabase = ({
+  bindingCommitAmbiguous = false,
   bindingSucceeds = true,
   operationOrder,
+  persistCommittedEmail = true,
   registrationStatuses = ['PENDING'],
 }: {
+  bindingCommitAmbiguous?: boolean;
   bindingSucceeds?: boolean;
   operationOrder: string[];
+  persistCommittedEmail?: boolean;
   registrationStatuses?: readonly ('CANCELLED' | 'PENDING')[];
 }) => {
+  let claimExists = false;
+  let claimStatus: 'cancelled' | 'pending' = 'pending';
+  let checkoutSessionId: null | string = null;
+  let emailEnqueued = false;
   let registrationLockCount = 0;
-  let transactionUpdateCount = 0;
+  let transactionCallCount = 0;
   let optionUpdateCount = 0;
   const tx = {
+    delete: (table: unknown) => ({
+      where: () => {
+        if (table === emailOutbox) {
+          operationOrder.push('discard-email');
+        }
+        return Effect.succeed([]);
+      },
+    }),
     insert: (table: unknown) => ({
       values: () => {
         if (table === transactions) {
+          claimExists = true;
           operationOrder.push('claim');
           return Effect.succeed([]);
         }
         if (table === emailOutbox) {
           return {
             onConflictDoNothing: () => {
+              emailEnqueued = persistCommittedEmail;
               operationOrder.push('email');
               return Effect.succeed([]);
             },
@@ -148,7 +168,22 @@ const createPaidManualApprovalDatabase = ({
               return Effect.succeed([{ status }]);
             }
             if (table === transactions) {
-              return Effect.succeed([]);
+              return Effect.succeed(
+                claimExists
+                  ? [
+                      {
+                        method: 'stripe',
+                        status: claimStatus,
+                        stripeCheckoutCancellationRequestedAt: null,
+                        stripeCheckoutSessionId: checkoutSessionId,
+                        type: 'registration',
+                      },
+                    ]
+                  : [],
+              );
+            }
+            if (table === emailOutbox) {
+              return Effect.succeed(emailEnqueued ? [{ id: 'email-1' }] : []);
             }
             return Effect.succeed([]);
           },
@@ -156,7 +191,7 @@ const createPaidManualApprovalDatabase = ({
       }),
     }),
     update: (table: unknown) => ({
-      set: () => ({
+      set: (values: Record<string, unknown>) => ({
         where: () => ({
           returning: () => {
             if (table === eventRegistrationOptions) {
@@ -170,15 +205,21 @@ const createPaidManualApprovalDatabase = ({
               return Effect.succeed([{ id: 'registration-1' }]);
             }
             if (table === transactions) {
-              transactionUpdateCount += 1;
-              if (transactionUpdateCount === 1) {
-                operationOrder.push('bind');
-                return Effect.succeed(
-                  bindingSucceeds ? [{ id: 'transaction-1' }] : [],
-                );
+              if (values['status'] === 'cancelled') {
+                claimStatus = 'cancelled';
+                operationOrder.push('release-claim');
+                return Effect.succeed([{ id: 'transaction-1' }]);
               }
-              operationOrder.push('release-claim');
-              return Effect.succeed([{ id: 'transaction-1' }]);
+              operationOrder.push('bind');
+              if (bindingSucceeds) {
+                checkoutSessionId =
+                  typeof values['stripeCheckoutSessionId'] === 'string'
+                    ? values['stripeCheckoutSessionId']
+                    : null;
+              }
+              return Effect.succeed(
+                bindingSucceeds ? [{ id: 'transaction-1' }] : [],
+              );
             }
             return Effect.succeed([]);
           },
@@ -197,13 +238,194 @@ const createPaidManualApprovalDatabase = ({
     },
     transaction: (
       callback: (transaction: typeof tx) => Effect.Effect<unknown>,
-    ) => callback(tx),
+    ) => {
+      transactionCallCount += 1;
+      const result = callback(tx);
+      return bindingCommitAmbiguous && transactionCallCount === 2
+        ? result.pipe(
+            Effect.andThen(
+              Effect.die(new Error('binding commit acknowledgement lost')),
+            ),
+          )
+        : result;
+    },
   };
 
   return database;
 };
 
+const createPaidDirectRegistrationDatabase = ({
+  bindingSucceeds,
+  operationOrder,
+  registrationOption = {},
+}: {
+  bindingSucceeds: boolean;
+  operationOrder: string[];
+  registrationOption?: { isPaid?: boolean; price?: number };
+}) => {
+  let optionUpdateCount = 0;
+  const tx = {
+    insert: (table: unknown) => ({
+      values: (values: Record<string, unknown>) => {
+        if (table === eventRegistrations) {
+          if (values['status'] === 'CONFIRMED') {
+            operationOrder.push('confirm-registration');
+          }
+          return {
+            returning: () => Effect.succeed([{ id: 'registration-1' }]),
+          };
+        }
+        if (table === transactions) {
+          operationOrder.push('claim');
+        }
+        return Effect.succeed([]);
+      },
+    }),
+    query: {
+      eventRegistrations: {
+        findMany: () => Effect.succeed([]),
+      },
+    },
+    select: () => ({
+      from: (table: unknown) => ({
+        where: () => ({
+          for: () => {
+            if (table === usersToTenants) {
+              return Effect.succeed([{ id: 'tenant-user-1' }]);
+            }
+            if (table === eventRegistrations) {
+              return Effect.succeed([{ status: 'PENDING' }]);
+            }
+            if (table === transactions) {
+              return Effect.succeed([
+                {
+                  method: 'stripe',
+                  status: 'pending',
+                  stripeCheckoutSessionId: null,
+                  type: 'registration',
+                },
+              ]);
+            }
+            return Effect.succeed([]);
+          },
+        }),
+      }),
+    }),
+    update: (table: unknown) => ({
+      set: (values: Record<string, unknown>) => ({
+        where: () => ({
+          returning: () => {
+            if (table === eventRegistrationOptions) {
+              optionUpdateCount += 1;
+              operationOrder.push(
+                optionUpdateCount === 1
+                  ? 'confirmedSpots' in values
+                    ? 'confirm-capacity'
+                    : 'reserve'
+                  : 'release-capacity',
+              );
+              return Effect.succeed([{ id: 'option-1' }]);
+            }
+            if (table === transactions) {
+              if (values['status'] === 'cancelled') {
+                operationOrder.push('release-claim');
+                return Effect.succeed([{ id: 'transaction-1' }]);
+              }
+              operationOrder.push('bind');
+              return Effect.succeed(
+                bindingSucceeds ? [{ id: 'transaction-1' }] : [],
+              );
+            }
+            if (table === eventRegistrations) {
+              operationOrder.push('cancel-registration');
+              return Effect.succeed([{ id: 'registration-1' }]);
+            }
+            return Effect.succeed([]);
+          },
+        }),
+      }),
+    }),
+  };
+
+  return {
+    query: {
+      eventRegistrationOptions: {
+        findFirst: () =>
+          Effect.succeed({
+            ...approvedRegistrationOption,
+            isPaid: true,
+            price: 1000,
+            ...registrationOption,
+          }),
+      },
+      eventRegistrations: {
+        findFirst: () => Effect.succeed(null),
+      },
+      userDiscountCards: {
+        findMany: () => Effect.succeed([]),
+      },
+    },
+    transaction: (
+      callback: (transaction: typeof tx) => Effect.Effect<unknown>,
+    ) => callback(tx),
+  };
+};
+
 describe('EventRegistrationService', () => {
+  describe('isDefinitiveCheckoutSessionCreateFailure', () => {
+    const invalidRequest = (overrides: Record<string, unknown> = {}) =>
+      new Stripe.errors.StripeInvalidRequestError({
+        headers: {},
+        message: 'Invalid checkout parameters',
+        requestId: 'req_123',
+        statusCode: 400,
+        type: 'invalid_request_error',
+        ...overrides,
+      });
+
+    it('accepts only complete, non-retryable Stripe validation responses', () => {
+      expect(isDefinitiveCheckoutSessionCreateFailure(invalidRequest())).toBe(
+        true,
+      );
+      expect(
+        isDefinitiveCheckoutSessionCreateFailure(
+          invalidRequest({ requestId: undefined }),
+        ),
+      ).toBe(false);
+      expect(
+        isDefinitiveCheckoutSessionCreateFailure(
+          invalidRequest({ statusCode: 404 }),
+        ),
+      ).toBe(false);
+      expect(
+        isDefinitiveCheckoutSessionCreateFailure(
+          invalidRequest({ type: 'api_error' }),
+        ),
+      ).toBe(false);
+      expect(
+        isDefinitiveCheckoutSessionCreateFailure(
+          invalidRequest({ code: 'idempotency_key_in_use' }),
+        ),
+      ).toBe(false);
+      expect(
+        isDefinitiveCheckoutSessionCreateFailure(
+          invalidRequest({ headers: { 'stripe-should-retry': 'true' } }),
+        ),
+      ).toBe(false);
+      expect(
+        isDefinitiveCheckoutSessionCreateFailure(
+          new Stripe.errors.StripeConnectionError({
+            message: 'Connection reset',
+            type: 'api_connection_error',
+          }),
+        ),
+      ).toBe(false);
+      expect(
+        isDefinitiveCheckoutSessionCreateFailure(new Error('unknown')),
+      ).toBe(false);
+    });
+  });
+
   describe('isUserEligibleForRegistrationOption', () => {
     it('treats an empty role list as open to all users', () => {
       expect(
@@ -1454,6 +1676,123 @@ describe('EventRegistrationService', () => {
   );
 
   it.effect(
+    'accepts an exactly bound approval claim after an ambiguous binding commit',
+    () =>
+      Effect.gen(function* () {
+        const operationOrder: string[] = [];
+        const database = createPaidManualApprovalDatabase({
+          bindingCommitAmbiguous: true,
+          operationOrder,
+        });
+        const checkoutStripeClient = new Stripe('sk_test_123');
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
+        ).mockImplementation(
+          vi.fn(() => {
+            operationOrder.push('stripe');
+            return Promise.resolve({
+              id: 'cs_test_1',
+              payment_intent: null,
+              url: 'https://checkout.stripe.test/session',
+            });
+          }),
+        );
+        const expireSession = vi.fn(() => {
+          operationOrder.push('expire');
+          return Promise.resolve({ id: 'cs_test_1', status: 'expired' });
+        });
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'expire',
+        ).mockImplementation(expireSession);
+
+        const exit = yield* Effect.exit(
+          EventRegistrationService.approveManualRegistration({
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            tenant: {
+              ...tenantPublicOrigin,
+              currency: 'EUR',
+              emailSenderEmail: null,
+              emailSenderName: null,
+              id: 'tenant-1',
+              name: 'Tenant',
+              stripeAccountId: 'acct_123',
+            },
+            user: { id: 'organizer-1' },
+          }).pipe(
+            Effect.provide(EventRegistrationService.Default),
+            Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+            Effect.provideService(StripeClient, checkoutStripeClient),
+            Effect.provide(configProviderLayer),
+          ),
+        );
+
+        expect(exit._tag).toBe('Success');
+        expect(operationOrder).toEqual(['claim', 'stripe', 'bind', 'email']);
+        expect(expireSession).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'fails closed when an ambiguous bound approval has no exact outbox record',
+    () =>
+      Effect.gen(function* () {
+        const operationOrder: string[] = [];
+        const database = createPaidManualApprovalDatabase({
+          bindingCommitAmbiguous: true,
+          operationOrder,
+          persistCommittedEmail: false,
+        });
+        const checkoutStripeClient = new Stripe('sk_test_123');
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
+        ).mockImplementation(
+          vi.fn(() => {
+            operationOrder.push('stripe');
+            return Promise.resolve({
+              id: 'cs_test_1',
+              payment_intent: null,
+              url: 'https://checkout.stripe.test/session',
+            });
+          }),
+        );
+        const expireSession = vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'expire',
+        );
+
+        const exit = yield* Effect.exit(
+          EventRegistrationService.approveManualRegistration({
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            tenant: {
+              ...tenantPublicOrigin,
+              currency: 'EUR',
+              emailSenderEmail: null,
+              emailSenderName: null,
+              id: 'tenant-1',
+              name: 'Tenant',
+              stripeAccountId: 'acct_123',
+            },
+            user: { id: 'organizer-1' },
+          }).pipe(
+            Effect.provide(EventRegistrationService.Default),
+            Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+            Effect.provideService(StripeClient, checkoutStripeClient),
+            Effect.provide(configProviderLayer),
+          ),
+        );
+
+        expect(exit._tag).toBe('Failure');
+        expect(operationOrder).toEqual(['claim', 'stripe', 'bind', 'email']);
+        expect(expireSession).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
     'retains the approval claim when expiring an unbound checkout is ambiguous',
     () =>
       Effect.gen(function* () {
@@ -1516,7 +1855,7 @@ describe('EventRegistrationService', () => {
   );
 
   it.effect(
-    'retains the payment claim when Stripe creation has an ambiguous failure',
+    'releases a manual approval claim after a definitive Stripe validation failure',
     () =>
       Effect.gen(function* () {
         const operationOrder: string[] = [];
@@ -1528,7 +1867,78 @@ describe('EventRegistrationService', () => {
         ).mockImplementation(
           vi.fn(() => {
             operationOrder.push('stripe');
-            return Promise.reject(new Error('connection reset after request'));
+            return Promise.reject(
+              new Stripe.errors.StripeInvalidRequestError({
+                headers: {},
+                message: 'Invalid tax rate',
+                requestId: 'req_invalid_manual',
+                statusCode: 400,
+                type: 'invalid_request_error',
+              }),
+            );
+          }),
+        );
+        const expire = vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'expire',
+        );
+
+        const error = yield* EventRegistrationService.approveManualRegistration(
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            tenant: {
+              ...tenantPublicOrigin,
+              currency: 'EUR',
+              emailSenderEmail: null,
+              emailSenderName: null,
+              id: 'tenant-1',
+              name: 'Tenant',
+              stripeAccountId: 'acct_123',
+            },
+            user: { id: 'organizer-1' },
+          },
+        ).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provideService(StripeClient, checkoutStripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationInternalError');
+        expect(operationOrder).toEqual([
+          'claim',
+          'stripe',
+          'release-claim',
+          'release-capacity',
+        ]);
+        expect(expire).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'retains the payment claim when Stripe creation has an ambiguous failure',
+    () =>
+      Effect.gen(function* () {
+        const operationOrder: string[] = [];
+        const database = createPaidManualApprovalDatabase({ operationOrder });
+        const checkoutStripeClient = new Stripe('sk_test_123');
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
+        ).mockImplementation(
+          vi.fn((parameters: Stripe.Checkout.SessionCreateParams) => {
+            operationOrder.push('stripe');
+            expect(parameters.expires_at).toBeGreaterThanOrEqual(
+              Math.floor(Date.now() / 1000) + 30 * 60,
+            );
+            return Promise.reject(
+              new Stripe.errors.StripeConnectionError({
+                message: 'connection reset after request',
+                type: 'api_connection_error',
+              }),
+            );
           }),
         );
         const expire = vi.spyOn(
@@ -1563,6 +1973,324 @@ describe('EventRegistrationService', () => {
         expect(error.message).toBe('Failed to create stripe checkout session');
         expect(operationOrder).toEqual(['claim', 'stripe']);
         expect(expire).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'keeps a direct option free when its disabled paid flag retains a stale price',
+    () =>
+      Effect.gen(function* () {
+        const operationOrder: string[] = [];
+        const database = createPaidDirectRegistrationDatabase({
+          bindingSucceeds: true,
+          operationOrder,
+          registrationOption: { isPaid: false, price: 1000 },
+        });
+        const checkoutStripeClient = new Stripe('sk_test_123');
+        const createSession = vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
+        );
+
+        yield* EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 1,
+          registrationOptionId: 'option-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: null,
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provideService(StripeClient, checkoutStripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        expect(operationOrder).toEqual([
+          'confirm-capacity',
+          'confirm-registration',
+        ]);
+        expect(createSession).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'releases a direct claim after a definitive Stripe validation failure',
+    () =>
+      Effect.gen(function* () {
+        const operationOrder: string[] = [];
+        const database = createPaidDirectRegistrationDatabase({
+          bindingSucceeds: true,
+          operationOrder,
+        });
+        const checkoutStripeClient = new Stripe('sk_test_123');
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
+        ).mockImplementation(
+          vi.fn(() => {
+            operationOrder.push('stripe');
+            return Promise.reject(
+              new Stripe.errors.StripeInvalidRequestError({
+                headers: {},
+                message: 'Invalid amount',
+                requestId: 'req_invalid_direct',
+                statusCode: 400,
+                type: 'invalid_request_error',
+              }),
+            );
+          }),
+        );
+        const expire = vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'expire',
+        );
+
+        const error = yield* EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 0,
+          registrationOptionId: 'option-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: 'acct_123',
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provideService(StripeClient, checkoutStripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationInternalError');
+        expect(operationOrder).toEqual([
+          'reserve',
+          'claim',
+          'stripe',
+          'release-claim',
+          'cancel-registration',
+          'release-capacity',
+        ]);
+        expect(expire).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'retains a direct registration claim when Stripe creation is ambiguous',
+    () =>
+      Effect.gen(function* () {
+        const operationOrder: string[] = [];
+        const database = createPaidDirectRegistrationDatabase({
+          bindingSucceeds: true,
+          operationOrder,
+        });
+        const checkoutStripeClient = new Stripe('sk_test_123');
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
+        ).mockImplementation(
+          vi.fn((parameters: Stripe.Checkout.SessionCreateParams) => {
+            operationOrder.push('stripe');
+            expect(parameters.expires_at).toBeGreaterThanOrEqual(
+              Math.floor(Date.now() / 1000) + 30 * 60,
+            );
+            return Promise.reject(
+              new Stripe.errors.StripeConnectionError({
+                message: 'connection reset after request',
+                type: 'api_connection_error',
+              }),
+            );
+          }),
+        );
+        const expire = vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'expire',
+        );
+
+        const error = yield* EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 0,
+          registrationOptionId: 'option-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: 'acct_123',
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provideService(StripeClient, checkoutStripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationInternalError');
+        expect(error.message).toBe('Failed to create stripe checkout session');
+        expect(operationOrder).toEqual(['reserve', 'claim', 'stripe']);
+        expect(expire).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'expires a direct checkout before releasing a failed binding claim',
+    () =>
+      Effect.gen(function* () {
+        const operationOrder: string[] = [];
+        const database = createPaidDirectRegistrationDatabase({
+          bindingSucceeds: false,
+          operationOrder,
+        });
+        const checkoutStripeClient = new Stripe('sk_test_123');
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
+        ).mockImplementation(
+          vi.fn(() => {
+            operationOrder.push('stripe');
+            return Promise.resolve({
+              id: 'cs_direct_1',
+              payment_intent: null,
+              url: 'https://checkout.stripe.test/direct',
+            });
+          }),
+        );
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'expire',
+        ).mockImplementation(
+          vi.fn(() => {
+            operationOrder.push('expire');
+            return Promise.resolve({
+              id: 'cs_direct_1',
+              status: 'expired',
+            });
+          }),
+        );
+
+        const error = yield* EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 0,
+          registrationOptionId: 'option-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: 'acct_123',
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provideService(StripeClient, checkoutStripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationInternalError');
+        expect(error.message).toBe('Failed to bind stripe checkout session');
+        expect(operationOrder).toEqual([
+          'reserve',
+          'claim',
+          'stripe',
+          'bind',
+          'expire',
+          'release-claim',
+          'cancel-registration',
+          'release-capacity',
+        ]);
+      }),
+  );
+
+  it.effect(
+    'retains a direct binding claim when checkout expiry is ambiguous',
+    () =>
+      Effect.gen(function* () {
+        const operationOrder: string[] = [];
+        const database = createPaidDirectRegistrationDatabase({
+          bindingSucceeds: false,
+          operationOrder,
+        });
+        const checkoutStripeClient = new Stripe('sk_test_123');
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
+        ).mockImplementation(
+          vi.fn(() => {
+            operationOrder.push('stripe');
+            return Promise.resolve({
+              id: 'cs_direct_1',
+              payment_intent: null,
+              url: 'https://checkout.stripe.test/direct',
+            });
+          }),
+        );
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'expire',
+        ).mockImplementation(
+          vi.fn(() => {
+            operationOrder.push('expire');
+            return Promise.reject(new Error('expiry response lost'));
+          }),
+        );
+
+        const error = yield* EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 0,
+          registrationOptionId: 'option-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: 'acct_123',
+          },
+          user: {
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provideService(StripeClient, checkoutStripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationInternalError');
+        expect(error.message).toBe('Failed to bind stripe checkout session');
+        expect(operationOrder).toEqual([
+          'reserve',
+          'claim',
+          'stripe',
+          'bind',
+          'expire',
+        ]);
       }),
   );
 
@@ -1954,6 +2682,9 @@ describe('EventRegistrationService', () => {
             eventRegistrations: {
               findFirst: () => Effect.succeed(null),
             },
+            userDiscountCards: {
+              findMany: () => Effect.succeed([]),
+            },
           },
           select: () => ({
             from: () => ({
@@ -2049,7 +2780,7 @@ describe('EventRegistrationService', () => {
             ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
-            stripeAccountId: undefined,
+            stripeAccountId: 'acct_123',
           },
           user: {
             email: 'alice@example.com',

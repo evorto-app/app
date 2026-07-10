@@ -12,7 +12,16 @@ import {
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { and, eq, gte, ilike, inArray, isNull, sql } from 'drizzle-orm';
+import {
+  and,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from 'drizzle-orm';
 import { Effect, Result } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -154,15 +163,31 @@ const ensureCanScanEventRegistration = ({
     );
   });
 
+type CancelRegistrationError =
+  | EventRegistrationConflictError
+  | EventRegistrationInternalError
+  | EventRegistrationNotFoundError
+  | RpcForbiddenError
+  | RpcUnauthorizedError;
+
 const cancelRegistration = ({
   eventId,
+  expiredCheckout,
   registrationId,
   requireOrganizerAccess = false,
 }: {
   eventId?: string;
+  expiredCheckout?: {
+    stripeCheckoutSessionId: string;
+    transactionId: string;
+  };
   registrationId: string;
   requireOrganizerAccess?: boolean;
-}) =>
+}): Effect.Effect<
+  void,
+  CancelRegistrationError,
+  Database | RpcAccess | StripeClient
+> =>
   Effect.gen(function* () {
     yield* RpcAccess.ensureAuthenticated();
     const stripe = yield* StripeClient;
@@ -184,7 +209,7 @@ const cancelRegistration = ({
         where: {
           ...(eventId && { eventId }),
           id: registrationId,
-          status: { NOT: 'CANCELLED' },
+          ...(!expiredCheckout && { status: { NOT: 'CANCELLED' as const } }),
           tenantId: tenant.id,
           ...(!requireOrganizerAccess && { userId: user.id }),
         },
@@ -207,6 +232,7 @@ const cancelRegistration = ({
               method: true,
               status: true,
               stripeChargeId: true,
+              stripeCheckoutCancellationRequestedAt: true,
               stripeCheckoutSessionId: true,
               stripePaymentIntentId: true,
               type: true,
@@ -234,6 +260,27 @@ const cancelRegistration = ({
         tenantId: tenant.id,
         user,
       });
+    }
+
+    if (expiredCheckout && registration.status === 'CANCELLED') {
+      const checkoutCancellationAlreadyFinalized =
+        registration.transactions.some(
+          (transaction) =>
+            transaction.id === expiredCheckout.transactionId &&
+            transaction.method === 'stripe' &&
+            transaction.status === 'cancelled' &&
+            transaction.stripeCheckoutSessionId ===
+              expiredCheckout.stripeCheckoutSessionId &&
+            transaction.type === 'registration',
+        );
+      if (checkoutCancellationAlreadyFinalized) {
+        return;
+      }
+      return yield* Effect.fail(
+        new EventRegistrationConflictError({
+          message: 'Registration cancellation state changed unexpectedly',
+        }),
+      );
     }
 
     if (
@@ -265,7 +312,7 @@ const cancelRegistration = ({
       );
     }
 
-    if (registration.event.start <= now) {
+    if (!expiredCheckout && registration.event.start <= now) {
       return yield* Effect.fail(
         new EventRegistrationConflictError({
           message: 'Registration can no longer be cancelled',
@@ -293,11 +340,12 @@ const cancelRegistration = ({
                 and(
                   eq(eventRegistrations.id, registration.id),
                   eq(eventRegistrations.tenantId, tenant.id),
-                  inArray(eventRegistrations.status, [
-                    'PENDING',
-                    'CONFIRMED',
-                    'WAITLIST',
-                  ]),
+                  inArray(
+                    eventRegistrations.status,
+                    expiredCheckout
+                      ? ['PENDING', 'CONFIRMED', 'WAITLIST', 'CANCELLED']
+                      : ['PENDING', 'CONFIRMED', 'WAITLIST'],
+                  ),
                   ...(eventId ? [eq(eventRegistrations.eventId, eventId)] : []),
                   ...(requireOrganizerAccess
                     ? []
@@ -328,6 +376,8 @@ const cancelRegistration = ({
                 method: transactions.method,
                 status: transactions.status,
                 stripeChargeId: transactions.stripeChargeId,
+                stripeCheckoutCancellationRequestedAt:
+                  transactions.stripeCheckoutCancellationRequestedAt,
                 stripeCheckoutSessionId: transactions.stripeCheckoutSessionId,
                 stripePaymentIntentId: transactions.stripePaymentIntentId,
                 type: transactions.type,
@@ -341,6 +391,30 @@ const cancelRegistration = ({
                 ),
               )
               .for('update');
+            if (expiredCheckout && lockedRegistration.status === 'CANCELLED') {
+              const checkoutCancellationAlreadyFinalized =
+                lockedRegistrationTransactions.some(
+                  (currentTransaction) =>
+                    currentTransaction.id === expiredCheckout.transactionId &&
+                    currentTransaction.method === 'stripe' &&
+                    currentTransaction.status === 'cancelled' &&
+                    currentTransaction.stripeCheckoutSessionId ===
+                      expiredCheckout.stripeCheckoutSessionId &&
+                    currentTransaction.type === 'registration',
+                );
+              if (!checkoutCancellationAlreadyFinalized) {
+                return yield* Effect.fail(
+                  new EventRegistrationConflictError({
+                    message:
+                      'Registration cancellation state changed unexpectedly',
+                  }),
+                );
+              }
+              return {
+                _tag: 'Cancelled' as const,
+                refundTransaction: null,
+              };
+            }
             const pendingStripeTransaction =
               lockedRegistrationTransactions.find(
                 (currentTransaction) =>
@@ -353,6 +427,38 @@ const cancelRegistration = ({
                   currentTransaction.status === 'successful' &&
                   currentTransaction.amount > 0,
               );
+            if (expiredCheckout) {
+              const exactCheckoutCancellation =
+                lockedRegistrationTransactions.find(
+                  (currentTransaction) =>
+                    currentTransaction.id === expiredCheckout.transactionId &&
+                    currentTransaction.method === 'stripe' &&
+                    currentTransaction.status === 'pending' &&
+                    currentTransaction.stripeCheckoutCancellationRequestedAt !==
+                      null &&
+                    currentTransaction.stripeCheckoutSessionId ===
+                      expiredCheckout.stripeCheckoutSessionId &&
+                    currentTransaction.type === 'registration',
+                );
+              if (!exactCheckoutCancellation) {
+                return yield* Effect.fail(
+                  new EventRegistrationConflictError({
+                    message:
+                      'Registration payment state changed while cancellation was being processed',
+                  }),
+                );
+              }
+            }
+            if (
+              pendingStripeTransaction &&
+              lockedRegistration.status !== 'PENDING'
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message: 'Registration payment state changed',
+                }),
+              );
+            }
             if (
               pendingStripeTransaction?.stripeCheckoutSessionId &&
               !stripeAccount
@@ -362,6 +468,118 @@ const cancelRegistration = ({
                   message: 'Stripe account not found',
                 }),
               );
+            }
+            if (
+              pendingStripeTransaction &&
+              !pendingStripeTransaction.stripeCheckoutSessionId
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'Payment checkout is still being prepared. Your registration and reserved items remain unchanged; please try cancelling again shortly.',
+                }),
+              );
+            }
+
+            if (
+              pendingStripeTransaction?.stripeCheckoutSessionId &&
+              stripeAccount
+            ) {
+              const stripeCheckoutSessionId =
+                pendingStripeTransaction.stripeCheckoutSessionId;
+              if (!expiredCheckout) {
+                if (
+                  !pendingStripeTransaction.stripeCheckoutCancellationRequestedAt
+                ) {
+                  const markedTransactions = yield* tx
+                    .update(transactions)
+                    .set({
+                      stripeCheckoutCancellationRequestedAt: now,
+                    })
+                    .where(
+                      and(
+                        eq(transactions.id, pendingStripeTransaction.id),
+                        eq(transactions.tenantId, tenant.id),
+                        eq(
+                          transactions.eventRegistrationId,
+                          lockedRegistration.id,
+                        ),
+                        eq(transactions.method, 'stripe'),
+                        eq(transactions.status, 'pending'),
+                        isNull(
+                          transactions.stripeCheckoutCancellationRequestedAt,
+                        ),
+                        eq(
+                          transactions.stripeCheckoutSessionId,
+                          stripeCheckoutSessionId,
+                        ),
+                        eq(transactions.type, 'registration'),
+                      ),
+                    )
+                    .returning({ id: transactions.id });
+                  if (markedTransactions.length !== 1) {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message: 'Registration payment state changed',
+                      }),
+                    );
+                  }
+                }
+                return {
+                  _tag: 'ExpireCheckout' as const,
+                  stripeCheckoutSessionId,
+                  transactionId: pendingStripeTransaction.id,
+                };
+              }
+              if (
+                expiredCheckout.transactionId !== pendingStripeTransaction.id ||
+                expiredCheckout.stripeCheckoutSessionId !==
+                  stripeCheckoutSessionId ||
+                !pendingStripeTransaction.stripeCheckoutCancellationRequestedAt
+              ) {
+                return yield* Effect.fail(
+                  new EventRegistrationConflictError({
+                    message: 'Registration payment state changed',
+                  }),
+                );
+              }
+            }
+
+            if (pendingStripeTransaction) {
+              const cancelledTransactions = yield* tx
+                .update(transactions)
+                .set({
+                  status: 'cancelled',
+                })
+                .where(
+                  and(
+                    eq(transactions.id, pendingStripeTransaction.id),
+                    eq(transactions.tenantId, tenant.id),
+                    eq(transactions.eventRegistrationId, lockedRegistration.id),
+                    eq(transactions.status, 'pending'),
+                    ...(expiredCheckout
+                      ? [
+                          eq(transactions.method, 'stripe'),
+                          isNotNull(
+                            transactions.stripeCheckoutCancellationRequestedAt,
+                          ),
+                          eq(
+                            transactions.stripeCheckoutSessionId,
+                            expiredCheckout.stripeCheckoutSessionId,
+                          ),
+                        ]
+                      : []),
+                    eq(transactions.type, 'registration'),
+                  ),
+                )
+                .returning({ id: transactions.id });
+              if (cancelledTransactions.length !== 1) {
+                return yield* Effect.fail(
+                  new EventRegistrationInternalError({
+                    message: 'Failed to cancel pending payment claim',
+                  }),
+                );
+              }
             }
 
             const cancelledRegistrations = yield* tx
@@ -477,49 +695,8 @@ const cancelRegistration = ({
               });
             }
 
-            if (!pendingStripeTransaction) {
-              return {
-                pendingStripeTransaction: null,
-                refundTransaction:
-                  lockedRegistration.status === 'CONFIRMED' &&
-                  successfulPaidRegistrationTransaction &&
-                  stripeAccount &&
-                  hasStripeRefundReference(
-                    successfulPaidRegistrationTransaction,
-                  )
-                    ? successfulPaidRegistrationTransaction
-                    : null,
-              };
-            }
-
-            const cancelledTransactions = yield* tx
-              .update(transactions)
-              .set({
-                status: 'cancelled',
-              })
-              .where(
-                and(
-                  eq(transactions.id, pendingStripeTransaction.id),
-                  eq(transactions.tenantId, tenant.id),
-                  eq(transactions.status, 'pending'),
-                  eq(transactions.type, 'registration'),
-                ),
-              )
-              .returning({ id: transactions.id });
-            if (cancelledTransactions.length !== 1) {
-              return yield* Effect.fail(
-                new EventRegistrationInternalError({
-                  message: 'Failed to cancel pending payment claim',
-                }),
-              );
-            }
-
             return {
-              pendingStripeTransaction: {
-                stripeCheckoutSessionId:
-                  pendingStripeTransaction.stripeCheckoutSessionId,
-                transactionId: pendingStripeTransaction.id,
-              },
+              _tag: 'Cancelled' as const,
               refundTransaction:
                 lockedRegistration.status === 'CONFIRMED' &&
                 successfulPaidRegistrationTransaction &&
@@ -545,6 +722,94 @@ const cancelRegistration = ({
           ),
         ),
     );
+
+    if (cancellationOutcome._tag === 'ExpireCheckout') {
+      const { stripeCheckoutSessionId, transactionId } = cancellationOutcome;
+      if (!stripeAccount) {
+        return yield* Effect.fail(
+          new EventRegistrationInternalError({
+            message: 'Stripe account not found',
+          }),
+        );
+      }
+      // The durable marker above is committed before this network call, so no
+      // database connection or row lock is held while Stripe responds.
+      const expirationResult = yield* Effect.result(
+        Effect.tryPromise({
+          catch: (cause) =>
+            new EventRegistrationInternalError({
+              cause,
+              message:
+                'Stripe could not confirm checkout cancellation; the registration and reserved items remain unchanged',
+            }),
+          try: () =>
+            Promise.race([
+              stripe.checkout.sessions.expire(
+                stripeCheckoutSessionId,
+                undefined,
+                {
+                  idempotencyKey: `cancel-registration-checkout-${transactionId}`,
+                  stripeAccount,
+                },
+              ),
+              new Promise<never>((_, reject) => {
+                setTimeout(
+                  () => reject(new Error('Stripe checkout expiry timed out')),
+                  5000,
+                );
+              }),
+            ]),
+        }),
+      );
+      const confirmedExpired = Result.isFailure(expirationResult)
+        ? yield* Effect.tryPromise({
+            catch: (cause) =>
+              new EventRegistrationInternalError({
+                cause,
+                message:
+                  'Stripe could not confirm checkout cancellation; the registration and reserved items remain unchanged',
+              }),
+            try: () =>
+              Promise.race([
+                stripe.checkout.sessions.retrieve(
+                  stripeCheckoutSessionId,
+                  undefined,
+                  { stripeAccount },
+                ),
+                new Promise<never>((_, reject) => {
+                  setTimeout(
+                    () =>
+                      reject(new Error('Stripe checkout retrieval timed out')),
+                    5000,
+                  );
+                }),
+              ]),
+          }).pipe(
+            Effect.map(
+              (session) =>
+                session.id === stripeCheckoutSessionId &&
+                session.status === 'expired',
+            ),
+          )
+        : expirationResult.success.status === 'expired';
+      if (!confirmedExpired) {
+        return yield* Effect.fail(
+          new EventRegistrationInternalError({
+            message:
+              'Stripe could not confirm checkout cancellation; the registration and reserved items remain unchanged',
+          }),
+        );
+      }
+      return yield* cancelRegistration({
+        ...(eventId && { eventId }),
+        expiredCheckout: {
+          stripeCheckoutSessionId,
+          transactionId,
+        },
+        registrationId,
+        requireOrganizerAccess,
+      });
+    }
 
     if (cancellationOutcome.refundTransaction && stripeAccount) {
       const refundTransaction = cancellationOutcome.refundTransaction;
@@ -630,46 +895,6 @@ const cancelRegistration = ({
         }),
       );
     }
-
-    const pendingStripeTransaction =
-      cancellationOutcome.pendingStripeTransaction;
-    const stripeCheckoutSessionId =
-      pendingStripeTransaction?.stripeCheckoutSessionId;
-    if (
-      !pendingStripeTransaction ||
-      !stripeCheckoutSessionId ||
-      !stripeAccount
-    ) {
-      return;
-    }
-
-    yield* Effect.tryPromise(() =>
-      Promise.race([
-        stripe.checkout.sessions.expire(stripeCheckoutSessionId, undefined, {
-          stripeAccount,
-        }),
-        new Promise<never>((_, reject) => {
-          setTimeout(
-            () => reject(new Error('Stripe checkout expiry timed out')),
-            5000,
-          );
-        }),
-      ]),
-    ).pipe(
-      Effect.tapError((error) =>
-        Effect.logError(
-          'Failed to expire Stripe checkout session on registration cancellation',
-        ).pipe(
-          Effect.annotateLogs({
-            error,
-            registrationId: registration.id,
-            stripeCheckoutSessionId,
-            transactionId: pendingStripeTransaction.transactionId,
-          }),
-        ),
-      ),
-      Effect.catch(() => Effect.void),
-    );
   });
 
 const transferEventRegistration = ({

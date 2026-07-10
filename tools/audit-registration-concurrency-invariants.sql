@@ -5,21 +5,21 @@
 -- Never automatically choose or delete a winning registration or transaction.
 
 SELECT
-  "tenantId",
   "eventId",
   "userId",
   count(*) AS active_registration_count,
+  array_agg(DISTINCT "tenantId" ORDER BY "tenantId") AS tenant_ids,
   array_agg(id ORDER BY "createdAt", id) AS registration_ids
 FROM event_registrations
 WHERE status <> 'CANCELLED'
-GROUP BY "tenantId", "eventId", "userId"
+GROUP BY "eventId", "userId"
 HAVING count(*) > 1
-ORDER BY "tenantId", "eventId", "userId";
+ORDER BY "eventId", "userId";
 
 SELECT
-  "tenantId",
   "eventRegistrationId",
   count(*) AS pending_transaction_count,
+  array_agg(DISTINCT "tenantId" ORDER BY "tenantId") AS tenant_ids,
   array_agg(id ORDER BY "createdAt", id) AS transaction_ids,
   array_agg("stripeCheckoutSessionId" ORDER BY "createdAt", id)
     AS checkout_session_ids
@@ -27,6 +27,6 @@ FROM transactions
 WHERE status = 'pending'
   AND type = 'registration'
   AND "eventRegistrationId" IS NOT NULL
-GROUP BY "tenantId", "eventRegistrationId"
+GROUP BY "eventRegistrationId"
 HAVING count(*) > 1
-ORDER BY "tenantId", "eventRegistrationId";
+ORDER BY "eventRegistrationId";

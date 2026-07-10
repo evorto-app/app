@@ -50,7 +50,7 @@ export const eventRegistrations = pgTable(
     oneActiveRegistrationPerUserAndEvent: uniqueIndex(
       'event_registrations_active_user_event_unique',
     )
-      .on(table.tenantId, table.eventId, table.userId)
+      .on(table.eventId, table.userId)
       .where(sql`${table.status} <> 'CANCELLED'`),
   }),
 );

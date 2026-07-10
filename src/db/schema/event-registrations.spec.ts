@@ -41,7 +41,7 @@ describe('event registration schema', () => {
     expect(eventRegistrationsSource).toContain('.notNull().default(0)');
   });
 
-  it('enforces one non-cancelled registration per tenant event and user', () => {
+  it('enforces one non-cancelled registration per globally identified event and user', () => {
     const eventRegistrationsSource = readFileSync(
       new URL('event-registrations.ts', import.meta.url),
       'utf8',
@@ -51,6 +51,9 @@ describe('event registration schema', () => {
       "'event_registrations_active_user_event_unique'",
     );
     expect(eventRegistrationsSource).toContain(
+      '.on(table.eventId, table.userId)',
+    );
+    expect(eventRegistrationsSource).not.toContain(
       '.on(table.tenantId, table.eventId, table.userId)',
     );
     expect(eventRegistrationsSource).toContain(
@@ -75,7 +78,7 @@ describe('event registration schema', () => {
     );
   });
 
-  it('enforces one pending registration payment claim', () => {
+  it('enforces one pending payment claim per globally identified registration', () => {
     const transactionsSource = readFileSync(
       new URL('transactions.ts', import.meta.url),
       'utf8',
@@ -84,11 +87,18 @@ describe('event registration schema', () => {
     expect(transactionsSource).toContain(
       "'transactions_pending_registration_unique'",
     );
-    expect(transactionsSource).toContain(
+    expect(transactionsSource).toContain('.on(table.eventRegistrationId)');
+    expect(transactionsSource).not.toContain(
       '.on(table.tenantId, table.eventRegistrationId)',
     );
     expect(transactionsSource).toContain(
       "${table.status} = 'pending' AND ${table.type} = 'registration' AND ${table.eventRegistrationId} IS NOT NULL",
+    );
+    expect(transactionsSource).toContain(
+      'stripeCheckoutCancellationRequestedAt: timestamp(',
+    );
+    expect(transactionsSource).toContain(
+      "'stripe_checkout_cancellation_requested_at'",
     );
   });
 

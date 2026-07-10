@@ -424,6 +424,109 @@ describeWithPostgres('registration service concurrency invariants', () => {
     await pool.end();
   });
 
+  it('rejects an active-registration duplicate even when its tenant id is forged', async () => {
+    if (!databaseUrl) {
+      return;
+    }
+    const fixture = await seedFixture(database, {
+      mode: 'application',
+      paid: false,
+      withPendingRegistration: true,
+    });
+    fixtures.push(fixture);
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+    const forgedTenantId = makeId('tenant', suffix);
+    await database.insert(tenants).values({
+      domain: `${suffix}.forged-registration.example`,
+      id: forgedTenantId,
+      name: `Forged registration ${suffix}`,
+    });
+
+    try {
+      await expect(
+        pool.query(
+          `
+            INSERT INTO event_registrations
+              (id, "tenantId", "eventId", "registrationOptionId", status, "userId")
+            VALUES ($1, $2, $3, $4, 'PENDING', $5)
+          `,
+          [
+            makeId('forged-reg', suffix),
+            forgedTenantId,
+            fixture.eventId,
+            fixture.optionId,
+            fixture.userId,
+          ],
+        ),
+      ).rejects.toMatchObject({
+        code: '23505',
+        constraint: 'event_registrations_active_user_event_unique',
+      });
+    } finally {
+      await database
+        .delete(eventRegistrations)
+        .where(eq(eventRegistrations.tenantId, forgedTenantId));
+      await database.delete(tenants).where(eq(tenants.id, forgedTenantId));
+    }
+  });
+
+  it('rejects a pending-payment duplicate even when its tenant id is forged', async () => {
+    if (!databaseUrl) {
+      return;
+    }
+    const fixture = await seedFixture(database, {
+      mode: 'application',
+      paid: true,
+      withPendingRegistration: true,
+    });
+    fixtures.push(fixture);
+    if (!fixture.registrationId) {
+      throw new Error('Expected pending registration fixture');
+    }
+    await database.insert(transactions).values({
+      amount: 1000,
+      currency: 'EUR',
+      eventRegistrationId: fixture.registrationId,
+      id: makeId('claim', randomUUID().replaceAll('-', '').slice(0, 8)),
+      method: 'stripe',
+      status: 'pending',
+      tenantId: fixture.tenantId,
+      type: 'registration',
+    });
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+    const forgedTenantId = makeId('tenant', suffix);
+    await database.insert(tenants).values({
+      domain: `${suffix}.forged-claim.example`,
+      id: forgedTenantId,
+      name: `Forged claim ${suffix}`,
+    });
+
+    try {
+      await expect(
+        pool.query(
+          `
+            INSERT INTO transactions
+              (id, "tenantId", amount, currency, "eventRegistrationId", method, status, type)
+            VALUES ($1, $2, 1000, 'EUR', $3, 'stripe', 'pending', 'registration')
+          `,
+          [
+            makeId('forged-claim', suffix),
+            forgedTenantId,
+            fixture.registrationId,
+          ],
+        ),
+      ).rejects.toMatchObject({
+        code: '23505',
+        constraint: 'transactions_pending_registration_unique',
+      });
+    } finally {
+      await database
+        .delete(transactions)
+        .where(eq(transactions.tenantId, forgedTenantId));
+      await database.delete(tenants).where(eq(tenants.id, forgedTenantId));
+    }
+  });
+
   it('serializes duplicate registration through the tenant membership and preserves capacity and add-on stock', async () => {
     if (!databaseUrl) {
       return;
@@ -524,6 +627,120 @@ describeWithPostgres('registration service concurrency invariants', () => {
         await membershipLock.query('ROLLBACK').catch(() => null);
       }
       membershipLock.release();
+    }
+  }, 30_000);
+
+  it('persists a direct paid checkout claim before contacting Stripe', async () => {
+    if (!databaseUrl) {
+      return;
+    }
+    const fixture = await seedFixture(database, {
+      mode: 'fcfs',
+      paid: true,
+      withPendingRegistration: false,
+    });
+    fixtures.push(fixture);
+    const { promise: stripeGate, resolve: releaseStripe } =
+      Promise.withResolvers<boolean>();
+    const createSession = vi.fn(async () => {
+      await stripeGate;
+      return {
+        id: `cs_${fixture.eventId}`,
+        payment_intent: `pi_${fixture.eventId}`,
+        url: `https://checkout.example/${fixture.eventId}`,
+      } as Stripe.Checkout.Session;
+    });
+    const stripe = {
+      checkout: {
+        sessions: {
+          create: createSession,
+        },
+      },
+    } as unknown as Stripe;
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+
+    try {
+      const registration = runService(
+        EventRegistrationService.registerForEvent({
+          addOns: [{ addOnId: fixture.addOnId, quantity: 1 }],
+          eventId: fixture.eventId,
+          guestCount: 0,
+          registrationOptionId: fixture.optionId,
+          tenant: {
+            currency: 'EUR',
+            domain: tenantDomainForFixture(fixture),
+            id: fixture.tenantId,
+            stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
+          },
+          user: {
+            email: `${fixture.userId}@example.com`,
+            id: fixture.userId,
+            roleIds: [],
+          },
+        }),
+        serviceLayer,
+      );
+      await waitFor(
+        async () => createSession.mock.calls.length === 1,
+        'Timed out waiting for direct Stripe checkout creation',
+      );
+
+      const preparingRegistration =
+        await database.query.eventRegistrations.findFirst({
+          where: {
+            eventId: fixture.eventId,
+            status: 'PENDING',
+            tenantId: fixture.tenantId,
+            userId: fixture.userId,
+          },
+        });
+      if (!preparingRegistration) {
+        throw new Error('Expected preparing direct registration');
+      }
+      const preparingClaims = await database.query.transactions.findMany({
+        where: {
+          eventRegistrationId: preparingRegistration.id,
+          status: 'pending',
+          tenantId: fixture.tenantId,
+          type: 'registration',
+        },
+      });
+      const preparingOption =
+        await database.query.eventRegistrationOptions.findFirst({
+          where: { id: fixture.optionId },
+        });
+      const preparingAddOn = await database.query.eventAddons.findFirst({
+        where: { id: fixture.addOnId },
+      });
+      expect(preparingClaims).toEqual([
+        expect.objectContaining({
+          amount: 1000,
+          stripeCheckoutSessionId: null,
+        }),
+      ]);
+      expect(preparingOption?.reservedSpots).toBe(1);
+      expect(preparingAddOn?.totalAvailableQuantity).toBe(3);
+
+      releaseStripe(true);
+      expect(await registration).toEqual({ status: 'success' });
+
+      const boundClaims = await database.query.transactions.findMany({
+        where: {
+          eventRegistrationId: preparingRegistration.id,
+          status: 'pending',
+          tenantId: fixture.tenantId,
+          type: 'registration',
+        },
+      });
+      expect(boundClaims).toEqual([
+        expect.objectContaining({
+          stripeCheckoutSessionId: `cs_${fixture.eventId}`,
+          stripePaymentIntentId: `pi_${fixture.eventId}`,
+        }),
+      ]);
+      expect(createSession).toHaveBeenCalledOnce();
+    } finally {
+      releaseStripe(true);
     }
   }, 30_000);
 
@@ -650,7 +867,7 @@ describeWithPostgres('registration service concurrency invariants', () => {
     }
   }, 30_000);
 
-  it('cancellation re-reads a concurrent approval claim and prevents a checkout from binding to the cancelled registration', async () => {
+  it('preserves an unbound approval claim, then expires the bound checkout before cancellation', async () => {
     if (!databaseUrl) {
       return;
     }
@@ -667,6 +884,8 @@ describeWithPostgres('registration service concurrency invariants', () => {
     const fixtureWithRegistration = { ...fixture, registrationId };
     const { promise: stripeGate, resolve: releaseStripe } =
       Promise.withResolvers<boolean>();
+    const { promise: expiryGate, resolve: releaseExpiry } =
+      Promise.withResolvers<boolean>();
     const createSession = vi.fn(async () => {
       await stripeGate;
       return {
@@ -675,10 +894,13 @@ describeWithPostgres('registration service concurrency invariants', () => {
         url: `https://checkout.example/${registrationId}`,
       } as Stripe.Checkout.Session;
     });
-    const expireSession = vi.fn(async () => ({
-      id: `cs_${registrationId}`,
-      status: 'expired',
-    }));
+    const expireSession = vi.fn(async () => {
+      await expiryGate;
+      return {
+        id: `cs_${registrationId}`,
+        status: 'expired',
+      };
+    });
     const stripe = {
       checkout: {
         sessions: {
@@ -726,23 +948,91 @@ describeWithPostgres('registration service concurrency invariants', () => {
       await registrationLock.query('COMMIT');
 
       const cancellationOutcome = await cancellation;
-      expect(cancellationOutcome).toEqual({ status: 'success' });
-      await waitFor(
-        async () => createSession.mock.calls.length === 1,
-        'Timed out waiting for Stripe checkout creation',
-      );
-      releaseStripe(true);
-
-      const approvalOutcome = await approval;
-      expect(approvalOutcome).toEqual(
+      expect(cancellationOutcome).toEqual(
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'Registration is no longer awaiting payment',
+            message: expect.stringContaining(
+              'Payment checkout is still being prepared',
+            ),
           }),
           status: 'failure',
         }),
       );
+      await waitFor(
+        async () => createSession.mock.calls.length === 1,
+        'Timed out waiting for Stripe checkout creation',
+      );
+      expect(expireSession).not.toHaveBeenCalled();
+
+      const preparingClaim = await database.query.transactions.findFirst({
+        where: {
+          eventRegistrationId: registrationId,
+          status: 'pending',
+          tenantId: fixture.tenantId,
+          type: 'registration',
+        },
+      });
+      const preparingOption =
+        await database.query.eventRegistrationOptions.findFirst({
+          where: { id: fixture.optionId },
+        });
+      const preparingAddOn = await database.query.eventAddons.findFirst({
+        where: { id: fixture.addOnId },
+      });
+      expect(preparingClaim?.stripeCheckoutSessionId).toBeNull();
+      expect(preparingOption?.reservedSpots).toBe(1);
+      expect(preparingAddOn?.totalAvailableQuantity).toBe(3);
+
+      releaseStripe(true);
+
+      const approvalOutcome = await approval;
+      expect(approvalOutcome).toEqual({ status: 'success' });
+
+      const retryCancellation = runCancellation({
+        fixture: fixtureWithRegistration,
+        serviceLayer,
+      });
+      await waitFor(
+        async () => expireSession.mock.calls.length === 1,
+        'Timed out waiting for Stripe checkout expiry',
+      );
+
+      const observer = await pool.connect();
+      await observer.query('BEGIN');
+      try {
+        const prepared = await observer.query<{
+          cancellation_requested_at: Date | null;
+          registration_status: string;
+          transaction_status: string;
+        }>(
+          `
+            SELECT
+              er.status AS registration_status,
+              t.status AS transaction_status,
+              t.stripe_checkout_cancellation_requested_at AS cancellation_requested_at
+            FROM event_registrations er
+            JOIN transactions t ON t."eventRegistrationId" = er.id
+            WHERE er.id = $1 AND t."stripeCheckoutSessionId" = $2
+            FOR UPDATE OF er, t NOWAIT
+          `,
+          [registrationId, `cs_${registrationId}`],
+        );
+        expect(prepared.rows).toEqual([
+          expect.objectContaining({
+            cancellation_requested_at: expect.any(Date),
+            registration_status: 'PENDING',
+            transaction_status: 'pending',
+          }),
+        ]);
+      } finally {
+        await observer.query('ROLLBACK');
+        observer.release();
+      }
+
+      releaseExpiry(true);
+      const retryCancellationOutcome = await retryCancellation;
+      expect(retryCancellationOutcome).toEqual({ status: 'success' });
       expect(expireSession).toHaveBeenCalledTimes(1);
 
       const currentRegistration =
@@ -770,15 +1060,16 @@ describeWithPostgres('registration service concurrency invariants', () => {
       expect(claims).toEqual([
         expect.objectContaining({
           status: 'cancelled',
-          stripeCheckoutSessionId: null,
+          stripeCheckoutSessionId: `cs_${registrationId}`,
         }),
       ]);
       expect(option?.reservedSpots).toBe(0);
       expect(option?.confirmedSpots).toBe(0);
       expect(addOn?.totalAvailableQuantity).toBe(5);
-      expect(emails).toHaveLength(0);
+      expect(emails).toHaveLength(1);
     } finally {
       releaseStripe(true);
+      releaseExpiry(true);
       if (!registrationLock.released) {
         await registrationLock.query('ROLLBACK').catch(() => null);
       }
