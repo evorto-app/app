@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isBrowsingOutsideHomeTenant,
   isStripeCheckoutUrl,
   profileEditActionDisabled,
   profileEventActionNote,
@@ -8,13 +9,24 @@ import {
   profileEventDetailActionLabel,
   profileEventGuestLabel,
   profileEventNextStepLabel,
-  profileReceiptAmountLabel,
   profileReceiptStatusLabel,
   profileSectionFromFragment,
   profileUserAfterEdit,
   registrationPaymentLabel,
   registrationStatusLabel,
 } from './user-profile.component';
+
+describe('profile home tenant state', () => {
+  it('warns only when the current tenant differs from an explicit home tenant', () => {
+    expect(isBrowsingOutsideHomeTenant('tenant-home', 'tenant-away')).toBe(
+      true,
+    );
+    expect(isBrowsingOutsideHomeTenant('tenant-home', 'tenant-home')).toBe(
+      false,
+    );
+    expect(isBrowsingOutsideHomeTenant(undefined, 'tenant-away')).toBe(false);
+  });
+});
 import {
   esnCardActionDisabled,
   esnCardActionLabel,
@@ -86,9 +98,19 @@ describe('profile event labels', () => {
     ).toBe(
       'Continue payment from this card, or open the event page for registration details.',
     );
+    expect(
+      profileEventActionNote({
+        checkInTime: null,
+        checkoutUrl: null,
+        paymentState: 'pending',
+        status: 'PENDING',
+      }),
+    ).toBe(
+      'Payment setup is still in progress. Open the event page for the latest payment link or to cancel the registration.',
+    );
   });
 
-  it('shows the payment continuation next step only when a checkout link exists', () => {
+  it('shows the payment continuation or setup next step while payment is pending', () => {
     expect(
       profileEventNextStepLabel({
         checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
@@ -100,7 +122,9 @@ describe('profile event labels', () => {
         checkoutUrl: null,
         paymentState: 'pending',
       }),
-    ).toBeNull();
+    ).toBe(
+      'Your payment link is being prepared. Refresh shortly or open the event page for the latest status.',
+    );
     expect(
       profileEventNextStepLabel({
         checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
@@ -112,7 +136,9 @@ describe('profile event labels', () => {
         checkoutUrl: 'javascript:alert(1)',
         paymentState: 'pending',
       }),
-    ).toBeNull();
+    ).toBe(
+      'Your payment link is being prepared. Refresh shortly or open the event page for the latest status.',
+    );
   });
 
   it('renders the payment continuation action only for pending checkout registrations', () => {
@@ -339,12 +365,6 @@ describe('profile receipt labels', () => {
     expect(profileReceiptStatusLabel('refunded')).toBe('Reimbursed');
     expect(profileReceiptStatusLabel('rejected')).toBe('Rejected');
     expect(profileReceiptStatusLabel('submitted')).toBe('Submitted');
-  });
-
-  it('formats submitted receipt card amounts from cents', () => {
-    expect(profileReceiptAmountLabel(0)).toBe('0.00 €');
-    expect(profileReceiptAmountLabel(100)).toBe('1.00 €');
-    expect(profileReceiptAmountLabel(12_345)).toBe('123.45 €');
   });
 });
 

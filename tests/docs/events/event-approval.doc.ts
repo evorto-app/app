@@ -39,21 +39,22 @@ const submitForReviewDialogSurface = (page: Page): Locator =>
       hasText: 'Are you sure you want to submit this event for review?',
     })
     .filter({
-      hasText: 'locked for editing until it is either approved or rejected',
+      hasText:
+        'locked for editing until it is either published or returned to draft with feedback',
     })
     .filter({
       has: page.getByRole('button', { name: 'Submit for Review' }),
     })
     .first();
 
-const rejectEventDialogSurface = (page: Page): Locator =>
+const returnToDraftDialogSurface = (page: Page): Locator =>
   page
     .locator('mat-dialog-container')
     .filter({
-      has: page.getByRole('heading', { name: 'Review Event' }),
+      has: page.getByRole('heading', { name: 'Return Event to Draft' }),
     })
-    .filter({ has: page.getByLabel('Review Comment') })
-    .filter({ has: page.getByRole('button', { name: 'Reject Event' }) })
+    .filter({ has: page.getByLabel('Feedback for the creator') })
+    .filter({ has: page.getByRole('button', { name: 'Return to Draft' }) })
     .first();
 
 test('Event approval workflow', async ({
@@ -64,7 +65,7 @@ test('Event approval workflow', async ({
 }, testInfo) => {
   const eventStartMs = Date.now() + 1000 * 60 * 60 * 24 * 7;
   const eventTitle = `Approval Flow ${seedDate.getTime()}`;
-  const rejectionComment =
+  const reviewFeedback =
     'Please add clearer safety information for participants.';
   const adminUser = usersToAuthenticate.find((user) => user.roles === 'admin');
   if (!adminUser) {
@@ -141,7 +142,7 @@ test('Event approval workflow', async ({
 This workflow assumes a user can both submit and review events.
 
 - **Submit for review** requires being an event editor (event creator or \`events:editAll\`).
-- **Approve/Reject** requires \`events:review\`.
+- **Publish/Return to draft** requires \`events:review\`.
 {% /callout %}
 
 # Event Approval
@@ -151,13 +152,12 @@ The user-facing event publishing lifecycle is:
 - **DRAFT**
 - **PENDING_REVIEW**
 - **Published** (stored event status: APPROVED)
-- **REJECTED**
 
 Publishing is the approval act. There is no separate approved-but-unpublished state in the relaunch workflow.
 
-Pending review locks material event editing until the event is approved or rejected. Reviewers use the review action surface to approve or reject with feedback; they do not edit material event fields from that review action.
+Pending review locks material event editing until the event is published or returned to draft. Reviewers use the review action surface to publish or return the event with feedback; they do not edit material event fields from that review action.
 
-This guide demonstrates submitting an event, rejecting with feedback, re-submitting, publishing through approval, and conflict handling.
+This guide demonstrates submitting an event, returning it to draft with feedback, re-submitting, publishing through approval, and conflict handling.
 `,
     });
 
@@ -174,7 +174,7 @@ This guide demonstrates submitting an event, rejecting with feedback, re-submitt
       body: `
 ## 1. Submit a draft for review
 
-From the event details page, creators can submit draft or rejected events for review.
+From the event details page, creators can submit draft events for review.
 The screenshot below highlights the draft status and exact action before the status transition.
 `,
     });
@@ -206,7 +206,7 @@ The screenshot below highlights the draft status and exact action before the sta
 
     const reviewActions = eventStatusSurface(page, 'Pending Review');
     await expect(
-      reviewActions.getByRole('button', { name: 'Reject' }),
+      reviewActions.getByRole('button', { name: 'Return to draft' }),
     ).toBeVisible();
     await expect(
       reviewActions.getByRole('button', { name: 'Approve' }),
@@ -216,7 +216,7 @@ The screenshot below highlights the draft status and exact action before the sta
 ## 2. Review from the admin queue
 
 After submission, reviewers can process the event from the review action surface on the event details page.
-The screenshot captures the controls where reviewers approve or reject.
+The screenshot captures the controls where reviewers publish or return the event to draft.
 `,
     });
     await takeScreenshot(
@@ -226,49 +226,58 @@ The screenshot captures the controls where reviewers approve or reject.
       'Admin review action surface with publish decision controls',
     );
 
-    await page.getByRole('button', { name: 'Reject' }).click();
-    const rejectDialog = rejectEventDialogSurface(page);
-    await expect(rejectDialog).toBeVisible();
+    await page.getByRole('button', { name: 'Return to draft' }).click();
+    const returnToDraftDialog = returnToDraftDialogSurface(page);
+    await expect(returnToDraftDialog).toBeVisible();
     await takeScreenshot(
       testInfo,
-      rejectDialog,
+      returnToDraftDialog,
       page,
-      'Reject event dialog with required review comment field',
+      'Return-to-draft dialog with required creator feedback',
     );
-    await rejectDialog.getByLabel('Review Comment').fill(rejectionComment);
-    await rejectDialog.getByRole('button', { name: 'Reject Event' }).click();
+    await returnToDraftDialog
+      .getByLabel('Feedback for the creator')
+      .fill(reviewFeedback);
+    await returnToDraftDialog
+      .getByRole('button', { name: 'Return to Draft' })
+      .click();
     await expect(
-      page.locator('app-event-status').getByText('Rejected', { exact: true }),
+      page.locator('app-event-status').getByText('Draft', { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText(rejectionComment)).toBeVisible();
-    const rejectedEvent = await readGeneratedEvent();
-    expect(rejectedEvent.status).toBe('REJECTED');
-    expect(rejectedEvent.statusComment).toBe(rejectionComment);
-    expect(rejectedEvent.reviewedBy).toBe(adminUser.id);
+    await expect(
+      page.getByText(`Review feedback: ${reviewFeedback}`),
+    ).toBeVisible();
+    const returnedEvent = await readGeneratedEvent();
+    expect(returnedEvent.status).toBe('DRAFT');
+    expect(returnedEvent.statusComment).toBe(reviewFeedback);
+    expect(returnedEvent.reviewedBy).toBe(adminUser.id);
+    expect(returnedEvent.reviewedAt).not.toBeNull();
 
     await page.goto(`/events/${eventId}`);
     await expect(
-      page.locator('app-event-status').getByText('Rejected', { exact: true }),
+      page.locator('app-event-status').getByText('Draft', { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText(rejectionComment)).toBeVisible();
-    const rejectedStatusSurface = eventStatusSurface(page, [
-      'Rejected',
-      rejectionComment,
+    await expect(
+      page.getByText(`Review feedback: ${reviewFeedback}`),
+    ).toBeVisible();
+    const returnedDraftStatusSurface = eventStatusSurface(page, [
+      'Draft',
+      `Review feedback: ${reviewFeedback}`,
     ]);
-    await expect(rejectedStatusSurface).toBeVisible();
+    await expect(returnedDraftStatusSurface).toBeVisible();
     await testInfo.attach('markdown', {
       body: `
-## 3. Rejection feedback on event details
+## 3. Return-to-draft feedback on event details
 
-When a reviewer rejects the event, the event status changes to **Rejected** and the review comment is shown directly on the details page.
+When a reviewer returns the event, its status changes to **Draft** and the review feedback is shown directly on the details page.
 This gives creators clear guidance before they re-submit.
 `,
     });
     await takeScreenshot(
       testInfo,
-      rejectedStatusSurface,
+      returnedDraftStatusSurface,
       page,
-      'Rejected status with review comment',
+      'Returned draft status with review feedback',
     );
 
     await page.getByRole('button', { name: 'Submit for Review' }).click();
@@ -313,7 +322,7 @@ The screenshot demonstrates the final **Published** state.
 ## Expected Outcomes
 
 - Submitting moves the event to **PENDING_REVIEW**.
-- Rejecting requires a comment, and the rejection reason is shown on the event details page.
+- Returning to draft requires feedback, and that feedback is shown on the event details page.
 - Re-submitting returns the event to **PENDING_REVIEW**.
 - Approving publishes the event and stores the final status as **APPROVED**.
 `,

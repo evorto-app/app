@@ -7,9 +7,19 @@ import { Effect, Schema } from 'effect';
 import { Database, type DatabaseClient } from '../../db';
 import * as schema from '../../db/schema';
 import { stripeWebhookConfig } from '../config/stripe-config';
+import { retrieveHostedCheckoutSession } from '../integrations/stripe-checkout';
+import { enqueueWaitlistSpotAvailableEmail } from '../notifications/email-delivery';
+import { deriveRegistrationPaymentFeeSnapshot } from '../payments/registration-payment-fee-snapshot';
+import { reconcileRegistrationRefundWebhook } from '../payments/registration-refund';
+import { cancelTerminalBoundRegistrationCheckout } from '../registrations/expired-checkout-cleanup';
+import { completePaidRegistrationCheckout } from '../registrations/registration-checkout-completion';
+import { expireRegistrationTransferCheckout } from '../registrations/registration-transfer-finalization';
 import { StripeClient } from '../stripe-client';
+import { tenantOutboundUrl } from '../tenant-outbound-url';
+import { readRequestBody } from './request-body';
 
 export const MAX_STRIPE_WEBHOOK_SIZE_BYTES = 200 * 1024;
+export const MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES = MAX_STRIPE_WEBHOOK_SIZE_BYTES;
 const STALE_WEBHOOK_CLAIM_AGE_MS = 5 * 60 * 1000;
 
 interface CheckoutWebhookTransitionSteps<LockedRegistration, E, R> {
@@ -166,27 +176,159 @@ const databaseEffect = <A, E>(
 const responseText = (body: string, status = 200): Response =>
   new Response(body, { status });
 
-type SupportedStripeWebhookEventType =
-  'charge.updated' | 'checkout.session.completed' | 'checkout.session.expired';
+export const stripeEventOwnsPersistedAccount = (
+  eventAccount: null | string | undefined,
+  persistedAccount: null | string | undefined,
+): persistedAccount is string =>
+  Boolean(
+    eventAccount && persistedAccount && eventAccount === persistedAccount,
+  );
 
-const isSupportedStripeWebhookEventType = (
+export const prepareStripeWebhookRequest = Effect.fn(
+  'prepareStripeWebhookRequest',
+)(function* (request: Request) {
+  const signature = request.headers.get('stripe-signature');
+  if (!signature) {
+    return responseText('No signature', 400);
+  }
+
+  const rawBody = yield* readRequestBody(
+    request,
+    MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES,
+  ).pipe(
+    Effect.catchTags({
+      RequestBodyInvalidContentLengthError: (error) =>
+        Effect.logWarning('Stripe webhook has invalid Content-Length').pipe(
+          Effect.annotateLogs({ contentLength: error.contentLength }),
+          Effect.as(responseText('Invalid Content-Length', 400)),
+        ),
+      RequestBodyReadError: (error) =>
+        Effect.logWarning('Failed to read Stripe webhook body').pipe(
+          Effect.annotateLogs({
+            error:
+              error.cause instanceof Error
+                ? error.cause.message
+                : String(error.cause),
+          }),
+          Effect.as(responseText('Unable to read payload', 400)),
+        ),
+      RequestBodyTooLargeError: (error) =>
+        Effect.logWarning('Stripe webhook body exceeded route limit').pipe(
+          Effect.annotateLogs({ maxBytes: error.maxBytes }),
+          Effect.as(responseText('Payload too large', 413)),
+        ),
+    }),
+  );
+  if (rawBody instanceof Response) {
+    return rawBody;
+  }
+
+  return { rawBody, signature };
+});
+
+type SupportedStripeWebhookEventType =
+  | 'charge.updated'
+  | 'checkout.session.async_payment_failed'
+  | 'checkout.session.async_payment_succeeded'
+  | 'checkout.session.completed'
+  | 'checkout.session.expired'
+  | 'refund.created'
+  | 'refund.failed'
+  | 'refund.updated';
+
+export const isSupportedStripeWebhookEventType = (
   eventType: string,
 ): eventType is SupportedStripeWebhookEventType =>
   eventType === 'charge.updated' ||
+  eventType === 'checkout.session.async_payment_failed' ||
+  eventType === 'checkout.session.async_payment_succeeded' ||
   eventType === 'checkout.session.completed' ||
-  eventType === 'checkout.session.expired';
+  eventType === 'checkout.session.expired' ||
+  eventType === 'refund.created' ||
+  eventType === 'refund.failed' ||
+  eventType === 'refund.updated';
+
+export const asyncCheckoutFailureAction = (session: {
+  readonly payment_status?: null | string;
+  readonly status?: null | string;
+}): 'cancel' | 'complete' | 'keepOpen' => {
+  if (session.status === 'complete' && session.payment_status === 'paid') {
+    return 'complete';
+  }
+  return session.status === 'open' ? 'keepOpen' : 'cancel';
+};
 
 const getTenantIdFromWebhookEvent = (
   event: Stripe.Event,
 ): string | undefined => {
-  if (!event.type.startsWith('checkout.session.')) {
-    return undefined;
+  if (event.type.startsWith('refund.')) {
+    const refund = event.data.object as Stripe.Refund;
+    const tenantId = refund.metadata?.['tenantId'];
+    return tenantId && tenantId.length > 0 ? tenantId : undefined;
   }
+
+  if (!event.type.startsWith('checkout.session.')) return undefined;
 
   const session = event.data.object as Stripe.Checkout.Session;
   const tenantId = session.metadata?.['tenantId'];
   return tenantId && tenantId.length > 0 ? tenantId : undefined;
 };
+
+const getCheckoutTenant = (tenantId: string) =>
+  databaseEffect((database) =>
+    database.query.tenants.findFirst({
+      columns: {
+        domain: true,
+        emailSenderEmail: true,
+        emailSenderName: true,
+        id: true,
+        name: true,
+      },
+      where: { id: tenantId },
+    }),
+  );
+
+const getCheckoutNotificationContext = (
+  registrationId: string,
+  tenantId: string,
+) =>
+  databaseEffect((database) =>
+    database.query.eventRegistrations.findFirst({
+      columns: {
+        eventId: true,
+        id: true,
+        registrationOptionId: true,
+      },
+      where: { id: registrationId, tenantId },
+      with: {
+        event: {
+          columns: { title: true },
+        },
+        registrationOption: {
+          columns: { id: true },
+          with: {
+            eventRegistrations: {
+              columns: { id: true },
+              where: { status: 'WAITLIST', tenantId },
+              with: {
+                user: {
+                  columns: {
+                    communicationEmail: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+  );
+
+const checkoutNotificationEmail = (user: {
+  communicationEmail: string;
+  email: string;
+}): string => user.communicationEmail.trim() || user.email;
 
 const getCheckoutSessionPaymentIntentId = (
   session: Stripe.Checkout.Session,
@@ -220,6 +362,7 @@ export interface PersistedCheckoutSessionBinding {
   readonly id: string;
   readonly method: 'cash' | 'paypal' | 'stripe' | 'transfer';
   readonly status: 'cancelled' | 'pending' | 'successful';
+  readonly stripeAccountId?: null | string;
   readonly stripeCheckoutSessionId: null | string;
   readonly stripePaymentIntentId: null | string;
   readonly tenantId: string;
@@ -274,7 +417,17 @@ export const validateCheckoutSessionBinding = ({
       type: 'invalid-binding',
     };
   }
-  if (!stripeAccountId || !eventAccount || eventAccount !== stripeAccountId) {
+  const persistedAccount =
+    persisted.stripeAccountId === undefined
+      ? stripeAccountId
+      : persisted.stripeAccountId;
+  if (
+    !persistedAccount ||
+    !stripeAccountId ||
+    persistedAccount !== stripeAccountId ||
+    !eventAccount ||
+    eventAccount !== persistedAccount
+  ) {
     return {
       reason: 'Stripe connected account does not match the tenant',
       type: 'invalid-binding',
@@ -324,7 +477,7 @@ export const validateCheckoutSessionBinding = ({
   return {
     paymentIntentId,
     registrationId: persisted.eventRegistrationId,
-    stripeAccountId,
+    stripeAccountId: persistedAccount,
     tenantId: persisted.tenantId,
     transactionId: persisted.id,
     type: 'resolved',
@@ -348,6 +501,7 @@ const resolveCheckoutSession = (
           id: true,
           method: true,
           status: true,
+          stripeAccountId: true,
           stripeCheckoutSessionId: true,
           stripePaymentIntentId: true,
           tenantId: true,
@@ -625,17 +779,9 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
             return responseText('Transaction not found', 400);
           }
 
-          const stripeAccount = yield* databaseEffect((database) =>
-            database.query.tenants
-              .findFirst({
-                columns: { stripeAccountId: true },
-                where: { id: appTransaction.tenantId },
-              })
-              .pipe(Effect.map((tenant) => tenant?.stripeAccountId)),
-          );
-
-          if (!stripeAccount) {
-            return responseText('Stripe account not found', 400);
+          const stripeAccount = appTransaction.stripeAccountId;
+          if (!stripeEventOwnsPersistedAccount(event.account, stripeAccount)) {
+            return responseText('Stripe account ownership mismatch', 400);
           }
 
           const charge = yield* Effect.promise(() =>
@@ -648,35 +794,41 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
             ),
           );
 
-          const balanceTransaction = charge.balance_transaction;
-          if (typeof balanceTransaction !== 'object' || !balanceTransaction) {
-            return responseText('Balance transaction not found', 400);
+          const snapshot = deriveRegistrationPaymentFeeSnapshot({
+            charge,
+            expectedCurrency: appTransaction.currency,
+            expectedGrossAmount: appTransaction.amount,
+            expectedPaymentIntentId: appTransaction.stripePaymentIntentId,
+          });
+          if (!snapshot || snapshot.stripeChargeId !== eventCharge.id) {
+            return responseText('Charge payment ownership mismatch', 409);
           }
-
-          const appFee =
-            balanceTransaction.fee_details.find(
-              (fee) => fee.type === 'application_fee',
-            )?.amount ?? 0;
-          const stripeFee =
-            balanceTransaction.fee_details.find(
-              (fee) => fee.type === 'stripe_fee',
-            )?.amount ?? 0;
-          const netValue = balanceTransaction.net;
 
           yield* databaseEffect((database) =>
             database
               .update(schema.transactions)
               .set({
-                amount: netValue,
-                appFee,
-                stripeFee,
+                appFee: snapshot.appFee,
+                stripeFee: snapshot.stripeFee,
+                stripeNetAmount: snapshot.stripeNetAmount,
               })
-              .where(eq(schema.transactions.stripeChargeId, eventCharge.id)),
+              .where(
+                and(
+                  eq(schema.transactions.id, appTransaction.id),
+                  eq(schema.transactions.amount, appTransaction.amount),
+                  eq(schema.transactions.currency, appTransaction.currency),
+                  eq(schema.transactions.stripeAccountId, stripeAccount),
+                  eq(schema.transactions.stripeChargeId, eventCharge.id),
+                ),
+              ),
           );
 
           return responseText('Success');
         }
 
+        case 'checkout.session.async_payment_succeeded':
+        // Delayed and immediate payment success share one exact transition.
+        // falls through
         case 'checkout.session.completed': {
           const eventSession = event.data.object;
           if (
@@ -684,7 +836,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
             eventSession.payment_status !== 'paid'
           ) {
             yield* Effect.logInfo(
-              'Skipping checkout.session.completed event',
+              'Skipping paid Checkout completion event',
             ).pipe(
               Effect.annotateLogs({
                 paymentStatus: eventSession.payment_status ?? 'unknown',
@@ -730,6 +882,31 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
           if (!stripePaymentIntentId) {
             return responseText('Payment intent missing', 400);
           }
+
+          const transferCheckout = yield* databaseEffect((database) =>
+            database.query.registrationTransfers.findFirst({
+              columns: { id: true },
+              where: {
+                recipientCheckoutTransactionId: transactionId,
+                recipientRegistrationId: registrationId,
+                tenantId,
+              },
+            }),
+          );
+          if (transferCheckout) {
+            yield* completePaidRegistrationCheckout(
+              {
+                registrationId,
+                stripeAccountId: stripeAccount,
+                stripeCheckoutSessionId: eventSession.id,
+                tenantId,
+                transactionId,
+              },
+              eventSession,
+            );
+            return responseText('Success');
+          }
+
           const stripeChargeResult = yield* Effect.gen(function* () {
             const paymentIntentField = eventSession.payment_intent;
             const inlineChargeId = getLatestChargeId(paymentIntentField);
@@ -868,6 +1045,10 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                               lockedRegistration.id,
                             ),
                             eq(schema.transactions.method, 'stripe'),
+                            eq(
+                              schema.transactions.stripeAccountId,
+                              stripeAccount,
+                            ),
                             eq(schema.transactions.status, 'pending'),
                             eq(
                               schema.transactions.stripeCheckoutSessionId,
@@ -901,6 +1082,130 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
           }
 
           return responseText('Success');
+        }
+
+        // Kept beside the shared success transition for one ownership audit surface.
+        // eslint-disable-next-line perfectionist/sort-switch-case
+        case 'checkout.session.async_payment_failed': {
+          const eventSession = event.data.object;
+          const checkoutSession = yield* resolveCheckoutSession(
+            event,
+            eventSession,
+            true,
+          );
+          if (checkoutSession.type === 'unresolved') {
+            return responseText('Missing checkout session mapping', 400);
+          }
+          if (checkoutSession.type === 'invalid-binding') {
+            yield* Effect.logWarning('Invalid Stripe checkout binding').pipe(
+              Effect.annotateLogs({
+                eventId: event.id,
+                reason: checkoutSession.reason,
+                sessionId: eventSession.id,
+              }),
+            );
+            return responseText('Invalid checkout session binding', 400);
+          }
+          if (checkoutSession.type === 'state-conflict') {
+            return responseText('Checkout transaction state conflict', 409);
+          }
+
+          const {
+            paymentIntentId: stripePaymentIntentId,
+            registrationId,
+            stripeAccountId: stripeAccount,
+            tenantId,
+            transactionId,
+          } = checkoutSession;
+          if (!stripePaymentIntentId) {
+            return responseText('Payment intent missing', 400);
+          }
+
+          const currentSession = yield* retrieveHostedCheckoutSession(
+            eventSession.id,
+            stripeAccount,
+          );
+          const failureAction = asyncCheckoutFailureAction(currentSession);
+          if (failureAction === 'complete') {
+            const currentBinding = yield* resolveCheckoutSession(
+              event,
+              currentSession,
+              true,
+            );
+            if (currentBinding.type === 'state-conflict') {
+              return responseText('Checkout transaction state conflict', 409);
+            }
+            if (
+              currentBinding.type !== 'resolved' ||
+              currentBinding.registrationId !== registrationId ||
+              currentBinding.tenantId !== tenantId ||
+              currentBinding.transactionId !== transactionId
+            ) {
+              return responseText('Invalid checkout session binding', 400);
+            }
+            yield* completePaidRegistrationCheckout(
+              {
+                registrationId,
+                stripeAccountId: stripeAccount,
+                stripeCheckoutSessionId: eventSession.id,
+                tenantId,
+                transactionId,
+              },
+              currentSession,
+            );
+            return responseText('Success');
+          }
+          if (failureAction === 'keepOpen') {
+            const updated = yield* databaseEffect((database) =>
+              database
+                .update(schema.transactions)
+                .set({
+                  stripeCheckoutReconcileLastError:
+                    'Stripe reported an asynchronous payment failure while Checkout remained retryable',
+                  stripeCheckoutReconcileLeaseExpiresAt: null,
+                  stripeCheckoutReconcileLeaseId: null,
+                  stripeCheckoutReconcileNextAt: new Date(),
+                  stripePaymentIntentId,
+                })
+                .where(
+                  and(
+                    eq(schema.transactions.id, transactionId),
+                    eq(schema.transactions.eventRegistrationId, registrationId),
+                    eq(schema.transactions.method, 'stripe'),
+                    eq(schema.transactions.stripeAccountId, stripeAccount),
+                    eq(schema.transactions.status, 'pending'),
+                    eq(
+                      schema.transactions.stripeCheckoutSessionId,
+                      eventSession.id,
+                    ),
+                    or(
+                      isNull(schema.transactions.stripePaymentIntentId),
+                      eq(
+                        schema.transactions.stripePaymentIntentId,
+                        stripePaymentIntentId,
+                      ),
+                    ),
+                    eq(schema.transactions.tenantId, tenantId),
+                    eq(schema.transactions.type, 'registration'),
+                  ),
+                )
+                .returning({ id: schema.transactions.id }),
+            );
+            return updated.length === 1
+              ? responseText('Payment failed; Checkout remains retryable')
+              : responseText('Checkout transaction state conflict', 409);
+          }
+
+          const cancellation = yield* cancelTerminalBoundRegistrationCheckout({
+            registrationId,
+            stripeAccountId: stripeAccount,
+            stripeCheckoutSessionId: eventSession.id,
+            tenantId,
+            transactionId,
+          });
+          return cancellation === 'cancelled'
+            ? responseText('Payment failed; registration cancelled')
+            : responseText('Checkout transaction state conflict', 409);
         }
 
         case 'checkout.session.expired': {
@@ -948,6 +1253,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
           const {
             paymentIntentId: stripePaymentIntentId,
             registrationId,
+            stripeAccountId: stripeAccount,
             tenantId,
             transactionId,
           } = checkoutSession;
@@ -961,10 +1267,52 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
               )
             : isNull(schema.transactions.stripePaymentIntentId);
 
+          const checkoutTenant = yield* getCheckoutTenant(tenantId);
+          const notificationContext = yield* getCheckoutNotificationContext(
+            registrationId,
+            tenantId,
+          );
+          const waitlistRecipients =
+            notificationContext?.registrationOption?.eventRegistrations.flatMap(
+              (waitlistRegistration) =>
+                waitlistRegistration.user
+                  ? [
+                      {
+                        registrationId: waitlistRegistration.id,
+                        to: checkoutNotificationEmail(
+                          waitlistRegistration.user,
+                        ),
+                      },
+                    ]
+                  : [],
+            ) ?? [];
+          const notificationEventUrl =
+            checkoutTenant &&
+            notificationContext &&
+            waitlistRecipients.length > 0
+              ? yield* tenantOutboundUrl(
+                  checkoutTenant,
+                  `/events/${encodeURIComponent(notificationContext.eventId)}`,
+                )
+              : null;
+
           const updated = yield* databaseEffect((database) =>
             database
               .transaction((tx) =>
                 Effect.gen(function* () {
+                  const transferExpiry =
+                    yield* expireRegistrationTransferCheckout(tx, {
+                      registrationId,
+                      tenantId,
+                      transactionId,
+                    });
+                  if (transferExpiry === 'expired') {
+                    return true;
+                  }
+                  if (transferExpiry === 'alreadyExpired') {
+                    return false;
+                  }
+
                   yield* runCheckoutWebhookTransition({
                     lockRegistration: () =>
                       tx
@@ -1036,6 +1384,35 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                               eq(schema.eventAddons.id, addOnPurchase.addonId),
                             );
                         }
+
+                        if (waitlistRecipients.length > 0) {
+                          if (
+                            !checkoutTenant ||
+                            !notificationContext?.event ||
+                            !notificationEventUrl ||
+                            notificationContext.eventId !==
+                              lockedRegistration.eventId ||
+                            notificationContext.registrationOptionId !==
+                              lockedRegistration.registrationOptionId
+                          ) {
+                            return yield* Effect.die(
+                              new Error(
+                                'Waitlist availability notification context is missing or stale',
+                              ),
+                            );
+                          }
+                          for (const waitlistRecipient of waitlistRecipients) {
+                            yield* enqueueWaitlistSpotAvailableEmail(tx, {
+                              availabilityKey: `checkout-expired-${registrationId}`,
+                              eventTitle: notificationContext.event.title,
+                              eventUrl: notificationEventUrl,
+                              tenant: checkoutTenant,
+                              to: waitlistRecipient.to,
+                              waitlistRegistrationId:
+                                waitlistRecipient.registrationId,
+                            });
+                          }
+                        }
                       }),
                     updateRegistration: (lockedRegistration) =>
                       tx
@@ -1070,6 +1447,10 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                               lockedRegistration.id,
                             ),
                             eq(schema.transactions.method, 'stripe'),
+                            eq(
+                              schema.transactions.stripeAccountId,
+                              stripeAccount,
+                            ),
                             eq(schema.transactions.status, 'pending'),
                             eq(
                               schema.transactions.stripeCheckoutSessionId,
@@ -1097,6 +1478,22 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
           }
 
           return responseText('Success');
+        }
+
+        case 'refund.created':
+        case 'refund.failed':
+        case 'refund.updated': {
+          const refund = event.data.object as Stripe.Refund;
+          if (!refund.metadata?.['refundClaimId']) {
+            return responseText('Non-registration refund ignored');
+          }
+          const result = yield* reconcileRegistrationRefundWebhook(
+            refund,
+            event.account,
+          );
+          return result.status === 'reconciled'
+            ? responseText('Success')
+            : responseText('Refund claim ownership mismatch', 400);
         }
 
         default: {

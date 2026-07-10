@@ -3,12 +3,18 @@
     <mat-label>Selected Roles</mat-label>
     <mat-chip-grid #chipGrid aria-label="Role selection">
       @for (role of currentRolesQuery(); track role.data()?.id) {
-        <mat-chip-row (removed)="remove(role.data()?.id)">
-          {{ role.data()?.name }}
-          <button matChipRemove [attr.aria-label]="'remove ' + role">
-            <fa-icon [icon]="faCircleXmark" />
-          </button>
-        </mat-chip-row>
+        @if (role.data(); as roleData) {
+          <mat-chip-row (removed)="remove(roleData.id)">
+            {{ roleData.name }}
+            <button
+              type="button"
+              matChipRemove
+              [attr.aria-label]="'Remove ' + roleData.name"
+            >
+              <fa-icon [icon]="faCircleXmark" />
+            </button>
+          </mat-chip-row>
+        }
       }
     </mat-chip-grid>
     <input

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   generalSettingsBrandAssetUploadDisabled,
   generalSettingsSaveDisabled,
+  tenantTimezoneValidationError,
 } from './general-settings.component';
 
 describe('generalSettingsSaveDisabled', () => {
@@ -58,5 +59,15 @@ describe('generalSettingsBrandAssetUploadDisabled', () => {
         uploadingBrandAsset: null,
       }),
     ).toBe(false);
+  });
+});
+
+describe('tenantTimezoneValidationError', () => {
+  it('accepts IANA names and rejects browser-local abbreviations', () => {
+    expect(tenantTimezoneValidationError('America/New_York')).toBeUndefined();
+    expect(tenantTimezoneValidationError('PST')).toEqual({
+      kind: 'ianaTimezone',
+      message: 'Enter a valid IANA timezone name.',
+    });
   });
 });

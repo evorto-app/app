@@ -7,6 +7,10 @@ import { ConfigProvider, Effect, Layer } from 'effect';
 
 import {
   enqueueReceiptReviewedEmail,
+  enqueueRegistrationCancelledEmail,
+  enqueueRegistrationConfirmedEmail,
+  enqueueRegistrationTransferredEmail,
+  enqueueWaitlistSpotAvailableEmail,
   processDueEmailOutbox,
 } from './email-delivery';
 
@@ -81,11 +85,198 @@ describe('email delivery', () => {
       }),
   );
 
+  it.effect(
+    'renders typed registration lifecycle notifications with stable idempotency keys',
+    () =>
+      Effect.gen(function* () {
+        const insertedValues: Record<string, unknown>[] = [];
+        const database = {
+          insert: (table: unknown) => {
+            expect(table).toBe(emailOutbox);
+            return {
+              values: (value: Record<string, unknown>) => {
+                insertedValues.push(value);
+                return {
+                  onConflictDoNothing: (options: unknown) => {
+                    expect(options).toEqual({
+                      target: emailOutbox.idempotencyKey,
+                    });
+                    return Effect.void;
+                  },
+                };
+              },
+            };
+          },
+        } as Pick<DatabaseClient, 'insert'>;
+        const tenant = {
+          emailSenderEmail: 'board@example.org',
+          emailSenderName: 'Example Section',
+          id: 'tenant-1',
+          name: 'Example Section',
+        };
+        const eventTitle = 'City tour <script>alert(1)</script>';
+        const eventUrl = 'https://app.example/events/event-1';
+
+        yield* enqueueRegistrationConfirmedEmail(database, {
+          eventTitle,
+          registrationId: 'registration-1',
+          tenant,
+          ticketUrl: eventUrl,
+          to: 'alice@example.com',
+        });
+        yield* enqueueRegistrationConfirmedEmail(database, {
+          eventTitle,
+          registrationId: 'registration-1',
+          tenant,
+          ticketUrl: eventUrl,
+          to: 'alice@example.com',
+        });
+        yield* enqueueRegistrationCancelledEmail(database, {
+          cancelledBy: 'organizer',
+          eventTitle,
+          eventUrl,
+          registrationId: 'registration-1',
+          tenant,
+          to: 'alice@example.com',
+        });
+        yield* enqueueWaitlistSpotAvailableEmail(database, {
+          availabilityKey: 'cancellation-registration-1',
+          eventTitle,
+          eventUrl,
+          tenant,
+          to: 'waitlist@example.com',
+          waitlistRegistrationId: 'waitlist-1',
+        });
+        yield* enqueueRegistrationTransferredEmail(database, {
+          eventTitle,
+          eventUrl,
+          recipientRole: 'newOwner',
+          recipientUserId: 'user-2',
+          registrationId: 'registration-1',
+          tenant,
+          to: 'new-owner@example.com',
+        });
+        yield* enqueueRegistrationTransferredEmail(database, {
+          eventTitle,
+          eventUrl,
+          recipientRole: 'previousOwner',
+          recipientUserId: 'user-1',
+          registrationId: 'registration-1',
+          tenant,
+          to: 'previous-owner@example.com',
+        });
+
+        expect(insertedValues.map((value) => value.idempotencyKey)).toEqual([
+          'registration-confirmed/tenant-1/registration-1',
+          'registration-confirmed/tenant-1/registration-1',
+          'registration-cancelled/tenant-1/registration-1',
+          'waitlist-spot-available/tenant-1/waitlist-1/cancellation-registration-1',
+          'registration-transferred/tenant-1/registration-1/newOwner/user-2',
+          'registration-transferred/tenant-1/registration-1/previousOwner/user-1',
+        ]);
+        expect(insertedValues.map((value) => value.kind)).toEqual([
+          'registrationConfirmed',
+          'registrationConfirmed',
+          'registrationCancelled',
+          'waitlistSpotAvailable',
+          'registrationTransferred',
+          'registrationTransferred',
+        ]);
+        for (const insertedValue of insertedValues) {
+          expect(insertedValue.html).toEqual(
+            expect.stringContaining('lang="en"'),
+          );
+          expect(insertedValue.html).toEqual(expect.stringContaining('<h1'));
+          expect(insertedValue.html).not.toEqual(
+            expect.stringContaining('<script>alert(1)</script>'),
+          );
+          expect(insertedValue.html).not.toEqual(
+            expect.stringContaining('https://app.esn.world'),
+          );
+          expect(insertedValue.text).toEqual(expect.any(String));
+          expect(String(insertedValue.text).length).toBeGreaterThan(20);
+        }
+        expect(insertedValues[0]?.text).toContain('not a bearer credential');
+        expect(insertedValues[3]?.text).toContain('does not reserve a spot');
+      }),
+  );
+
+  it.effect(
+    'keeps cancellation idempotency stable while rendering the exact cancellation actor',
+    () =>
+      Effect.gen(function* () {
+        const insertedValues: Record<string, unknown>[] = [];
+        const database = {
+          insert: (table: unknown) => {
+            expect(table).toBe(emailOutbox);
+            return {
+              values: (value: Record<string, unknown>) => {
+                insertedValues.push(value);
+                return {
+                  onConflictDoNothing: (options: unknown) => {
+                    expect(options).toEqual({
+                      target: emailOutbox.idempotencyKey,
+                    });
+                    return Effect.void;
+                  },
+                };
+              },
+            };
+          },
+        } as Pick<DatabaseClient, 'insert'>;
+        const baseInput = {
+          eventTitle: 'City tour',
+          eventUrl: 'https://app.example/events/event-1',
+          registrationId: 'registration-1',
+          tenant: {
+            emailSenderEmail: 'board@example.org',
+            emailSenderName: 'Example Section',
+            id: 'tenant-1',
+            name: 'Example Section',
+          },
+          to: 'alice@example.com',
+        };
+
+        yield* enqueueRegistrationCancelledEmail(database, {
+          ...baseInput,
+          cancelledBy: 'participant',
+        });
+        yield* enqueueRegistrationCancelledEmail(database, {
+          ...baseInput,
+          cancelledBy: 'organizer',
+        });
+        yield* enqueueRegistrationCancelledEmail(database, {
+          ...baseInput,
+          cancelledBy: 'platformAdministrator',
+        });
+
+        expect(insertedValues.map((value) => value.idempotencyKey)).toEqual([
+          'registration-cancelled/tenant-1/registration-1',
+          'registration-cancelled/tenant-1/registration-1',
+          'registration-cancelled/tenant-1/registration-1',
+        ]);
+        expect(String(insertedValues[0]?.text)).toContain(
+          'You cancelled your registration for City tour.',
+        );
+        expect(String(insertedValues[1]?.text)).toContain(
+          'An organizer cancelled your registration for City tour.',
+        );
+        expect(String(insertedValues[2]?.text)).toContain(
+          'A platform administrator cancelled your registration for City tour.',
+        );
+        expect(String(insertedValues[2]?.text)).not.toContain(
+          'An organizer cancelled',
+        );
+      }),
+  );
+
   it.effect('sends due outbox rows through Resend with reply-to', () =>
     Effect.gen(function* () {
       const now = new Date('2026-07-09T10:00:00.000Z');
       const queuedRow = {
         attempts: 0,
+        claimLeaseExpiresAt: null,
+        claimLeaseId: null,
         createdAt: now,
         exhaustedAt: null,
         fromEmail: 'no-reply@notifications.esn.world',
@@ -112,6 +303,8 @@ describe('email delivery', () => {
       const claimedRow = {
         ...queuedRow,
         attempts: 1,
+        claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
+        claimLeaseId: 'lease-1',
         lastAttemptAt: now,
         status: 'sending' as const,
       };
@@ -134,12 +327,14 @@ describe('email delivery', () => {
           set: (values: { status?: string }) => {
             updateSets.push(values);
             return {
-              where: () =>
-                values.status === 'sending'
-                  ? {
-                      returning: () => Effect.succeed([claimedRow]),
-                    }
-                  : Effect.void,
+              where: () => ({
+                returning: () =>
+                  Effect.succeed(
+                    values.status === 'sending'
+                      ? [claimedRow]
+                      : [{ id: claimedRow.id }],
+                  ),
+              }),
             };
           },
         }),
@@ -175,11 +370,182 @@ describe('email delivery', () => {
         expect.arrayContaining([
           expect.objectContaining({ status: 'sending' }),
           expect.objectContaining({
+            claimLeaseExpiresAt: null,
+            claimLeaseId: null,
             resendEmailId: 'resend-email-1',
             status: 'sent',
           }),
         ]),
       );
+    }),
+  );
+
+  it.effect(
+    'reclaims an expired sending lease without consuming another attempt',
+    () =>
+      Effect.gen(function* () {
+        const now = new Date('2026-07-09T10:20:00.000Z');
+        const staleRow = {
+          attempts: 8,
+          claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
+          claimLeaseId: 'abandoned-lease',
+          createdAt: now,
+          exhaustedAt: null,
+          fromEmail: 'no-reply@notifications.esn.world',
+          fromName: 'ESN.WORLD',
+          html: '<p>Hello</p>',
+          id: 'email-stale',
+          idempotencyKey: 'manual-approval/tenant-1/registration-1/confirmed',
+          kind: 'manualApproval' as const,
+          lastAttemptAt: new Date('2026-07-09T10:00:00.000Z'),
+          lastError: null,
+          maxAttempts: 8,
+          nextAttemptAt: new Date('2026-07-09T10:00:00.000Z'),
+          replyToEmail: null,
+          replyToName: null,
+          resendEmailId: null,
+          sentAt: null,
+          status: 'sending' as const,
+          subject: 'Registration approved',
+          tenantId: 'tenant-1',
+          text: 'Hello',
+          toEmail: 'alice@example.com',
+          updatedAt: new Date('2026-07-09T10:00:00.000Z'),
+        };
+        const reclaimedRow = {
+          ...staleRow,
+          claimLeaseExpiresAt: new Date('2026-07-09T10:30:00.000Z'),
+          claimLeaseId: 'replacement-lease',
+          lastAttemptAt: now,
+        };
+        const fetchMock = vi.fn(async () =>
+          Response.json({ id: 'resend-email-stale' }),
+        );
+        vi.stubGlobal('fetch', fetchMock);
+        const updateSets: {
+          claimLeaseExpiresAt?: unknown;
+          claimLeaseId?: null | string;
+          status?: string;
+        }[] = [];
+        const database = {
+          select: () => ({
+            from: () => ({
+              where: () => ({
+                orderBy: () => ({
+                  limit: () => Effect.succeed([staleRow]),
+                }),
+              }),
+            }),
+          }),
+          update: () => ({
+            set: (values: {
+              claimLeaseExpiresAt?: unknown;
+              claimLeaseId?: null | string;
+              status?: string;
+            }) => {
+              updateSets.push(values);
+              return {
+                where: () => ({
+                  returning: () =>
+                    Effect.succeed(
+                      values.status === 'sending'
+                        ? [reclaimedRow]
+                        : [{ id: staleRow.id }],
+                    ),
+                }),
+              };
+            },
+          }),
+        };
+
+        const processed = yield* processDueEmailOutbox(1).pipe(
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provide(emailConfigProviderLayer),
+        );
+
+        expect(processed).toBe(1);
+        expect(fetchMock).toHaveBeenCalledOnce();
+        const [, init] = fetchMock.mock.calls[0] ?? [];
+        expect(init?.headers).toEqual(
+          expect.objectContaining({
+            'Idempotency-Key':
+              'manual-approval/tenant-1/registration-1/confirmed',
+          }),
+        );
+        expect(reclaimedRow.attempts).toBe(8);
+        expect(updateSets).toEqual([
+          expect.objectContaining({
+            claimLeaseExpiresAt: expect.anything(),
+            claimLeaseId: expect.any(String),
+            status: 'sending',
+          }),
+          expect.objectContaining({
+            claimLeaseExpiresAt: null,
+            claimLeaseId: null,
+            status: 'sent',
+          }),
+        ]);
+      }),
+  );
+
+  it.effect('skips delivery when another worker wins the atomic claim', () =>
+    Effect.gen(function* () {
+      const now = new Date('2026-07-09T10:20:00.000Z');
+      const staleRow = {
+        attempts: 1,
+        claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
+        claimLeaseId: 'abandoned-lease',
+        createdAt: now,
+        exhaustedAt: null,
+        fromEmail: 'no-reply@notifications.esn.world',
+        fromName: 'ESN.WORLD',
+        html: '<p>Hello</p>',
+        id: 'email-stale',
+        idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
+        kind: 'receiptReviewed' as const,
+        lastAttemptAt: now,
+        lastError: null,
+        maxAttempts: 8,
+        nextAttemptAt: now,
+        replyToEmail: null,
+        replyToName: null,
+        resendEmailId: null,
+        sentAt: null,
+        status: 'sending' as const,
+        subject: 'Receipt approved',
+        tenantId: 'tenant-1',
+        text: 'Hello',
+        toEmail: 'alice@example.com',
+        updatedAt: now,
+      };
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const database = {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              orderBy: () => ({
+                limit: () => Effect.succeed([staleRow]),
+              }),
+            }),
+          }),
+        }),
+        update: () => ({
+          set: () => ({
+            where: () => ({
+              returning: () => Effect.succeed([]),
+            }),
+          }),
+        }),
+      };
+
+      const processed = yield* processDueEmailOutbox(1).pipe(
+        Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+        Effect.provide(emailConfigProviderLayer),
+      );
+
+      expect(processed).toBe(0);
+      expect(fetchMock).not.toHaveBeenCalled();
     }),
   );
 
@@ -190,6 +556,8 @@ describe('email delivery', () => {
       vi.setSystemTime(now);
       const queuedRow = {
         attempts: 0,
+        claimLeaseExpiresAt: null,
+        claimLeaseId: null,
         createdAt: now,
         exhaustedAt: null,
         fromEmail: 'no-reply@notifications.esn.world',
@@ -216,6 +584,8 @@ describe('email delivery', () => {
       const claimedRow = {
         ...queuedRow,
         attempts: 1,
+        claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
+        claimLeaseId: 'lease-1',
         lastAttemptAt: now,
         status: 'sending' as const,
       };
@@ -238,12 +608,14 @@ describe('email delivery', () => {
           set: (values: { status?: string }) => {
             updateSets.push(values);
             return {
-              where: () =>
-                values.status === 'sending'
-                  ? {
-                      returning: () => Effect.succeed([claimedRow]),
-                    }
-                  : Effect.void,
+              where: () => ({
+                returning: () =>
+                  Effect.succeed(
+                    values.status === 'sending'
+                      ? [claimedRow]
+                      : [{ id: claimedRow.id }],
+                  ),
+              }),
             };
           },
         }),
@@ -259,6 +631,8 @@ describe('email delivery', () => {
         expect.arrayContaining([
           expect.objectContaining({ status: 'sending' }),
           expect.objectContaining({
+            claimLeaseExpiresAt: null,
+            claimLeaseId: null,
             exhaustedAt: null,
             lastError: 'Resend email request failed: 500',
             nextAttemptAt: new Date('2026-07-09T10:00:01.000Z'),
@@ -276,6 +650,8 @@ describe('email delivery', () => {
       vi.setSystemTime(now);
       const queuedRow = {
         attempts: 0,
+        claimLeaseExpiresAt: null,
+        claimLeaseId: null,
         createdAt: now,
         exhaustedAt: null,
         fromEmail: 'no-reply@notifications.esn.world',
@@ -302,6 +678,8 @@ describe('email delivery', () => {
       const claimedRow = {
         ...queuedRow,
         attempts: 1,
+        claimLeaseExpiresAt: new Date('2026-07-09T10:10:00.000Z'),
+        claimLeaseId: 'lease-1',
         lastAttemptAt: now,
         status: 'sending' as const,
       };
@@ -324,12 +702,14 @@ describe('email delivery', () => {
           set: (values: { status?: string }) => {
             updateSets.push(values);
             return {
-              where: () =>
-                values.status === 'sending'
-                  ? {
-                      returning: () => Effect.succeed([claimedRow]),
-                    }
-                  : Effect.void,
+              where: () => ({
+                returning: () =>
+                  Effect.succeed(
+                    values.status === 'sending'
+                      ? [claimedRow]
+                      : [{ id: claimedRow.id }],
+                  ),
+              }),
             };
           },
         }),
@@ -345,6 +725,8 @@ describe('email delivery', () => {
         expect.arrayContaining([
           expect.objectContaining({ status: 'sending' }),
           expect.objectContaining({
+            claimLeaseExpiresAt: null,
+            claimLeaseId: null,
             exhaustedAt: now,
             lastError: 'Resend email request failed: 400',
             nextAttemptAt: now,

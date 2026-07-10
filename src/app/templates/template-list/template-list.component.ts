@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,7 +17,9 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { PermissionsService } from '../../core/permissions.service';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,6 +29,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
     FontAwesomeModule,
     MatMenuModule,
     IconComponent,
+    IfPermissionDirective,
     RouterLinkActive,
     RouterOutlet,
   ],
@@ -34,12 +38,15 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
   templateUrl: './template-list.component.html',
 })
 export class TemplateListComponent {
+  protected readonly appRpc = AppRpc.injectClient();
+  protected readonly canManageCategories = inject(
+    PermissionsService,
+  ).hasPermission('templates:manageCategories');
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faPlus = faPlus;
   protected readonly outletActive = signal(false);
-  private readonly rpc = AppRpc.injectClient();
   protected templateQuery = injectQuery(() =>
-    this.rpc.templates.groupedByCategory.queryOptions(),
+    this.appRpc.templates.groupedByCategory.queryOptions(),
   );
   protected readonly templateQueryErrorMessage = computed(() => {
     const error = this.templateQuery.error();

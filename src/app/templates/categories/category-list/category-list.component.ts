@@ -5,7 +5,6 @@ import {
   Component,
   computed,
   inject,
-  signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -26,18 +25,43 @@ import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../../core/error-message';
+import { NotificationService } from '../../../core/notification.service';
+import { PermissionsService } from '../../../core/permissions.service';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
 const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
 
 export const templateCategoryActionDisabled = ({
+  canManageCategories,
   createPending,
   updatePending,
 }: {
+  canManageCategories: boolean;
   createPending: boolean;
   updatePending: boolean;
-}): boolean => createPending || updatePending;
+}): boolean => !canManageCategories || createPending || updatePending;
+
+export const templateCategoryColumns = (
+  canManageCategories: boolean,
+): string[] =>
+  canManageCategories
+    ? ['category', 'templates', 'actions']
+    : ['category', 'templates'];
+
+export const templateCategoryMutationErrorMessage = (
+  error: unknown,
+): string => {
+  if (
+    error &&
+    typeof error === 'object' &&
+    Reflect.get(error, 'permission') === 'templates:manageCategories'
+  ) {
+    return 'You no longer have permission to manage template categories. Reload the page to refresh your access, or ask an administrator for this permission.';
+  }
+
+  return getErrorMessage(error, 'Template category could not be saved');
+};
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -53,33 +77,32 @@ export const templateCategoryActionDisabled = ({
   templateUrl: './category-list.component.html',
 })
 export class CategoryListComponent {
-  protected readonly columnsToDisplay = signal<string[]>([
-    'category',
-    'templates',
-    'actions',
-  ]);
+  protected readonly appRpc = AppRpc.injectClient();
+  protected readonly canManageCategories = inject(
+    PermissionsService,
+  ).hasPermission('templates:manageCategories');
+  protected readonly columnsToDisplay = computed(() =>
+    templateCategoryColumns(this.canManageCategories()),
+  );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly faPlus = faPlus;
-  protected readonly outletActive = signal(false);
-  private readonly rpc = AppRpc.injectClient();
   protected templateCategoryGroupsQuery = injectQuery(() =>
-    this.rpc.templates.groupedByCategory.queryOptions(),
+    this.appRpc.templates.groupedByCategory.queryOptions(),
   );
   protected readonly templateCategoryGroupsErrorMessage = computed(() => {
     const error = this.templateCategoryGroupsQuery.error();
     return getErrorMessage(error, 'Unknown error');
   });
   private createCategoryMutation = injectMutation(() =>
-    this.rpc.templateCategories.create.mutationOptions(),
+    this.appRpc.templateCategories.create.mutationOptions(),
   );
   private dialog = inject(MatDialog);
+  private readonly notifications = inject(NotificationService);
   private queryClient = inject(QueryClient);
-
   private updateCategoryMutation = injectMutation(() =>
-    this.rpc.templateCategories.update.mutationOptions(),
+    this.appRpc.templateCategories.update.mutationOptions(),
   );
-
   async openCategoryCreationDialog() {
     if (this.categoryActionDisabled()) {
       return;
@@ -96,16 +119,22 @@ export class CategoryListComponent {
     });
     const result = await firstValueFrom(dialogReference.afterClosed());
     if (result?.title) {
-      await this.createCategoryMutation.mutateAsync({
-        icon: result.icon,
-        title: result.title,
-      });
-      await this.queryClient.invalidateQueries(
-        this.rpc.queryFilter(['templateCategories', 'findMany']),
-      );
-      await this.queryClient.invalidateQueries(
-        this.rpc.queryFilter(['templates', 'groupedByCategory']),
-      );
+      try {
+        await this.createCategoryMutation.mutateAsync({
+          icon: result.icon,
+          title: result.title,
+        });
+        await this.queryClient.invalidateQueries(
+          this.appRpc.queryFilter(['templateCategories', 'findMany']),
+        );
+        await this.queryClient.invalidateQueries(
+          this.appRpc.queryFilter(['templates', 'groupedByCategory']),
+        );
+      } catch (error) {
+        this.notifications.showError(
+          templateCategoryMutationErrorMessage(error),
+        );
+      }
     }
   }
 
@@ -127,22 +156,29 @@ export class CategoryListComponent {
     const result = (await firstValueFrom(dialogReference.afterClosed())) as
       undefined | { icon: IconValue; title: string };
     if (result?.title) {
-      await this.updateCategoryMutation.mutateAsync({
-        icon: result.icon,
-        id: category.id,
-        title: result.title,
-      });
-      await this.queryClient.invalidateQueries(
-        this.rpc.queryFilter(['templateCategories', 'findMany']),
-      );
-      await this.queryClient.invalidateQueries(
-        this.rpc.queryFilter(['templates', 'groupedByCategory']),
-      );
+      try {
+        await this.updateCategoryMutation.mutateAsync({
+          icon: result.icon,
+          id: category.id,
+          title: result.title,
+        });
+        await this.queryClient.invalidateQueries(
+          this.appRpc.queryFilter(['templateCategories', 'findMany']),
+        );
+        await this.queryClient.invalidateQueries(
+          this.appRpc.queryFilter(['templates', 'groupedByCategory']),
+        );
+      } catch (error) {
+        this.notifications.showError(
+          templateCategoryMutationErrorMessage(error),
+        );
+      }
     }
   }
 
   protected categoryActionDisabled(): boolean {
     return templateCategoryActionDisabled({
+      canManageCategories: this.canManageCategories(),
       createPending: this.createCategoryMutation.isPending(),
       updatePending: this.updateCategoryMutation.isPending(),
     });

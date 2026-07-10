@@ -1,6 +1,6 @@
 import type Stripe from 'stripe';
 
-import { Effect } from 'effect';
+import { Effect, Schema } from 'effect';
 import { DateTime } from 'luxon';
 
 import { getServerNow } from '../clock';
@@ -31,24 +31,65 @@ export const buildCheckoutSessionIdempotencyKey = (input: {
   transactionId: string;
 }) => `registration:${input.registrationId}:transaction:${input.transactionId}`;
 
-export const createHostedCheckoutSession = (
-  parameters: Stripe.Checkout.SessionCreateParams,
-  options: {
-    idempotencyKey: string;
-    stripeAccount: string;
+export class StripeCheckoutError extends Schema.TaggedErrorClass<StripeCheckoutError>()(
+  'StripeCheckoutError',
+  {
+    cause: Schema.Defect(),
+    message: Schema.String,
   },
-) =>
-  Effect.gen(function* () {
-    const stripeClient = yield* StripeClient;
-    return yield* Effect.tryPromise({
-      catch: (error) =>
-        error instanceof Error
-          ? error
-          : new Error(`Unexpected Stripe checkout failure: ${String(error)}`),
-      try: () =>
-        stripeClient.checkout.sessions.create(parameters, {
-          idempotencyKey: options.idempotencyKey,
-          stripeAccount: options.stripeAccount,
-        }),
-    });
+) {}
+
+export const createHostedCheckoutSession = Effect.fn(
+  'createHostedCheckoutSession',
+)(function* (
+  parameters: Stripe.Checkout.SessionCreateParams,
+  options: { idempotencyKey: string; stripeAccount: string },
+) {
+  const stripeClient = yield* StripeClient;
+  return yield* Effect.tryPromise({
+    catch: (cause) =>
+      new StripeCheckoutError({
+        cause,
+        message: 'Stripe checkout session request failed',
+      }),
+    try: () =>
+      stripeClient.checkout.sessions.create(parameters, {
+        idempotencyKey: options.idempotencyKey,
+        stripeAccount: options.stripeAccount,
+      }),
   });
+});
+
+export const expireHostedCheckoutSession = Effect.fn(
+  'expireHostedCheckoutSession',
+)(function* (sessionId: string, stripeAccount: string) {
+  const stripeClient = yield* StripeClient;
+  return yield* Effect.tryPromise({
+    catch: (cause) =>
+      new StripeCheckoutError({
+        cause,
+        message: 'Stripe checkout session expiry failed',
+      }),
+    try: () =>
+      stripeClient.checkout.sessions.expire(sessionId, undefined, {
+        stripeAccount,
+      }),
+  });
+});
+
+export const retrieveHostedCheckoutSession = Effect.fn(
+  'retrieveHostedCheckoutSession',
+)(function* (sessionId: string, stripeAccount: string) {
+  const stripeClient = yield* StripeClient;
+  return yield* Effect.tryPromise({
+    catch: (cause) =>
+      new StripeCheckoutError({
+        cause,
+        message: 'Stripe checkout session retrieval failed',
+      }),
+    try: () =>
+      stripeClient.checkout.sessions.retrieve(sessionId, undefined, {
+        stripeAccount,
+      }),
+  });
+});

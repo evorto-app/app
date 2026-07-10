@@ -18,6 +18,7 @@ test('register for a free event as regular user', async ({
   const targetEventId = seeded.scenario.events.freeOpen.eventId;
   const targetOptionId = seeded.scenario.events.freeOpen.optionId;
   const serverEventWindow = futureServerEventWindow();
+  let createdRegistrationId: string | undefined;
   const [targetEvent] = await database
     .select()
     .from(schema.eventInstances)
@@ -138,6 +139,26 @@ test('register for a free event as regular user', async ({
         'Expected free registration flow to persist a confirmed registration',
       );
     }
+    createdRegistrationId = registration.id;
+    const registrationEmail = await database.query.emailOutbox.findFirst({
+      where: {
+        idempotencyKey: `registration-confirmed/${tenant.id}/${registration.id}`,
+        kind: 'registrationConfirmed',
+        tenantId: tenant.id,
+      },
+    });
+    const registrationUser = await database.query.users.findFirst({
+      columns: {
+        communicationEmail: true,
+      },
+      where: { id: user.id },
+    });
+    expect(registrationEmail).toMatchObject({
+      kind: 'registrationConfirmed',
+      toEmail: registrationUser?.communicationEmail,
+    });
+    expect(registrationEmail?.html).toContain(`/events/${targetEventId}`);
+    expect(registrationEmail?.text).toContain('not a bearer credential');
 
     const [after] = await database
       .select()
@@ -151,6 +172,16 @@ test('register for a free event as regular user', async ({
     }
     expect(after.confirmedSpots).toBeGreaterThanOrEqual(confirmedBefore + 1);
   } finally {
+    if (createdRegistrationId) {
+      await database
+        .delete(schema.emailOutbox)
+        .where(
+          eq(
+            schema.emailOutbox.idempotencyKey,
+            `registration-confirmed/${tenant.id}/${createdRegistrationId}`,
+          ),
+        );
+    }
     await database
       .delete(schema.eventRegistrations)
       .where(

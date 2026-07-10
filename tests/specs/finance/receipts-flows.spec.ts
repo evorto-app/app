@@ -12,6 +12,7 @@ import {
 } from '../../../helpers/user-data';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
+import type { SupportedTenantCurrency } from '../../../src/types/custom/tenant';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({ storageState: adminStateFile });
@@ -20,10 +21,20 @@ const openEventOrganizePage = async (page: Page, eventId: string) => {
   await page.goto(`/events/${eventId}/organize`);
 };
 
+const formatTenantCurrency = (
+  amountInMinorUnits: number,
+  currency: SupportedTenantCurrency,
+): string =>
+  new Intl.NumberFormat('de-DE', {
+    currency,
+    style: 'currency',
+  }).format(amountInMinorUnits / 100);
+
 const submitReceiptFromFirstEvent = async (
   page: Page,
   eventId: string,
   receiptFile: string,
+  currency: SupportedTenantCurrency,
 ) => {
   await openEventOrganizePage(page, eventId);
   await expect(page.getByRole('heading', { name: 'Receipts' })).toBeVisible();
@@ -37,22 +48,26 @@ const submitReceiptFromFirstEvent = async (
   const receiptDialog = page.locator('app-receipt-submit-dialog');
   await expect(receiptDialog).toBeVisible();
   await expect(
-    receiptDialog.getByLabel('Deposit amount (EUR)'),
+    receiptDialog.getByLabel(`Deposit amount (${currency})`),
   ).not.toBeVisible();
   await receiptDialog
     .getByRole('checkbox', { name: 'Deposit involved' })
     .check();
-  await expect(receiptDialog.getByLabel('Deposit amount (EUR)')).toBeVisible();
   await expect(
-    receiptDialog.getByLabel('Alcohol amount (EUR)'),
+    receiptDialog.getByLabel(`Deposit amount (${currency})`),
+  ).toBeVisible();
+  await expect(
+    receiptDialog.getByLabel(`Alcohol amount (${currency})`),
   ).not.toBeVisible();
   await receiptDialog
     .getByRole('checkbox', { name: 'Alcohol purchased' })
     .check();
-  await expect(receiptDialog.getByLabel('Alcohol amount (EUR)')).toBeVisible();
+  await expect(
+    receiptDialog.getByLabel(`Alcohol amount (${currency})`),
+  ).toBeVisible();
 
-  await receiptDialog.getByLabel('Total amount (EUR)').fill('14.50');
-  await receiptDialog.getByLabel('Alcohol amount (EUR)').fill('1.50');
+  await receiptDialog.getByLabel(`Total amount (${currency})`).fill('14.50');
+  await receiptDialog.getByLabel(`Alcohol amount (${currency})`).fill('1.50');
   await receiptDialog.getByLabel('Purchase country').click();
   await page.getByRole('option', { name: 'Germany (DE)' }).click();
   await receiptDialog
@@ -66,6 +81,7 @@ const submitReceiptFromFirstEvent = async (
 };
 
 const seedPendingReceiptForApproval = async ({
+  currency,
   database,
   eventId,
   receiptFileName,
@@ -74,6 +90,7 @@ const seedPendingReceiptForApproval = async ({
   submittedByUserId,
   tenantId,
 }: {
+  currency: SupportedTenantCurrency;
   database: NodePgDatabase<typeof relations>;
   eventId: string;
   receiptFileName: string;
@@ -117,7 +134,9 @@ test('submit receipt from event organize page', async ({
   database,
   page,
   seeded,
+  tenant,
 }) => {
+  const currency = 'AUD';
   const eventId = seeded.scenario.events.past.eventId;
   const receiptFile = path.resolve('tests/fixtures/sample-receipt.pdf');
   const [event] = await database
@@ -132,6 +151,10 @@ test('submit receipt from event organize page', async ({
   let submittedUploadId: string | undefined;
 
   try {
+    await database
+      .update(schema.tenants)
+      .set({ currency })
+      .where(eq(schema.tenants.id, tenant.id));
     const now = new Date();
     await database
       .update(schema.eventInstances)
@@ -205,6 +228,7 @@ test('approve and record receipt reimbursements in finance', async ({
   seeded,
   tenant,
 }) => {
+  const currency = 'CZK';
   const organizerUser = usersToAuthenticate.find(
     (user) => user.roles === 'organizer',
   );
@@ -223,6 +247,10 @@ test('approve and record receipt reimbursements in finance', async ({
   let receiptUploadId: string | undefined;
   let refundTransactionId: string | undefined;
   try {
+    await database
+      .update(schema.tenants)
+      .set({ currency })
+      .where(eq(schema.tenants.id, tenant.id));
     await database
       .update(schema.users)
       .set({
@@ -254,7 +282,13 @@ test('approve and record receipt reimbursements in finance', async ({
       'href',
       `/finance/receipts-approval/${receiptId}`,
     );
+    await expect(
+      pendingReceipt.getByText(formatTenantCurrency(1450, currency)),
+    ).toBeVisible();
     await pendingReceipt.click();
+    await expect(page.getByLabel(`Total amount (${currency})`)).toHaveValue(
+      '14.5',
+    );
     await page.getByRole('button', { name: 'Approve' }).click();
     await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
 
@@ -278,6 +312,11 @@ test('approve and record receipt reimbursements in finance', async ({
       .locator('tr.mat-mdc-row input[type="checkbox"]')
       .first()
       .check();
+    await expect(
+      refundSection.getByText(
+        `Selected total: ${formatTenantCurrency(1450, currency)}`,
+      ),
+    ).toBeVisible();
 
     const issueRefundButton = refundSection.getByRole('button', {
       name: 'Record reimbursement',
@@ -311,7 +350,18 @@ test('approve and record receipt reimbursements in finance', async ({
     if (!refundedReceipt?.refundTransactionId) {
       throw new Error('Expected seeded receipt after reimbursement recording');
     }
-    refundTransactionId = refundedReceipt.refundTransactionId;
+    const createdRefundTransactionId = refundedReceipt.refundTransactionId;
+    refundTransactionId = createdRefundTransactionId;
+    await expect
+      .poll(() =>
+        database.query.transactions.findFirst({
+          where: { id: createdRefundTransactionId, tenantId: tenant.id },
+        }),
+      )
+      .toMatchObject({
+        currency,
+        status: 'successful',
+      });
   } finally {
     await database
       .update(schema.users)

@@ -1,11 +1,19 @@
 import { Routes } from '@angular/router';
 
-import { permissionGuard } from '../core/guards/permission.guard';
+import { platformAuthorityGuard } from '../core/guards/platform-authority.guard';
+import { PLATFORM_EVENT_OPERATION_ROUTES } from './platform-event-operations/platform-event-operations.routes';
 
 export const GLOBAL_ADMIN_ROUTES: Routes = [
   {
-    canActivate: [permissionGuard],
+    canActivate: [platformAuthorityGuard],
     children: [
+      {
+        loadComponent: () =>
+          import('./platform-audit/platform-audit.component').then(
+            (m) => m.PlatformAuditComponent,
+          ),
+        path: 'audit',
+      },
       {
         loadComponent: () =>
           import('./tenant-create/tenant-create.component').then(
@@ -19,6 +27,35 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.TenantEditComponent,
           ),
         path: 'tenants/:tenantId/edit',
+      },
+      ...PLATFORM_EVENT_OPERATION_ROUTES,
+      {
+        loadComponent: () =>
+          import('./platform-tenant-admin/platform-tenant-users.component').then(
+            (m) => m.PlatformTenantUsersComponent,
+          ),
+        path: 'tenants/:tenantId/users',
+      },
+      {
+        loadComponent: () =>
+          import('./platform-tenant-admin/platform-roles.component').then(
+            (m) => m.PlatformRolesComponent,
+          ),
+        path: 'tenants/:tenantId/roles',
+      },
+      {
+        loadComponent: () =>
+          import('./platform-tenant-admin/platform-tax-rates.component').then(
+            (m) => m.PlatformTaxRatesComponent,
+          ),
+        path: 'tenants/:tenantId/tax-rates',
+      },
+      {
+        loadComponent: () =>
+          import('./platform-tenant-admin/platform-finance.component').then(
+            (m) => m.PlatformFinanceComponent,
+          ),
+        path: 'tenants/:tenantId/finance',
       },
       {
         loadComponent: () =>
@@ -42,9 +79,6 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
         path: 'tenants',
       },
     ],
-    data: {
-      permissions: ['globalAdmin:manageTenants'],
-    },
     loadComponent: () =>
       import('./ga-overview/ga-overview.component').then(
         (m) => m.GaOverviewComponent,

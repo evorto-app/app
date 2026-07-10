@@ -58,8 +58,10 @@
               {{ registrationOption.registrationOptionTitle }}
             </h3>
             @for (user of registrationOption.users; track user.userId) {
+              @let approvalInFlight = approvalPending(user.registrationId);
               <div
                 class="flex flex-wrap items-center justify-between gap-2 rounded bg-surface-container-high px-3 py-2"
+                [attr.aria-busy]="approvalInFlight || null"
               >
                 <div class="grid gap-1">
                   <div class="flex flex-wrap items-center gap-2">
@@ -76,7 +78,13 @@
                         Checked in
                       </span>
                     }
-                    @if (user.manualApprovalAvailable) {
+                    @if (user.paymentSetupRequired) {
+                      <span
+                        class="bg-error-container text-on-error-container rounded px-2 py-1 text-xs"
+                      >
+                        Payment setup needs retry
+                      </span>
+                    } @else if (user.manualApprovalAvailable) {
                       <span
                         class="bg-tertiary-container text-on-tertiary-container rounded px-2 py-1 text-xs"
                       >
@@ -107,7 +115,7 @@
                 </div>
                 @if (!registrationOption.organizingRegistration) {
                   <div class="flex flex-wrap gap-2">
-                    @if (user.status === "PENDING") {
+                    @if (user.manualApprovalAvailable) {
                       <button
                         mat-flat-button
                         type="button"
@@ -123,7 +131,12 @@
                           })
                         "
                       >
-                        Approve registration
+                        {{
+                          organizerRegistrationApprovalLabel({
+                            approvalPending: approvalInFlight,
+                            paymentSetupRequired: user.paymentSetupRequired,
+                          })
+                        }}
                       </button>
                     }
                     <button
@@ -272,9 +285,13 @@
                 </p>
                 <div class="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-3">
                   <p>
-                    Total: {{ receipt.totalAmount / 100 | number: "1.2-2" }} €
+                    Total:
+                    {{ receipt.totalAmount | receiptAmount: receipt.currency }}
                   </p>
-                  <p>Tax: {{ receipt.taxAmount / 100 | number: "1.2-2" }} €</p>
+                  <p>
+                    Tax:
+                    {{ receipt.taxAmount | receiptAmount: receipt.currency }}
+                  </p>
                   <p>Date: {{ receipt.receiptDate | date: "mediumDate" }}</p>
                 </div>
                 @if (receipt.previewImageUrl) {

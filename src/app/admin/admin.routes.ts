@@ -56,6 +56,17 @@ export const ADMIN_ROUTES: Routes = [
           permissions: ['admin:changeSettings'],
         },
         loadComponent: () =>
+          import('./onboarding-settings/onboarding-settings.component').then(
+            (m) => m.OnboardingSettingsComponent,
+          ),
+        path: 'onboarding',
+      },
+      {
+        canActivate: [permissionGuard],
+        data: {
+          permissions: ['admin:changeSettings'],
+        },
+        loadComponent: () =>
           import('./general-settings/general-settings.component').then(
             (m) => m.GeneralSettingsComponent,
           ),

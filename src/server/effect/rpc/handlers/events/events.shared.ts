@@ -60,7 +60,5 @@ export const canEditEvent = ({
   userId: string;
 }) => creatorId === userId || includesPermission('events:editAll', permissions);
 
-export const EDITABLE_EVENT_STATUSES = ['DRAFT', 'REJECTED'] as const;
-
 export type EventRegistrationOptionDiscountInsert =
   typeof eventRegistrationOptionDiscounts.$inferInsert;

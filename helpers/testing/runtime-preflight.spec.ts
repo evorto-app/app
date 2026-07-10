@@ -72,7 +72,7 @@ FFmpeg
 
 const serviceBlock = (composeFile: string, service: string): string => {
   const match = new RegExp(
-    `^  ${service}:\\n([\\s\\S]*?)(?=^  [a-zA-Z0-9_-]+:|^secrets:|^volumes:)`,
+    String.raw`^  ${service}:\n([\s\S]*?)(?=^  [a-zA-Z0-9_-]+:|^secrets:|^volumes:)`,
     'm',
   ).exec(composeFile);
 
@@ -228,6 +228,7 @@ describe('evaluateRuntimePreflight', () => {
       'test:e2e:ui',
       'test:e2e:integration',
       'test:e2e:live-esncard',
+      'test:e2e:live-esncard:release',
       'test:e2e:docs',
       'test:e2e:docs:publish',
     ]) {
@@ -242,10 +243,22 @@ describe('evaluateRuntimePreflight', () => {
       'tests/specs/profile/user-profile-live-esncard.spec.ts',
     );
     expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
-      '--project=local-chrome-integration',
+      '--project=local-chrome-live-esncard',
     );
     expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
       "--grep '@needs-live-esncard'",
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
+      'runtime-preflight.ts esncard-release',
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
+      'bun run test:unit:esncard-provider-error',
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
+      '--project=local-chrome-live-esncard',
+    );
+    expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
+      '--trace=off',
     );
   });
 
@@ -272,12 +285,21 @@ describe('evaluateRuntimePreflight', () => {
       'utf8',
     );
     const dbService = serviceBlock(composeFile, 'db');
+    const dbExpirationService = serviceBlock(composeFile, 'db-expiration');
     const dbSetupService = serviceBlock(composeFile, 'db-setup');
     const evortoService = serviceBlock(composeFile, 'evorto');
     const stripeService = serviceBlock(composeFile, 'stripe');
+    const neonMetadataMount =
+      '- "${NEON_LOCAL_METADATA_DIR:-neon-local-metadata}:/tmp/.neon_local"';
 
     expect(dbService).toContain('NEON_API_KEY:');
     expect(dbService).toContain('NEON_PROJECT_ID:');
+    expect(dbService).toContain(neonMetadataMount);
+    expect(dbExpirationService).toContain(neonMetadataMount);
+    expect(composeFile).toContain('\n  neon-local-metadata:\n');
+    expect(composeFile).not.toContain(
+      '${NEON_LOCAL_METADATA_DIR:-./.neon_local}',
+    );
 
     expect(dbSetupService).toContain('secrets:');
     expect(dbSetupService).toContain('- FONT_AWESOME_TOKEN');
@@ -296,6 +318,7 @@ describe('evaluateRuntimePreflight', () => {
       'E2E_NOW_ISO',
       'E2E_SEED_KEY',
       'ISSUER_BASE_URL',
+      'NODE_ENV',
       'SECRET',
       'SSR_RPC_ORIGIN',
       'STRIPE_API_KEY',
@@ -310,6 +333,7 @@ describe('evaluateRuntimePreflight', () => {
       'STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret',
     );
     expect(evortoService).toContain('S3_ENDPOINT: http://minio:9000');
+    expect(evortoService).toContain('NODE_ENV: "development"');
     expect(evortoService).toContain('SSR_RPC_ORIGIN: http://localhost:4200');
     expect(evortoService).not.toContain(
       'S3_ENDPOINT: "${S3_ENDPOINT:-http://minio:9000}"',
@@ -328,6 +352,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(runtimeEnvironment).toContain('DEFAULT_E2E_SEED_KEY');
     expect(runtimeEnvironment).toContain('E2E_NOW_ISO: e2eNowIso');
     expect(runtimeEnvironment).toContain('E2E_SEED_KEY: e2eSeedKey');
+    expect(runtimeEnvironment).toContain("NODE_ENV: 'development'");
 
     expect(composeFile).toContain('FONT_AWESOME_TOKEN:');
     expect(composeFile).toContain('environment: FONT_AWESOME_TOKEN');
@@ -392,7 +417,7 @@ describe('evaluateRuntimePreflight', () => {
       expect.arrayContaining([
         expect.objectContaining({
           details: [
-            'missing E2E_LIVE_ESN_CARD_IDENTIFIER: Live esncard.org add, refresh, and remove Playwright coverage',
+            'missing E2E_LIVE_ESN_CARD_IDENTIFIER: Optional local live esncard.org Playwright coverage',
           ],
           label: 'Optional docker live-provider variables',
           severity: 'ok',
@@ -416,9 +441,58 @@ describe('evaluateRuntimePreflight', () => {
       expect.arrayContaining([
         expect.objectContaining({
           details: [
-            'E2E_LIVE_ESN_CARD_IDENTIFIER: Live esncard.org add, refresh, and remove Playwright coverage',
+            'E2E_LIVE_ESN_CARD_IDENTIFIER: Optional local live esncard.org Playwright coverage',
           ],
           label: 'Optional docker live-provider variables',
+          severity: 'ok',
+        }),
+      ]),
+    );
+  });
+
+  it('fails release certification closed when the approved ESNcard identifier is absent', () => {
+    const result = evaluateRuntimePreflight('esncard-release', {
+      cwd: '/repo',
+      env: requiredDockerEnvironment,
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'E2E_LIVE_ESN_CARD_IDENTIFIER: Approved non-production ESNcard identifier for mandatory release certification',
+          ]),
+          label: 'Required esncard-release runtime variables',
+          severity: 'failure',
+        }),
+      ]),
+    );
+  });
+
+  it('accepts the approved ESNcard identifier without reporting its value', () => {
+    const releaseIdentifier = 'approved-non-production-card';
+    const result = evaluateRuntimePreflight('esncard-release', {
+      cwd: '/repo',
+      env: {
+        ...requiredDockerEnvironment,
+        E2E_LIVE_ESN_CARD_IDENTIFIER: releaseIdentifier,
+      },
+      fileExists: (filePath) => filePath === '/repo/.env.dev',
+      runCommand: successfulCommand,
+    });
+
+    expect(result.failed).toBe(false);
+    expect(JSON.stringify(result.checks)).not.toContain(releaseIdentifier);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.arrayContaining([
+            'E2E_LIVE_ESN_CARD_IDENTIFIER: Approved non-production ESNcard identifier for mandatory release certification',
+          ]),
+          label: 'Available esncard-release runtime variables',
           severity: 'ok',
         }),
       ]),

@@ -3,10 +3,11 @@ import { Tenant } from '@types/custom/tenant';
 import { Schema } from 'effect';
 
 const tenantInput = {
+  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR',
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en-GB',
+  locale: 'de-DE',
   name: 'Tenant',
   stripeAccountId: null,
   theme: 'evorto',
@@ -19,6 +20,40 @@ const omitUndefinedValues = (value: Record<string, unknown>) =>
   );
 
 describe('Tenant schema', () => {
+  it('requires the persisted canonical root in tenant request context', () => {
+    const { canonicalRootUrl: _canonicalRootUrl, ...missingCanonicalRoot } =
+      tenantInput;
+
+    expect(() =>
+      Schema.decodeUnknownSync(Tenant)(missingCanonicalRoot),
+    ).toThrow();
+  });
+
+  it('applies secure tenant registration policy defaults', () => {
+    const tenant = Schema.decodeUnknownSync(Tenant)(tenantInput);
+
+    expect(tenant).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: 120,
+      refundFeesOnCancellation: true,
+      transferDeadlineHoursBeforeStart: 0,
+    });
+  });
+
+  it('rejects negative tenant registration policy deadlines', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(Tenant)({
+        ...tenantInput,
+        cancellationDeadlineHoursBeforeStart: -1,
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(Tenant)({
+        ...tenantInput,
+        transferDeadlineHoursBeforeStart: -1,
+      }),
+    ).toThrow();
+  });
+
   it('accepts tenant context after an undefined default location is omitted from JSON', () => {
     const tenant = Schema.decodeUnknownSync(Tenant)({
       ...tenantInput,
@@ -92,32 +127,33 @@ describe('Tenant schema', () => {
     });
   });
 
-  it('normalizes legacy context locale and timezone values to supported tenant settings', () => {
+  it('normalizes a legacy context locale while retaining a valid IANA timezone', () => {
     const tenant = Schema.decodeUnknownSync(Tenant)({
       ...tenantInput,
       locale: 'en',
       timezone: 'Europe/Amsterdam',
     });
 
-    expect(tenant.locale).toBe('en-GB');
-    expect(tenant.timezone).toBe('Europe/Berlin');
+    expect(tenant.locale).toBe('de-DE');
+    expect(tenant.timezone).toBe('Europe/Amsterdam');
     expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
-      locale: 'en-GB',
-      timezone: 'Europe/Berlin',
+      locale: 'de-DE',
+      timezone: 'Europe/Amsterdam',
     });
   });
 
-  it('rejects locale and timezone values outside the relaunch tenant policy', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(Tenant)({
-        ...tenantInput,
-        locale: 'de-DE',
-      }),
-    ).toThrow();
-    expect(() =>
+  it('accepts IANA tenant timezones and rejects invalid timezone names', () => {
+    expect(
       Schema.decodeUnknownSync(Tenant)({
         ...tenantInput,
         timezone: 'America/New_York',
+      }).timezone,
+    ).toBe('America/New_York');
+
+    expect(() =>
+      Schema.decodeUnknownSync(Tenant)({
+        ...tenantInput,
+        timezone: 'not/a-timezone',
       }),
     ).toThrow();
   });

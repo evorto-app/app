@@ -75,7 +75,7 @@ export interface SeedTenantResult {
       waitlistSpots: number;
     }[];
     start: Date;
-    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     tenantId: string;
     title: string;
     unlisted: boolean;
@@ -110,8 +110,8 @@ export interface SeedTenantResult {
     id: string;
     questions: {
       id: string;
-      registrationOptionKind: 'organizer' | 'participant';
       registrationOptionId: string;
+      registrationOptionKind: 'organizer' | 'participant';
       required: boolean;
       title: string;
     }[];
@@ -178,9 +178,9 @@ export async function seedTenant(
   );
 
   const tenantInput: Partial<InferInsertModel<typeof schema.tenants>> = {
-    ...(resolvedStripeAccountId
-      ? { stripeAccountId: resolvedStripeAccountId }
-      : {}),
+    ...(resolvedStripeAccountId && {
+      stripeAccountId: resolvedStripeAccountId,
+    }),
   };
   if (typeof resolvedDomain === 'string') {
     tenantInput.domain = resolvedDomain;
@@ -256,6 +256,7 @@ export async function seedTenant(
     };
   });
   await addFinanceReceipts(database, {
+    currency: tenant.currency,
     eventIds: seededEvents.events.map((event) => event.id),
     tenantId: tenant.id,
   });

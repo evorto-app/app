@@ -86,6 +86,17 @@ describe('test-runtime-config', () => {
     ).toBe(false);
   });
 
+  it('does not require unrelated integration credentials for the dedicated live-provider project', () => {
+    expect(
+      requiresIntegrationOnlyPlaywrightEnvironment([
+        'node',
+        'playwright',
+        'test',
+        '--project=local-chrome-live-esncard',
+      ]),
+    ).toBe(false);
+  });
+
   it('treats integration project selection as requiring integration credentials', () => {
     expect(
       requiresIntegrationOnlyPlaywrightEnvironment([
@@ -289,6 +300,31 @@ describe('test-runtime-config', () => {
           'playwright',
           'test',
           '--project=local-chrome-baseline',
+        ]);
+
+        expect(environment.CI).toBe(true);
+      }),
+  );
+
+  it.effect(
+    'does not require unrelated provider credentials for live ESNcard certification',
+    () =>
+      Effect.gen(function* () {
+        const provider = providerFromEntries([
+          ...requiredPlaywrightEntries,
+          ['BASE_URL', 'http://localhost:4200'],
+          ['CI', 'true'],
+          ['S3_ACCESS_KEY_ID', 'access-key'],
+          ['S3_BUCKET', 'bucket'],
+          ['S3_ENDPOINT', 'http://minio:9000'],
+          ['S3_REGION', 'us-east-1'],
+          ['S3_SECRET_ACCESS_KEY', 'secret-key'],
+        ]);
+        const environment = yield* readPlaywrightEnvironment(provider, [
+          'node',
+          'playwright',
+          'test',
+          '--project=local-chrome-live-esncard',
         ]);
 
         expect(environment.CI).toBe(true);

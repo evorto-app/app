@@ -21,6 +21,7 @@ const createTemplate = (): TemplateFindOneRecord => ({
   questions: [],
   registrationOptions: [
     {
+      cancellationDeadlineHoursBeforeStart: null,
       closeRegistrationOffset: 24,
       description: null,
       esnCardDiscountedPrice: null,
@@ -29,6 +30,7 @@ const createTemplate = (): TemplateFindOneRecord => ({
       openRegistrationOffset: 168,
       organizingRegistration: false,
       price: 0,
+      refundFeesOnCancellation: null,
       registeredDescription: null,
       registrationMode: 'fcfs',
       roleIds: [],
@@ -36,6 +38,7 @@ const createTemplate = (): TemplateFindOneRecord => ({
       spots: 20,
       stripeTaxRateId: null,
       title: 'Participant registration',
+      transferDeadlineHoursBeforeStart: null,
     },
   ],
   title: 'Template',

@@ -45,7 +45,10 @@
           <div>
             <p class="body-medium text-on-surface">{{ addOn.title }}</p>
             <p class="body-small text-on-surface-variant">
-              Max {{ addOn.maxQuantityPerUser }} per registration
+              @if (addonIncludedQuantity(addOn) > 0) {
+                {{ addonIncludedQuantity(addOn) }} included ·
+              }
+              Up to {{ addonMaxQuantity(addOn) }} optional
             </p>
             @if (addOn.isPaid) {
               <app-price-with-tax
@@ -56,17 +59,19 @@
               <p class="body-small text-on-surface-variant">Free</p>
             }
           </div>
-          <mat-form-field appearance="outline" class="w-32">
-            <mat-label>Quantity</mat-label>
-            <input
-              matInput
-              type="number"
-              min="0"
-              [max]="addonMaxQuantity(addOn)"
-              [value]="addonQuantity(addOn.id)"
-              (input)="updateAddonQuantity(addOn, $event)"
-            />
-          </mat-form-field>
+          @if (addonMaxQuantity(addOn) > 0) {
+            <mat-form-field appearance="outline" class="w-32">
+              <mat-label>Quantity</mat-label>
+              <input
+                matInput
+                type="number"
+                min="0"
+                [max]="addonMaxQuantity(addOn)"
+                [value]="addonQuantity(addOn.id)"
+                (input)="updateAddonQuantity(addOn, $event)"
+              />
+            </mat-form-field>
+          }
         </div>
       }
     </div>

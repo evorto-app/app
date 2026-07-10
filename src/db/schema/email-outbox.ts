@@ -20,6 +20,10 @@ export const emailOutboxStatus = pgEnum('email_outbox_status', [
 export const emailOutboxKind = pgEnum('email_outbox_kind', [
   'manualApproval',
   'receiptReviewed',
+  'registrationCancelled',
+  'registrationConfirmed',
+  'registrationTransferred',
+  'waitlistSpotAvailable',
 ]);
 
 export const emailOutbox = pgTable(
@@ -27,6 +31,8 @@ export const emailOutbox = pgTable(
   {
     ...modelOfTenant,
     attempts: integer().notNull().default(0),
+    claimLeaseExpiresAt: timestamp('claim_lease_expires_at'),
+    claimLeaseId: text('claim_lease_id'),
     exhaustedAt: timestamp('exhausted_at'),
     fromEmail: text('from_email').notNull(),
     fromName: text('from_name').notNull(),
@@ -47,6 +53,10 @@ export const emailOutbox = pgTable(
     toEmail: text('to_email').notNull(),
   },
   (table) => ({
+    claimLeaseIndex: index('email_outbox_claim_lease_idx').on(
+      table.status,
+      table.claimLeaseExpiresAt,
+    ),
     idempotencyKeyUnique: unique().on(table.idempotencyKey),
     nextAttemptIndex: index('email_outbox_next_attempt_idx').on(
       table.status,

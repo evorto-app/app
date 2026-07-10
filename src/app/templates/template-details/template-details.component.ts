@@ -26,6 +26,7 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
+import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
 import { RegistrationStartOffsetPipe } from '../../shared/pipes/registration-start-offset.pipe';
 
 export const templateAddonPurchaseTiming = (
@@ -55,6 +56,7 @@ export const templateRegistrationOptionTitle = (
     MatMenuModule,
     IconComponent,
     MatChipsModule,
+    IfPermissionDirective,
     RegistrationStartOffsetPipe,
     PriceWithTaxComponent,
   ],

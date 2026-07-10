@@ -1,8 +1,11 @@
+import type { APIRequestContext } from '@playwright/test';
 import Stripe from 'stripe';
 import { eq, sql } from 'drizzle-orm';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
+import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
@@ -13,6 +16,230 @@ const regularUserId =
   usersToAuthenticate[0].id;
 const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'] ?? '';
 const stripeAccountId = process.env['STRIPE_TEST_ACCOUNT_ID'] ?? '';
+
+type SignedCheckoutWebhookInput = {
+  eventId: string;
+  registrationId: string;
+  sessionId: string;
+  tenantId: string;
+  transactionId: string;
+} & (
+  | {
+      eventType: 'checkout.session.completed';
+      paymentIntentId: string;
+    }
+  | {
+      eventType: 'checkout.session.expired';
+    }
+);
+
+const buildSignedCheckoutWebhook = (input: SignedCheckoutWebhookInput) => {
+  const isCompleted = input.eventType === 'checkout.session.completed';
+  const payload = JSON.stringify({
+    account: stripeAccountId,
+    api_version: '2024-11-20.acacia',
+    created: 1_706_784_000,
+    data: {
+      object: {
+        id: input.sessionId,
+        metadata: {
+          registrationId: input.registrationId,
+          tenantId: input.tenantId,
+          transactionId: input.transactionId,
+        },
+        object: 'checkout.session',
+        ...(isCompleted
+          ? {
+              amount_total: 2500,
+              currency: 'eur',
+              payment_intent: {
+                id: input.paymentIntentId,
+                latest_charge: `ch_test_${getId()}`,
+              },
+              payment_status: 'paid',
+              status: 'complete',
+            }
+          : {
+              payment_status: 'unpaid',
+              status: 'expired',
+            }),
+      },
+    },
+    id: input.eventId,
+    livemode: false,
+    object: 'event',
+    pending_webhooks: 1,
+    request: {
+      id: null,
+      idempotency_key: null,
+    },
+    type: input.eventType,
+  });
+
+  return {
+    payload,
+    signature: Stripe.webhooks.generateTestHeaderString({
+      payload,
+      secret: webhookSecret,
+    }),
+  };
+};
+
+type RejectedCheckoutOwnershipScenario = {
+  eventType: 'checkout.session.completed' | 'checkout.session.expired';
+  label: string;
+  registrationMatches: boolean;
+  sessionMatches: boolean;
+  transactionStatus: 'cancelled' | 'pending';
+};
+
+const assertCheckoutOwnershipRejected = async (input: {
+  appEventId: string;
+  database: NodePgDatabase<typeof relations>;
+  optionId: string;
+  request: APIRequestContext;
+  scenario: RejectedCheckoutOwnershipScenario;
+  tenantId: string;
+}) => {
+  const metadataRegistrationId = getId();
+  const localRegistrationId = input.scenario.registrationMatches
+    ? metadataRegistrationId
+    : getId();
+  const transactionId = getId();
+  const webhookSessionId = `cs_test_${getId()}`;
+  const localSessionId = input.scenario.sessionMatches
+    ? webhookSessionId
+    : `cs_test_${getId()}`;
+  const paymentIntentId = `pi_test_${getId()}`;
+  const stripeEventId = `evt_test_${getId()}`;
+
+  await input.database.insert(schema.eventRegistrations).values({
+    eventId: input.appEventId,
+    id: metadataRegistrationId,
+    registrationOptionId: input.optionId,
+    status:
+      localRegistrationId === metadataRegistrationId ? 'PENDING' : 'CANCELLED',
+    tenantId: input.tenantId,
+    userId: regularUserId,
+  });
+  if (localRegistrationId !== metadataRegistrationId) {
+    await input.database.insert(schema.eventRegistrations).values({
+      eventId: input.appEventId,
+      id: localRegistrationId,
+      registrationOptionId: input.optionId,
+      status: 'PENDING',
+      tenantId: input.tenantId,
+      userId: regularUserId,
+    });
+  }
+
+  await input.database.insert(schema.transactions).values({
+    amount: 2500,
+    comment: 'Webhook ownership rejection test',
+    currency: 'EUR',
+    eventId: input.appEventId,
+    eventRegistrationId: localRegistrationId,
+    executiveUserId: regularUserId,
+    id: transactionId,
+    method: 'stripe',
+    status: input.scenario.transactionStatus,
+    stripeAccountId,
+    stripeCheckoutSessionId: localSessionId,
+    stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${localSessionId}`,
+    targetUserId: regularUserId,
+    tenantId: input.tenantId,
+    type: 'registration',
+  });
+  await input.database
+    .update(schema.eventRegistrationOptions)
+    .set({
+      reservedSpots: sql`${schema.eventRegistrationOptions.reservedSpots} + 1`,
+    })
+    .where(eq(schema.eventRegistrationOptions.id, input.optionId));
+  const optionBeforeWebhook =
+    await input.database.query.eventRegistrationOptions.findFirst({
+      columns: {
+        confirmedSpots: true,
+        reservedSpots: true,
+      },
+      where: { id: input.optionId },
+    });
+  expect(optionBeforeWebhook).toBeTruthy();
+
+  const signedWebhook =
+    input.scenario.eventType === 'checkout.session.completed'
+      ? buildSignedCheckoutWebhook({
+          eventId: stripeEventId,
+          eventType: input.scenario.eventType,
+          paymentIntentId,
+          registrationId: metadataRegistrationId,
+          sessionId: webhookSessionId,
+          tenantId: input.tenantId,
+          transactionId,
+        })
+      : buildSignedCheckoutWebhook({
+          eventId: stripeEventId,
+          eventType: input.scenario.eventType,
+          registrationId: metadataRegistrationId,
+          sessionId: webhookSessionId,
+          tenantId: input.tenantId,
+          transactionId,
+        });
+  const delivery = await input.request.fetch('/webhooks/stripe', {
+    data: Buffer.from(signedWebhook.payload, 'utf8'),
+    failOnStatusCode: false,
+    headers: {
+      'content-type': 'application/json',
+      'stripe-signature': signedWebhook.signature,
+    },
+    method: 'POST',
+  });
+  const body = await delivery.text();
+  expect(
+    delivery.status(),
+    `Expected rejected ownership to be safely acknowledged, received ${delivery.status()} with body "${body}"`,
+  ).toBe(200);
+
+  const metadataRegistration =
+    await input.database.query.eventRegistrations.findFirst({
+      where: { id: metadataRegistrationId, tenantId: input.tenantId },
+    });
+  const localRegistration =
+    await input.database.query.eventRegistrations.findFirst({
+      where: { id: localRegistrationId, tenantId: input.tenantId },
+    });
+  const localTransaction = await input.database.query.transactions.findFirst({
+    where: { id: transactionId, tenantId: input.tenantId },
+  });
+  const optionAfterWebhook =
+    await input.database.query.eventRegistrationOptions.findFirst({
+      columns: {
+        confirmedSpots: true,
+        reservedSpots: true,
+      },
+      where: { id: input.optionId },
+    });
+
+  expect(metadataRegistration?.status).toBe(
+    localRegistrationId === metadataRegistrationId ? 'PENDING' : 'CANCELLED',
+  );
+  expect(localRegistration?.status).toBe('PENDING');
+  expect({
+    chargeId: localTransaction?.stripeChargeId,
+    paymentIntentId: localTransaction?.stripePaymentIntentId,
+    sessionId: localTransaction?.stripeCheckoutSessionId,
+    status: localTransaction?.status,
+  }).toEqual({
+    chargeId: null,
+    paymentIntentId: null,
+    sessionId: localSessionId,
+    status: input.scenario.transactionStatus,
+  });
+  expect(optionAfterWebhook).toMatchObject({
+    confirmedSpots: optionBeforeWebhook?.confirmedSpots,
+    reservedSpots: optionBeforeWebhook?.reservedSpots,
+  });
+};
 
 test.beforeAll(() => {
   expect(
@@ -25,7 +252,7 @@ test.beforeAll(() => {
   ).toBeGreaterThan(0);
 });
 
-test('replaying the same Stripe webhook is idempotent @finance @stripe', async ({
+test('an exact pending transaction and checkout session match completes once under webhook replay @finance @stripe', async ({
   database,
   request,
   seeded,
@@ -81,6 +308,7 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe', async (
     id: transactionId,
     method: 'stripe',
     status: 'pending',
+    stripeAccountId,
     stripeCheckoutSessionId: checkoutSessionId,
     stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
     targetUserId: regularUserId,
@@ -94,6 +322,8 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe', async (
     created: 1_706_784_000,
     data: {
       object: {
+        amount_total: 2500,
+        currency: 'eur',
         id: checkoutSessionId,
         metadata: {
           registrationId,
@@ -206,6 +436,196 @@ test('replaying the same Stripe webhook is idempotent @finance @stripe', async (
   });
   expect(dedupeRecords).toHaveLength(1);
   expect(dedupeRecords[0]?.status).toBe('processed');
+  const confirmationEmail = await database.query.emailOutbox.findFirst({
+    where: {
+      idempotencyKey: `registration-confirmed/${tenant.id}/${registrationId}`,
+      kind: 'registrationConfirmed',
+      tenantId: tenant.id,
+    },
+  });
+  const registrationUser = await database.query.users.findFirst({
+    columns: {
+      communicationEmail: true,
+    },
+    where: { id: regularUserId },
+  });
+  expect(confirmationEmail).toMatchObject({
+    kind: 'registrationConfirmed',
+    toEmail: registrationUser?.communicationEmail,
+  });
+  expect(confirmationEmail?.html).toContain(
+    `/events/${seeded.scenario.events.paidOpen.eventId}`,
+  );
+});
+
+for (const rejectedOwnership of [
+  {
+    eventType: 'checkout.session.completed',
+    label:
+      'completed checkout webhook cannot use a checkout session id that differs from the local transaction',
+    registrationMatches: true,
+    sessionMatches: false,
+    transactionStatus: 'pending',
+  },
+  {
+    eventType: 'checkout.session.completed',
+    label:
+      'completed checkout webhook cannot use registration metadata that differs from the local transaction',
+    registrationMatches: false,
+    sessionMatches: true,
+    transactionStatus: 'pending',
+  },
+  {
+    eventType: 'checkout.session.expired',
+    label:
+      'expired checkout webhook cannot release capacity after the local transaction was cancelled',
+    registrationMatches: true,
+    sessionMatches: true,
+    transactionStatus: 'cancelled',
+  },
+] as const) {
+  test(`${rejectedOwnership.label} @finance @stripe`, async ({
+    database,
+    request,
+    seeded,
+    tenant,
+  }) => {
+    await assertCheckoutOwnershipRejected({
+      appEventId: seeded.scenario.events.paidOpen.eventId,
+      database,
+      optionId: seeded.scenario.events.paidOpen.optionId,
+      request,
+      scenario: rejectedOwnership,
+      tenantId: tenant.id,
+    });
+  });
+}
+
+test('competing completion and expiry webhooks leave one coherent registration outcome @finance @stripe', async ({
+  database,
+  request,
+  seeded,
+  tenant,
+}) => {
+  const registrationId = getId();
+  const transactionId = getId();
+  const checkoutSessionId = `cs_test_${getId()}`;
+  const paymentIntentId = `pi_test_${getId()}`;
+  const originalOption =
+    await database.query.eventRegistrationOptions.findFirst({
+      columns: {
+        confirmedSpots: true,
+        reservedSpots: true,
+      },
+      where: { id: seeded.scenario.events.paidOpen.optionId },
+    });
+  expect(originalOption).toBeTruthy();
+
+  await database
+    .update(schema.eventRegistrationOptions)
+    .set({
+      reservedSpots: sql`${schema.eventRegistrationOptions.reservedSpots} + 1`,
+    })
+    .where(
+      eq(
+        schema.eventRegistrationOptions.id,
+        seeded.scenario.events.paidOpen.optionId,
+      ),
+    );
+  await database.insert(schema.eventRegistrations).values({
+    eventId: seeded.scenario.events.paidOpen.eventId,
+    id: registrationId,
+    registrationOptionId: seeded.scenario.events.paidOpen.optionId,
+    status: 'PENDING',
+    tenantId: tenant.id,
+    userId: regularUserId,
+  });
+  await database.insert(schema.transactions).values({
+    amount: 2500,
+    comment: 'Webhook completion-expiry race test',
+    currency: 'EUR',
+    eventId: seeded.scenario.events.paidOpen.eventId,
+    eventRegistrationId: registrationId,
+    executiveUserId: regularUserId,
+    id: transactionId,
+    method: 'stripe',
+    status: 'pending',
+    stripeAccountId,
+    stripeCheckoutSessionId: checkoutSessionId,
+    stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
+    targetUserId: regularUserId,
+    tenantId: tenant.id,
+    type: 'registration',
+  });
+
+  const completedWebhook = buildSignedCheckoutWebhook({
+    eventId: `evt_test_${getId()}`,
+    eventType: 'checkout.session.completed',
+    paymentIntentId,
+    registrationId,
+    sessionId: checkoutSessionId,
+    tenantId: tenant.id,
+    transactionId,
+  });
+  const expiredWebhook = buildSignedCheckoutWebhook({
+    eventId: `evt_test_${getId()}`,
+    eventType: 'checkout.session.expired',
+    registrationId,
+    sessionId: checkoutSessionId,
+    tenantId: tenant.id,
+    transactionId,
+  });
+
+  const [completedDelivery, expiredDelivery] = await Promise.all([
+    request.fetch('/webhooks/stripe', {
+      data: Buffer.from(completedWebhook.payload, 'utf8'),
+      failOnStatusCode: false,
+      headers: {
+        'content-type': 'application/json',
+        'stripe-signature': completedWebhook.signature,
+      },
+      method: 'POST',
+    }),
+    request.fetch('/webhooks/stripe', {
+      data: Buffer.from(expiredWebhook.payload, 'utf8'),
+      failOnStatusCode: false,
+      headers: {
+        'content-type': 'application/json',
+        'stripe-signature': expiredWebhook.signature,
+      },
+      method: 'POST',
+    }),
+  ]);
+  expect(completedDelivery.status()).toBe(200);
+  expect(expiredDelivery.status()).toBe(200);
+
+  const finalRegistration = await database.query.eventRegistrations.findFirst({
+    where: { id: registrationId, tenantId: tenant.id },
+  });
+  const finalTransaction = await database.query.transactions.findFirst({
+    where: { id: transactionId, tenantId: tenant.id },
+  });
+  const finalOption = await database.query.eventRegistrationOptions.findFirst({
+    columns: {
+      confirmedSpots: true,
+      reservedSpots: true,
+    },
+    where: { id: seeded.scenario.events.paidOpen.optionId },
+  });
+
+  expect(finalOption?.reservedSpots).toBe(originalOption?.reservedSpots);
+  if (finalRegistration?.status === 'CONFIRMED') {
+    expect(finalTransaction?.status).toBe('successful');
+    expect(finalTransaction?.stripePaymentIntentId).toBe(paymentIntentId);
+    expect(finalOption?.confirmedSpots).toBe(
+      (originalOption?.confirmedSpots ?? 0) + 1,
+    );
+  } else {
+    expect(finalRegistration?.status).toBe('CANCELLED');
+    expect(finalTransaction?.status).toBe('cancelled');
+    expect(finalTransaction?.stripePaymentIntentId).toBeNull();
+    expect(finalOption?.confirmedSpots).toBe(originalOption?.confirmedSpots);
+  }
 });
 
 test('checkout completion rejects a mismatched connected account without mutating payment state @finance @stripe', async ({
@@ -534,6 +954,7 @@ test('expired checkout webhook resolves the persisted session and releases reser
     id: transactionId,
     method: 'stripe',
     status: 'pending',
+    stripeAccountId,
     stripeCheckoutSessionId: checkoutSessionId,
     stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
     targetUserId: regularUserId,
@@ -547,6 +968,8 @@ test('expired checkout webhook resolves the persisted session and releases reser
     created: 1_706_784_000,
     data: {
       object: {
+        amount_total: 2500,
+        currency: 'eur',
         id: checkoutSessionId,
         metadata: {},
         object: 'checkout.session',
@@ -641,6 +1064,8 @@ test('duplicate webhook delivery is retryable while the original event claim is 
     created: 1_706_784_000,
     data: {
       object: {
+        amount_total: 2500,
+        currency: 'eur',
         id: checkoutSessionId,
         metadata: {
           registrationId,
@@ -719,6 +1144,7 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
     id: transactionId,
     method: 'stripe',
     status: 'pending',
+    stripeAccountId,
     stripeCheckoutSessionId: checkoutSessionId,
     stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
     targetUserId: regularUserId,
@@ -740,6 +1166,8 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
     created: 1_706_784_000,
     data: {
       object: {
+        amount_total: 2500,
+        currency: 'eur',
         id: checkoutSessionId,
         metadata: {
           registrationId,
@@ -825,6 +1253,7 @@ test('checkout webhook resolves registration by payment intent when metadata is 
     id: transactionId,
     method: 'stripe',
     status: 'pending',
+    stripeAccountId,
     stripeCheckoutSessionId: checkoutSessionId,
     stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
     stripePaymentIntentId: paymentIntentId,
@@ -839,6 +1268,8 @@ test('checkout webhook resolves registration by payment intent when metadata is 
     created: 1_706_784_000,
     data: {
       object: {
+        amount_total: 2500,
+        currency: 'eur',
         id: checkoutSessionId,
         metadata: {},
         object: 'checkout.session',
@@ -940,6 +1371,7 @@ test('checkout webhook does not confirm unpaid completed sessions @finance @stri
     id: transactionId,
     method: 'stripe',
     status: 'pending',
+    stripeAccountId,
     stripeCheckoutSessionId: checkoutSessionId,
     stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
     stripePaymentIntentId: paymentIntentId,

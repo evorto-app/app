@@ -9,7 +9,6 @@ import { User } from '../../../types/custom/user';
 import {
   UserRpcError,
   UsersAssignRolesError,
-  UsersCreateAccountError,
   UsersFindManyError,
 } from './users.errors';
 
@@ -38,24 +37,6 @@ export const UsersCanUseScanner = asRpcQuery(
   Rpc.make('users.canUseScanner', {
     payload: Schema.Void,
     success: Schema.Boolean,
-  }),
-);
-
-export const UsersCreateAccountInput = Schema.Struct({
-  communicationEmail: NotificationEmail,
-  firstName: Schema.NonEmptyString,
-  lastName: Schema.NonEmptyString,
-});
-
-export type UsersCreateAccountInput = Schema.Schema.Type<
-  typeof UsersCreateAccountInput
->;
-
-export const UsersCreateAccount = asRpcMutation(
-  Rpc.make('users.createAccount', {
-    error: UsersCreateAccountError,
-    payload: UsersCreateAccountInput,
-    success: Schema.Void,
   }),
 );
 
@@ -120,6 +101,17 @@ export const UsersSelf = asRpcQuery(
     error: UserRpcError,
     payload: Schema.Void,
     success: User,
+  }),
+);
+
+export const UsersSetHomeTenant = asRpcMutation(
+  Rpc.make('users.setHomeTenant', {
+    error: UserRpcError,
+    payload: Schema.Void,
+    success: Schema.Struct({
+      homeTenantId: Schema.NonEmptyString,
+      homeTenantName: Schema.NonEmptyString,
+    }),
   }),
 );
 
@@ -188,10 +180,10 @@ export class UsersRpcs extends RpcGroup.make(
   UsersAssignRoles,
   UsersAuthDataFind,
   UsersCanUseScanner,
-  UsersCreateAccount,
   UsersFindMany,
   UsersEventsFindMany,
   UsersMaybeSelf,
+  UsersSetHomeTenant,
   UsersSelf,
   UsersUpdateProfile,
   UsersUserAssigned,

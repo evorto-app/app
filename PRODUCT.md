@@ -93,6 +93,20 @@ perform any platform operation for any tenant at any time without a tenant
 membership. Their access must remain explicit and auditable; it must not depend
 on silently pretending to be a tenant user.
 
+Each platform operation names its target tenant explicitly. Every platform
+mutation requires an operational reason and records the Auth0 platform actor,
+target tenant, action, timestamp, and typed before/after state in the same
+transaction as the domain change. A platform-created event must name an active
+target-tenant member as its attributed owner; that attribution does not turn
+the platform actor into a tenant user.
+
+Platform authority does not replace participant identity. Participant profile
+and home views, joining or leaving a tenant, submitting personal receipts, and
+self-service registration transfer or resale remain participant-owned flows.
+Platform tools may operate on target-tenant records only through dedicated
+target-scoped contracts; they must never merge tenant-role permissions into the
+platform principal.
+
 ## Core Workflows
 
 The core product lifecycle is:
@@ -473,7 +487,11 @@ amounts keep their recorded currency. Timezone governs event scheduling,
 registration and check-in windows, and tenant-facing date/time display. Both
 must be applied consistently in SSR and browser rendering. A tenant
 administrator cannot change either after event or payment data exists; a
-platform-administrator override must be explicit and auditable.
+platform-administrator override must be explicit and auditable. Because event
+and template prices are stored as minor units under the tenant currency, an
+in-place platform currency override is rejected once template, event, receipt,
+or transaction data exists until a dedicated currency migration workflow is
+available.
 
 Stripe branding is handled in Stripe where possible.
 

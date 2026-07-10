@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import { gaStateFile } from '../../../helpers/user-data';
@@ -16,6 +16,7 @@ const expectedStripeAccountId =
 
 const expectTenantRows = async (page: Page) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
+  await expect(page.getByText('Canonical root URL').first()).toBeVisible();
   await expect(page.getByText('Tenant ID').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
   await expect(page.getByText('Locale').first()).toBeVisible();
@@ -23,14 +24,17 @@ const expectTenantRows = async (page: Page) => {
   await expect(page.getByText('Timezone').first()).toBeVisible();
   await expect(page.getByText('Stripe account').first()).toBeVisible();
   await expect(page.getByText('evorto').first()).toBeVisible();
-  await expect(page.getByText('en-GB').first()).toBeVisible();
+  await expect(page.getByText('de-DE').first()).toBeVisible();
   await expect(page.getByText('EUR').first()).toBeVisible();
   await expect(page.getByText('Europe/Berlin').first()).toBeVisible();
 };
 
 const expectTenantFormScope = async (
   page: Page,
-  options: { expectCreatePlaceholders?: boolean } = {},
+  options: {
+    expectCreatePlaceholders?: boolean;
+    expectPublicUrlMigrationGuidance?: boolean;
+  } = {},
 ) => {
   const form = page.locator('form');
 
@@ -60,9 +64,29 @@ const expectTenantFormScope = async (
     await expect(form.getByPlaceholder('acct_...')).toBeVisible();
   }
   await expect(form.getByRole('combobox').first()).toBeVisible();
+  await expect(form.getByLabel('Reason for platform change')).toBeVisible();
+  if (options.expectCreatePlaceholders) {
+    await expect(form.getByLabel('Privacy policy text')).toBeVisible();
+    await expect(form.getByLabel('Privacy policy URL')).toBeVisible();
+  }
+  if (options.expectPublicUrlMigrationGuidance) {
+    await expect(
+      page.getByRole('heading', { name: 'Public URL migration' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        'Domain or canonical-root changes are rejected while Stripe Checkouts, refunds, or registration transfers still depend on issued links.',
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        'Keep HTTPS redirects from the old domain to the new canonical root for already-issued QR codes; their encoded URLs cannot be rewritten.',
+      ),
+    ).toBeVisible();
+  }
 };
 
-test('global tenant admin reviews tenant list, detail, and forms @admin @globalAdmin', async ({
+test('platform administrator reviews tenant list, detail, and forms @admin @globalAdmin', async ({
   database,
   page,
 }) => {
@@ -75,7 +99,12 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     throw new Error('Expected seeded global-admin tenant');
   }
   const createdTenantDomain = `created-${getId().slice(0, 8)}.example.test`;
+  const createdTenantCanonicalRootUrl = `https://${createdTenantDomain}`;
   const createdTenantName = 'Created Section';
+  const createAuditReason = `E2E tenant creation for ${createdTenantDomain}`;
+  const updateAuditReason = `E2E tenant review for ${createdTenantDomain}`;
+  let blockedMigrationTransactionId: string | undefined;
+  let createdTenantId: string | undefined;
 
   try {
     await page.goto('/global-admin/tenants');
@@ -111,6 +140,13 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     const createTenantInputs = page.locator('form input');
     await createTenantInputs.first().fill(createdTenantName);
     await createTenantInputs.nth(1).fill('section.example.org/path');
+    await page
+      .getByLabel('Canonical root URL')
+      .fill('https://section.example.org');
+    await page
+      .getByLabel('Privacy policy text')
+      .fill('Privacy policy for the new section.');
+    await page.getByLabel('Reason for platform change').fill(createAuditReason);
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -120,10 +156,16 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await createTenantInputs.nth(1).fill(originalTenant.domain);
+    await page
+      .getByLabel('Canonical root URL')
+      .fill(originalTenant.canonicalRootUrl);
     await page.getByRole('button', { name: 'Create tenant' }).click();
     await expect(page.getByText('Tenant domain already exists')).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await createTenantInputs.nth(1).fill(createdTenantDomain);
+    await page
+      .getByLabel('Canonical root URL')
+      .fill(createdTenantCanonicalRootUrl);
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -141,17 +183,86 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     if (!createdTenant) {
       throw new Error('Expected global-admin create flow to persist tenant');
     }
+    createdTenantId = createdTenant.id;
     expect(createdTenant).toEqual(
       expect.objectContaining({
+        canonicalRootUrl: createdTenantCanonicalRootUrl,
         currency: 'EUR',
         domain: createdTenantDomain,
-        locale: 'en-GB',
+        locale: 'de-DE',
         name: createdTenantName,
         stripeAccountId: null,
         theme: 'evorto',
         timezone: 'Europe/Berlin',
       }),
     );
+    await expect(
+      database.query.tenantPrivacyPolicyVersions.findFirst({
+        where: { tenantId: createdTenant.id },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        privacyPolicyText: 'Privacy policy for the new section.',
+        privacyPolicyUrl: null,
+        tenantId: createdTenant.id,
+        version: 1,
+      }),
+    );
+    await expect(
+      database.query.platformAuditEntries.findFirst({
+        where: {
+          action: 'tenant.create',
+          targetTenantId: createdTenant.id,
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        actorId: 'auth0|67bb679215c6fbc625ca098f',
+        before: null,
+        reason: createAuditReason,
+      }),
+    );
+
+    blockedMigrationTransactionId = getId();
+    await database.insert(schema.transactions).values({
+      amount: 1000,
+      currency: createdTenant.currency,
+      id: blockedMigrationTransactionId,
+      method: 'stripe',
+      status: 'pending',
+      tenantId: createdTenant.id,
+      type: 'registration',
+    });
+    await page.getByRole('link', { name: 'Edit tenant' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Public URL migration' }),
+    ).toBeVisible();
+    const blockedDomain = `blocked-${getId().slice(0, 8)}.example.test`;
+    await page.getByLabel('Primary domain').fill(blockedDomain);
+    await page
+      .getByLabel('Canonical root URL')
+      .fill(`https://${blockedDomain}`);
+    await page
+      .getByLabel('Reason for platform change')
+      .fill('Verify active-link migration protection');
+    await page.getByRole('button', { name: 'Save tenant' }).click();
+    await expect(
+      page.getByText(
+        'Tenant public URL cannot change while issued links are active. Complete or cancel every pending Stripe Checkout or refund before changing the tenant public URL.',
+      ),
+    ).toBeVisible();
+    await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
+    await expect(
+      database.query.tenants.findFirst({ where: { id: createdTenant.id } }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        canonicalRootUrl: createdTenantCanonicalRootUrl,
+        domain: createdTenantDomain,
+      }),
+    );
+    await database
+      .delete(schema.transactions)
+      .where(eq(schema.transactions.id, blockedMigrationTransactionId));
 
     await page.goto('/global-admin/tenants');
     await expect(page).toHaveURL(/\/global-admin\/tenants$/);
@@ -182,17 +293,26 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
     await expect(
       page.getByRole('heading', { name: 'Edit tenant' }),
     ).toBeVisible();
-    await expectTenantFormScope(page);
+    await expectTenantFormScope(page, {
+      expectPublicUrlMigrationGuidance: true,
+    });
     const tenantFormInputs = page.locator('form input');
     await expect(tenantFormInputs.first()).toHaveValue(/.+/);
     await expect(tenantFormInputs.nth(1)).toHaveValue('localhost');
+    await expect(page.getByLabel('Canonical root URL')).toHaveValue(
+      originalTenant.canonicalRootUrl,
+    );
     await expect(
       page.getByRole('button', { name: 'Save tenant' }),
-    ).toBeEnabled();
+    ).toBeDisabled();
     await expect(page.getByText('Cancel', { exact: true })).toBeVisible();
 
     const updatedTenantName = `${originalTenant.name} reviewed`;
     await tenantFormInputs.first().fill(updatedTenantName);
+    await page.getByLabel('Reason for platform change').fill(updateAuditReason);
+    await expect(
+      page.getByRole('button', { name: 'Save tenant' }),
+    ).toBeEnabled();
     await page.getByRole('button', { name: 'Save tenant' }).click();
     await expect(page).toHaveURL(reviewTenantHref);
     await expect(
@@ -206,18 +326,45 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
       .limit(1);
     expect(updatedTenant).toEqual(
       expect.objectContaining({
+        canonicalRootUrl: originalTenant.canonicalRootUrl,
         domain: originalTenant.domain,
         id: originalTenant.id,
         name: updatedTenantName,
       }),
     );
+    await page.goto('/global-admin');
+    await page.getByRole('link', { name: 'Platform audit log' }).click();
+    await expect(page).toHaveURL(/\/global-admin\/audit$/);
+    await expect(page.getByText(createAuditReason)).toBeVisible();
+    await expect(page.getByText(updateAuditReason)).toBeVisible();
   } finally {
+    if (blockedMigrationTransactionId) {
+      await database
+        .delete(schema.transactions)
+        .where(eq(schema.transactions.id, blockedMigrationTransactionId));
+    }
+    await database
+      .delete(schema.platformAuditEntries)
+      .where(
+        inArray(schema.platformAuditEntries.reason, [
+          createAuditReason,
+          updateAuditReason,
+        ]),
+      );
+    if (createdTenantId) {
+      await database
+        .delete(schema.tenantPrivacyPolicyVersions)
+        .where(
+          eq(schema.tenantPrivacyPolicyVersions.tenantId, createdTenantId),
+        );
+    }
     await database
       .delete(schema.tenants)
       .where(eq(schema.tenants.domain, createdTenantDomain));
     await database
       .update(schema.tenants)
       .set({
+        canonicalRootUrl: originalTenant.canonicalRootUrl,
         currency: originalTenant.currency,
         domain: originalTenant.domain,
         locale: originalTenant.locale,

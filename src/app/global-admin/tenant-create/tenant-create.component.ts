@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -28,7 +29,6 @@ import {
 
 import {
   supportedTenantCurrencies,
-  supportedTenantLocales,
   supportedTenantTimezones,
 } from '../../../types/custom/tenant';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -63,12 +63,27 @@ export class TenantCreateComponent {
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleInfo = faCircleInfo;
-  protected readonly localeOptions = supportedTenantLocales;
+  protected readonly initialPrivacyPolicyModel = signal({
+    privacyPolicyText: '',
+    privacyPolicyUrl: '',
+  });
+  protected readonly hasInitialPrivacyPolicy = computed(() => {
+    const policy = this.initialPrivacyPolicyModel();
+    return (
+      policy.privacyPolicyText.trim().length > 0 ||
+      policy.privacyPolicyUrl.trim().length > 0
+    );
+  });
+  protected readonly initialPrivacyPolicyForm = form(
+    this.initialPrivacyPolicyModel,
+  );
   protected readonly relaunchScopeItems = globalAdminTenantRelaunchScopeItems;
   protected readonly tenantModel = signal(createGlobalAdminTenantFormModel());
   protected readonly tenantForm = form(this.tenantModel, (schema) => {
+    required(schema.canonicalRootUrl);
     required(schema.domain);
     required(schema.name);
+    required(schema.reason);
     validate(schema.domain, ({ value }) =>
       value().trim().length === 0
         ? { kind: 'required', message: 'Domain is required.' }
@@ -77,6 +92,11 @@ export class TenantCreateComponent {
     validate(schema.name, ({ value }) =>
       value().trim().length === 0
         ? { kind: 'required', message: 'Name is required.' }
+        : undefined,
+    );
+    validate(schema.reason, ({ value }) =>
+      value().trim().length === 0
+        ? { kind: 'required', message: 'Reason is required.' }
         : undefined,
     );
   });
@@ -89,7 +109,10 @@ export class TenantCreateComponent {
 
   protected async createTenant(event: Event): Promise<void> {
     event.preventDefault();
-    if (this.createTenantMutation.isPending()) {
+    if (
+      this.createTenantMutation.isPending() ||
+      !this.hasInitialPrivacyPolicy()
+    ) {
       return;
     }
     await submit(this.tenantForm, async (formState) => {
@@ -108,20 +131,26 @@ export class TenantCreateComponent {
         return;
       }
 
-      this.createTenantMutation.mutate(payload, {
-        onError: (error) => {
-          this.notifications.showError(
-            getErrorMessage(error, 'Failed to create tenant'),
-          );
+      this.createTenantMutation.mutate(
+        {
+          ...payload,
+          initialPrivacyPolicy: this.initialPrivacyPolicyModel(),
         },
-        onSuccess: async (tenant) => {
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
-          );
-          this.notifications.showSuccess('Tenant created');
-          await this.router.navigate(['/global-admin/tenants', tenant.id]);
+        {
+          onError: (error) => {
+            this.notifications.showError(
+              getErrorMessage(error, 'Failed to create tenant'),
+            );
+          },
+          onSuccess: async (tenant) => {
+            await this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
+            );
+            this.notifications.showSuccess('Tenant created');
+            await this.router.navigate(['/global-admin/tenants', tenant.id]);
+          },
         },
-      });
+      );
     });
   }
 }

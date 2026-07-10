@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
+import { readFileSync } from 'node:fs';
 
 import { Database } from '../../../../db';
 import { type Permission } from '../../../../shared/permissions/permissions';
@@ -77,29 +78,53 @@ const templateInput = {
   },
   location: null,
   organizerRegistration: {
+    cancellationDeadlineHoursBeforeStart: null,
     closeRegistrationOffset: 24,
     isPaid: false,
     openRegistrationOffset: 168,
     price: 0,
+    refundFeesOnCancellation: null,
     registrationMode: 'fcfs' as const,
     roleIds: ['role-1'],
     spots: 10,
     stripeTaxRateId: null,
+    title: 'Organizer registration',
+    transferDeadlineHoursBeforeStart: null,
   },
   participantRegistration: {
+    cancellationDeadlineHoursBeforeStart: null,
     closeRegistrationOffset: 24,
     isPaid: false,
     openRegistrationOffset: 168,
     price: 0,
+    refundFeesOnCancellation: null,
     registrationMode: 'fcfs' as const,
     roleIds: ['role-1'],
     spots: 10,
     stripeTaxRateId: null,
+    title: 'Participant registration',
+    transferDeadlineHoursBeforeStart: null,
   },
   title: 'Template',
 };
 
 describe('templateHandlers permissions', () => {
+  it('serializes first template creation with tenant currency changes', () => {
+    const source = readFileSync(
+      new URL('templates.handlers.ts', import.meta.url),
+      'utf8',
+    );
+
+    expect(source).toContain(
+      'lockTenantCurrencyForFinancialConfiguration(\n                transaction,\n                tenant.id,\n                tenant.currency,\n              )',
+    );
+    expect(
+      source.indexOf('yield* lockTenantCurrencyForFinancialConfiguration'),
+    ).toBeLessThan(
+      source.indexOf('yield* SimpleTemplateService.createSimpleTemplate'),
+    );
+  });
+
   it.effect('create requires templates:create', () =>
     Effect.gen(function* () {
       const error = yield* templateHandlers['templates.createSimpleTemplate'](
@@ -211,6 +236,7 @@ describe('normalizeTemplateFindOneRecord', () => {
         ],
         registrationOptions: [
           {
+            cancellationDeadlineHoursBeforeStart: 96,
             closeRegistrationOffset: 24,
             description: null,
             id: 'template-option-1',
@@ -218,12 +244,14 @@ describe('normalizeTemplateFindOneRecord', () => {
             openRegistrationOffset: 168,
             organizingRegistration: false,
             price: 1200,
+            refundFeesOnCancellation: false,
             registeredDescription: null,
             registrationMode: 'fcfs',
             roleIds: [],
             spots: 20,
             stripeTaxRateId: 'txr-1',
             title: 'Participant registration',
+            transferDeadlineHoursBeforeStart: 12,
           },
         ],
         title: 'Template',
@@ -275,5 +303,10 @@ describe('normalizeTemplateFindOneRecord', () => {
         title: 'Accessibility needs',
       },
     ]);
+    expect(record.registrationOptions[0]).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: 96,
+      refundFeesOnCancellation: false,
+      transferDeadlineHoursBeforeStart: 12,
+    });
   });
 });

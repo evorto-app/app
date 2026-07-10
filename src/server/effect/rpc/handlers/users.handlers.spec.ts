@@ -1,19 +1,21 @@
 import { describe, expect, it, vi } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
+import { DateTime } from 'luxon';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import {
-  rolesToTenantUsers,
-  users,
-  usersToTenants,
-} from '../../../../db/schema';
+import { rolesToTenantUsers, users } from '../../../../db/schema';
 import {
   encodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
 } from '../rpc-context-headers';
-import { normalizeUsersFindManySearch, userHandlers } from './users.handlers';
+import {
+  normalizeUsersFindManySearch,
+  tenantDayBounds,
+  userHandlers,
+} from './users.handlers';
 
 const createTenant = () => ({
+  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {
@@ -49,20 +51,6 @@ const createUser = () => ({
   roleIds: [],
 });
 
-const createCreateAccountHeaders = (
-  tenant = createTenant(),
-  authData?: { email?: string; sub?: string },
-) => ({
-  [RPC_CONTEXT_HEADERS.AUTH_DATA]: encodeRpcContextHeaderJson(
-    authData ?? {
-      email: 'alice@example.com',
-      sub: 'auth0|alice',
-    },
-  ),
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-});
-
 const createUserHandlerHeaders = ({
   permissions = [],
   tenant = createTenant(),
@@ -81,14 +69,25 @@ const createUserHandlerHeaders = ({
   }),
 });
 
-const returningInsert = <A>(result: A) => ({
-  onConflictDoNothing: () => ({
-    returning: () => Effect.succeed(result),
+const membershipLockSelect = (membershipId?: string) => () => ({
+  from: () => ({
+    where: () => ({
+      for: () => Effect.succeed(membershipId ? [{ id: membershipId }] : []),
+    }),
   }),
-  returning: () => Effect.succeed(result),
 });
 
 describe('userHandlers', () => {
+  it('uses tenant-local DST boundaries for scanner business days', () => {
+    const { end, start } = tenantDayBounds(
+      'Europe/Berlin',
+      DateTime.fromISO('2026-03-29T12:00:00.000Z', { zone: 'utc' }),
+    );
+
+    expect(start.toISOString()).toBe('2026-03-28T23:00:00.000Z');
+    expect(end.toISOString()).toBe('2026-03-29T21:59:59.999Z');
+  });
+
   it('normalizes user-list search input for the server query', () => {
     expect(normalizeUsersFindManySearch()).toBeUndefined();
     expect(normalizeUsersFindManySearch(' '.repeat(3))).toBeUndefined();
@@ -116,19 +115,13 @@ describe('userHandlers', () => {
       const database = {
         transaction: (
           callback: (tx: {
-            query: {
-              usersToTenants: {
-                findFirst: () => Effect.Effect<null>;
-              };
-            };
+            execute: () => Effect.Effect<void>;
+            select: ReturnType<typeof membershipLockSelect>;
           }) => Effect.Effect<unknown>,
         ) =>
           callback({
-            query: {
-              usersToTenants: {
-                findFirst: () => Effect.succeed(null),
-              },
-            },
+            execute: () => Effect.void,
+            select: membershipLockSelect(),
           }),
       };
 
@@ -157,25 +150,23 @@ describe('userHandlers', () => {
       const database = {
         transaction: (
           callback: (tx: {
+            execute: () => Effect.Effect<void>;
             query: {
               roles: {
                 findMany: () => Effect.Effect<{ id: string }[]>;
               };
-              usersToTenants: {
-                findFirst: () => Effect.Effect<{ id: string }>;
-              };
             };
+            select: ReturnType<typeof membershipLockSelect>;
           }) => Effect.Effect<unknown>,
         ) =>
           callback({
+            execute: () => Effect.void,
             query: {
               roles: {
                 findMany: () => Effect.succeed([{ id: 'role-1' }]),
               },
-              usersToTenants: {
-                findFirst: () => Effect.succeed({ id: 'membership-2' }),
-              },
             },
+            select: membershipLockSelect('membership-2'),
           }),
       };
 
@@ -210,20 +201,14 @@ describe('userHandlers', () => {
           transaction: (
             callback: (tx: {
               delete: typeof deleteRoles;
-              query: {
-                usersToTenants: {
-                  findFirst: () => Effect.Effect<{ id: string }>;
-                };
-              };
+              execute: () => Effect.Effect<void>;
+              select: ReturnType<typeof membershipLockSelect>;
             }) => Effect.Effect<unknown>,
           ) =>
             callback({
               delete: deleteRoles,
-              query: {
-                usersToTenants: {
-                  findFirst: () => Effect.succeed({ id: 'membership-1' }),
-                },
-              },
+              execute: () => Effect.void,
+              select: membershipLockSelect('membership-1'),
             }),
         };
 
@@ -260,6 +245,7 @@ describe('userHandlers', () => {
               delete: (table: unknown) => {
                 where: typeof deleteWhere;
               };
+              execute: () => Effect.Effect<void>;
               insert: (table: unknown) => {
                 values: typeof insertValues;
               };
@@ -267,10 +253,8 @@ describe('userHandlers', () => {
                 roles: {
                   findMany: () => Effect.Effect<{ id: string }[]>;
                 };
-                usersToTenants: {
-                  findFirst: () => Effect.Effect<{ id: string }>;
-                };
               };
+              select: ReturnType<typeof membershipLockSelect>;
             }) => Effect.Effect<unknown>,
           ) =>
             callback({
@@ -278,6 +262,7 @@ describe('userHandlers', () => {
                 expect(table).toBe(rolesToTenantUsers);
                 return { where: deleteWhere };
               },
+              execute: () => Effect.void,
               insert: (table) => {
                 expect(table).toBe(rolesToTenantUsers);
                 return { values: insertValues };
@@ -287,10 +272,8 @@ describe('userHandlers', () => {
                   findMany: () =>
                     Effect.succeed([{ id: 'role-1' }, { id: 'role-2' }]),
                 },
-                usersToTenants: {
-                  findFirst: () => Effect.succeed({ id: 'membership-2' }),
-                },
               },
+              select: membershipLockSelect('membership-2'),
             }),
         };
 
@@ -312,10 +295,12 @@ describe('userHandlers', () => {
         expect(insertValues).toHaveBeenCalledWith([
           {
             roleId: 'role-1',
+            tenantId: 'tenant-1',
             userTenantId: 'membership-2',
           },
           {
             roleId: 'role-2',
+            tenantId: 'tenant-1',
             userTenantId: 'membership-2',
           },
         ]);
@@ -403,296 +388,6 @@ describe('userHandlers', () => {
 
         expect(result).toBe(false);
         expect(limit).toHaveBeenCalledWith(1);
-      }),
-  );
-
-  it.effect(
-    'createAccount creates the user, tenant assignment, and default roles transactionally',
-    () =>
-      Effect.gen(function* () {
-        const inserts: unknown[] = [];
-        const tx = {
-          insert: (table: unknown) => ({
-            values: (value: unknown) => {
-              inserts.push({ table, value });
-              if (table === rolesToTenantUsers) {
-                return Effect.void;
-              }
-              if (table === users) {
-                return returningInsert([{ id: 'created-user-1' }]);
-              }
-              if (table === usersToTenants) {
-                return returningInsert([{ id: 'membership-1' }]);
-              }
-              return returningInsert([]);
-            },
-          }),
-          query: {
-            roles: {
-              findMany: () =>
-                Effect.succeed([{ id: 'role-1' }, { id: 'role-2' }]),
-            },
-            users: {
-              findFirst: () => Effect.succeed(null),
-            },
-            usersToTenants: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-        };
-        const database = {
-          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
-        };
-
-        yield* userHandlers['users.createAccount'](
-          {
-            communicationEmail: 'notify@example.com',
-            firstName: 'Alice',
-            lastName: 'Doe',
-          },
-          { headers: createCreateAccountHeaders() } as never,
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
-
-        expect(inserts).toEqual([
-          {
-            table: users,
-            value: {
-              auth0Id: 'auth0|alice',
-              communicationEmail: 'notify@example.com',
-              email: 'alice@example.com',
-              firstName: 'Alice',
-              lastName: 'Doe',
-            },
-          },
-          {
-            table: usersToTenants,
-            value: {
-              tenantId: 'tenant-1',
-              userId: 'created-user-1',
-            },
-          },
-          {
-            table: rolesToTenantUsers,
-            value: [
-              {
-                roleId: 'role-1',
-                userTenantId: 'membership-1',
-              },
-              {
-                roleId: 'role-2',
-                userTenantId: 'membership-1',
-              },
-            ],
-          },
-        ]);
-      }),
-  );
-
-  it.effect(
-    'createAccount attaches an existing global user to this tenant',
-    () =>
-      Effect.gen(function* () {
-        const inserts: unknown[] = [];
-        const tx = {
-          insert: (table: unknown) => ({
-            values: (value: unknown) => {
-              inserts.push({ table, value });
-              if (table === usersToTenants) {
-                return returningInsert([{ id: 'membership-1' }]);
-              }
-              return returningInsert([]);
-            },
-          }),
-          query: {
-            roles: {
-              findMany: () => Effect.succeed([]),
-            },
-            users: {
-              findFirst: () => Effect.succeed({ id: 'existing-user-1' }),
-            },
-            usersToTenants: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-        };
-        const database = {
-          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
-        };
-
-        yield* userHandlers['users.createAccount'](
-          {
-            communicationEmail: 'notify@example.com',
-            firstName: 'Alice',
-            lastName: 'Doe',
-          },
-          { headers: createCreateAccountHeaders() } as never,
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
-
-        expect(inserts).toEqual([
-          {
-            table: usersToTenants,
-            value: {
-              tenantId: 'tenant-1',
-              userId: 'existing-user-1',
-            },
-          },
-        ]);
-      }),
-  );
-
-  it.effect(
-    'createAccount attaches a user created by a concurrent request',
-    () =>
-      Effect.gen(function* () {
-        const inserts: unknown[] = [];
-        const findUser = vi
-          .fn()
-          .mockReturnValueOnce(Effect.succeed(null))
-          .mockReturnValueOnce(Effect.succeed({ id: 'concurrent-user-1' }));
-        const tx = {
-          insert: (table: unknown) => ({
-            values: (value: unknown) => {
-              inserts.push({ table, value });
-              if (table === users) {
-                return returningInsert([]);
-              }
-              if (table === usersToTenants) {
-                return returningInsert([{ id: 'membership-1' }]);
-              }
-              return returningInsert([]);
-            },
-          }),
-          query: {
-            roles: {
-              findMany: () => Effect.succeed([]),
-            },
-            users: {
-              findFirst: findUser,
-            },
-            usersToTenants: {
-              findFirst: () => Effect.succeed(null),
-            },
-          },
-        };
-        const database = {
-          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
-        };
-
-        yield* userHandlers['users.createAccount'](
-          {
-            communicationEmail: 'notify@example.com',
-            firstName: 'Alice',
-            lastName: 'Doe',
-          },
-          { headers: createCreateAccountHeaders() } as never,
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
-
-        expect(findUser).toHaveBeenCalledTimes(2);
-        expect(inserts).toEqual([
-          {
-            table: users,
-            value: {
-              auth0Id: 'auth0|alice',
-              communicationEmail: 'notify@example.com',
-              email: 'alice@example.com',
-              firstName: 'Alice',
-              lastName: 'Doe',
-            },
-          },
-          {
-            table: usersToTenants,
-            value: {
-              tenantId: 'tenant-1',
-              userId: 'concurrent-user-1',
-            },
-          },
-        ]);
-      }),
-  );
-
-  it.effect(
-    'createAccount returns a conflict when a concurrent request claims this tenant',
-    () =>
-      Effect.gen(function* () {
-        const findTenantAssignment = vi
-          .fn()
-          .mockReturnValueOnce(Effect.succeed(null))
-          .mockReturnValueOnce(Effect.succeed({ id: 'membership-1' }));
-        const tx = {
-          insert: (table: unknown) => ({
-            values: () => {
-              if (table === usersToTenants) {
-                return returningInsert([]);
-              }
-              return returningInsert([]);
-            },
-          }),
-          query: {
-            roles: {
-              findMany: () => Effect.succeed([]),
-            },
-            users: {
-              findFirst: () => Effect.succeed({ id: 'existing-user-1' }),
-            },
-            usersToTenants: {
-              findFirst: findTenantAssignment,
-            },
-          },
-        };
-        const database = {
-          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
-        };
-
-        const error = yield* userHandlers['users.createAccount'](
-          {
-            communicationEmail: 'notify@example.com',
-            firstName: 'Alice',
-            lastName: 'Doe',
-          },
-          { headers: createCreateAccountHeaders() } as never,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(Layer.succeed(Database, database as never)),
-        );
-
-        expect(findTenantAssignment).toHaveBeenCalledTimes(2);
-        expect(error['_tag']).toBe('UserConflictError');
-        expect(error.message).toBe('User account already exists');
-      }),
-  );
-
-  it.effect(
-    'createAccount rejects an existing user already in this tenant',
-    () =>
-      Effect.gen(function* () {
-        const tx = {
-          query: {
-            users: {
-              findFirst: () => Effect.succeed({ id: 'existing-user-1' }),
-            },
-            usersToTenants: {
-              findFirst: () => Effect.succeed({ id: 'membership-1' }),
-            },
-          },
-        };
-        const database = {
-          transaction: (callback: (tx: typeof tx) => unknown) => callback(tx),
-        };
-
-        const error = yield* userHandlers['users.createAccount'](
-          {
-            communicationEmail: 'notify@example.com',
-            firstName: 'Alice',
-            lastName: 'Doe',
-          },
-          { headers: createCreateAccountHeaders() } as never,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(Layer.succeed(Database, database as never)),
-        );
-
-        expect(error['_tag']).toBe('UserConflictError');
-        expect(error.message).toBe('User account already exists');
       }),
   );
 

@@ -4,10 +4,11 @@ import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { seedUserRoleAssignmentScenario } from '../../support/utils/user-role-assignment-scenario';
 
 test.use({ storageState: adminStateFile });
 
-test('Manage tenant roles and review users @admin', async ({
+test('Manage tenant roles and assign existing users @admin @permissions', async ({
   database,
   page,
   seedDate,
@@ -15,6 +16,25 @@ test('Manage tenant roles and review users @admin', async ({
 }, testInfo) => {
   const roleName = `Role docs ${seedDate.getTime()}`;
   const roleDescription = 'Role created by the generated roles guide';
+  const assignmentScenario = await seedUserRoleAssignmentScenario({
+    database,
+    roleName: 'Event assistant',
+    tenant,
+    userEmail: 'casey.role-docs@evorto.test',
+  });
+
+  const findAssignmentTarget = async () => {
+    const userSearchInput = page.getByPlaceholder('Name or email');
+    await userSearchInput.fill(assignmentScenario.user.email);
+    const userRow = page.getByRole('row').filter({
+      has: page.getByText(assignmentScenario.user.email, { exact: true }),
+    });
+    await expect(userRow).toBeVisible();
+    return {
+      roleSelect: userRow.getByRole('combobox', { name: 'Assigned roles' }),
+      userRow,
+    };
+  };
 
   try {
     await page.goto('.');
@@ -74,6 +94,86 @@ Start by navigating to **Admin tools**. The current relaunch admin surface separ
 ## User review
 
 The **All users** page supports searching tenant users by name or email and, for administrators with **users:assignRoles**, exposes tenant-scoped role assignment controls for existing users. Users without that permission still see read-only role chips. Because the capability allows assigning any existing tenant role, including to yourself, it is full tenant-administrator authority rather than limited delegation.
+
+## Assign a role to an existing user
+
+Use the search field to find the person by name or email. Open **Assigned roles** in that person's row and select one or more roles. The selection is saved immediately, so there is no separate Save button. Assigning a role changes only this tenant membership; it does not edit the role itself or affect the person's memberships in other tenants.
+`,
+    });
+
+    let { roleSelect, userRow } = await findAssignmentTarget();
+    await expect(roleSelect).toBeEnabled();
+    await roleSelect.click();
+    let assignmentOption = page.getByRole('option', {
+      exact: true,
+      name: assignmentScenario.role.name,
+    });
+    await expect(assignmentOption).toHaveAttribute('aria-selected', 'false');
+    await assignmentOption.click();
+    await page.keyboard.press('Escape');
+    await expect(page.getByText('User roles updated')).toBeVisible();
+    await expect
+      .poll(assignmentScenario.readAssignedRoleIds)
+      .toEqual([assignmentScenario.role.id]);
+
+    await page.reload();
+    ({ roleSelect, userRow } = await findAssignmentTarget());
+    await expect(roleSelect).toContainText(assignmentScenario.role.name);
+    await takeScreenshot(
+      testInfo,
+      userRow,
+      page,
+      'Existing user with assigned tenant role',
+    );
+    await roleSelect.click();
+    assignmentOption = page.getByRole('option', {
+      exact: true,
+      name: assignmentScenario.role.name,
+    });
+    await expect(assignmentOption).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('Escape');
+
+    await testInfo.attach('markdown', {
+      body: `
+The generated journey reloads the user through the real list query and checks the selected role again. This readback confirms that the assignment was persisted instead of only changing the control locally.
+
+## Remove a role from an existing user
+
+Open **Assigned roles** again and deselect the role. Removal is also saved immediately. A user keeps the combined permissions from any roles that remain assigned. Administrators cannot remove every role from their own account, which prevents accidentally locking themselves out.
+`,
+    });
+
+    await roleSelect.click();
+    assignmentOption = page.getByRole('option', {
+      exact: true,
+      name: assignmentScenario.role.name,
+    });
+    await expect(assignmentOption).toHaveAttribute('aria-selected', 'true');
+    await assignmentOption.click();
+    await page.keyboard.press('Escape');
+    await expect.poll(assignmentScenario.readAssignedRoleIds).toEqual([]);
+
+    await page.reload();
+    ({ roleSelect, userRow } = await findAssignmentTarget());
+    await expect(roleSelect).not.toContainText(assignmentScenario.role.name);
+    await roleSelect.click();
+    await expect(
+      page.getByRole('option', {
+        exact: true,
+        name: assignmentScenario.role.name,
+      }),
+    ).toHaveAttribute('aria-selected', 'false');
+    await page.keyboard.press('Escape');
+    await takeScreenshot(
+      testInfo,
+      userRow,
+      page,
+      'Existing user after tenant role removal',
+    );
+
+    await testInfo.attach('markdown', {
+      body: `
+The guide reads the empty assignment back from both the database and a fresh user-list query before cleaning up its temporary role and user. Users who have **users:viewAll** without **users:assignRoles** see role chips instead of this editable selector.
 
 Navigate to the **User roles** page to create or edit tenant roles.
 `,
@@ -164,13 +264,17 @@ Assigning roles to existing users happens from the **All users** page and is gua
 `,
     });
   } finally {
-    await database
-      .delete(schema.roles)
-      .where(
-        and(
-          eq(schema.roles.tenantId, tenant.id),
-          eq(schema.roles.name, roleName),
-        ),
-      );
+    try {
+      await database
+        .delete(schema.roles)
+        .where(
+          and(
+            eq(schema.roles.tenantId, tenant.id),
+            eq(schema.roles.name, roleName),
+          ),
+        );
+    } finally {
+      await assignmentScenario.cleanup();
+    }
   }
 });

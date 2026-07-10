@@ -60,6 +60,7 @@
           {{ receiptReviewNotificationNotice }}
         </p>
         <app-receipt-form-fields
+          [currencyCode]="receipt.currency"
           [form]="form"
           [selectableCountries]="selectableCountries"
         />

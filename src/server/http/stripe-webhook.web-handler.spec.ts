@@ -9,11 +9,16 @@ import { Database, type DatabaseClient } from '../../db';
 import * as dbSchema from '../../db/schema';
 import { StripeClient } from '../stripe-client';
 import {
+  asyncCheckoutFailureAction,
   handleStripeWebhookWebRequest,
+  isSupportedStripeWebhookEventType,
+  MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES,
   MAX_STRIPE_WEBHOOK_SIZE_BYTES,
   type PersistedCheckoutSessionBinding,
+  prepareStripeWebhookRequest,
   readStripeWebhookBody,
   runCheckoutWebhookTransition,
+  stripeEventOwnsPersistedAccount,
   validateCheckoutSessionBinding,
 } from './stripe-webhook.web-handler';
 
@@ -501,5 +506,179 @@ describe('runCheckoutWebhookTransition', () => {
         expect(error._tag).toBe('StripeWebhookStateConflictError');
         expect(order).toEqual(['registration-lock', 'transaction-update']);
       }),
+  );
+});
+
+const createStreamRequest = (
+  chunks: readonly Uint8Array[],
+  headers: HeadersInit = {},
+) => {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(chunk);
+      }
+      controller.close();
+    },
+  });
+  const init = {
+    body,
+    duplex: 'half',
+    headers: {
+      'stripe-signature': 'test-signature',
+      ...Object.fromEntries(new Headers(headers)),
+    },
+    method: 'POST',
+  } satisfies RequestInit & { duplex: 'half' };
+
+  return new Request('https://tenant.example.com/webhooks/stripe', init);
+};
+
+describe('prepareStripeWebhookRequest', () => {
+  it('routes delayed payment success and failure through durable webhook claims', () => {
+    expect(
+      isSupportedStripeWebhookEventType(
+        'checkout.session.async_payment_succeeded',
+      ),
+    ).toBe(true);
+    expect(
+      isSupportedStripeWebhookEventType(
+        'checkout.session.async_payment_failed',
+      ),
+    ).toBe(true);
+    expect(asyncCheckoutFailureAction({ status: 'open' })).toBe('keepOpen');
+    expect(
+      asyncCheckoutFailureAction({
+        payment_status: 'paid',
+        status: 'complete',
+      }),
+    ).toBe('complete');
+    expect(
+      asyncCheckoutFailureAction({
+        payment_status: 'unpaid',
+        status: 'complete',
+      }),
+    ).toBe('cancel');
+    expect(asyncCheckoutFailureAction({ status: 'expired' })).toBe('cancel');
+  });
+
+  it('requires an exact persisted Connect account match', () => {
+    expect(stripeEventOwnsPersistedAccount('acct_1', 'acct_1')).toBe(true);
+    expect(stripeEventOwnsPersistedAccount('acct_other', 'acct_1')).toBe(false);
+    expect(stripeEventOwnsPersistedAccount(undefined, 'acct_1')).toBe(false);
+    expect(stripeEventOwnsPersistedAccount('acct_1', null)).toBe(false);
+  });
+
+  it.effect('does not read an unsigned webhook body', () =>
+    Effect.gen(function* () {
+      const body = new ReadableStream<Uint8Array>({
+        pull() {
+          throw new Error('body should not be read');
+        },
+      });
+      const init = {
+        body,
+        duplex: 'half',
+        method: 'POST',
+      } satisfies RequestInit & { duplex: 'half' };
+      const request = new Request(
+        'https://tenant.example.com/webhooks/stripe',
+        init,
+      );
+
+      const response = yield* prepareStripeWebhookRequest(request);
+
+      expect(response).toBeInstanceOf(Response);
+      if (response instanceof Response) {
+        expect(response.status).toBe(400);
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          'No signature',
+        );
+      }
+    }),
+  );
+
+  it.effect('rejects a webhook declared above the route limit', () =>
+    Effect.gen(function* () {
+      const request = createStreamRequest([new Uint8Array([1])], {
+        'content-length': String(MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES + 1),
+      });
+
+      const response = yield* prepareStripeWebhookRequest(request);
+
+      expect(response).toBeInstanceOf(Response);
+      if (response instanceof Response) {
+        expect(response.status).toBe(413);
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          'Payload too large',
+        );
+      }
+    }),
+  );
+
+  it.effect(
+    'rejects an oversized streamed webhook without Content-Length',
+    () =>
+      Effect.gen(function* () {
+        const request = createStreamRequest([
+          new Uint8Array(MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES + 1),
+        ]);
+        expect(request.headers.get('content-length')).toBeNull();
+
+        const response = yield* prepareStripeWebhookRequest(request);
+
+        expect(response).toBeInstanceOf(Response);
+        if (response instanceof Response) {
+          expect(response.status).toBe(413);
+        }
+      }),
+  );
+
+  it.effect('does not trust a smaller webhook Content-Length', () =>
+    Effect.gen(function* () {
+      const request = createStreamRequest(
+        [new Uint8Array(MAX_STRIPE_WEBHOOK_BODY_SIZE_BYTES + 1)],
+        { 'content-length': '1' },
+      );
+
+      const response = yield* prepareStripeWebhookRequest(request);
+
+      expect(response).toBeInstanceOf(Response);
+      if (response instanceof Response) {
+        expect(response.status).toBe(413);
+      }
+    }),
+  );
+
+  it.effect('accepts a signed webhook within the route limit', () =>
+    Effect.gen(function* () {
+      const request = createStreamRequest([new TextEncoder().encode('{}')]);
+
+      const prepared = yield* prepareStripeWebhookRequest(request);
+
+      expect(prepared).not.toBeInstanceOf(Response);
+      if (!(prepared instanceof Response)) {
+        expect(prepared.signature).toBe('test-signature');
+        expect(new TextDecoder().decode(prepared.rawBody)).toBe('{}');
+      }
+    }),
+  );
+
+  it.effect('rejects an invalid webhook Content-Length', () =>
+    Effect.gen(function* () {
+      const request = createStreamRequest([new TextEncoder().encode('{}')], {
+        'content-length': 'invalid',
+      });
+
+      const response = yield* prepareStripeWebhookRequest(request);
+
+      expect(response).toBeInstanceOf(Response);
+      if (response instanceof Response) {
+        expect(response.status).toBe(400);
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          'Invalid Content-Length',
+        );
+      }
+    }),
   );
 });

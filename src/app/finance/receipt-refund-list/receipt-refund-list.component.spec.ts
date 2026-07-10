@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { isSafeReceiptPreviewUrl } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 import {
   receiptReimbursementCanRecord,
+  receiptReimbursementGroupKey,
   receiptReimbursementManualNotice,
   receiptReimbursementPayoutDetailLabel,
   receiptReimbursementRecordDisabled,
@@ -124,5 +125,21 @@ describe('receiptReimbursementSelectedTotal', () => {
         ['receipt-1', 'receipt-3'],
       ),
     ).toBe(2298);
+  });
+});
+
+describe('receiptReimbursementGroupKey', () => {
+  it("keeps one recipient's reimbursement state separate per currency", () => {
+    expect(
+      receiptReimbursementGroupKey({
+        currency: 'EUR',
+        submittedByUserId: 'user-1',
+      }),
+    ).not.toBe(
+      receiptReimbursementGroupKey({
+        currency: 'CZK',
+        submittedByUserId: 'user-1',
+      }),
+    );
   });
 });

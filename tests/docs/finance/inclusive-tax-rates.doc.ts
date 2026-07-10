@@ -206,14 +206,12 @@ Paid organizer registrations require a compatible inclusive tax rate. The dropdo
     const futureStart = DateTime.fromJSDate(seedDate).plus({ days: 7 });
     await eventForm
       .getByRole('textbox', { name: 'Start date' })
-      .fill(futureStart.toFormat('M/d/yyyy'));
-    await eventForm
-      .getByRole('combobox', { name: 'Start time' })
-      .fill('1:00 PM');
+      .fill(futureStart.setLocale('de-DE').toLocaleString(DateTime.DATE_SHORT));
+    await eventForm.getByRole('combobox', { name: 'Start time' }).fill('13:00');
     await eventForm
       .getByRole('textbox', { name: 'End date' })
-      .fill(futureStart.toFormat('M/d/yyyy'));
-    await eventForm.getByRole('combobox', { name: 'End time' }).fill('5:00 PM');
+      .fill(futureStart.setLocale('de-DE').toLocaleString(DateTime.DATE_SHORT));
+    await eventForm.getByRole('combobox', { name: 'End time' }).fill('17:00');
     await page.getByLabel('Event Title').fill(draftEventTitle);
     await page.getByRole('button', { name: 'Create Event' }).click();
 

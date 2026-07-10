@@ -10,7 +10,14 @@ import {
 import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 import { DateTime } from 'luxon';
 
+import {
+  DEFAULT_TENANT_TIMEZONE,
+  type SupportedTenantTimezone,
+} from '../../../../../types/custom/tenant';
+import { tenantNow } from '../../../../core/tenant-runtime';
+
 export interface RegistrationOptionFormModel {
+  cancellationDeadlineHoursBeforeStart: null | number;
   closeRegistrationTime: DateTime;
   description: string;
   esnCardDiscountedPrice: '' | number;
@@ -19,31 +26,37 @@ export interface RegistrationOptionFormModel {
   openRegistrationTime: DateTime;
   organizingRegistration: boolean;
   price: number;
+  refundFeesOnCancellation: boolean | null;
   registeredDescription: string;
   registrationMode: RegistrationMode;
   roleIds: string[];
   spots: number;
   stripeTaxRateId: null | string;
   title: string;
+  transferDeadlineHoursBeforeStart: null | number;
 }
 
 export const createRegistrationOptionFormModel = (
   overrides: Partial<RegistrationOptionFormModel> = {},
+  timezone: SupportedTenantTimezone = DEFAULT_TENANT_TIMEZONE,
 ): RegistrationOptionFormModel => ({
-  closeRegistrationTime: DateTime.now(),
+  cancellationDeadlineHoursBeforeStart: null,
+  closeRegistrationTime: tenantNow(timezone),
   description: '',
   esnCardDiscountedPrice: '',
   id: '',
   isPaid: false,
-  openRegistrationTime: DateTime.now(),
+  openRegistrationTime: tenantNow(timezone),
   organizingRegistration: false,
   price: 0,
+  refundFeesOnCancellation: null,
   registeredDescription: '',
   registrationMode: 'fcfs',
   roleIds: [],
   spots: 1,
   stripeTaxRateId: null,
   title: '',
+  transferDeadlineHoursBeforeStart: null,
   ...overrides,
 });
 

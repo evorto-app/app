@@ -4,6 +4,7 @@ import { Effect, Schema } from 'effect';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
+import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../types/custom/tenant';
 import { getPublicConfigEffect } from '../../config/public-config.effect';
 import {
@@ -41,6 +42,12 @@ export const configHandlers = {
       RPC_CONTEXT_HEADERS.PERMISSIONS,
       options.headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
       ConfigPermissions,
+    ),
+  'config.platformAuthority': (_payload, options) =>
+    decodeHeaderJsonEffect(
+      RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY,
+      options.headers[RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY],
+      Schema.NullOr(PlatformAdministratorAuthority),
     ),
   'config.public': () => getPublicConfigEffect,
   'config.tenant': (_payload, options) =>

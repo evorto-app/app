@@ -29,7 +29,8 @@ export interface EventRegistrationAddonView {
   maxQuantityPerUser: number;
   price: number;
   registrationOptions: readonly {
-    quantity: number;
+    includedQuantity: number;
+    optionalPurchaseQuantity: number;
     registrationOptionId: string;
   }[];
   taxRateDisplayName?: null | string;
@@ -94,7 +95,7 @@ export const registrationOptionAudienceCopy = (
     return {
       actionSuffix: 'apply',
       helperText:
-        'Use this option when you are attending the event. Organizers approve applications before spots are confirmed.',
+        'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
       label: 'Manual approval option',
       primaryAction: 'Apply for approval',
     };
@@ -172,18 +173,18 @@ export const registrationAddonMaxSelectableQuantity = (
   >,
   registrationOptionId: string,
 ): number => {
-  const attachedQuantity =
-    addOn.registrationOptions.find(
-      (option) => option.registrationOptionId === registrationOptionId,
-    )?.quantity ?? 0;
+  const attachment = addOn.registrationOptions.find(
+    (option) => option.registrationOptionId === registrationOptionId,
+  );
 
-  if (attachedQuantity <= 0) {
+  if (!attachment || attachment.optionalPurchaseQuantity <= 0) {
     return 0;
   }
 
   return Math.min(
-    addOn.maxQuantityPerUser,
-    Math.floor(addOn.totalAvailableQuantity / attachedQuantity),
+    attachment.optionalPurchaseQuantity,
+    Math.max(0, addOn.maxQuantityPerUser - attachment.includedQuantity),
+    Math.max(0, addOn.totalAvailableQuantity - attachment.includedQuantity),
   );
 };
 
@@ -198,14 +199,11 @@ export const registrationAddonSelectedTotalPrice = (
   let total = 0;
 
   for (const addOn of addOns) {
-    const attachedQuantity =
-      addOn.registrationOptions.find(
-        (option) => option.registrationOptionId === registrationOptionId,
-      )?.quantity ?? 0;
-    total +=
-      addOn.price *
-      attachedQuantity *
-      Math.max(0, Math.trunc(selections[addOn.id] ?? 0));
+    const attachment = addOn.registrationOptions.find(
+      (option) => option.registrationOptionId === registrationOptionId,
+    );
+    if (!attachment || attachment.optionalPurchaseQuantity <= 0) continue;
+    total += addOn.price * Math.max(0, Math.trunc(selections[addOn.id] ?? 0));
   }
 
   return total;
@@ -363,6 +361,15 @@ export class EventRegistrationOptionComponent {
   });
 
   private queryClient = inject(QueryClient);
+
+  addonIncludedQuantity(addOn: EventRegistrationAddonView): number {
+    return (
+      addOn.registrationOptions.find(
+        (option) =>
+          option.registrationOptionId === this.registrationOption().id,
+      )?.includedQuantity ?? 0
+    );
+  }
 
   addonMaxQuantity(addOn: EventRegistrationAddonView): number {
     return registrationAddonMaxSelectableQuantity(

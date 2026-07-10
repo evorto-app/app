@@ -74,6 +74,61 @@
           </div>
         }
       </dl>
+
+      <nav
+        aria-label="Target tenant operations"
+        class="border-outline-variant mt-6 border-t pt-4"
+      >
+        <h3 class="title-small">Target tenant operations</h3>
+        <p class="body-small text-on-surface-variant mt-1">
+          These tools stay scoped to this tenant and do not create a tenant user
+          session for the platform administrator.
+        </p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <a
+            mat-stroked-button
+            [routerLink]="['/global-admin/tenants', tenant.id, 'events']"
+          >
+            Manage events
+          </a>
+          <a
+            mat-stroked-button
+            [routerLink]="['/global-admin/tenants', tenant.id, 'templates']"
+          >
+            Manage templates
+          </a>
+          <a
+            mat-stroked-button
+            [routerLink]="['/global-admin/tenants', tenant.id, 'scanner']"
+          >
+            Inspect registrations
+          </a>
+          <a
+            mat-stroked-button
+            [routerLink]="['/global-admin/tenants', tenant.id, 'users']"
+          >
+            Manage users
+          </a>
+          <a
+            mat-stroked-button
+            [routerLink]="['/global-admin/tenants', tenant.id, 'roles']"
+          >
+            Manage roles
+          </a>
+          <a
+            mat-stroked-button
+            [routerLink]="['/global-admin/tenants', tenant.id, 'tax-rates']"
+          >
+            Manage tax rates
+          </a>
+          <a
+            mat-stroked-button
+            [routerLink]="['/global-admin/tenants', tenant.id, 'finance']"
+          >
+            Review finance
+          </a>
+        </div>
+      </nav>
     </section>
   } @else {
     <section class="bg-surface text-on-surface rounded-2xl p-4">

@@ -40,6 +40,7 @@ test('adds internal:viewInternalPages to Regular user opens Members Hub', async 
   });
   await database.insert(schema.rolesToTenantUsers).values({
     roleId,
+    tenantId: tenant.id,
     userTenantId,
   });
 

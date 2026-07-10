@@ -29,7 +29,10 @@ export const fillTemplateBasics = async (
     await expect(
       page.getByRole('heading', { name: 'Select an Icon' }),
     ).toBeVisible();
-    await page.locator('app-icon-selector-dialog').getByText('Alps').click();
+    await page
+      .locator('app-icon-selector-dialog')
+      .getByRole('button', { name: 'Select Alps icon' })
+      .click();
   }
 
   if (description !== null) {

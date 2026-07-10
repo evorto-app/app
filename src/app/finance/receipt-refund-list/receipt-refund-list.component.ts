@@ -1,4 +1,4 @@
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -20,12 +20,14 @@ import {
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { ReceiptAmountPipe } from '../shared/receipt-amount.pipe';
 import {
   isSafeReceiptPreviewUrl,
   ReceiptPreviewDialogComponent,
 } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
 
 export type ReceiptReimbursementPayoutType = 'iban' | 'paypal';
+type ReceiptCurrency = 'AUD' | 'CZK' | 'EUR';
 
 interface ReceiptReimbursementPayoutDetails {
   iban: null | string;
@@ -74,15 +76,20 @@ export function receiptReimbursementSelectedTotal(
     .reduce((sum, receipt) => sum + receipt.totalAmount, 0);
 }
 
+export const receiptReimbursementGroupKey = (group: {
+  currency: ReceiptCurrency;
+  submittedByUserId: string;
+}): string => `${group.submittedByUserId}:${group.currency}`;
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
-    DecimalPipe,
     MatButtonModule,
     MatCheckboxModule,
     MatSelectModule,
     MatTableModule,
+    ReceiptAmountPipe,
   ],
   selector: 'app-receipt-refund-list',
   styles: ``,
@@ -111,13 +118,15 @@ export class ReceiptRefundListComponent {
     this.rpc.finance.receipts.createRefund.mutationOptions(),
   );
 
+  protected readonly reimbursementGroupKey = receiptReimbursementGroupKey;
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
+
   private readonly payoutTypeByRecipient = signal<
     Record<string, ReceiptReimbursementPayoutType>
   >({});
-
   private readonly queryClient = inject(QueryClient);
+
   private readonly selectionByRecipient = signal<
     Record<string, Record<string, boolean>>
   >({});
@@ -136,10 +145,11 @@ export class ReceiptRefundListComponent {
         const next = { ...current };
 
         for (const group of groups) {
-          if (next[group.submittedByUserId]) {
+          const groupKey = receiptReimbursementGroupKey(group);
+          if (next[groupKey]) {
             continue;
           }
-          next[group.submittedByUserId] = group.payout.iban ? 'iban' : 'paypal';
+          next[groupKey] = group.payout.iban ? 'iban' : 'paypal';
           hasChanges = true;
         }
 
@@ -231,14 +241,13 @@ export class ReceiptRefundListComponent {
   }
 
   protected async refundRecipient(group: {
+    currency: ReceiptCurrency;
     payout: { iban: null | string; paypalEmail: null | string };
     submittedByUserId: string;
   }): Promise<void> {
-    const receiptIds = this.selectedReceiptIds(group.submittedByUserId);
-    const payoutType = this.getPayoutType(
-      group.submittedByUserId,
-      group.payout,
-    );
+    const groupKey = receiptReimbursementGroupKey(group);
+    const receiptIds = this.selectedReceiptIds(groupKey);
+    const payoutType = this.getPayoutType(groupKey, group.payout);
     const payoutReference =
       payoutType === 'iban' ? group.payout.iban : group.payout.paypalEmail;
     if (
@@ -303,7 +312,7 @@ export class ReceiptRefundListComponent {
       this.notifications.showSuccess('Reimbursement transaction recorded');
       this.selectionByRecipient.update((current) => ({
         ...current,
-        [group.submittedByUserId]: {},
+        [groupKey]: {},
       }));
     } catch (error) {
       this.notifications.showError(

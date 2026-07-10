@@ -1,0 +1,41 @@
+@use "sass:list";
+
+@function _light-dark($tones) {
+  @return light-dark(list.nth($tones, 1), list.nth($tones, 2));
+}
+
+@function _opposite-container-tones($tones) {
+  @return light-dark(list.nth($tones, 2), list.nth($tones, 1));
+}
+
+@mixin theme(
+  $success,
+  $on-success,
+  $success-container,
+  $on-success-container,
+  $warning,
+  $on-warning,
+  $warning-container,
+  $on-warning-container
+) {
+  --app-success: #{_light-dark($success)};
+  --app-on-success: #{_light-dark($on-success)};
+  --app-success-container: #{_light-dark($success-container)};
+  --app-on-success-container: #{_light-dark($on-success-container)};
+  --app-warning: #{_light-dark($warning)};
+  --app-on-warning: #{_light-dark($on-warning)};
+  --app-warning-container: #{_light-dark($warning-container)};
+  --app-on-warning-container: #{_light-dark($on-warning-container)};
+
+  @media (prefers-contrast: more) {
+    // Reuse the existing opposite-scheme container tones for stronger contrast.
+    --app-success: #{_opposite-container-tones($success-container)};
+    --app-on-success: #{_light-dark($on-success)};
+    --app-success-container: #{_opposite-container-tones($success-container)};
+    --app-on-success-container: #{_light-dark($on-success)};
+    --app-warning: #{_opposite-container-tones($warning-container)};
+    --app-on-warning: #{_light-dark($on-warning)};
+    --app-warning-container: #{_opposite-container-tones($warning-container)};
+    --app-on-warning-container: #{_light-dark($on-warning)};
+  }
+}

@@ -1,3 +1,7 @@
+---
+evorto: patch
+---
+
 # Tighten relaunch admin, registration, and scanner behavior
 
 - add tenant-scoped existing-user role assignment behind `users:assignRoles`

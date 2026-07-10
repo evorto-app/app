@@ -70,7 +70,7 @@ The event list shows all events with their basic information:
 - Event title
 - Date and time
 - Location
-- Status (draft, pending review, approved, rejected)
+- Status (draft, pending review, or published)
 - Listing state (listed or unlisted)
 `,
   });
@@ -159,7 +159,7 @@ Let's look at each section in detail.
 Registration options determine how people can sign up for your event. Templates can create one or more registration options that are then shown on the event details page.
 Reusable add-ons copied from the source template are shown separately on the event detail page with their price, purchase timing, quantity limits, and attached registration options.
 
-When editing a draft or rejected event, registration options can include:
+When editing a draft event, registration options can include:
 
 - Option title
 - Price (free or paid)
@@ -262,7 +262,9 @@ Event status values:
 - **Draft**
 - **Pending Review**
 - **Published**
-- **Rejected**
+
+When a reviewer requests changes, the event returns to **Draft** and the
+review feedback remains visible on its details page.
 
 Listing visibility can be updated from the event actions menu.
 
@@ -271,9 +273,7 @@ For a full walkthrough of the review and approval lifecycle, see the dedicated E
   });
 
   // Take a screenshot of the event status section
-  const statusChip = page
-    .getByText(/Draft|Pending Review|Published|Rejected/i)
-    .first();
+  const statusChip = page.getByText(/Draft|Pending Review|Published/i).first();
   try {
     await statusChip.waitFor({ state: 'visible', timeout: 2000 });
     await takeScreenshot(testInfo, statusChip, page, 'Event status section');
@@ -418,9 +418,9 @@ Those flows should be documented separately when they exist in the product.
 
 ## Event Editing
 
-Draft and rejected events can be edited from the event details page when your permissions allow it.
+Draft events can be edited from the event details page when your permissions allow it. An event returned by a reviewer is a draft, with the review feedback shown on the details page.
 The edit form covers the same event details and registration options used during event creation.
-Pending-review and approved events are locked from normal editing.
+Pending-review and published events are locked from normal editing.
 
 ## Current Scope
 

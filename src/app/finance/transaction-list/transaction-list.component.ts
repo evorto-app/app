@@ -1,5 +1,12 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  Injectable,
+  signal,
+} from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTableModule } from '@angular/material/table';
 import {
@@ -13,10 +20,25 @@ import consola from 'consola/browser';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 
+interface TransactionListFilter {
+  readonly limit: number;
+  readonly offset: number;
+}
+
+@Injectable({ providedIn: 'root' })
+export class TransactionListQueries {
+  private readonly rpc = AppRpc.injectClient();
+
+  findMany(filter: TransactionListFilter) {
+    return this.rpc.finance.transactions.findMany.queryOptions(filter);
+  }
+}
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FaDuotoneIconComponent,
+    MatButtonModule,
     MatTableModule,
     MatPaginatorModule,
     CurrencyPipe,
@@ -39,19 +61,15 @@ export class TransactionListComponent {
   protected readonly faMoneyBillTransfer = faMoneyBillTransfer;
   protected readonly faStripe = faStripe;
 
-  private readonly filterInput = signal<{
-    limit: number;
-    offset: number;
-    // search?: string;
-  }>({
+  private readonly filterInput = signal<TransactionListFilter>({
     limit: 100,
     offset: 0,
   });
 
-  private readonly rpc = AppRpc.injectClient();
+  private readonly queries = inject(TransactionListQueries);
 
   protected readonly transactionsQuery = injectQuery(() =>
-    this.rpc.finance.transactions.findMany.queryOptions(this.filterInput()),
+    this.queries.findMany(this.filterInput()),
   );
 
   handlePageChange(event: PageEvent) {

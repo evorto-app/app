@@ -27,6 +27,8 @@ For this guide, we assume you have an account with all required permissions. The
 Template categories are used to group templates together. You can create categories and assign templates to them.
 Users will have an easier time finding the templates they are looking for with good grouping.
 
+Users who can view templates without **templates:manageCategories** can still open the category overview through **View categories**. The page is read-only for them: create and edit actions are hidden, and the page explains which permission an administrator needs to grant.
+
 Start by navigating to the **Manage categories** page under **Templates**. Here you can see an overview of the existing template categories.
 Click on _Create category_ to create a new category.`,
     });

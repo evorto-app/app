@@ -93,6 +93,11 @@ export const serverNetworkConfig = Config.all({
   PORT: portConfig,
 });
 
+export const serverPublicUrlConfig = Config.all({
+  BASE_URL: baseUrlConfig,
+  NODE_ENV: nodeEnvironmentConfig,
+});
+
 export const serverTelemetryConfig = Config.all({
   PACKAGE_VERSION: packageVersionConfig,
 });
@@ -123,3 +128,6 @@ export type ServerClockConfig = Config.Success<typeof serverClockConfig>;
 export type ServerConfig = Config.Success<typeof serverConfig>;
 export type ServerEmailConfig = Config.Success<typeof serverEmailConfig>;
 export type ServerLoggingConfig = Config.Success<typeof serverLoggingConfig>;
+export type ServerPublicUrlConfig = Config.Success<
+  typeof serverPublicUrlConfig
+>;

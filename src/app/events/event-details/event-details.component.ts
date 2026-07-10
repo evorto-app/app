@@ -75,8 +75,7 @@ export const eventSubmitForReviewActionDisabled = ({
   canEdit: boolean;
   mutationPending: boolean;
   status: EventReviewStatus;
-}): boolean =>
-  !canEdit || (status !== 'DRAFT' && status !== 'REJECTED') || mutationPending;
+}): boolean => !canEdit || status !== 'DRAFT' || mutationPending;
 
 export const eventAddonPurchaseTiming = (addOn: {
   allowPurchaseBeforeEvent: boolean;
@@ -167,7 +166,7 @@ export class EventDetailsComponent {
   private permissions = inject(PermissionsService);
   protected readonly canEdit = computed(() => {
     const event = this.eventQuery.data();
-    if (!event || (event.status !== 'DRAFT' && event.status !== 'REJECTED')) {
+    if (!event || event.status !== 'DRAFT') {
       return false;
     }
     const editAllPermission =

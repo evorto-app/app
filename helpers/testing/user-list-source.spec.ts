@@ -71,4 +71,34 @@ describe('tenant user role assignment source', () => {
     expect(source).not.toContain('existing-user role assignment is deferred');
     expect(source).not.toContain('Edit user roles');
   });
+
+  it('keeps page-backed role mutation and read-only permission coverage active', () => {
+    const source = readSource('tests/specs/admin/user-role-assignment.spec.ts');
+
+    expect(source).toContain('seedUserRoleAssignmentScenario');
+    expect(source).toContain(
+      'assigns and removes an existing user role with persisted UI readback',
+    );
+    expect(source).toContain('expect.poll(scenario.readAssignedRoleIds)');
+    expect(source).toContain("toHaveAttribute('aria-selected', 'true')");
+    expect(source).toContain("toHaveAttribute('aria-selected', 'false')");
+    expect(source).toContain('await scenario.cleanup()');
+    expect(source).toContain(
+      'with users:viewAll but without users:assignRoles',
+    );
+    expect(source).toContain('await expect(roleSelect).toHaveCount(0)');
+  });
+
+  it('keeps disposable role-assignment records safely cleaned up', () => {
+    const source = readSource(
+      'tests/support/utils/user-role-assignment-scenario.ts',
+    );
+
+    expect(source).toContain('readAssignedRoleIds');
+    expect(source).toContain('.delete(schema.rolesToTenantUsers)');
+    expect(source).toContain('.delete(schema.roles)');
+    expect(source).toContain('.delete(schema.usersToTenants)');
+    expect(source).toContain('.delete(schema.users)');
+    expect(source).toContain('database.transaction');
+  });
 });

@@ -7,8 +7,15 @@ on:
   workflow_dispatch:
 
 jobs:
+  esncard-provider-certification:
+    name: Required live ESNcard certification
+    if: (github.head_ref == 'knope/release' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/esncard-release-certification.yml
+    secrets: inherit
+
   release:
     if: (github.head_ref == 'knope/release' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch'
+    needs: esncard-provider-certification
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

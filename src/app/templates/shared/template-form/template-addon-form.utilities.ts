@@ -6,10 +6,11 @@ export interface TemplateAddonFormModel {
   allowPurchaseDuringEvent: boolean;
   allowPurchaseDuringRegistration: boolean;
   description: string;
+  includedQuantity: number;
   isPaid: boolean;
   maxQuantityPerUser: number;
+  optionalPurchaseQuantity: number;
   price: number;
-  quantity: number;
   registrationOptionKind: TemplateAddonRegistrationOptionKind;
   stripeTaxRateId: null | string;
   title: string;
@@ -33,10 +34,11 @@ export const createTemplateAddonFormModel = (
   allowPurchaseDuringEvent: false,
   allowPurchaseDuringRegistration: true,
   description: '',
+  includedQuantity: 1,
   isPaid: false,
   maxQuantityPerUser: 1,
+  optionalPurchaseQuantity: 0,
   price: 0,
-  quantity: 1,
   registrationOptionKind: 'participant',
   stripeTaxRateId: null,
   title: '',
@@ -52,10 +54,11 @@ export const toTemplateAddonSubmitData = (
   allowPurchaseDuringEvent: false,
   allowPurchaseDuringRegistration: true,
   description: addOn.description.trim() || null,
+  includedQuantity: addOn.includedQuantity,
   isPaid: addOn.isPaid,
   maxQuantityPerUser: addOn.maxQuantityPerUser,
+  optionalPurchaseQuantity: addOn.optionalPurchaseQuantity,
   price: addOn.isPaid ? addOn.price : 0,
-  quantity: addOn.quantity,
   registrationOptionKind: addOn.registrationOptionKind,
   stripeTaxRateId: addOn.isPaid ? addOn.stripeTaxRateId : null,
   title: addOn.title.trim(),
@@ -95,7 +98,7 @@ export const templateAddonOptionKindFromRecord = ({
   throw new Error('Template add-on is missing a valid registration option');
 };
 
-export const templateAddonQuantityFromRecord = ({
+export const templateAddonQuantitiesFromRecord = ({
   addOn,
   organizerRegistrationOptionId,
   participantRegistrationOptionId,
@@ -105,7 +108,7 @@ export const templateAddonQuantityFromRecord = ({
   organizerRegistrationOptionId: string | undefined;
   participantRegistrationOptionId: string | undefined;
   registrationOptionKind: TemplateAddonRegistrationOptionKind;
-}): number => {
+}): { includedQuantity: number; optionalPurchaseQuantity: number } => {
   const registrationOptionId =
     registrationOptionKind === 'organizer'
       ? organizerRegistrationOptionId
@@ -113,7 +116,10 @@ export const templateAddonQuantityFromRecord = ({
   const attachedOption = addOn.registrationOptions.find(
     (option) => option.registrationOptionId === registrationOptionId,
   );
-  return attachedOption?.quantity ?? 1;
+  return {
+    includedQuantity: attachedOption?.includedQuantity ?? 0,
+    optionalPurchaseQuantity: attachedOption?.optionalPurchaseQuantity ?? 0,
+  };
 };
 
 export const templateAddonRecordToFormModel = ({
@@ -130,21 +136,23 @@ export const templateAddonRecordToFormModel = ({
     organizerRegistrationOptionId,
     participantRegistrationOptionId,
   });
+  const quantities = templateAddonQuantitiesFromRecord({
+    addOn,
+    organizerRegistrationOptionId,
+    participantRegistrationOptionId,
+    registrationOptionKind,
+  });
   return createTemplateAddonFormModel({
     allowMultiple: addOn.allowMultiple,
     allowPurchaseBeforeEvent: false,
     allowPurchaseDuringEvent: false,
     allowPurchaseDuringRegistration: true,
     description: addOn.description ?? '',
+    includedQuantity: quantities.includedQuantity,
     isPaid: addOn.isPaid,
     maxQuantityPerUser: addOn.maxQuantityPerUser,
+    optionalPurchaseQuantity: quantities.optionalPurchaseQuantity,
     price: addOn.price,
-    quantity: templateAddonQuantityFromRecord({
-      addOn,
-      organizerRegistrationOptionId,
-      participantRegistrationOptionId,
-      registrationOptionKind,
-    }),
     registrationOptionKind,
     stripeTaxRateId: addOn.stripeTaxRateId,
     title: addOn.title,

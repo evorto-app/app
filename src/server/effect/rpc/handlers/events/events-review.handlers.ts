@@ -1,16 +1,54 @@
-import { RpcForbiddenError } from '@shared/errors/rpc-errors';
+import {
+  RpcBadRequestError,
+  RpcForbiddenError,
+} from '@shared/errors/rpc-errors';
 import {
   EventConflictError,
   EventNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { and, eq, inArray } from 'drizzle-orm';
-import { Effect } from 'effect';
+import { and, eq } from 'drizzle-orm';
+import { DateTime, Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
 import { eventInstances } from '../../../../../db/schema';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { canEditEvent, databaseEffect } from './events.shared';
+
+export type EventReviewDecision =
+  | {
+      status: 'APPROVED';
+      statusComment: null | string;
+    }
+  | {
+      status: 'DRAFT';
+      statusComment: string;
+    };
+
+export const eventReviewDecision = ({
+  approved,
+  comment,
+}: {
+  approved: boolean;
+  comment?: string | undefined;
+}): EventReviewDecision | undefined => {
+  const normalizedComment = comment?.trim() || undefined;
+  if (approved) {
+    return {
+      status: 'APPROVED',
+      statusComment: normalizedComment ?? null,
+    };
+  }
+
+  if (!normalizedComment) {
+    return;
+  }
+
+  return {
+    status: 'DRAFT',
+    statusComment: normalizedComment,
+  };
+};
 
 export const eventReviewHandlers = {
   'events.getPendingReviews': (_payload, _options) =>
@@ -41,15 +79,25 @@ export const eventReviewHandlers = {
       yield* RpcAccess.ensurePermission('events:review');
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
+      const decision = eventReviewDecision({ approved, comment });
+      if (!decision) {
+        return yield* Effect.fail(
+          new RpcBadRequestError({
+            message: 'Feedback is required when returning an event to draft',
+            reason: 'reviewFeedbackRequired',
+          }),
+        );
+      }
+      const reviewedAt = yield* DateTime.nowAsDate;
 
       const reviewedEvents = yield* databaseEffect((database) =>
         database
           .update(eventInstances)
           .set({
-            reviewedAt: new Date(),
+            reviewedAt,
             reviewedBy: user.id,
-            status: approved ? 'APPROVED' : 'REJECTED',
-            statusComment: comment || null,
+            status: decision.status,
+            statusComment: decision.statusComment,
           })
           .where(
             and(
@@ -129,7 +177,7 @@ export const eventReviewHandlers = {
           new RpcForbiddenError({ message: 'Forbidden' }),
         );
       }
-      if (event.status !== 'DRAFT' && event.status !== 'REJECTED') {
+      if (event.status !== 'DRAFT') {
         return yield* Effect.fail(
           new EventConflictError({
             message:
@@ -151,7 +199,7 @@ export const eventReviewHandlers = {
             and(
               eq(eventInstances.id, eventId),
               eq(eventInstances.tenantId, tenant.id),
-              inArray(eventInstances.status, ['DRAFT', 'REJECTED']),
+              eq(eventInstances.status, 'DRAFT'),
             ),
           )
           .returning({

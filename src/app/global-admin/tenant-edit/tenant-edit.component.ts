@@ -7,7 +7,13 @@ import {
   input,
   linkedSignal,
 } from '@angular/core';
-import { form, FormField, required, submit } from '@angular/forms/signals';
+import {
+  form,
+  FormField,
+  required,
+  submit,
+  validate,
+} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -26,7 +32,6 @@ import {
 
 import {
   supportedTenantCurrencies,
-  supportedTenantLocales,
   supportedTenantTimezones,
 } from '../../../types/custom/tenant';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -39,6 +44,7 @@ import {
   globalAdminTenantPayloadFromForm,
   globalAdminTenantRelaunchScopeItems,
   globalAdminTenantSubmitDisabled,
+  globalAdminTenantUpdateErrorMessage,
 } from '../tenant-form/tenant-form.model';
 
 @Component({
@@ -60,7 +66,6 @@ export class TenantEditComponent {
   protected readonly currencyOptions = supportedTenantCurrencies;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleInfo = faCircleInfo;
-  protected readonly localeOptions = supportedTenantLocales;
   protected readonly relaunchScopeItems = globalAdminTenantRelaunchScopeItems;
   private readonly rpc = AppRpc.injectClient();
   protected readonly tenantQuery = injectQuery(() =>
@@ -89,8 +94,15 @@ export class TenantEditComponent {
     }),
   });
   protected readonly tenantForm = form(this.tenantModel, (schema) => {
+    required(schema.canonicalRootUrl);
     required(schema.domain);
     required(schema.name);
+    required(schema.reason);
+    validate(schema.reason, ({ value }) =>
+      value().trim().length === 0
+        ? { kind: 'required', message: 'Reason is required.' }
+        : undefined,
+    );
   });
   protected readonly tenantSubmitDisabled = globalAdminTenantSubmitDisabled;
   protected readonly timezoneOptions = supportedTenantTimezones;
@@ -135,7 +147,7 @@ export class TenantEditComponent {
         {
           onError: (error) => {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to update tenant'),
+              globalAdminTenantUpdateErrorMessage(error),
             );
           },
           onSuccess: async (updatedTenant) => {

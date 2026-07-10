@@ -31,6 +31,7 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
+import { ConfigService } from '../config.service';
 import { AppRpc } from '../effect-rpc-angular-client';
 
 @Component({
@@ -71,6 +72,8 @@ export class NavigationComponent {
   protected readonly faRightToBracket = faRightToBracket;
   protected readonly faScannerGun = faScannerGun;
   protected readonly faUser = faUser;
+  protected readonly platformAuthority =
+    inject(ConfigService).platformAuthoritySignal;
   protected readonly scannerAccessQuery = injectQuery(() =>
     this.rpc.users.canUseScanner.queryOptions(),
   );

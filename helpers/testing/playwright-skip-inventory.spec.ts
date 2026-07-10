@@ -1,20 +1,19 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
 // Source guard: every skipped browser/doc test needs an explicit reason here so
 // uncovered behavior does not disappear behind permanent `test.skip` calls.
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
-const testsRoot = join(repositoryRoot, 'tests');
-const testInventoryPath = join(testsRoot, 'test-inventory.md');
+const testsRoot = path.join(repositoryRoot, 'tests');
+const testInventoryPath = path.join(testsRoot, 'test-inventory.md');
 
 const allowedPlaywrightSkipEntries = [
   {
-    entry: 'tests/specs/profile/user-profile-live-esncard.spec.ts:14:test.skip',
+    entry: 'tests/specs/profile/user-profile-live-esncard.spec.ts:16:test.skip',
     reason:
-      'Local runs need a live ESNcard identifier; the credentialed release gate must run external provider coverage.',
+      'Local runs may omit the live ESNcard identifier; the protected release workflow fails closed and must run external provider coverage.',
   },
 ] as const;
 
@@ -32,24 +31,26 @@ const allowedPlaceholderMetadataFiles = new Set([
 
 const collectTypeScriptFiles = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
+    const entryPath = path.join(directory, entry.name);
 
     if (entry.isDirectory()) {
-      return collectTypeScriptFiles(path);
+      return collectTypeScriptFiles(entryPath);
     }
 
-    return entry.isFile() && path.endsWith('.ts') ? [path] : [];
+    return entry.isFile() && entryPath.endsWith('.ts') ? [entryPath] : [];
   });
 
 const collectPlaywrightSpecAndDocFiles = () =>
   collectTypeScriptFiles(testsRoot)
-    .map((path) => relative(testsRoot, path).replaceAll('\\', '/'))
+    .map((entryPath) =>
+      path.relative(testsRoot, entryPath).replaceAll('\\', '/'),
+    )
     .filter(
-      (path) =>
-        (path.startsWith('docs/') || path.startsWith('specs/')) &&
-        (path.endsWith('.doc.ts') ||
-          path.endsWith('.spec.ts') ||
-          path.endsWith('.test.ts')),
+      (entryPath) =>
+        (entryPath.startsWith('docs/') || entryPath.startsWith('specs/')) &&
+        (entryPath.endsWith('.doc.ts') ||
+          entryPath.endsWith('.spec.ts') ||
+          entryPath.endsWith('.test.ts')),
     );
 
 const collectActiveInventoryFiles = () => {
@@ -65,16 +66,16 @@ const collectActiveInventoryFiles = () => {
   return activeFilesSection
     .split('\n')
     .map(
-      (line) => line.match(/^  - (?<path>(?:docs|specs)\/\S+)/)?.groups?.path,
+      (line) => line.match(/^ {2}- (?<path>(?:docs|specs)\/\S+)/)?.groups?.path,
     )
     .filter((path): path is string => path !== undefined);
 };
 
 const collectPlaywrightSkipEntries = () =>
-  collectTypeScriptFiles(testsRoot).flatMap((path) => {
-    const source = readFileSync(path, 'utf8');
+  collectTypeScriptFiles(testsRoot).flatMap((sourcePath) => {
+    const source = readFileSync(sourcePath, 'utf8');
     const lines = source.split('\n');
-    const relativePath = relative(repositoryRoot, path);
+    const relativePath = path.relative(repositoryRoot, sourcePath);
 
     return lines.flatMap((line, index) =>
       [...line.matchAll(skipPattern)].map((match) =>
@@ -84,14 +85,16 @@ const collectPlaywrightSkipEntries = () =>
   });
 
 const collectPlaceholderMetadataEntries = () =>
-  collectTypeScriptFiles(testsRoot).flatMap((path) => {
-    const relativePath = relative(repositoryRoot, path).replaceAll('\\', '/');
+  collectTypeScriptFiles(testsRoot).flatMap((sourcePath) => {
+    const relativePath = path
+      .relative(repositoryRoot, sourcePath)
+      .replaceAll('\\', '/');
 
     if (allowedPlaceholderMetadataFiles.has(relativePath)) {
       return [];
     }
 
-    const source = readFileSync(path, 'utf8');
+    const source = readFileSync(sourcePath, 'utf8');
     const lines = source.split('\n');
 
     return lines.flatMap((line, index) =>
@@ -103,10 +106,12 @@ const collectPlaceholderMetadataEntries = () =>
 
 const collectFixedWaitEntries = () =>
   collectPlaywrightSpecAndDocFiles().flatMap((playwrightPath) => {
-    const path = join(testsRoot, playwrightPath);
-    const source = readFileSync(path, 'utf8');
+    const sourcePath = path.join(testsRoot, playwrightPath);
+    const source = readFileSync(sourcePath, 'utf8');
     const lines = source.split('\n');
-    const relativePath = relative(repositoryRoot, path).replaceAll('\\', '/');
+    const relativePath = path
+      .relative(repositoryRoot, sourcePath)
+      .replaceAll('\\', '/');
 
     return lines.flatMap((line, index) =>
       [...line.matchAll(fixedWaitPattern)].map(
@@ -117,22 +122,22 @@ const collectFixedWaitEntries = () =>
 
 describe('Playwright skip inventory', () => {
   it('keeps the active test inventory aligned with Playwright docs and specs on disk', () => {
-    expect(collectActiveInventoryFiles().sort()).toEqual(
-      collectPlaywrightSpecAndDocFiles().sort(),
+    expect(collectActiveInventoryFiles().toSorted()).toEqual(
+      collectPlaywrightSpecAndDocFiles().toSorted(),
     );
   });
 
   it('keeps every skip and fixme explicitly classified', () => {
-    const entries = collectPlaywrightSkipEntries().sort();
+    const entries = collectPlaywrightSkipEntries().toSorted();
 
-    expect(entries).toEqual([...allowedEntries].sort());
+    expect(entries).toEqual([...allowedEntries].toSorted());
   });
 
   it('keeps every allowed skip and fixme tied to a reason', () => {
     expect(
       allowedPlaywrightSkipEntries.map((entry) => entry.reason.trim()),
     ).toEqual([
-      'Local runs need a live ESNcard identifier; the credentialed release gate must run external provider coverage.',
+      'Local runs may omit the live ESNcard identifier; the protected release workflow fails closed and must run external provider coverage.',
     ]);
   });
 

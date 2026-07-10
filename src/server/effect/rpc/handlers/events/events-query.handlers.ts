@@ -54,6 +54,68 @@ const hasSuccessfulPaidRegistrationTransaction = (
       transaction.status === 'successful' && transaction.amount > 0,
   );
 
+export const organizeOverviewAccessAllowed = ({
+  confirmedOrganizerRegistration,
+  permissions,
+}: {
+  confirmedOrganizerRegistration: boolean;
+  permissions: readonly Permission[];
+}): boolean =>
+  includesPermission('events:organizeAll', permissions) ||
+  includesPermission('finance:manageReceipts', permissions) ||
+  confirmedOrganizerRegistration;
+
+const canOrganizeEvent = Effect.fn('Events.canOrganizeEvent')(function* ({
+  eventId,
+  permissions,
+  tenantId,
+  userId,
+}: {
+  eventId: string;
+  permissions: readonly Permission[];
+  tenantId: string;
+  userId: string;
+}) {
+  if (
+    organizeOverviewAccessAllowed({
+      confirmedOrganizerRegistration: false,
+      permissions,
+    })
+  ) {
+    return true;
+  }
+
+  const registrations = yield* databaseEffect((database) =>
+    database
+      .select({
+        id: eventRegistrations.id,
+      })
+      .from(eventRegistrations)
+      .innerJoin(
+        eventRegistrationOptions,
+        eq(
+          eventRegistrations.registrationOptionId,
+          eventRegistrationOptions.id,
+        ),
+      )
+      .where(
+        and(
+          eq(eventRegistrations.tenantId, tenantId),
+          eq(eventRegistrations.eventId, eventId),
+          eq(eventRegistrations.userId, userId),
+          eq(eventRegistrations.status, 'CONFIRMED'),
+          eq(eventRegistrationOptions.organizingRegistration, true),
+        ),
+      )
+      .limit(1),
+  );
+
+  return organizeOverviewAccessAllowed({
+    confirmedOrganizerRegistration: registrations.length > 0,
+    permissions,
+  });
+});
+
 export const organizerRegistrationTransferAvailable = ({
   checkInTime,
   eventStart,
@@ -70,6 +132,36 @@ export const organizerRegistrationTransferAvailable = ({
   eventStart !== null &&
   eventStart > new Date() &&
   !hasSuccessfulPaidRegistrationTransaction(transactions);
+
+export const organizerRegistrationApprovalState = ({
+  registrationMode,
+  registrationStatus,
+  transactions,
+}: {
+  registrationMode: 'application' | 'fcfs' | 'random';
+  registrationStatus: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+  transactions: readonly {
+    status: string;
+    stripeCheckoutSessionId: null | string;
+    type: string;
+  }[];
+}) => {
+  const pendingRegistrationPayment = transactions.find(
+    (transaction) =>
+      transaction.type === 'registration' && transaction.status === 'pending',
+  );
+  const paymentSetupRequired =
+    pendingRegistrationPayment?.stripeCheckoutSessionId === null;
+
+  return {
+    manualApprovalAvailable:
+      registrationStatus === 'PENDING' &&
+      registrationMode === 'application' &&
+      (!pendingRegistrationPayment || paymentSetupRequired),
+    paymentPending: pendingRegistrationPayment !== undefined,
+    paymentSetupRequired,
+  };
+};
 
 const canInspectTenantEvents = (permissions: readonly Permission[]): boolean =>
   includesPermission('globalAdmin:manageTenants', permissions);
@@ -273,19 +365,7 @@ export const eventQueryHandlers = {
         userRegistered: Boolean(event.userRegistered),
       }));
 
-      const groupedEvents = new Map<string, typeof eventRecords>();
-
-      for (const event of eventRecords) {
-        const day = DateTime.fromISO(event.start).toFormat('yyyy-MM-dd');
-        const currentEvents = groupedEvents.get(day) ?? [];
-        currentEvents.push(event);
-        groupedEvents.set(day, currentEvents);
-      }
-
-      return [...groupedEvents].map(([day, events]) => ({
-        day: DateTime.fromFormat(day, 'yyyy-MM-dd').toJSDate().toISOString(),
-        events,
-      }));
+      return groupEventsByTenantDay(eventRecords, tenant.timezone);
     }),
   'events.findOne': ({ id }, _options) =>
     Effect.gen(function* () {
@@ -434,10 +514,13 @@ export const eventQueryHandlers = {
                     eventAddons.allowPurchaseDuringRegistration,
                   description: eventAddons.description,
                   id: eventAddons.id,
+                  includedQuantity:
+                    addonToEventRegistrationOptions.includedQuantity,
                   isPaid: eventAddons.isPaid,
                   maxQuantityPerUser: eventAddons.maxQuantityPerUser,
+                  optionalPurchaseQuantity:
+                    addonToEventRegistrationOptions.optionalPurchaseQuantity,
                   price: eventAddons.price,
-                  quantity: addonToEventRegistrationOptions.quantity,
                   registrationOptionId:
                     addonToEventRegistrationOptions.registrationOptionId,
                   stripeTaxRateId: eventAddons.stripeTaxRateId,
@@ -577,7 +660,8 @@ export const eventQueryHandlers = {
           maxQuantityPerUser: number;
           price: number;
           registrationOptions: {
-            quantity: number;
+            includedQuantity: number;
+            optionalPurchaseQuantity: number;
             registrationOptionId: string;
           }[];
           stripeTaxRateId: null | string;
@@ -610,7 +694,8 @@ export const eventQueryHandlers = {
           totalAvailableQuantity: addOn.totalAvailableQuantity,
         };
         current.registrationOptions.push({
-          quantity: addOn.quantity,
+          includedQuantity: addOn.includedQuantity,
+          optionalPurchaseQuantity: addOn.optionalPurchaseQuantity,
           registrationOptionId: addOn.registrationOptionId,
         });
         addOnsById.set(addOn.id, current);
@@ -743,6 +828,7 @@ export const eventQueryHandlers = {
           with: {
             registrationOptions: {
               columns: {
+                cancellationDeadlineHoursBeforeStart: true,
                 closeRegistrationTime: true,
                 description: true,
                 id: true,
@@ -750,12 +836,14 @@ export const eventQueryHandlers = {
                 openRegistrationTime: true,
                 organizingRegistration: true,
                 price: true,
+                refundFeesOnCancellation: true,
                 registeredDescription: true,
                 registrationMode: true,
                 roleIds: true,
                 spots: true,
                 stripeTaxRateId: true,
                 title: true,
+                transferDeadlineHoursBeforeStart: true,
               },
             },
           },
@@ -777,7 +865,7 @@ export const eventQueryHandlers = {
         );
       }
 
-      if (event.status !== 'DRAFT' && event.status !== 'REJECTED') {
+      if (event.status !== 'DRAFT') {
         return yield* Effect.fail(
           new EventConflictError({
             message: 'Event cannot be edited in its current state',
@@ -824,6 +912,8 @@ export const eventQueryHandlers = {
         id: event.id,
         location: event.location ?? null,
         registrationOptions: event.registrationOptions.map((option) => ({
+          cancellationDeadlineHoursBeforeStart:
+            option.cancellationDeadlineHoursBeforeStart,
           closeRegistrationTime: option.closeRegistrationTime.toISOString(),
           description: option.description ?? null,
           esnCardDiscountedPrice:
@@ -833,12 +923,15 @@ export const eventQueryHandlers = {
           openRegistrationTime: option.openRegistrationTime.toISOString(),
           organizingRegistration: option.organizingRegistration,
           price: option.price,
+          refundFeesOnCancellation: option.refundFeesOnCancellation,
           registeredDescription: option.registeredDescription ?? null,
           registrationMode: option.registrationMode,
           roleIds: [...option.roleIds],
           spots: option.spots,
           stripeTaxRateId: option.stripeTaxRateId ?? null,
           title: option.title,
+          transferDeadlineHoursBeforeStart:
+            option.transferDeadlineHoursBeforeStart,
         })),
         start: event.start.toISOString(),
         title: event.title,
@@ -913,6 +1006,8 @@ export const eventQueryHandlers = {
               columns: {
                 amount: true,
                 status: true,
+                stripeCheckoutSessionId: true,
+                type: true,
               },
               where: {
                 type: 'registration',
@@ -985,6 +1080,11 @@ export const eventQueryHandlers = {
           })
           .map((registration) => {
             const registrationOption = registration.registrationOption;
+            const approvalState = organizerRegistrationApprovalState({
+              registrationMode: registrationOption.registrationMode,
+              registrationStatus: registration.status,
+              transactions: registration.transactions,
+            });
             const discountedPriceFromTransaction =
               registration.transactions.find(
                 (transaction) => transaction.amount < registrationOption.price,
@@ -1028,16 +1128,7 @@ export const eventQueryHandlers = {
               email: registration.user.email,
               firstName: registration.user.firstName,
               lastName: registration.user.lastName,
-              manualApprovalAvailable:
-                registration.status === 'PENDING' &&
-                registration.registrationOption.registrationMode ===
-                  'application' &&
-                registration.transactions.every(
-                  (transaction) => transaction.status !== 'pending',
-                ),
-              paymentPending: registration.transactions.some(
-                (transaction) => transaction.status === 'pending',
-              ),
+              ...approvalState,
               registrationId: registration.id,
               status: registration.status,
               transferAvailable:

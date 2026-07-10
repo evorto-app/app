@@ -1,6 +1,6 @@
 import type { EventsRegistrationStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { DatePipe, DecimalPipe, PercentPipe } from '@angular/common';
+import { DatePipe, PercentPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -31,6 +31,7 @@ import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { ReceiptAmountPipe } from '../../finance/shared/receipt-amount.pipe';
 import {
   ReceiptSubmitDialogComponent,
   ReceiptSubmitDialogResult,
@@ -86,6 +87,7 @@ export interface EventOrganizeParticipant {
   lastName: string;
   manualApprovalAvailable: boolean;
   paymentPending: boolean;
+  paymentSetupRequired: boolean;
   registrationId: string;
   status: EventsRegistrationStatus;
   transferAvailable: boolean;
@@ -117,6 +119,20 @@ export const organizerRegistrationApprovalDisabled = ({
   mutationPending: boolean;
 }): boolean => mutationPending || !manualApprovalAvailable;
 
+export const organizerRegistrationApprovalLabel = ({
+  approvalPending,
+  paymentSetupRequired,
+}: {
+  approvalPending: boolean;
+  paymentSetupRequired: boolean;
+}): string => {
+  if (approvalPending) {
+    return 'Approving…';
+  }
+
+  return paymentSetupRequired ? 'Retry payment setup' : 'Approve application';
+};
+
 export const receiptSubmissionActionDisabled = ({
   submissionUnavailable,
   submitPending,
@@ -131,10 +147,10 @@ export const receiptSubmissionActionDisabled = ({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
-    DecimalPipe,
     FontAwesomeModule,
     MatButtonModule,
     PercentPipe,
+    ReceiptAmountPipe,
     RouterLink,
     MatTableModule,
   ],
@@ -165,6 +181,8 @@ export class EventOrganize {
     organizerRegistrationActionDisabled;
   protected readonly organizerRegistrationApprovalDisabled =
     organizerRegistrationApprovalDisabled;
+  protected readonly organizerRegistrationApprovalLabel =
+    organizerRegistrationApprovalLabel;
   protected readonly organizerRegistrationTransferDisabled =
     organizerRegistrationTransferDisabled;
   protected readonly organizerTableColumns = signal([
@@ -172,7 +190,6 @@ export class EventOrganize {
     'email',
     'checkin',
   ]);
-
   protected readonly organizerTableContent = computed(() => {
     const overview = this.organizerOverviewQuery.data();
     if (!overview) return [];
@@ -190,6 +207,7 @@ export class EventOrganize {
   protected readonly receiptOriginalUploadMutation = injectMutation(() =>
     this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
   );
+
   protected readonly receiptsByEventQuery = injectQuery(() =>
     this.rpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),
@@ -205,16 +223,17 @@ export class EventOrganize {
 
     return null;
   });
-
   protected readonly stats = computed(() =>
     computeEventOrganizeStats(this.event()),
   );
+
   protected readonly submitReceiptMutation = injectMutation(() =>
     this.rpc.finance.receipts.submit.mutationOptions(),
   );
   protected readonly transferRegistrationMutation = injectMutation(() =>
     this.rpc.events.transferEventRegistration.mutationOptions(),
   );
+  private readonly approvalPendingRegistrationId = signal<null | string>(null);
   private readonly config = inject(ConfigService);
 
   private readonly dialog = inject(MatDialog);
@@ -231,10 +250,14 @@ export class EventOrganize {
     });
   }
 
+  protected approvalPending(registrationId: string): boolean {
+    return this.approvalPendingRegistrationId() === registrationId;
+  }
+
   protected approveRegistration(
     registration: Pick<
       EventOrganizeParticipant,
-      'manualApprovalAvailable' | 'registrationId'
+      'manualApprovalAvailable' | 'paymentSetupRequired' | 'registrationId'
     >,
   ) {
     if (
@@ -249,6 +272,7 @@ export class EventOrganize {
       return;
     }
 
+    this.approvalPendingRegistrationId.set(registration.registrationId);
     this.approveRegistrationMutation.mutate(
       {
         eventId: this.eventId(),
@@ -257,21 +281,36 @@ export class EventOrganize {
       {
         onError: (error) => {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to approve registration'),
+            getErrorMessage(
+              error,
+              registration.paymentSetupRequired
+                ? 'Failed to set up registration payment'
+                : 'Failed to approve application',
+            ),
           );
         },
-        onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.getOrganizeOverview.queryKey({
-              eventId: this.eventId(),
-            }),
-          });
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.findOne.queryKey({
-              id: this.eventId(),
-            }),
-          });
-          this.notifications.showSuccess('Registration approved');
+        onSettled: async () => {
+          try {
+            await this.queryClient.invalidateQueries({
+              queryKey: this.rpc.events.getOrganizeOverview.queryKey({
+                eventId: this.eventId(),
+              }),
+            });
+            await this.queryClient.invalidateQueries({
+              queryKey: this.rpc.events.findOne.queryKey({
+                id: this.eventId(),
+              }),
+            });
+          } finally {
+            this.approvalPendingRegistrationId.set(null);
+          }
+        },
+        onSuccess: (result) => {
+          this.notifications.showSuccess(
+            result.status === 'confirmed'
+              ? 'Registration confirmed'
+              : 'Application approved. Payment is required before confirmation.',
+          );
         },
       },
     );

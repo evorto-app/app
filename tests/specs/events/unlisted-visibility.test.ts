@@ -7,7 +7,7 @@ const findApprovedListedEvent = (
   events: {
     id: string;
     start: Date;
-    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED';
+    status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     title: string;
     unlisted: boolean;
   }[],

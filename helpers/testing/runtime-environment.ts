@@ -107,6 +107,7 @@ const runtimeEnvironment = {
   NEON_LOCAL_BRANCH_TTL_HOURS: '24',
   NEON_LOCAL_HOST_PORT: String(neonLocalHostPort),
   NEON_LOCAL_PROXY: 'true',
+  NODE_ENV: 'development',
 } as const;
 
 const escapeEnvironmentValue = (value: string): string => JSON.stringify(value);

@@ -103,6 +103,7 @@ export type EventsFindOneRpcError = Schema.Schema.Type<
 export const EventsReviewEventRpcError = Schema.Union([
   EventConflictError,
   EventNotFoundError,
+  RpcBadRequestError,
   RpcForbiddenError,
   RpcUnauthorizedError,
 ]);
@@ -129,6 +130,17 @@ export const EventsCheckInRegistrationError = Schema.Union([
 ]);
 export type EventsCheckInRegistrationError = Schema.Schema.Type<
   typeof EventsCheckInRegistrationError
+>;
+
+export const EventsRegistrationAddonFulfillmentError = Schema.Union([
+  EventRegistrationConflictError,
+  EventRegistrationInternalError,
+  EventRegistrationNotFoundError,
+  RpcForbiddenError,
+  RpcUnauthorizedError,
+]);
+export type EventsRegistrationAddonFulfillmentError = Schema.Schema.Type<
+  typeof EventsRegistrationAddonFulfillmentError
 >;
 
 export const EventsRegistrationScannedError = Schema.Union([

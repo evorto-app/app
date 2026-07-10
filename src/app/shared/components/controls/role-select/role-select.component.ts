@@ -3,6 +3,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
+  Injectable,
   input,
   model,
   signal,
@@ -26,6 +28,19 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 import { injectQueries } from '@tanstack/angular-query-experimental/inject-queries-experimental';
 
 import { AppRpc } from '../../../../core/effect-rpc-angular-client';
+
+@Injectable({ providedIn: 'root' })
+export class RoleSelectQueries {
+  private readonly rpc = AppRpc.injectClient();
+
+  findMany(search: string) {
+    return this.rpc.roles.findMany.queryOptions({ search });
+  }
+
+  findOne(id: string) {
+    return this.rpc.roles.findOne.queryOptions({ id });
+  }
+}
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,14 +71,12 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
   protected readonly searchValue = computed(
     () => this.searchForm().value().query,
   );
-  private readonly rpc = AppRpc.injectClient();
+  private readonly queries = inject(RoleSelectQueries);
   protected searchRoleQuery = injectQuery(() =>
-    this.rpc.roles.findMany.queryOptions({ search: this.searchValue() }),
+    this.queries.findMany(this.searchValue()),
   );
   protected currentRolesQuery = injectQueries(() => ({
-    queries: this.value().map((roleId) =>
-      this.rpc.roles.findOne.queryOptions({ id: roleId }),
-    ),
+    queries: this.value().map((roleId) => this.queries.findOne(roleId)),
   }));
   protected readonly selectedRoleIds = computed(() => {
     const selected = new Set((this.value() ?? []).filter(Boolean));

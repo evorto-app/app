@@ -22,26 +22,32 @@ const validTemplateInput = {
   },
   location: null,
   organizerRegistration: {
+    cancellationDeadlineHoursBeforeStart: null,
     closeRegistrationOffset: 24,
     isPaid: false,
     openRegistrationOffset: 168,
     price: 0,
+    refundFeesOnCancellation: null,
     registrationMode: 'fcfs' as const,
     roleIds: [],
     spots: 10,
     stripeTaxRateId: null,
     title: 'Organizer registration',
+    transferDeadlineHoursBeforeStart: null,
   },
   participantRegistration: {
+    cancellationDeadlineHoursBeforeStart: 96,
     closeRegistrationOffset: 24,
     isPaid: false,
     openRegistrationOffset: 168,
     price: 0,
+    refundFeesOnCancellation: false,
     registrationMode: 'fcfs' as const,
     roleIds: [],
     spots: 10,
     stripeTaxRateId: null,
     title: 'Participant registration',
+    transferDeadlineHoursBeforeStart: 12,
   },
   title: 'Template',
 };
@@ -52,10 +58,11 @@ const validTemplateAddonInput = {
   allowPurchaseDuringEvent: false,
   allowPurchaseDuringRegistration: true,
   description: '  Optional dinner ticket  ',
+  includedQuantity: 1,
   isPaid: true,
   maxQuantityPerUser: 2,
+  optionalPurchaseQuantity: 1,
   price: 1200,
-  quantity: 1,
   registrationOptionKind: 'participant' as const,
   stripeTaxRateId: 'txr_vat_19',
   title: '  Dinner  ',
@@ -71,7 +78,7 @@ const validTemplateQuestionInput = {
 
 const testLayer = Layer.mergeAll(
   SimpleTemplateService.Default,
-  Layer.succeed(Database, {} as never),
+  Layer.succeed(Database, { execute: () => Effect.void } as never),
 );
 
 const createValidationDatabase = ({
@@ -84,6 +91,7 @@ const createValidationDatabase = ({
   taxRate?: { active: boolean; inclusive: boolean };
 }) =>
   ({
+    execute: () => Effect.void,
     query: {
       eventTemplateCategories: {
         findFirst: () =>
@@ -149,9 +157,12 @@ describe('SimpleTemplateService', () => {
         templateId: 'template-1',
       }),
     ).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: 96,
       description: '<p> Public participant instructions </p>',
+      refundFeesOnCancellation: false,
       registeredDescription: '<p> Bring your ticket QR code. </p>',
       title: 'Early bird ticket',
+      transferDeadlineHoursBeforeStart: 12,
     });
   });
 
@@ -268,11 +279,14 @@ describe('SimpleTemplateService', () => {
         addonId: 'addon-1',
         organizerRegistrationOptionId: 'organizer-option-1',
         participantRegistrationOptionId: 'participant-option-1',
+        templateId: 'template-1',
       }),
     ).toEqual({
       addonId: 'addon-1',
-      quantity: 1,
+      includedQuantity: 1,
+      optionalPurchaseQuantity: 1,
       registrationOptionId: 'participant-option-1',
+      templateId: 'template-1',
     });
 
     expect(
@@ -284,6 +298,7 @@ describe('SimpleTemplateService', () => {
         addonId: 'addon-1',
         organizerRegistrationOptionId: 'organizer-option-1',
         participantRegistrationOptionId: 'participant-option-1',
+        templateId: 'template-1',
       }),
     ).toEqual(
       expect.objectContaining({
@@ -650,7 +665,7 @@ describe('SimpleTemplateService', () => {
   );
 
   it.effect(
-    'fails when reusable add-on user quantity exceeds fulfillable stock',
+    'fails when reusable add-on included and optional quantities exceed stock',
     () =>
       Effect.gen(function* () {
         const program = SimpleTemplateService.createSimpleTemplate({
@@ -660,8 +675,9 @@ describe('SimpleTemplateService', () => {
             addOns: [
               {
                 ...validTemplateAddonInput,
+                includedQuantity: 2,
                 maxQuantityPerUser: 2,
-                quantity: 2,
+                optionalPurchaseQuantity: 2,
                 totalAvailableQuantity: 3,
               },
             ],
@@ -683,7 +699,7 @@ describe('SimpleTemplateService', () => {
         const error = yield* program;
         expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
         expect(error.message).toBe(
-          'Template add-on user quantity exceeds total quantity',
+          'Template add-on included and optional quantities must fit available stock',
         );
       }),
   );

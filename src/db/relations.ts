@@ -54,12 +54,30 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     transactions: r.many.transactions(),
   },
+  eventRegistrationAddonFulfillmentEvents: {
+    actor: r.one.users({
+      from: r.eventRegistrationAddonFulfillmentEvents.actorUserId,
+      optional: true,
+      to: r.users.id,
+    }),
+    purchase: r.one.eventRegistrationAddonPurchases({
+      from: r.eventRegistrationAddonFulfillmentEvents.purchaseId,
+      optional: false,
+      to: r.eventRegistrationAddonPurchases.id,
+    }),
+    tenant: r.one.tenants({
+      from: r.eventRegistrationAddonFulfillmentEvents.tenantId,
+      optional: false,
+      to: r.tenants.id,
+    }),
+  },
   eventRegistrationAddonPurchases: {
     addOn: r.one.eventAddons({
       from: r.eventRegistrationAddonPurchases.addonId,
       optional: false,
       to: r.eventAddons.id,
     }),
+    fulfillmentEvents: r.many.eventRegistrationAddonFulfillmentEvents(),
     registration: r.one.eventRegistrations({
       from: r.eventRegistrationAddonPurchases.registrationId,
       optional: false,
@@ -312,7 +330,15 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.transactions.eventRegistrationId,
       to: r.eventRegistrations.id,
     }),
+    refundClaims: r.many.transactions({
+      from: r.transactions.id,
+      to: r.transactions.sourceTransactionId,
+    }),
     refundedFinanceReceipts: r.many.financeReceipts(),
+    sourceTransaction: r.one.transactions({
+      from: r.transactions.sourceTransactionId,
+      to: r.transactions.id,
+    }),
     tenant: r.one.tenants({
       from: r.transactions.tenantId,
       optional: false,

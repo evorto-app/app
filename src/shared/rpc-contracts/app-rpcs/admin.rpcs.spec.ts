@@ -54,6 +54,7 @@ describe('admin role input schemas', () => {
 const currentTenantSettingsInput = {
   allowOther: true,
   buyEsnCardUrl: 'https://esncard.org/',
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
   defaultLocation: null,
   emailSenderEmail: 'events@section.example.org',
@@ -62,12 +63,12 @@ const currentTenantSettingsInput = {
   faviconUrl: 'https://cdn.example.org/favicon.ico',
   legalNoticeText: 'Tenant imprint text',
   legalNoticeUrl: 'https://section.example.org/imprint',
-  locale: 'en-GB' as const,
   logoUrl: 'https://cdn.example.org/logo.svg',
   maxActiveRegistrationsPerUser: 4,
   privacyPolicyText: 'Tenant privacy text',
   privacyPolicyUrl: 'https://section.example.org/privacy',
   receiptCountries: ['DE', 'NL'],
+  refundFeesOnCancellation: true,
   seoDescription: 'Public tenant description',
   seoTitle: 'Public tenant title',
   stripeAccountId: 'acct_123',
@@ -75,6 +76,7 @@ const currentTenantSettingsInput = {
   termsUrl: 'https://section.example.org/terms',
   theme: 'esn' as const,
   timezone: 'Europe/Berlin' as const,
+  transferDeadlineHoursBeforeStart: 0,
 };
 
 describe('AdminTenantUpdateSettingsInput', () => {
@@ -86,6 +88,43 @@ describe('AdminTenantUpdateSettingsInput', () => {
     ).not.toThrow();
   });
 
+  it('accepts a canonical Google default location', () => {
+    const defaultLocation = {
+      address: 'Alexanderplatz, Berlin, Germany',
+      coordinates: {
+        lat: 52.5219,
+        lng: 13.4132,
+      },
+      name: 'Alexanderplatz',
+      placeId: 'place-alexanderplatz',
+      type: 'google' as const,
+    };
+
+    const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+      ...currentTenantSettingsInput,
+      defaultLocation,
+    });
+
+    expect(decoded.defaultLocation).toEqual(defaultLocation);
+  });
+
+  it('rejects malformed Google default locations at the RPC boundary', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        defaultLocation: {
+          coordinates: {
+            lat: '52.5219',
+            lng: 13.4132,
+          },
+          name: 'Alexanderplatz',
+          placeId: 'place-alexanderplatz',
+          type: 'google',
+        },
+      }),
+    ).toThrow();
+  });
+
   it('rejects unsupported themes', () => {
     expect(() =>
       Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
@@ -95,7 +134,15 @@ describe('AdminTenantUpdateSettingsInput', () => {
     ).toThrow();
   });
 
-  it('rejects unsupported locale and money settings', () => {
+  it('accepts supported currency and IANA timezone settings', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        currency: 'AUD',
+        timezone: 'America/New_York',
+      }),
+    ).not.toThrow();
+
     expect(() =>
       Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
         ...currentTenantSettingsInput,
@@ -105,15 +152,18 @@ describe('AdminTenantUpdateSettingsInput', () => {
     expect(() =>
       Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
         ...currentTenantSettingsInput,
-        locale: 'de-DE',
+        timezone: 'not/a-timezone',
       }),
     ).toThrow();
-    expect(() =>
-      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
-        ...currentTenantSettingsInput,
-        timezone: 'America/New_York',
-      }),
-    ).toThrow();
+  });
+
+  it('keeps locale outside tenant-admin writes', () => {
+    const decoded = Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+      ...currentTenantSettingsInput,
+      locale: 'en-US',
+    });
+
+    expect(decoded).not.toHaveProperty('locale');
   });
 
   it('rejects invalid sender email settings', () => {
@@ -130,6 +180,21 @@ describe('AdminTenantUpdateSettingsInput', () => {
       Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
         ...currentTenantSettingsInput,
         maxActiveRegistrationsPerUser: -1,
+      }),
+    ).toThrow();
+  });
+
+  it('rejects negative registration transfer and cancellation deadlines', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        transferDeadlineHoursBeforeStart: -1,
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
+        ...currentTenantSettingsInput,
+        cancellationDeadlineHoursBeforeStart: -1,
       }),
     ).toThrow();
   });

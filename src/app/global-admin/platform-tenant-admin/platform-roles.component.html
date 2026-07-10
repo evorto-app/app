@@ -1,0 +1,132 @@
+<app-platform-tenant-page-header title="Tenant roles" [tenantId]="tenantId()" />
+
+<div class="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
+  <section aria-labelledby="role-list-title">
+    <div class="mb-2 flex items-center gap-2">
+      <h2 id="role-list-title" class="title-medium">Roles</h2>
+      <span class="grow"></span>
+      <button mat-button type="button" (click)="createRole()">New role</button>
+    </div>
+    @if (rolesQuery.isPending()) {
+      <p role="status" class="body-medium">Loading roles...</p>
+    } @else if (rolesQuery.isError()) {
+      <div role="alert" class="bg-error-container text-on-error-container p-4">
+        <p>Roles could not be loaded.</p>
+        <button mat-stroked-button type="button" (click)="rolesQuery.refetch()">
+          Try again
+        </button>
+      </div>
+    } @else if (rolesQuery.isSuccess()) {
+      <mat-action-list aria-label="Tenant roles">
+        @for (role of rolesQuery.data(); track role.id) {
+          <button
+            mat-list-item
+            type="button"
+            [activated]="selectedRoleId() === role.id"
+            (click)="editRole(role)"
+          >
+            <span matListItemTitle>{{ role.name }}</span>
+            <span matListItemLine>
+              {{ role.permissions.length }} permissions
+              @if (role.defaultUserRole) {
+                · Default user role
+              }
+            </span>
+          </button>
+        } @empty {
+          <p class="body-medium text-on-surface-variant p-4">No roles found.</p>
+        }
+      </mat-action-list>
+    }
+  </section>
+
+  <form class="max-w-3xl" (submit)="saveRole($event)">
+    <h2 class="title-medium">
+      {{ selectedRoleId() ? "Edit role" : "Create role" }}
+    </h2>
+    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+      <mat-form-field>
+        <mat-label>Name</mat-label>
+        <input matInput [formField]="roleForm.name" />
+        @for (error of roleForm.name().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Description</mat-label>
+        <input matInput [formField]="roleForm.description" />
+      </mat-form-field>
+    </div>
+
+    <mat-form-field class="w-full">
+      <mat-label>Permissions</mat-label>
+      <mat-select multiple [formField]="roleForm.permissions">
+        @for (group of permissionGroups; track group.key) {
+          <mat-optgroup [label]="group.label">
+            @for (permission of group.permissions; track permission.key) {
+              <mat-option [value]="permission.key">
+                {{ permission.label }}
+              </mat-option>
+            }
+          </mat-optgroup>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <div class="grid gap-2 sm:grid-cols-2">
+      <mat-checkbox [formField]="roleForm.defaultUserRole">
+        Default role for new tenant users
+      </mat-checkbox>
+      <mat-checkbox [formField]="roleForm.defaultOrganizerRole">
+        Default organizer role
+      </mat-checkbox>
+      <mat-checkbox [formField]="roleForm.displayInHub">
+        Display members in the hub
+      </mat-checkbox>
+      <mat-checkbox [formField]="roleForm.collapseMembersInHup">
+        Collapse members in the hub
+      </mat-checkbox>
+    </div>
+
+    <mat-form-field class="mt-4 w-full">
+      <mat-label>Operational reason</mat-label>
+      <textarea matInput rows="3" [formField]="roleForm.reason"></textarea>
+      <mat-hint>Required for save and delete operations.</mat-hint>
+      @for (error of roleForm.reason().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+
+    <div class="flex flex-wrap justify-end gap-2">
+      @if (selectedRoleId()) {
+        @if (deleteConfirmation()) {
+          <span class="body-small text-on-surface-variant self-center">
+            This cannot be undone.
+          </span>
+          <button mat-button type="button" (click)="cancelDelete()">
+            Keep role
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="!roleForm.reason().value().trim() || mutationPending()"
+            (click)="deleteRole()"
+          >
+            Confirm delete
+          </button>
+        } @else {
+          <button mat-stroked-button type="button" (click)="requestDelete()">
+            Delete role
+          </button>
+        }
+      }
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="roleForm().invalid() || mutationPending()"
+      >
+        {{ mutationPending() ? "Saving..." : "Save role" }}
+      </button>
+    </div>
+  </form>
+</div>

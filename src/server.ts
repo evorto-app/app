@@ -44,6 +44,8 @@ import { applySecurityHeaders } from './server/http/security-headers';
 import { handleStripeWebhookWebRequest } from './server/http/stripe-webhook.web-handler';
 import { handleTenantBrandAssetWebRequest } from './server/http/tenant-brand-asset.web-handler';
 import { runEmailOutboxProcessor } from './server/notifications/email-delivery';
+import { runRegistrationRefundWorker } from './server/payments/registration-refund';
+import { runExpiredRegistrationCheckoutCleanupWorker } from './server/registrations/expired-checkout-cleanup';
 import { stripeClientLayer } from './server/stripe-client';
 
 const angularApp = new AngularAppEngine();
@@ -353,13 +355,45 @@ const rpcRouteLayer = HttpLayerRouter.add('POST', '/rpc', (request) =>
     const requestContext = requestContextOption.value;
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
-    const rpcRequest = yield* toRpcHttpServerRequest(
+    return yield* toRpcHttpServerRequest(
       webRequest,
       requestContext,
       getRequestAuthData(authSession),
+    ).pipe(
+      Effect.flatMap((rpcRequest) => handleAppRpcHttpRequest(rpcRequest)),
+      Effect.catchTags({
+        RequestBodyInvalidContentLengthError: (error) =>
+          Effect.logWarning('RPC request has invalid Content-Length').pipe(
+            Effect.annotateLogs({ contentLength: error.contentLength }),
+            Effect.as(
+              HttpServerResponse.text('Invalid Content-Length', {
+                status: 400,
+              }),
+            ),
+          ),
+        RequestBodyReadError: (error) =>
+          Effect.logWarning('Failed to read RPC request body').pipe(
+            Effect.annotateLogs({
+              error:
+                error.cause instanceof Error
+                  ? error.cause.message
+                  : String(error.cause),
+            }),
+            Effect.as(
+              HttpServerResponse.text('Unable to read request body', {
+                status: 400,
+              }),
+            ),
+          ),
+        RequestBodyTooLargeError: (error) =>
+          Effect.logWarning('RPC request body exceeded route limit').pipe(
+            Effect.annotateLogs({ maxBytes: error.maxBytes }),
+            Effect.as(
+              HttpServerResponse.text('Payload too large', { status: 413 }),
+            ),
+          ),
+      }),
     );
-
-    return yield* handleAppRpcHttpRequest(rpcRequest);
   }),
 );
 
@@ -538,6 +572,9 @@ const serveEffect = Effect.gen(function* () {
   const configuredDatabaseLayer = databaseLayer.pipe(
     Layer.provide(ConfigProvider.layer(requestHandlerRuntimeConfigProvider)),
   );
+  const configuredStripeClientLayer = stripeClientLayer.pipe(
+    Layer.provide(ConfigProvider.layer(requestHandlerRuntimeConfigProvider)),
+  );
   const configuredServerConfig = serverNetworkConfig
     .parse(requestHandlerRuntimeConfigProvider)
     .pipe(
@@ -572,6 +609,9 @@ const serveEffect = Effect.gen(function* () {
   return yield* Effect.scoped(
     Effect.gen(function* () {
       const databaseContext = yield* Layer.build(configuredDatabaseLayer);
+      const stripeClientContext = yield* Layer.build(
+        configuredStripeClientLayer,
+      );
       const serverFiber = yield* Layer.launch(serverLayer).pipe(
         Effect.provide(databaseContext),
         Effect.forkScoped,
@@ -581,6 +621,16 @@ const serveEffect = Effect.gen(function* () {
         Effect.provide(
           ConfigProvider.layer(requestHandlerRuntimeConfigProvider),
         ),
+        Effect.forkScoped,
+      );
+      yield* runExpiredRegistrationCheckoutCleanupWorker.pipe(
+        Effect.provide(databaseContext),
+        Effect.provide(stripeClientContext),
+        Effect.forkScoped,
+      );
+      yield* runRegistrationRefundWorker.pipe(
+        Effect.provide(databaseContext),
+        Effect.provide(stripeClientContext),
         Effect.forkScoped,
       );
       yield* Effect.logInfo('Bun Effect server listening').pipe(

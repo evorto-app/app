@@ -1,15 +1,21 @@
 import type Stripe from 'stripe';
 
 import { describe, expect, it, vi } from '@effect/vitest';
-import { ConfigProvider, Effect, Layer } from 'effect';
+import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
+import { Cause, ConfigProvider, Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
+import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
+  activeEventRegistrationUniqueIndexName,
+  emailOutbox,
   eventAddons,
   eventRegistrationOptions,
   eventRegistrations,
+  registrationTransfers,
   rolesToTenantUsers,
+  tenants,
   transactions,
   users,
   usersToTenants,
@@ -28,23 +34,28 @@ type StripeClientDouble = Pick<Stripe, 'checkout' | 'refunds'>;
 
 const createStripeClientDouble = ({
   createCheckoutSession = vi.fn(),
-  retrieveCheckoutSession = vi.fn(() =>
+  expireCheckoutSession = vi.fn((sessionId: string) =>
     Promise.resolve({
-      id: 'checkout-unresolved',
+      id: sessionId,
+      status: 'expired',
+    } as Stripe.Checkout.Session),
+  ),
+  retrieveCheckoutSession = vi.fn((sessionId: string) =>
+    Promise.resolve({
+      id: sessionId,
       status: 'open',
     } as Stripe.Checkout.Session),
   ),
 }: {
   createCheckoutSession?: ReturnType<typeof vi.fn>;
+  expireCheckoutSession?: ReturnType<typeof vi.fn>;
   retrieveCheckoutSession?: ReturnType<typeof vi.fn>;
 } = {}): StripeClientDouble =>
   ({
     checkout: {
       sessions: {
         create: createCheckoutSession,
-        expire: vi.fn(() =>
-          Promise.resolve({ status: 'expired' } as Stripe.Checkout.Session),
-        ),
+        expire: expireCheckoutSession,
         retrieve: retrieveCheckoutSession,
       },
     },
@@ -68,6 +79,8 @@ const registrationConfigProviderLayer = ConfigProvider.layer(
 );
 
 const tenant = {
+  cancellationDeadlineHoursBeforeStart: 0,
+  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {
@@ -77,16 +90,21 @@ const tenant = {
     },
   },
   domain: 'tenant.example.com',
+  emailSenderEmail: 'board@tenant.example.com',
+  emailSenderName: 'Tenant Board',
   id: 'tenant-1',
   locale: 'en',
+  maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
     receiptCountries: ['NL'],
   },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
+  transferDeadlineHoursBeforeStart: 0,
 };
 
 const createUser = ({
@@ -98,6 +116,7 @@ const createUser = ({
 } = {}) => ({
   attributes: [],
   auth0Id: `auth0|${id}`,
+  communicationEmail: `${id}.contact@example.com`,
   email: `${id}@example.com`,
   firstName: 'Scan',
   iban: null,
@@ -121,6 +140,17 @@ const createContextLayer = ({
   tenant?: typeof tenant;
   user?: ReturnType<typeof createUser>;
 }) => {
+  const databaseWithDefaults = {
+    ...database,
+    query: {
+      registrationTransfers: {
+        findFirst: () => Effect.succeed(undefined),
+      },
+      ...('query' in database &&
+        typeof database.query === 'object' &&
+        database.query),
+    },
+  };
   const requestContext = {
     authData: {},
     authenticated: true,
@@ -133,11 +163,15 @@ const createContextLayer = ({
   return Layer.mergeAll(
     RpcAccess.Default,
     Layer.succeed(RpcRequestContext, requestContext),
-    Layer.succeed(Database, database as DatabaseClient),
+    Layer.succeed(Database, databaseWithDefaults as DatabaseClient),
     Layer.succeed(StripeClient, stripe as Stripe),
     ConfigProvider.layer(
       ConfigProvider.fromEnv({
-        env: nowIso ? { E2E_NOW_ISO: nowIso } : {},
+        env: {
+          BASE_URL: 'https://app.example',
+          NODE_ENV: 'production',
+          ...(nowIso && { E2E_NOW_ISO: nowIso }),
+        },
       }),
     ),
   );
@@ -189,31 +223,72 @@ const expectCounterDecrement = (
   );
 };
 
+const createRegistrationMutationGuardSelect = ({
+  activeTransfers = [],
+  status = 'CONFIRMED',
+}: {
+  activeTransfers?: readonly {
+    id: string;
+    recipientRegistrationId: null | string;
+    sourceRegistrationId: string;
+    status: 'checkout_pending' | 'open' | 'refund_failed' | 'refund_pending';
+  }[];
+  status?: 'CONFIRMED' | 'PENDING';
+} = {}) => ({
+  select: () => ({
+    from: (table: unknown) => ({
+      where: () => ({
+        for: () =>
+          Effect.succeed(
+            table === eventRegistrations
+              ? [{ status }]
+              : table === registrationTransfers
+                ? activeTransfers
+                : [],
+          ),
+      }),
+    }),
+  }),
+});
+
 const createCancellationTransactionSelect = ({
+  activeTransfers = [],
+  cancellationDeadlineHoursBeforeStart = 0,
   checkInTime = null,
   eventId = 'event-1',
   guestCount = 0,
   id = 'registration-1',
-  registrationMode = 'application',
+  refundFeesOnCancellation = true,
+  registrationOptionCancellationDeadlineHoursBeforeStart = null,
   registrationOptionId = 'option-1',
+  registrationOptionRefundFeesOnCancellation = null,
   status,
   transactions: currentTransactions = [],
   userId = 'attendee-1',
 }: {
+  activeTransfers?: readonly {
+    id: string;
+    recipientRegistrationId: null | string;
+    sourceRegistrationId: string;
+    status: 'checkout_pending' | 'open' | 'refund_failed' | 'refund_pending';
+  }[];
+  cancellationDeadlineHoursBeforeStart?: number;
   checkInTime?: Date | null;
   eventId?: string;
   guestCount?: number;
   id?: string;
-  registrationMode?: 'application' | 'fcfs';
+  refundFeesOnCancellation?: boolean;
+  registrationOptionCancellationDeadlineHoursBeforeStart?: null | number;
   registrationOptionId?: string;
-  status: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+  registrationOptionRefundFeesOnCancellation?: boolean | null;
+  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
   transactions?: readonly object[];
   userId?: string;
 }) => ({
   select: () => ({
     from: (table: unknown) => ({
-      where: () => ({
-        for: () => {
+      where: () => {
+        const lockedRows = () => {
           if (table === eventRegistrations) {
             return Effect.succeed([
               {
@@ -230,33 +305,69 @@ const createCancellationTransactionSelect = ({
           if (table === transactions) {
             return Effect.succeed(currentTransactions);
           }
+          if (table === registrationTransfers) {
+            return Effect.succeed(activeTransfers);
+          }
+          if (table === tenants) {
+            return Effect.succeed([
+              {
+                cancellationDeadlineHoursBeforeStart,
+                refundFeesOnCancellation,
+                stripeAccountId: 'acct_persisted',
+              },
+            ]);
+          }
           if (table === eventRegistrationOptions) {
-            return Effect.succeed([{ registrationMode }]);
+            return Effect.succeed([
+              {
+                cancellationDeadlineHoursBeforeStart:
+                  registrationOptionCancellationDeadlineHoursBeforeStart,
+                refundFeesOnCancellation:
+                  registrationOptionRefundFeesOnCancellation,
+              },
+            ]);
           }
           return Effect.succeed([]);
-        },
-      }),
+        };
+        return Object.assign(Effect.succeed([]), {
+          for: lockedRows,
+          limit: () => Effect.succeed([]),
+          orderBy: () => ({ for: lockedRows }),
+        });
+      },
     }),
   }),
 });
 
 const createGuestCancellationDatabase = ({
   status,
+  waitlistRegistrations = [],
 }: {
   status: 'CONFIRMED' | 'PENDING';
+  waitlistRegistrations?: readonly {
+    id: string;
+    status: 'WAITLIST';
+    user: {
+      communicationEmail: string;
+      email: string;
+    };
+  }[];
 }) => {
+  const insertedEmails: Record<string, unknown>[] = [];
   const updateSets: unknown[] = [];
   const currentTransactions =
     status === 'PENDING'
       ? [
           {
             amount: 1000,
+            currency: 'EUR',
             id: 'transaction-1',
             method: 'stripe',
             status: 'pending',
+            stripeAccountId: 'acct_123',
             stripeChargeId: null,
             stripeCheckoutCancellationRequestedAt: null as Date | null,
-            stripeCheckoutSessionId: 'checkout-guest',
+            stripeCheckoutSessionId: 'checkout-1',
             stripePaymentIntentId: null,
             type: 'registration',
           },
@@ -267,6 +378,16 @@ const createGuestCancellationDatabase = ({
       guestCount: 2,
       status,
       transactions: currentTransactions,
+    }),
+    insert: (table: unknown) => ({
+      values: (values: Record<string, unknown>) => {
+        if (table === emailOutbox) {
+          insertedEmails.push(values);
+        }
+        return {
+          onConflictDoNothing: () => Effect.void,
+        };
+      },
     }),
     update: (table: unknown) => ({
       set: (values: unknown) => {
@@ -306,23 +427,38 @@ const createGuestCancellationDatabase = ({
             checkInTime: null,
             event: {
               start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+              title: 'City tour',
             },
+            eventId: 'event-1',
             guestCount: 2,
             id: 'registration-1',
+            registrationOption: {
+              eventRegistrations: waitlistRegistrations,
+              id: 'option-1',
+            },
             registrationOptionId: 'option-1',
             status,
             transactions: currentTransactions,
+            user: {
+              communicationEmail: 'attendee.contact@example.com',
+              email: 'attendee@example.com',
+            },
+            userId: 'attendee-1',
           }),
       },
     },
     transaction: vi.fn((callback: (tx: typeof tx) => unknown) => callback(tx)),
   };
 
-  return { database, updateSets };
+  return { database, insertedEmails, updateSets };
 };
 
 const createTransferDatabase = ({
+  activeTargetRegistrations = [],
+  concurrentTargetRegistration = null,
   existingTargetRegistration = null,
+  lockedActiveTransfers = [],
+  lockedTargetMembership = true,
   organizerRegistrations = [
     {
       id: 'organizer-registration-1',
@@ -337,12 +473,17 @@ const createTransferDatabase = ({
     checkInTime: null,
     event: {
       start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      title: 'City tour',
     },
     eventId: 'event-1',
     id: 'registration-1',
     registrationOptionId: 'option-1',
     status: 'CONFIRMED',
     transactions: [],
+    user: {
+      communicationEmail: 'attendee.contact@example.com',
+      email: 'attendee@example.com',
+    },
     userId: 'attendee-1',
   },
   registrationOptionRoleIds = ['participant-role-1'],
@@ -350,9 +491,23 @@ const createTransferDatabase = ({
     id: 'target-tenant-user-1',
     roles: [{ id: 'participant-role-1' }],
   },
-  targetUser = { id: 'target-user-1' },
+  targetUser = {
+    communicationEmail: 'target.contact@example.com',
+    email: 'target@example.com',
+    id: 'target-user-1',
+  },
+  updateError,
 }: {
+  activeTargetRegistrations?: readonly { id: string }[];
+  concurrentTargetRegistration?: null | { id: string };
   existingTargetRegistration?: null | { id: string };
+  lockedActiveTransfers?: readonly {
+    id: string;
+    recipientRegistrationId: null | string;
+    sourceRegistrationId: string;
+    status: 'checkout_pending' | 'open' | 'refund_failed' | 'refund_pending';
+  }[];
+  lockedTargetMembership?: boolean;
   organizerRegistrations?: readonly {
     id: string;
     registrationOption: {
@@ -363,7 +518,7 @@ const createTransferDatabase = ({
     appliedDiscountedPrice: null | number;
     appliedDiscountType: 'esnCard' | null;
     checkInTime: Date | null;
-    event: null | { start: Date };
+    event: null | { start: Date; title?: string };
     eventId: string;
     id: string;
     registrationOptionId: string;
@@ -373,19 +528,94 @@ const createTransferDatabase = ({
       status: 'cancelled' | 'pending' | 'successful';
       type: 'other' | 'refund' | 'registration';
     }[];
+    user?: {
+      communicationEmail: string;
+      email: string;
+    };
     userId: string;
   };
   registrationOptionRoleIds?: string[];
   targetTenantUser?: null | { id: string; roles: readonly { id: string }[] };
-  targetUser?: null | { id: string };
+  targetUser?: null | {
+    communicationEmail?: string;
+    email?: string;
+    id: string;
+  };
+  updateError?: unknown;
 } = {}) => {
+  const insertedEmails: Record<string, unknown>[] = [];
   const updateSets: unknown[] = [];
+  const select = () => ({
+    from: (table: unknown) => {
+      if (table === users) {
+        return {
+          where: () => ({
+            limit: () => Effect.succeed(targetUser ? [targetUser] : []),
+          }),
+        };
+      }
+      if (table === usersToTenants) {
+        const lockedMemberships =
+          targetTenantUser && lockedTargetMembership
+            ? [
+                { id: 'source-tenant-user-1', userId: 'attendee-1' },
+                { id: targetTenantUser.id, userId: targetUser?.id ?? '' },
+              ]
+            : [{ id: 'source-tenant-user-1', userId: 'attendee-1' }];
+        return {
+          where: () => ({
+            orderBy: () => ({
+              for: () => Effect.succeed(lockedMemberships),
+            }),
+          }),
+        };
+      }
+      if (table === eventRegistrations) {
+        return {
+          innerJoin: () => ({
+            where: () => ({
+              limit: () => Effect.succeed(activeTargetRegistrations),
+            }),
+          }),
+          where: () => ({
+            for: () =>
+              Effect.succeed(
+                registration
+                  ? [
+                      {
+                        checkInTime: registration.checkInTime,
+                        status: registration.status,
+                        userId: registration.userId,
+                      },
+                    ]
+                  : [],
+              ),
+          }),
+        };
+      }
+      if (table === registrationTransfers) {
+        return {
+          where: () => ({
+            for: () => Effect.succeed(lockedActiveTransfers),
+          }),
+        };
+      }
+      return {
+        where: () => ({
+          limit: () => Effect.succeed([]),
+        }),
+      };
+    },
+  });
   const update = (table: unknown) => ({
     set: (values: unknown) => {
       updateSets.push(values);
       return {
         where: () => ({
           returning: () => {
+            if (updateError) {
+              return Effect.fail(updateError);
+            }
             if (table === eventRegistrations) {
               return Effect.succeed([{ id: 'registration-1' }]);
             }
@@ -395,53 +625,27 @@ const createTransferDatabase = ({
       };
     },
   });
+  const insert = (table: unknown) => ({
+    values: (values: Record<string, unknown>) => {
+      if (table === emailOutbox) {
+        insertedEmails.push(values);
+      }
+      return {
+        onConflictDoNothing: () => Effect.void,
+      };
+    },
+  });
   const transaction = {
+    insert,
     query: {
       eventRegistrations: {
         findMany: () =>
           Effect.succeed(
-            existingTargetRegistration ? [existingTargetRegistration] : [],
+            concurrentTargetRegistration ? [concurrentTargetRegistration] : [],
           ),
       },
     },
-    select: () => ({
-      from: (table: unknown) => ({
-        where: () => ({
-          for: () =>
-            table === eventRegistrations
-              ? Effect.succeed(
-                  registration
-                    ? [
-                        {
-                          id: registration.id,
-                          status: registration.status,
-                          userId: registration.userId,
-                        },
-                      ]
-                    : [],
-                )
-              : Effect.succeed(
-                  targetTenantUser
-                    ? [
-                        { userId: registration?.userId ?? 'attendee-1' },
-                        { userId: targetUser?.id ?? 'target-user-1' },
-                      ]
-                    : [],
-                ),
-          orderBy: () => ({
-            for: () =>
-              Effect.succeed(
-                targetTenantUser
-                  ? [
-                      { userId: registration?.userId ?? 'attendee-1' },
-                      { userId: targetUser?.id ?? 'target-user-1' },
-                    ]
-                  : [],
-              ),
-          }),
-        }),
-      }),
-    }),
+    select,
     update,
   };
   const database = {
@@ -466,25 +670,14 @@ const createTransferDatabase = ({
         findFirst: () => Effect.succeed(targetTenantUser),
       },
     },
-    select: () => ({
-      from: (table: unknown) => ({
-        where: () => ({
-          limit: () => {
-            if (table === users) {
-              return Effect.succeed(targetUser ? [targetUser] : []);
-            }
-            return Effect.succeed([]);
-          },
-        }),
-      }),
-    }),
+    select,
     transaction: (
-      run: (transactionClient: typeof transaction) => Effect.Effect<unknown>,
+      run: (currentTransaction: typeof transaction) => Effect.Effect<unknown>,
     ) => run(transaction),
     update,
   };
 
-  return { database, updateSets };
+  return { database, insertedEmails, updateSets };
 };
 
 const createTransferTargetsDatabase = ({
@@ -665,62 +858,32 @@ describe('event registration trusted URLs', () => {
     'ignores forged request origins when creating Stripe checkout return URLs',
     () =>
       Effect.gen(function* () {
-        let boundCheckout: Record<string, unknown> | undefined;
-        const operationOrder: string[] = [];
-        let pendingClaim: Record<string, unknown> | undefined;
-        const createCheckoutSession = vi.fn(() => {
-          operationOrder.push('stripe');
-          return Promise.resolve({
+        const createCheckoutSession = vi.fn(() =>
+          Promise.resolve({
             id: 'cs_test_123',
             payment_intent: null,
             url: 'https://checkout.stripe.test/cs_test_123',
-          });
-        });
+          }),
+        );
         const stripe = createStripeClientDouble({ createCheckoutSession });
         const registrationTransaction = {
           insert: (table: unknown) => ({
-            values: (values: Record<string, unknown>) => {
-              if (table === eventRegistrations) {
-                return {
-                  returning: () => Effect.succeed([{ id: 'registration-1' }]),
-                };
-              }
-              if (table === transactions) {
-                operationOrder.push('claim');
-                pendingClaim = values;
-              }
-              return Effect.void;
-            },
+            values: () =>
+              table === eventRegistrations
+                ? {
+                    returning: () => Effect.succeed([{ id: 'registration-1' }]),
+                  }
+                : Effect.void,
           }),
           query: {
             eventRegistrations: {
               findMany: () => Effect.succeed([]),
             },
           },
-          select: () => ({
-            from: (table: unknown) => ({
+          update: () => ({
+            set: () => ({
               where: () => ({
-                for: () =>
-                  Effect.succeed(
-                    table === eventRegistrations
-                      ? [{ status: 'PENDING' }]
-                      : [{ id: 'tenant-user-1' }],
-                  ),
-              }),
-            }),
-          }),
-          update: (table: unknown) => ({
-            set: (values: Record<string, unknown>) => ({
-              where: () => ({
-                returning: () => {
-                  if (table === transactions) {
-                    operationOrder.push('bind');
-                    boundCheckout = values;
-                  } else if (table === eventRegistrationOptions) {
-                    operationOrder.push('reserve');
-                  }
-                  return Effect.succeed([{ id: 'option-1' }]);
-                },
+                returning: () => Effect.succeed([{ id: 'option-1' }]),
               }),
             }),
           }),
@@ -806,36 +969,14 @@ describe('event registration trusted URLs', () => {
         );
 
         expect(createCheckoutSession).toHaveBeenCalledOnce();
-        expect(operationOrder).toEqual(['reserve', 'claim', 'stripe', 'bind']);
-        expect(pendingClaim).toEqual(
-          expect.objectContaining({
-            amount: 1000,
-            eventRegistrationId: 'registration-1',
-            method: 'stripe',
-            status: 'pending',
-            type: 'registration',
-          }),
-        );
-        expect(pendingClaim).not.toHaveProperty('stripeCheckoutSessionId');
-        expect(boundCheckout).toEqual(
-          expect.objectContaining({
-            stripeCheckoutSessionId: 'cs_test_123',
-            stripeCheckoutUrl: 'https://checkout.stripe.test/cs_test_123',
-          }),
-        );
         expect(createCheckoutSession).toHaveBeenCalledWith(
           expect.objectContaining({
             cancel_url:
               'https://tenant.example.com/events/event-1?registrationStatus=cancel',
-            metadata: expect.objectContaining({
-              registrationId: 'registration-1',
-              transactionId: pendingClaim?.['id'],
-            }),
             success_url:
               'https://tenant.example.com/events/event-1?registrationStatus=success',
           }),
           expect.objectContaining({
-            idempotencyKey: `registration:registration-1:transaction:${String(pendingClaim?.['id'])}`,
             stripeAccount: 'acct_123',
           }),
         );
@@ -847,13 +988,119 @@ describe('event registration trusted URLs', () => {
 });
 
 describe('event registration cancellation handlers', () => {
+  it('resolves registration option cancellation policy over tenant defaults', () => {
+    expect(resolveCancellationDeadlineHoursBeforeStart(null, 120)).toBe(120);
+    expect(resolveCancellationDeadlineHoursBeforeStart(0, 120)).toBe(0);
+    expect(resolveRefundFeesOnCancellation(null, true)).toBe(true);
+    expect(resolveRefundFeesOnCancellation(false, true)).toBe(false);
+  });
+
+  it('enforces the cancellation boundary and derives exact Stripe refund terms', () => {
+    const eventStart = new Date('2026-07-10T14:00:00.000Z');
+    expect(
+      hasReachedRegistrationCancellationDeadline({
+        deadlineHoursBeforeStart: 2,
+        eventStart,
+        now: new Date('2026-07-10T11:59:59.999Z'),
+      }),
+    ).toBe(false);
+    expect(
+      hasReachedRegistrationCancellationDeadline({
+        deadlineHoursBeforeStart: 2,
+        eventStart,
+        now: new Date('2026-07-10T12:00:00.000Z'),
+      }),
+    ).toBe(true);
+    expect(
+      registrationCancellationStripeRefundTerms({
+        grossAmount: 2500,
+        refundFeesOnCancellation: true,
+        stripeNetAmount: 2175,
+      }),
+    ).toEqual({ amount: 2500, applicationFeeRefunded: true });
+    expect(
+      registrationCancellationStripeRefundTerms({
+        grossAmount: 2500,
+        refundFeesOnCancellation: false,
+        stripeNetAmount: 2175,
+      }),
+    ).toEqual({ amount: 2175, applicationFeeRefunded: false });
+    expect(
+      registrationCancellationStripeRefundTerms({
+        grossAmount: 2500,
+        refundFeesOnCancellation: false,
+        stripeNetAmount: null,
+      }),
+    ).toBeUndefined();
+  });
+
   it.effect(
-    'allows event organizers to cancel another confirmed registration',
+    'blocks participant cancellation at the configured tenant deadline without mutating state',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOption: {
+                    cancellationDeadlineHoursBeforeStart: null,
+                    id: 'option-1',
+                    refundFeesOnCancellation: null,
+                  },
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  transactions: [],
+                  userId: 'scanner-1',
+                }),
+            },
+          },
+          transaction: vi.fn(),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.cancelRegistration'
+        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              tenant: {
+                ...tenant,
+                cancellationDeadlineHoursBeforeStart: 120,
+              },
+              user: createUser({
+                permissions: ['events:cancelRegistrations'],
+              }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'The participant cancellation deadline has passed, so this request did not cancel the registration, create a refund, or release its spots.',
+        );
+        expect(database.transaction).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'allows event organizers to cancel after the participant deadline',
     () =>
       Effect.gen(function* () {
         const updateSets: unknown[] = [];
         const tx = {
-          ...createCancellationTransactionSelect({ status: 'CONFIRMED' }),
+          ...createCancellationTransactionSelect({
+            cancellationDeadlineHoursBeforeStart: 120,
+            status: 'CONFIRMED',
+          }),
           update: (table: unknown) => ({
             set: (values: unknown) => {
               updateSets.push(values);
@@ -909,7 +1156,20 @@ describe('event registration cancellation handlers', () => {
         yield* eventRegistrationHandlers['events.cancelEventRegistration'](
           { eventId: 'event-1', registrationId: 'registration-1' },
           emptyHandlerOptions,
-        ).pipe(Effect.provide(createContextLayer({ database })));
+        ).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              tenant: {
+                ...tenant,
+                cancellationDeadlineHoursBeforeStart: 120,
+              },
+              user: createUser({
+                permissions: ['events:cancelRegistrations'],
+              }),
+            }),
+          ),
+        );
 
         expect(updateSets).toEqual([
           { status: 'CANCELLED' },
@@ -959,12 +1219,64 @@ describe('event registration cancellation handlers', () => {
   );
 
   it.effect(
-    'cancels confirmed registrations and releases a confirmed spot',
+    'requires the separate cancellation capability for organizer add-on cancellation',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () => Effect.succeed({ eventId: 'event-1' }),
+              findMany: () =>
+                Effect.succeed([
+                  {
+                    id: 'organizer-registration-1',
+                    registrationOption: { organizingRegistration: true },
+                  },
+                ]),
+            },
+          },
+          transaction: vi.fn(),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.cancelRegistrationAddon'
+        ](
+          {
+            operationKey: 'cancel-addon-1',
+            quantity: 1,
+            reason: 'Damaged item',
+            refundRequested: false,
+            registrationAddonId: 'registration-addon-1',
+            registrationId: 'registration-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcForbiddenError');
+        expect(error.permission).toBe('events:cancelRegistrations');
+        expect(database.transaction).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'uses a registration option override to allow participant cancellation',
     () =>
       Effect.gen(function* () {
         const updateSets: unknown[] = [];
         const tx = {
-          ...createCancellationTransactionSelect({ status: 'CONFIRMED' }),
+          ...createCancellationTransactionSelect({
+            cancellationDeadlineHoursBeforeStart: 120,
+            registrationOptionCancellationDeadlineHoursBeforeStart: 0,
+            status: 'CONFIRMED',
+          }),
           update: (table: unknown) => ({
             set: (values: unknown) => {
               updateSets.push(values);
@@ -996,6 +1308,11 @@ describe('event registration cancellation handlers', () => {
                   },
                   guestCount: 0,
                   id: 'registration-1',
+                  registrationOption: {
+                    cancellationDeadlineHoursBeforeStart: 0,
+                    id: 'option-1',
+                    refundFeesOnCancellation: null,
+                  },
                   registrationOptionId: 'option-1',
                   status: 'CONFIRMED',
                   transactions: [],
@@ -1010,7 +1327,17 @@ describe('event registration cancellation handlers', () => {
         yield* eventRegistrationHandlers['events.cancelRegistration'](
           { guestCheckInCount: 0, registrationId: 'registration-1' },
           emptyHandlerOptions,
-        ).pipe(Effect.provide(createContextLayer({ database })));
+        ).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              tenant: {
+                ...tenant,
+                cancellationDeadlineHoursBeforeStart: 120,
+              },
+            }),
+          ),
+        );
 
         expect(updateSets).toEqual([
           { status: 'CANCELLED' },
@@ -1039,26 +1366,94 @@ describe('event registration cancellation handlers', () => {
   );
 
   it.effect(
-    'records a pending manual refund transaction for paid confirmed cancellation',
+    'queues participant cancellation and informational waitlist emails in the cancellation transaction',
+    () =>
+      Effect.gen(function* () {
+        const { database, insertedEmails } = createGuestCancellationDatabase({
+          status: 'CONFIRMED',
+          waitlistRegistrations: [
+            {
+              id: 'waitlist-registration-1',
+              status: 'WAITLIST',
+              user: {
+                communicationEmail: 'waitlist.contact@example.com',
+                email: 'waitlist@example.com',
+              },
+            },
+          ],
+        });
+
+        yield* eventRegistrationHandlers['events.cancelRegistration'](
+          { registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(Effect.provide(createContextLayer({ database })));
+
+        expect(insertedEmails).toEqual([
+          expect.objectContaining({
+            idempotencyKey: 'registration-cancelled/tenant-1/registration-1',
+            kind: 'registrationCancelled',
+            toEmail: 'attendee.contact@example.com',
+          }),
+          expect.objectContaining({
+            idempotencyKey:
+              'waitlist-spot-available/tenant-1/waitlist-registration-1/cancellation-registration-1',
+            kind: 'waitlistSpotAvailable',
+            toEmail: 'waitlist.contact@example.com',
+          }),
+        ]);
+        expect(insertedEmails[0]?.html).toContain(
+          'https://tenant.example.com/events/event-1',
+        );
+        expect(insertedEmails[1]?.text).toContain('does not reserve a spot');
+      }),
+  );
+
+  it.effect(
+    'passes the platform administrator actor to the cancellation email',
+    () =>
+      Effect.gen(function* () {
+        const { database, insertedEmails } = createGuestCancellationDatabase({
+          status: 'CONFIRMED',
+        });
+
+        yield* cancelRegistrationForTenant({
+          cancelledBy: 'platformAdministrator',
+          enforceParticipantDeadline: false,
+          executiveUserId: null,
+          registrationId: 'registration-1',
+          targetTenant: tenant,
+        }).pipe(Effect.provide(createContextLayer({ database })));
+
+        expect(insertedEmails).toHaveLength(1);
+        expect(insertedEmails[0]?.text).toContain(
+          'A platform administrator cancelled your registration',
+        );
+      }),
+  );
+
+  it.effect(
+    'records a pending manual refund transaction for a non-Stripe paid cancellation',
     () =>
       Effect.gen(function* () {
         let insertedTransaction: Record<string, unknown> | undefined;
         const updateSets: unknown[] = [];
-        const registrationTransactions = [
-          {
-            amount: 2500,
-            id: 'transaction-1',
-            method: 'stripe',
-            status: 'successful',
-            stripeCheckoutSessionId: 'checkout-1',
-            type: 'registration',
-          },
-        ];
         const tx = {
           ...createCancellationTransactionSelect({
             guestCount: 1,
             status: 'CONFIRMED',
-            transactions: registrationTransactions,
+            transactions: [
+              {
+                amount: 2500,
+                currency: 'EUR',
+                id: 'transaction-1',
+                method: 'cash',
+                status: 'successful',
+                stripeChargeId: null,
+                stripeCheckoutSessionId: 'checkout-1',
+                stripePaymentIntentId: null,
+                type: 'registration',
+              },
+            ],
           }),
           insert: (table: unknown) => ({
             values: (values: Record<string, unknown>) => {
@@ -1103,7 +1498,17 @@ describe('event registration cancellation handlers', () => {
                   id: 'registration-1',
                   registrationOptionId: 'option-1',
                   status: 'CONFIRMED',
-                  transactions: registrationTransactions,
+                  transactions: [
+                    {
+                      amount: 2500,
+                      currency: 'EUR',
+                      id: 'transaction-1',
+                      method: 'cash',
+                      status: 'successful',
+                      stripeCheckoutSessionId: 'checkout-1',
+                      type: 'registration',
+                    },
+                  ],
                   userId: 'attendee-1',
                 }),
             },
@@ -1126,7 +1531,8 @@ describe('event registration cancellation handlers', () => {
             eventId: 'event-1',
             eventRegistrationId: 'registration-1',
             manuallyCreated: true,
-            method: 'stripe',
+            method: 'cash',
+            sourceTransactionId: 'transaction-1',
             status: 'pending',
             targetUserId: 'attendee-1',
             tenantId: 'tenant-1',
@@ -1134,39 +1540,68 @@ describe('event registration cancellation handlers', () => {
           }),
         );
         expect(insertedTransaction?.['comment']).toContain(
-          'Pending registration refund record',
+          'Pending manual refund record',
         );
         expect(database.transaction).toHaveBeenCalledOnce();
       }),
   );
 
   it.effect(
-    'creates a Stripe refund for paid confirmed cancellation with a stored Stripe reference',
+    'persists a durable Stripe refund claim for paid confirmed cancellation',
     () =>
       Effect.gen(function* () {
+        let cancellationTransition: unknown;
         let insertedTransaction: Record<string, unknown> | undefined;
         const updateSets: unknown[] = [];
-        const registrationTransactions = [
-          {
-            amount: 2500,
-            id: 'transaction-1',
-            method: 'stripe',
-            status: 'successful',
-            stripeChargeId: 'ch_123',
-            stripeCheckoutSessionId: 'checkout-1',
-            stripePaymentIntentId: 'pi_123',
-            type: 'registration',
-          },
-        ];
         const tx = {
           ...createCancellationTransactionSelect({
             guestCount: 1,
             status: 'CONFIRMED',
-            transactions: registrationTransactions,
+            transactions: [
+              {
+                amount: 2500,
+                appFee: 250,
+                currency: 'EUR',
+                eventId: 'event-1',
+                eventRegistrationId: 'registration-1',
+                id: 'transaction-1',
+                method: 'stripe',
+                status: 'successful',
+                stripeAccountId: 'acct_persisted',
+                stripeChargeId: 'ch_123',
+                stripeCheckoutSessionId: 'checkout-1',
+                stripeFee: 75,
+                stripeNetAmount: 2175,
+                stripePaymentIntentId: 'pi_123',
+                targetUserId: 'attendee-1',
+                tenantId: 'tenant-1',
+                type: 'registration',
+              },
+            ],
           }),
-          insert: vi.fn(),
+          insert: (table: unknown) => ({
+            values: (values: Record<string, unknown>) => {
+              if (table === transactions) {
+                insertedTransaction = values;
+              }
+              return {
+                onConflictDoNothing: () => ({
+                  returning: () =>
+                    Effect.succeed([{ id: String(values['id']) }]),
+                }),
+                returning: () => Effect.succeed([{ id: String(values['id']) }]),
+              };
+            },
+          }),
           update: (table: unknown) => ({
             set: (values: unknown) => {
+              if (table === transactions) {
+                return {
+                  where: () => ({
+                    returning: () => Effect.succeed([]),
+                  }),
+                };
+              }
               updateSets.push(values);
               return {
                 where: () => ({
@@ -1185,14 +1620,6 @@ describe('event registration cancellation handlers', () => {
           }),
         };
         const database = {
-          insert: (table: unknown) => ({
-            values: (values: Record<string, unknown>) => {
-              if (table === transactions) {
-                insertedTransaction = values;
-              }
-              return Effect.succeed([]);
-            },
-          }),
           query: {
             eventRegistrations: {
               findFirst: () =>
@@ -1208,11 +1635,46 @@ describe('event registration cancellation handlers', () => {
                   id: 'registration-1',
                   registrationOptionId: 'option-1',
                   status: 'CONFIRMED',
-                  transactions: registrationTransactions,
+                  transactions: [
+                    {
+                      amount: 2500,
+                      appFee: 250,
+                      currency: 'EUR',
+                      id: 'transaction-1',
+                      method: 'stripe',
+                      status: 'successful',
+                      stripeAccountId: 'acct_persisted',
+                      stripeChargeId: 'ch_123',
+                      stripeCheckoutSessionId: 'checkout-1',
+                      stripeFee: 75,
+                      stripeNetAmount: 2175,
+                      stripePaymentIntentId: 'pi_123',
+                      type: 'registration',
+                    },
+                  ],
                   userId: 'attendee-1',
                 }),
             },
           },
+          select: () => ({
+            from: () => ({
+              where: () => ({
+                limit: () =>
+                  Effect.succeed([
+                    {
+                      amount: 2500,
+                      appFee: 250,
+                      currency: 'EUR',
+                      stripeAccountId: 'acct_persisted',
+                      stripeChargeId: 'ch_123',
+                      stripeFee: 75,
+                      stripeNetAmount: 2175,
+                      stripePaymentIntentId: 'pi_123',
+                    },
+                  ]),
+              }),
+            }),
+          }),
           transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
             callback(tx),
           ),
@@ -1230,10 +1692,20 @@ describe('event registration cancellation handlers', () => {
           },
         };
 
-        yield* eventRegistrationHandlers['events.cancelRegistration'](
-          { registrationId: 'registration-1' },
-          emptyHandlerOptions,
-        ).pipe(
+        yield* cancelRegistrationForTenant({
+          cancelledBy: 'organizer',
+          enforceParticipantDeadline: false,
+          executiveUserId: null,
+          onCancelled: (_tx, transition) => {
+            cancellationTransition = transition;
+            return Effect.void;
+          },
+          registrationId: 'registration-1',
+          targetTenant: {
+            ...tenant,
+            stripeAccountId: 'acct_123',
+          },
+        }).pipe(
           Effect.provide(
             createContextLayer({
               database,
@@ -1247,73 +1719,49 @@ describe('event registration cancellation handlers', () => {
         );
 
         expectCounterDecrement(updateSets[1], 'confirmedSpots', 2);
-        expect(tx.insert).not.toHaveBeenCalled();
-        expect(stripe.refunds.create).toHaveBeenCalledWith(
-          {
-            amount: 2500,
-            charge: 'ch_123',
-          },
-          {
-            stripeAccount: 'acct_123',
-          },
-        );
+        expect(stripe.refunds.create).not.toHaveBeenCalled();
         expect(insertedTransaction).toEqual(
           expect.objectContaining({
             amount: -2500,
             currency: 'EUR',
             eventId: 'event-1',
             eventRegistrationId: 'registration-1',
+            executiveUserId: null,
             manuallyCreated: false,
             method: 'stripe',
-            status: 'successful',
+            sourceTransactionId: 'transaction-1',
+            status: 'pending',
+            stripeAccountId: 'acct_persisted',
+            stripeRefundApplicationFee: true,
+            stripeRefundNextAttemptAt: expect.any(Date),
             targetUserId: 'attendee-1',
             tenantId: 'tenant-1',
             type: 'refund',
           }),
         );
-        expect(insertedTransaction?.['comment']).toContain('re_123');
-        expect(database.transaction).toHaveBeenCalledOnce();
+        expect(insertedTransaction?.['comment']).toContain(
+          'Registration refund claim',
+        );
+        expect(cancellationTransition).toEqual({
+          checkInTime: null,
+          eventId: 'event-1',
+          guestCount: 1,
+          refundTransactionId: expect.any(String),
+          refundTransactionStatus: 'pending',
+          registrationId: 'registration-1',
+          registrationOptionId: 'option-1',
+          statusAfter: 'CANCELLED',
+          statusBefore: 'CONFIRMED',
+          userId: 'attendee-1',
+        });
+        expect(database.transaction).toHaveBeenCalledTimes(2);
       }),
   );
 
   it.effect(
-    'preserves an unbound pending checkout claim and its reservation',
+    'keeps an unbound pending payment claim and its reserved spot intact',
     () =>
       Effect.gen(function* () {
-        const updateSets: unknown[] = [];
-        const registrationTransactions = [
-          {
-            amount: 1000,
-            id: 'transaction-1',
-            method: 'stripe',
-            status: 'pending',
-            stripeChargeId: null,
-            stripeCheckoutSessionId: null,
-            stripePaymentIntentId: null,
-            type: 'registration',
-          },
-        ];
-        const tx = {
-          ...createCancellationTransactionSelect({
-            status: 'PENDING',
-            transactions: registrationTransactions,
-          }),
-          update: (table: unknown) => ({
-            set: (values: unknown) => {
-              updateSets.push(values);
-              return {
-                where: () => ({
-                  returning: () =>
-                    table === eventRegistrations ||
-                    table === eventRegistrationOptions ||
-                    table === transactions
-                      ? Effect.succeed([{ id: 'updated' }])
-                      : Effect.succeed([]),
-                }),
-              };
-            },
-          }),
-        };
         const database = {
           query: {
             eventRegistrations: {
@@ -1328,13 +1776,24 @@ describe('event registration cancellation handlers', () => {
                   id: 'registration-1',
                   registrationOptionId: 'option-1',
                   status: 'PENDING',
-                  transactions: registrationTransactions,
+                  transactions: [
+                    {
+                      amount: 1000,
+                      currency: 'EUR',
+                      id: 'transaction-1',
+                      method: 'stripe',
+                      status: 'pending',
+                      stripeAccountId: 'acct_123',
+                      stripeChargeId: null,
+                      stripeCheckoutSessionId: null,
+                      stripePaymentIntentId: null,
+                      type: 'registration',
+                    },
+                  ],
                 }),
             },
           },
-          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
-            callback(tx),
-          ),
+          transaction: vi.fn(),
         };
 
         const error = yield* eventRegistrationHandlers[
@@ -1345,26 +1804,147 @@ describe('event registration cancellation handlers', () => {
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
-        expect(error.message).toContain(
-          'Payment checkout is still being prepared',
+        expect(error.message).toBe(
+          'Payment setup is still being reconciled, so this request did not cancel the registration or release its reserved spots. Retry payment setup, then retry cancellation.',
         );
-        expect(updateSets).toEqual([]);
-        expect(database.transaction).toHaveBeenCalledOnce();
+        expect(database.transaction).not.toHaveBeenCalled();
       }),
   );
 
   it.effect(
-    're-reads a payment claim created after preflight and releases its reservations',
+    'refuses generic recipient cancellation before expiring an active transfer checkout',
     () =>
       Effect.gen(function* () {
-        const operationOrder: string[] = [];
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  addonPurchases: [],
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 3,
+                  id: 'recipient-registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'PENDING',
+                  transactions: [
+                    {
+                      amount: 1000,
+                      currency: 'EUR',
+                      id: 'recipient-transaction-1',
+                      method: 'stripe',
+                      status: 'pending',
+                      stripeAccountId: 'acct_123',
+                      stripeChargeId: null,
+                      stripeCheckoutSessionId: 'checkout-transfer-1',
+                      stripePaymentIntentId: null,
+                      type: 'registration',
+                    },
+                  ],
+                  userId: 'scanner-1',
+                }),
+            },
+            registrationTransfers: {
+              findFirst: () =>
+                Effect.succeed({
+                  id: 'transfer-1',
+                  recipientRegistrationId: 'recipient-registration-1',
+                  status: 'checkout_pending',
+                }),
+            },
+          },
+          transaction: vi.fn(),
+        };
+        const stripe = createStripeClientDouble();
+
+        const error = yield* eventRegistrationHandlers[
+          'events.cancelRegistration'
+        ](
+          { registrationId: 'recipient-registration-1' },
+          emptyHandlerOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(createContextLayer({ database, stripe })),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toContain('active transfer');
+        expect(stripe.checkout.sessions.expire).not.toHaveBeenCalled();
+        expect(database.transaction).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'rolls back cancellation when a transfer becomes active under the registration lock',
+    () =>
+      Effect.gen(function* () {
+        const tx = {
+          ...createCancellationTransactionSelect({
+            activeTransfers: [
+              {
+                id: 'transfer-race',
+                recipientRegistrationId: null,
+                sourceRegistrationId: 'registration-1',
+                status: 'open',
+              },
+            ],
+            status: 'CONFIRMED',
+          }),
+          update: vi.fn(),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  addonPurchases: [],
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  transactions: [],
+                  userId: 'scanner-1',
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.cancelRegistration'
+        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
+          Effect.flip,
+          Effect.provide(createContextLayer({ database })),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toContain('active transfer');
+        expect(tx.update).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'does not release a checkout claim that becomes bound after preflight',
+    () =>
+      Effect.gen(function* () {
         const pendingTransaction = {
           amount: 1000,
+          currency: 'EUR',
           id: 'transaction-race',
           method: 'stripe',
           status: 'pending',
+          stripeAccountId: 'acct_123',
           stripeChargeId: null,
-          stripeCheckoutCancellationRequestedAt: null as Date | null,
           stripeCheckoutSessionId: 'checkout-race',
           stripePaymentIntentId: null,
           type: 'registration',
@@ -1378,19 +1958,6 @@ describe('event registration cancellation handlers', () => {
           }),
           update: (table: unknown) => ({
             set: (values: unknown) => {
-              if (
-                table === transactions &&
-                values !== null &&
-                typeof values === 'object' &&
-                'stripeCheckoutCancellationRequestedAt' in values &&
-                values.stripeCheckoutCancellationRequestedAt instanceof Date
-              ) {
-                pendingTransaction.stripeCheckoutCancellationRequestedAt =
-                  values.stripeCheckoutCancellationRequestedAt;
-                operationOrder.push('marker-commit');
-              } else {
-                operationOrder.push('local-update');
-              }
               updatedTables.push(table);
               updateSets.push(values);
               return {
@@ -1409,7 +1976,6 @@ describe('event registration cancellation handlers', () => {
             },
           }),
         };
-        let isTransactionActive = false;
         const database = {
           query: {
             eventRegistrations: {
@@ -1432,39 +1998,14 @@ describe('event registration cancellation handlers', () => {
             },
           },
           transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
-            Effect.sync(() => {
-              isTransactionActive = true;
-            }).pipe(
-              Effect.andThen(callback(tx) as Effect.Effect<unknown>),
-              Effect.ensuring(
-                Effect.sync(() => {
-                  isTransactionActive = false;
-                }),
-              ),
-            ),
+            callback(tx),
           ),
         };
-        const retrieveCheckoutSession = vi.fn(async () => {
-          expect(isTransactionActive).toBe(false);
-          operationOrder.push('stripe-retrieve');
-          return {
-            id: 'checkout-race',
-            status: 'expired',
-          } as Stripe.Checkout.Session;
-        });
-        const stripe = createStripeClientDouble({ retrieveCheckoutSession });
-        vi.mocked(stripe.checkout.sessions.expire).mockImplementation(
-          async () => {
-            expect(isTransactionActive).toBe(false);
-            operationOrder.push('stripe-expire');
-            throw new Error('Checkout Session is already expired');
-          },
-        );
+        const stripe = createStripeClientDouble();
 
-        yield* eventRegistrationHandlers['events.cancelRegistration'](
-          { registrationId: 'registration-1' },
-          emptyHandlerOptions,
-        ).pipe(
+        const error = yield* eventRegistrationHandlers[
+          'events.cancelRegistration'
+        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
           Effect.provide(
             createContextLayer({
               database,
@@ -1475,84 +2016,54 @@ describe('event registration cancellation handlers', () => {
               },
             }),
           ),
+          Effect.flip,
         );
-
-        expect(updatedTables).toEqual([
-          transactions,
-          transactions,
-          eventRegistrations,
-          eventRegistrationOptions,
-          eventAddons,
-        ]);
-        expect(updateSets[1]).toEqual({ status: 'cancelled' });
-        expectCounterDecrement(updateSets[3], 'reservedSpots', 1);
-        expect(updateSets[4]).toEqual(
-          expect.objectContaining({
-            totalAvailableQuantity: expect.objectContaining({
-              queryChunks: expect.arrayContaining([2]),
-            }),
-          }),
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Payment setup changed while cancellation was starting, so this request did not cancel the registration or release its reserved spots. Refresh, then retry cancellation.',
         );
-        expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith(
-          'checkout-race',
-          undefined,
-          {
-            idempotencyKey: 'cancel-registration-checkout-transaction-race',
-            stripeAccount: 'acct_123',
-          },
-        );
-        expect(retrieveCheckoutSession).toHaveBeenCalledWith(
-          'checkout-race',
-          undefined,
-          { stripeAccount: 'acct_123' },
-        );
-        expect(operationOrder.slice(0, 4)).toEqual([
-          'marker-commit',
-          'stripe-expire',
-          'stripe-retrieve',
-          'local-update',
-        ]);
-        expect(database.transaction).toHaveBeenCalledTimes(2);
+        expect(updatedTables).toEqual([]);
+        expect(updateSets).toEqual([]);
+        expect(stripe.checkout.sessions.expire).not.toHaveBeenCalled();
+        expect(database.transaction).toHaveBeenCalledOnce();
       }),
   );
 
   it.effect(
-    'keeps a pending registration and its reservations when Stripe expiry is unconfirmed',
+    'keeps a bound checkout claim and reservation when Stripe expiry fails',
     () =>
       Effect.gen(function* () {
         const pendingTransaction = {
           amount: 1000,
-          id: 'transaction-race',
+          currency: 'EUR',
+          id: 'transaction-1',
           method: 'stripe',
           status: 'pending',
+          stripeAccountId: 'acct_123',
           stripeChargeId: null,
           stripeCheckoutCancellationRequestedAt: null as Date | null,
-          stripeCheckoutSessionId: 'checkout-race',
+          stripeCheckoutSessionId: 'checkout-1',
           stripePaymentIntentId: null,
           type: 'registration',
         };
-        const updateSets: unknown[] = [];
+        const updatedTables: unknown[] = [];
         const tx = {
           ...createCancellationTransactionSelect({
             status: 'PENDING',
             transactions: [pendingTransaction],
           }),
           update: (table: unknown) => ({
-            set: (values: unknown) => {
+            set: (values: Record<string, unknown>) => {
+              updatedTables.push(table);
               if (
-                table === transactions &&
-                values !== null &&
-                typeof values === 'object' &&
-                'stripeCheckoutCancellationRequestedAt' in values &&
                 values.stripeCheckoutCancellationRequestedAt instanceof Date
               ) {
                 pendingTransaction.stripeCheckoutCancellationRequestedAt =
                   values.stripeCheckoutCancellationRequestedAt;
               }
-              updateSets.push(values);
               return {
                 where: () => ({
-                  returning: () => Effect.succeed([{ id: 'updated' }]),
+                  returning: () => Effect.succeed([{ id: 'transaction-1' }]),
                 }),
               };
             },
@@ -1583,8 +2094,11 @@ describe('event registration cancellation handlers', () => {
           ),
         };
         const stripe = createStripeClientDouble();
-        vi.mocked(stripe.checkout.sessions.expire).mockRejectedValue(
-          new Error('Stripe expiry timed out'),
+        vi.mocked(stripe.checkout.sessions.expire).mockRejectedValueOnce(
+          new Error('Stripe unavailable'),
+        );
+        vi.mocked(stripe.checkout.sessions.retrieve).mockRejectedValueOnce(
+          new Error('Stripe unavailable'),
         );
 
         const error = yield* eventRegistrationHandlers[
@@ -1605,95 +2119,56 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
         expect(error.message).toBe(
-          'Stripe could not confirm checkout cancellation; the registration and reserved items remain unchanged',
+          'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
         );
-        expect(updateSets).toEqual([
+        expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith(
+          'checkout-1',
+          undefined,
           {
-            stripeCheckoutCancellationRequestedAt: expect.any(Date),
+            idempotencyKey: 'cancel-registration-checkout-transaction-1',
+            stripeAccount: 'acct_123',
           },
-        ]);
-        expect(database.transaction).toHaveBeenCalledOnce();
-
-        vi.mocked(stripe.checkout.sessions.expire).mockResolvedValue({
-          status: 'open',
-        } as Stripe.Checkout.Session);
-        const nonExpiredError = yield* eventRegistrationHandlers[
-          'events.cancelRegistration'
-        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
-          Effect.flip,
-          Effect.provide(
-            createContextLayer({
-              database,
-              stripe,
-              tenant: {
-                ...tenant,
-                stripeAccountId: 'acct_123',
-              },
-            }),
-          ),
         );
-
-        expect(nonExpiredError['_tag']).toBe('EventRegistrationInternalError');
-        expect(updateSets).toHaveLength(1);
-        expect(database.transaction).toHaveBeenCalledTimes(2);
+        expect(stripe.checkout.sessions.retrieve).toHaveBeenCalledWith(
+          'checkout-1',
+          undefined,
+          { stripeAccount: 'acct_123' },
+        );
+        expect(updatedTables).toEqual([transactions]);
+        expect(database.transaction).toHaveBeenCalledOnce();
       }),
   );
 
   it.effect(
-    'treats an exact checkout cancellation finalized by a concurrent request as idempotent under the row lock',
+    'treats a concurrently expired and locally cancelled checkout as success',
     () =>
       Effect.gen(function* () {
         const pendingTransaction = {
           amount: 1000,
-          id: 'transaction-race',
+          currency: 'EUR',
+          id: 'transaction-1',
           method: 'stripe',
-          status: 'pending' as 'cancelled' | 'pending',
+          status: 'pending',
+          stripeAccountId: 'acct_123',
           stripeChargeId: null,
           stripeCheckoutCancellationRequestedAt: null as Date | null,
-          stripeCheckoutSessionId: 'checkout-race',
+          stripeCheckoutSessionId: 'checkout-1',
           stripePaymentIntentId: null,
           type: 'registration',
         };
-        let transactionCall = 0;
-        const updateSets: unknown[] = [];
-        const tx = {
-          select: () => ({
-            from: (table: unknown) => ({
-              where: () => ({
-                for: () => {
-                  if (table === eventRegistrations) {
-                    return Effect.succeed([
-                      {
-                        checkInTime: null,
-                        eventId: 'event-1',
-                        guestCount: 0,
-                        id: 'registration-1',
-                        registrationOptionId: 'option-1',
-                        status: transactionCall === 1 ? 'PENDING' : 'CANCELLED',
-                        userId: 'scanner-1',
-                      },
-                    ]);
-                  }
-                  if (table === transactions) {
-                    return Effect.succeed([
-                      {
-                        ...pendingTransaction,
-                        status: transactionCall === 1 ? 'pending' : 'cancelled',
-                      },
-                    ]);
-                  }
-                  return Effect.succeed([]);
-                },
-              }),
-            }),
+        const cancelledTransaction = {
+          ...pendingTransaction,
+          status: 'cancelled',
+          stripeCheckoutCancellationRequestedAt: new Date(),
+        };
+        const markingTx = {
+          ...createCancellationTransactionSelect({
+            status: 'PENDING',
+            transactions: [pendingTransaction],
           }),
           update: () => ({
-            set: (values: unknown) => {
-              updateSets.push(values);
+            set: (values: Record<string, unknown>) => {
               if (
-                values !== null &&
-                typeof values === 'object' &&
-                'stripeCheckoutCancellationRequestedAt' in values &&
                 values.stripeCheckoutCancellationRequestedAt instanceof Date
               ) {
                 pendingTransaction.stripeCheckoutCancellationRequestedAt =
@@ -1701,11 +2176,18 @@ describe('event registration cancellation handlers', () => {
               }
               return {
                 where: () => ({
-                  returning: () => Effect.succeed([{ id: 'updated' }]),
+                  returning: () => Effect.succeed([{ id: 'transaction-1' }]),
                 }),
               };
             },
           }),
+        };
+        const finalizedTx = {
+          ...createCancellationTransactionSelect({
+            status: 'CANCELLED',
+            transactions: [cancelledTransaction],
+          }),
+          update: vi.fn(),
         };
         const database = {
           query: {
@@ -1727,12 +2209,25 @@ describe('event registration cancellation handlers', () => {
                 }),
             },
           },
-          transaction: vi.fn((callback: (tx: typeof tx) => unknown) => {
-            transactionCall += 1;
-            return callback(tx);
-          }),
+          transaction: vi
+            .fn()
+            .mockImplementationOnce(
+              (callback: (tx: typeof markingTx) => unknown) =>
+                callback(markingTx),
+            )
+            .mockImplementationOnce(
+              (callback: (tx: typeof finalizedTx) => unknown) =>
+                callback(finalizedTx),
+            ),
         };
         const stripe = createStripeClientDouble();
+        vi.mocked(stripe.checkout.sessions.expire).mockRejectedValueOnce(
+          new Error('Checkout is already expired'),
+        );
+        vi.mocked(stripe.checkout.sessions.retrieve).mockResolvedValueOnce({
+          id: 'checkout-1',
+          status: 'expired',
+        } as Stripe.Checkout.Session);
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
           { registrationId: 'registration-1' },
@@ -1750,13 +2245,13 @@ describe('event registration cancellation handlers', () => {
           ),
         );
 
+        expect(stripe.checkout.sessions.retrieve).toHaveBeenCalledWith(
+          'checkout-1',
+          undefined,
+          { stripeAccount: 'acct_123' },
+        );
         expect(database.transaction).toHaveBeenCalledTimes(2);
-        expect(updateSets).toEqual([
-          {
-            stripeCheckoutCancellationRequestedAt: expect.any(Date),
-          },
-        ]);
-        expect(stripe.checkout.sessions.expire).toHaveBeenCalledOnce();
+        expect(finalizedTx.update).not.toHaveBeenCalled();
       }),
   );
 
@@ -1764,50 +2259,32 @@ describe('event registration cancellation handlers', () => {
     'does not release reservations when payment completion wins cancellation finalization',
     () =>
       Effect.gen(function* () {
-        let registrationStatus: 'CONFIRMED' | 'PENDING' = 'PENDING';
         const paymentTransaction = {
           amount: 1000,
+          appFee: null,
+          currency: 'EUR',
           id: 'transaction-race',
           method: 'stripe',
           status: 'pending' as 'pending' | 'successful',
+          stripeAccountId: 'acct_123',
           stripeChargeId: null,
           stripeCheckoutCancellationRequestedAt: null as Date | null,
           stripeCheckoutSessionId: 'checkout-race',
+          stripeFee: null,
+          stripeNetAmount: null,
           stripePaymentIntentId: null,
           type: 'registration',
         };
         const updateSets: unknown[] = [];
         const tx = {
-          select: () => ({
-            from: (table: unknown) => ({
-              where: () => ({
-                for: () =>
-                  table === eventRegistrations
-                    ? Effect.succeed([
-                        {
-                          checkInTime: null,
-                          eventId: 'event-1',
-                          guestCount: 0,
-                          id: 'registration-1',
-                          registrationOptionId: 'option-1',
-                          status: registrationStatus,
-                          userId: 'scanner-1',
-                        },
-                      ])
-                    : table === transactions
-                      ? Effect.succeed([paymentTransaction])
-                      : Effect.succeed([]),
-              }),
-            }),
+          ...createCancellationTransactionSelect({
+            status: 'PENDING',
+            transactions: [paymentTransaction],
           }),
-          update: (table: unknown) => ({
-            set: (values: unknown) => {
+          update: () => ({
+            set: (values: Record<string, unknown>) => {
               updateSets.push(values);
               if (
-                table === transactions &&
-                values !== null &&
-                typeof values === 'object' &&
-                'stripeCheckoutCancellationRequestedAt' in values &&
                 values.stripeCheckoutCancellationRequestedAt instanceof Date
               ) {
                 paymentTransaction.stripeCheckoutCancellationRequestedAt =
@@ -1835,7 +2312,7 @@ describe('event registration cancellation handlers', () => {
                   guestCount: 0,
                   id: 'registration-1',
                   registrationOptionId: 'option-1',
-                  status: registrationStatus,
+                  status: 'PENDING',
                   transactions: [paymentTransaction],
                   userId: 'scanner-1',
                 }),
@@ -1845,15 +2322,15 @@ describe('event registration cancellation handlers', () => {
             callback(tx),
           ),
         };
-        const stripe = createStripeClientDouble();
-        vi.mocked(stripe.checkout.sessions.expire).mockImplementation(
-          async () => {
-            registrationStatus = 'CONFIRMED';
+        const stripe = createStripeClientDouble({
+          expireCheckoutSession: vi.fn(async () => {
             paymentTransaction.status = 'successful';
-            paymentTransaction.stripeCheckoutCancellationRequestedAt = null;
-            return { status: 'expired' } as Stripe.Checkout.Session;
-          },
-        );
+            return {
+              id: 'checkout-race',
+              status: 'expired',
+            } as Stripe.Checkout.Session;
+          }),
+        });
 
         const error = yield* eventRegistrationHandlers[
           'events.cancelRegistration'
@@ -1945,6 +2422,7 @@ describe('event registration cancellation handlers', () => {
         const { database, updateSets } = createGuestCancellationDatabase({
           status: 'PENDING',
         });
+        const stripe = createStripeClientDouble();
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
           { registrationId: 'registration-1' },
@@ -1953,6 +2431,7 @@ describe('event registration cancellation handlers', () => {
           Effect.provide(
             createContextLayer({
               database,
+              stripe,
               tenant: {
                 ...tenant,
                 stripeAccountId: 'acct_123',
@@ -1961,7 +2440,25 @@ describe('event registration cancellation handlers', () => {
           ),
         );
 
-        expectCounterDecrement(updateSets[3], 'reservedSpots', 3);
+        const counterUpdate = updateSets.find(
+          (updateSet) =>
+            updateSet !== null &&
+            typeof updateSet === 'object' &&
+            'reservedSpots' in updateSet,
+        );
+        expectCounterDecrement(counterUpdate, 'reservedSpots', 3);
+        expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith(
+          'checkout-1',
+          undefined,
+          {
+            idempotencyKey: 'cancel-registration-checkout-transaction-1',
+            stripeAccount: 'acct_123',
+          },
+        );
+        expect(database.transaction.mock.invocationCallOrder[0]).toBeLessThan(
+          vi.mocked(stripe.checkout.sessions.expire).mock
+            .invocationCallOrder[0] ?? 0,
+        );
         expect(database.transaction).toHaveBeenCalledTimes(2);
       }),
   );
@@ -2141,7 +2638,8 @@ describe('event registration transfer handlers', () => {
     'allows event organizers to transfer a confirmed unpaid registration to another tenant user',
     () =>
       Effect.gen(function* () {
-        const { database, updateSets } = createTransferDatabase();
+        const { database, insertedEmails, updateSets } =
+          createTransferDatabase();
 
         yield* eventRegistrationHandlers['events.transferEventRegistration'](
           {
@@ -2153,6 +2651,55 @@ describe('event registration transfer handlers', () => {
         ).pipe(Effect.provide(createContextLayer({ database })));
 
         expect(updateSets).toEqual([{ userId: 'target-user-1' }]);
+        expect(insertedEmails).toEqual([
+          expect.objectContaining({
+            idempotencyKey:
+              'registration-transferred/tenant-1/registration-1/previousOwner/attendee-1',
+            kind: 'registrationTransferred',
+            toEmail: 'attendee.contact@example.com',
+          }),
+          expect.objectContaining({
+            idempotencyKey:
+              'registration-transferred/tenant-1/registration-1/newOwner/target-user-1',
+            kind: 'registrationTransferred',
+            toEmail: 'target.contact@example.com',
+          }),
+        ]);
+        expect(insertedEmails[1]?.html).toContain(
+          'https://tenant.example.com/events/event-1',
+        );
+      }),
+  );
+
+  it.effect(
+    'rejects a legacy transfer when a concurrent active transfer wins the registration lock',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          lockedActiveTransfers: [
+            {
+              id: 'transfer-1',
+              recipientRegistrationId: null,
+              sourceRegistrationId: 'registration-1',
+              status: 'open',
+            },
+          ],
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferEventRegistration'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            targetUserId: 'target-user-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toContain('active transfer');
+        expect(updateSets).toEqual([]);
       }),
   );
 
@@ -2432,6 +2979,31 @@ describe('event registration transfer handlers', () => {
   );
 
   it.effect(
+    'rejects transfer when the target membership disappears under the lock',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          lockedTargetMembership: false,
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferEventRegistration'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            targetUserId: 'target-user-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error['_tag']).toBe('EventRegistrationNotFoundError');
+        expect(error.message).toBe('Target tenant user not found');
+        expect(updateSets).toEqual([]);
+      }),
+  );
+
+  it.effect(
     'rejects transfer when the target already has an active registration',
     () =>
       Effect.gen(function* () {
@@ -2454,6 +3026,107 @@ describe('event registration transfer handlers', () => {
         expect(error.message).toBe(
           'Target user already has an active registration',
         );
+        expect(updateSets).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    'rejects transfer when a target registration appears after preflight',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          concurrentTargetRegistration: { id: 'target-registration-race' },
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferEventRegistration'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            targetUserId: 'target-user-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'Target user already has an active registration',
+        );
+        expect(updateSets).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    'maps a concurrent active-registration update violation to a target conflict',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          updateError: new EffectDrizzleQueryError({
+            cause: Cause.fail(
+              new SqlError({
+                reason: new UniqueViolation({
+                  cause: new Error('duplicate active registration'),
+                  constraint: activeEventRegistrationUniqueIndexName,
+                }),
+              }),
+            ),
+            params: [],
+            query: 'update event_registrations ...',
+          }),
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferEventRegistration'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            targetUserId: 'target-user-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error).toBeInstanceOf(EventRegistrationConflictError);
+        expect(error.message).toBe(
+          'Target user already has an active registration',
+        );
+        expect(updateSets).toEqual([{ userId: 'target-user-1' }]);
+      }),
+  );
+
+  it.effect(
+    'locks the target membership and rejects transfer at the tenant active limit',
+    () =>
+      Effect.gen(function* () {
+        const { database, updateSets } = createTransferDatabase({
+          activeTargetRegistrations: [{ id: 'active-registration-1' }],
+        });
+
+        const error = yield* eventRegistrationHandlers[
+          'events.transferEventRegistration'
+        ](
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            targetUserId: 'target-user-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              tenant: {
+                ...tenant,
+                maxActiveRegistrationsPerUser: 1,
+              },
+            }),
+          ),
+        );
+
+        expect(error).toBeInstanceOf(EventRegistrationConflictError);
+        expect(error.message).toBe('Active registration limit reached');
         expect(updateSets).toEqual([]);
       }),
   );
@@ -2663,6 +3336,7 @@ describe('event registration scan handlers', () => {
         const nowIso = '2026-09-15T12:00:00.000Z';
         const updateCalls: string[] = [];
         const tx = {
+          ...createRegistrationMutationGuardSelect(),
           update: (table: unknown) => ({
             set: (values: { checkInTime?: Date }) => ({
               where: () => ({
@@ -2736,10 +3410,126 @@ describe('event registration scan handlers', () => {
       }),
   );
 
+  it.effect('refuses check-in while the source transfer is active', () =>
+    Effect.gen(function* () {
+      const database = {
+        query: {
+          eventRegistrations: {
+            findFirst: () =>
+              Effect.succeed({
+                checkedInGuestCount: 0,
+                checkInTime: null,
+                event: {
+                  start: new Date(Date.now() + 30 * 60 * 1000),
+                },
+                eventId: 'event-1',
+                guestCount: 0,
+                id: 'registration-1',
+                registrationOptionId: 'option-1',
+                status: 'CONFIRMED',
+                userId: 'attendee-1',
+              }),
+          },
+          registrationTransfers: {
+            findFirst: () =>
+              Effect.succeed({
+                id: 'transfer-1',
+                sourceRegistrationId: 'registration-1',
+                status: 'open',
+              }),
+          },
+        },
+        transaction: vi.fn(),
+      };
+
+      const error = yield* eventRegistrationHandlers[
+        'events.checkInRegistration'
+      ](
+        { guestCheckInCount: 0, registrationId: 'registration-1' },
+        emptyHandlerOptions,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createContextLayer({
+            database,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toContain('active transfer');
+      expect(database.transaction).not.toHaveBeenCalled();
+    }),
+  );
+
+  it.effect(
+    'rolls back check-in when a transfer becomes active under the registration lock',
+    () =>
+      Effect.gen(function* () {
+        const tx = {
+          ...createRegistrationMutationGuardSelect({
+            activeTransfers: [
+              {
+                id: 'transfer-race',
+                recipientRegistrationId: null,
+                sourceRegistrationId: 'registration-1',
+                status: 'open',
+              },
+            ],
+          }),
+          update: vi.fn(),
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  checkedInGuestCount: 0,
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 30 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  userId: 'attendee-1',
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.checkInRegistration'
+        ](
+          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          emptyHandlerOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toContain('active transfer');
+        expect(tx.update).not.toHaveBeenCalled();
+      }),
+  );
+
   it.effect('records selected guest check-ins with the attendee check-in', () =>
     Effect.gen(function* () {
       const updateSets: unknown[] = [];
       const tx = {
+        ...createRegistrationMutationGuardSelect(),
         update: (table: unknown) => ({
           set: (values: unknown) => {
             updateSets.push(values);

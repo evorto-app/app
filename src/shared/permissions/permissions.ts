@@ -19,6 +19,7 @@ const EVENTS_GROUP = {
   key: 'events',
   permissions: [
     'changeListing',
+    'cancelRegistrations',
     'create',
     'editAll',
     'review',
@@ -133,6 +134,11 @@ const PERMISSION_METADATA = {
     description:
       'Manage tenant tax rates used for paid registration options and Stripe tax-rate imports.',
     label: 'Manage tax rates',
+  },
+  'events:cancelRegistrations': {
+    description:
+      'Cancel attendee registrations or unredeemed event add-ons and choose whether eligible add-on purchases should be refunded.',
+    label: 'Cancel registrations and add-ons',
   },
   'events:changeListing': {
     description:

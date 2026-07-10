@@ -8,6 +8,7 @@ import {
   includesPermission,
   type Permission,
 } from '../../shared/permissions/permissions';
+import { tenantOutboundUrl } from '../tenant-outbound-url';
 
 const responseText = (body: string, status = 200): Response =>
   new Response(body, { status });
@@ -101,7 +102,7 @@ const canReadRegistrationQr = ({
   });
 
 export const handleQrRegistrationCodeWebRequest = (
-  request: Request,
+  _request: Request,
   registrationId: string,
   requestContext: RequestContext,
 ) =>
@@ -143,6 +144,7 @@ export const handleQrRegistrationCodeWebRequest = (
     const tenant = yield* databaseEffect((database) =>
       database.query.tenants.findFirst({
         columns: {
+          canonicalRootUrl: true,
           domain: true,
         },
         where: { id: registration.tenantId },
@@ -153,9 +155,20 @@ export const handleQrRegistrationCodeWebRequest = (
       return responseText('Tenant not found', 404);
     }
 
-    const requestUrl = new URL(request.url);
-    const protocol = requestUrl.protocol.slice(0, -1);
-    const scanTargetUrl = `${protocol}://${tenant.domain}/scan/registration/${registration.id}`;
+    const scanTargetUrl = yield* tenantOutboundUrl(
+      tenant,
+      `/scan/registration/${encodeURIComponent(registration.id)}`,
+    ).pipe(
+      Effect.tapError(() =>
+        Effect.logError('Failed to build registration scan URL').pipe(
+          Effect.annotateLogs({
+            registrationId,
+            tenantDomain: tenant.domain,
+          }),
+        ),
+      ),
+      Effect.orDie,
+    );
 
     const imageBuffer = yield* Effect.promise(() =>
       QRCode.toBuffer(scanTargetUrl, {

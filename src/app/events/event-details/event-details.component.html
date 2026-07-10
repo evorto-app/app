@@ -60,7 +60,7 @@
   >
     @if (eventQuery.isSuccess() && cardExpiresBeforeEvent()) {
       <div
-        class="bg-warn-container text-on-warn-container rounded px-3 py-2 body-small"
+        class="bg-warning-container text-on-warning-container rounded px-3 py-2 body-small"
       >
         Your discount card expires before the event starts. Discounted prices
         may not apply.
@@ -112,7 +112,7 @@
                   })
                 "
               >
-                Reject
+                Return to draft
               </button>
               <button
                 matButton="filled"
@@ -133,11 +133,7 @@
               <a matButton="tonal" routerLink="edit"> Edit Event </a>
             }
 
-            @if (
-              canEdit() &&
-              (eventQuery.data().status === "DRAFT" ||
-                eventQuery.data().status === "REJECTED")
-            ) {
+            @if (canEdit() && eventQuery.data().status === "DRAFT") {
               <button
                 matButton="filled"
                 (click)="submitForReview()"
@@ -234,7 +230,10 @@
                                 option.registrationOptionId
                               )
                             }}
-                            ({{ option.quantity }}){{ $last ? "" : ", " }}
+                            ({{ option.includedQuantity }} included,
+                            {{ option.optionalPurchaseQuantity }} optional){{
+                              $last ? "" : ", "
+                            }}
                           </span>
                         }
                       </dd>

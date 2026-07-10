@@ -2,6 +2,9 @@ import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import {
+  EventReviewStatus,
+  EventsApproveRegistrationResult,
+  EventsCreateRegistrationOptionInput,
   EventsFindOneAddon,
   EventsFindOneRegistrationOption,
   EventsGetOrganizeOverviewUser,
@@ -51,6 +54,7 @@ describe('events RPC registration status schema', () => {
   it('rejects unknown active registration statuses', () => {
     expect(() =>
       Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
+        activeTransfer: null,
         addonPurchases: [],
         guestCount: 0,
         id: 'registration-1',
@@ -66,6 +70,7 @@ describe('events RPC registration status schema', () => {
   it('carries purchased add-ons on active registration records', () => {
     expect(() =>
       Schema.decodeUnknownSync(EventsRegistrationStatusRecord)({
+        activeTransfer: null,
         addonPurchases: [
           {
             quantity: 2,
@@ -105,6 +110,7 @@ describe('events RPC registration status schema', () => {
         lastName: 'Cipant',
         manualApprovalAvailable: false,
         paymentPending: false,
+        paymentSetupRequired: false,
         registrationId: 'registration-1',
         status: 'CONFIRMED',
         transferAvailable: true,
@@ -114,7 +120,83 @@ describe('events RPC registration status schema', () => {
   });
 });
 
+describe('events RPC approval result schema', () => {
+  it('accepts confirmed and payment-pending approval outcomes', () => {
+    for (const status of ['confirmed', 'paymentPending']) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsApproveRegistrationResult)({ status }),
+      ).not.toThrow();
+    }
+  });
+
+  it('rejects approval outcomes outside the public contract', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsApproveRegistrationResult)({
+        status: 'pending',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('events RPC review lifecycle schema', () => {
+  it('exposes only draft, pending-review, and published persistence states', () => {
+    for (const status of ['APPROVED', 'DRAFT', 'PENDING_REVIEW']) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventReviewStatus)(status),
+      ).not.toThrow();
+    }
+
+    expect(() =>
+      Schema.decodeUnknownSync(EventReviewStatus)('REJECTED'),
+    ).toThrow();
+  });
+});
+
 describe('events RPC registration option schema', () => {
+  const writableRegistrationOption = {
+    closeRegistrationTime: '2026-09-20T12:00:00.000Z',
+    description: null,
+    isPaid: false,
+    openRegistrationTime: '2026-09-10T12:00:00.000Z',
+    organizingRegistration: false,
+    price: 0,
+    registeredDescription: null,
+    registrationMode: 'fcfs',
+    roleIds: [],
+    spots: 10,
+    stripeTaxRateId: null,
+    title: 'Participant',
+  };
+
+  it('defaults event option policy overrides to tenant inheritance', () => {
+    expect(
+      Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)(
+        writableRegistrationOption,
+      ),
+    ).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: null,
+      refundFeesOnCancellation: null,
+      transferDeadlineHoursBeforeStart: null,
+    });
+  });
+
+  it('accepts nonnegative event option overrides and rejects negative deadlines', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)({
+        ...writableRegistrationOption,
+        cancellationDeadlineHoursBeforeStart: 96,
+        refundFeesOnCancellation: false,
+        transferDeadlineHoursBeforeStart: 12,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)({
+        ...writableRegistrationOption,
+        transferDeadlineHoursBeforeStart: -1,
+      }),
+    ).toThrow();
+  });
+
   it('carries inclusive tax-rate label details for paid event cards', () => {
     expect(() =>
       Schema.decodeUnknownSync(EventsFindOneRegistrationOption)({
@@ -170,7 +252,8 @@ describe('events RPC add-on schema', () => {
         price: 1500,
         registrationOptions: [
           {
-            quantity: 1,
+            includedQuantity: 1,
+            optionalPurchaseQuantity: 1,
             registrationOptionId: 'option-1',
           },
         ],

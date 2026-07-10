@@ -128,6 +128,7 @@ export const migrateUserTenantAssignments = async (
 
       return uniq(rolesToAdd).map((role) => ({
         roleId: role,
+        tenantId: newTenant.id,
         userTenantId: assignmentId,
       }));
     });

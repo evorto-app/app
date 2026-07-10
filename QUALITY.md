@@ -209,11 +209,18 @@ the durable Playwright and generated-documentation coverage.
    and undo, and guest check-in.
 4. **Tenant administration and finance:** inspect settings, roles, finance
    navigation, receipt review, reimbursement recording, and tax-rate access.
-5. **Global administration:** inspect tenant list/detail/create/edit behavior
-   and the stated custom-domain and impersonation boundaries.
-6. **Live ESNcard provider:** run
-   `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` as a
-   release requirement, then inspect the add, refresh, remove, and provider UX.
+5. **Platform administration:** inspect tenant list/detail/create/edit behavior,
+   target-scoped event/template/registration, user-role, finance/refund, and tax
+   operations, plus the stated custom-domain and impersonation boundaries. For
+   scanner review, prefer a deterministic registration-result URL; emulate a
+   camera in Playwright only when the browser path is straightforward and
+   reliable.
+6. **Live ESNcard provider:** the Release workflow must complete the protected
+   `ESNcard Release Certification` job for add, refresh, remove, and provider
+   error UX. Use its manual dispatch for rotation checks. Local discovery may
+   still run
+   `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard`, but a
+   local skip is never release certification.
 
 ## Done Criteria
 

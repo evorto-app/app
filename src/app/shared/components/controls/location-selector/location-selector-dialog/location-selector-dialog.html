@@ -1,32 +1,104 @@
 <h2 mat-dialog-title>Select a location</h2>
 <mat-dialog-content>
-  <mat-form-field class="w-full pt-2">
-    <mat-label>Location</mat-label>
-    <input
-      type="text"
-      placeholder="Start typing to search for a location"
-      matInput
-      [formField]="searchForm['query']"
-      [matAutocomplete]="auto"
-    />
-    <mat-autocomplete
-      #auto="matAutocomplete"
-      [displayWith]="displayFunction"
-      (optionSelected)="selectOption($event)"
-    >
-      @for (
-        option of locationOptions$ | async;
-        track option.placePrediction?.placeId
-      ) {
-        <mat-option [value]="option">
-          <span>{{ option.placePrediction?.mainText }}</span> <br />
-          <span class="body-small">{{
-            option.placePrediction?.secondaryText
-          }}</span>
-        </mat-option>
-      }
-    </mat-autocomplete>
-  </mat-form-field>
+  @let searchState = locationSearchState$ | async;
+  <div
+    [attr.aria-busy]="
+      searchState?.status === 'loading' || selectionState().status === 'loading'
+    "
+  >
+    <mat-form-field class="w-full pt-2">
+      <mat-label>Location</mat-label>
+      <input
+        type="text"
+        placeholder="Start typing to search for a location"
+        matInput
+        [formField]="searchForm['query']"
+        [matAutocomplete]="auto"
+      />
+      <mat-autocomplete
+        #auto="matAutocomplete"
+        [displayWith]="displayFunction"
+        (optionSelected)="selectOption($event)"
+      >
+        @if (searchState?.status === "results") {
+          @for (option of searchState.options; track option.placeId) {
+            <mat-option [value]="option">
+              <span>{{ option.mainText }}</span>
+              @if (option.secondaryText) {
+                <br />
+                <span class="body-small">{{ option.secondaryText }}</span>
+              }
+            </mat-option>
+          }
+        }
+      </mat-autocomplete>
+    </mat-form-field>
+
+    @if (searchState?.status === "loading") {
+      <div class="text-on-surface-variant" aria-live="polite">
+        <mat-progress-bar
+          aria-label="Searching locations"
+          mode="indeterminate"
+        />
+        <p class="mt-2 text-sm">Searching locations…</p>
+      </div>
+    } @else if (searchState?.status === "empty") {
+      <p
+        class="border-outline-variant bg-surface-container-low text-on-surface-variant rounded border p-3 text-sm"
+        aria-live="polite"
+      >
+        No locations found. Check the spelling or try a broader search.
+      </p>
+    } @else if (searchState?.status === "configuration-error") {
+      <div
+        class="bg-error-container text-on-error-container rounded p-3 text-sm"
+        role="alert"
+      >
+        <p>Location search is not configured for this site.</p>
+        <p class="mt-1">
+          A site administrator needs to configure the Google Maps API key before
+          locations can be selected.
+        </p>
+      </div>
+    } @else if (searchState?.status === "provider-error") {
+      <div
+        class="bg-error-container text-on-error-container rounded p-3 text-sm"
+        role="alert"
+      >
+        <p>The location provider is unavailable right now.</p>
+        <p class="mt-1">Check your connection, then try the search again.</p>
+        <button type="button" class="mt-2" mat-button (click)="retrySearch()">
+          Retry location search
+        </button>
+      </div>
+    }
+
+    @if (selectionState().status === "loading") {
+      <div class="text-on-surface-variant mt-3" aria-live="polite">
+        <mat-progress-bar
+          aria-label="Loading location details"
+          mode="indeterminate"
+        />
+        <p class="mt-2 text-sm">Loading location details…</p>
+      </div>
+    } @else if (selectionState().status === "provider-error") {
+      <div
+        class="bg-error-container text-on-error-container mt-3 rounded p-3 text-sm"
+        role="alert"
+      >
+        <p>The location provider could not load this place.</p>
+        <p class="mt-1">Try again or choose a different search result.</p>
+        <button
+          type="button"
+          class="mt-2"
+          mat-button
+          (click)="retryPlaceDetails()"
+        >
+          Retry location details
+        </button>
+      </div>
+    }
+  </div>
 </mat-dialog-content>
 <mat-dialog-actions>
   <button mat-button mat-dialog-close>Cancel</button>

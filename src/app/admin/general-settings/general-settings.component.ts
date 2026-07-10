@@ -9,7 +9,14 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { form, FormField, submit } from '@angular/forms/signals';
+import {
+  form,
+  FormField,
+  min,
+  schema,
+  submit,
+  validate,
+} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -30,9 +37,8 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import {
+  isIanaTimezone,
   supportedTenantCurrencies,
-  supportedTenantLocales,
-  supportedTenantTimezones,
 } from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -46,7 +52,7 @@ import {
 import {
   GeneralSettingsModel,
   generalSettingsPayloadFromModel,
-  requiresLocaleMoneyRuntimeReload,
+  requiresRuntimeSettingsReload,
 } from './general-settings.payload';
 
 export const generalSettingsSaveDisabled = ({
@@ -66,6 +72,26 @@ export const generalSettingsBrandAssetUploadDisabled = ({
   mutationPending: boolean;
   uploadingBrandAsset: AdminTenantBrandAssetKind | null;
 }): boolean => uploadingBrandAsset !== null || mutationPending;
+
+export const tenantTimezoneValidationError = (timezone: string) =>
+  isIanaTimezone(timezone)
+    ? undefined
+    : {
+        kind: 'ianaTimezone',
+        message: 'Enter a valid IANA timezone name.',
+      };
+
+const generalSettingsFormSchema = schema<GeneralSettingsModel>((settings) => {
+  min(settings.cancellationDeadlineHoursBeforeStart, 0, {
+    message: 'Enter zero or more hours.',
+  });
+  min(settings.transferDeadlineHoursBeforeStart, 0, {
+    message: 'Enter zero or more hours.',
+  });
+  validate(settings.timezone, ({ value }) =>
+    tenantTimezoneValidationError(value()),
+  );
+});
 
 const tenantBrandAssetClientMaxSizeBytes = 5 * 1024 * 1024;
 const tenantBrandAssetClientMimeTypes = {
@@ -121,11 +147,11 @@ export class GeneralSettingsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faUpload = faUpload;
   protected readonly generalSettingsSaveDisabled = generalSettingsSaveDisabled;
-  protected readonly localeOptions = supportedTenantLocales;
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsModel = signal<GeneralSettingsModel>({
     allowOther: false,
     buyEsnCardUrl: '',
+    cancellationDeadlineHoursBeforeStart: 120,
     currency: 'EUR',
     defaultLocation: null,
     emailSenderEmail: '',
@@ -134,12 +160,12 @@ export class GeneralSettingsComponent {
     faviconUrl: '',
     legalNoticeText: '',
     legalNoticeUrl: '',
-    locale: 'en-GB',
     logoUrl: '',
     maxActiveRegistrationsPerUser: 0,
     privacyPolicyText: '',
     privacyPolicyUrl: '',
     receiptCountries: [...DEFAULT_RECEIPT_COUNTRIES],
+    refundFeesOnCancellation: true,
     seoDescription: '',
     seoTitle: '',
     stripeAccountId: '',
@@ -147,8 +173,12 @@ export class GeneralSettingsComponent {
     termsUrl: '',
     theme: 'evorto',
     timezone: 'Europe/Berlin',
+    transferDeadlineHoursBeforeStart: 0,
   });
-  protected readonly settingsForm = form(this.settingsModel);
+  protected readonly settingsForm = form(
+    this.settingsModel,
+    generalSettingsFormSchema,
+  );
   private readonly configService = inject(ConfigService);
   private readonly currentTenant = computed(
     () => this.configService.tenantSignal() ?? this.configService.tenant,
@@ -157,7 +187,6 @@ export class GeneralSettingsComponent {
     const tenant = this.currentTenant();
     return tenant ? buildTenantIdentityRows(tenant) : [];
   });
-  protected readonly timezoneOptions = supportedTenantTimezones;
   private readonly document = inject(DOCUMENT);
 
   private readonly notifications = inject(NotificationService);
@@ -175,6 +204,8 @@ export class GeneralSettingsComponent {
           buyEsnCardUrl:
             currentTenant.discountProviders?.esnCard?.config?.buyEsnCardUrl ??
             '',
+          cancellationDeadlineHoursBeforeStart:
+            currentTenant.cancellationDeadlineHoursBeforeStart,
           currency: currentTenant.currency,
           defaultLocation: currentTenant.defaultLocation ?? null,
           emailSenderEmail: currentTenant.emailSenderEmail ?? '',
@@ -184,13 +215,13 @@ export class GeneralSettingsComponent {
           faviconUrl: currentTenant.faviconUrl ?? '',
           legalNoticeText: currentTenant.legalNoticeText ?? '',
           legalNoticeUrl: currentTenant.legalNoticeUrl ?? '',
-          locale: currentTenant.locale,
           logoUrl: currentTenant.logoUrl ?? '',
           maxActiveRegistrationsPerUser:
             currentTenant.maxActiveRegistrationsPerUser ?? 0,
           privacyPolicyText: currentTenant.privacyPolicyText ?? '',
           privacyPolicyUrl: currentTenant.privacyPolicyUrl ?? '',
           receiptCountries: [...receiptCountrySettings.receiptCountries],
+          refundFeesOnCancellation: currentTenant.refundFeesOnCancellation,
           seoDescription: currentTenant.seoDescription ?? '',
           seoTitle: currentTenant.seoTitle ?? '',
           stripeAccountId: currentTenant.stripeAccountId ?? '',
@@ -198,6 +229,8 @@ export class GeneralSettingsComponent {
           termsUrl: currentTenant.termsUrl ?? '',
           theme: currentTenant.theme,
           timezone: currentTenant.timezone,
+          transferDeadlineHoursBeforeStart:
+            currentTenant.transferDeadlineHoursBeforeStart,
         });
       }
     });
@@ -217,7 +250,7 @@ export class GeneralSettingsComponent {
 
     await submit(this.settingsForm, async (formState) => {
       const settings = formState().value();
-      const reloadRequired = requiresLocaleMoneyRuntimeReload(
+      const reloadRequired = requiresRuntimeSettingsReload(
         this.configService.tenant,
         settings,
       );
@@ -237,7 +270,7 @@ export class GeneralSettingsComponent {
         );
         this.notifications.showSuccess(
           reloadRequired
-            ? 'Tenant settings updated. Reloading to apply locale and money settings.'
+            ? 'Tenant settings updated. Reloading to apply currency and timezone settings.'
             : 'Tenant settings updated',
         );
         if (reloadRequired) {

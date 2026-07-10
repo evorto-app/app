@@ -18,7 +18,13 @@ describe('rpc-request-context.middleware', () => {
       [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
         'users:viewAll',
       ]),
+      [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]: encodeRpcContextHeaderJson({
+        actorEmail: 'platform@example.org',
+        actorId: 'auth0|platform-admin',
+        kind: 'platformAdministrator',
+      }),
       [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
+        canonicalRootUrl: 'https://example.org',
         currency: 'EUR',
         defaultLocation: null,
         discountProviders: null,
@@ -53,6 +59,12 @@ describe('rpc-request-context.middleware', () => {
     expect(decoded.tenant.id).toBe('tenant-1');
     expect(decoded.user?.id).toBe('user-1');
     expect(decoded.permissions).toEqual(['users:viewAll']);
+    expect(decoded.platformAuthority).toEqual(
+      expect.objectContaining({
+        actorId: 'auth0|platform-admin',
+        kind: 'platformAdministrator',
+      }),
+    );
     expect(decoded.authData.sub).toBe('auth0|abc');
   });
 
@@ -66,7 +78,10 @@ describe('rpc-request-context.middleware', () => {
       [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
         'users:viewAll',
       ]),
+      [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]:
+        encodeRpcContextHeaderJson(null),
       [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
+        canonicalRootUrl: 'https://example.org',
         currency: 'EUR',
         domain: 'example.org',
         id: 'tenant-1',

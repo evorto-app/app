@@ -1,15 +1,24 @@
-import type { Tenant } from '../../../types/custom/tenant';
+import {
+  type Tenant,
+  TENANT_FORMATTING_LOCALE,
+} from '../../../types/custom/tenant';
 
 export type TenantIdentity = Pick<
   Tenant,
-  'currency' | 'domain' | 'locale' | 'name' | 'stripeAccountId' | 'timezone'
+  | 'canonicalRootUrl'
+  | 'currency'
+  | 'domain'
+  | 'name'
+  | 'stripeAccountId'
+  | 'timezone'
 >;
 
 export const tenantIdentityRows = (tenant: TenantIdentity) => [
   { label: 'Tenant name', value: tenant.name },
   { label: 'Primary domain', value: tenant.domain },
+  { label: 'Canonical root URL', value: tenant.canonicalRootUrl },
   { label: 'Currency', value: tenant.currency },
-  { label: 'Locale', value: tenant.locale },
+  { label: 'Formatting locale', value: TENANT_FORMATTING_LOCALE },
   { label: 'Timezone', value: tenant.timezone },
   {
     label: 'Stripe account',

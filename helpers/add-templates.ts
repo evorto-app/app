@@ -359,8 +359,10 @@ export const addTemplates = async (
     return [
       {
         addonId: addon.id,
-        quantity: 1,
+        includedQuantity: 0,
+        optionalPurchaseQuantity: 1,
         registrationOptionId,
+        templateId: addon.templateId,
       } satisfies InferInsertModel<
         typeof schema.addonToTemplateRegistrationOptions
       >,

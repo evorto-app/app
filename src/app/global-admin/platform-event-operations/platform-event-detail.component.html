@@ -1,0 +1,876 @@
+<app-platform-tenant-page-header
+  title="Event administration"
+  [tenantId]="tenantId()"
+/>
+
+@if (eventQuery.isPending()) {
+  <p role="status">Loading event...</p>
+} @else if (eventQuery.isError()) {
+  <section
+    class="bg-error-container text-on-error-container grid gap-3 p-4"
+    role="alert"
+  >
+    <p>{{ errorMessage(eventQuery.error()) }}</p>
+    <button mat-stroked-button type="button" (click)="eventQuery.refetch()">
+      Try again
+    </button>
+  </section>
+} @else if (eventQuery.isSuccess()) {
+  @let event = eventQuery.data();
+  <div class="grid gap-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
+    <main class="min-w-0">
+      <div class="mb-5 flex flex-wrap items-center gap-2">
+        <h2 class="headline-small">{{ event.title }}</h2>
+        <span class="label-small bg-surface-container rounded px-2 py-1">
+          {{ event.status }}
+        </span>
+        @if (event.unlisted) {
+          <span class="label-small text-on-surface-variant">Unlisted</span>
+        }
+      </div>
+
+      <dl class="mb-6 grid gap-3 sm:grid-cols-2">
+        <div>
+          <dt class="label-medium text-on-surface-variant">Attributed owner</dt>
+          <dd class="body-medium">
+            {{ event.creator.firstName }} {{ event.creator.lastName }} ·
+            {{ event.creator.email }}
+          </dd>
+        </div>
+        <div>
+          <dt class="label-medium text-on-surface-variant">Registrations</dt>
+          <dd class="body-medium">{{ event.registrationCount }}</dd>
+        </div>
+        <div>
+          <dt class="label-medium text-on-surface-variant">Starts</dt>
+          <dd class="body-medium">{{ event.start | date: "medium" }}</dd>
+        </div>
+        <div>
+          <dt class="label-medium text-on-surface-variant">Ends</dt>
+          <dd class="body-medium">{{ event.end | date: "medium" }}</dd>
+        </div>
+      </dl>
+
+      @if (event.statusComment) {
+        <section
+          class="bg-tertiary-container text-on-tertiary-container mb-6 p-4"
+        >
+          <h3 class="title-small">Review feedback</h3>
+          <p class="body-medium mt-1">{{ event.statusComment }}</p>
+        </section>
+      }
+
+      <form class="grid gap-4" (submit)="save($event)">
+        <h3 class="title-medium">Draft event editor</h3>
+        <p class="body-small text-on-surface-variant">
+          Edit core details and the complete registration graph for the target
+          tenant. Existing option identities and live registration counters are
+          preserved.
+        </p>
+        @if (unsupportedRegistrationOptions().length > 0) {
+          <section
+            class="bg-error-container text-on-error-container grid gap-2 p-4"
+            role="alert"
+          >
+            <h4 class="title-small">Registration-mode migration required</h4>
+            <p class="body-medium">
+              Random allocation is not supported. Select first-come-first-served
+              or manual approval for every legacy option before saving this
+              event.
+            </p>
+            <ul class="body-small list-disc pl-5">
+              @for (
+                option of unsupportedRegistrationOptions();
+                track option.id
+              ) {
+                <li>{{ option.title }} · {{ option.id }}</li>
+              }
+            </ul>
+          </section>
+        }
+        <mat-form-field>
+          <mat-label>Title</mat-label>
+          <input matInput [formField]="editForm.title" />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Description</mat-label>
+          <textarea
+            matInput
+            rows="6"
+            [formField]="editForm.description"
+          ></textarea>
+        </mat-form-field>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <mat-form-field>
+            <mat-label>Start</mat-label>
+            <input
+              matInput
+              type="datetime-local"
+              [formField]="editForm.start"
+            />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>End</mat-label>
+            <input matInput type="datetime-local" [formField]="editForm.end" />
+          </mat-form-field>
+        </div>
+
+        @let graph = graphModel();
+        <mat-accordion class="grid gap-3" multi>
+          <mat-expansion-panel>
+            <mat-expansion-panel-header>
+              <mat-panel-title>Registration options</mat-panel-title>
+              <mat-panel-description>
+                {{ graph.registrationOptions.length }} options
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <div class="grid gap-6">
+              @for (
+                option of graph.registrationOptions;
+                track option.id;
+                let optionIndex = $index
+              ) {
+                <section
+                  class="border-outline-variant grid gap-4 border-l-2 pl-4"
+                >
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h4 class="title-small grow">{{ option.title }}</h4>
+                    <span class="body-small text-on-surface-variant">
+                      {{ option.confirmedSpots }} confirmed ·
+                      {{ option.checkedInSpots }} checked in
+                    </span>
+                  </div>
+
+                  <div class="grid gap-4 md:grid-cols-3">
+                    <mat-form-field>
+                      <mat-label>Title</mat-label>
+                      <input
+                        matInput
+                        [value]="option.title"
+                        (input)="setOptionText(optionIndex, 'title', $event)"
+                      />
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Registration mode</mat-label>
+                      <mat-select
+                        [value]="option.registrationMode"
+                        (selectionChange)="setOptionMode(optionIndex, $event)"
+                      >
+                        <mat-option value="fcfs"
+                          >First come, first served</mat-option
+                        >
+                        <mat-option value="application"
+                          >Manual approval</mat-option
+                        >
+                        @if (option.registrationMode === "random") {
+                          <mat-option disabled value="random"
+                            >Unsupported legacy random — replacement
+                            required</mat-option
+                          >
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Capacity</mat-label>
+                      <input
+                        matInput
+                        min="0"
+                        type="number"
+                        [value]="option.spots"
+                        (input)="setOptionNumber(optionIndex, 'spots', $event)"
+                      />
+                    </mat-form-field>
+                  </div>
+
+                  <div class="grid gap-4 sm:grid-cols-2">
+                    <mat-form-field>
+                      <mat-label>Registration opens</mat-label>
+                      <input
+                        matInput
+                        type="datetime-local"
+                        [value]="localDateTime(option.openRegistrationTime)"
+                        (input)="
+                          setOptionDate(
+                            optionIndex,
+                            'openRegistrationTime',
+                            $event
+                          )
+                        "
+                      />
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Registration closes</mat-label>
+                      <input
+                        matInput
+                        type="datetime-local"
+                        [value]="localDateTime(option.closeRegistrationTime)"
+                        (input)="
+                          setOptionDate(
+                            optionIndex,
+                            'closeRegistrationTime',
+                            $event
+                          )
+                        "
+                      />
+                    </mat-form-field>
+                  </div>
+
+                  <div class="grid gap-4 sm:grid-cols-2">
+                    <mat-form-field>
+                      <mat-label>Description</mat-label>
+                      <textarea
+                        matInput
+                        rows="3"
+                        [value]="option.description ?? ''"
+                        (input)="
+                          setOptionText(optionIndex, 'description', $event)
+                        "
+                      ></textarea>
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Confirmed-user description</mat-label>
+                      <textarea
+                        matInput
+                        rows="3"
+                        [value]="option.registeredDescription ?? ''"
+                        (input)="
+                          setOptionText(
+                            optionIndex,
+                            'registeredDescription',
+                            $event
+                          )
+                        "
+                      ></textarea>
+                    </mat-form-field>
+                  </div>
+
+                  <div class="grid gap-4 sm:grid-cols-3">
+                    <mat-form-field>
+                      <mat-label>Participant cancellation deadline</mat-label>
+                      <input
+                        matInput
+                        min="0"
+                        placeholder="Tenant default"
+                        type="number"
+                        [value]="
+                          option.cancellationDeadlineHoursBeforeStart ?? ''
+                        "
+                        (input)="
+                          setOptionNumber(
+                            optionIndex,
+                            'cancellationDeadlineHoursBeforeStart',
+                            $event
+                          )
+                        "
+                      />
+                      <mat-hint>Hours before start; blank inherits</mat-hint>
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Transfer deadline</mat-label>
+                      <input
+                        matInput
+                        min="0"
+                        placeholder="Tenant default"
+                        type="number"
+                        [value]="option.transferDeadlineHoursBeforeStart ?? ''"
+                        (input)="
+                          setOptionNumber(
+                            optionIndex,
+                            'transferDeadlineHoursBeforeStart',
+                            $event
+                          )
+                        "
+                      />
+                      <mat-hint>Hours before start; blank inherits</mat-hint>
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Cancellation fee policy</mat-label>
+                      <mat-select
+                        [value]="
+                          option.refundFeesOnCancellation === null
+                            ? 'inherit'
+                            : option.refundFeesOnCancellation
+                              ? 'include'
+                              : 'exclude'
+                        "
+                        (selectionChange)="
+                          setOptionRefundPolicy(optionIndex, $event)
+                        "
+                      >
+                        <mat-option value="inherit">Tenant default</mat-option>
+                        <mat-option value="include">Include fees</mat-option>
+                        <mat-option value="exclude">Exclude fees</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+                  </div>
+
+                  <div class="grid gap-2 sm:grid-cols-2">
+                    <mat-checkbox
+                      [checked]="option.organizingRegistration"
+                      (change)="
+                        setOptionBoolean(
+                          optionIndex,
+                          'organizingRegistration',
+                          $event.checked
+                        )
+                      "
+                    >
+                      Organizing registration
+                    </mat-checkbox>
+                    <mat-checkbox
+                      [checked]="option.isPaid"
+                      (change)="
+                        setOptionBoolean(optionIndex, 'isPaid', $event.checked)
+                      "
+                    >
+                      Paid registration
+                    </mat-checkbox>
+                  </div>
+
+                  @if (option.isPaid) {
+                    <div class="grid gap-4 sm:grid-cols-3">
+                      <mat-form-field>
+                        <mat-label>Price in minor units</mat-label>
+                        <input
+                          matInput
+                          min="0"
+                          type="number"
+                          [value]="option.price"
+                          (input)="
+                            setOptionNumber(optionIndex, 'price', $event)
+                          "
+                        />
+                      </mat-form-field>
+                      <mat-form-field>
+                        <mat-label>Inclusive tax rate</mat-label>
+                        <mat-select
+                          [value]="option.stripeTaxRateId"
+                          (selectionChange)="
+                            setOptionTaxRate(optionIndex, $event)
+                          "
+                        >
+                          <mat-option [value]="null">None</mat-option>
+                          @for (
+                            rate of formOptionsQuery.data()?.taxRates ?? [];
+                            track rate.stripeTaxRateId
+                          ) {
+                            <mat-option [value]="rate.stripeTaxRateId">
+                              {{ rate.displayName || rate.stripeTaxRateId }} ·
+                              {{ rate.percentage ?? "?" }}%
+                            </mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                      @if (formOptionsQuery.data()?.esnCardEnabled) {
+                        <mat-form-field>
+                          <mat-label>ESNcard price</mat-label>
+                          <input
+                            matInput
+                            min="0"
+                            placeholder="Disabled"
+                            type="number"
+                            [value]="option.esnCardDiscountedPrice ?? ''"
+                            (input)="
+                              setOptionNumber(
+                                optionIndex,
+                                'esnCardDiscountedPrice',
+                                $event
+                              )
+                            "
+                          />
+                        </mat-form-field>
+                      }
+                    </div>
+                  }
+
+                  <section>
+                    <h5 class="label-large">Eligible tenant roles</h5>
+                    <mat-form-field class="mt-2 w-full">
+                      <mat-label>Role IDs</mat-label>
+                      <input
+                        matInput
+                        [value]="option.roleIds.join(', ')"
+                        (input)="setOptionRoleIds(optionIndex, $event)"
+                      />
+                      <mat-hint
+                        >Comma-separated; blank allows all roles</mat-hint
+                      >
+                    </mat-form-field>
+                    @if (formOptionsQuery.isSuccess()) {
+                      <div class="grid gap-1 sm:grid-cols-2">
+                        @for (
+                          role of formOptionsQuery.data().roles;
+                          track role.id
+                        ) {
+                          <mat-checkbox
+                            [checked]="option.roleIds.includes(role.id)"
+                            (change)="
+                              setOptionRole(
+                                optionIndex,
+                                role.id,
+                                $event.checked
+                              )
+                            "
+                          >
+                            {{ role.name }}
+                          </mat-checkbox>
+                        }
+                      </div>
+                    }
+                  </section>
+                </section>
+              }
+            </div>
+          </mat-expansion-panel>
+
+          <mat-expansion-panel>
+            <mat-expansion-panel-header>
+              <mat-panel-title>Add-ons</mat-panel-title>
+              <mat-panel-description>
+                {{ graph.addOns.length }} add-ons
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <div class="grid gap-6">
+              @for (
+                addOn of graph.addOns;
+                track addOn.id ?? $index;
+                let addOnIndex = $index
+              ) {
+                <section
+                  class="border-outline-variant grid gap-4 border-l-2 pl-4"
+                >
+                  <div class="flex items-center gap-2">
+                    <h4 class="title-small grow">{{ addOn.title }}</h4>
+                    <button
+                      mat-button
+                      type="button"
+                      (click)="removeAddOn(addOnIndex)"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <div class="grid gap-4 sm:grid-cols-2">
+                    <mat-form-field>
+                      <mat-label>Title</mat-label>
+                      <input
+                        matInput
+                        [value]="addOn.title"
+                        (input)="setAddOnText(addOnIndex, 'title', $event)"
+                      />
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Description</mat-label>
+                      <input
+                        matInput
+                        [value]="addOn.description ?? ''"
+                        (input)="
+                          setAddOnText(addOnIndex, 'description', $event)
+                        "
+                      />
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Total available quantity</mat-label>
+                      <input
+                        matInput
+                        min="0"
+                        type="number"
+                        [value]="addOn.totalAvailableQuantity"
+                        (input)="
+                          setAddOnNumber(
+                            addOnIndex,
+                            'totalAvailableQuantity',
+                            $event
+                          )
+                        "
+                      />
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Maximum per attendee</mat-label>
+                      <input
+                        matInput
+                        min="1"
+                        type="number"
+                        [value]="addOn.maxQuantityPerUser"
+                        (input)="
+                          setAddOnNumber(
+                            addOnIndex,
+                            'maxQuantityPerUser',
+                            $event
+                          )
+                        "
+                      />
+                    </mat-form-field>
+                  </div>
+
+                  <div class="grid gap-1 sm:grid-cols-2">
+                    <mat-checkbox
+                      [checked]="addOn.allowMultiple"
+                      (change)="
+                        setAddOnBoolean(
+                          addOnIndex,
+                          'allowMultiple',
+                          $event.checked
+                        )
+                      "
+                    >
+                      Multiple selections
+                    </mat-checkbox>
+                    <mat-checkbox
+                      [checked]="addOn.allowPurchaseDuringRegistration"
+                      (change)="
+                        setAddOnBoolean(
+                          addOnIndex,
+                          'allowPurchaseDuringRegistration',
+                          $event.checked
+                        )
+                      "
+                    >
+                      Available during registration
+                    </mat-checkbox>
+                    <mat-checkbox
+                      [checked]="addOn.allowPurchaseBeforeEvent"
+                      (change)="
+                        setAddOnBoolean(
+                          addOnIndex,
+                          'allowPurchaseBeforeEvent',
+                          $event.checked
+                        )
+                      "
+                    >
+                      Available before event
+                    </mat-checkbox>
+                    <mat-checkbox
+                      [checked]="addOn.allowPurchaseDuringEvent"
+                      (change)="
+                        setAddOnBoolean(
+                          addOnIndex,
+                          'allowPurchaseDuringEvent',
+                          $event.checked
+                        )
+                      "
+                    >
+                      Available during event
+                    </mat-checkbox>
+                    <mat-checkbox
+                      [checked]="addOn.isPaid"
+                      (change)="
+                        setAddOnBoolean(addOnIndex, 'isPaid', $event.checked)
+                      "
+                    >
+                      Paid add-on
+                    </mat-checkbox>
+                  </div>
+
+                  @if (addOn.isPaid) {
+                    <div class="grid gap-4 sm:grid-cols-2">
+                      <mat-form-field>
+                        <mat-label>Price in minor units</mat-label>
+                        <input
+                          matInput
+                          min="0"
+                          type="number"
+                          [value]="addOn.price"
+                          (input)="setAddOnNumber(addOnIndex, 'price', $event)"
+                        />
+                      </mat-form-field>
+                      <mat-form-field>
+                        <mat-label>Inclusive tax rate</mat-label>
+                        <mat-select
+                          [value]="addOn.stripeTaxRateId"
+                          (selectionChange)="
+                            setAddOnTaxRate(addOnIndex, $event)
+                          "
+                        >
+                          <mat-option [value]="null">None</mat-option>
+                          @for (
+                            rate of formOptionsQuery.data()?.taxRates ?? [];
+                            track rate.stripeTaxRateId
+                          ) {
+                            <mat-option [value]="rate.stripeTaxRateId">
+                              {{ rate.displayName || rate.stripeTaxRateId }} ·
+                              {{ rate.percentage ?? "?" }}%
+                            </mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                    </div>
+                  }
+
+                  <section>
+                    <h5 class="label-large">Registration-option mapping</h5>
+                    <div class="mt-2 grid gap-3 sm:grid-cols-2">
+                      @for (
+                        option of graph.registrationOptions;
+                        track option.id
+                      ) {
+                        @let quantity = addonQuantity(addOn, option.id);
+                        <div
+                          class="grid grid-cols-[minmax(0,1fr)_6rem_6rem] gap-2"
+                        >
+                          <mat-checkbox
+                            [checked]="quantity !== null"
+                            (change)="
+                              setAddOnOptionEnabled(
+                                addOnIndex,
+                                option.id,
+                                $event.checked
+                              )
+                            "
+                          >
+                            {{ option.title }}
+                          </mat-checkbox>
+                          @if (quantity !== null) {
+                            <mat-form-field subscriptSizing="dynamic">
+                              <mat-label>Included</mat-label>
+                              <input
+                                matInput
+                                min="1"
+                                type="number"
+                                [value]="quantity"
+                                (input)="
+                                  setAddOnOptionQuantity(
+                                    addOnIndex,
+                                    option.id,
+                                    $event
+                                  )
+                                "
+                              />
+                            </mat-form-field>
+                            <mat-form-field subscriptSizing="dynamic">
+                              <mat-label>Optional</mat-label>
+                              <input
+                                matInput
+                                min="0"
+                                type="number"
+                                [value]="
+                                  addonOptionalPurchaseQuantity(
+                                    addOn,
+                                    option.id
+                                  )
+                                "
+                                (input)="
+                                  setAddOnOptionOptionalQuantity(
+                                    addOnIndex,
+                                    option.id,
+                                    $event
+                                  )
+                                "
+                              />
+                            </mat-form-field>
+                          }
+                        </div>
+                      }
+                    </div>
+                  </section>
+                </section>
+              }
+
+              <button mat-stroked-button type="button" (click)="addAddOn()">
+                Add add-on
+              </button>
+            </div>
+          </mat-expansion-panel>
+
+          <mat-expansion-panel>
+            <mat-expansion-panel-header>
+              <mat-panel-title>Registration questions</mat-panel-title>
+              <mat-panel-description>
+                {{ graph.questions.length }} questions
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <div class="grid gap-6">
+              @for (
+                question of graph.questions;
+                track question.id ?? $index;
+                let questionIndex = $index
+              ) {
+                <section
+                  class="border-outline-variant grid gap-4 border-l-2 pl-4"
+                >
+                  <div class="flex items-center gap-2">
+                    <h4 class="title-small grow">{{ question.title }}</h4>
+                    <button
+                      mat-button
+                      type="button"
+                      (click)="removeQuestion(questionIndex)"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <div class="grid gap-4 sm:grid-cols-2">
+                    <mat-form-field>
+                      <mat-label>Title</mat-label>
+                      <input
+                        matInput
+                        [value]="question.title"
+                        (input)="
+                          setQuestionText(questionIndex, 'title', $event)
+                        "
+                      />
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Registration option</mat-label>
+                      <mat-select
+                        [value]="question.registrationOptionId"
+                        (selectionChange)="
+                          setQuestionOption(questionIndex, $event)
+                        "
+                      >
+                        @for (
+                          option of graph.registrationOptions;
+                          track option.id
+                        ) {
+                          <mat-option [value]="option.id">
+                            {{ option.title }}
+                          </mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Description</mat-label>
+                      <textarea
+                        matInput
+                        rows="3"
+                        [value]="question.description ?? ''"
+                        (input)="
+                          setQuestionText(questionIndex, 'description', $event)
+                        "
+                      ></textarea>
+                    </mat-form-field>
+                    <mat-form-field>
+                      <mat-label>Sort order</mat-label>
+                      <input
+                        matInput
+                        min="0"
+                        type="number"
+                        [value]="question.sortOrder"
+                        (input)="setQuestionNumber(questionIndex, $event)"
+                      />
+                    </mat-form-field>
+                  </div>
+                  <mat-checkbox
+                    [checked]="question.required"
+                    (change)="setQuestionBoolean(questionIndex, $event.checked)"
+                  >
+                    Required answer
+                  </mat-checkbox>
+                </section>
+              }
+
+              <button mat-stroked-button type="button" (click)="addQuestion()">
+                Add question
+              </button>
+            </div>
+          </mat-expansion-panel>
+        </mat-accordion>
+
+        <mat-form-field>
+          <mat-label>Update reason</mat-label>
+          <textarea matInput rows="3" [formField]="editForm.reason"></textarea>
+          @for (error of editForm.reason().errors(); track error) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+        <div class="flex justify-end">
+          <button
+            mat-flat-button
+            type="submit"
+            [disabled]="
+              event.status !== 'DRAFT' ||
+              editForm().invalid() ||
+              unsupportedRegistrationOptions().length > 0 ||
+              mutationPending()
+            "
+          >
+            Save draft details
+          </button>
+        </div>
+      </form>
+    </main>
+
+    <aside class="border-outline-variant h-fit border-l pl-5">
+      <h3 class="title-medium">Lifecycle and listing</h3>
+      <p class="body-small text-on-surface-variant mt-1">
+        Each action below requires a new audit reason.
+      </p>
+      <mat-form-field class="mt-4 w-full">
+        <mat-label>Action reason</mat-label>
+        <textarea
+          matInput
+          rows="3"
+          [value]="actionReason()"
+          (input)="setActionReason($event)"
+        ></textarea>
+      </mat-form-field>
+
+      @if (event.status === "DRAFT") {
+        <button
+          class="w-full"
+          mat-stroked-button
+          type="button"
+          [disabled]="!actionReason().trim() || mutationPending()"
+          (click)="submitForReview()"
+        >
+          Submit for review
+        </button>
+      }
+
+      @if (event.status === "PENDING_REVIEW") {
+        <mat-form-field class="mt-3 w-full">
+          <mat-label>Review feedback</mat-label>
+          <textarea
+            matInput
+            rows="3"
+            [value]="reviewFeedback()"
+            (input)="setReviewFeedback($event)"
+          ></textarea>
+          <mat-hint>Required when returning to draft.</mat-hint>
+        </mat-form-field>
+        <div class="grid gap-2">
+          <button
+            mat-flat-button
+            type="button"
+            [disabled]="!actionReason().trim() || mutationPending()"
+            (click)="approve()"
+          >
+            Approve event
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="
+              !actionReason().trim() ||
+              !reviewFeedback().trim() ||
+              mutationPending()
+            "
+            (click)="returnToDraft()"
+          >
+            Return to draft
+          </button>
+        </div>
+      }
+
+      <button
+        class="mt-3 w-full"
+        mat-button
+        type="button"
+        [disabled]="!actionReason().trim() || mutationPending()"
+        (click)="changeListing(!event.unlisted)"
+      >
+        {{ event.unlisted ? "Make listed" : "Make unlisted" }}
+      </button>
+
+      <a
+        class="mt-3 w-full"
+        mat-button
+        [routerLink]="['/global-admin/tenants', tenantId(), 'scanner']"
+        [queryParams]="{ eventId: event.id }"
+      >
+        Inspect registrations
+      </a>
+    </aside>
+  </div>
+}

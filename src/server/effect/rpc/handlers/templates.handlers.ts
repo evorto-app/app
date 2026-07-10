@@ -1,4 +1,8 @@
-import { TemplateSimpleNotFoundError } from '@shared/rpc-contracts/app-rpcs/templates.errors';
+import {
+  TemplateSimpleBadRequestError,
+  TemplateSimpleInternalError,
+  TemplateSimpleNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/templates.errors';
 import { inArray } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -10,6 +14,7 @@ import {
   eventTemplates,
   templateRegistrationOptionDiscounts,
 } from '../../../../db/schema';
+import { lockTenantCurrencyForFinancialConfiguration } from '../../../tenant-currency-integrity';
 import { RpcAccess } from './shared/rpc-access.service';
 import { SimpleTemplateService } from './templates/simple-template.service';
 
@@ -17,6 +22,16 @@ const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
+
+const isExpectedTemplateWriteError = (
+  error: unknown,
+): error is
+  | TemplateSimpleBadRequestError
+  | TemplateSimpleInternalError
+  | TemplateSimpleNotFoundError =>
+  error instanceof TemplateSimpleBadRequestError ||
+  error instanceof TemplateSimpleInternalError ||
+  error instanceof TemplateSimpleNotFoundError;
 
 export const normalizeTemplateFindOneRecord = (
   template: {
@@ -49,6 +64,7 @@ export const normalizeTemplateFindOneRecord = (
       title: string;
     }[];
     registrationOptions: readonly {
+      cancellationDeadlineHoursBeforeStart: null | number;
       closeRegistrationOffset: number;
       description: null | string;
       id: string;
@@ -56,12 +72,14 @@ export const normalizeTemplateFindOneRecord = (
       openRegistrationOffset: number;
       organizingRegistration: boolean;
       price: number;
+      refundFeesOnCancellation: boolean | null;
       registeredDescription: null | string;
       registrationMode: 'application' | 'fcfs' | 'random';
       roleIds: string[];
       spots: number;
       stripeTaxRateId: null | string;
       title: string;
+      transferDeadlineHoursBeforeStart: null | number;
     }[];
     title: string;
   },
@@ -70,7 +88,8 @@ export const normalizeTemplateFindOneRecord = (
   addonRegistrationOptionsByAddonId: ReadonlyMap<
     string,
     {
-      quantity: number;
+      includedQuantity: number;
+      optionalPurchaseQuantity: number;
       registrationOptionId: string;
     }[]
   >,
@@ -86,7 +105,8 @@ export const normalizeTemplateFindOneRecord = (
     maxQuantityPerUser: number;
     price: number;
     registrationOptions: {
-      quantity: number;
+      includedQuantity: number;
+      optionalPurchaseQuantity: number;
       registrationOptionId: string;
     }[];
     stripeTaxRateId: null | string;
@@ -108,6 +128,7 @@ export const normalizeTemplateFindOneRecord = (
     title: string;
   }[];
   registrationOptions: {
+    cancellationDeadlineHoursBeforeStart: null | number;
     closeRegistrationOffset: number;
     description: null | string;
     esnCardDiscountedPrice: null | number;
@@ -116,6 +137,7 @@ export const normalizeTemplateFindOneRecord = (
     openRegistrationOffset: number;
     organizingRegistration: boolean;
     price: number;
+    refundFeesOnCancellation: boolean | null;
     registeredDescription: null | string;
     registrationMode: 'application' | 'fcfs' | 'random';
     roleIds: string[];
@@ -123,6 +145,7 @@ export const normalizeTemplateFindOneRecord = (
     spots: number;
     stripeTaxRateId: null | string;
     title: string;
+    transferDeadlineHoursBeforeStart: null | number;
   }[];
   title: string;
 } => ({
@@ -156,6 +179,8 @@ export const normalizeTemplateFindOneRecord = (
     title: question.title,
   })),
   registrationOptions: template.registrationOptions.map((option) => ({
+    cancellationDeadlineHoursBeforeStart:
+      option.cancellationDeadlineHoursBeforeStart,
     closeRegistrationOffset: option.closeRegistrationOffset,
     description: option.description ?? null,
     esnCardDiscountedPrice: esnDiscountByOptionId.get(option.id) ?? null,
@@ -164,6 +189,7 @@ export const normalizeTemplateFindOneRecord = (
     openRegistrationOffset: option.openRegistrationOffset,
     organizingRegistration: option.organizingRegistration,
     price: option.price,
+    refundFeesOnCancellation: option.refundFeesOnCancellation,
     registeredDescription: option.registeredDescription ?? null,
     registrationMode: option.registrationMode,
     roleIds: option.roleIds,
@@ -174,6 +200,7 @@ export const normalizeTemplateFindOneRecord = (
     spots: option.spots,
     stripeTaxRateId: option.stripeTaxRateId ?? null,
     title: option.title,
+    transferDeadlineHoursBeforeStart: option.transferDeadlineHoursBeforeStart,
   })),
   title: template.title,
 });
@@ -184,11 +211,42 @@ export const templateHandlers = {
       yield* RpcAccess.ensurePermission('templates:create');
       const { tenant } = yield* RpcAccess.current();
 
-      return yield* SimpleTemplateService.createSimpleTemplate({
-        esnCardEnabled: tenant.discountProviders?.esnCard?.status === 'enabled',
-        input,
-        tenantId: tenant.id,
-      });
+      return yield* Database.use((database) =>
+        database
+          .transaction((transaction) => {
+            const transactionalDatabase = Object.assign(transaction, {
+              $client: database.$client,
+            });
+            return Effect.gen(function* () {
+              yield* lockTenantCurrencyForFinancialConfiguration(
+                transaction,
+                tenant.id,
+                tenant.currency,
+              ).pipe(
+                Effect.catchTag('RpcBadRequestError', (error) =>
+                  Effect.fail(
+                    new TemplateSimpleBadRequestError({
+                      message: `${error.message}. ${error.reason ?? ''}`.trim(),
+                    }),
+                  ),
+                ),
+              );
+              return yield* SimpleTemplateService.createSimpleTemplate({
+                esnCardEnabled:
+                  tenant.discountProviders?.esnCard?.status === 'enabled',
+                input,
+                tenantId: tenant.id,
+              }).pipe(Effect.provideService(Database, transactionalDatabase));
+            });
+          })
+          .pipe(
+            Effect.catch((error) =>
+              isExpectedTemplateWriteError(error)
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
+      );
     }),
   'templates.findOne': ({ id }, _options) =>
     Effect.gen(function* () {
@@ -223,6 +281,7 @@ export const templateHandlers = {
             },
             registrationOptions: {
               columns: {
+                cancellationDeadlineHoursBeforeStart: true,
                 closeRegistrationOffset: true,
                 description: true,
                 id: true,
@@ -230,12 +289,14 @@ export const templateHandlers = {
                 openRegistrationOffset: true,
                 organizingRegistration: true,
                 price: true,
+                refundFeesOnCancellation: true,
                 registeredDescription: true,
                 registrationMode: true,
                 roleIds: true,
                 spots: true,
                 stripeTaxRateId: true,
                 title: true,
+                transferDeadlineHoursBeforeStart: true,
               },
             },
           },
@@ -329,7 +390,10 @@ export const templateHandlers = {
               database
                 .select({
                   addonId: addonToTemplateRegistrationOptions.addonId,
-                  quantity: addonToTemplateRegistrationOptions.quantity,
+                  includedQuantity:
+                    addonToTemplateRegistrationOptions.includedQuantity,
+                  optionalPurchaseQuantity:
+                    addonToTemplateRegistrationOptions.optionalPurchaseQuantity,
                   registrationOptionId:
                     addonToTemplateRegistrationOptions.registrationOptionId,
                 })
@@ -342,7 +406,8 @@ export const templateHandlers = {
       const addonRegistrationOptionsByAddonId = new Map<
         string,
         {
-          quantity: number;
+          includedQuantity: number;
+          optionalPurchaseQuantity: number;
           registrationOptionId: string;
         }[]
       >();
@@ -352,7 +417,9 @@ export const templateHandlers = {
             addonRegistrationOption.addonId,
           ) ?? [];
         existing.push({
-          quantity: addonRegistrationOption.quantity,
+          includedQuantity: addonRegistrationOption.includedQuantity,
+          optionalPurchaseQuantity:
+            addonRegistrationOption.optionalPurchaseQuantity,
           registrationOptionId: addonRegistrationOption.registrationOptionId,
         });
         addonRegistrationOptionsByAddonId.set(
@@ -410,10 +477,26 @@ export const templateHandlers = {
       yield* RpcAccess.ensurePermission('templates:editAll');
       const { tenant } = yield* RpcAccess.current();
 
-      return yield* SimpleTemplateService.updateSimpleTemplate({
-        esnCardEnabled: tenant.discountProviders?.esnCard?.status === 'enabled',
-        input,
-        tenantId: tenant.id,
-      });
+      return yield* Database.use((database) =>
+        database
+          .transaction((transaction) => {
+            const transactionalDatabase = Object.assign(transaction, {
+              $client: database.$client,
+            });
+            return SimpleTemplateService.updateSimpleTemplate({
+              esnCardEnabled:
+                tenant.discountProviders?.esnCard?.status === 'enabled',
+              input,
+              tenantId: tenant.id,
+            }).pipe(Effect.provideService(Database, transactionalDatabase));
+          })
+          .pipe(
+            Effect.catch((error) =>
+              isExpectedTemplateWriteError(error)
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
+      );
     }),
 } satisfies Partial<AppRpcHandlers>;

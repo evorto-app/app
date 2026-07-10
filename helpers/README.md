@@ -88,8 +88,13 @@ container cannot get stuck on non-TTY confirmation prompts from older local
 branch state. Neon Local still receives `DELETE_BRANCH=true` so normal
 `docker compose down` deletes the branch, and `db-expiration` immediately sets
 a short Neon branch expiration as a fallback for interrupted local or CI
-shutdowns. Playwright `webServer` uses `bun run docker:webserver`, which starts
-the foreground Compose stack without forcing `docker compose down` first.
+shutdowns. Both services share the project-scoped `neon-local-metadata` Docker
+volume by default. Keeping that shutdown-critical state off a macOS host bind
+mount avoids Docker Desktop file-sharing stalls while Neon Local reads the
+metadata during branch cleanup. CI or another controlled environment can set
+`NEON_LOCAL_METADATA_DIR` to an absolute host directory when a bind mount is
+intentional. Playwright `webServer` uses `bun run docker:webserver`, which
+starts the foreground Compose stack without forcing `docker compose down` first.
 Playwright gives a stack it started a 60-second `SIGTERM` shutdown window so
 Compose can stop its containers. When Playwright reuses a stack that was
 already serving the app, that stack remains user-owned and keeps running. Use
@@ -104,10 +109,12 @@ Inside Docker, keep `BASE_URL` browser-facing so Auth0 redirects point at the
 host-mapped app URL, and keep `SSR_RPC_ORIGIN` pointed at the app container's
 internal listener (`http://localhost:4200`). Server-side rendering uses
 `SSR_RPC_ORIGIN` for in-container RPC calls; browser-side RPC calls still use the
-normal `/rpc` relative path. The generated runtime environment also supplies the
-shared deterministic `E2E_NOW_ISO` and `E2E_SEED_KEY` values to database seeding
-and the app container so seeded event windows and server timing decisions use
-the same clock.
+normal `/rpc` relative path. The generated runtime environment and app container
+set `NODE_ENV=development` explicitly so tenant outbound URLs may use the
+worktree's loopback `BASE_URL`, including its mapped port. The generated runtime
+environment also supplies the shared deterministic `E2E_NOW_ISO` and
+`E2E_SEED_KEY` values to database seeding and the app container so seeded event
+windows and server timing decisions use the same clock.
 
 Auth0 callback URLs are configured outside this repository. The runtime helper
 may generate a non-4200 app port for worktree isolation, but authenticated local
@@ -143,6 +150,13 @@ machine that already has Google Chrome installed.
 Use the tracked `.env.example` file as the no-secret checklist for values that
 belong in your untracked `.env` or exported shell environment. Do not add real
 secret values to `.env.example`, `.env.dev.local`, or `.env.dev`.
+
+The same non-mutating preflight has an `esncard-release` target. Local Docker
+treats `E2E_LIVE_ESN_CARD_IDENTIFIER` as optional, while
+`bun helpers/testing/runtime-preflight.ts esncard-release` treats the approved
+non-production identifier as required and reports only its variable name and
+purpose, never its value. The release workflow invokes this target before the
+live provider journey.
 
 Docker Compose passes `STRIPE_TEST_ACCOUNT_ID` into both the `db-setup` service
 and the app container so the seeded local tenants can exercise paid registration

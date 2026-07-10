@@ -32,6 +32,7 @@ describe('createEventFormModelFromTemplate', () => {
         questions: [],
         registrationOptions: [
           {
+            cancellationDeadlineHoursBeforeStart: 96,
             closeRegistrationOffset: 24,
             description: '<p>Public participant copy</p>',
             esnCardDiscountedPrice: 1200,
@@ -40,6 +41,7 @@ describe('createEventFormModelFromTemplate', () => {
             openRegistrationOffset: 168,
             organizingRegistration: false,
             price: 1500,
+            refundFeesOnCancellation: false,
             registeredDescription: '<p>Attendee details</p>',
             registrationMode: 'fcfs',
             roleIds: ['role-user'],
@@ -47,6 +49,7 @@ describe('createEventFormModelFromTemplate', () => {
             spots: 40,
             stripeTaxRateId: 'txr_123',
             title: 'Participant',
+            transferDeadlineHoursBeforeStart: 12,
           },
         ],
         title: 'Weekly meetup',
@@ -75,18 +78,21 @@ describe('createEventFormModelFromTemplate', () => {
     );
     expect(model.registrationOptions).toHaveLength(1);
     expect(model.registrationOptions[0]).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: 96,
       description: '<p>Public participant copy</p>',
       esnCardDiscountedPrice: 1200,
       id: 'template-option-1',
       isPaid: true,
       organizingRegistration: false,
       price: 1500,
+      refundFeesOnCancellation: false,
       registeredDescription: '<p>Attendee details</p>',
       registrationMode: 'fcfs',
       roleIds: ['role-user'],
       spots: 40,
       stripeTaxRateId: 'txr_123',
       title: 'Participant',
+      transferDeadlineHoursBeforeStart: 12,
     });
     expect(model.registrationOptions[0]?.openRegistrationTime.toISO()).toBe(
       '2026-05-25T18:00:00.000Z',
@@ -136,7 +142,8 @@ describe('createEventFormModelFromTemplate', () => {
             price: 0,
             registrationOptions: [
               {
-                quantity: 1,
+                includedQuantity: 0,
+                optionalPurchaseQuantity: 1,
                 registrationOptionId: 'template-option-1',
               },
             ],
@@ -157,6 +164,7 @@ describe('createEventFormModelFromTemplate', () => {
         questions: [],
         registrationOptions: [
           {
+            cancellationDeadlineHoursBeforeStart: null,
             closeRegistrationOffset: 24,
             description: null,
             esnCardDiscountedPrice: null,
@@ -165,6 +173,7 @@ describe('createEventFormModelFromTemplate', () => {
             openRegistrationOffset: 168,
             organizingRegistration: false,
             price: 0,
+            refundFeesOnCancellation: null,
             registeredDescription: null,
             registrationMode: 'fcfs',
             roleIds: [],
@@ -172,6 +181,7 @@ describe('createEventFormModelFromTemplate', () => {
             spots: 40,
             stripeTaxRateId: null,
             title: 'Participant',
+            transferDeadlineHoursBeforeStart: null,
           },
         ],
         title: 'Weekly meetup',

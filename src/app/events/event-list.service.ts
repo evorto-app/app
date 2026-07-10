@@ -28,9 +28,9 @@ export class EventListService {
 
   readonly startFilter = signal(new Date());
   private readonly statusFilterModel = signal<{
-    status: ('APPROVED' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED')[];
+    status: ('APPROVED' | 'DRAFT' | 'PENDING_REVIEW')[];
   }>({
-    status: ['APPROVED', 'DRAFT', 'PENDING_REVIEW', 'REJECTED'],
+    status: ['APPROVED', 'DRAFT', 'PENDING_REVIEW'],
   });
   readonly statusFilterForm = form(this.statusFilterModel);
 

@@ -15,26 +15,32 @@ const validSimpleTemplateInput = {
   },
   location: null,
   organizerRegistration: {
+    cancellationDeadlineHoursBeforeStart: null,
     closeRegistrationOffset: 24,
     isPaid: false,
     openRegistrationOffset: 168,
     price: 0,
+    refundFeesOnCancellation: null,
     registrationMode: 'fcfs' as const,
     roleIds: [],
     spots: 10,
     stripeTaxRateId: null,
     title: 'Organizer registration',
+    transferDeadlineHoursBeforeStart: null,
   },
   participantRegistration: {
+    cancellationDeadlineHoursBeforeStart: 96,
     closeRegistrationOffset: 24,
     isPaid: false,
     openRegistrationOffset: 168,
     price: 0,
+    refundFeesOnCancellation: false,
     registrationMode: 'fcfs' as const,
     roleIds: [],
     spots: 10,
     stripeTaxRateId: null,
     title: 'Participant registration',
+    transferDeadlineHoursBeforeStart: 12,
   },
   title: 'Template',
 };
@@ -45,10 +51,11 @@ const validSimpleTemplateAddonInput = {
   allowPurchaseDuringEvent: false,
   allowPurchaseDuringRegistration: true,
   description: 'Optional dinner ticket',
+  includedQuantity: 1,
   isPaid: true,
   maxQuantityPerUser: 2,
+  optionalPurchaseQuantity: 1,
   price: 1200,
-  quantity: 1,
   registrationOptionKind: 'participant' as const,
   stripeTaxRateId: 'txr-1',
   title: 'Dinner',
@@ -131,7 +138,8 @@ describe('templates RPC location schema', () => {
             price: 1200,
             registrationOptions: [
               {
-                quantity: 1,
+                includedQuantity: 1,
+                optionalPurchaseQuantity: 1,
                 registrationOptionId: 'template-option-1',
               },
             ],
@@ -226,6 +234,37 @@ describe('templates RPC location schema', () => {
           meetingProvider: 'zoom',
           name: 'Broken Place',
           type: 'online',
+        },
+      }),
+    ).toThrow();
+  });
+});
+
+describe('templates RPC registration policy overrides', () => {
+  it('accepts nullable or nonnegative template option overrides', () => {
+    const decoded = Schema.decodeUnknownSync(TemplateSimpleInput)(
+      validSimpleTemplateInput,
+    );
+
+    expect(decoded.organizerRegistration).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: null,
+      refundFeesOnCancellation: null,
+      transferDeadlineHoursBeforeStart: null,
+    });
+    expect(decoded.participantRegistration).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: 96,
+      refundFeesOnCancellation: false,
+      transferDeadlineHoursBeforeStart: 12,
+    });
+  });
+
+  it('rejects negative template option deadline overrides', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(TemplateSimpleInput)({
+        ...validSimpleTemplateInput,
+        participantRegistration: {
+          ...validSimpleTemplateInput.participantRegistration,
+          transferDeadlineHoursBeforeStart: -1,
         },
       }),
     ).toThrow();

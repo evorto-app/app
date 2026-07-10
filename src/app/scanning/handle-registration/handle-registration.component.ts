@@ -1,3 +1,9 @@
+import type {
+  EventsRegistrationAddonCancellationBlockedReason,
+  EventsRegistrationAddonFulfillmentRecord,
+  EventsRegistrationAddonRefundStatus,
+} from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+
 import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -8,6 +14,7 @@ import {
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { RouterLink } from '@angular/router';
@@ -21,6 +28,94 @@ import {
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import {
+  RegistrationAddonCancellationDialogComponent,
+  RegistrationAddonCancellationDialogResult,
+} from './registration-addon-cancellation-dialog.component';
+
+type RegistrationAddonOperationKeyInput =
+  | {
+      action: 'cancel';
+      latestFulfillmentEventId: null | string;
+      quantity: number;
+      refundRequested: boolean;
+      registrationAddonId: string;
+    }
+  | {
+      action: 'redeem';
+      latestFulfillmentEventId: null | string;
+      registrationAddonId: string;
+    }
+  | {
+      action: 'undo';
+      redemptionEventId: string;
+    };
+
+export const registrationAddonOperationKey = (
+  input: RegistrationAddonOperationKeyInput,
+): string => {
+  switch (input.action) {
+    case 'cancel': {
+      return `scanner-cancel:${input.registrationAddonId}:${input.latestFulfillmentEventId ?? 'initial'}:${input.quantity}:${input.refundRequested ? 'refund' : 'no-refund'}`;
+    }
+    case 'redeem': {
+      return `scanner-redeem:${input.registrationAddonId}:${input.latestFulfillmentEventId ?? 'initial'}`;
+    }
+    case 'undo': {
+      return `scanner-undo:${input.redemptionEventId}`;
+    }
+  }
+};
+
+export const registrationAddonRefundStatusLabel = (
+  status: EventsRegistrationAddonRefundStatus,
+): string => {
+  switch (status) {
+    case 'cancelledWithoutRefund': {
+      return 'Cancelled without refund';
+    }
+    case 'failed': {
+      return 'Refund needs attention';
+    }
+    case 'notApplicable': {
+      return 'Not applicable';
+    }
+    case 'notRequested': {
+      return 'No refund requested';
+    }
+    case 'notRequired': {
+      return 'No monetary refund required';
+    }
+    case 'partiallyRefunded': {
+      return 'Partially refunded';
+    }
+    case 'pending': {
+      return 'Refund processing';
+    }
+    case 'refunded': {
+      return 'Refunded';
+    }
+  }
+};
+
+export const registrationAddonCancellationBlockedMessage = (
+  reason: EventsRegistrationAddonCancellationBlockedReason,
+): string => {
+  switch (reason) {
+    case 'none': {
+      return '';
+    }
+    case 'noQuantity': {
+      return 'No unredeemed units remain to cancel.';
+    }
+    case 'permission': {
+      return 'Cancelling units requires Cancel registrations and add-ons access.';
+    }
+    case 'registrationStatus': {
+      return 'Add-on units can only be cancelled for a confirmed registration.';
+    }
+  }
+};
 
 export const scanCheckInButtonLabel = ({
   completed,
@@ -32,7 +127,7 @@ export const scanCheckInButtonLabel = ({
   spotCount: number;
 }): string => {
   if (pending) {
-    return 'Checking in...';
+    return 'Checking in…';
   }
 
   if (completed) {
@@ -90,7 +185,29 @@ export const scanGuestCheckInCountFromInput = ({
 })
 export class HandleRegistrationComponent {
   public readonly registrationId = input.required<string>();
+  protected readonly addonActionError = signal<undefined | unknown>(undefined);
+  protected readonly addonActionMessage = signal('');
   private readonly rpc = AppRpc.injectClient();
+  protected readonly addonFulfillmentQuery = injectQuery(() =>
+    this.rpc.events.getRegistrationAddonFulfillment.queryOptions({
+      registrationId: this.registrationId(),
+    }),
+  );
+  protected readonly cancelAddonMutation = injectMutation(() =>
+    this.rpc.events.cancelRegistrationAddon.mutationOptions(),
+  );
+  protected readonly redeemAddonMutation = injectMutation(() =>
+    this.rpc.events.redeemRegistrationAddon.mutationOptions(),
+  );
+  protected readonly undoAddonMutation = injectMutation(() =>
+    this.rpc.events.undoRegistrationAddonRedemption.mutationOptions(),
+  );
+  protected readonly addonMutationPending = computed(
+    () =>
+      this.cancelAddonMutation.isPending() ||
+      this.redeemAddonMutation.isPending() ||
+      this.undoAddonMutation.isPending(),
+  );
   protected readonly checkInMutation = injectMutation(() =>
     this.rpc.events.checkInRegistration.mutationOptions(),
   );
@@ -124,9 +241,15 @@ export class HandleRegistrationComponent {
         this.selectedSpotCheckInCount() === 0),
   );
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly pendingAddonId = signal<string | undefined>(undefined);
+  protected readonly registrationAddonCancellationBlockedMessage =
+    registrationAddonCancellationBlockedMessage;
+  protected readonly registrationAddonRefundStatusLabel =
+    registrationAddonRefundStatusLabel;
   protected readonly scanCheckInActionDisabled = scanCheckInActionDisabled;
   protected readonly scanCheckInButtonLabel = scanCheckInButtonLabel;
   protected readonly scanSpotCountLabel = scanSpotCountLabel;
+  private readonly dialog = inject(MatDialog);
   private readonly queryClient = inject(QueryClient);
 
   checkIn() {
@@ -172,7 +295,150 @@ export class HandleRegistrationComponent {
     );
   }
 
+  protected cancelAddon(addOn: EventsRegistrationAddonFulfillmentRecord): void {
+    if (
+      !addOn.cancellationAvailable ||
+      addOn.cancellableQuantity < 1 ||
+      this.addonMutationPending()
+    ) {
+      return;
+    }
+
+    this.dialog
+      .open<
+        RegistrationAddonCancellationDialogComponent,
+        {
+          addOnTitle: string;
+          cancellablePurchasedQuantity: number;
+          cancellableQuantity: number;
+          refundAvailability: EventsRegistrationAddonFulfillmentRecord['refundAvailability'];
+        },
+        RegistrationAddonCancellationDialogResult
+      >(RegistrationAddonCancellationDialogComponent, {
+        data: {
+          addOnTitle: addOn.title,
+          cancellablePurchasedQuantity: addOn.cancellablePurchasedQuantity,
+          cancellableQuantity: addOn.cancellableQuantity,
+          refundAvailability: addOn.refundAvailability,
+        },
+      })
+      .afterClosed()
+      .subscribe((result) => {
+        if (!result) {
+          return;
+        }
+
+        this.beginAddonAction(addOn.registrationAddonId);
+        this.cancelAddonMutation.mutate(
+          {
+            operationKey: registrationAddonOperationKey({
+              action: 'cancel',
+              latestFulfillmentEventId: addOn.latestFulfillmentEventId,
+              quantity: result.quantity,
+              refundRequested: result.refundRequested,
+              registrationAddonId: addOn.registrationAddonId,
+            }),
+            quantity: result.quantity,
+            reason: result.reason,
+            refundRequested: result.refundRequested,
+            registrationAddonId: addOn.registrationAddonId,
+            registrationId: this.registrationId(),
+          },
+          {
+            onError: (error) => this.addonActionFailed(error),
+            onSuccess: async (outcome) => {
+              await this.addonActionSucceeded(
+                outcome.refundStatus === 'notRequired'
+                  ? 'Cancellation recorded. No monetary refund was required.'
+                  : outcome.refundStatus === 'pending'
+                    ? 'Cancellation recorded. Refund processing started.'
+                    : 'Add-on cancellation recorded.',
+              );
+            },
+          },
+        );
+      });
+  }
+
   protected errorMessage(error: unknown): string {
     return getErrorMessage(error, 'Unknown error');
+  }
+
+  protected redeemAddon(addOn: EventsRegistrationAddonFulfillmentRecord): void {
+    if (!addOn.redemptionAvailable || this.addonMutationPending()) {
+      return;
+    }
+
+    this.beginAddonAction(addOn.registrationAddonId);
+    this.redeemAddonMutation.mutate(
+      {
+        operationKey: registrationAddonOperationKey({
+          action: 'redeem',
+          latestFulfillmentEventId: addOn.latestFulfillmentEventId,
+          registrationAddonId: addOn.registrationAddonId,
+        }),
+        registrationAddonId: addOn.registrationAddonId,
+        registrationId: this.registrationId(),
+      },
+      {
+        onError: (error) => this.addonActionFailed(error),
+        onSuccess: async () => {
+          await this.addonActionSucceeded(`${addOn.title} redeemed.`);
+        },
+      },
+    );
+  }
+
+  protected undoAddonRedemption(
+    addOn: EventsRegistrationAddonFulfillmentRecord,
+  ): void {
+    const redemptionEventId = addOn.latestRedemptionEventId;
+    if (
+      !addOn.undoAvailable ||
+      !redemptionEventId ||
+      this.addonMutationPending()
+    ) {
+      return;
+    }
+
+    this.beginAddonAction(addOn.registrationAddonId);
+    this.undoAddonMutation.mutate(
+      {
+        operationKey: registrationAddonOperationKey({
+          action: 'undo',
+          redemptionEventId,
+        }),
+        redemptionEventId,
+        registrationAddonId: addOn.registrationAddonId,
+        registrationId: this.registrationId(),
+      },
+      {
+        onError: (error) => this.addonActionFailed(error),
+        onSuccess: async () => {
+          await this.addonActionSucceeded(`${addOn.title} redemption undone.`);
+        },
+      },
+    );
+  }
+
+  private addonActionFailed(error: unknown): void {
+    this.addonActionMessage.set('');
+    this.addonActionError.set(error);
+    this.pendingAddonId.set(undefined);
+  }
+
+  private async addonActionSucceeded(message: string): Promise<void> {
+    await this.queryClient.invalidateQueries(
+      this.rpc.queryFilter(['events', 'getRegistrationAddonFulfillment']),
+    );
+    this.addonActionError.set(undefined);
+    this.addonActionMessage.set(message);
+    this.pendingAddonId.set(undefined);
+  }
+
+  private beginAddonAction(registrationAddonId: string): void {
+    this.addonActionError.set(undefined);
+    this.addonActionMessage.set('');
+    this.pendingAddonId.set(registrationAddonId);
   }
 }

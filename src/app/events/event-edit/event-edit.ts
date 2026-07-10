@@ -27,9 +27,14 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
-import { DateTime } from 'luxon';
 
+import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import {
+  resolveTenantRuntimeTimezone,
+  tenantNow,
+  toTenantDateTime,
+} from '../../core/tenant-runtime';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   createEventGeneralFormModel,
@@ -71,8 +76,12 @@ export class EventEdit {
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
+  private readonly config = inject(ConfigService);
+  private readonly tenantTimezone = resolveTenantRuntimeTimezone(
+    this.config.tenantSignal()?.timezone,
+  );
   protected readonly editEventModel = signal<EventGeneralFormModel>(
-    createEventGeneralFormModel(),
+    createEventGeneralFormModel({}, this.tenantTimezone),
   );
   protected readonly editEventForm = form(
     this.editEventModel,
@@ -112,35 +121,49 @@ export class EventEdit {
         createEventGeneralFormModel({
           description: event.description,
           end: event.end
-            ? DateTime.fromJSDate(new Date(event.end))
-            : DateTime.now(),
+            ? toTenantDateTime(new Date(event.end), this.tenantTimezone)
+            : tenantNow(this.tenantTimezone),
           icon: event.icon,
           location: event.location ?? null,
           registrationOptions: event.registrationOptions.map((option) =>
-            createRegistrationOptionFormModel({
-              closeRegistrationTime: option.closeRegistrationTime
-                ? DateTime.fromJSDate(new Date(option.closeRegistrationTime))
-                : DateTime.now(),
-              description: option.description ?? '',
-              esnCardDiscountedPrice: option.esnCardDiscountedPrice ?? '',
-              id: option.id,
-              isPaid: option.isPaid,
-              openRegistrationTime: option.openRegistrationTime
-                ? DateTime.fromJSDate(new Date(option.openRegistrationTime))
-                : DateTime.now(),
-              organizingRegistration: option.organizingRegistration,
-              price: option.price,
-              registeredDescription: option.registeredDescription ?? '',
-              registrationMode: option.registrationMode,
-              roleIds: option.roleIds ? [...option.roleIds] : [],
-              spots: option.spots,
-              stripeTaxRateId: option.stripeTaxRateId ?? null,
-              title: option.title,
-            }),
+            createRegistrationOptionFormModel(
+              {
+                cancellationDeadlineHoursBeforeStart:
+                  option.cancellationDeadlineHoursBeforeStart,
+                closeRegistrationTime: option.closeRegistrationTime
+                  ? toTenantDateTime(
+                      new Date(option.closeRegistrationTime),
+                      this.tenantTimezone,
+                    )
+                  : tenantNow(this.tenantTimezone),
+                description: option.description ?? '',
+                esnCardDiscountedPrice: option.esnCardDiscountedPrice ?? '',
+                id: option.id,
+                isPaid: option.isPaid,
+                openRegistrationTime: option.openRegistrationTime
+                  ? toTenantDateTime(
+                      new Date(option.openRegistrationTime),
+                      this.tenantTimezone,
+                    )
+                  : tenantNow(this.tenantTimezone),
+                organizingRegistration: option.organizingRegistration,
+                price: option.price,
+                refundFeesOnCancellation: option.refundFeesOnCancellation,
+                registeredDescription: option.registeredDescription ?? '',
+                registrationMode: option.registrationMode,
+                roleIds: option.roleIds ? [...option.roleIds] : [],
+                spots: option.spots,
+                stripeTaxRateId: option.stripeTaxRateId ?? null,
+                title: option.title,
+                transferDeadlineHoursBeforeStart:
+                  option.transferDeadlineHoursBeforeStart,
+              },
+              this.tenantTimezone,
+            ),
           ),
           start: event.start
-            ? DateTime.fromJSDate(new Date(event.start))
-            : DateTime.now(),
+            ? toTenantDateTime(new Date(event.start), this.tenantTimezone)
+            : tenantNow(this.tenantTimezone),
           title: event.title,
         }),
       );
@@ -180,6 +203,8 @@ export class EventEdit {
           location: formValue.location,
           registrationOptions: formValue.registrationOptions.map(
             (registrationOption) => ({
+              cancellationDeadlineHoursBeforeStart:
+                registrationOption.cancellationDeadlineHoursBeforeStart,
               closeRegistrationTime: registrationOption.closeRegistrationTime
                 .toJSDate()
                 .toISOString(),
@@ -197,6 +222,8 @@ export class EventEdit {
                 .toISOString(),
               organizingRegistration: registrationOption.organizingRegistration,
               price: registrationOption.price,
+              refundFeesOnCancellation:
+                registrationOption.refundFeesOnCancellation,
               registeredDescription:
                 registrationOption.registeredDescription || null,
               registrationMode: requireWritableRegistrationMode(
@@ -206,6 +233,8 @@ export class EventEdit {
               spots: registrationOption.spots,
               stripeTaxRateId: registrationOption.stripeTaxRateId,
               title: registrationOption.title,
+              transferDeadlineHoursBeforeStart:
+                registrationOption.transferDeadlineHoursBeforeStart,
             }),
           ),
           start: formValue.start.toJSDate().toISOString(),

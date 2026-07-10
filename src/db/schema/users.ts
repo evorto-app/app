@@ -1,5 +1,6 @@
 import { and, count, eq, SQL, sql } from 'drizzle-orm';
 import {
+  foreignKey,
   index,
   pgTable,
   pgView,
@@ -16,6 +17,13 @@ import { eventRegistrationOptions } from './event-registration-options';
 import { eventRegistrations } from './event-registrations';
 import { roles } from './roles';
 import { tenants } from './tenants';
+
+export const roleAssignmentMembershipTenantForeignKeyName =
+  'roles_to_tenant_users_membership_tenant_fk';
+export const roleAssignmentRoleTenantForeignKeyName =
+  'roles_to_tenant_users_role_tenant_fk';
+export const userTenantIdentityUniqueConstraintName =
+  'users_to_tenants_id_tenant_unique';
 
 /**
  * To add unaccent to our database as immutable extension
@@ -35,6 +43,10 @@ export const users = pgTable(
     createdAt: timestamp().notNull().defaultNow(),
     email: text().notNull(),
     firstName: text().notNull(),
+    homeTenantId: varchar('home_tenant_id', { length: 20 }).references(
+      () => tenants.id,
+      { onDelete: 'set null' },
+    ),
     iban: text(),
     id: varchar({ length: 20 })
       .$defaultFn(() => createId())
@@ -88,9 +100,10 @@ export const usersToTenants = pgTable(
       .notNull()
       .references(() => users.id),
   },
-  (table) => ({
-    unique: unique().on(table.userId, table.tenantId),
-  }),
+  (table) => [
+    unique(userTenantIdentityUniqueConstraintName).on(table.id, table.tenantId),
+    unique().on(table.userId, table.tenantId),
+  ],
 );
 
 export const rolesToTenantUsers = pgTable(
@@ -99,13 +112,24 @@ export const rolesToTenantUsers = pgTable(
     roleId: varchar({ length: 20 })
       .notNull()
       .references(() => roles.id),
+    tenantId: varchar({ length: 20 }).notNull(),
     userTenantId: varchar({ length: 20 })
       .notNull()
       .references(() => usersToTenants.id),
   },
-  (table) => ({
-    pk: primaryKey({ columns: [table.roleId, table.userTenantId] }),
-  }),
+  (table) => [
+    foreignKey({
+      columns: [table.roleId, table.tenantId],
+      foreignColumns: [roles.id, roles.tenantId],
+      name: roleAssignmentRoleTenantForeignKeyName,
+    }),
+    foreignKey({
+      columns: [table.userTenantId, table.tenantId],
+      foreignColumns: [usersToTenants.id, usersToTenants.tenantId],
+      name: roleAssignmentMembershipTenantForeignKeyName,
+    }),
+    primaryKey({ columns: [table.roleId, table.userTenantId] }),
+  ],
 );
 
 const queryBuilder = new QueryBuilder();

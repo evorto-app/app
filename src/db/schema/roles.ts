@@ -10,6 +10,8 @@ import {
 import { TenantRolePermission } from '../../shared/permissions/permissions';
 import { modelOfTenant } from './model';
 
+export const roleTenantIdentityUniqueConstraintName = 'roles_id_tenant_unique';
+
 export const roles = pgTable(
   'roles',
   {
@@ -23,5 +25,8 @@ export const roles = pgTable(
     permissions: jsonb().$type<TenantRolePermission[]>().notNull().default([]),
     sortOrder: integer().notNull().default(2_147_483_647),
   },
-  (t) => [unique().on(t.tenantId, t.name)],
+  (table) => [
+    unique(roleTenantIdentityUniqueConstraintName).on(table.id, table.tenantId),
+    unique().on(table.tenantId, table.name),
+  ],
 );

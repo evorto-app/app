@@ -81,7 +81,7 @@ test('Review and reimburse receipts @finance', async ({
       body: `
 # Review and reimburse receipts
 
-Finance users review submitted receipts before recording manual reimbursement. This guide starts with a receipt that an event organizer has already submitted for a past event.
+Finance users review submitted receipts before recording manual reimbursement. This guide starts with a receipt that an event organizer has already submitted for a past event. Its currency is recorded with the receipt and remains stable even if tenant defaults change later.
 `,
     });
 
@@ -134,7 +134,7 @@ Open a receipt from the approval queue to inspect the attachment metadata, submi
       body: `
 ## Record reimbursement
 
-After approval, the receipt appears on **Receipt reimbursements**, grouped by submitter. Select the approved row, confirm the payout method and payout details, then record the reimbursement after the money has been transferred outside Evorto.
+After approval, the receipt appears on **Receipt reimbursements**, grouped by submitter and recorded currency. Select the approved row, confirm the payout method and payout details, then record the reimbursement after the money has been transferred outside Evorto.
 `,
     });
 
@@ -157,7 +157,7 @@ After approval, the receipt appears on **Receipt reimbursements**, grouped by su
       .locator('tr.mat-mdc-row input[type="checkbox"]')
       .check();
     await expect(
-      reimbursementSection.getByText('Selected total: 14.50 €'),
+      reimbursementSection.getByText('Selected total: 14,50 €'),
     ).toBeVisible();
     await reimbursementSection
       .getByRole('button', { name: 'Record reimbursement' })
@@ -182,11 +182,22 @@ After approval, the receipt appears on **Receipt reimbursements**, grouped by su
     if (!refundedReceipt?.refundTransactionId) {
       throw new Error('Expected receipt reimbursement to create a transaction');
     }
-    refundTransactionId = refundedReceipt.refundTransactionId;
+    const createdRefundTransactionId = refundedReceipt.refundTransactionId;
+    refundTransactionId = createdRefundTransactionId;
+    const reimbursementTransaction =
+      await database.query.transactions.findFirst({
+        where: { id: createdRefundTransactionId, tenantId: tenant.id },
+      });
+    expect(reimbursementTransaction).toEqual(
+      expect.objectContaining({
+        currency: tenant.currency,
+        status: 'successful',
+      }),
+    );
 
     await testInfo.attach('markdown', {
       body: `
-Recording reimbursement updates the receipt to **refunded** and creates a successful manual refund transaction in Evorto. The actual bank or PayPal transfer remains an external finance action.
+Recording reimbursement updates the receipt to **refunded** and creates a successful manual refund transaction in Evorto using the receipt's recorded currency. The actual bank or PayPal transfer remains an external finance action.
 `,
     });
   } finally {

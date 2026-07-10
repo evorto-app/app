@@ -1,18 +1,25 @@
+import '@angular/compiler';
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  recipientTransferCheckoutPending,
   registrationCancellationActionDisabled,
   registrationCancellationCopy,
   registrationDeferredActionCopy,
   registrationTransferActionCopy,
   registrationTransferActionDisabled,
 } from './event-active-registration.component';
-import { normalizeRegistrationTransferTargetEmail } from './event-registration-transfer-dialog.component';
+
+const readSource = (sourcePath: string): string =>
+  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
 
 describe('registrationCancellationCopy', () => {
   it('describes pending payment cancellation as releasing the reserved spot', () => {
     expect(
       registrationCancellationCopy({
+        activeTransfer: null,
         guestCount: 0,
         paymentPending: true,
         status: 'PENDING',
@@ -27,6 +34,7 @@ describe('registrationCancellationCopy', () => {
   it('describes guest cancellation as releasing every selected spot', () => {
     expect(
       registrationCancellationCopy({
+        activeTransfer: null,
         guestCount: 2,
         paymentPending: true,
         status: 'PENDING',
@@ -41,6 +49,7 @@ describe('registrationCancellationCopy', () => {
   it('describes pending manual application cancellation without reserved capacity copy', () => {
     expect(
       registrationCancellationCopy({
+        activeTransfer: null,
         guestCount: 0,
         paymentPending: false,
         status: 'PENDING',
@@ -55,6 +64,7 @@ describe('registrationCancellationCopy', () => {
   it('describes confirmed cancellation with Stripe refund fallback handling', () => {
     expect(
       registrationCancellationCopy({
+        activeTransfer: null,
         guestCount: 0,
         paymentPending: false,
         status: 'CONFIRMED',
@@ -69,6 +79,7 @@ describe('registrationCancellationCopy', () => {
   it('describes confirmed guest cancellation as releasing every selected spot', () => {
     expect(
       registrationCancellationCopy({
+        activeTransfer: null,
         guestCount: 1,
         paymentPending: false,
         status: 'CONFIRMED',
@@ -83,6 +94,7 @@ describe('registrationCancellationCopy', () => {
   it('exposes a leave-waitlist action for waitlisted registrations', () => {
     expect(
       registrationCancellationCopy({
+        activeTransfer: null,
         guestCount: 0,
         paymentPending: false,
         status: 'WAITLIST',
@@ -97,11 +109,58 @@ describe('registrationCancellationCopy', () => {
   it('does not expose cancellation copy for already-cancelled registrations', () => {
     expect(
       registrationCancellationCopy({
+        activeTransfer: null,
         guestCount: 0,
         paymentPending: false,
         status: 'CANCELLED',
       }),
     ).toBeNull();
+  });
+
+  it('does not expose generic cancellation for a recipient transfer Checkout', () => {
+    const registration = {
+      activeTransfer: {
+        registrationSide: 'recipient' as const,
+        status: 'checkout_pending' as const,
+      },
+      guestCount: 1,
+      paymentPending: true,
+      status: 'PENDING' as const,
+    };
+
+    expect(recipientTransferCheckoutPending(registration)).toBe(true);
+    expect(registrationCancellationCopy(registration)).toBeNull();
+  });
+});
+
+describe('active registration payment template', () => {
+  it('explains the transient state before a pending Checkout URL is available', () => {
+    const template = readSource(
+      'src/app/events/event-active-registration/event-active-registration.component.html',
+    );
+
+    expect(template).toContain('@if (registration.checkoutUrl)');
+    expect(template).toContain('Your payment link is being prepared.');
+    expect(template).toContain(
+      'Your registration is not confirmed until payment succeeds.',
+    );
+    expect(template).toContain('role="status"');
+  });
+
+  it('routes recipient transfer cancellation through the transfer mutation', () => {
+    const template = readSource(
+      'src/app/events/event-active-registration/event-active-registration.component.html',
+    );
+    const recipientBranch = template.slice(
+      template.indexOf('@if (recipientTransferCheckoutPending(registration))'),
+      template.indexOf(
+        '@else if (cancellationCopy(registration); as cancellation)',
+      ),
+    );
+
+    expect(recipientBranch).toContain('Cancel pending transfer payment');
+    expect(recipientBranch).toContain('cancelTransfer(');
+    expect(recipientBranch).not.toContain('cancelRegistration(');
   });
 });
 
@@ -132,9 +191,9 @@ describe('registrationTransferActionCopy', () => {
         transferAvailable: true,
       }),
     ).toEqual({
-      buttonLabel: 'Transfer registration',
+      buttonLabel: 'Create transfer link',
       helperText:
-        'You can transfer this unpaid registration to another eligible tenant member by email.',
+        'Create a private link and code for one eligible tenant member. They review the current questions, add-ons, discount, and price before claiming it.',
     });
   });
 
@@ -147,7 +206,7 @@ describe('registrationTransferActionCopy', () => {
     ).toEqual({
       buttonLabel: 'Transfer unavailable',
       helperText:
-        'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
+        'Transfer is available only for confirmed, not-yet-checked-in registrations before the configured transfer deadline.',
     });
   });
 
@@ -227,10 +286,19 @@ describe('active registration action guards', () => {
   });
 });
 
-describe('normalizeRegistrationTransferTargetEmail', () => {
-  it('normalizes participant-entered target emails before submit', () => {
-    expect(
-      normalizeRegistrationTransferTargetEmail(' Target@Example.COM '),
-    ).toBe('target@example.com');
+describe('registration transfer offer dialog', () => {
+  it('shows both private credentials and keeps the source active until recipient confirmation', () => {
+    const template = readSource(
+      'src/app/events/event-active-registration/event-registration-transfer-dialog.component.html',
+    );
+
+    expect(template).toContain('Claim link');
+    expect(template).toContain('Manual claim code');
+    expect(template).toContain('do not post these credentials');
+    expect(template).toContain('publicly.');
+    expect(template).toContain('Your registration');
+    expect(template).toContain(
+      'stays active until the recipient is confirmed.',
+    );
   });
 });

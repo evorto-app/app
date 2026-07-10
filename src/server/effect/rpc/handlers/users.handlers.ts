@@ -5,7 +5,6 @@ import {
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import {
-  UserConflictError,
   UserRoleAssignmentNotFoundError,
   UserSelfRoleRemovalError,
 } from '@shared/rpc-contracts/app-rpcs/users.errors';
@@ -33,6 +32,7 @@ import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/con
 import { UsersAuthData } from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { User } from '../../../../types/custom/user';
+import { lockTenantRoleGraph } from '../../../roles/tenant-role-graph';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -112,9 +112,6 @@ const uniqueRoleIds = (roleIds: readonly string[]): string[] => [
   ...new Set(roleIds),
 ];
 
-const mapCreateAccountUnexpectedError = (error: unknown) =>
-  error instanceof UserConflictError ? Effect.fail(error) : Effect.die(error);
-
 const missingRegistrationRelationDefect = (registration: {
   eventId: string;
   id: string;
@@ -170,7 +167,7 @@ const resolvePendingRegistrationCheckoutUrl = (
       transaction.stripeCheckoutUrl,
   )?.stripeCheckoutUrl ?? null;
 
-const tenantDayBounds = (timezone: string, now = DateTime.now()) => {
+export const tenantDayBounds = (timezone: string, now = DateTime.now()) => {
   const tenantNow = now.setZone(timezone);
   return {
     end: tenantNow.endOf('day').toJSDate(),
@@ -193,15 +190,18 @@ export const userHandlers = {
         database
           .transaction((tx) =>
             Effect.gen(function* () {
-              const membership = yield* tx.query.usersToTenants.findFirst({
-                columns: {
-                  id: true,
-                },
-                where: {
-                  tenantId: tenant.id,
-                  userId,
-                },
-              });
+              yield* lockTenantRoleGraph(tx, tenant.id);
+              const memberships = yield* tx
+                .select({ id: usersToTenants.id })
+                .from(usersToTenants)
+                .where(
+                  and(
+                    eq(usersToTenants.tenantId, tenant.id),
+                    eq(usersToTenants.userId, userId),
+                  ),
+                )
+                .for('update');
+              const membership = memberships[0];
               if (!membership) {
                 return yield* Effect.fail(
                   new UserRoleAssignmentNotFoundError({
@@ -239,12 +239,18 @@ export const userHandlers = {
 
               yield* tx
                 .delete(rolesToTenantUsers)
-                .where(eq(rolesToTenantUsers.userTenantId, membership.id));
+                .where(
+                  and(
+                    eq(rolesToTenantUsers.tenantId, tenant.id),
+                    eq(rolesToTenantUsers.userTenantId, membership.id),
+                  ),
+                );
 
               if (nextRoleIds.length > 0) {
                 yield* tx.insert(rolesToTenantUsers).values(
                   nextRoleIds.map((roleId) => ({
                     roleId,
+                    tenantId: tenant.id,
                     userTenantId: membership.id,
                   })),
                 );
@@ -313,153 +319,6 @@ export const userHandlers = {
       );
 
       return organizingRegistrations.length > 0;
-    }),
-  'users.createAccount': (input, options) =>
-    Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
-      const authData = decodeAuthDataHeader(options.headers);
-      const auth0Id = authData.sub?.trim();
-      const email = authData.email?.trim();
-
-      if (!auth0Id || !email) {
-        return yield* Effect.fail(
-          new RpcUnauthorizedError({ message: 'Authentication required' }),
-        );
-      }
-
-      yield* Database.use((database) =>
-        database
-          .transaction((tx) =>
-            Effect.gen(function* () {
-              const existingUser = yield* tx.query.users.findFirst({
-                columns: {
-                  id: true,
-                },
-                where: {
-                  auth0Id,
-                },
-              });
-
-              let userId = existingUser?.id;
-              if (!userId) {
-                const createdUsers = yield* tx
-                  .insert(users)
-                  .values({
-                    auth0Id,
-                    communicationEmail: input.communicationEmail,
-                    email,
-                    firstName: input.firstName,
-                    lastName: input.lastName,
-                  })
-                  .onConflictDoNothing({ target: users.auth0Id })
-                  .returning({
-                    id: users.id,
-                  });
-                userId = createdUsers[0]?.id;
-
-                if (!userId) {
-                  const concurrentlyCreatedUser =
-                    yield* tx.query.users.findFirst({
-                      columns: {
-                        id: true,
-                      },
-                      where: {
-                        auth0Id,
-                      },
-                    });
-                  userId = concurrentlyCreatedUser?.id;
-                }
-
-                if (!userId) {
-                  return yield* Effect.die(
-                    new Error(
-                      'User insert returned no rows and no user exists',
-                    ),
-                  );
-                }
-              }
-
-              const existingTenantAssignment =
-                yield* tx.query.usersToTenants.findFirst({
-                  columns: {
-                    id: true,
-                  },
-                  where: {
-                    tenantId: tenant.id,
-                    userId,
-                  },
-                });
-
-              if (existingTenantAssignment) {
-                return yield* Effect.fail(
-                  new UserConflictError({
-                    message: 'User account already exists',
-                  }),
-                );
-              }
-
-              const defaultUserRoles = yield* tx.query.roles.findMany({
-                columns: {
-                  id: true,
-                },
-                where: { defaultUserRole: true, tenantId: tenant.id },
-              });
-
-              const userTenantCreateResponse = yield* tx
-                .insert(usersToTenants)
-                .values({
-                  tenantId: tenant.id,
-                  userId,
-                })
-                .onConflictDoNothing({
-                  target: [usersToTenants.userId, usersToTenants.tenantId],
-                })
-                .returning({
-                  id: usersToTenants.id,
-                });
-              const createdUserTenant = userTenantCreateResponse[0];
-              if (!createdUserTenant) {
-                const concurrentlyCreatedTenantAssignment =
-                  yield* tx.query.usersToTenants.findFirst({
-                    columns: {
-                      id: true,
-                    },
-                    where: {
-                      tenantId: tenant.id,
-                      userId,
-                    },
-                  });
-                if (concurrentlyCreatedTenantAssignment) {
-                  return yield* Effect.fail(
-                    new UserConflictError({
-                      message: 'User account already exists',
-                    }),
-                  );
-                }
-              }
-
-              if (!createdUserTenant) {
-                return yield* Effect.die(
-                  new Error('User tenant association insert returned no rows'),
-                );
-              }
-
-              if (defaultUserRoles.length > 0) {
-                yield* tx.insert(rolesToTenantUsers).values(
-                  defaultUserRoles.map((role) => ({
-                    roleId: role.id,
-                    userTenantId: createdUserTenant.id,
-                  })),
-                );
-              }
-            }),
-          )
-          .pipe(Effect.catch(mapCreateAccountUnexpectedError)),
-      );
     }),
   'users.events': (_payload, options) =>
     Effect.gen(function* () {
@@ -701,6 +560,54 @@ export const userHandlers = {
     Effect.gen(function* () {
       yield* ensureAuthenticated(options.headers);
       return yield* requireUserHeader(options.headers);
+    }),
+  'users.setHomeTenant': (_payload, options) =>
+    Effect.gen(function* () {
+      yield* ensureAuthenticated(options.headers);
+      const tenant = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.TENANT],
+        Tenant,
+      );
+      const user = yield* requireUserHeader(options.headers);
+
+      yield* Database.use((database) =>
+        database
+          .transaction((tx) =>
+            Effect.gen(function* () {
+              const memberships = yield* tx
+                .select({ id: usersToTenants.id })
+                .from(usersToTenants)
+                .where(
+                  and(
+                    eq(usersToTenants.tenantId, tenant.id),
+                    eq(usersToTenants.userId, user.id),
+                  ),
+                )
+                .limit(1)
+                .for('update');
+              if (memberships.length === 0) {
+                return yield* Effect.fail(
+                  new RpcUnauthorizedError({
+                    message: 'Current tenant membership required',
+                  }),
+                );
+              }
+              yield* tx
+                .update(users)
+                .set({ homeTenantId: tenant.id })
+                .where(eq(users.id, user.id));
+            }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof RpcUnauthorizedError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
+      );
+
+      return { homeTenantId: tenant.id, homeTenantName: tenant.name };
     }),
   'users.updateProfile': (input, options) =>
     Effect.gen(function* () {

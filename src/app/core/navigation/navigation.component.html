@@ -54,19 +54,20 @@
     </div>
     <span class="body-medium text-center">Internal</span>
   </a>
-  <a
-    routerLink="/global-admin"
-    *appIfPermission="'globalAdmin:*'"
-    class="hidden flex-col items-center gap-1 lg:flex"
-  >
-    <div
-      class="flex min-w-16 flex-row justify-center rounded-full py-1"
-      routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+  @if (platformAuthority()) {
+    <a
+      routerLink="/global-admin"
+      class="hidden flex-col items-center gap-1 lg:flex"
     >
-      <fa-duotone-icon [icon]="faLockKeyhole" size="xl" />
-    </div>
-    <span class="body-medium text-center">Global admin</span>
-  </a>
+      <div
+        class="flex min-w-16 flex-row justify-center rounded-full py-1"
+        routerLinkActive="bg-secondary-container text-on-secondary-container navigation-active"
+      >
+        <fa-duotone-icon [icon]="faLockKeyhole" size="xl" />
+      </div>
+      <span class="body-medium text-center">Platform admin</span>
+    </a>
+  }
   <a
     routerLink="/finance"
     class="hidden flex-col items-center gap-1 lg:flex"
@@ -147,20 +148,21 @@
 <div class="h-24 w-full lg:hidden"></div>
 <ng-template #navigationSheet>
   <div class="flex w-full flex-row justify-around gap-2 pb-4 pt-3">
-    <a
-      routerLink="/global-admin"
-      *appIfPermission="'globalAdmin:*'"
-      class="flex flex-col items-center gap-1"
-      (click)="closeSheet()"
-    >
-      <div
-        class="flex min-w-16 flex-row justify-center rounded-full py-1"
-        routerLinkActive="bg-secondary-container text-on-secondary-container"
+    @if (platformAuthority()) {
+      <a
+        routerLink="/global-admin"
+        class="flex flex-col items-center gap-1"
+        (click)="closeSheet()"
       >
-        <fa-duotone-icon [icon]="faLockKeyhole" size="xl" />
-      </div>
-      <span class="body-medium text-center">Global admin</span>
-    </a>
+        <div
+          class="flex min-w-16 flex-row justify-center rounded-full py-1"
+          routerLinkActive="bg-secondary-container text-on-secondary-container"
+        >
+          <fa-duotone-icon [icon]="faLockKeyhole" size="xl" />
+        </div>
+        <span class="body-medium text-center">Platform admin</span>
+      </a>
+    }
     @if (scannerAccessQuery.data()) {
       <a
         routerLink="/scan"

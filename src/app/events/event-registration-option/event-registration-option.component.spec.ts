@@ -53,7 +53,7 @@ describe('registrationOptionAudienceCopy', () => {
     ).toEqual({
       actionSuffix: 'apply',
       helperText:
-        'Use this option when you are attending the event. Organizers approve applications before spots are confirmed.',
+        'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
       label: 'Manual approval option',
       primaryAction: 'Apply for approval',
     });
@@ -240,7 +240,8 @@ describe('registration add-on selections', () => {
       price: 500,
       registrationOptions: [
         {
-          quantity: 2,
+          includedQuantity: 0,
+          optionalPurchaseQuantity: 2,
           registrationOptionId: 'option-1',
         },
       ],
@@ -250,7 +251,8 @@ describe('registration add-on selections', () => {
       price: 0,
       registrationOptions: [
         {
-          quantity: 1,
+          includedQuantity: 0,
+          optionalPurchaseQuantity: 4,
           registrationOptionId: 'option-1',
         },
       ],
@@ -285,7 +287,7 @@ describe('registration add-on selections', () => {
         },
         'option-1',
       ),
-    ).toBe(2000);
+    ).toBe(1000);
   });
 
   it('caps selectable add-ons by attached quantity and remaining stock', () => {
@@ -295,7 +297,8 @@ describe('registration add-on selections', () => {
           maxQuantityPerUser: 5,
           registrationOptions: [
             {
-              quantity: 2,
+              includedQuantity: 1,
+              optionalPurchaseQuantity: 4,
               registrationOptionId: 'option-1',
             },
           ],
@@ -303,7 +306,7 @@ describe('registration add-on selections', () => {
         },
         'option-1',
       ),
-    ).toBe(1);
+    ).toBe(2);
   });
 });
 

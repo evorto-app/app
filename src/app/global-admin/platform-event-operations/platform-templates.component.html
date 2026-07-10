@@ -1,0 +1,69 @@
+<app-platform-tenant-page-header
+  title="Event templates"
+  [tenantId]="tenantId()"
+/>
+
+<div class="mb-6 flex flex-wrap gap-2">
+  <a
+    mat-flat-button
+    [routerLink]="['/global-admin/tenants', tenantId(), 'templates', 'new']"
+  >
+    Create template
+  </a>
+  <a
+    mat-stroked-button
+    [routerLink]="['/global-admin/tenants', tenantId(), 'events']"
+  >
+    Back to events
+  </a>
+</div>
+
+@if (templatesQuery.isPending()) {
+  <p role="status">Loading templates...</p>
+} @else if (templatesQuery.isError()) {
+  <section
+    class="bg-error-container text-on-error-container grid gap-3 p-4"
+    role="alert"
+  >
+    <p>{{ errorMessage(templatesQuery.error()) }}</p>
+    <button mat-stroked-button type="button" (click)="templatesQuery.refetch()">
+      Try again
+    </button>
+  </section>
+} @else if (templatesQuery.isSuccess()) {
+  <section
+    aria-label="Target-tenant templates"
+    class="divide-outline-variant divide-y"
+  >
+    @for (template of templatesQuery.data(); track template.id) {
+      <article
+        class="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+      >
+        <div>
+          <h2 class="title-medium">{{ template.title }}</h2>
+          <p class="body-small text-on-surface-variant">
+            {{ template.categoryTitle }} ·
+            <span class="font-mono">{{ template.id }}</span>
+          </p>
+        </div>
+        <a
+          mat-button
+          [routerLink]="[
+            '/global-admin/tenants',
+            tenantId(),
+            'templates',
+            template.id,
+          ]"
+        >
+          Edit template
+        </a>
+      </article>
+    } @empty {
+      <p
+        class="body-medium text-on-surface-variant border-outline-variant border-t py-6"
+      >
+        No templates found for this tenant.
+      </p>
+    }
+  </section>
+}

@@ -37,9 +37,11 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
+import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import { ReceiptAmountPipe } from '../../finance/shared/receipt-amount.pipe';
 import {
   EditProfileDialogComponent,
   EditProfileDialogData,
@@ -61,6 +63,14 @@ export const profileEditActionDisabled = ({
 }: {
   mutationPending: boolean;
 }): boolean => mutationPending;
+
+export const isBrowsingOutsideHomeTenant = (
+  homeTenantId: string | undefined,
+  currentTenantId: string | undefined,
+): boolean =>
+  homeTenantId !== undefined &&
+  currentTenantId !== undefined &&
+  homeTenantId !== currentTenantId;
 
 export const profileUserAfterEdit = <
   T extends {
@@ -100,6 +110,10 @@ export const profileEventNextStepLabel = (event: {
 }): null | string => {
   if (profileEventContinuePaymentUrl(event)) {
     return 'Finish the checkout payment to confirm your spot.';
+  }
+
+  if (event.paymentState === 'pending') {
+    return 'Your payment link is being prepared. Refresh shortly or open the event page for the latest status.';
   }
 
   return null;
@@ -148,6 +162,9 @@ export const profileEventActionNote = (event: {
       return 'Open the event page for ticket access, participant cancellation, and unpaid self-service transfer when available.';
     }
     case 'PENDING': {
+      if (event.paymentState === 'pending') {
+        return 'Payment setup is still in progress. Open the event page for the latest payment link or to cancel the registration.';
+      }
       return 'Open the event page for pending-registration details and available cancellation actions.';
     }
     case 'WAITLIST': {
@@ -210,9 +227,6 @@ export const profileReceiptStatusLabel = (
   }
 };
 
-export const profileReceiptAmountLabel = (totalAmount: number): string =>
-  `${(totalAmount / 100).toFixed(2)} €`;
-
 export const profileSectionFromFragment = (
   fragment: null | string,
   esnEnabled: boolean,
@@ -242,6 +256,7 @@ export const profileSectionFromFragment = (
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
+    ReceiptAmountPipe,
     RouterLink,
   ],
   selector: 'app-user-profile',
@@ -260,6 +275,18 @@ export class UserProfileComponent {
     { icon: faReceipt, key: 'receipts', label: 'Receipts' },
   ];
   private readonly rpc = AppRpc.injectClient();
+  protected readonly userQuery = injectQuery(() =>
+    this.rpc.users.self.queryOptions(),
+  );
+  protected readonly profileUser = computed(() =>
+    this.userQuery.isSuccess() ? this.userQuery.data() : undefined,
+  );
+  private readonly config = inject(ConfigService);
+  protected readonly browsingOutsideHomeTenant = computed(() => {
+    const user = this.profileUser();
+    const tenant = this.config.tenantSignal();
+    return isBrowsingOutsideHomeTenant(user?.homeTenantId, tenant?.id);
+  });
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
@@ -296,12 +323,13 @@ export class UserProfileComponent {
   protected readonly faPencil = faPencil;
   protected readonly faReceipt = faReceipt;
   protected readonly faRightFromBracket = faRightFromBracket;
+
   protected readonly faTags = faTags;
   protected readonly faUser = faUser;
+
   protected readonly myCardsQuery = injectQuery(() =>
     this.rpc.discounts.getMyCards.queryOptions(),
   );
-
   protected readonly hasVerifiedEsnCard = computed(() => {
     if (!this.myCardsQuery.isSuccess()) return false;
     const cards = this.myCardsQuery.data();
@@ -312,7 +340,6 @@ export class UserProfileComponent {
   protected readonly myReceiptsQuery = injectQuery(() =>
     this.rpc.finance.receipts.my.queryOptions(),
   );
-
   protected readonly profileEditActionDisabled = profileEditActionDisabled;
   protected readonly profileEventActionNote = profileEventActionNote;
   protected readonly profileEventContinuePaymentUrl =
@@ -320,16 +347,9 @@ export class UserProfileComponent {
   protected readonly profileEventDetailActionLabel =
     profileEventDetailActionLabel;
   protected readonly profileEventGuestLabel = profileEventGuestLabel;
-  protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
-  protected readonly profileReceiptAmountLabel = profileReceiptAmountLabel;
-  protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
-  protected readonly userQuery = injectQuery(() =>
-    this.rpc.users.self.queryOptions(),
-  );
 
-  protected readonly profileUser = computed(() =>
-    this.userQuery.isSuccess() ? this.userQuery.data() : undefined,
-  );
+  protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
+  protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),
   );
@@ -341,6 +361,9 @@ export class UserProfileComponent {
     ),
   );
   protected readonly selectedSection = signal<ProfileSection>('overview');
+  protected readonly setHomeTenantMutation = injectMutation(() =>
+    this.rpc.users.setHomeTenant.mutationOptions(),
+  );
   protected readonly updateProfileMutation = injectMutation(() =>
     this.rpc.users.updateProfile.mutationOptions(),
   );
@@ -401,6 +424,7 @@ export class UserProfileComponent {
       },
     );
   }
+
   protected async openEditProfileDialog(): Promise<void> {
     if (
       profileEditActionDisabled({
@@ -485,7 +509,6 @@ export class UserProfileComponent {
       },
     );
   }
-
   protected async saveEsnCard(event: Event): Promise<void> {
     event.preventDefault();
     if (this.esnCardMutationPending()) {
@@ -520,6 +543,38 @@ export class UserProfileComponent {
       return 'bg-secondary-container text-on-secondary-container';
     }
     return 'bg-surface text-on-surface';
+  }
+
+  protected setCurrentTenantAsHome(): void {
+    if (this.setHomeTenantMutation.isPending()) return;
+    const user = this.profileUser();
+    if (!user) return;
+
+    this.setHomeTenantMutation.mutate(undefined, {
+      onError: (error) => {
+        this.notifications.showError(
+          getErrorMessage(error, 'Failed to change home tenant'),
+        );
+      },
+      onSuccess: (homeTenant) => {
+        const updatedUser = {
+          ...user,
+          homeTenantId: homeTenant.homeTenantId,
+          homeTenantName: homeTenant.homeTenantName,
+        };
+        this.queryClient.setQueryData(
+          this.rpc.pathKey(['users', 'self']),
+          updatedUser,
+        );
+        this.queryClient.setQueryData(
+          this.rpc.pathKey(['users', 'maybeSelf']),
+          updatedUser,
+        );
+        this.notifications.showSuccess(
+          `${homeTenant.homeTenantName} is now your home tenant`,
+        );
+      },
+    });
   }
 
   protected setSelectedSection(section: ProfileSection): void {

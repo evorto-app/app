@@ -28,9 +28,24 @@ import {
 import { type AdminHubRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
+import { User } from '../../../../types/custom/user';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
+import {
+  normalizeTenantPrivacyPolicy,
+  publishPrivacyPolicyVersionIfChanged,
+} from '../../../onboarding/tenant-onboarding.service';
+import { tenantHasPendingStripeObligations } from '../../../payments/pending-stripe-obligations';
+import {
+  ensureTenantRetainsAnotherDefaultUserRole,
+  ensureTenantRoleIsUnreferenced,
+  lockTenantRoleGraph,
+} from '../../../roles/tenant-role-graph';
 import { StripeClient } from '../../../stripe-client';
 import { uploadTenantBrandAsset } from '../../../tenant-brand-assets';
+import {
+  tenantCurrencyChangeBlockedErrorDetails,
+  tenantHasCurrencyDependentData,
+} from '../../../tenant-currency-integrity';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -40,6 +55,20 @@ const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
+
+const databaseRoleEffect = <A, R>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+) =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch((error) =>
+        error instanceof AdminRoleNotFoundError ||
+        error instanceof RpcBadRequestError
+          ? Effect.fail(error)
+          : Effect.die(error),
+      ),
+    ),
+  );
 
 const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
   value: string | undefined,
@@ -160,18 +189,10 @@ const normalizeTenantBrandAssets = (input: {
 const normalizeMaxActiveRegistrationsPerUser = (value: number): number =>
   Math.max(0, Math.trunc(value));
 
-const localeMoneySettingsChanged = (
-  tenant: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
-  input: Pick<Tenant, 'currency' | 'locale' | 'timezone'>,
-): boolean =>
-  tenant.currency !== input.currency ||
-  tenant.locale !== input.locale ||
-  tenant.timezone !== input.timezone;
+type TenantRuntimeDependentDataDatabase = Pick<DatabaseClient, 'query'>;
 
-type TenantLocaleMoneyDependentDataDatabase = Pick<DatabaseClient, 'query'>;
-
-const tenantHasLocaleMoneyDependentData = (
-  database: TenantLocaleMoneyDependentDataDatabase,
+const tenantHasRuntimeDependentData = (
+  database: TenantRuntimeDependentDataDatabase,
   tenantId: string,
 ): Effect.Effect<boolean, unknown> =>
   Effect.gen(function* () {
@@ -199,12 +220,15 @@ const tenantHasLocaleMoneyDependentData = (
     return !!existingTransaction;
   });
 
-const tenantLocaleMoneySettingsLockedError = () =>
+const tenantRuntimeSettingsLockedError = () =>
   new RpcBadRequestError({
-    message: 'Tenant locale and money settings are locked',
+    message: 'Tenant currency and timezone settings are locked',
     reason:
-      'Currency, locale, and timezone cannot be changed after event or payment data exists.',
+      'Currency and timezone cannot be changed after event or payment data exists.',
   });
+
+const tenantCurrencySettingsLockedError = () =>
+  new RpcBadRequestError(tenantCurrencyChangeBlockedErrorDetails);
 
 const normalizeHubRoleRecord = (role: {
   description: null | string;
@@ -275,30 +299,36 @@ export const adminHandlers = {
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
       );
-      const createdRoles = yield* databaseEffect((database) =>
-        database
-          .insert(roles)
-          .values({
-            collapseMembersInHup: input.collapseMembersInHup,
-            defaultOrganizerRole: input.defaultOrganizerRole,
-            defaultUserRole: input.defaultUserRole,
-            description: input.description,
-            displayInHub: input.displayInHub,
-            name: input.name,
-            permissions: input.permissions,
-            tenantId: tenant.id,
-          })
-          .returning({
-            collapseMembersInHup: roles.collapseMembersInHup,
-            defaultOrganizerRole: roles.defaultOrganizerRole,
-            defaultUserRole: roles.defaultUserRole,
-            description: roles.description,
-            displayInHub: roles.displayInHub,
-            id: roles.id,
-            name: roles.name,
-            permissions: roles.permissions,
-            sortOrder: roles.sortOrder,
+      const createdRoles = yield* databaseRoleEffect((database) =>
+        database.transaction((transaction) =>
+          Effect.gen(function* () {
+            yield* lockTenantRoleGraph(transaction, tenant.id);
+
+            return yield* transaction
+              .insert(roles)
+              .values({
+                collapseMembersInHup: input.collapseMembersInHup,
+                defaultOrganizerRole: input.defaultOrganizerRole,
+                defaultUserRole: input.defaultUserRole,
+                description: input.description,
+                displayInHub: input.displayInHub,
+                name: input.name,
+                permissions: input.permissions,
+                tenantId: tenant.id,
+              })
+              .returning({
+                collapseMembersInHup: roles.collapseMembersInHup,
+                defaultOrganizerRole: roles.defaultOrganizerRole,
+                defaultUserRole: roles.defaultUserRole,
+                description: roles.description,
+                displayInHub: roles.displayInHub,
+                id: roles.id,
+                name: roles.name,
+                permissions: roles.permissions,
+                sortOrder: roles.sortOrder,
+              });
           }),
+        ),
       );
       const createdRole = createdRoles[0];
       if (!createdRole) {
@@ -314,19 +344,46 @@ export const adminHandlers = {
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
       );
-      const deletedRoles = yield* databaseEffect((database) =>
-        database
-          .delete(roles)
-          .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-          .returning({
-            id: roles.id,
+      yield* databaseRoleEffect((database) =>
+        database.transaction((transaction) =>
+          Effect.gen(function* () {
+            yield* lockTenantRoleGraph(transaction, tenant.id);
+            const lockedRoles = yield* transaction
+              .select({
+                defaultUserRole: roles.defaultUserRole,
+                id: roles.id,
+              })
+              .from(roles)
+              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+              .for('update');
+            const lockedRole = lockedRoles[0];
+            if (!lockedRole) {
+              return yield* new AdminRoleNotFoundError({
+                id,
+                message: 'Role not found',
+              });
+            }
+            if (lockedRole.defaultUserRole) {
+              yield* ensureTenantRetainsAnotherDefaultUserRole(
+                transaction,
+                tenant.id,
+                id,
+              );
+            }
+            yield* ensureTenantRoleIsUnreferenced(transaction, tenant.id, id);
+
+            const deletedRoles = yield* transaction
+              .delete(roles)
+              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+              .returning({ id: roles.id });
+            if (deletedRoles.length === 0) {
+              return yield* Effect.die(
+                new Error('Locked role disappeared before delete'),
+              );
+            }
           }),
+        ),
       );
-      if (deletedRoles.length === 0) {
-        return yield* Effect.fail(
-          new AdminRoleNotFoundError({ id, message: 'Role not found' }),
-        );
-      }
     }),
   'admin.roles.findHubRoles': (_payload, options) =>
     Effect.gen(function* () {
@@ -472,30 +529,58 @@ export const adminHandlers = {
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,
       );
-      const updatedRoles = yield* databaseEffect((database) =>
-        database
-          .update(roles)
-          .set({
-            collapseMembersInHup: input.collapseMembersInHup,
-            defaultOrganizerRole: input.defaultOrganizerRole,
-            defaultUserRole: input.defaultUserRole,
-            description: input.description,
-            displayInHub: input.displayInHub,
-            name: input.name,
-            permissions: input.permissions,
-          })
-          .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-          .returning({
-            collapseMembersInHup: roles.collapseMembersInHup,
-            defaultOrganizerRole: roles.defaultOrganizerRole,
-            defaultUserRole: roles.defaultUserRole,
-            description: roles.description,
-            displayInHub: roles.displayInHub,
-            id: roles.id,
-            name: roles.name,
-            permissions: roles.permissions,
-            sortOrder: roles.sortOrder,
+      const updatedRoles = yield* databaseRoleEffect((database) =>
+        database.transaction((transaction) =>
+          Effect.gen(function* () {
+            yield* lockTenantRoleGraph(transaction, tenant.id);
+            const lockedRoles = yield* transaction
+              .select({
+                defaultUserRole: roles.defaultUserRole,
+                id: roles.id,
+              })
+              .from(roles)
+              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+              .for('update');
+            const lockedRole = lockedRoles[0];
+            if (!lockedRole) {
+              return yield* new AdminRoleNotFoundError({
+                id,
+                message: 'Role not found',
+              });
+            }
+            if (lockedRole.defaultUserRole && !input.defaultUserRole) {
+              yield* ensureTenantRetainsAnotherDefaultUserRole(
+                transaction,
+                tenant.id,
+                id,
+              );
+            }
+
+            return yield* transaction
+              .update(roles)
+              .set({
+                collapseMembersInHup: input.collapseMembersInHup,
+                defaultOrganizerRole: input.defaultOrganizerRole,
+                defaultUserRole: input.defaultUserRole,
+                description: input.description,
+                displayInHub: input.displayInHub,
+                name: input.name,
+                permissions: input.permissions,
+              })
+              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+              .returning({
+                collapseMembersInHup: roles.collapseMembersInHup,
+                defaultOrganizerRole: roles.defaultOrganizerRole,
+                defaultUserRole: roles.defaultUserRole,
+                description: roles.description,
+                displayInHub: roles.displayInHub,
+                id: roles.id,
+                name: roles.name,
+                permissions: roles.permissions,
+                sortOrder: roles.sortOrder,
+              });
           }),
+        ),
       );
       const updatedRole = updatedRoles[0];
       if (!updatedRole) {
@@ -677,6 +762,22 @@ export const adminHandlers = {
           }),
         try: () => normalizeTenantLegalLinks(input),
       });
+      const privacyPolicy = yield* normalizeTenantPrivacyPolicy({
+        privacyPolicyText: legalLinks.privacyPolicyText ?? '',
+        privacyPolicyUrl: legalLinks.privacyPolicyUrl ?? '',
+      }).pipe(
+        Effect.mapError(
+          (error) =>
+            new RpcBadRequestError({
+              message: 'Invalid tenant privacy policy',
+              reason: error.message,
+            }),
+        ),
+      );
+      const currentUser = decodeHeaderJson(
+        options.headers[RPC_CONTEXT_HEADERS.USER],
+        Schema.NullOr(User),
+      );
       const brandAssets = yield* Effect.try({
         catch: (error) =>
           new RpcBadRequestError({
@@ -688,13 +789,14 @@ export const adminHandlers = {
       const nextTenant = {
         ...tenant,
         ...brandAssets,
+        cancellationDeadlineHoursBeforeStart:
+          input.cancellationDeadlineHoursBeforeStart,
         currency: input.currency,
         defaultLocation: input.defaultLocation,
         discountProviders,
         emailSenderEmail: input.emailSenderEmail?.trim() || null,
         emailSenderName: input.emailSenderName?.trim() || null,
         ...legalLinks,
-        locale: input.locale,
         maxActiveRegistrationsPerUser: normalizeMaxActiveRegistrationsPerUser(
           input.maxActiveRegistrationsPerUser,
         ),
@@ -702,11 +804,14 @@ export const adminHandlers = {
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
         }),
+        refundFeesOnCancellation: input.refundFeesOnCancellation,
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
         stripeAccountId: input.stripeAccountId?.trim() || null,
         theme: input.theme,
         timezone: input.timezone,
+        transferDeadlineHoursBeforeStart:
+          input.transferDeadlineHoursBeforeStart,
       };
 
       const validatedTenant = yield* Effect.try({
@@ -720,13 +825,14 @@ export const adminHandlers = {
 
       const tenantUpdate = {
         ...brandAssets,
+        cancellationDeadlineHoursBeforeStart:
+          input.cancellationDeadlineHoursBeforeStart,
         currency: input.currency,
         defaultLocation: input.defaultLocation,
         discountProviders,
         emailSenderEmail: input.emailSenderEmail?.trim() || null,
         emailSenderName: input.emailSenderName?.trim() || null,
         ...legalLinks,
-        locale: input.locale,
         maxActiveRegistrationsPerUser: normalizeMaxActiveRegistrationsPerUser(
           input.maxActiveRegistrationsPerUser,
         ),
@@ -734,35 +840,75 @@ export const adminHandlers = {
           allowOther: input.allowOther,
           receiptCountries: input.receiptCountries,
         }),
+        refundFeesOnCancellation: input.refundFeesOnCancellation,
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
         stripeAccountId: input.stripeAccountId?.trim() || null,
         theme: input.theme,
         timezone: input.timezone,
+        transferDeadlineHoursBeforeStart:
+          input.transferDeadlineHoursBeforeStart,
       };
       const updatedTenants = yield* Database.use((database) =>
         database
           .transaction((tx) =>
             Effect.gen(function* () {
               const lockedTenantRows = yield* tx
-                .select({ id: tenants.id })
+                .select({
+                  currency: tenants.currency,
+                  id: tenants.id,
+                  stripeAccountId: tenants.stripeAccountId,
+                  timezone: tenants.timezone,
+                })
                 .from(tenants)
                 .where(eq(tenants.id, tenant.id))
                 .for('update');
 
-              if (lockedTenantRows.length === 0) {
+              const lockedTenant = lockedTenantRows[0];
+              if (!lockedTenant) {
                 return [];
               }
 
-              if (localeMoneySettingsChanged(tenant, input)) {
-                const hasDependentData =
-                  yield* tenantHasLocaleMoneyDependentData(tx, tenant.id);
-                if (hasDependentData) {
+              if (
+                lockedTenant.stripeAccountId !== tenantUpdate.stripeAccountId
+              ) {
+                const hasPendingStripeObligations =
+                  yield* tenantHasPendingStripeObligations(tx, tenant.id);
+                if (hasPendingStripeObligations) {
+                  return yield* new RpcBadRequestError({
+                    message:
+                      'Stripe account cannot change while registration Checkouts or refunds are pending',
+                    reason:
+                      'Complete or cancel every pending Checkout and refund before changing the connected account.',
+                  });
+                }
+              }
+
+              if (lockedTenant.currency !== input.currency) {
+                const hasCurrencyDependentData =
+                  yield* tenantHasCurrencyDependentData(tx, tenant.id);
+                if (hasCurrencyDependentData) {
                   return yield* Effect.fail(
-                    tenantLocaleMoneySettingsLockedError(),
+                    tenantCurrencySettingsLockedError(),
                   );
                 }
               }
+
+              if (lockedTenant.timezone !== input.timezone) {
+                const hasDependentData = yield* tenantHasRuntimeDependentData(
+                  tx,
+                  tenant.id,
+                );
+                if (hasDependentData) {
+                  return yield* Effect.fail(tenantRuntimeSettingsLockedError());
+                }
+              }
+
+              yield* publishPrivacyPolicyVersionIfChanged(tx, {
+                actorUserId: currentUser?.id ?? null,
+                policy: privacyPolicy,
+                tenantId: tenant.id,
+              });
 
               return yield* tx
                 .update(tenants)

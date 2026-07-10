@@ -8,7 +8,10 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { fillTemplateBasics } from '../../support/utils/template-form';
 
-test.use({ storageState: adminStateFile });
+test.use({
+  storageState: adminStateFile,
+  timezoneId: 'America/Los_Angeles',
+});
 
 test('Manage templates', async ({
   database,
@@ -320,6 +323,8 @@ You will be redirected to the detail page for that template.
     body: `
 ## Creating an event from a template
 Open the template detail page and click **Create event**. The event form starts with the template title, description, registration options, reusable add-ons, registration questions, and organizer planning tips already copied into the event draft.
+
+Dates use the fixed **de-DE** format. Enter times in the tenant's business timezone; Evorto preserves that meaning even when an organizer's browser is set to another timezone.
 `,
   });
   await page.getByRole('link', { name: 'Create event' }).click();
@@ -331,12 +336,12 @@ Open the template detail page and click **Create event**. The event form starts 
   const futureStart = DateTime.now().plus({ months: 2 });
   await eventForm
     .getByRole('textbox', { name: 'Start date' })
-    .fill(futureStart.toFormat('M/d/yyyy'));
-  await eventForm.getByRole('combobox', { name: 'Start time' }).fill('1:00 PM');
+    .fill(futureStart.setLocale('de-DE').toLocaleString(DateTime.DATE_SHORT));
+  await eventForm.getByRole('combobox', { name: 'Start time' }).fill('13:00');
   await eventForm
     .getByRole('textbox', { name: 'End date' })
-    .fill(futureStart.toFormat('M/d/yyyy'));
-  await eventForm.getByRole('combobox', { name: 'End time' }).fill('5:00 PM');
+    .fill(futureStart.setLocale('de-DE').toLocaleString(DateTime.DATE_SHORT));
+  await eventForm.getByRole('combobox', { name: 'End time' }).fill('17:00');
   await takeScreenshot(
     testInfo,
     eventForm,
@@ -362,6 +367,27 @@ Open the template detail page and click **Create event**. The event form starts 
       'Expected template docs flow to persist an event from the template',
     );
   }
+  const createdEventTenant = await database.query.tenants.findFirst({
+    where: { id: tenant.id },
+  });
+  if (!createdEventTenant) {
+    throw new Error('Expected template docs tenant runtime settings');
+  }
+  const tenantStart = DateTime.fromObject(
+    {
+      day: futureStart.day,
+      hour: 13,
+      month: futureStart.month,
+      year: futureStart.year,
+    },
+    { zone: createdEventTenant.timezone },
+  );
+  expect(createdEvent.start.toISOString()).toBe(
+    tenantStart.toJSDate().toISOString(),
+  );
+  expect(createdEvent.end.toISOString()).toBe(
+    tenantStart.plus({ hours: 4 }).toJSDate().toISOString(),
+  );
   const createdEventOptions =
     await database.query.eventRegistrationOptions.findMany({
       where: { eventId: createdEvent.id },

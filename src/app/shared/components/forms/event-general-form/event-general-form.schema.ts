@@ -4,7 +4,12 @@ import { applyEach, schema, validate } from '@angular/forms/signals';
 import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 import { DateTime } from 'luxon';
 
+import {
+  DEFAULT_TENANT_TIMEZONE,
+  type SupportedTenantTimezone,
+} from '../../../../../types/custom/tenant';
 import { EventLocationType } from '../../../../../types/location';
+import { tenantNow } from '../../../../core/tenant-runtime';
 import {
   RegistrationOptionFormModel,
   registrationOptionFormSchema,
@@ -22,8 +27,9 @@ export interface EventGeneralFormModel {
 
 export const createEventGeneralFormModel = (
   overrides: Partial<EventGeneralFormModel> = {},
+  timezone: SupportedTenantTimezone = DEFAULT_TENANT_TIMEZONE,
 ): EventGeneralFormModel => {
-  const defaultStart = DateTime.now().plus({ weeks: 1 });
+  const defaultStart = tenantNow(timezone).plus({ weeks: 1 });
   return {
     description: '',
     end: defaultStart,

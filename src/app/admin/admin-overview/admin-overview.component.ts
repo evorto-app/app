@@ -12,6 +12,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faCalendarCheck,
+  faClipboardQuestion,
   faFolderUser,
   faGlobe,
   faReceipt,
@@ -43,6 +44,7 @@ export class AdminOverviewComponent {
   protected readonly canReviewEvents =
     this.permissions.hasPermission('events:review');
   protected readonly faCalendarCheck = faCalendarCheck;
+  protected readonly faClipboardQuestion = faClipboardQuestion;
   protected readonly faFolderUser = faFolderUser;
   protected readonly faGlobe = faGlobe;
   protected readonly faReceipt = faReceipt;

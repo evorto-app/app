@@ -1,5 +1,33 @@
 <div class="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr] lg:p-4">
   <div class="grid gap-4">
+    @if (browsingOutsideHomeTenant()) {
+      <section
+        role="status"
+        class="bg-warning-container text-on-warning-container grid gap-3 rounded-xl p-4"
+      >
+        <div>
+          <h2 class="title-medium">You are browsing another tenant</h2>
+          <p class="body-medium mt-1">
+            Your home tenant is
+            {{ profileUser()?.homeTenantName ?? "another tenant" }}. Joining
+            this tenant did not change that preference.
+          </p>
+        </div>
+        <button
+          type="button"
+          mat-stroked-button
+          class="justify-self-start"
+          [disabled]="setHomeTenantMutation.isPending()"
+          (click)="setCurrentTenantAsHome()"
+        >
+          {{
+            setHomeTenantMutation.isPending()
+              ? "Changing..."
+              : "Make this my home tenant"
+          }}
+        </button>
+      </section>
+    }
     <section class="bg-surface-container-high text-on-surface rounded-2xl p-4">
       @if (profileUser(); as user) {
         <div class="space-y-2">
@@ -402,7 +430,7 @@
                     {{ receipt.receiptDate | date: "mediumDate" }}
                   </p>
                   <p class="text-sm">
-                    {{ profileReceiptAmountLabel(receipt.totalAmount) }}
+                    {{ receipt.totalAmount | receiptAmount: receipt.currency }}
                   </p>
                 </article>
               }

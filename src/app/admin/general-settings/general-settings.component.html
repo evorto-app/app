@@ -99,6 +99,51 @@
             />
             <mat-hint>Use 0 for no tenant-wide limit.</mat-hint>
           </mat-form-field>
+          <mat-form-field>
+            <mat-label>Transfer deadline before event (hours)</mat-label>
+            <input
+              matInput
+              type="number"
+              [formField]="settingsForm.transferDeadlineHoursBeforeStart"
+            />
+            <mat-hint>
+              How many hours before an event starts registration transfers
+              close. Use 0 to allow transfers until the start time.
+            </mat-hint>
+            @if (
+              settingsForm.transferDeadlineHoursBeforeStart().touched() &&
+              settingsForm.transferDeadlineHoursBeforeStart().invalid()
+            ) {
+              <mat-error>Enter zero or more hours.</mat-error>
+            }
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Cancellation deadline before event (hours)</mat-label>
+            <input
+              matInput
+              type="number"
+              [formField]="settingsForm.cancellationDeadlineHoursBeforeStart"
+            />
+            <mat-hint>
+              How many hours before an event starts participant cancellations
+              close. The default 120 hours is five days.
+            </mat-hint>
+            @if (
+              settingsForm.cancellationDeadlineHoursBeforeStart().touched() &&
+              settingsForm.cancellationDeadlineHoursBeforeStart().invalid()
+            ) {
+              <mat-error>Enter zero or more hours.</mat-error>
+            }
+          </mat-form-field>
+        </div>
+        <div class="mt-2">
+          <mat-slide-toggle [formField]="settingsForm.refundFeesOnCancellation">
+            Refund fees on cancellation
+          </mat-slide-toggle>
+          <p class="text-on-surface-variant mt-1 text-xs">
+            When enabled, eligible cancellation refunds include refundable
+            payment fees.
+          </p>
         </div>
       </section>
 
@@ -121,12 +166,12 @@
         </mat-select>
       </mat-form-field>
 
-      <h3 class="title-small mb-2 mt-6">Locale and money</h3>
+      <h3 class="title-small mb-2 mt-6">Currency and business time</h3>
       <p class="text-on-surface-variant mb-3 text-sm">
-        These values are used for tenant currency, date/time display, and local
-        scheduling assumptions.
+        Money uses the tenant currency. Dates and times use the tenant timezone
+        with the fixed de-DE formatting locale.
       </p>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <mat-form-field>
           <mat-label>Currency</mat-label>
           <mat-select [formField]="settingsForm.currency">
@@ -134,24 +179,26 @@
               <mat-option [value]="currency">{{ currency }}</mat-option>
             }
           </mat-select>
-        </mat-form-field>
-
-        <mat-form-field>
-          <mat-label>Locale</mat-label>
-          <mat-select [formField]="settingsForm.locale">
-            @for (locale of localeOptions; track locale) {
-              <mat-option [value]="locale">{{ locale }}</mat-option>
-            }
-          </mat-select>
+          <mat-hint>
+            Applies to new event and finance records. It is locked after
+            templates, events, receipts, or transactions exist.
+          </mat-hint>
         </mat-form-field>
 
         <mat-form-field>
           <mat-label>Timezone</mat-label>
-          <mat-select [formField]="settingsForm.timezone">
-            @for (timezone of timezoneOptions; track timezone) {
-              <mat-option [value]="timezone">{{ timezone }}</mat-option>
-            }
-          </mat-select>
+          <input
+            matInput
+            [formField]="settingsForm.timezone"
+            placeholder="Europe/Berlin"
+          />
+          <mat-hint>Use an IANA timezone name.</mat-hint>
+          @if (
+            settingsForm.timezone().touched() &&
+            settingsForm.timezone().invalid()
+          ) {
+            <mat-error>Enter a valid IANA timezone name.</mat-error>
+          }
         </mat-form-field>
       </div>
 
@@ -272,6 +319,14 @@
           placeholder="https://section.example.org/privacy"
         />
       </mat-form-field>
+      <div
+        role="note"
+        class="bg-warning-container text-on-warning-container mb-4 rounded-lg p-3"
+      >
+        Changing the privacy policy text or link publishes a new policy version.
+        Every tenant user, including you, must accept that version before using
+        protected tenant features again.
+      </div>
       <mat-form-field>
         <mat-label>Hosted privacy policy text</mat-label>
         <textarea

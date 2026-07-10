@@ -10,6 +10,8 @@ import {
 import { adminHandlers } from './admin.handlers';
 
 const createTenant = (id = 'tenant-1') => ({
+  cancellationDeadlineHoursBeforeStart: 120,
+  canonicalRootUrl: `https://${id}.example.com`,
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {
@@ -24,13 +26,17 @@ const createTenant = (id = 'tenant-1') => ({
   locale: 'en',
   logoUrl: null,
   name: id,
+  privacyPolicyText: 'Current tenant privacy policy',
+  privacyPolicyUrl: null,
   receiptSettings: {
     allowOther: false,
     receiptCountries: ['NL'],
   },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
+  transferDeadlineHoursBeforeStart: 0,
 });
 
 const createAdminHeaders = () => ({
@@ -59,33 +65,31 @@ const createSettingsAdminOptions = () => ({
 
 const createSettingsInput = () => ({
   allowOther: true,
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
   defaultLocation: null,
   emailSenderEmail: undefined,
   emailSenderName: undefined,
   esnCardEnabled: false,
-  locale: 'en-GB' as const,
   maxActiveRegistrationsPerUser: 0,
+  privacyPolicyText: 'Current tenant privacy policy',
+  privacyPolicyUrl: undefined,
   receiptCountries: ['NL'],
+  refundFeesOnCancellation: true,
   stripeAccountId: undefined,
   theme: 'evorto' as const,
   timezone: 'Europe/Berlin' as const,
+  transferDeadlineHoursBeforeStart: 0,
 });
-
-const lockedTenantSelectQuery = {
-  for: () => Effect.succeed([{ id: 'tenant-1' }]),
-};
-
-const lockedTenantFromQuery = {
-  where: () => lockedTenantSelectQuery,
-};
-
-const lockedTenantQuery = {
-  from: () => lockedTenantFromQuery,
-};
 
 const noLocaleMoneyDependentDataQuery = () => ({
   eventInstances: {
+    findFirst: () => Effect.succeed(null),
+  },
+  eventTemplates: {
+    findFirst: () => Effect.succeed(null),
+  },
+  financeReceipts: {
     findFirst: () => Effect.succeed(null),
   },
   transactions: {
@@ -93,13 +97,72 @@ const noLocaleMoneyDependentDataQuery = () => ({
   },
 });
 
-const withTenantSettingsTransaction = <T extends object>(database: T) => {
+const withTenantSettingsTransaction = <T extends object>(
+  database: T,
+  options: {
+    readonly hasPendingStripeObligations?: boolean;
+    readonly lockedCurrency?: 'AUD' | 'CZK' | 'EUR';
+    readonly lockedStripeAccountId?: null | string;
+    readonly lockedTimezone?: string;
+  } = {},
+) => {
   const query =
     'query' in database ? database.query : noLocaleMoneyDependentDataQuery();
   const transactionDatabase = {
     ...database,
+    insert:
+      'insert' in database
+        ? database.insert
+        : () => ({
+            values: (value: {
+              privacyPolicyText: null | string;
+              privacyPolicyUrl: null | string;
+              version: number;
+            }) => ({
+              returning: () =>
+                Effect.succeed([
+                  {
+                    id: 'policy-next',
+                    privacyPolicyText: value.privacyPolicyText,
+                    privacyPolicyUrl: value.privacyPolicyUrl,
+                    version: value.version,
+                  },
+                ]),
+            }),
+          }),
     query,
-    select: () => lockedTenantQuery,
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          for: () =>
+            Effect.succeed([
+              {
+                currency: options.lockedCurrency ?? 'EUR',
+                id: 'tenant-1',
+                stripeAccountId: options.lockedStripeAccountId ?? null,
+                timezone: options.lockedTimezone ?? 'Europe/Amsterdam',
+              },
+            ]),
+          limit: () =>
+            Effect.succeed(
+              options.hasPendingStripeObligations
+                ? [{ id: 'stripe-obligation-1' }]
+                : [],
+            ),
+          orderBy: () => ({
+            limit: () =>
+              Effect.succeed([
+                {
+                  id: 'policy-1',
+                  privacyPolicyText: 'Current tenant privacy policy',
+                  privacyPolicyUrl: null,
+                  version: 1,
+                },
+              ]),
+          }),
+        }),
+      }),
+    }),
   };
 
   return {
@@ -196,6 +259,12 @@ describe('adminHandlers tenant settings', () => {
             eventInstances: {
               findFirst: () => Effect.succeed(null),
             },
+            eventTemplates: {
+              findFirst: () => Effect.succeed(null),
+            },
+            financeReceipts: {
+              findFirst: () => Effect.succeed(null),
+            },
             transactions: {
               findFirst: () => Effect.succeed(null),
             },
@@ -206,6 +275,7 @@ describe('adminHandlers tenant settings', () => {
         const result = yield* adminHandlers['admin.tenant.updateSettings'](
           {
             allowOther: true,
+            cancellationDeadlineHoursBeforeStart: 96,
             currency: 'AUD',
             defaultLocation: null,
             emailSenderEmail: ' events@section.example.org ',
@@ -214,12 +284,12 @@ describe('adminHandlers tenant settings', () => {
             faviconUrl: ' https://cdn.example.org/favicon.ico ',
             legalNoticeText: '  Tenant imprint text  ',
             legalNoticeUrl: ' https://section.example.org/imprint ',
-            locale: 'en-AU',
             logoUrl: 'https://cdn.example.org/logo.svg',
             maxActiveRegistrationsPerUser: 4.8,
             privacyPolicyText: ' Tenant privacy text ',
             privacyPolicyUrl: 'https://section.example.org/privacy',
             receiptCountries: ['NL'],
+            refundFeesOnCancellation: false,
             seoDescription: '  Public description  ',
             seoTitle: '  Public title  ',
             stripeAccountId: ' acct_123 ',
@@ -227,49 +297,94 @@ describe('adminHandlers tenant settings', () => {
             termsUrl: 'https://section.example.org/terms',
             theme: 'evorto',
             timezone: 'Australia/Brisbane',
+            transferDeadlineHoursBeforeStart: 12,
           },
           createSettingsAdminOptions(),
         ).pipe(Effect.provide(provideDatabase(database)));
 
         expect(capturedUpdate).toMatchObject({
+          cancellationDeadlineHoursBeforeStart: 96,
           currency: 'AUD',
           emailSenderEmail: 'events@section.example.org',
           emailSenderName: 'Example Section',
           faviconUrl: 'https://cdn.example.org/favicon.ico',
           legalNoticeText: 'Tenant imprint text',
           legalNoticeUrl: 'https://section.example.org/imprint',
-          locale: 'en-AU',
           logoUrl: 'https://cdn.example.org/logo.svg',
           maxActiveRegistrationsPerUser: 4,
           privacyPolicyText: 'Tenant privacy text',
           privacyPolicyUrl: 'https://section.example.org/privacy',
+          refundFeesOnCancellation: false,
           seoDescription: 'Public description',
           seoTitle: 'Public title',
           stripeAccountId: 'acct_123',
           termsText: 'Tenant terms text',
           termsUrl: 'https://section.example.org/terms',
           timezone: 'Australia/Brisbane',
+          transferDeadlineHoursBeforeStart: 12,
         });
         expect(result).toMatchObject({
+          cancellationDeadlineHoursBeforeStart: 96,
           currency: 'AUD',
           emailSenderEmail: 'events@section.example.org',
           emailSenderName: 'Example Section',
           faviconUrl: 'https://cdn.example.org/favicon.ico',
           legalNoticeText: 'Tenant imprint text',
           legalNoticeUrl: 'https://section.example.org/imprint',
-          locale: 'en-AU',
+          locale: 'de-DE',
           logoUrl: 'https://cdn.example.org/logo.svg',
           maxActiveRegistrationsPerUser: 4,
           privacyPolicyText: 'Tenant privacy text',
           privacyPolicyUrl: 'https://section.example.org/privacy',
+          refundFeesOnCancellation: false,
           seoDescription: 'Public description',
           seoTitle: 'Public title',
           stripeAccountId: 'acct_123',
           termsText: 'Tenant terms text',
           termsUrl: 'https://section.example.org/terms',
           timezone: 'Australia/Brisbane',
+          transferDeadlineHoursBeforeStart: 12,
         });
+        expect(capturedUpdate).not.toHaveProperty('locale');
       }),
+  );
+
+  it.effect('persists a validated Google default location', () =>
+    Effect.gen(function* () {
+      let capturedUpdate: Record<string, unknown> | undefined;
+      const updateQuery = {
+        returning: () => Effect.succeed([{ id: 'tenant-1' }]),
+        set: (value: Record<string, unknown>) => {
+          capturedUpdate = value;
+          return updateQuery;
+        },
+        where: () => updateQuery,
+      };
+      const database = withTenantSettingsTransaction({
+        update: () => updateQuery,
+      });
+      const defaultLocation = {
+        address: 'Alexanderplatz, Berlin, Germany',
+        coordinates: {
+          lat: 52.5219,
+          lng: 13.4132,
+        },
+        name: 'Alexanderplatz',
+        placeId: 'place-alexanderplatz',
+        type: 'google' as const,
+      };
+
+      const result = yield* adminHandlers['admin.tenant.updateSettings'](
+        {
+          ...createSettingsInput(),
+          defaultLocation,
+        },
+        createSettingsAdminOptions(),
+      ).pipe(Effect.provide(provideDatabase(database)));
+
+      expect(capturedUpdate).toMatchObject({ defaultLocation });
+      expect(result.defaultLocation).toEqual(defaultLocation);
+    }),
   );
 
   it.effect('rejects invalid tenant legal-link URLs', () =>
@@ -287,7 +402,6 @@ describe('adminHandlers tenant settings', () => {
           defaultLocation: null,
           esnCardEnabled: false,
           legalNoticeUrl: 'not a url',
-          locale: 'en-GB',
           receiptCountries: ['NL'],
           theme: 'evorto',
           timezone: 'Europe/Berlin',
@@ -322,16 +436,9 @@ describe('adminHandlers tenant settings', () => {
 
       const result = yield* adminHandlers['admin.tenant.updateSettings'](
         {
-          allowOther: true,
-          currency: 'EUR',
-          defaultLocation: null,
-          esnCardEnabled: false,
+          ...createSettingsInput(),
           faviconUrl: ' /tenant-assets/tenant-1/favicon/favicon.ico ',
-          locale: 'en-GB',
           logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
-          receiptCountries: ['NL'],
-          theme: 'evorto',
-          timezone: 'Europe/Berlin',
         },
         createSettingsAdminOptions(),
       ).pipe(Effect.provide(provideDatabase(database)));
@@ -361,8 +468,8 @@ describe('adminHandlers tenant settings', () => {
           currency: 'EUR',
           defaultLocation: null,
           esnCardEnabled: false,
-          locale: 'en-GB',
           logoUrl: 'file:///tmp/logo.svg',
+          privacyPolicyText: 'Current tenant privacy policy',
           receiptCountries: ['NL'],
           theme: 'evorto',
           timezone: 'Europe/Berlin',
@@ -391,8 +498,8 @@ describe('adminHandlers tenant settings', () => {
             currency: 'EUR',
             defaultLocation: null,
             esnCardEnabled: false,
-            locale: 'en-GB',
             logoUrl: '/tenant-assets/tenant-1/logo/..%2Fsecret.png',
+            privacyPolicyText: 'Current tenant privacy policy',
             receiptCountries: ['NL'],
             theme: 'evorto',
             timezone: 'Europe/Berlin',
@@ -405,19 +512,113 @@ describe('adminHandlers tenant settings', () => {
       }),
   );
 
-  it.effect(
-    'rejects locale and money setting changes when tenant events exist',
-    () =>
+  it.effect('rejects currency changes when tenant events exist', () =>
+    Effect.gen(function* () {
+      const database = withTenantSettingsTransaction({
+        query: {
+          eventInstances: {
+            findFirst: () => Effect.succeed({ id: 'event-1' }),
+          },
+          eventTemplates: {
+            findFirst: () => Effect.succeed(null),
+          },
+          financeReceipts: {
+            findFirst: () => {
+              throw new Error('receipt query should not be touched');
+            },
+          },
+          transactions: {
+            findFirst: () => {
+              throw new Error('transaction query should not be touched');
+            },
+          },
+        },
+        update: () => {
+          throw new Error('database update should not be touched');
+        },
+      });
+
+      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+        {
+          ...createSettingsInput(),
+          currency: 'CZK',
+        },
+        createSettingsAdminOptions(),
+      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.message).toBe(
+        'Tenant currency is locked by existing financial configuration',
+      );
+    }),
+  );
+
+  it.effect('rejects currency changes when tenant templates exist', () =>
+    Effect.gen(function* () {
+      const database = withTenantSettingsTransaction({
+        query: {
+          eventInstances: {
+            findFirst: () => {
+              throw new Error('event query should not be touched');
+            },
+          },
+          eventTemplates: {
+            findFirst: () => Effect.succeed({ id: 'template-1' }),
+          },
+          financeReceipts: {
+            findFirst: () => {
+              throw new Error('receipt query should not be touched');
+            },
+          },
+          transactions: {
+            findFirst: () => {
+              throw new Error('transaction query should not be touched');
+            },
+          },
+        },
+        update: () => {
+          throw new Error('database update should not be touched');
+        },
+      });
+
+      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+        {
+          ...createSettingsInput(),
+          currency: 'AUD',
+        },
+        createSettingsAdminOptions(),
+      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.reason).toContain('dedicated currency migration');
+    }),
+  );
+
+  it.effect.each(['receipt', 'transaction'] as const)(
+    'rejects currency changes when tenant %s data exists',
+    (dependentData) =>
       Effect.gen(function* () {
         const database = withTenantSettingsTransaction({
           query: {
             eventInstances: {
-              findFirst: () => Effect.succeed({ id: 'event-1' }),
+              findFirst: () => Effect.succeed(null),
+            },
+            eventTemplates: {
+              findFirst: () => Effect.succeed(null),
+            },
+            financeReceipts: {
+              findFirst: () =>
+                Effect.succeed(
+                  dependentData === 'receipt' ? { id: 'receipt-1' } : null,
+                ),
             },
             transactions: {
-              findFirst: () => {
-                throw new Error('transaction query should not be touched');
-              },
+              findFirst: () =>
+                Effect.succeed(
+                  dependentData === 'transaction'
+                    ? { id: 'transaction-1' }
+                    : null,
+                ),
             },
           },
           update: () => {
@@ -434,42 +635,146 @@ describe('adminHandlers tenant settings', () => {
         ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe(
-          'Tenant locale and money settings are locked',
-        );
+        expect(error.reason).toContain('dedicated currency migration');
       }),
   );
 
+  it.effect('rejects timezone changes when tenant transactions exist', () =>
+    Effect.gen(function* () {
+      const database = withTenantSettingsTransaction({
+        query: {
+          eventInstances: {
+            findFirst: () => Effect.succeed(null),
+          },
+          transactions: {
+            findFirst: () => Effect.succeed({ id: 'transaction-1' }),
+          },
+        },
+        update: () => {
+          throw new Error('database update should not be touched');
+        },
+      });
+
+      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+        {
+          ...createSettingsInput(),
+          timezone: 'Europe/Prague',
+        },
+        createSettingsAdminOptions(),
+      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+      expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.message).toBe(
+        'Tenant currency and timezone settings are locked',
+      );
+    }),
+  );
+
   it.effect(
-    'rejects locale and money setting changes when tenant transactions exist',
+    'uses the locked tenant runtime settings when the request context is stale',
     () =>
       Effect.gen(function* () {
-        const database = withTenantSettingsTransaction({
-          query: {
-            eventInstances: {
-              findFirst: () => Effect.succeed(null),
+        const database = withTenantSettingsTransaction(
+          {
+            query: {
+              eventInstances: {
+                findFirst: () => Effect.succeed({ id: 'event-1' }),
+              },
+              transactions: {
+                findFirst: () => {
+                  throw new Error('transaction query should not be touched');
+                },
+              },
             },
-            transactions: {
-              findFirst: () => Effect.succeed({ id: 'transaction-1' }),
+            update: () => {
+              throw new Error('database update should not be touched');
             },
           },
-          update: () => {
-            throw new Error('database update should not be touched');
+          {
+            lockedTimezone: 'Europe/Prague',
           },
-        });
+        );
 
         const error = yield* adminHandlers['admin.tenant.updateSettings'](
           {
             ...createSettingsInput(),
-            timezone: 'Europe/Prague',
+            timezone: 'Europe/Amsterdam',
           },
           createSettingsAdminOptions(),
         ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
-          'Tenant locale and money settings are locked',
+          'Tenant currency and timezone settings are locked',
         );
+      }),
+  );
+
+  it.effect(
+    'uses the locked tenant account and blocks a stale-header account clear while Stripe obligations are pending',
+    () =>
+      Effect.gen(function* () {
+        const database = withTenantSettingsTransaction(
+          {
+            update: () => {
+              throw new Error('database update should not be touched');
+            },
+          },
+          {
+            hasPendingStripeObligations: true,
+            lockedStripeAccountId: 'acct_existing',
+          },
+        );
+
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            timezone: 'Europe/Amsterdam',
+          },
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'Stripe account cannot change while registration Checkouts or refunds are pending',
+        );
+      }),
+  );
+
+  it.effect(
+    'allows other tenant edits when the locked Stripe account is unchanged',
+    () =>
+      Effect.gen(function* () {
+        let updateCalled = false;
+        const updateQuery = {
+          returning: () => Effect.succeed([{ id: 'tenant-1' }]),
+          set: () => {
+            updateCalled = true;
+            return updateQuery;
+          },
+          where: () => updateQuery,
+        };
+        const database = withTenantSettingsTransaction(
+          { update: () => updateQuery },
+          {
+            hasPendingStripeObligations: true,
+            lockedStripeAccountId: 'acct_existing',
+          },
+        );
+
+        const result = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            seoTitle: 'Updated title',
+            stripeAccountId: 'acct_existing',
+            timezone: 'Europe/Amsterdam',
+          },
+          createSettingsAdminOptions(),
+        ).pipe(Effect.provide(provideDatabase(database)));
+
+        expect(updateCalled).toBe(true);
+        expect(result.seoTitle).toBe('Updated title');
+        expect(result.stripeAccountId).toBe('acct_existing');
       }),
   );
 });

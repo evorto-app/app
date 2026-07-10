@@ -1,20 +1,26 @@
 import consola from 'consola';
-import { eq, InferSelectModel } from 'drizzle-orm';
+import { InferSelectModel } from 'drizzle-orm';
 
 import * as oldSchema from '../../old/drizzle';
 import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
+import {
+  defaultTenantCanonicalRootUrl,
+  normalizeTenantDomain,
+} from '../../src/shared/tenant-public-url';
 
 export const migrateTenant = async (
   newDomain: string,
   oldTenantData: InferSelectModel<typeof oldSchema.tenant>,
 ) => {
   consola.info(`Migrating tenant`);
+  const normalizedDomain = normalizeTenantDomain(newDomain);
   const tenantReturn = await database
     .insert(schema.tenants)
     .values({
+      canonicalRootUrl: defaultTenantCanonicalRootUrl(normalizedDomain),
       currency: oldTenantData.currency,
-      domain: newDomain,
+      domain: normalizedDomain,
       name: oldTenantData.name,
       theme: 'esn',
     })
@@ -29,11 +35,11 @@ export const migrateTenant = async (
       active: true,
       displayName: null,
       inclusive: true,
-      percentage: null as any,
+      percentage: null,
       state: null,
       stripeTaxRateId: oldTenantData.stripeReducedTaxRate,
       tenantId: newTenant.id,
-    } as any);
+    });
   }
 
   return newTenant;

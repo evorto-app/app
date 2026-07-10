@@ -10,6 +10,7 @@ import {
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrationQuestions,
+  roles,
 } from '../../../../../db/schema';
 import {
   RpcRequestContext,
@@ -96,18 +97,21 @@ const createInput = {
   },
   registrationOptions: [
     {
+      cancellationDeadlineHoursBeforeStart: null,
       closeRegistrationTime: '2026-09-19T12:00:00.000Z',
       description: null,
       isPaid: false,
       openRegistrationTime: '2026-09-01T12:00:00.000Z',
       organizingRegistration: false,
       price: 0,
+      refundFeesOnCancellation: null,
       registeredDescription: null,
       registrationMode: 'fcfs' as const,
       roleIds: ['role-1'],
       spots: 10,
       stripeTaxRateId: null,
       title: 'Participant',
+      transferDeadlineHoursBeforeStart: null,
     },
   ],
   start: '2026-09-20T10:00:00.000Z',
@@ -123,6 +127,42 @@ const updateInput = {
     ...option,
     id: 'option-1',
   })),
+};
+
+const withTransaction = <DatabaseMock extends object>(
+  database: DatabaseMock,
+) => {
+  const originalSelect = Reflect.get(database, 'select') as
+    ((selection: Record<string, unknown>) => unknown) | undefined;
+  const transactionalDatabase = {
+    ...database,
+    execute: vi.fn(() => Effect.void),
+    select: vi.fn((selection: Record<string, unknown>) => {
+      if (selection.id === roles.id) {
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => Effect.succeed([{ id: 'role-1' }])),
+          })),
+        };
+      }
+      if (!originalSelect) {
+        throw new Error('Unexpected select');
+      }
+      return originalSelect(selection);
+    }),
+  };
+
+  return {
+    ...transactionalDatabase,
+    $client: {},
+    transaction: vi.fn(
+      (
+        run: (
+          transaction: typeof transactionalDatabase,
+        ) => Effect.Effect<unknown>,
+      ) => run(transactionalDatabase),
+    ),
+  };
 };
 
 describe('eventLifecycleHandlers', () => {
@@ -209,6 +249,18 @@ describe('eventLifecycleHandlers', () => {
     () =>
       Effect.gen(function* () {
         const insertedDiscountValues = vi.fn(() => Effect.succeed());
+        const insertedRegistrationOptionValues = vi.fn(() => ({
+          returning: vi.fn(() =>
+            Effect.succeed([
+              {
+                id: 'event-option-1',
+              },
+              {
+                id: 'event-option-2',
+              },
+            ]),
+          ),
+        }));
         const database = {
           insert: vi.fn((table) => {
             if (table === eventInstances) {
@@ -227,18 +279,7 @@ describe('eventLifecycleHandlers', () => {
 
             if (table === eventRegistrationOptions) {
               return {
-                values: vi.fn(() => ({
-                  returning: vi.fn(() =>
-                    Effect.succeed([
-                      {
-                        id: 'event-option-1',
-                      },
-                      {
-                        id: 'event-option-2',
-                      },
-                    ]),
-                  ),
-                })),
+                values: insertedRegistrationOptionValues,
               };
             }
 
@@ -304,7 +345,7 @@ describe('eventLifecycleHandlers', () => {
         };
         const layer = Layer.mergeAll(
           esnEnabledRequestContextLayer,
-          Layer.succeed(Database, database as never),
+          Layer.succeed(Database, withTransaction(database) as never),
         );
 
         const result = yield* eventLifecycleHandlers['events.create'](
@@ -313,11 +354,14 @@ describe('eventLifecycleHandlers', () => {
             registrationOptions: [
               {
                 ...createInput.registrationOptions[0],
+                cancellationDeadlineHoursBeforeStart: 96,
                 isPaid: true,
                 price: 1000,
+                refundFeesOnCancellation: false,
                 sourceTemplateRegistrationOptionId: 'template-option-1',
                 stripeTaxRateId: 'txr_vat_19',
                 title: 'Duplicate',
+                transferDeadlineHoursBeforeStart: 12,
               },
               {
                 ...createInput.registrationOptions[0],
@@ -333,6 +377,15 @@ describe('eventLifecycleHandlers', () => {
         ).pipe(Effect.provide(layer));
 
         expect(result).toEqual({ id: 'event-1' });
+        expect(insertedRegistrationOptionValues).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({
+              cancellationDeadlineHoursBeforeStart: 96,
+              refundFeesOnCancellation: false,
+              transferDeadlineHoursBeforeStart: 12,
+            }),
+          ]),
+        );
         expect(insertedDiscountValues).toHaveBeenCalledWith([
           {
             discountedPrice: 500,
@@ -437,7 +490,7 @@ describe('eventLifecycleHandlers', () => {
         };
         const layer = Layer.mergeAll(
           requestContextLayer,
-          Layer.succeed(Database, database as never),
+          Layer.succeed(Database, withTransaction(database) as never),
         );
 
         const result = yield* eventLifecycleHandlers['events.create'](
@@ -519,7 +572,7 @@ describe('eventLifecycleHandlers', () => {
         };
         const layer = Layer.mergeAll(
           esnEnabledRequestContextLayer,
-          Layer.succeed(Database, database as never),
+          Layer.succeed(Database, withTransaction(database) as never),
         );
 
         const error = yield* eventLifecycleHandlers['events.create'](
@@ -674,8 +727,10 @@ describe('eventLifecycleHandlers', () => {
                 Effect.succeed([
                   {
                     addonId: 'template-addon-1',
-                    quantity: 2,
+                    includedQuantity: 1,
+                    optionalPurchaseQuantity: 1,
                     registrationOptionId: 'template-option-1',
+                    templateId: 'template-1',
                   },
                 ]),
               ),
@@ -739,7 +794,7 @@ describe('eventLifecycleHandlers', () => {
         };
         const layer = Layer.mergeAll(
           requestContextLayer,
-          Layer.succeed(Database, database as never),
+          Layer.succeed(Database, withTransaction(database) as never),
         );
 
         const result = yield* eventLifecycleHandlers['events.create'](
@@ -776,7 +831,9 @@ describe('eventLifecycleHandlers', () => {
         expect(insertedEventAddonOptionValues).toHaveBeenCalledWith([
           {
             addonId: 'event-addon-1',
-            quantity: 2,
+            eventId: 'event-1',
+            includedQuantity: 1,
+            optionalPurchaseQuantity: 1,
             registrationOptionId: 'event-option-1',
           },
         ]);
@@ -883,7 +940,7 @@ describe('eventLifecycleHandlers', () => {
         };
         const layer = Layer.mergeAll(
           requestContextLayer,
-          Layer.succeed(Database, database as never),
+          Layer.succeed(Database, withTransaction(database) as never),
         );
 
         const result = yield* eventLifecycleHandlers['events.create'](

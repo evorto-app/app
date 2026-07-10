@@ -11,6 +11,7 @@ import { usersToAuthenticate } from './user-data';
 export const addFinanceReceipts = async (
   database: NodePgDatabase<typeof relations>,
   options: {
+    currency: 'AUD' | 'CZK' | 'EUR';
     eventIds: string[];
     tenantId: string;
   },

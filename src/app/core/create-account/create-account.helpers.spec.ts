@@ -3,31 +3,37 @@ import { describe, expect, it } from 'vitest';
 import {
   createAccountErrorMessage,
   createAccountModelFromAuthData,
+  createAccountModelFromRequirements,
   createAccountPayloadFromModel,
   createAccountSubmitDisabled,
   isAuthEmailVerifiedForAccountCreation,
 } from './create-account.helpers';
 
+const emptyModel = () => ({
+  acceptedPrivacyPolicy: false,
+  answers: [] as { questionId: string; value: string }[],
+  communicationEmail: '',
+  firstName: '',
+  lastName: '',
+  policyVersionId: '',
+});
+
 describe('createAccountModelFromAuthData', () => {
   it('prefills account fields from trimmed Auth0 data', () => {
     expect(
-      createAccountModelFromAuthData(
-        {
-          communicationEmail: '',
-          firstName: '',
-          lastName: '',
-        },
-        {
-          email: ' alice@example.com ',
-          family_name: ' Doe ',
-          given_name: ' Alice ',
-          sub: 'auth0|alice',
-        },
-      ),
+      createAccountModelFromAuthData(emptyModel(), {
+        email: ' alice@example.com ',
+        family_name: ' Doe ',
+        given_name: ' Alice ',
+        sub: 'auth0|alice',
+      }),
     ).toEqual({
+      acceptedPrivacyPolicy: false,
+      answers: [],
       communicationEmail: 'alice@example.com',
       firstName: 'Alice',
       lastName: 'Doe',
+      policyVersionId: '',
     });
   });
 
@@ -35,6 +41,7 @@ describe('createAccountModelFromAuthData', () => {
     expect(
       createAccountModelFromAuthData(
         {
+          ...emptyModel(),
           communicationEmail: 'notify@example.com',
           firstName: 'Manual',
           lastName: 'Name',
@@ -46,9 +53,52 @@ describe('createAccountModelFromAuthData', () => {
         },
       ),
     ).toEqual({
+      acceptedPrivacyPolicy: false,
+      answers: [],
       communicationEmail: 'notify@example.com',
       firstName: 'Manual',
       lastName: 'Name',
+      policyVersionId: '',
+    });
+  });
+});
+
+describe('createAccountModelFromRequirements', () => {
+  it('prefills an existing profile and the current question answers', () => {
+    expect(
+      createAccountModelFromRequirements(emptyModel(), {
+        complete: false,
+        hasMembership: true,
+        policy: {
+          id: 'policy-2',
+          privacyPolicyText: 'Current policy',
+          privacyPolicyUrl: null,
+          version: 2,
+        },
+        profile: {
+          communicationEmail: 'notify@example.org',
+          firstName: 'Alex',
+          lastName: 'Morgan',
+        },
+        questions: [
+          {
+            answer: 'Exchange student',
+            id: 'question-1',
+            options: [],
+            prompt: 'Why are you joining?',
+            type: 'shortText',
+          },
+        ],
+        tenantId: 'tenant-1',
+        tenantName: 'Example Section',
+      }),
+    ).toEqual({
+      acceptedPrivacyPolicy: false,
+      answers: [{ questionId: 'question-1', value: 'Exchange student' }],
+      communicationEmail: 'notify@example.org',
+      firstName: 'Alex',
+      lastName: 'Morgan',
+      policyVersionId: 'policy-2',
     });
   });
 });
@@ -57,14 +107,20 @@ describe('createAccountPayloadFromModel', () => {
   it('trims account creation fields before submitting them', () => {
     expect(
       createAccountPayloadFromModel({
+        acceptedPrivacyPolicy: true,
+        answers: [{ questionId: 'question-1', value: ' Student ' }],
         communicationEmail: ' notify@example.com ',
         firstName: ' Alice ',
         lastName: ' Doe ',
+        policyVersionId: 'policy-2',
       }),
     ).toEqual({
+      acceptedPrivacyPolicy: true,
+      answers: [{ questionId: 'question-1', value: 'Student' }],
       communicationEmail: 'notify@example.com',
       firstName: 'Alice',
       lastName: 'Doe',
+      policyVersionId: 'policy-2',
     });
   });
 });
@@ -88,14 +144,16 @@ describe('createAccountErrorMessage', () => {
   it('uses the domain error message when account creation fails', () => {
     expect(
       createAccountErrorMessage({
-        _tag: 'UserConflictError',
-        message: 'User account already exists',
+        _tag: 'TenantOnboardingRequirementsChangedError',
+        message: 'Requirements changed; review and submit again',
       }),
-    ).toBe('User account already exists');
+    ).toBe('Requirements changed; review and submit again');
   });
 
   it('falls back to account creation copy for unknown failures', () => {
-    expect(createAccountErrorMessage(null)).toBe('Failed to create account');
+    expect(createAccountErrorMessage(null)).toBe(
+      'Failed to complete tenant setup',
+    );
   });
 });
 

@@ -10,10 +10,11 @@ import {
 } from './tenant-list.rows';
 
 const tenant = {
+  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR',
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en-GB',
+  locale: 'de-DE',
   name: 'Tenant',
   stripeAccountId: 'acct_123',
   stripeConnected: true,
@@ -25,9 +26,13 @@ describe('globalAdminTenantRows', () => {
   it('summarizes tenant operational state for global admin review', () => {
     expect(globalAdminTenantRows(tenant)).toEqual([
       { label: 'Primary domain', value: 'tenant.example.com' },
+      {
+        label: 'Canonical root URL',
+        value: 'https://tenant.example.com',
+      },
       { label: 'Tenant ID', monospace: true, value: 'tenant-1' },
       { label: 'Theme', value: 'esn' },
-      { label: 'Locale', value: 'en-GB' },
+      { label: 'Locale', value: 'de-DE' },
       { label: 'Currency', value: 'EUR' },
       { label: 'Timezone', value: 'Europe/Berlin' },
       { label: 'Stripe account', value: 'Connected (acct_123)' },
@@ -37,6 +42,7 @@ describe('globalAdminTenantRows', () => {
   it('reuses the operational rows for tenant detail review', () => {
     expect(globalAdminTenantRows(tenant).map((row) => row.label)).toEqual([
       'Primary domain',
+      'Canonical root URL',
       'Tenant ID',
       'Theme',
       'Locale',
@@ -52,7 +58,7 @@ describe('globalAdminTenantRows', () => {
       currency: 'EUR',
       domain: 'tenant.example.com',
       id: 'tenant-1',
-      locale: 'en-GB',
+      locale: 'de-DE',
       name: 'Tenant',
       stripeConnected: false,
       theme: 'evorto',
@@ -99,10 +105,11 @@ describe('filterGlobalAdminTenants', () => {
   it('matches tenant operational fields case-insensitively', () => {
     const secondTenant = {
       ...tenant,
+      canonicalRootUrl: 'https://north.example.com',
       currency: 'AUD',
       domain: 'north.example.com',
       id: 'tenant-2',
-      locale: 'en-US',
+      locale: 'de-DE',
       name: 'North',
       stripeAccountId: null,
       stripeConnected: false,
@@ -121,6 +128,12 @@ describe('filterGlobalAdminTenants', () => {
     ).toEqual([secondTenant]);
     expect(
       filterGlobalAdminTenants([tenant, secondTenant], 'acct_123'),
+    ).toEqual([tenant]);
+    expect(
+      filterGlobalAdminTenants(
+        [tenant, secondTenant],
+        'https://tenant.example.com',
+      ),
     ).toEqual([tenant]);
   });
 });

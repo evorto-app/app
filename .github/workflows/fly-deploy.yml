@@ -10,8 +10,14 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  esncard-provider-certification:
+    name: Required live ESNcard certification
+    uses: ./.github/workflows/esncard-release-certification.yml
+    secrets: inherit
+
   deploy:
     name: Deploy app
+    needs: esncard-provider-certification
     runs-on: ubuntu-latest
     concurrency: deploy-group # optional: ensure only one action runs at a time
     steps:

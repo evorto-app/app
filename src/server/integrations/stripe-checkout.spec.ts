@@ -8,9 +8,13 @@ import {
   buildCheckoutSessionExpiresAt,
   buildCheckoutSessionIdempotencyKey,
   createHostedCheckoutSession,
+  expireHostedCheckoutSession,
+  retrieveHostedCheckoutSession,
 } from './stripe-checkout';
 
 const createSessionMock = vi.fn();
+const expireSessionMock = vi.fn();
+const retrieveSessionMock = vi.fn();
 const dummyStripeKey = 'test_stripe_key';
 
 const createStripeClient = () => {
@@ -18,12 +22,20 @@ const createStripeClient = () => {
   vi.spyOn(stripeClient.checkout.sessions, 'create').mockImplementation(
     createSessionMock,
   );
+  vi.spyOn(stripeClient.checkout.sessions, 'expire').mockImplementation(
+    expireSessionMock,
+  );
+  vi.spyOn(stripeClient.checkout.sessions, 'retrieve').mockImplementation(
+    retrieveSessionMock,
+  );
   return stripeClient;
 };
 
 describe('stripe-checkout helpers', () => {
   afterEach(() => {
     createSessionMock.mockReset();
+    expireSessionMock.mockReset();
+    retrieveSessionMock.mockReset();
     vi.useRealTimers();
   });
 
@@ -116,13 +128,56 @@ describe('stripe-checkout helpers', () => {
       }),
   );
 
+  it.effect('expires a hosted checkout in the connected account', () =>
+    Effect.gen(function* () {
+      expireSessionMock.mockResolvedValueOnce({
+        id: 'cs_test_mock',
+        status: 'expired',
+      });
+      const stripeClient = createStripeClient();
+
+      const session = yield* expireHostedCheckoutSession(
+        'cs_test_mock',
+        'acct_test_123',
+      ).pipe(Effect.provideService(StripeClient, stripeClient));
+
+      expect(session).toEqual({ id: 'cs_test_mock', status: 'expired' });
+      expect(expireSessionMock).toHaveBeenCalledWith(
+        'cs_test_mock',
+        undefined,
+        { stripeAccount: 'acct_test_123' },
+      );
+    }),
+  );
+
+  it.effect('retrieves a hosted checkout in the connected account', () =>
+    Effect.gen(function* () {
+      retrieveSessionMock.mockResolvedValueOnce({
+        id: 'cs_test_mock',
+        status: 'open',
+      });
+      const stripeClient = createStripeClient();
+
+      const session = yield* retrieveHostedCheckoutSession(
+        'cs_test_mock',
+        'acct_test_123',
+      ).pipe(Effect.provideService(StripeClient, stripeClient));
+
+      expect(session).toEqual({ id: 'cs_test_mock', status: 'open' });
+      expect(retrieveSessionMock).toHaveBeenCalledWith(
+        'cs_test_mock',
+        undefined,
+        { stripeAccount: 'acct_test_123' },
+      );
+    }),
+  );
+
   it.effect(
     'surfaces Stripe client errors without requiring env configuration',
     () =>
       Effect.gen(function* () {
-        createSessionMock.mockRejectedValueOnce(
-          new Error('stripe request failed'),
-        );
+        const cause = new Error('stripe request failed');
+        createSessionMock.mockRejectedValueOnce(cause);
         const stripeClient = createStripeClient();
 
         const error = yield* Effect.flip(
@@ -140,7 +195,8 @@ describe('stripe-checkout helpers', () => {
             },
           ).pipe(Effect.provideService(StripeClient, stripeClient)),
         );
-        expect(error.message).toBe('stripe request failed');
+        expect(error.message).toBe('Stripe checkout session request failed');
+        expect(error.cause).toBe(cause);
       }),
   );
 });

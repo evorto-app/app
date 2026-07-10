@@ -9,6 +9,7 @@ import {
   RpcRequestContextMiddleware,
 } from '../../../../../shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import { UsersAuthData } from '../../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
+import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../../types/custom/tenant';
 import { User } from '../../../../../types/custom/user';
 import {
@@ -34,6 +35,10 @@ export const decodeRpcRequestContextFromHeaders = (
     headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
     ConfigPermissions,
   ) as readonly Permission[],
+  platformAuthority: decodeHeaderJson(
+    headers[RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY],
+    Schema.NullOr(PlatformAdministratorAuthority),
+  ),
   tenant: decodeHeaderJson(headers[RPC_CONTEXT_HEADERS.TENANT], Tenant),
   user: decodeHeaderJson(
     headers[RPC_CONTEXT_HEADERS.USER],

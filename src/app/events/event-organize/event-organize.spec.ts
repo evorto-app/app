@@ -1,13 +1,19 @@
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
   computeEventOrganizeStats,
   organizerRegistrationActionDisabled,
   organizerRegistrationApprovalDisabled,
+  organizerRegistrationApprovalLabel,
   organizerRegistrationTransferDisabled,
   receiptSubmissionActionDisabled,
 } from './event-organize';
 import { transferParticipantLabel } from './registration-transfer-dialog.component';
+
+const readSource = (sourcePath: string): string =>
+  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
 
 describe('computeEventOrganizeStats', () => {
   it('sums capacity, confirmed registrations, and scanner-updated checked-in spots', () => {
@@ -132,6 +138,47 @@ describe('organizerRegistrationApprovalDisabled', () => {
         mutationPending: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe('organizerRegistrationApprovalLabel', () => {
+  it('distinguishes fresh approval from payment setup recovery', () => {
+    expect(
+      organizerRegistrationApprovalLabel({
+        approvalPending: false,
+        paymentSetupRequired: false,
+      }),
+    ).toBe('Approve application');
+    expect(
+      organizerRegistrationApprovalLabel({
+        approvalPending: false,
+        paymentSetupRequired: true,
+      }),
+    ).toBe('Retry payment setup');
+  });
+
+  it('shows the in-flight state for either approval action', () => {
+    for (const paymentSetupRequired of [false, true]) {
+      expect(
+        organizerRegistrationApprovalLabel({
+          approvalPending: true,
+          paymentSetupRequired,
+        }),
+      ).toBe('Approving…');
+    }
+  });
+});
+
+describe('event organizer approval template', () => {
+  it('only renders available approval actions and exposes the in-flight row state', () => {
+    const template = readSource(
+      'src/app/events/event-organize/event-organize.html',
+    );
+
+    expect(template).toContain('@if (user.manualApprovalAvailable)');
+    expect(template).not.toContain('@if (user.status === "PENDING")');
+    expect(template).toContain('[attr.aria-busy]="approvalInFlight || null"');
+    expect(template).toContain('Payment setup needs retry');
   });
 });
 

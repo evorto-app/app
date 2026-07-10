@@ -10,7 +10,7 @@ services:
       NEON_PROJECT_ID:
       PARENT_BRANCH_ID:
     volumes:
-      - "${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local"
+      - "${NEON_LOCAL_METADATA_DIR:-neon-local-metadata}:/tmp/.neon_local"
     ports:
       - "${NEON_LOCAL_HOST_PORT:-55432}:5432"
     healthcheck:
@@ -40,7 +40,7 @@ services:
       NEON_PROJECT_ID:
     volumes:
       - .:/workspace:ro
-      - "${NEON_LOCAL_METADATA_DIR:-./.neon_local}:/tmp/.neon_local"
+      - "${NEON_LOCAL_METADATA_DIR:-neon-local-metadata}:/tmp/.neon_local"
     command:
       - /bin/sh
       - -lc
@@ -136,6 +136,7 @@ services:
       E2E_SEED_KEY:
       ISSUER_BASE_URL:
       NEON_LOCAL_PROXY: "true"
+      NODE_ENV: "development"
       PORT: "4200"
       RESEND_API_KEY:
       S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:-minioadmin}"
@@ -185,4 +186,5 @@ secrets:
     environment: FONT_AWESOME_TOKEN
 
 volumes:
+  neon-local-metadata:
   stripe-webhook:

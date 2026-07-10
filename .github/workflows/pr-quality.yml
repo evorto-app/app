@@ -1,0 +1,76 @@
+name: PR Quality
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-notes:
+    name: Knope and change files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Knope
+        uses: knope-dev/action@19617851f9f13ab2f27a05989c55efb18aca3675 # v2.1.2
+        with:
+          version: 0.23.0
+
+      - name: Validate Knope configuration and change files
+        run: knope --validate
+
+  code-quality:
+    name: Lint, unit tests, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CI: true
+      FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.15.0"
+
+      - name: Validate required configuration
+        run: |
+          if [ -z "${FONT_AWESOME_TOKEN}" ]; then
+            echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint without uncommitted fixes
+        run: |
+          bun run lint
+          git diff --exit-code
+
+      - name: Run server unit tests
+        run: bun run test:unit:server
+
+      - name: Run application unit tests
+        run: bun run test:unit
+
+      - name: Build application
+        run: bun run build:app

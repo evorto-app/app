@@ -17,12 +17,12 @@ export class NotificationService {
   showEventReviewed(approved: boolean, eventTitle: string): void {
     const message = approved
       ? `Event "${eventTitle}" has been approved`
-      : `Event "${eventTitle}" has been rejected`;
+      : `Event "${eventTitle}" was returned to draft with review feedback`;
 
     this.snackBar.open(message, 'Close', {
       duration: 5000,
 
-      panelClass: approved ? 'success-snackbar' : 'error-snackbar',
+      panelClass: approved ? 'success-snackbar' : 'info-snackbar',
     });
   }
 

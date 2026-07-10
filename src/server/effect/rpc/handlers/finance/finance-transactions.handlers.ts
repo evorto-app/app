@@ -37,6 +37,7 @@ export const financeTransactionsHandlers = {
             appFee: transactions.appFee,
             comment: transactions.comment,
             createdAt: transactions.createdAt,
+            currency: transactions.currency,
             id: transactions.id,
             method: transactions.method,
             status: transactions.status,

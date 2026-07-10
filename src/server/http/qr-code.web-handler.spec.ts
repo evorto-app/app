@@ -1,5 +1,7 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Effect, Layer } from 'effect';
+import { ConfigProvider, Effect, Layer } from 'effect';
+import QRCode from 'qrcode';
+import { beforeEach, vi } from 'vitest';
 
 import type { Permission } from '../../shared/permissions/permissions';
 import type { Context as RequestContext } from '../../types/custom/context';
@@ -8,6 +10,7 @@ import { Database } from '../../db';
 import { handleQrRegistrationCodeWebRequest } from './qr-code.web-handler';
 
 const tenant = {
+  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: undefined,
   discountProviders: {
@@ -77,18 +80,27 @@ const confirmedRegistration = {
 
 const runQrRequest = ({
   database,
+  environment = {},
   registrationId = 'registration-1',
   requestContext = createRequestContext(),
+  requestUrl = 'https://tenant.example.com/qr/registration/registration-1',
 }: {
   database: unknown;
+  environment?: Record<string, string>;
   registrationId?: string;
   requestContext?: RequestContext;
+  requestUrl?: string;
 }) =>
   handleQrRegistrationCodeWebRequest(
-    new Request('https://tenant.example.com/qr/registration/registration-1'),
+    new Request(requestUrl),
     registrationId,
     requestContext,
-  ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+  ).pipe(
+    Effect.provide(Layer.succeed(Database, database as never)),
+    Effect.provide(
+      ConfigProvider.layer(ConfigProvider.fromEnv({ env: environment })),
+    ),
+  );
 
 const createDatabase = ({
   organizerRegistrations = [],
@@ -107,13 +119,20 @@ const createDatabase = ({
     tenants: {
       findFirst: () =>
         Effect.succeed({
+          canonicalRootUrl: tenant.canonicalRootUrl,
           domain: tenant.domain,
         }),
     },
   },
 });
 
+const qrCodeToBuffer = vi.spyOn(QRCode, 'toBuffer');
+
 describe('handleQrRegistrationCodeWebRequest', () => {
+  beforeEach(() => {
+    qrCodeToBuffer.mockClear();
+  });
+
   it.effect('requires authentication before returning a registration QR', () =>
     Effect.gen(function* () {
       const response = yield* runQrRequest({
@@ -143,6 +162,44 @@ describe('handleQrRegistrationCodeWebRequest', () => {
           (yield* Effect.promise(() => response.arrayBuffer())).byteLength,
         ).toBeGreaterThan(0);
       }),
+  );
+
+  it.effect(
+    'uses the saved canonical tenant root instead of the request origin',
+    () =>
+      Effect.gen(function* () {
+        const response = yield* runQrRequest({
+          database: createDatabase(),
+          requestUrl:
+            'http://caller-controlled.invalid/qr/registration/registration-1',
+        });
+
+        expect(response.status).toBe(200);
+        expect(qrCodeToBuffer).toHaveBeenCalledWith(
+          'https://tenant.example.com/scan/registration/registration-1',
+          expect.objectContaining({
+            type: 'png',
+          }),
+        );
+      }),
+  );
+
+  it.effect('preserves the explicit loopback runtime port in local dev', () =>
+    Effect.gen(function* () {
+      const response = yield* runQrRequest({
+        database: createDatabase(),
+        environment: {
+          BASE_URL: 'http://localhost:4317',
+          NODE_ENV: 'development',
+        },
+      });
+
+      expect(response.status).toBe(200);
+      expect(qrCodeToBuffer).toHaveBeenCalledWith(
+        'http://localhost:4317/scan/registration/registration-1',
+        expect.any(Object),
+      );
+    }),
   );
 
   it.effect(

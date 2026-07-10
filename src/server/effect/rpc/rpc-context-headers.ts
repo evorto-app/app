@@ -2,6 +2,7 @@ export const RPC_CONTEXT_HEADERS = {
   AUTH_DATA: 'x-evorto-auth-data',
   AUTHENTICATED: 'x-evorto-authenticated',
   PERMISSIONS: 'x-evorto-permissions',
+  PLATFORM_AUTHORITY: 'x-evorto-platform-authority',
   TENANT: 'x-evorto-tenant',
   USER: 'x-evorto-user',
   USER_ASSIGNED: 'x-evorto-user-assigned',

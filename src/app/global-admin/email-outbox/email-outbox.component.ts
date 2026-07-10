@@ -1,3 +1,5 @@
+import type { GlobalAdminEmailOutboxKind } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
+
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,10 +13,14 @@ import {
 } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-const emailOutboxKindLabel = {
+export const emailOutboxKindLabel = {
   manualApproval: 'Manual approval',
   receiptReviewed: 'Receipt reviewed',
-} as const;
+  registrationCancelled: 'Registration cancelled',
+  registrationConfirmed: 'Registration confirmed',
+  registrationTransferred: 'Registration transferred',
+  waitlistSpotAvailable: 'Waitlist spot available',
+} as const satisfies Record<GlobalAdminEmailOutboxKind, string>;
 
 const emailOutboxStatusLabel = {
   failed: 'Failed',

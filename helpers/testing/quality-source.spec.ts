@@ -1,29 +1,28 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
-const readSource = (path: string): string =>
-  readFileSync(join(repositoryRoot, path), 'utf8');
+const readSource = (sourcePath: string): string =>
+  readFileSync(path.join(repositoryRoot, sourcePath), 'utf8');
 
 const listFiles = (directory: string, extension: string): string[] =>
-  readdirSync(join(repositoryRoot, directory)).flatMap((entry) => {
-    const path = `${directory}/${entry}`;
-    const absolutePath = join(repositoryRoot, path);
+  readdirSync(path.join(repositoryRoot, directory)).flatMap((entry) => {
+    const sourcePath = `${directory}/${entry}`;
+    const absolutePath = path.join(repositoryRoot, sourcePath);
 
     if (statSync(absolutePath).isDirectory()) {
-      return listFiles(path, extension);
+      return listFiles(sourcePath, extension);
     }
 
-    return path.endsWith(extension) ? [path] : [];
+    return sourcePath.endsWith(extension) ? [sourcePath] : [];
   });
 
 const readSection = (source: string, heading: string, nextHeading: string) => {
   const match = source.match(
     new RegExp(
-      `## ${heading}\\n(?<section>[\\s\\S]*?)\\n## ${nextHeading}`,
+      String.raw`## ${heading}\n(?<section>[\s\S]*?)\n## ${nextHeading}`,
       'u',
     ),
   );
@@ -46,7 +45,7 @@ describe('quality source', () => {
     expect(queue).toContain('Participant registration and profile');
     expect(queue).toContain('Organizer authoring and check-in');
     expect(queue).toContain('Tenant administration and finance');
-    expect(queue).toContain('Global administration');
+    expect(queue).toContain('Platform administration');
     expect(queue).toContain('Live ESNcard provider');
     expect(queue).toContain('E2E_LIVE_ESN_CARD_IDENTIFIER');
     expect(queue).toContain('bun run test:e2e:live-esncard');

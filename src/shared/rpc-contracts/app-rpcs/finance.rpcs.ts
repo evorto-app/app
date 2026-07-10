@@ -10,6 +10,7 @@ import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
+import { Tenant } from '../../../types/custom/tenant';
 import {
   RpcForbiddenError,
   RpcUnauthorizedError,
@@ -60,6 +61,7 @@ export const FinanceReceiptBaseRecord = Schema.Struct({
   attachmentMimeType: Schema.NonEmptyString,
   attachmentStorageKey: Schema.NullOr(Schema.NonEmptyString),
   createdAt: Schema.NonEmptyString,
+  currency: Tenant.fields.currency,
   depositAmount: Schema.Number,
   eventId: Schema.NonEmptyString,
   hasAlcohol: Schema.Boolean,
@@ -145,6 +147,7 @@ export type FinanceReceiptRefundableRecord = Schema.Schema.Type<
 >;
 
 export const FinanceReceiptRefundGroupRecord = Schema.Struct({
+  currency: Tenant.fields.currency,
   payout: Schema.Struct({
     iban: Schema.NullOr(Schema.NonEmptyString),
     paypalEmail: Schema.NullOr(Schema.NonEmptyString),
@@ -275,6 +278,7 @@ export const FinanceTransactionRecord = Schema.Struct({
   appFee: Schema.NullOr(Schema.Number),
   comment: Schema.NullOr(Schema.String),
   createdAt: Schema.NonEmptyString,
+  currency: Tenant.fields.currency,
   id: Schema.NonEmptyString,
   method: literalUnion('cash', 'paypal', 'stripe', 'transfer'),
   status: literalUnion('cancelled', 'pending', 'successful'),

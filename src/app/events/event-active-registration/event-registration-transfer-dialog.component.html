@@ -1,39 +1,53 @@
-<h1 mat-dialog-title>Transfer registration</h1>
-<form (submit)="submit($event)">
-  <mat-dialog-content class="grid gap-4">
-    <p class="text-on-surface-variant text-sm">
-      Transfer this unpaid registration to another eligible tenant member by
-      email.
-    </p>
+<h1 mat-dialog-title>Private transfer link created</h1>
+<mat-dialog-content class="grid gap-5">
+  <p class="body-medium text-on-surface-variant">
+    Send either the link or the code to one person you trust. The first eligible
+    tenant member who starts the claim owns it; do not post these credentials
+    publicly.
+  </p>
 
+  <div class="grid gap-2">
     <mat-form-field class="w-full">
-      <mat-label>New participant email</mat-label>
-      <input
-        matInput
-        type="email"
-        autocomplete="email"
-        placeholder="person@example.com"
-        [formField]="transferForm.targetEmail"
-      />
-      <mat-hint>
-        The target account must already exist in this tenant and be eligible for
-        this registration option.
-      </mat-hint>
+      <mat-label>Claim link</mat-label>
+      <input matInput readonly [value]="data.claimUrl" />
     </mat-form-field>
-
-    @if (errorMessage()) {
-      <p class="text-error text-sm">{{ errorMessage() }}</p>
-    }
-  </mat-dialog-content>
-  <mat-dialog-actions align="end" class="gap-2">
-    <button mat-button mat-dialog-close type="button">Cancel</button>
     <button
-      mat-raised-button
-      color="primary"
-      type="submit"
-      [disabled]="submitting()"
+      mat-stroked-button
+      type="button"
+      (click)="copy(data.claimUrl, 'link')"
     >
-      Transfer registration
+      {{ copied() === "link" ? "Link copied" : "Copy link" }}
     </button>
-  </mat-dialog-actions>
-</form>
+  </div>
+
+  <div class="grid gap-2">
+    <mat-form-field class="w-full">
+      <mat-label>Manual claim code</mat-label>
+      <input matInput readonly [value]="data.claimCode" />
+      <mat-hint>Useful when the link cannot be opened directly.</mat-hint>
+    </mat-form-field>
+    <button
+      mat-stroked-button
+      type="button"
+      (click)="copy(data.claimCode, 'code')"
+    >
+      {{ copied() === "code" ? "Code copied" : "Copy code" }}
+    </button>
+  </div>
+
+  <p class="body-small text-on-surface-variant">
+    This offer expires {{ data.expiresAt | date: "medium" }}. Your registration
+    stays active until the recipient is confirmed. For a paid transfer, their
+    payment must complete before your cancellation and refund are queued.
+  </p>
+
+  @if (copyError()) {
+    <p class="body-small text-error" role="alert">
+      Copying was blocked by the browser. Select the value above and copy it
+      manually.
+    </p>
+  }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-flat-button mat-dialog-close type="button">Done</button>
+</mat-dialog-actions>

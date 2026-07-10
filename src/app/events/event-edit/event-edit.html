@@ -1,13 +1,18 @@
 <div class="mb-4 flex w-full flex-row items-center gap-2">
-  <a routerLink="/events/{{ eventId() }}" mat-icon-button>
+  <a
+    routerLink="/events/{{ eventId() }}"
+    mat-icon-button
+    aria-label="Back to event"
+  >
     <fa-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">{{ eventQuery.data()?.title ?? "Loading ..." }}</h1>
   <div class="grow"></div>
   <button
-    title="menu"
+    type="button"
     *appIfAnyPermission="['events:changeListing']"
     mat-icon-button
+    aria-label="Open event actions"
     [matMenuTriggerFor]="menu"
   >
     <fa-icon [icon]="faEllipsisVertical" />

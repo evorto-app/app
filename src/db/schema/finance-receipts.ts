@@ -12,6 +12,7 @@ import {
 
 import { eventInstances } from './event-instances';
 import { modelOfTenant } from './model';
+import { currencyEnum } from './tenants';
 import { transactions } from './transactions';
 import { users } from './users';
 

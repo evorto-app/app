@@ -1,33 +1,35 @@
+import { Clipboard } from '@angular/cdk/clipboard';
+import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
-  computed,
   inject,
   signal,
 } from '@angular/core';
-import { email, form, FormField, required } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import {
+  MAT_DIALOG_DATA,
   MatDialogActions,
   MatDialogClose,
   MatDialogContent,
-  MatDialogRef,
   MatDialogTitle,
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 
-export interface EventRegistrationTransferDialogResult {
-  targetEmail: string;
+export interface EventRegistrationTransferDialogData {
+  readonly claimCode: string;
+  readonly claimUrl: string;
+  readonly expiresAt: string;
+  readonly status: 'open';
 }
 
-export const normalizeRegistrationTransferTargetEmail = (email: string) =>
-  email.trim().toLocaleLowerCase();
+type CopiedTransferCredential = 'code' | 'link';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    FormField,
+    DatePipe,
     MatButtonModule,
     MatDialogActions,
     MatDialogClose,
@@ -40,41 +42,19 @@ export const normalizeRegistrationTransferTargetEmail = (email: string) =>
   templateUrl: './event-registration-transfer-dialog.component.html',
 })
 export class EventRegistrationTransferDialogComponent {
-  protected readonly errorMessage = signal('');
-  protected readonly transferModel = signal({ targetEmail: '' });
-  protected readonly transferForm = form(this.transferModel, (schema) => {
-    email(schema.targetEmail);
-    required(schema.targetEmail);
-  });
-  protected readonly normalizedTargetEmail = computed(() =>
-    normalizeRegistrationTransferTargetEmail(
-      this.transferForm().value().targetEmail,
-    ),
-  );
-  protected readonly submitting = signal(false);
-  private readonly dialogRef = inject(
-    MatDialogRef<
-      EventRegistrationTransferDialogComponent,
-      EventRegistrationTransferDialogResult
-    >,
-  );
+  protected readonly copied = signal<CopiedTransferCredential | null>(null);
+  protected readonly copyError = signal(false);
+  protected readonly data =
+    inject<EventRegistrationTransferDialogData>(MAT_DIALOG_DATA);
+  private readonly clipboard = inject(Clipboard);
 
-  protected submit(event: Event): void {
-    event.preventDefault();
-    if (this.submitting()) {
+  protected copy(value: string, credential: CopiedTransferCredential): void {
+    this.copyError.set(false);
+    if (!this.clipboard.copy(value)) {
+      this.copied.set(null);
+      this.copyError.set(true);
       return;
     }
-    this.errorMessage.set('');
-
-    const targetEmail = this.normalizedTargetEmail();
-    if (!targetEmail || this.transferForm.targetEmail().invalid()) {
-      this.errorMessage.set(
-        'Enter a valid email address for the new participant.',
-      );
-      return;
-    }
-
-    this.submitting.set(true);
-    this.dialogRef.close({ targetEmail });
+    this.copied.set(credential);
   }
 }

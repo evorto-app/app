@@ -442,7 +442,7 @@ The user profile now uses a two-column layout:
     await expect(
       profileReceiptCard.getByText(profileEvent.title),
     ).toBeVisible();
-    await expect(profileReceiptCard.getByText('18.75 €')).toBeVisible();
+    await expect(profileReceiptCard.getByText('18,75 €')).toBeVisible();
     const profileReceipt = await database.query.financeReceipts.findFirst({
       where: {
         id: profileReceiptId,

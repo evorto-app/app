@@ -33,6 +33,32 @@ replace it with aspirational documentation.
 - Specs should consume deterministic scenario handles from `seeded.scenario`
 - Do not discover test entities by template title fragments, fuzzy event searches, or wall-clock checks
 
+## Platform Operation Coverage
+
+- `specs/admin/platform-tenant-operations.spec.ts` follows the guarded tenant
+  operation links, opens the refund-recovery surface, and resolves a
+  deterministic scanner result from an attendee ticket URL.
+- `docs/admin/platform-tenant-operations.doc.ts` documents explicit target
+  selection, owner attribution, operation reasons, atomic audit records, and
+  participant-only boundaries. It also explains when refund recovery starts a
+  new idempotency generation versus resuming the existing durable claim, and
+  keeps deferred random allocation read-compatible but non-writable.
+- Prefer the target-scoped registration-result route for repeatable platform
+  scanner checks. Keep real camera behavior in the organizer scanner's manual
+  review unless Playwright camera emulation is straightforward and reliable.
+
+## Registration Transfer Coverage
+
+- `specs/events/registration-transfer.spec.ts` exercises the free-registration
+  private-link claim flow, paid private-offer/current-price and self-claim
+  boundaries, deterministic paid Checkout completion through the shared server
+  finalizer, terminal source-refund failure plus operator requeue, and paid
+  non-Stripe cancellation with a durable manual refund.
+- `docs/events/registration-transfer.doc.ts` generates the participant-facing
+  walkthrough for creating and claiming a private transfer link. Its paid
+  journey captures the pending Checkout, confirmed/refund-processing,
+  refund-needs-attention, and safely requeued states from persisted data.
+
 ## Test Titles and Optional Tags
 
 Prefer clear behavior-oriented test titles because Playwright `--list`,
@@ -82,7 +108,9 @@ bun run lint
   when normal local dotenv values point to an external S3-compatible endpoint.
 - Docker keeps `BASE_URL` browser-facing for Auth0 redirects and sets
   `SSR_RPC_ORIGIN=http://localhost:4200` so SSR RPC calls stay inside the app
-  container instead of calling the host-mapped port.
+  container instead of calling the host-mapped port. Generated and container
+  runtime config explicitly sets `NODE_ENV=development`, allowing tenant
+  outbound links to retain the worktree-local `BASE_URL` port.
 - Auth0 callback URLs are registered out-of-band. Worktree-local generated
   ports keep stacks isolated, but authenticated Browser/Playwright validation
   needs a callback URL Auth0 accepts. On this machine, run Docker-backed
@@ -108,6 +136,11 @@ bun run lint
   `docker:start:watch` is destructive for local database state by design because
   those scripts run `docker compose down` and then `db-setup` clears the
   `public` schema, pushes schema, and resets/seeds the Docker database.
+  Neon Local and the branch-expiration helper share a project-scoped named
+  metadata volume by default so Docker Desktop does not need a macOS host bind
+  mount during shutdown cleanup. `NEON_LOCAL_METADATA_DIR` remains available
+  for controlled environments such as CI that intentionally provide a host
+  metadata directory.
   Playwright `webServer` uses
   `docker:webserver`, which still builds and starts the Compose stack in the
   foreground but does not force a Compose teardown first. Use `docker:resume`
@@ -120,8 +153,9 @@ bun run lint
   projects. It is intended for credential-gated specs and docs such as Auth0
   Management account creation.
 - `bun run test:e2e:live-esncard` runs only the live esncard.org
-  add/refresh/remove profile path. It still uses the integration project for
-  authenticated setup, but it narrows execution to
+  add/refresh/remove profile path. It uses the dedicated
+  `local-chrome-live-esncard` project with normal authenticated setup and
+  narrows execution to
   `tests/specs/profile/user-profile-live-esncard.spec.ts` and
   `@needs-live-esncard`.
 - Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
@@ -204,6 +238,8 @@ Playwright separates external-service coverage with dedicated projects:
 - integration-only:
   - `local-chrome-integration`
   - `docs-integration`
+- live-provider certification:
+  - `local-chrome-live-esncard`
 
 CI infers whether integration-only credentials are required from the selected Playwright projects.
 If you select `local-chrome-integration` or `docs-integration`, CI/runtime validation demands the extra external-service credentials.
@@ -217,7 +253,9 @@ Integration-only coverage is tagged at the test-title level:
 - `@needs-auth0-management`
 - `@needs-cloudflare`
 - `@needs-google-maps`
-- `@needs-live-esncard`
+
+The dedicated live-provider project selects `@needs-live-esncard` without
+requiring unrelated integration credentials.
 
 ## Required E2E Variables
 
@@ -260,15 +298,42 @@ Required only for integration-tagged Playwright projects:
 - `CLOUDFLARE_IMAGES_DELIVERY_HASH`
 - `CLOUDFLARE_IMAGES_API_TOKEN`
 
-Release-required live-provider variable for integration-tagged specs (optional
-for local Docker startup):
+Release-required live-provider variable (optional for local Docker startup):
 
 - `E2E_LIVE_ESN_CARD_IDENTIFIER` for the profile ESNcard add/refresh/remove
   journey against esncard.org. Use a real valid card identifier only from a
   local secret source; do not check it into the repo. Run it with
   `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` when you
-  want to exercise only that live-provider path locally. A credentialed release
-  gate must run this path before production release.
+  want to exercise only that live-provider path locally. The dedicated
+  `local-chrome-live-esncard` project does not require unrelated Auth0
+  Management or Cloudflare provider credentials.
+
+### ESNcard release credential ownership and rotation
+
+The `ESNcard Release Certification` workflow is both manually dispatchable and
+called as a required job by the repository Release and Fly Deploy workflows.
+Its job targets the protected `esncard-release-certification` GitHub environment
+and fails before setup when that environment cannot provide the
+`E2E_LIVE_ESN_CARD_IDENTIFIER` secret. Every `main` push must complete the
+reusable certification workflow before the actual Fly deployment job can apply
+the database schema or deploy the application. The deploy workflow inherits
+secrets into the reusable workflow instead of duplicating credential handling.
+
+The designated release-operations maintainer owns this environment secret and
+must keep a backup maintainer able to rotate it. The value must be an
+ESNcard-program-approved non-production identity, never a member's personal
+card. Review its validity before each release and rotate it immediately when it
+expires, is revoked, changes custodian, or may have been disclosed. Rotation is
+performed out of band in the GitHub environment: replace the secret, dispatch
+`ESNcard Release Certification`, verify the run, then retire the old provider
+identity. Neither workflow output nor test artifacts should contain the value.
+
+The current esncard.org validation endpoint requires no API key, OAuth client,
+or other ESNcard provider credential. Normal CI infrastructure still needs the
+application's Auth0, Neon, Stripe, Font Awesome, and local-stack configuration;
+those are not ESNcard provider credentials. Repository code can enforce the
+gate but cannot provision the approved non-production identity or configure the
+GitHub environment protection rules.
 
 ## Local Stack Isolation
 

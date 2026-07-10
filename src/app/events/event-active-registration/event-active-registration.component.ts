@@ -1,6 +1,6 @@
 import type { EventsRegistrationStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { CurrencyPipe, NgOptimizedImage } from '@angular/common';
+import { CurrencyPipe, DatePipe, NgOptimizedImage } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -13,16 +13,30 @@ import {
   injectMutation,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import {
   EventRegistrationTransferDialogComponent,
-  EventRegistrationTransferDialogResult,
+  type EventRegistrationTransferDialogData,
 } from './event-registration-transfer-dialog.component';
 
+export const recipientTransferCheckoutPending = (registration: {
+  activeTransfer: null | {
+    registrationSide: 'recipient' | 'source';
+    status: 'checkout_pending' | 'open';
+  };
+  status: EventsRegistrationStatus;
+}): boolean =>
+  registration.status === 'PENDING' &&
+  registration.activeTransfer?.registrationSide === 'recipient' &&
+  registration.activeTransfer.status === 'checkout_pending';
+
 export const registrationCancellationCopy = (registration: {
+  activeTransfer: null | {
+    registrationSide: 'recipient' | 'source';
+    status: 'checkout_pending' | 'open';
+  };
   guestCount: number;
   paymentPending: boolean;
   status: EventsRegistrationStatus;
@@ -34,6 +48,10 @@ export const registrationCancellationCopy = (registration: {
     registration.guestCount > 0 ? 'all selected spots' : 'the reserved spot';
   const confirmedSpotNoun =
     registration.guestCount > 0 ? 'all selected spots' : 'your spot';
+
+  if (recipientTransferCheckoutPending(registration)) {
+    return null;
+  }
 
   if (registration.status === 'PENDING') {
     return {
@@ -89,16 +107,16 @@ export const registrationTransferActionCopy = (registration: {
 
   if (registration.transferAvailable) {
     return {
-      buttonLabel: 'Transfer registration',
+      buttonLabel: 'Create transfer link',
       helperText:
-        'You can transfer this unpaid registration to another eligible tenant member by email.',
+        'Create a private link and code for one eligible tenant member. They review the current questions, add-ons, discount, and price before claiming it.',
     };
   }
 
   return {
     buttonLabel: 'Transfer unavailable',
     helperText:
-      'Self-service transfer is only available for unpaid, not-yet-checked-in registrations before the event starts. Paid registration transfer and resale are not automatic yet.',
+      'Transfer is available only for confirmed, not-yet-checked-in registrations before the configured transfer deadline.',
   };
 };
 
@@ -118,7 +136,7 @@ export const registrationTransferActionDisabled = (input: {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe, MatButtonModule, NgOptimizedImage],
+  imports: [CurrencyPipe, DatePipe, MatButtonModule, NgOptimizedImage],
   selector: 'app-event-active-registration',
   styles: ``,
   templateUrl: './event-active-registration.component.html',
@@ -126,6 +144,12 @@ export const registrationTransferActionDisabled = (input: {
 export class EventActiveRegistrationComponent {
   public readonly registrations = input.required<
     readonly {
+      activeTransfer: null | {
+        expiresAt: string;
+        registrationSide: 'recipient' | 'source';
+        status: 'checkout_pending' | 'open';
+        transferId: string;
+      };
       addonPurchases: readonly {
         quantity: number;
         title: string;
@@ -150,24 +174,39 @@ export class EventActiveRegistrationComponent {
   protected readonly cancelRegistrationMutation = injectMutation(() =>
     this.rpc.events.cancelRegistration.mutationOptions(),
   );
+  protected readonly cancelTransferMutation = injectMutation(() =>
+    this.rpc.registrationTransfers.cancel.mutationOptions(),
+  );
   protected readonly deferredActionCopy = registrationDeferredActionCopy;
+  protected readonly recipientTransferCheckoutPending =
+    recipientTransferCheckoutPending;
   protected readonly registrationCancellationActionDisabled =
     registrationCancellationActionDisabled;
   protected readonly registrationTransferActionDisabled =
     registrationTransferActionDisabled;
   protected readonly transferActionCopy = registrationTransferActionCopy;
   protected readonly transferRegistrationMutation = injectMutation(() =>
-    this.rpc.events.transferMyRegistration.mutationOptions(),
+    this.rpc.registrationTransfers.createOffer.mutationOptions(),
   );
 
   private readonly dialog = inject(MatDialog);
   private readonly queryClient = inject(QueryClient);
 
-  cancelRegistration(registration: { id: string }) {
+  cancelRegistration(registration: {
+    activeTransfer: null | {
+      registrationSide: 'recipient' | 'source';
+      status: 'checkout_pending' | 'open';
+    };
+    id: string;
+    status: EventsRegistrationStatus;
+  }) {
     if (
+      recipientTransferCheckoutPending(registration) ||
       registrationCancellationActionDisabled({
         cancellationPending: this.cancelRegistrationMutation.isPending(),
-        transferPending: this.transferRegistrationMutation.isPending(),
+        transferPending:
+          this.transferRegistrationMutation.isPending() ||
+          this.cancelTransferMutation.isPending(),
       })
     ) {
       return;
@@ -190,40 +229,54 @@ export class EventActiveRegistrationComponent {
     );
   }
 
-  async transferRegistration(registration: {
+  cancelTransfer(transferId: string): void {
+    if (
+      this.transferRegistrationMutation.isPending() ||
+      this.cancelTransferMutation.isPending()
+    ) {
+      return;
+    }
+    this.cancelTransferMutation.mutate(
+      { transferId },
+      {
+        onSuccess: async () => {
+          await this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['events', 'getRegistrationStatus']),
+          );
+        },
+      },
+    );
+  }
+
+  transferRegistration(registration: {
     id: string;
     transferAvailable: boolean;
-  }): Promise<void> {
+  }): void {
     if (
       registrationTransferActionDisabled({
         cancellationPending: this.cancelRegistrationMutation.isPending(),
         transferAvailable: registration.transferAvailable,
-        transferPending: this.transferRegistrationMutation.isPending(),
+        transferPending:
+          this.transferRegistrationMutation.isPending() ||
+          this.cancelTransferMutation.isPending(),
       })
     ) {
-      return;
-    }
-
-    const dialogReference = this.dialog.open<
-      EventRegistrationTransferDialogComponent,
-      undefined,
-      EventRegistrationTransferDialogResult
-    >(EventRegistrationTransferDialogComponent, {
-      width: '520px',
-    });
-
-    const result = await firstValueFrom(dialogReference.afterClosed());
-    if (!result) {
       return;
     }
 
     this.transferRegistrationMutation.mutate(
       {
         registrationId: registration.id,
-        targetEmail: result.targetEmail,
       },
       {
-        onSuccess: async () => {
+        onSuccess: async (offer) => {
+          this.dialog.open<
+            EventRegistrationTransferDialogComponent,
+            EventRegistrationTransferDialogData
+          >(EventRegistrationTransferDialogComponent, {
+            data: offer,
+            width: '560px',
+          });
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['events', 'getRegistrationStatus']),
           );

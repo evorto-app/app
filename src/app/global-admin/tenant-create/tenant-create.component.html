@@ -46,6 +46,20 @@
       >
     </mat-form-field>
 
+    <mat-form-field>
+      <mat-label>Canonical root URL</mat-label>
+      <input
+        matInput
+        type="url"
+        [formField]="tenantForm.canonicalRootUrl"
+        placeholder="https://section.example.org"
+      />
+      <mat-hint>
+        HTTPS origin for email and payment links; its host must exactly match
+        the primary domain.
+      </mat-hint>
+    </mat-form-field>
+
     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
       <mat-form-field>
         <mat-label>Theme</mat-label>
@@ -65,21 +79,12 @@
       </mat-form-field>
     </div>
 
-    <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
       <mat-form-field>
         <mat-label>Currency</mat-label>
         <mat-select [formField]="tenantForm.currency">
           @for (currency of currencyOptions; track currency) {
             <mat-option [value]="currency">{{ currency }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-
-      <mat-form-field>
-        <mat-label>Locale</mat-label>
-        <mat-select [formField]="tenantForm.locale">
-          @for (locale of localeOptions; track locale) {
-            <mat-option [value]="locale">{{ locale }}</mat-option>
           }
         </mat-select>
       </mat-form-field>
@@ -94,11 +99,45 @@
       </mat-form-field>
     </div>
 
+    <fieldset class="border-outline-variant grid gap-3 border-t pt-4">
+      <legend class="title-medium mb-2">Initial tenant privacy policy</legend>
+      <p class="body-medium text-on-surface-variant">
+        Add policy text or an HTTPS policy URL so the first tenant member can
+        complete onboarding.
+      </p>
+      <mat-form-field>
+        <mat-label>Privacy policy text</mat-label>
+        <textarea
+          matInput
+          rows="5"
+          [formField]="initialPrivacyPolicyForm.privacyPolicyText"
+        ></textarea>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Privacy policy URL</mat-label>
+        <input
+          matInput
+          type="url"
+          placeholder="https://section.example.org/privacy"
+          [formField]="initialPrivacyPolicyForm.privacyPolicyUrl"
+        />
+      </mat-form-field>
+    </fieldset>
+
+    <mat-form-field>
+      <mat-label>Reason for platform change</mat-label>
+      <textarea matInput rows="3" [formField]="tenantForm.reason"></textarea>
+      <mat-hint>
+        Required. This explanation is saved in the immutable platform audit log.
+      </mat-hint>
+    </mat-form-field>
+
     @let createTenantDisabled =
       tenantSubmitDisabled({
         formInvalid: tenantForm().invalid(),
         formSubmitting: tenantForm().submitting(),
-        mutationPending: createTenantMutation.isPending(),
+        mutationPending:
+          createTenantMutation.isPending() || !hasInitialPrivacyPolicy(),
       });
     <div class="mt-2 flex flex-wrap gap-2">
       <button

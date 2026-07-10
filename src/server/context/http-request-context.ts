@@ -10,6 +10,7 @@ import { Context as RequestContext } from '../../types/custom/context';
 import { isAuthenticated, resolveRequestOrigin } from '../auth/auth-session';
 import {
   resolveAuthenticationContext,
+  resolvePlatformAuthority,
   resolveRequestPermissions,
   resolveTenantContext,
   resolveUserContext,
@@ -72,16 +73,17 @@ export const resolveHttpRequestContext = (
       oidcUser: authSession?.authData,
       tenantId: resolvedTenant.id,
     });
+    const platformAuthority = resolvePlatformAuthority(authSession?.authData);
     const permissions = resolveRequestPermissions({
       oidcUser: authSession?.authData,
       user: tenantUser,
     });
-    const user = tenantUser ? { ...tenantUser, permissions } : undefined;
 
     return Schema.decodeUnknownSync(RequestContext)({
       authentication,
       permissions,
+      platformAuthority,
       tenant: resolvedTenant,
-      user,
+      user: tenantUser,
     });
   });

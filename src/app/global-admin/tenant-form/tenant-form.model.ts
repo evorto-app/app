@@ -1,4 +1,5 @@
 import type {
+  GlobalAdminTenantMutationInput,
   GlobalAdminTenantRecord,
   GlobalAdminTenantWriteInput,
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
@@ -6,10 +7,11 @@ import type {
 import { normalizeTenantDomain } from '@shared/tenant-origin';
 
 export interface GlobalAdminTenantFormModel {
+  canonicalRootUrl: string;
   currency: GlobalAdminTenantWriteInput['currency'];
   domain: string;
-  locale: GlobalAdminTenantWriteInput['locale'];
   name: string;
+  reason: string;
   stripeAccountId: string;
   theme: GlobalAdminTenantWriteInput['theme'];
   timezone: GlobalAdminTenantWriteInput['timezone'];
@@ -23,10 +25,11 @@ export const globalAdminTenantRelaunchScopeItems = [
 
 export const createGlobalAdminTenantFormModel =
   (): GlobalAdminTenantFormModel => ({
+    canonicalRootUrl: '',
     currency: 'EUR',
     domain: '',
-    locale: 'en-GB',
     name: '',
+    reason: '',
     stripeAccountId: '',
     theme: 'evorto',
     timezone: 'Europe/Berlin',
@@ -35,10 +38,11 @@ export const createGlobalAdminTenantFormModel =
 export const globalAdminTenantFormModelFromRecord = (
   tenant: GlobalAdminTenantRecord,
 ): GlobalAdminTenantFormModel => ({
+  canonicalRootUrl: tenant.canonicalRootUrl,
   currency: tenant.currency,
   domain: tenant.domain,
-  locale: tenant.locale,
   name: tenant.name,
+  reason: '',
   stripeAccountId: tenant.stripeAccountId ?? '',
   theme: tenant.theme,
   timezone: tenant.timezone,

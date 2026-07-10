@@ -1,5 +1,4 @@
 import { describe, expect, it } from '@effect/vitest';
-import { TransactionRollbackError } from 'drizzle-orm';
 import { Effect, Layer } from 'effect';
 
 import { Database } from '../../../../../db';
@@ -267,35 +266,42 @@ const databaseWithSubmittedReceipt = () => ({
 
 const databaseWithReviewReceiptStatus = (
   status: 'approved' | 'refunded' | 'rejected' | 'submitted',
-) => ({
-  select: () => ({
-    from: () => ({
-      innerJoin: () => ({
-        innerJoin: () => ({
-          where: () => ({
-            limit: () =>
-              Effect.succeed([
-                {
-                  eventTitle: 'City tour',
-                  id: 'receipt-1',
-                  status,
-                  submittedByCommunicationEmail: null,
-                  submittedByEmail: 'alice@example.com',
-                },
-              ]),
-          }),
-        }),
-      }),
-    }),
-  }),
-  update: () =>
-    Effect.die(
-      new Error('receipt review update should not run after validation fails'),
-    ),
-});
+) => {
+  const reviewQuery = {
+    for: () =>
+      Effect.succeed([
+        {
+          eventTitle: 'City tour',
+          id: 'receipt-1',
+          status,
+          submittedByCommunicationEmail: null,
+          submittedByEmail: 'alice@example.com',
+        },
+      ]),
+    from: () => reviewQuery,
+    innerJoin: () => reviewQuery,
+    limit: () => reviewQuery,
+    where: () => reviewQuery,
+  };
+  const tx = {
+    select: () => reviewQuery,
+    update: () =>
+      Effect.die(
+        new Error(
+          'receipt review update should not run after validation fails',
+        ),
+      ),
+  };
+
+  return {
+    transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+      run(tx),
+  };
+};
 
 const databaseWithRefundableReceipts = (
   receipts: {
+    currency: 'AUD' | 'CZK' | 'EUR';
     eventId: string;
     id: string;
     submittedByUserId: string;
@@ -303,21 +309,16 @@ const databaseWithRefundableReceipts = (
   }[],
 ) => {
   const receiptQuery = {
+    for: () => Effect.succeed(receipts),
     from: () => receiptQuery,
-    select: () => receiptQuery,
-    where: () => Effect.succeed(receipts),
+    orderBy: () => receiptQuery,
+    where: () => receiptQuery,
   };
+  const tx = { select: () => receiptQuery };
 
   return {
-    query: {
-      users: {
-        findFirst: () =>
-          Effect.die(new Error('payout user lookup should not run')),
-      },
-    },
-    select: () => receiptQuery,
-    transaction: () =>
-      Effect.die(new Error('reimbursement transaction should not run')),
+    transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+      run(tx),
   };
 };
 
@@ -327,34 +328,40 @@ const databaseWithRefundableReceiptForPayout = (payoutUser: {
   paypalEmail: null | string;
 }) => {
   const receiptQuery = {
-    from: () => receiptQuery,
-    select: () => receiptQuery,
-    where: () =>
+    for: () =>
       Effect.succeed([
         {
+          currency: 'EUR' as const,
           eventId: 'event-1',
           id: 'receipt-1',
           submittedByUserId: payoutUser.id,
           totalAmount: 100,
         },
       ]),
+    from: () => receiptQuery,
+    orderBy: () => receiptQuery,
+    where: () => receiptQuery,
+  };
+  const payoutQuery = {
+    for: () => Effect.succeed([payoutUser]),
+    from: () => payoutQuery,
+    where: () => payoutQuery,
+  };
+  let selectCount = 0;
+  const tx = {
+    select: () => (selectCount++ === 0 ? receiptQuery : payoutQuery),
   };
 
   return {
-    query: {
-      users: {
-        findFirst: () => Effect.succeed(payoutUser),
-      },
-    },
-    select: () => receiptQuery,
-    transaction: () =>
-      Effect.die(new Error('reimbursement transaction should not run')),
+    transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+      run(tx),
   };
 };
 
 const databaseWithRefundPreconditionRace = () => {
   const receipts = [
     {
+      currency: 'EUR' as const,
       eventId: 'event-1',
       id: 'receipt-1',
       submittedByUserId: 'user-1',
@@ -362,9 +369,22 @@ const databaseWithRefundPreconditionRace = () => {
     },
   ];
   const receiptQuery = {
+    for: () => Effect.succeed(receipts),
     from: () => receiptQuery,
-    select: () => receiptQuery,
-    where: () => Effect.succeed(receipts),
+    orderBy: () => receiptQuery,
+    where: () => receiptQuery,
+  };
+  const payoutQuery = {
+    for: () =>
+      Effect.succeed([
+        {
+          iban: 'NL91ABNA0417164300',
+          id: 'user-1',
+          paypalEmail: null,
+        },
+      ]),
+    from: () => payoutQuery,
+    where: () => payoutQuery,
   };
   const insertQuery = {
     returning: () => Effect.succeed([{ id: 'transaction-1' }]),
@@ -375,26 +395,83 @@ const databaseWithRefundPreconditionRace = () => {
     set: () => updateQuery,
     where: () => updateQuery,
   };
+  let selectCount = 0;
   const tx = {
     insert: () => insertQuery,
-    rollback: () => Effect.die(new TransactionRollbackError()),
+    select: () => (selectCount++ === 0 ? receiptQuery : payoutQuery),
     update: () => updateQuery,
   };
 
   return {
-    query: {
-      users: {
-        findFirst: () =>
-          Effect.succeed({
-            iban: 'NL91ABNA0417164300',
-            id: 'user-1',
-            paypalEmail: null,
-          }),
-      },
-    },
-    select: () => receiptQuery,
     transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
       run(tx),
+  };
+};
+
+const databaseWithSuccessfulRefund = () => {
+  const operations: string[] = [];
+  let insertedTransaction: Record<string, unknown> | undefined;
+  const receiptQuery = {
+    for: (lock: string) => {
+      operations.push(`receipts:${lock}`);
+      return Effect.succeed([
+        {
+          currency: 'CZK' as const,
+          eventId: 'event-1',
+          id: 'receipt-1',
+          submittedByUserId: 'user-1',
+          totalAmount: 125,
+        },
+      ]);
+    },
+    from: () => receiptQuery,
+    orderBy: () => receiptQuery,
+    where: () => receiptQuery,
+  };
+  const payoutQuery = {
+    for: (lock: string) => {
+      operations.push(`payout:${lock}`);
+      return Effect.succeed([
+        {
+          iban: 'NL91ABNA0417164300',
+          id: 'user-1',
+          paypalEmail: null,
+        },
+      ]);
+    },
+    from: () => payoutQuery,
+    where: () => payoutQuery,
+  };
+  const insertQuery = {
+    returning: () => Effect.succeed([{ id: 'transaction-1' }]),
+    values: (values: Record<string, unknown>) => {
+      operations.push('transaction:insert');
+      insertedTransaction = values;
+      return insertQuery;
+    },
+  };
+  const updateQuery = {
+    returning: () => {
+      operations.push('receipt:update');
+      return Effect.succeed([{ id: 'receipt-1' }]);
+    },
+    set: () => updateQuery,
+    where: () => updateQuery,
+  };
+  let selectCount = 0;
+  const tx = {
+    insert: () => insertQuery,
+    select: () => (selectCount++ === 0 ? receiptQuery : payoutQuery),
+    update: () => updateQuery,
+  };
+
+  return {
+    database: {
+      transaction: (run: (transaction: typeof tx) => Effect.Effect<unknown>) =>
+        run(tx),
+    },
+    insertedTransaction: () => insertedTransaction,
+    operations,
   };
 };
 
@@ -411,6 +488,7 @@ const submittedReceiptRow = {
   attachmentUploadId: 'upload-1',
   attachmentUploadTenantId: 'tenant-1',
   createdAt: new Date('2026-05-19T10:00:00.000Z'),
+  currency: 'AUD' as const,
   depositAmount: 0,
   eventId: 'event-1',
   eventStart: new Date('2026-05-18T18:00:00.000Z'),
@@ -531,6 +609,7 @@ describe('finance profile receipt reads', () => {
             attachmentMimeType: 'image/png',
             attachmentStorageKey: null,
             createdAt: '2026-05-19T10:00:00.000Z',
+            currency: 'AUD',
             depositAmount: 0,
             eventId: 'event-1',
             eventStart: '2026-05-18T18:00:00.000Z',
@@ -669,6 +748,46 @@ describe('finance transaction permissions', () => {
 
 describe('finance receipt reimbursement', () => {
   it.effect(
+    'locks the recorded amount, currency, status, and payout details before recording reimbursement',
+    () =>
+      Effect.gen(function* () {
+        const fixture = databaseWithSuccessfulRefund();
+
+        const result = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'NL91ABNA0417164300',
+            payoutType: 'iban',
+            receiptIds: ['receipt-1'],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: fixture.database,
+            }),
+          ),
+        );
+
+        expect(result).toEqual({
+          receiptCount: 1,
+          totalAmount: 125,
+          transactionId: 'transaction-1',
+        });
+        expect(fixture.insertedTransaction()).toMatchObject({
+          amount: -125,
+          currency: 'CZK',
+          targetUserId: 'user-1',
+        });
+        expect(fixture.operations).toEqual([
+          'receipts:update',
+          'payout:share',
+          'transaction:insert',
+          'receipt:update',
+        ]);
+      }),
+  );
+
+  it.effect(
     'rejects reimbursement records when selected receipts have mixed submitters',
     () =>
       Effect.gen(function* () {
@@ -685,12 +804,14 @@ describe('finance receipt reimbursement', () => {
             createContextLayer(['finance:refundReceipts'], {
               database: databaseWithRefundableReceipts([
                 {
+                  currency: 'EUR',
                   eventId: 'event-1',
                   id: 'receipt-1',
                   submittedByUserId: 'user-1',
                   totalAmount: 100,
                 },
                 {
+                  currency: 'EUR',
                   eventId: 'event-1',
                   id: 'receipt-2',
                   submittedByUserId: 'user-2',
@@ -703,6 +824,46 @@ describe('finance receipt reimbursement', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.reason).toBe('mismatchedSubmitter');
+      }),
+  );
+
+  it.effect(
+    'rejects reimbursement records that mix recorded receipt currencies',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'NL91ABNA0417164300',
+            payoutType: 'iban',
+            receiptIds: ['receipt-eur', 'receipt-czk'],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: databaseWithRefundableReceipts([
+                {
+                  currency: 'EUR',
+                  eventId: 'event-1',
+                  id: 'receipt-eur',
+                  submittedByUserId: 'user-1',
+                  totalAmount: 100,
+                },
+                {
+                  currency: 'CZK',
+                  eventId: 'event-1',
+                  id: 'receipt-czk',
+                  submittedByUserId: 'user-1',
+                  totalAmount: 200,
+                },
+              ]),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('mismatchedReceiptCurrency');
       }),
   );
 
@@ -977,6 +1138,31 @@ describe('finance receipt amount validation', () => {
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.reason).toBe('refundedReceipt');
     }),
+  );
+
+  it.effect.each(['approved', 'rejected'] as const)(
+    'rejects review updates for already %s receipts',
+    (status) =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.review'](
+          {
+            ...receiptFieldsInput,
+            id: 'receipt-1',
+            status: 'approved',
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], {
+              database: databaseWithReviewReceiptStatus(status),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('receiptAlreadyReviewed');
+      }),
   );
 
   it.effect('requires a rejection reason when rejecting receipts', () =>

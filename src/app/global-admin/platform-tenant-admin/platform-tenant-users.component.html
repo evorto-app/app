@@ -1,0 +1,121 @@
+<app-platform-tenant-page-header title="Tenant users" [tenantId]="tenantId()" />
+
+<mat-form-field class="mb-4 w-full max-w-xl">
+  <mat-label>Search users</mat-label>
+  <input
+    #searchInput
+    matInput
+    type="search"
+    placeholder="Name or email"
+    (input)="updateSearch(searchInput.value)"
+  />
+</mat-form-field>
+
+@if (usersQuery.isPending()) {
+  <p role="status" aria-live="polite" class="body-medium">Loading users...</p>
+} @else if (usersQuery.isError()) {
+  <div role="alert" class="bg-error-container text-on-error-container p-4">
+    <p class="body-medium">Users could not be loaded.</p>
+    <button mat-stroked-button type="button" (click)="usersQuery.refetch()">
+      Try again
+    </button>
+  </div>
+} @else if (usersQuery.isSuccess()) {
+  <p class="body-small text-on-surface-variant mb-2">
+    {{ usersQuery.data().usersCount }} existing tenant users
+  </p>
+  <div class="overflow-x-auto border-y border-outline-variant">
+    <table mat-table [dataSource]="usersQuery.data().users">
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Name</th>
+        <td mat-cell *matCellDef="let user">
+          {{ user.firstName }} {{ user.lastName }}
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="email">
+        <th mat-header-cell *matHeaderCellDef>Email</th>
+        <td mat-cell *matCellDef="let user">{{ user.email }}</td>
+      </ng-container>
+      <ng-container matColumnDef="roles">
+        <th mat-header-cell *matHeaderCellDef>Roles</th>
+        <td mat-cell *matCellDef="let user">
+          <mat-chip-set aria-label="Assigned roles">
+            @for (role of user.roles; track role) {
+              <mat-chip>{{ role }}</mat-chip>
+            } @empty {
+              <span class="text-on-surface-variant">None</span>
+            }
+          </mat-chip-set>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>
+          <span class="sr-only">Actions</span>
+        </th>
+        <td mat-cell *matCellDef="let user">
+          <button mat-button type="button" (click)="selectUser(user)">
+            Manage roles
+          </button>
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  </div>
+  <mat-paginator
+    showFirstLastButtons
+    aria-label="Select page of tenant users"
+    [length]="usersQuery.data().usersCount"
+    [pageIndex]="pageIndex()"
+    [pageSize]="pageSize()"
+    [pageSizeOptions]="[25, 50, 100]"
+    (page)="changePage($event)"
+  />
+}
+
+@if (selectedUser(); as user) {
+  <form class="mt-6 max-w-2xl" (submit)="saveAssignment($event)">
+    <h2 class="title-medium">
+      Update {{ user.firstName }} {{ user.lastName }}
+    </h2>
+    <p class="body-small text-on-surface-variant mt-1">
+      Changes affect this tenant only. Removing every role is allowed.
+    </p>
+    <mat-form-field class="mt-4 w-full">
+      <mat-label>Assigned roles</mat-label>
+      <mat-select multiple [formField]="assignmentForm.roleIds">
+        @if (rolesQuery.isSuccess()) {
+          @for (role of rolesQuery.data(); track role.id) {
+            <mat-option [value]="role.id">{{ role.name }}</mat-option>
+          }
+        }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label>Operational reason</mat-label>
+      <textarea
+        matInput
+        rows="3"
+        [formField]="assignmentForm.reason"
+      ></textarea>
+      <mat-hint>Recorded in the immutable platform audit.</mat-hint>
+      @for (error of assignmentForm.reason().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+    <div class="flex justify-end gap-2">
+      <button mat-button type="button" (click)="cancelAssignment()">
+        Cancel
+      </button>
+      <button
+        mat-flat-button
+        type="submit"
+        [disabled]="
+          assignmentForm().invalid() || assignRolesMutation.isPending()
+        "
+      >
+        {{ assignRolesMutation.isPending() ? "Saving..." : "Save roles" }}
+      </button>
+    </div>
+  </form>
+}

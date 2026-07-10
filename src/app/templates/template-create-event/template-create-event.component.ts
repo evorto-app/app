@@ -4,6 +4,7 @@ import {
   computed,
   effect,
   inject,
+  Injectable,
   input,
   signal,
   untracked,
@@ -28,7 +29,12 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { DateTime } from 'luxon';
 
+import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import {
+  resolveTenantRuntimeTimezone,
+  toTenantDateTime,
+} from '../../core/tenant-runtime';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
   createEventGeneralFormModel,
@@ -37,6 +43,27 @@ import {
 } from '../../shared/components/forms/event-general-form/event-general-form.schema';
 import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
 import { createEventFormModelFromTemplate } from './template-create-event.mapper';
+
+@Injectable({ providedIn: 'root' })
+export class TemplateCreateEventOperations {
+  private readonly rpc = AppRpc.injectClient();
+
+  createEvent() {
+    return this.rpc.events.create.mutationOptions();
+  }
+
+  discountProviders() {
+    return this.rpc.discounts.getTenantProviders.queryOptions();
+  }
+
+  eventListFilter() {
+    return this.rpc.queryFilter(['events', 'eventList']);
+  }
+
+  findTemplate(id: string) {
+    return this.rpc.templates.findOne.queryOptions({ id });
+  }
+}
 
 export const templateCreateEventSubmitDisabled = ({
   formInvalid,
@@ -66,9 +93,9 @@ export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
 })
 export class TemplateCreateEventComponent {
   protected readonly templateId = input.required<string>();
-  private readonly rpc = AppRpc.injectClient();
+  private readonly operations = inject(TemplateCreateEventOperations);
   protected readonly templateQuery = injectQuery(() =>
-    this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
+    this.operations.findTemplate(this.templateId()),
   );
   protected readonly addOnCopyNotice = computed(() =>
     templateAddOnCopyNotice(
@@ -77,18 +104,22 @@ export class TemplateCreateEventComponent {
         : 0,
     ),
   );
+  private readonly config = inject(ConfigService);
+  private readonly tenantTimezone = resolveTenantRuntimeTimezone(
+    this.config.tenantSignal()?.timezone,
+  );
   protected readonly createEventModel = signal<EventGeneralFormModel>(
-    createEventGeneralFormModel(),
+    createEventGeneralFormModel({}, this.tenantTimezone),
   );
   protected readonly createEventForm = form(
     this.createEventModel,
     eventGeneralFormSchema,
   );
   protected readonly createEventMutation = injectMutation(() =>
-    this.rpc.events.create.mutationOptions(),
+    this.operations.createEvent(),
   );
   protected readonly discountProvidersQuery = injectQuery(() =>
-    this.rpc.discounts.getTenantProviders.queryOptions(),
+    this.operations.discountProviders(),
   );
   protected readonly esnEnabled = computed(() => {
     if (!this.discountProvidersQuery.isSuccess()) return false;
@@ -189,6 +220,8 @@ export class TemplateCreateEventComponent {
           end: this.toDateTime(formValue.end).toJSDate().toISOString(),
           icon: formValue.icon,
           registrationOptions: formValue.registrationOptions.map((option) => ({
+            cancellationDeadlineHoursBeforeStart:
+              option.cancellationDeadlineHoursBeforeStart,
             closeRegistrationTime: this.toDateTime(option.closeRegistrationTime)
               .toJSDate()
               .toISOString(),
@@ -199,6 +232,7 @@ export class TemplateCreateEventComponent {
               .toISOString(),
             organizingRegistration: option.organizingRegistration,
             price: option.price,
+            refundFeesOnCancellation: option.refundFeesOnCancellation,
             registeredDescription: option.registeredDescription?.trim()
               ? option.registeredDescription
               : null,
@@ -212,6 +246,8 @@ export class TemplateCreateEventComponent {
               ? option.stripeTaxRateId
               : null,
             title: option.title,
+            transferDeadlineHoursBeforeStart:
+              option.transferDeadlineHoursBeforeStart,
           })),
           start: this.toDateTime(formValue.start).toJSDate().toISOString(),
           templateId: this.templateId(),
@@ -219,7 +255,7 @@ export class TemplateCreateEventComponent {
         {
           onSuccess: async (data) => {
             await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['events', 'eventList']),
+              this.operations.eventListFilter(),
             );
             this.router.navigate(['/events', data.id]);
           },
@@ -229,7 +265,7 @@ export class TemplateCreateEventComponent {
   }
 
   private toDateTime(value: Date | DateTime): DateTime {
-    return value instanceof Date ? DateTime.fromJSDate(value) : value;
+    return toTenantDateTime(value, this.tenantTimezone);
   }
 
   private updateIfPristine(

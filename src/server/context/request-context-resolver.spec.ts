@@ -3,12 +3,15 @@ import { Effect, Layer } from 'effect';
 
 import { Database } from '../../db';
 import {
+  resolvePlatformAuthority,
   resolveRequestPermissions,
   resolveTenantContext,
   resolveUserContext,
 } from './request-context-resolver';
 
 const createTenant = (domain: string) => ({
+  canonicalRootUrl:
+    domain === 'localhost' ? 'http://localhost' : `https://${domain}`,
   currency: 'EUR',
   defaultLocation: null,
   discountProviders: null,
@@ -167,17 +170,28 @@ describe('request-context-resolver', () => {
     }),
   );
 
-  it('resolves global-admin permissions without a tenant user assignment', () => {
+  it('resolves explicit platform authority without granting tenant permissions', () => {
+    const oidcUser = {
+      email: 'platform@example.org',
+      'evorto.app/app_metadata': {
+        globalAdmin: true,
+      },
+      sub: 'auth0|platform-admin',
+    };
+
     expect(
       resolveRequestPermissions({
-        oidcUser: {
-          'evorto.app/app_metadata': {
-            globalAdmin: true,
-          },
-        },
+        oidcUser,
         user: undefined,
       }),
-    ).toContain('globalAdmin:manageTenants');
+    ).toEqual(['globalAdmin:manageTenants']);
+    expect(resolvePlatformAuthority(oidcUser)).toEqual(
+      expect.objectContaining({
+        actorEmail: 'platform@example.org',
+        actorId: 'auth0|platform-admin',
+        kind: 'platformAdministrator',
+      }),
+    );
   });
 
   it('resolves local e2e global-admin permissions from configured Auth0 ids', () => {

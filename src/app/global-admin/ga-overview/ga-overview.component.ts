@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
+  faClockRotateLeft,
   faEnvelopeOpenText,
   faFolders,
 } from '@fortawesome/duotone-regular-svg-icons';
@@ -14,6 +15,7 @@ import {
   templateUrl: './ga-overview.component.html',
 })
 export class GaOverviewComponent {
+  protected readonly faClockRotateLeft = faClockRotateLeft;
   protected readonly faEnvelopeOpenText = faEnvelopeOpenText;
   protected readonly faFolders = faFolders;
   protected readonly outletActive = signal(false);

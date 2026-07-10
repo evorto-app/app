@@ -1,4 +1,10 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DEFAULT_CURRENCY_CODE,
+  inject,
+  input,
+} from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatNativeDateModule } from '@angular/material/core';
@@ -29,6 +35,8 @@ import { ReceiptFormGroup } from './receipt-form.model';
   templateUrl: './receipt-form-fields.component.html',
 })
 export class ReceiptFormFieldsComponent {
+  private readonly defaultCurrencyCode = inject(DEFAULT_CURRENCY_CODE);
+  readonly currencyCode = input(this.defaultCurrencyCode);
   readonly form = input.required<ReceiptFormGroup>();
   readonly selectableCountries = input.required<readonly string[]>();
 

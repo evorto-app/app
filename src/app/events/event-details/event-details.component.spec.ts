@@ -78,19 +78,12 @@ describe('eventReviewActionDisabled', () => {
 });
 
 describe('eventSubmitForReviewActionDisabled', () => {
-  it('allows editable draft and rejected events to be submitted while no submit is pending', () => {
+  it('allows only an editable draft to be submitted while no submit is pending', () => {
     expect(
       eventSubmitForReviewActionDisabled({
         canEdit: true,
         mutationPending: false,
         status: 'DRAFT',
-      }),
-    ).toBe(false);
-    expect(
-      eventSubmitForReviewActionDisabled({
-        canEdit: true,
-        mutationPending: false,
-        status: 'REJECTED',
       }),
     ).toBe(false);
     expect(
@@ -209,5 +202,14 @@ describe('EventDetails template', () => {
     expect(template).toContain('registrationStatusQuery.isError()');
     expect(template).toContain('Failed to load registration status.');
     expect(template).toContain('registrationStatusQuery.isSuccess()');
+  });
+
+  it('uses the accepted return-to-draft review language', () => {
+    const template = readSource(
+      'src/app/events/event-details/event-details.component.html',
+    );
+
+    expect(template).toContain('Return to draft');
+    expect(template).not.toContain('REJECTED');
   });
 });

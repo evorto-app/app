@@ -22,7 +22,7 @@
   </mat-form-field>
 
   <mat-form-field>
-    <mat-label>Total amount (EUR)</mat-label>
+    <mat-label>Total amount ({{ currencyCode() }})</mat-label>
     <input
       matInput
       min="0"
@@ -33,7 +33,7 @@
   </mat-form-field>
 
   <mat-form-field>
-    <mat-label>Tax amount (EUR)</mat-label>
+    <mat-label>Tax amount ({{ currencyCode() }})</mat-label>
     <input
       matInput
       min="0"
@@ -51,7 +51,7 @@
     </mat-checkbox>
     @if (form().controls.hasDeposit.value) {
       <mat-form-field>
-        <mat-label>Deposit amount (EUR)</mat-label>
+        <mat-label>Deposit amount ({{ currencyCode() }})</mat-label>
         <input
           matInput
           min="0"
@@ -69,7 +69,7 @@
     </mat-checkbox>
     @if (form().controls.hasAlcohol.value) {
       <mat-form-field>
-        <mat-label>Alcohol amount (EUR)</mat-label>
+        <mat-label>Alcohol amount ({{ currencyCode() }})</mat-label>
         <input
           matInput
           min="0"

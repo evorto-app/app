@@ -126,7 +126,7 @@ Cancelled transactions are omitted from this list.
       body: `
 ## Receipt Approvals
 
-The **Receipt approvals** tab shows all receipts waiting for finance review, grouped by event. Reviewers can open each receipt, validate submitted values, and approve or reject it. The detail page notes that a submitter email is queued after the review is saved.
+The **Receipt approvals** tab shows all receipts waiting for finance review, grouped by event. Each amount is displayed in the currency recorded when the receipt was submitted, rather than a later tenant default. Reviewers can open each receipt, validate submitted values, and approve or reject it. The detail page notes that a submitter email is queued after the review is saved.
 
 Approving or rejecting records the review status in Evorto and queues the submitter receipt-reviewed email in the durable email outbox.
 `,
@@ -143,7 +143,7 @@ Approving or rejecting records the review status in Evorto and queues the submit
       body: `
 ## Receipt Reimbursements
 
-The **Receipt reimbursements** tab groups approved receipts by recipient and renders each group in a selectable table. Recipient contact details use the submitter's notification email when configured, with login email as fallback. Finance users can select one or more rows, verify payout details (IBAN/PayPal), and record the manual reimbursement transaction for the selected batch.
+The **Receipt reimbursements** tab groups approved receipts by recipient and recorded currency and renders each group in a selectable table. Recipient contact details use the submitter's notification email when configured, with login email as fallback. Finance users can select one or more same-currency rows, verify payout details (IBAN/PayPal), and record the manual reimbursement transaction for the selected batch. The transaction keeps the receipts' recorded currency.
 `,
     });
     await page.goto('/finance/receipts-refunds');

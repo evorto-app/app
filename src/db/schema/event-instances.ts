@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -19,27 +20,38 @@ export const eventReviewStatus = pgEnum('event_review_status', [
   'DRAFT',
   'PENDING_REVIEW',
   'APPROVED',
-  'REJECTED',
 ]);
 
-export const eventInstances = pgTable('event_instances', {
-  ...modelOfTenant,
-  creatorId: varchar({ length: 20 })
-    .notNull()
-    .references(() => users.id),
-  description: text().notNull(),
-  end: timestamp().notNull(),
-  icon: jsonb('icon').$type<IconValue>().notNull(),
-  location: jsonb('location').$type<EventLocationType>(),
-  reviewedAt: timestamp(),
-  reviewedBy: varchar({ length: 20 }).references(() => users.id),
-  start: timestamp().notNull(),
-  status: eventReviewStatus().notNull().default('DRAFT'),
-  statusComment: text(),
-  templateId: varchar({ length: 20 })
-    .notNull()
-    .references(() => eventTemplates.id),
-  title: text().notNull(),
-  // Unlisted events do not show up in public lists unless user has permission
-  unlisted: boolean().notNull().default(false),
-});
+export const eventTenantIdentityUniqueConstraintName =
+  'event_instances_id_tenant_unique';
+
+export const eventInstances = pgTable(
+  'event_instances',
+  {
+    ...modelOfTenant,
+    creatorId: varchar({ length: 20 })
+      .notNull()
+      .references(() => users.id),
+    description: text().notNull(),
+    end: timestamp().notNull(),
+    icon: jsonb('icon').$type<IconValue>().notNull(),
+    location: jsonb('location').$type<EventLocationType>(),
+    reviewedAt: timestamp(),
+    reviewedBy: varchar({ length: 20 }).references(() => users.id),
+    start: timestamp().notNull(),
+    status: eventReviewStatus().notNull().default('DRAFT'),
+    statusComment: text(),
+    templateId: varchar({ length: 20 })
+      .notNull()
+      .references(() => eventTemplates.id),
+    title: text().notNull(),
+    // Unlisted events do not show up in public lists unless user has permission
+    unlisted: boolean().notNull().default(false),
+  },
+  (table) => [
+    unique(eventTenantIdentityUniqueConstraintName).on(
+      table.id,
+      table.tenantId,
+    ),
+  ],
+);
