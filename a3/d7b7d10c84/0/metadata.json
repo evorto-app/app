@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "a3d7b7d10c84",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-10T23:54:32.528218Z",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/workflows/e2e-baseline.yml",
+    "helpers/testing/ci-quality-source.spec.ts",
+    "tests/specs/scanning/scanner.test.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "0903f52c94f8",
+  "checkpoint_transcript_start": 20903,
+  "transcript_lines_at_start": 20903,
+  "token_usage": {
+    "input_tokens": 247588,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 33447424,
+    "output_tokens": 25101,
+    "api_call_count": 167
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-10T23:54:31.894116Z",
+    "agent_lines": 16,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 16,
+    "total_lines_changed": 16,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "a3d7b7d10c84",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".github/workflows/e2e-baseline.yml",
+    "helpers/testing/ci-quality-source.spec.ts",
+    "tests/specs/scanning/scanner.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a3/d7b7d10c84/0/metadata.json",
+      "transcript": "/a3/d7b7d10c84/0/full.jsonl",
+      "content_hash": "/a3/d7b7d10c84/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 247588,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 33447424,
+    "output_tokens": 25101,
+    "api_call_count": 167
+  }
+}
