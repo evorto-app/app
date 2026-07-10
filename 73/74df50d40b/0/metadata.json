@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "7374df50d40b",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-10T17:10:35.988806Z",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/core/stripe-checkout-url.spec.ts",
+    "src/app/core/stripe-checkout-url.ts",
+    "src/app/events/event-active-registration/event-active-registration-addon-purchase.ts",
+    "src/app/events/event-active-registration/event-active-registration.component.html",
+    "src/app/events/event-active-registration/event-active-registration.component.spec.ts",
+    "src/app/events/event-active-registration/event-active-registration.component.ts",
+    "src/app/events/event-details/event-details.component.html"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "5043562dbba9",
+  "checkpoint_transcript_start": 13376,
+  "transcript_lines_at_start": 13376,
+  "token_usage": {
+    "input_tokens": 97612,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 10822656,
+    "output_tokens": 11684,
+    "api_call_count": 83
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-10T17:10:35.541115Z",
+    "agent_lines": 1868,
+    "agent_removed": 358,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1868,
+    "total_lines_changed": 2226,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

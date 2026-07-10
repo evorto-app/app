@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "7374df50d40b",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/core/stripe-checkout-url.spec.ts",
+    "src/app/core/stripe-checkout-url.ts",
+    "src/app/events/event-active-registration/event-active-registration-addon-purchase.ts",
+    "src/app/events/event-active-registration/event-active-registration.component.html",
+    "src/app/events/event-active-registration/event-active-registration.component.spec.ts",
+    "src/app/events/event-active-registration/event-active-registration.component.ts",
+    "src/app/events/event-details/event-details.component.html"
+  ],
+  "sessions": [
+    {
+      "metadata": "/73/74df50d40b/0/metadata.json",
+      "transcript": "/73/74df50d40b/0/full.jsonl",
+      "content_hash": "/73/74df50d40b/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 97612,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 10822656,
+    "output_tokens": 11684,
+    "api_call_count": 83
+  }
+}
