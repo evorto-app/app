@@ -1,15 +1,163 @@
 import type Stripe from 'stripe';
 
 import { registrationSpotCount } from '@shared/registration-spots';
-import { and, eq, lte, sql } from 'drizzle-orm';
-import { Effect } from 'effect';
+import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
+import { Effect, Schema } from 'effect';
 
 import { Database, type DatabaseClient } from '../../db';
 import * as schema from '../../db/schema';
 import { stripeWebhookConfig } from '../config/stripe-config';
 import { StripeClient } from '../stripe-client';
-const MAX_WEBHOOK_SIZE_BYTES = 200 * 1024;
+
+export const MAX_STRIPE_WEBHOOK_SIZE_BYTES = 200 * 1024;
 const STALE_WEBHOOK_CLAIM_AGE_MS = 5 * 60 * 1000;
+
+interface CheckoutWebhookTransitionSteps<LockedRegistration, E, R> {
+  readonly lockRegistration: () => Effect.Effect<
+    LockedRegistration | undefined,
+    E,
+    R
+  >;
+  readonly updateDependents: (
+    registration: LockedRegistration,
+  ) => Effect.Effect<void, E, R>;
+  readonly updateRegistration: (
+    registration: LockedRegistration,
+  ) => Effect.Effect<number, E, R>;
+  readonly updateTransaction: (
+    registration: LockedRegistration,
+  ) => Effect.Effect<number, E, R>;
+}
+
+interface StripeWebhookBodyRequest {
+  readonly body: null | ReadableStream<Uint8Array>;
+  readonly headers: Pick<Headers, 'get'>;
+}
+
+class StripePaymentIntentReadError extends Schema.TaggedErrorClass<StripePaymentIntentReadError>()(
+  'StripePaymentIntentReadError',
+  { cause: Schema.Defect() },
+) {}
+
+class StripeWebhookBodyReadError extends Schema.TaggedErrorClass<StripeWebhookBodyReadError>()(
+  'StripeWebhookBodyReadError',
+  { cause: Schema.Defect() },
+) {}
+
+class StripeWebhookBodyTooLargeError extends Schema.TaggedErrorClass<StripeWebhookBodyTooLargeError>()(
+  'StripeWebhookBodyTooLargeError',
+  {},
+) {}
+
+class StripeWebhookStateConflictError extends Schema.TaggedErrorClass<StripeWebhookStateConflictError>()(
+  'StripeWebhookStateConflictError',
+  {},
+) {}
+
+export const runCheckoutWebhookTransition = Effect.fn(
+  'runCheckoutWebhookTransition',
+)(function* <LockedRegistration, E, R>(
+  steps: CheckoutWebhookTransitionSteps<LockedRegistration, E, R>,
+) {
+  const lockedRegistration = yield* steps.lockRegistration();
+  if (!lockedRegistration) {
+    return yield* new StripeWebhookStateConflictError();
+  }
+
+  const updatedTransactionCount =
+    yield* steps.updateTransaction(lockedRegistration);
+  if (updatedTransactionCount !== 1) {
+    return yield* new StripeWebhookStateConflictError();
+  }
+
+  const updatedRegistrationCount =
+    yield* steps.updateRegistration(lockedRegistration);
+  if (updatedRegistrationCount !== 1) {
+    return yield* new StripeWebhookStateConflictError();
+  }
+
+  yield* steps.updateDependents(lockedRegistration);
+});
+
+const parseContentLength = (value: null | string): number | undefined => {
+  if (!value || !/^(0|[1-9]\d*)$/.test(value.trim())) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+};
+
+export const readStripeWebhookBody = Effect.fn('readStripeWebhookBody')(
+  function* (
+    request: StripeWebhookBodyRequest,
+    maxBytes = MAX_STRIPE_WEBHOOK_SIZE_BYTES,
+  ) {
+    const contentLength = parseContentLength(
+      request.headers.get('content-length'),
+    );
+    if (contentLength !== undefined && contentLength > maxBytes) {
+      const body = request.body;
+      if (body) {
+        yield* Effect.tryPromise({
+          catch: (cause) => new StripeWebhookBodyReadError({ cause }),
+          try: () =>
+            body.cancel('Stripe webhook Content-Length exceeded limit'),
+        }).pipe(Effect.catch(() => Effect.void));
+      }
+      return yield* new StripeWebhookBodyTooLargeError();
+    }
+
+    const readResult = yield* Effect.tryPromise({
+      catch: (cause) => new StripeWebhookBodyReadError({ cause }),
+      try: async () => {
+        if (!request.body) {
+          return { bytes: new Uint8Array(), type: 'success' } as const;
+        }
+
+        const reader = request.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let totalBytes = 0;
+
+        try {
+          while (true) {
+            const chunk = await reader.read();
+            if (chunk.done) {
+              break;
+            }
+
+            totalBytes += chunk.value.byteLength;
+            if (totalBytes > maxBytes) {
+              try {
+                await reader.cancel('Stripe webhook body exceeded limit');
+              } catch {
+                // The size result remains authoritative when cancellation races
+                // with a stream that has already errored or closed.
+              }
+              return { type: 'too-large' } as const;
+            }
+            chunks.push(chunk.value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+
+        const bytes = new Uint8Array(totalBytes);
+        let offset = 0;
+        for (const chunk of chunks) {
+          bytes.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+        return { bytes, type: 'success' } as const;
+      },
+    });
+
+    if (readResult.type === 'too-large') {
+      return yield* new StripeWebhookBodyTooLargeError();
+    }
+    return readResult.bytes;
+  },
+);
 
 const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
@@ -40,16 +188,6 @@ const getTenantIdFromWebhookEvent = (
   return tenantId && tenantId.length > 0 ? tenantId : undefined;
 };
 
-const getStripeAccountIdForTenant = (tenantId: string) =>
-  databaseEffect((database) =>
-    database.query.tenants
-      .findFirst({
-        columns: { stripeAccountId: true },
-        where: { id: tenantId },
-      })
-      .pipe(Effect.map((tenant) => tenant?.stripeAccountId)),
-  );
-
 const getCheckoutSessionPaymentIntentId = (
   session: Stripe.Checkout.Session,
 ): string | undefined =>
@@ -77,63 +215,167 @@ const getLatestChargeId = (
   return latestCharge?.id;
 };
 
-const resolveCheckoutSession = (eventSession: Stripe.Checkout.Session) =>
+export interface PersistedCheckoutSessionBinding {
+  readonly eventRegistrationId: null | string;
+  readonly id: string;
+  readonly method: 'cash' | 'paypal' | 'stripe' | 'transfer';
+  readonly status: 'cancelled' | 'pending' | 'successful';
+  readonly stripeCheckoutSessionId: null | string;
+  readonly stripePaymentIntentId: null | string;
+  readonly tenantId: string;
+  readonly type: 'other' | 'refund' | 'registration';
+}
+
+interface CheckoutSessionBindingInput {
+  readonly eventAccount: null | string | undefined;
+  readonly metadata: null | Readonly<Record<string, string | undefined>>;
+  readonly paymentIntentId: string | undefined;
+  readonly persisted: PersistedCheckoutSessionBinding;
+  readonly requirePaymentIntent: boolean;
+  readonly sessionId: string;
+  readonly stripeAccountId: null | string | undefined;
+}
+
+type CheckoutSessionBindingResult =
+  | {
+      readonly paymentIntentId: string | undefined;
+      readonly registrationId: string;
+      readonly stripeAccountId: string;
+      readonly tenantId: string;
+      readonly transactionId: string;
+      readonly type: 'resolved';
+    }
+  | { readonly reason: string; readonly type: 'invalid-binding' }
+  | { readonly type: 'state-conflict' };
+
+export const validateCheckoutSessionBinding = ({
+  eventAccount,
+  metadata,
+  paymentIntentId,
+  persisted,
+  requirePaymentIntent,
+  sessionId,
+  stripeAccountId,
+}: CheckoutSessionBindingInput): CheckoutSessionBindingResult => {
+  if (
+    !persisted.eventRegistrationId ||
+    persisted.method !== 'stripe' ||
+    persisted.type !== 'registration' ||
+    persisted.stripeCheckoutSessionId !== sessionId
+  ) {
+    return {
+      reason: 'Persisted checkout transaction is not a registration payment',
+      type: 'invalid-binding',
+    };
+  }
+  if (!stripeAccountId || !eventAccount || eventAccount !== stripeAccountId) {
+    return {
+      reason: 'Stripe connected account does not match the tenant',
+      type: 'invalid-binding',
+    };
+  }
+
+  const metadataRegistrationId = metadata?.['registrationId'];
+  const metadataTenantId = metadata?.['tenantId'];
+  const metadataTransactionId = metadata?.['transactionId'];
+  const hasAnyMappingMetadata =
+    metadataRegistrationId !== undefined ||
+    metadataTenantId !== undefined ||
+    metadataTransactionId !== undefined;
+  if (
+    hasAnyMappingMetadata &&
+    (metadataRegistrationId !== persisted.eventRegistrationId ||
+      metadataTenantId !== persisted.tenantId ||
+      metadataTransactionId !== persisted.id)
+  ) {
+    return {
+      reason: 'Checkout metadata conflicts with the persisted transaction',
+      type: 'invalid-binding',
+    };
+  }
+
+  if (
+    (requirePaymentIntent && !paymentIntentId) ||
+    (persisted.stripePaymentIntentId !== null &&
+      persisted.stripePaymentIntentId !== paymentIntentId)
+  ) {
+    return {
+      reason: 'Payment intent conflicts with the persisted transaction',
+      type: 'invalid-binding',
+    };
+  }
+  if (persisted.status !== 'pending') {
+    return { type: 'state-conflict' };
+  }
+
+  return {
+    paymentIntentId,
+    registrationId: persisted.eventRegistrationId,
+    stripeAccountId,
+    tenantId: persisted.tenantId,
+    transactionId: persisted.id,
+    type: 'resolved',
+  };
+};
+
+const resolveCheckoutSession = (
+  event: Stripe.Event,
+  eventSession: Stripe.Checkout.Session,
+  requirePaymentIntent: boolean,
+) =>
   databaseEffect((database) =>
     Effect.gen(function* () {
-      const metadata = eventSession.metadata ?? {};
-      const metadataRegistrationId = metadata['registrationId'];
-      const metadataTenantId = metadata['tenantId'];
-      const metadataTransactionId = metadata['transactionId'];
-      const hasCompleteMetadata =
-        Boolean(metadataRegistrationId) &&
-        Boolean(metadataTenantId) &&
-        Boolean(metadataTransactionId);
-
       const paymentIntentId = getCheckoutSessionPaymentIntentId(eventSession);
-      const paymentIntentTransaction = paymentIntentId
-        ? yield* database.query.transactions.findFirst({
-            columns: {
-              eventRegistrationId: true,
-              id: true,
-              tenantId: true,
-            },
-            where: { stripePaymentIntentId: paymentIntentId },
-          })
-        : undefined;
-
-      if (hasCompleteMetadata) {
-        if (
-          paymentIntentTransaction &&
-          (paymentIntentTransaction.id !== metadataTransactionId ||
-            paymentIntentTransaction.tenantId !== metadataTenantId ||
-            paymentIntentTransaction.eventRegistrationId !==
-              metadataRegistrationId)
-        ) {
-          return { type: 'mapping-conflict' } as const;
-        }
-
-        return {
-          registrationId: metadataRegistrationId,
-          tenantId: metadataTenantId,
-          transactionId: metadataTransactionId,
-          type: 'resolved',
-        } as const;
+      const persisted = yield* database.query.transactions.findFirst({
+        columns: {
+          eventRegistrationId: true,
+          id: true,
+          method: true,
+          status: true,
+          stripeCheckoutSessionId: true,
+          stripePaymentIntentId: true,
+          tenantId: true,
+          type: true,
+        },
+        where: { stripeCheckoutSessionId: eventSession.id },
+      });
+      if (!persisted) {
+        return { type: 'unresolved' } as const;
       }
 
+      const tenant = yield* database.query.tenants.findFirst({
+        columns: { stripeAccountId: true },
+        where: { id: persisted.tenantId },
+      });
+      const binding = validateCheckoutSessionBinding({
+        eventAccount: event.account,
+        metadata: eventSession.metadata,
+        paymentIntentId,
+        persisted,
+        requirePaymentIntent,
+        sessionId: eventSession.id,
+        stripeAccountId: tenant?.stripeAccountId,
+      });
+      if (binding.type !== 'resolved' || !paymentIntentId) {
+        return binding;
+      }
+
+      const paymentIntentTransaction =
+        yield* database.query.transactions.findFirst({
+          columns: { id: true },
+          where: { stripePaymentIntentId: paymentIntentId },
+        });
       if (
-        paymentIntentTransaction?.eventRegistrationId &&
-        paymentIntentTransaction.id &&
-        paymentIntentTransaction.tenantId
+        paymentIntentTransaction &&
+        paymentIntentTransaction.id !== persisted.id
       ) {
         return {
-          registrationId: paymentIntentTransaction.eventRegistrationId,
-          tenantId: paymentIntentTransaction.tenantId,
-          transactionId: paymentIntentTransaction.id,
-          type: 'resolved',
+          reason: 'Payment intent belongs to another transaction',
+          type: 'invalid-binding',
         } as const;
       }
 
-      return { type: 'unresolved' } as const;
+      return binding;
     }),
   );
 
@@ -250,6 +492,20 @@ const markWebhookEventProcessed = (eventId: string) =>
 
 export const handleStripeWebhookWebRequest = (request: Request) =>
   Effect.gen(function* () {
+    const rawBody = yield* readStripeWebhookBody(request).pipe(
+      Effect.tapErrorTag('StripeWebhookBodyReadError', (error) =>
+        Effect.logError('Failed to read Stripe webhook body').pipe(
+          Effect.annotateLogs({ error: String(error.cause) }),
+        ),
+      ),
+      Effect.catchTag('StripeWebhookBodyTooLargeError', () =>
+        Effect.succeed(responseText('Payload too large', 413)),
+      ),
+    );
+    if (rawBody instanceof Response) {
+      return rawBody;
+    }
+
     const stripe = yield* StripeClient;
     const { STRIPE_WEBHOOK_SECRET: endpointSecret } =
       yield* stripeWebhookConfig;
@@ -258,14 +514,9 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
       return responseText('No signature', 400);
     }
 
-    const rawBody = yield* Effect.promise(() => request.arrayBuffer());
-    if (rawBody.byteLength > MAX_WEBHOOK_SIZE_BYTES) {
-      return responseText('Payload too large', 413);
-    }
-
     const event = yield* Effect.sync(() =>
       stripe.webhooks.constructEvent(
-        Buffer.from(rawBody),
+        Buffer.from(rawBody.buffer, rawBody.byteOffset, rawBody.byteLength),
         signature,
         endpointSecret,
       ),
@@ -413,141 +664,208 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
             return responseText('Session not paid and completed, skipping');
           }
 
-          const checkoutSession = yield* resolveCheckoutSession(eventSession);
-          if (checkoutSession.type === 'mapping-conflict') {
-            return responseText('Conflicting checkout session mapping', 400);
-          }
+          const checkoutSession = yield* resolveCheckoutSession(
+            event,
+            eventSession,
+            true,
+          );
           if (checkoutSession.type === 'unresolved') {
             return responseText('Missing checkout session mapping', 400);
           }
-
-          const { registrationId, tenantId, transactionId } = checkoutSession;
-          const stripePaymentIntentId =
-            getCheckoutSessionPaymentIntentId(eventSession);
-          const stripeAccount = yield* getStripeAccountIdForTenant(tenantId);
-          if (!stripeAccount) {
-            return responseText('Stripe account not found', 400);
+          if (checkoutSession.type === 'invalid-binding') {
+            yield* Effect.logWarning('Invalid Stripe checkout binding').pipe(
+              Effect.annotateLogs({
+                eventId: event.id,
+                reason: checkoutSession.reason,
+                sessionId: eventSession.id,
+              }),
+            );
+            return responseText('Invalid checkout session binding', 400);
           }
-          const stripeChargeId = yield* Effect.gen(function* () {
+          if (checkoutSession.type === 'state-conflict') {
+            return responseText('Checkout transaction state conflict', 409);
+          }
+
+          const {
+            paymentIntentId: stripePaymentIntentId,
+            registrationId,
+            stripeAccountId: stripeAccount,
+            tenantId,
+            transactionId,
+          } = checkoutSession;
+          if (!stripePaymentIntentId) {
+            return responseText('Payment intent missing', 400);
+          }
+          const stripeChargeResult = yield* Effect.gen(function* () {
             const paymentIntentField = eventSession.payment_intent;
             const inlineChargeId = getLatestChargeId(paymentIntentField);
             if (inlineChargeId) {
-              return inlineChargeId;
+              return {
+                stripeChargeId: inlineChargeId,
+                type: 'resolved',
+              } as const;
             }
             if (typeof paymentIntentField !== 'string') {
-              return;
+              return {
+                stripeChargeId: undefined,
+                type: 'resolved',
+              } as const;
             }
 
-            const paymentIntent = yield* Effect.promise(() =>
-              stripe.paymentIntents.retrieve(
-                paymentIntentField,
-                {
-                  expand: ['latest_charge'],
-                },
-                {
-                  stripeAccount,
-                },
+            const paymentIntent = yield* Effect.tryPromise({
+              catch: (cause) => new StripePaymentIntentReadError({ cause }),
+              try: () =>
+                stripe.paymentIntents.retrieve(
+                  paymentIntentField,
+                  {
+                    expand: ['latest_charge'],
+                  },
+                  {
+                    stripeAccount,
+                  },
+                ),
+            }).pipe(
+              Effect.catchTag('StripePaymentIntentReadError', (error) =>
+                isStripeMissingResourceError(error.cause)
+                  ? Effect.succeed({ type: 'missing' } as const)
+                  : Effect.fail(error),
               ),
-            ).pipe(
-              Effect.catchDefect((error) => {
-                if (isStripeMissingResourceError(error)) {
-                  return Effect.logWarning(
-                    'Stripe payment intent missing during checkout completion',
-                  ).pipe(
-                    Effect.annotateLogs({
-                      paymentIntentId: paymentIntentField,
-                      sessionId: eventSession.id,
-                      tenantId,
-                    }),
-                    Effect.andThen(
-                      Effect.succeed<null | Stripe.Response<Stripe.PaymentIntent>>(
-                        null,
-                      ),
-                    ),
-                  );
-                }
-                return Effect.fail(error);
-              }),
             );
 
-            if (!paymentIntent) return;
+            if ('type' in paymentIntent && paymentIntent.type === 'missing') {
+              return paymentIntent;
+            }
+            if (paymentIntent.id !== stripePaymentIntentId) {
+              return { type: 'mismatch' } as const;
+            }
 
-            return getLatestChargeId(paymentIntent);
+            return {
+              stripeChargeId: getLatestChargeId(paymentIntent),
+              type: 'resolved',
+            } as const;
           });
+          if (stripeChargeResult.type !== 'resolved') {
+            return responseText('Payment intent not found for tenant', 400);
+          }
+          const { stripeChargeId } = stripeChargeResult;
 
-          yield* databaseEffect((database) =>
-            database.transaction((tx) =>
-              Effect.gen(function* () {
-                yield* tx
-                  .update(schema.transactions)
-                  .set({
-                    status: 'successful',
-                    stripeChargeId,
-                    stripePaymentIntentId,
-                  })
-                  .where(
-                    and(
-                      eq(schema.transactions.id, transactionId),
-                      eq(schema.transactions.status, 'pending'),
-                      eq(schema.transactions.tenantId, tenantId),
-                    ),
-                  );
-                const updatedRegistrations = yield* tx
-                  .update(schema.eventRegistrations)
-                  .set({ status: 'CONFIRMED' })
-                  .where(
-                    and(
-                      eq(schema.eventRegistrations.id, registrationId),
-                      eq(schema.eventRegistrations.status, 'PENDING'),
-                      eq(schema.eventRegistrations.tenantId, tenantId),
-                    ),
-                  )
-                  .returning({
-                    eventId: schema.eventRegistrations.eventId,
-                    guestCount: schema.eventRegistrations.guestCount,
-                    registrationOptionId:
-                      schema.eventRegistrations.registrationOptionId,
+          const updated = yield* databaseEffect((database) =>
+            database
+              .transaction((tx) =>
+                Effect.gen(function* () {
+                  yield* runCheckoutWebhookTransition({
+                    lockRegistration: () =>
+                      tx
+                        .select({
+                          eventId: schema.eventRegistrations.eventId,
+                          guestCount: schema.eventRegistrations.guestCount,
+                          id: schema.eventRegistrations.id,
+                          registrationOptionId:
+                            schema.eventRegistrations.registrationOptionId,
+                        })
+                        .from(schema.eventRegistrations)
+                        .where(
+                          and(
+                            eq(schema.eventRegistrations.id, registrationId),
+                            eq(schema.eventRegistrations.status, 'PENDING'),
+                            eq(schema.eventRegistrations.tenantId, tenantId),
+                          ),
+                        )
+                        .for('update')
+                        .pipe(Effect.map((rows) => rows[0])),
+                    updateDependents: (lockedRegistration) =>
+                      Effect.gen(function* () {
+                        const registeredSpotCount = registrationSpotCount(
+                          lockedRegistration.guestCount,
+                        );
+                        yield* tx
+                          .update(schema.eventRegistrationOptions)
+                          .set({
+                            confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + ${registeredSpotCount}`,
+                            reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
+                          })
+                          .where(
+                            and(
+                              eq(
+                                schema.eventRegistrationOptions.id,
+                                lockedRegistration.registrationOptionId,
+                              ),
+                              eq(
+                                schema.eventRegistrationOptions.eventId,
+                                lockedRegistration.eventId,
+                              ),
+                            ),
+                          );
+                      }),
+                    updateRegistration: (lockedRegistration) =>
+                      tx
+                        .update(schema.eventRegistrations)
+                        .set({ status: 'CONFIRMED' })
+                        .where(
+                          and(
+                            eq(
+                              schema.eventRegistrations.id,
+                              lockedRegistration.id,
+                            ),
+                            eq(schema.eventRegistrations.status, 'PENDING'),
+                            eq(schema.eventRegistrations.tenantId, tenantId),
+                          ),
+                        )
+                        .returning({ id: schema.eventRegistrations.id })
+                        .pipe(Effect.map((rows) => rows.length)),
+                    updateTransaction: (lockedRegistration) =>
+                      tx
+                        .update(schema.transactions)
+                        .set({
+                          status: 'successful',
+                          stripeChargeId,
+                          stripePaymentIntentId,
+                        })
+                        .where(
+                          and(
+                            eq(schema.transactions.id, transactionId),
+                            eq(
+                              schema.transactions.eventRegistrationId,
+                              lockedRegistration.id,
+                            ),
+                            eq(schema.transactions.method, 'stripe'),
+                            eq(schema.transactions.status, 'pending'),
+                            eq(
+                              schema.transactions.stripeCheckoutSessionId,
+                              eventSession.id,
+                            ),
+                            or(
+                              isNull(schema.transactions.stripePaymentIntentId),
+                              eq(
+                                schema.transactions.stripePaymentIntentId,
+                                stripePaymentIntentId,
+                              ),
+                            ),
+                            eq(schema.transactions.tenantId, tenantId),
+                            eq(schema.transactions.type, 'registration'),
+                          ),
+                        )
+                        .returning({ id: schema.transactions.id })
+                        .pipe(Effect.map((rows) => rows.length)),
                   });
-                const updatedRegistration = updatedRegistrations[0];
-                if (!updatedRegistration) {
-                  return;
-                }
-                const registeredSpotCount = registrationSpotCount(
-                  updatedRegistration.guestCount,
-                );
-
-                yield* tx
-                  .update(schema.eventRegistrationOptions)
-                  .set({
-                    confirmedSpots: sql`${schema.eventRegistrationOptions.confirmedSpots} + ${registeredSpotCount}`,
-                    reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
-                  })
-                  .where(
-                    and(
-                      eq(
-                        schema.eventRegistrationOptions.id,
-                        updatedRegistration.registrationOptionId,
-                      ),
-                      eq(
-                        schema.eventRegistrationOptions.eventId,
-                        updatedRegistration.eventId,
-                      ),
-                    ),
-                  );
-              }),
-            ),
+                  return true;
+                }),
+              )
+              .pipe(
+                Effect.catchTag('StripeWebhookStateConflictError', () =>
+                  Effect.succeed(false),
+                ),
+              ),
           );
+          if (!updated) {
+            return responseText('Checkout transaction state conflict', 409);
+          }
 
           return responseText('Success');
         }
 
         case 'checkout.session.expired': {
           const eventSession = event.data.object;
-          const { registrationId, tenantId, transactionId } =
-            eventSession.metadata ?? {};
-          if (!registrationId || !transactionId || !tenantId) {
-            return responseText('Missing metadata', 400);
-          }
           if (eventSession.status !== 'expired') {
             yield* Effect.logInfo(
               'Skipping checkout.session.expired event',
@@ -560,84 +878,175 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
             return responseText('Session not expired, skipping');
           }
 
-          yield* databaseEffect((database) =>
-            database.transaction((tx) =>
-              Effect.gen(function* () {
-                yield* tx
-                  .update(schema.transactions)
-                  .set({ status: 'cancelled' })
-                  .where(
-                    and(
-                      eq(schema.transactions.id, transactionId),
-                      eq(schema.transactions.status, 'pending'),
-                      eq(schema.transactions.tenantId, tenantId),
-                    ),
-                  );
-                const updatedRegistrations = yield* tx
-                  .update(schema.eventRegistrations)
-                  .set({ status: 'CANCELLED' })
-                  .where(
-                    and(
-                      eq(schema.eventRegistrations.id, registrationId),
-                      eq(schema.eventRegistrations.status, 'PENDING'),
-                      eq(schema.eventRegistrations.tenantId, tenantId),
-                    ),
-                  )
-                  .returning({
-                    eventId: schema.eventRegistrations.eventId,
-                    guestCount: schema.eventRegistrations.guestCount,
-                    registrationOptionId:
-                      schema.eventRegistrations.registrationOptionId,
-                  });
-                const updatedRegistration = updatedRegistrations[0];
-                if (!updatedRegistration) {
-                  return;
-                }
-                const registeredSpotCount = registrationSpotCount(
-                  updatedRegistration.guestCount,
-                );
-
-                yield* tx
-                  .update(schema.eventRegistrationOptions)
-                  .set({
-                    reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
-                  })
-                  .where(
-                    and(
-                      eq(
-                        schema.eventRegistrationOptions.id,
-                        updatedRegistration.registrationOptionId,
-                      ),
-                      eq(
-                        schema.eventRegistrationOptions.eventId,
-                        updatedRegistration.eventId,
-                      ),
-                    ),
-                  );
-
-                const addOnPurchases = yield* tx
-                  .select({
-                    addonId: schema.eventRegistrationAddonPurchases.addonId,
-                    quantity: schema.eventRegistrationAddonPurchases.quantity,
-                  })
-                  .from(schema.eventRegistrationAddonPurchases)
-                  .where(
-                    eq(
-                      schema.eventRegistrationAddonPurchases.registrationId,
-                      registrationId,
-                    ),
-                  );
-                for (const addOnPurchase of addOnPurchases) {
-                  yield* tx
-                    .update(schema.eventAddons)
-                    .set({
-                      totalAvailableQuantity: sql`${schema.eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
-                    })
-                    .where(eq(schema.eventAddons.id, addOnPurchase.addonId));
-                }
-              }),
-            ),
+          const checkoutSession = yield* resolveCheckoutSession(
+            event,
+            eventSession,
+            false,
           );
+          if (checkoutSession.type === 'unresolved') {
+            return responseText('Missing checkout session mapping', 400);
+          }
+          if (checkoutSession.type === 'invalid-binding') {
+            yield* Effect.logWarning('Invalid Stripe checkout binding').pipe(
+              Effect.annotateLogs({
+                eventId: event.id,
+                reason: checkoutSession.reason,
+                sessionId: eventSession.id,
+              }),
+            );
+            return responseText('Invalid checkout session binding', 400);
+          }
+          if (checkoutSession.type === 'state-conflict') {
+            return responseText('Checkout transaction state conflict', 409);
+          }
+
+          const {
+            paymentIntentId: stripePaymentIntentId,
+            registrationId,
+            tenantId,
+            transactionId,
+          } = checkoutSession;
+          const paymentIntentPredicate = stripePaymentIntentId
+            ? or(
+                isNull(schema.transactions.stripePaymentIntentId),
+                eq(
+                  schema.transactions.stripePaymentIntentId,
+                  stripePaymentIntentId,
+                ),
+              )
+            : isNull(schema.transactions.stripePaymentIntentId);
+
+          const updated = yield* databaseEffect((database) =>
+            database
+              .transaction((tx) =>
+                Effect.gen(function* () {
+                  yield* runCheckoutWebhookTransition({
+                    lockRegistration: () =>
+                      tx
+                        .select({
+                          eventId: schema.eventRegistrations.eventId,
+                          guestCount: schema.eventRegistrations.guestCount,
+                          id: schema.eventRegistrations.id,
+                          registrationOptionId:
+                            schema.eventRegistrations.registrationOptionId,
+                        })
+                        .from(schema.eventRegistrations)
+                        .where(
+                          and(
+                            eq(schema.eventRegistrations.id, registrationId),
+                            eq(schema.eventRegistrations.status, 'PENDING'),
+                            eq(schema.eventRegistrations.tenantId, tenantId),
+                          ),
+                        )
+                        .for('update')
+                        .pipe(Effect.map((rows) => rows[0])),
+                    updateDependents: (lockedRegistration) =>
+                      Effect.gen(function* () {
+                        const registeredSpotCount = registrationSpotCount(
+                          lockedRegistration.guestCount,
+                        );
+                        yield* tx
+                          .update(schema.eventRegistrationOptions)
+                          .set({
+                            reservedSpots: sql`GREATEST(${schema.eventRegistrationOptions.reservedSpots} - ${registeredSpotCount}, 0)`,
+                          })
+                          .where(
+                            and(
+                              eq(
+                                schema.eventRegistrationOptions.id,
+                                lockedRegistration.registrationOptionId,
+                              ),
+                              eq(
+                                schema.eventRegistrationOptions.eventId,
+                                lockedRegistration.eventId,
+                              ),
+                            ),
+                          );
+
+                        const addOnPurchases = yield* tx
+                          .select({
+                            addonId:
+                              schema.eventRegistrationAddonPurchases.addonId,
+                            quantity:
+                              schema.eventRegistrationAddonPurchases.quantity,
+                          })
+                          .from(schema.eventRegistrationAddonPurchases)
+                          .where(
+                            eq(
+                              schema.eventRegistrationAddonPurchases
+                                .registrationId,
+                              lockedRegistration.id,
+                            ),
+                          );
+                        for (const addOnPurchase of addOnPurchases) {
+                          yield* tx
+                            .update(schema.eventAddons)
+                            .set({
+                              totalAvailableQuantity: sql`${schema.eventAddons.totalAvailableQuantity} + ${addOnPurchase.quantity}`,
+                            })
+                            .where(
+                              eq(schema.eventAddons.id, addOnPurchase.addonId),
+                            );
+                        }
+                      }),
+                    updateRegistration: (lockedRegistration) =>
+                      tx
+                        .update(schema.eventRegistrations)
+                        .set({ status: 'CANCELLED' })
+                        .where(
+                          and(
+                            eq(
+                              schema.eventRegistrations.id,
+                              lockedRegistration.id,
+                            ),
+                            eq(schema.eventRegistrations.status, 'PENDING'),
+                            eq(schema.eventRegistrations.tenantId, tenantId),
+                          ),
+                        )
+                        .returning({ id: schema.eventRegistrations.id })
+                        .pipe(Effect.map((rows) => rows.length)),
+                    updateTransaction: (lockedRegistration) =>
+                      tx
+                        .update(schema.transactions)
+                        .set({
+                          status: 'cancelled',
+                          ...(stripePaymentIntentId && {
+                            stripePaymentIntentId,
+                          }),
+                        })
+                        .where(
+                          and(
+                            eq(schema.transactions.id, transactionId),
+                            eq(
+                              schema.transactions.eventRegistrationId,
+                              lockedRegistration.id,
+                            ),
+                            eq(schema.transactions.method, 'stripe'),
+                            eq(schema.transactions.status, 'pending'),
+                            eq(
+                              schema.transactions.stripeCheckoutSessionId,
+                              eventSession.id,
+                            ),
+                            paymentIntentPredicate,
+                            eq(schema.transactions.tenantId, tenantId),
+                            eq(schema.transactions.type, 'registration'),
+                          ),
+                        )
+                        .returning({ id: schema.transactions.id })
+                        .pipe(Effect.map((rows) => rows.length)),
+                  });
+                  return true;
+                }),
+              )
+              .pipe(
+                Effect.catchTag('StripeWebhookStateConflictError', () =>
+                  Effect.succeed(false),
+                ),
+              ),
+          );
+          if (!updated) {
+            return responseText('Checkout transaction state conflict', 409);
+          }
 
           return responseText('Success');
         }
