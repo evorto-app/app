@@ -60,6 +60,10 @@ const webServer = (() => {
 
   return {
     command: 'bun run docker:webserver',
+    gracefulShutdown: {
+      signal: 'SIGTERM',
+      timeout: 60_000,
+    },
     reuseExistingServer: true,
     timeout: 240_000,
     url,

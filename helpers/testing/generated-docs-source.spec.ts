@@ -482,6 +482,29 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('paid registration transfer is available');
   });
 
+  it('keeps dedicated check-in docs beginner-readable and behavior-backed', () => {
+    const source = readSource('tests/docs/scanning/check-in.doc.ts');
+
+    expect(source).toContain('# Check in event attendees');
+    expect(source).toContain('Before you start');
+    expect(source).toContain(
+      "page.getByRole('link', { exact: true, name: 'Scanner' })",
+    );
+    expect(source).toContain("installMockCamera(page, 'allowed')");
+    expect(source).toContain('camera=(self)');
+    expect(source).toContain('If the camera does not start');
+    expect(source).toContain('Verify the registration');
+    expect(source).toContain('Check in guests who arrive later');
+    expect(source).toContain("page.getByText('Already checked in')");
+    expect(source).toContain('checkedInSpots: optionBefore.checkedInSpots + 2');
+    expect(source).toContain('optionBefore.checkedInSpots + 3');
+    expect(source).toContain('.delete(eventRegistrations)');
+    expect(source).toContain(
+      '.set({ checkedInSpots: optionBefore.checkedInSpots })',
+    );
+    expect(source).not.toContain('a QR code is enough to check in');
+  });
+
   it('keeps role docs aligned with generated permission reference semantics', () => {
     const rolesSource = readSource('tests/docs/roles/roles.doc.ts');
     const permissionsSource = readSource(

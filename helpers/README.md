@@ -40,6 +40,9 @@ The seeding approach is deterministic, but not every profile has the same goal:
      - `past`
      - `draft`
    - Playwright tests should use those handles directly.
+   - Scanner specs and generated check-in docs use `past` with an explicit
+     confirmed participant registration so camera entry, partial guest arrival,
+     duplicate scans, and organizer totals are deterministic.
 
 3. **Pinned Clock + Seed Key**
    - `seed-clock.ts` honors `E2E_NOW_ISO` when provided.
@@ -86,7 +89,10 @@ branch state. Neon Local still receives `DELETE_BRANCH=true` so normal
 `docker compose down` deletes the branch, and `db-expiration` immediately sets
 a short Neon branch expiration as a fallback for interrupted local or CI
 shutdowns. Playwright `webServer` uses `bun run docker:webserver`, which starts
-the foreground Compose stack without forcing `docker compose down` first. Use
+the foreground Compose stack without forcing `docker compose down` first.
+Playwright gives a stack it started a 60-second `SIGTERM` shutdown window so
+Compose can stop its containers. When Playwright reuses a stack that was
+already serving the app, that stack remains user-owned and keeps running. Use
 `bun run docker:resume` only for an already initialized stack when you want to
 bring stopped containers back without recreating them. Use `bun run docker:ps`
 to inspect the generated worktree Compose project; bare `docker compose ps` can
@@ -98,7 +104,10 @@ Inside Docker, keep `BASE_URL` browser-facing so Auth0 redirects point at the
 host-mapped app URL, and keep `SSR_RPC_ORIGIN` pointed at the app container's
 internal listener (`http://localhost:4200`). Server-side rendering uses
 `SSR_RPC_ORIGIN` for in-container RPC calls; browser-side RPC calls still use the
-normal `/rpc` relative path.
+normal `/rpc` relative path. The generated runtime environment also supplies the
+shared deterministic `E2E_NOW_ISO` and `E2E_SEED_KEY` values to database seeding
+and the app container so seeded event windows and server timing decisions use
+the same clock.
 
 Auth0 callback URLs are configured outside this repository. The runtime helper
 may generate a non-4200 app port for worktree isolation, but authenticated local

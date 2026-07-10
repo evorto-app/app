@@ -1,10 +1,12 @@
+import {
+  DEFAULT_E2E_NOW_ISO,
+  DEFAULT_E2E_SEED_KEY,
+} from '@shared/testing/deterministic-test-defaults';
 import { Config, ConfigProvider, Effect, Option } from 'effect';
 import path from 'node:path';
 
 import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
-const DEFAULT_TEST_CLOCK_ISO = '2026-02-01T12:00:00.000Z';
-const DEFAULT_TEST_SEED_KEY = 'evorto-e2e-default-v1';
 const INTEGRATION_PROJECT_NAMES = [
   'docs-integration',
   'local-chrome-integration',
@@ -191,7 +193,7 @@ export const testRuntimeConfigState = Config.all({
   E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO').pipe(
     Config.map((value) =>
       Option.match(value, {
-        onNone: () => DEFAULT_TEST_CLOCK_ISO,
+        onNone: () => DEFAULT_E2E_NOW_ISO,
         onSome: (nowIso) => nowIso,
       }),
     ),
@@ -199,7 +201,7 @@ export const testRuntimeConfigState = Config.all({
   E2E_SEED_KEY: optionalTrimmedString('E2E_SEED_KEY').pipe(
     Config.map((value) =>
       Option.match(value, {
-        onNone: () => DEFAULT_TEST_SEED_KEY,
+        onNone: () => DEFAULT_E2E_SEED_KEY,
         onSome: (seedKey) => seedKey,
       }),
     ),

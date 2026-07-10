@@ -2,20 +2,44 @@
   <h1 class="title-large">Scanner</h1>
   <div class="grow"></div>
 </div>
-<div class="bg-surface text-on-surface rounded-lg p-4">
+<div
+  class="bg-surface text-on-surface rounded-lg p-4"
+  [attr.aria-busy]="cameraStarting()"
+>
   <p class="mb-4">
     Please allow access to your camera in case your browser asks for it.
     <br />
     If you encounter any problems, use your phone's camera to scan the QR code.
   </p>
-  <video #videoElement class="h-full w-full rounded"></video>
+  <video
+    #videoElement
+    aria-label="Camera preview for ticket scanning"
+    class="bg-surface-container-highest mx-auto aspect-video w-full max-w-4xl rounded object-cover"
+  ></video>
   @if (cameraStarting()) {
-    <div class="bg-surface-container text-on-surface mt-2 rounded p-2">
+    <div
+      class="bg-surface-container text-on-surface mt-2 rounded p-2"
+      aria-live="polite"
+      role="status"
+    >
       Starting camera ...
     </div>
   }
+  @if (cameraReady()) {
+    <div
+      class="bg-surface-container text-on-surface mt-2 rounded p-2"
+      aria-live="polite"
+      role="status"
+    >
+      Camera ready. Hold the attendee's ticket QR code inside the frame.
+    </div>
+  }
   @if (errorMessage()) {
-    <div class="bg-error text-on-error mt-2 rounded p-2">
+    <div
+      class="bg-error text-on-error mt-2 rounded p-2"
+      aria-live="assertive"
+      role="alert"
+    >
       <p class="title-small">Scanning error</p>
       <p>
         {{ errorMessage() }}

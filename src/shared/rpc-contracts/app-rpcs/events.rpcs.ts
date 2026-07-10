@@ -546,6 +546,7 @@ export const EventsRegistrationScanned = asRpcQuery(
       appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
       attendeeCheckedIn: Schema.Boolean,
       checkedInGuestCount: Schema.Number,
+      checkInTimingIssue: Schema.Boolean,
       event: Schema.Struct({
         start: Schema.NonEmptyString,
         title: Schema.NonEmptyString,

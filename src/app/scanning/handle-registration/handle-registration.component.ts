@@ -18,7 +18,6 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { DateTime } from 'luxon';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
@@ -128,11 +127,6 @@ export class HandleRegistrationComponent {
   protected readonly scanCheckInActionDisabled = scanCheckInActionDisabled;
   protected readonly scanCheckInButtonLabel = scanCheckInButtonLabel;
   protected readonly scanSpotCountLabel = scanSpotCountLabel;
-  protected readonly startsSoon = computed(() => {
-    const scanResult = this.scanResultQuery.data();
-    if (!scanResult) return false;
-    return DateTime.fromISO(scanResult.event.start).diffNow('hours').hours < 1;
-  });
   private readonly queryClient = inject(QueryClient);
 
   checkIn() {

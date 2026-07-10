@@ -1,2 +1,4 @@
-export const DEFAULT_E2E_NOW_ISO = '2026-09-15T12:00:00.000Z';
-export const DEFAULT_E2E_SEED_KEY = 'evorto-e2e-default-v1';
+export {
+  DEFAULT_E2E_NOW_ISO,
+  DEFAULT_E2E_SEED_KEY,
+} from '@shared/testing/deterministic-test-defaults';

@@ -1,4 +1,8 @@
 import { describe, expect, it } from '@effect/vitest';
+import {
+  DEFAULT_E2E_NOW_ISO,
+  DEFAULT_E2E_SEED_KEY,
+} from '@shared/testing/deterministic-test-defaults';
 import { ConfigProvider, Effect } from 'effect';
 
 import { formatConfigError } from './config-error';
@@ -188,6 +192,19 @@ describe('test-runtime-config', () => {
       expect(environment.E2E_BROWSER_CHANNEL).toBe('chromium');
       expect(environment.NO_WEBSERVER).toBe(false);
       expect(environment.BASE_URL).toBe('http://localhost:4200');
+    }),
+  );
+
+  it.effect('uses the shared deterministic defaults', () =>
+    Effect.gen(function* () {
+      const provider = providerFromEntries([
+        ...requiredPlaywrightEntries,
+        ['BASE_URL', 'http://localhost:4200'],
+      ]);
+      const environment = yield* readPlaywrightEnvironment(provider);
+
+      expect(environment.E2E_NOW_ISO).toBe(DEFAULT_E2E_NOW_ISO);
+      expect(environment.E2E_SEED_KEY).toBe(DEFAULT_E2E_SEED_KEY);
     }),
   );
 

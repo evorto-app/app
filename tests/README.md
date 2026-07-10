@@ -9,6 +9,23 @@ This directory contains the active Playwright suite.
 - Setup/auth/database bootstrapping lives in `tests/setup/**`
 - Shared fixtures/utilities/reporters live in `tests/support/fixtures/**`, `tests/support/utils/**`, `tests/support/reporters/**`
 
+## Generated Documentation Authoring Contract
+
+Each product-facing documentation journey should be understandable without
+prior Evorto knowledge. Include:
+
+1. the intended user and exact account, tenant, permission, and external-service prerequisites;
+2. a click-by-click path starting from normal application navigation;
+3. an explanation of choices before the user commits a write or payment;
+4. the visible completion state plus a persisted, payment, or notification readback where applicable;
+5. critical denial, recovery, retry, timing, and tenant-boundary behavior;
+6. explicit unsupported or deferred behavior so the guide does not promise an unavailable feature;
+7. accessible screenshots where they clarify a real decision or result, backed by behavior assertions rather than screenshots alone.
+
+When a complete workflow cannot yet be documented because the product behavior
+does not exist, keep that absence in `APPLICATION_COMPLIANCE_AUDIT.md`; do not
+replace it with aspirational documentation.
+
 ## Fixture Contract
 
 - `tests/support/fixtures/parallel-test.ts` seeds a fresh tenant per test with `profile: 'test'`
@@ -95,7 +112,9 @@ bun run lint
   `docker:webserver`, which still builds and starts the Compose stack in the
   foreground but does not force a Compose teardown first. Use `docker:resume`
   only for an already initialized stack when you want to bring containers back
-  without recreating them.
+  without recreating them. Playwright sends `SIGTERM` and allows 60 seconds for
+  a `docker:webserver` process it started to stop the attached Compose stack.
+  A pre-existing stack selected through `reuseExistingServer` remains running.
 - `bun run test:e2e:ui` opens unrestricted Playwright UI mode so you can choose projects and tests interactively.
 - `bun run test:e2e:integration` runs all integration-only Playwright
   projects. It is intended for credential-gated specs and docs such as Auth0
@@ -156,7 +175,9 @@ CI should not rely on dotenv files at all; workflows provide values via exported
 
 ## Deterministic E2E Environment
 
-Playwright defaults deterministic test values in code via `helpers/testing/deterministic-test-defaults.ts`, so local runs do not need extra flags.
+Playwright defaults deterministic test values in code via
+`src/shared/testing/deterministic-test-defaults.ts`, so local runs do not need
+extra flags.
 
 Default values:
 
@@ -169,6 +190,9 @@ Optional overrides:
 - `E2E_SEED_KEY`
 
 Keep `E2E_NOW_ISO` ahead of the real current date or deterministic checkout expiry behavior will break.
+The generated `.env.dev` passes the same clock and seed key to Docker database
+setup and the app container; do not seed against one clock while evaluating
+registration or check-in windows against another.
 
 ## Baseline vs Integration Projects
 

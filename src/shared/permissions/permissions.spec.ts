@@ -78,7 +78,7 @@ describe('PERMISSION_GROUPS', () => {
     }
   });
 
-  it('keeps ambiguous permissions explicit', () => {
+  it('describes the implemented role-assignment capability explicitly', () => {
     const usersGroup = PERMISSION_GROUPS.find((group) => group.key === 'users');
     expect(usersGroup?.permissions).toEqual(
       expect.arrayContaining([

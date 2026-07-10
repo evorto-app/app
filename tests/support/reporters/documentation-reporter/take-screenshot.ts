@@ -1,6 +1,6 @@
 import { Locator, Page, TestInfo } from '@playwright/test';
 
-const settleRenderFrame = async (page: Page): Promise<void> => {
+const settleScreenshotPage = async (page: Page): Promise<void> => {
   await page.locator('body').waitFor({ state: 'visible' });
   await page.evaluate(
     () =>
@@ -12,13 +12,22 @@ const settleRenderFrame = async (page: Page): Promise<void> => {
   );
 };
 
+export const captureDocumentationScreenshot = async (page: Page) => {
+  await settleScreenshotPage(page);
+
+  return page.screenshot({
+    animations: 'disabled',
+    style: '.tsqd-parent-container { display: none; }',
+  });
+};
+
 export async function takeScreenshot(
   testInfo: TestInfo,
   locators: Locator | Locator[],
   page: Page,
   caption?: string,
 ) {
-  await settleRenderFrame(page);
+  await settleScreenshotPage(page);
   const focusPoints = Array.isArray(locators) ? locators : [locators];
 
   const isDetachedError = (error: unknown) =>
@@ -39,7 +48,7 @@ export async function takeScreenshot(
         if (!isDetachedError(error) || attempt === attempts - 1) {
           throw error;
         }
-        await settleRenderFrame(page);
+        await settleScreenshotPage(page);
       }
     }
     if (lastError) throw lastError;
@@ -63,9 +72,7 @@ export async function takeScreenshot(
   }
 
   await testInfo.attach('image', {
-    body: await page.screenshot({
-      style: '.tsqd-parent-container { display: none; }',
-    }),
+    body: await captureDocumentationScreenshot(page),
     contentType: 'image/png',
   });
   if (caption) {

@@ -110,11 +110,13 @@ const createUser = ({
 
 const createContextLayer = ({
   database,
+  nowIso,
   stripe = createStripeClientDouble(),
   tenant: currentTenant = tenant,
   user = createUser(),
 }: {
   database: object;
+  nowIso?: string;
   stripe?: StripeClientDouble;
   tenant?: typeof tenant;
   user?: ReturnType<typeof createUser>;
@@ -133,6 +135,11 @@ const createContextLayer = ({
     Layer.succeed(RpcRequestContext, requestContext),
     Layer.succeed(Database, database as DatabaseClient),
     Layer.succeed(StripeClient, stripe as Stripe),
+    ConfigProvider.layer(
+      ConfigProvider.fromEnv({
+        env: nowIso ? { E2E_NOW_ISO: nowIso } : {},
+      }),
+    ),
   );
 };
 
@@ -2504,9 +2511,77 @@ describe('event registration scan handlers', () => {
       );
 
       expect(result.allowCheckin).toBe(false);
+      expect(result.checkInTimingIssue).toBe(true);
       expect(result.registrationStatusIssue).toBe(false);
       expect(result.sameUserIssue).toBe(false);
     }),
+  );
+
+  it.effect(
+    'evaluates the scan window against the configured server clock',
+    () =>
+      Effect.gen(function* () {
+        const nowIso = '2026-09-15T12:00:00.000Z';
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  ...scannedRegistration,
+                  event: {
+                    ...scannedRegistration.event,
+                    start: new Date('2026-09-15T12:30:00.000Z'),
+                  },
+                }),
+            },
+          },
+        };
+
+        const result = yield* eventRegistrationHandlers[
+          'events.registrationScanned'
+        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              nowIso,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(result.allowCheckin).toBe(true);
+        expect(result.checkInTimingIssue).toBe(false);
+      }),
+  );
+
+  it.effect(
+    'maps an invalid configured server clock to a typed scan error',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(scannedRegistration),
+            },
+          },
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.registrationScanned'
+        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              database,
+              nowIso: 'not-a-date',
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationInternalError');
+        expect(error.message).toBe('Invalid E2E_NOW_ISO server clock value');
+      }),
   );
 
   for (const status of nonConfirmedRegistrationStatuses) {
@@ -2575,6 +2650,7 @@ describe('event registration scan handlers', () => {
         expect(result.alreadyCheckedInIssue).toBe(false);
         expect(result.attendeeCheckedIn).toBe(true);
         expect(result.checkedInGuestCount).toBe(1);
+        expect(result.checkInTimingIssue).toBe(false);
         expect(result.guestCount).toBe(2);
         expect(result.remainingGuestCount).toBe(1);
       }),
@@ -2584,6 +2660,7 @@ describe('event registration scan handlers', () => {
     'records check-in and increments the option counter for an organizer',
     () =>
       Effect.gen(function* () {
+        const nowIso = '2026-09-15T12:00:00.000Z';
         const updateCalls: string[] = [];
         const tx = {
           update: (table: unknown) => ({
@@ -2620,7 +2697,7 @@ describe('event registration scan handlers', () => {
                   checkedInGuestCount: 0,
                   checkInTime: null,
                   event: {
-                    start: new Date(Date.now() + 30 * 60 * 1000),
+                    start: new Date('2026-09-15T12:30:00.000Z'),
                   },
                   eventId: 'event-1',
                   guestCount: 0,
@@ -2650,10 +2727,10 @@ describe('event registration scan handlers', () => {
         ](
           { guestCheckInCount: 0, registrationId: 'registration-1' },
           emptyHandlerOptions,
-        ).pipe(Effect.provide(createContextLayer({ database })));
+        ).pipe(Effect.provide(createContextLayer({ database, nowIso })));
 
         expect(result.alreadyCheckedIn).toBe(false);
-        expect(result.checkInTime).toContain('T');
+        expect(result.checkInTime).toBe(nowIso);
         expect(updateCalls).toEqual(['registration', 'option']);
         expect(database.transaction).toHaveBeenCalledOnce();
       }),

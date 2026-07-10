@@ -3,7 +3,74 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
 import DocumentationReporter from '../../support/reporters/documentation-reporter';
+import { captureDocumentationScreenshot } from '../../support/reporters/documentation-reporter/take-screenshot';
 import { resolveDocsImageOutputDirectory } from '../../support/utils/doc-screenshot';
+
+test('documentation screenshots wait for active view transitions', async ({
+  page,
+}) => {
+  test.setTimeout(5_000);
+
+  await page.setContent(`
+    <style>
+      ::view-transition-group(root) {
+        animation-duration: 10s;
+      }
+      @keyframes pulse {
+        from { opacity: 0.8; }
+        to { opacity: 1; }
+      }
+      #infinite-animation {
+        animation: pulse 1s linear infinite alternate;
+      }
+    </style>
+    <main>Before navigation</main>
+    <div id="infinite-animation">Keeps animating</div>
+  `);
+
+  const supportsViewTransitions = await page.evaluate(
+    () => typeof document.startViewTransition === 'function',
+  );
+  expect(supportsViewTransitions).toBe(true);
+
+  await page.evaluate(() => {
+    const transition = document.startViewTransition(() => {
+      const main = document.querySelector('main');
+      if (!main) throw new Error('Expected the screenshot test content');
+      main.textContent = 'After navigation';
+    });
+
+    void transition.finished.then(() => {
+      document.body.dataset['viewTransitionFinished'] = 'true';
+    });
+  });
+
+  await page.waitForFunction(() =>
+    document.getAnimations().some((animation) => {
+      const effect = animation.effect as
+        (AnimationEffect & { pseudoElement?: string | null }) | null;
+
+      return effect?.pseudoElement?.startsWith('::view-transition') ?? false;
+    }),
+  );
+
+  await captureDocumentationScreenshot(page);
+
+  await expect(page.locator('main')).toHaveText('After navigation');
+  await expect(page.locator('body')).toHaveAttribute(
+    'data-view-transition-finished',
+    'true',
+  );
+  expect(
+    await page
+      .locator('#infinite-animation')
+      .evaluate((element) =>
+        element
+          .getAnimations()
+          .some((animation) => animation.playState === 'running'),
+      ),
+  ).toBe(true);
+});
 
 test('documentation reporter respects DOCS_* env and writes files', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out');

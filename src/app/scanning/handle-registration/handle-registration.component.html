@@ -42,7 +42,7 @@
     <div class="border-b p-2">
       <p class="title-small px-2">Event</p>
       <p class="px-2">{{ scanResultQuery.data().event.title }}</p>
-      @if (!startsSoon()) {
+      @if (scanResultQuery.data().checkInTimingIssue) {
         <div class="bg-error text-on-error mt-2 rounded p-2">
           <p class="title-small">Event starting in the future</p>
           <p>

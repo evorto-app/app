@@ -1,4 +1,8 @@
 import * as BunRuntime from '@effect/platform-bun/BunRuntime';
+import {
+  DEFAULT_E2E_NOW_ISO,
+  DEFAULT_E2E_SEED_KEY,
+} from '@shared/testing/deterministic-test-defaults';
 import { Effect } from 'effect';
 import path from 'node:path';
 
@@ -11,6 +15,8 @@ const DEFAULT_MINIO_HOST_PORT = 9000;
 const OUTPUT_FILE_PATH = path.resolve(process.cwd(), '.env.dev');
 
 const databaseName = process.env['NEON_DATABASE_NAME']?.trim() || 'appdb';
+const e2eNowIso = process.env['E2E_NOW_ISO']?.trim() || DEFAULT_E2E_NOW_ISO;
+const e2eSeedKey = process.env['E2E_SEED_KEY']?.trim() || DEFAULT_E2E_SEED_KEY;
 
 const deriveSeed = (): string => {
   const runId = process.env['GITHUB_RUN_ID']?.trim();
@@ -93,6 +99,8 @@ const runtimeEnvironment = {
   COMPOSE_PROJECT_NAME: composeProjectName,
   DATABASE_URL: databaseUrl,
   DELETE_BRANCH: 'true',
+  E2E_NOW_ISO: e2eNowIso,
+  E2E_SEED_KEY: e2eSeedKey,
   MINIO_CONSOLE_HOST_PORT: String(minioConsoleHostPort),
   MINIO_HOST_PORT: String(minioHostPort),
   NEON_DATABASE_NAME: databaseName,

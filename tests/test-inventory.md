@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-05-21
+Updated: 2026-07-10
 
 ## How to Use This Inventory
 
@@ -42,6 +42,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/profile/user-profile.doc.ts
   - docs/roles/about-permissions.doc.ts
   - docs/roles/roles.doc.ts
+  - docs/scanning/check-in.doc.ts
   - docs/template-categories/categories.doc.ts
   - docs/templates/templates.doc.ts
   - docs/users/create-account.doc.ts [@needs-auth0-management]
@@ -133,7 +134,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - app profile edit, event-card, receipt-card, and ESNcard action coverage in
     `src/app/profile`
 - Scanning/check-in:
-  - `docs/events/event-management.doc.ts`
+  - `docs/scanning/check-in.doc.ts`
+  - `docs/events/event-management.doc.ts` (organizer overview context)
   - `specs/scanning/scanner.test.ts`
 - Runtime, reporting, screenshots, and seed health:
   - `specs/auth/storage-state-refresh.test.ts`
@@ -204,8 +206,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   transfer is unavailable.
 - `specs/templates/paid-option-requires-tax-rate.spec.ts` has active
   simple-mode UI coverage for the paid-registration tax-rate requirement and a
-  seeded inclusive tax-rate save path. Remaining fixme entries are limited to
-  future bulk/no-compatible-rate UI behavior. Template detail paid-option
+  seeded inclusive tax-rate save path. Future bulk/no-compatible-rate UI
+  behavior remains uncovered without a hidden fixme placeholder. Template detail paid-option
   summaries now share the inclusive price label component with event
   registration cards, and create/edit submit helpers keep missing paid tax-rate
   selection visible to server validation while clearing hidden free-registration
@@ -218,7 +220,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   `@needs-auth0-management`; baseline list/discovery must not require those
   credentials.
 - `specs/profile/create-account.spec.ts` is collected by
-  `local-chrome-integration` and skips inside the test body without Auth0
+  `local-chrome-integration` and fails its explicit precondition without Auth0
   Management credentials. It is the functional integration path for creating a
   new Auth0-backed tenant account, verifying profile arrival, tenant assignment,
   default role assignment, and cleanup.
@@ -230,10 +232,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   this provider path locally when a valid live identifier is available. The
   release gate must supply an approved credential and run this path; the local
   credential gate is not a release exception.
-- `specs/finance/stripe-webhook-replay.spec.ts` is file-level skipped when
-  `STRIPE_WEBHOOK_SECRET` is absent, before page/database fixtures are
-  requested. That skip is credential-gated, not a substitute for product
-  coverage. This is separate from the Docker stack's Compose-managed Stripe
+- `specs/finance/stripe-webhook-replay.spec.ts` fails its `beforeAll`
+  precondition when `STRIPE_WEBHOOK_SECRET` is absent. That credential gate is
+  not a substitute for product coverage. This is separate from the Docker stack's Compose-managed Stripe
   listener, which shares its generated signing secret with the app through
   `STRIPE_WEBHOOK_SECRET_FILE`.
 - `specs/permissions/override.test.ts` is active desktop coverage for the
@@ -252,9 +253,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 ## Stabilization Coverage Watchlist
 
 The entries below are the areas to keep aligned as stabilization continues.
-Most are now covered by deterministic specs, generated docs, or source guards;
-the hard external blockers are the in-app Browser manual review queue and the
-release-gated live ESNcard provider credential path.
+Most are now covered by deterministic specs, generated docs, or source guards.
+This inventory is not the release-blocker ledger; use
+`APPLICATION_COMPLIANCE_AUDIT.md` for the complete production-readiness state.
+The external verification gates here are the in-app Browser manual review queue
+and the release-gated live ESNcard provider credential path.
 
 - Profile/account:
   - Docker-backed system-Chrome profile edit persistence now passes against the
@@ -344,10 +347,10 @@ release-gated live ESNcard provider credential path.
     routes keep assigned-account and auth guards.
     A Docker-backed docs pass also keeps the create-account baseline note and
     credential-gated integration path executable under the local runtime; the
-    live Auth0 path still requires Auth0 Management credentials to avoid
-    skipping.
+    live Auth0 path still requires Auth0 Management credentials to satisfy its
+    fail-fast precondition.
   - Submitted-receipt visibility after receipt submission. Manual Browser
-    review remains useful once the in-app Browser connection is reliable, but
+    review remains useful after signing in to the in-app Browser, but
     the Docker-backed Playwright profile pass now verifies the deterministic
     profile receipt flow through both generated docs and the functional spec:
     filename, submitted status, event title, amount, persisted database row, and

@@ -12,6 +12,7 @@ import {
   usersToTenants,
 } from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { installMockCamera } from '../../support/utils/mock-camera';
 
 test.use({ storageState: adminStateFile });
 
@@ -86,6 +87,48 @@ const requireScannerFixture = async ({
   };
 };
 
+test('scanner starts a first-party camera allowed by the response policy', async ({
+  page,
+}) => {
+  await installMockCamera(page, 'allowed');
+
+  const response = await page.goto('/scan');
+
+  expect(response?.headers()['permissions-policy']).toBe(
+    'camera=(self), geolocation=(), microphone=()',
+  );
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Scanner' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Camera ready.' }),
+  ).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page
+        .getByLabel('Camera preview for ticket scanning')
+        .evaluate((video: HTMLVideoElement) => Boolean(video.srcObject)),
+    )
+    .toBe(true);
+});
+
+test('scanner explains a denied camera and offers a retry', async ({
+  page,
+}) => {
+  await installMockCamera(page, 'denied');
+
+  await page.goto('/scan');
+
+  await expect(page.getByRole('alert')).toContainText('Scanning error');
+  await expect(page.getByRole('alert')).toContainText(
+    'The camera could not be started.',
+  );
+  await expect(
+    page.getByRole('button', { name: 'Try camera again' }),
+  ).toBeEnabled();
+});
+
 test('scan confirmed registration records check-in', async ({
   database,
   page,
@@ -110,6 +153,7 @@ test('scan confirmed registration records check-in', async ({
     await expect(
       page.getByRole('heading', { name: 'Registration scanned' }),
     ).toBeVisible();
+    await expect(page.getByText('Event starting in the future')).toHaveCount(0);
     await page.getByLabel('Guests to check in now').fill('2');
     await page.getByRole('button', { name: 'Confirm 3 check-ins' }).click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();

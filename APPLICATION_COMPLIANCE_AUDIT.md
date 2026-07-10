@@ -1,12 +1,14 @@
 # Full Application Compliance Audit
 
 Audit date: 2026-07-09
-Baseline: `origin/main` at `9545a2c68d2` (`feat: implement relaunch registration decisions (#83)`)
+Remediation updated: 2026-07-10
+Audit baseline: `origin/main` at `9545a2c68d2` (`feat: implement relaunch registration decisions (#83)`)
+Remediation baseline: `origin/main` at `df7c2c0143b307bb17d7e763ccf9ef13e6646b30`
 Scope: static, folder-by-folder review of the application, server/runtime, data layer, shared contracts, tests, CI, and product documentation.
 
 ## Outcome
 
-The application has a strong tenant/permission/registration foundation, but it is **not ready to be treated as a full production replacement** against the root product, architecture, and quality documents until the P0/P1 items below are resolved or explicitly re-scoped. The highest risks are QR check-in being disabled by a global security header, payment integrity races/trust gaps, absent product-required notification types and paid resale, and unimplemented onboarding/tenant-runtime behavior.
+The application has a strong tenant/permission/registration foundation, but it is **not ready to be treated as a full production replacement** against the root product, architecture, and quality documents until the remaining P0/P1 items below are resolved or explicitly re-scoped. SCAN-001 is resolved in the current remediation branch. The highest remaining risks are payment integrity races/trust gaps, absent product-required notification types and paid resale, and unimplemented onboarding/tenant-runtime behavior.
 
 ## Method and constraints
 
@@ -14,7 +16,7 @@ The application has a strong tenant/permission/registration foundation, but it i
 - Reviewed `src/app`, `src/server`, `src/db`, `src/shared`, `tests`, `helpers`, root tooling, and CI configuration. The source surface includes 439 TypeScript/HTML/SCSS application files.
 - Applied the requested Effect, Uncodixfy, and Material 3 reviews. Material findings are adapted to Angular Material and the project’s `--mat-sys-*`/Tailwind bridge; this is not an `@material/web` audit.
 - Ran the safe documentation-discovery command: `bun run test:e2e:docs -- --list`. It found 31 docs/setup tests in 19 files, including the `@finance` documents that CI currently filters out.
-- Did not start Docker, run destructive database commands, or claim a Browser walkthrough. A Codex in-app Browser walkthrough remains required when UI behavior is in scope and its control transport is healthy.
+- The initial audit did not start Docker or run destructive database commands. Remediation now uses an isolated, freshly seeded worktree Compose stack, Playwright, generated-documentation screenshots, and an in-app Browser baseline. The authenticated Browser scanner walkthrough remains pending the user signing in to the open in-app Browser and returning control.
 - The requested Effect skill and its guides now use this repository’s approved `repos/effect` vendor location; no second vendor or symlink is maintained.
 - Consolidated the prior stabilization ledger into the root documents, this audit, and the concise `QUALITY.md` manual review queue. The historical ledger is intentionally removed rather than retained as a second release-truth document.
 
@@ -29,44 +31,46 @@ The application has a strong tenant/permission/registration foundation, but it i
 
 ## Findings at a glance
 
-| ID         | Severity | Area               | Short finding                                                                                              |
-| ---------- | -------- | ------------------ | ---------------------------------------------------------------------------------------------------------- |
-| SCAN-001   | P0       | Check-in           | Global `Permissions-Policy` disables the camera used by `/scan`.                                           |
-| PAY-001    | P0       | Payments           | Concurrent manual approval can create multiple Checkout sessions for one registration.                     |
-| PAY-002    | P1       | Payments           | Webhooks trust session metadata without proving local transaction/session ownership.                       |
-| SEC-001    | P1       | Runtime            | RPC and Stripe webhooks buffer unbounded request bodies.                                                   |
-| EVT-001    | P1       | Event review       | The application keeps a durable `REJECTED` state despite the accepted return-to-draft lifecycle.           |
-| PROD-001   | P1       | Notifications      | Most email notifications required by `PRODUCT.md` have no producer or outbox kind.                         |
-| PROD-002   | P1       | Registrations      | Paid transfer/resale remains intentionally unavailable, but is required for the production replacement.    |
-| ESN-001    | P1       | ESNcard            | Live external ESNcard add, refresh, and remove verification is required but remains credential-gated.      |
-| FIN-001    | P1       | Finance UI         | Receipt amounts are rendered as EUR even when the tenant currency is CZK or AUD.                           |
-| ONB-001    | P1       | Tenant onboarding  | Accepted privacy/onboarding/home-tenant rules have no model, form, or server enforcement.                  |
-| TEN-001    | P1       | Tenant settings    | Fixed `de-DE` formatting and tenant currency/timezone are not consistently applied at runtime.             |
-| ADMIN-001  | P1       | Platform admin     | Platform admins have broad permissions but cannot perform normal tenant actions without tenant membership. |
-| CI-001     | P1       | CI/docs            | CI silently excludes all `@finance` generated docs despite those flows being product-facing.               |
-| TEST-001   | P1       | Manual approval    | The newly supported application/manual-approval journey has no page-backed spec or generated doc.          |
-| TEST-002   | P1       | Roles              | Existing-user role assignment has no mutation/readback browser or docs coverage.                           |
-| SEC-002    | P2       | Links              | Approval emails and Stripe return URLs trust caller-provided `Origin`.                                     |
-| OPS-001    | P2       | Notifications      | A process crash can leave outbox rows permanently in `sending`.                                            |
-| DATA-001   | P2       | Tenancy            | Cross-tenant role/registration tuple integrity is enforced in handlers but not by database constraints.    |
-| UX-001     | P2       | Permissions        | Template actions are visible even when the user lacks the corresponding capability.                        |
-| UX-002     | P2       | Resilience         | Several core views have no first-load error/retry state.                                                   |
-| UX-003     | P2       | Location           | Location-provider/configuration failures are presented as “no results.”                                    |
-| UI-001     | P2       | Theming            | The Material/Tailwind semantic success/warning token bridge is incomplete.                                 |
-| A11Y-001   | P2       | Accessibility      | Reusable icon selection and several icon-only actions lack keyboard or accessible-name support.            |
-| TEST-003   | P1       | Release confidence | CI has E2E and an implicit Docker build, but no branch protection, lint, unit, or Knope quality gate.      |
-| TEST-004   | P2       | Coverage           | New tenant operational settings and the global Email Outbox lack durable UI/docs coverage.                 |
-| EFFECT-001 | P3       | Contracts          | The tenant settings RPC accepts `defaultLocation` through `Schema.Any`.                                    |
-| EFFECT-002 | P3       | Tests              | One server Effect test bypasses the project’s preferred `it.effect` runtime.                               |
+| ID         | Severity | Area                | Short finding                                                                                              |
+| ---------- | -------- | ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| SCAN-001   | P0       | Check-in            | **Resolved 2026-07-10:** first-party camera policy and scanner entry coverage are restored.                |
+| PAY-001    | P0       | Payments            | Concurrent manual approval can create multiple Checkout sessions for one registration.                     |
+| PAY-002    | P1       | Payments            | Webhooks trust session metadata without proving local transaction/session ownership.                       |
+| SEC-001    | P1       | Runtime             | RPC and Stripe webhooks buffer unbounded request bodies.                                                   |
+| EVT-001    | P1       | Event review        | The application keeps a durable `REJECTED` state despite the accepted return-to-draft lifecycle.           |
+| PROD-001   | P1       | Notifications       | Most email notifications required by `PRODUCT.md` have no producer or outbox kind.                         |
+| PROD-002   | P1       | Registrations       | Paid transfer/resale remains intentionally unavailable, but is required for the production replacement.    |
+| ESN-001    | P1       | ESNcard             | Live external ESNcard add, refresh, and remove verification is required but remains credential-gated.      |
+| FIN-001    | P1       | Finance UI          | Receipt amounts are rendered as EUR even when the tenant currency is CZK or AUD.                           |
+| ONB-001    | P1       | Tenant onboarding   | Accepted privacy/onboarding/home-tenant rules have no model, form, or server enforcement.                  |
+| TEN-001    | P1       | Tenant settings     | Fixed `de-DE` formatting and tenant currency/timezone are not consistently applied at runtime.             |
+| ADMIN-001  | P1       | Platform admin      | Platform admins have broad permissions but cannot perform normal tenant actions without tenant membership. |
+| CI-001     | P1       | CI/docs             | CI silently excludes all `@finance` generated docs despite those flows being product-facing.               |
+| TEST-001   | P1       | Manual approval     | The newly supported application/manual-approval journey has no page-backed spec or generated doc.          |
+| TEST-002   | P1       | Roles               | Existing-user role assignment has no mutation/readback browser or docs coverage.                           |
+| SEC-002    | P2       | Links               | Approval emails and Stripe return URLs trust caller-provided `Origin`.                                     |
+| OPS-001    | P2       | Notifications       | A process crash can leave outbox rows permanently in `sending`.                                            |
+| OPS-002    | P2       | Test infrastructure | Neon Local restart/expiry gaps can leave remote branches or deleted-worktree Compose projects behind.      |
+| DATA-001   | P2       | Tenancy             | Cross-tenant role/registration tuple integrity is enforced in handlers but not by database constraints.    |
+| UX-001     | P2       | Permissions         | Template actions are visible even when the user lacks the corresponding capability.                        |
+| UX-002     | P2       | Resilience          | Several core views have no first-load error/retry state.                                                   |
+| UX-003     | P2       | Location            | Location-provider/configuration failures are presented as “no results.”                                    |
+| UI-001     | P2       | Theming             | The Material/Tailwind semantic success/warning token bridge is incomplete.                                 |
+| A11Y-001   | P2       | Accessibility       | Reusable icon selection and several icon-only actions lack keyboard or accessible-name support.            |
+| TEST-003   | P1       | Release confidence  | CI has E2E and an implicit Docker build, but no branch protection, lint, unit, or Knope quality gate.      |
+| TEST-004   | P2       | Coverage            | New tenant operational settings and the global Email Outbox lack durable UI/docs coverage.                 |
+| EFFECT-001 | P3       | Contracts           | The tenant settings RPC accepts `defaultLocation` through `Schema.Any`.                                    |
+| EFFECT-002 | P3       | Tests               | One server Effect test bypasses the project’s preferred `it.effect` runtime.                               |
 
 ## Release blockers and high-risk findings
 
 ### SCAN-001 — Global security policy makes QR check-in unusable
 
 **Severity:** P0
+**Status:** Resolved on 2026-07-10 in `codex/production-readiness-compliance`
 **Why it matters:** QR scanning is a core organizer workflow.
 
-**Evidence**
+**Original evidence**
 
 - `src/server/http/security-headers.ts:4` sends `Permissions-Policy: camera=(), geolocation=(), microphone=()`.
 - `src/server.ts:381-398` applies that header through global middleware, with no scanner-route exception.
@@ -74,11 +78,15 @@ The application has a strong tenant/permission/registration foundation, but it i
 
 `camera=()` denies camera access to the document itself, so browser permission cannot make the scanner work. The component’s retry guidance therefore sends an organizer toward a browser setting that cannot fix the policy-level denial.
 
-**Fix direction**
+**Resolution evidence**
 
-1. Permit the authenticated first-party scanner with `camera=(self)` if the application is never embedded, or apply the narrower policy only to the scanner response.
-2. Preserve restrictive policies for microphone/geolocation unless a real product path needs them.
-3. Add a server/header regression test and a page-backed camera-permission failure/success check.
+1. `src/server/http/security-headers.ts` now permits `camera=(self)` while keeping microphone and geolocation denied; `security-headers.spec.ts` locks the exact policy.
+2. The scanner exposes accessible loading, ready, and failure states and keeps the camera preview bounded on wide layouts.
+3. Check-in timing is server-authoritative: the scan RPC returns the timing issue, the UI no longer compares against its own wall clock, and successful check-in records the same configured server instant used for eligibility.
+4. Worktree runtime generation passes one deterministic clock and seed key to database setup, the app container, and Playwright so seeded event windows cannot drift from server decisions.
+5. `tests/specs/scanning/scanner.test.ts` verifies allowed and denied camera paths through a deterministic canvas-backed `MediaStream`, in addition to the registration, guest, timing, and persisted-counter cases.
+6. `tests/docs/scanning/check-in.doc.ts` starts from the visible **Scanner** navigation item, proves camera startup, and documents attendee verification, partial guest arrival, duplicate scans, persistence, recovery, permissions, and ticket security.
+7. The documentation screenshot helper now disables animations for capture, preventing Angular view-transition crossfades from mixing the previous and current pages.
 
 ### PAY-001 — Concurrent manual approval can create duplicate payments
 
@@ -363,6 +371,29 @@ never trust caller-controlled `Origin`, forwarded-host, or request headers.
 
 **Fix direction:** add a claim lease timestamp and stale-claim recovery. Reclaim safely with the existing Resend idempotency key and cover restart/crash recovery.
 
+### OPS-002 — Neon Local cleanup has restart and deleted-worktree gaps
+
+**Severity:** P2
+
+Read-only runtime inspection found an active Neon Local container whose Compose
+labels refer to a deleted worktree, plus remote ephemeral branches without an
+expiration. The primary Playwright cause is resolved: `playwright.config.ts`
+now gives a `docker:webserver` process it started a 60-second `SIGTERM` shutdown
+window, while `reuseExistingServer` keeps pre-existing user-owned stacks
+untouched.
+
+The remaining gaps are independent of that fix. Compose project names are
+derived from each checkout path, so stopping one checkout cannot clean an old
+project. `db-expiration` runs only once, a later `db` restart can create another
+branch without an expiry, and `docker-compose.yml` currently suppresses expiry
+failures with `|| true`.
+
+**Fix direction:** surface bounded typed expiration failures, make branch-expiry
+installation follow every Neon Local branch creation, warn about Compose
+projects whose worktree no longer exists, and add lifecycle coverage for owned
+versus reused stacks. Existing orphaned containers or remote branches must be
+listed for deliberate operator cleanup rather than deleted automatically.
+
 ### DATA-001 — Important tenant boundaries lack database-level tuple constraints
 
 **Severity:** P2
@@ -589,7 +620,7 @@ been made by this audit update.
 
 ## Recommended execution order
 
-1. **Payment/security containment:** PAY-001, PAY-002, SEC-001, and SCAN-001, with targeted regression tests before any broad refactor.
+1. **Payment/security containment:** SCAN-001 is complete; continue with PAY-001, PAY-002, and SEC-001, with targeted regression tests before any broad refactor.
 2. **Product-release commitments:** EVT-001, PROD-001, PROD-002, ESN-001,
    FIN-001, ONB-001, TEN-001, ADMIN-001, and manual-approval coverage.
 3. **Truthful release evidence:** CI-001, TEST-001 through TEST-003, including
@@ -599,7 +630,14 @@ been made by this audit update.
 
 ## Validation record
 
-- `git fetch --no-tags origin` and rebase completed; audit branch starts from `origin/main` at `9545a2c68d2`.
+- `git fetch --no-tags origin` and rebase completed; the remediation branch starts from `origin/main` at `df7c2c0143b307bb17d7e763ccf9ef13e6646b30`.
 - `gh api repos/evorto-app/app/branches/main/protection` returned `404 Branch not protected`; repository workflow review found E2E and implicit Docker build coverage but no lint, unit, or Knope/change-file gate.
 - `bun run test:e2e:docs -- --list` passed: 31 docs/setup tests in 19 files, with finance docs visible locally.
-- No Docker stack, database reset, full Playwright run, or Browser walkthrough was performed for this audit.
+- `bun run lint` and the application/Docker production build passed for the scanner remediation.
+- The complete Angular/shared unit suite passed: 52 files and 302 tests.
+- The complete server/helper Vitest suite passed after the latest-main rebase: 53 files and 375 tests.
+- Focused server clock/scan coverage proves configured-clock eligibility, the exact persisted check-in timestamp, and typed failure for an invalid clock value.
+- Scanner functional Playwright passed all 4 cases, including canvas-backed camera success and permission denial.
+- The dedicated check-in generated-documentation journey passed and its five screenshots were visually reviewed; the camera view shows only the settled Scanner page.
+- Documentation reporter/view-transition coverage passed all 8 focused cases, including a ten-second transition plus an unrelated infinite animation.
+- The in-app Browser reached the anonymous event page and Auth0 login. The authenticated scanner walkthrough remains open at the sign-in page for the user to complete before returning control.

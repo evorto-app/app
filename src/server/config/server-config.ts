@@ -101,6 +101,10 @@ export const serverEmailConfig = Config.all({
   RESEND_API_KEY: resendApiKeyConfig,
 });
 
+export const serverClockConfig = Config.all({
+  E2E_NOW_ISO: pinnedNowIsoConfig,
+});
+
 export const serverConfig = Config.all({
   ACTIONS_STEP_DEBUG: actionsStepDebugConfig,
   BASE_URL: baseUrlConfig,
@@ -115,6 +119,7 @@ export const serverConfig = Config.all({
   SERVER_LOG_LEVEL: serverLogLevelConfig,
 });
 
+export type ServerClockConfig = Config.Success<typeof serverClockConfig>;
 export type ServerConfig = Config.Success<typeof serverConfig>;
 export type ServerEmailConfig = Config.Success<typeof serverEmailConfig>;
 export type ServerLoggingConfig = Config.Success<typeof serverLoggingConfig>;

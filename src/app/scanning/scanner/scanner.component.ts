@@ -62,6 +62,7 @@ export const registrationIdFromScannedTicketUrl = (
   templateUrl: './scanner.component.html',
 })
 export class ScannerComponent implements OnDestroy {
+  protected readonly cameraReady = signal(false);
   protected readonly cameraStarting = signal(false);
   protected readonly errorMessage = signal('');
   protected readonly faArrowLeft = faArrowLeft;
@@ -77,6 +78,7 @@ export class ScannerComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
+    this.cameraReady.set(false);
     this.scanner()?.destroy();
   }
 
@@ -129,13 +131,16 @@ export class ScannerComponent implements OnDestroy {
     }
 
     this.cameraStarting.set(true);
+    this.cameraReady.set(false);
     try {
       await scanner.start();
+      this.cameraReady.set(true);
       if (options.clearErrorOnSuccess) {
         this.errorMessage.set('');
       }
     } catch (error) {
       consola.warn('Failed to start QR scanner camera', error);
+      this.cameraReady.set(false);
       this.errorMessage.set(scannerCameraErrorMessage(error));
     } finally {
       this.cameraStarting.set(false);

@@ -22,7 +22,7 @@ import {
   isNull,
   sql,
 } from 'drizzle-orm';
-import { Effect, Result } from 'effect';
+import { Effect, Option, Result } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
@@ -36,6 +36,9 @@ import {
   users,
   usersToTenants,
 } from '../../../../../db/schema';
+import { getServerNow } from '../../../../clock';
+import { formatConfigError } from '../../../../config/config-error';
+import { serverClockConfig } from '../../../../config/server-config';
 import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
@@ -72,11 +75,30 @@ const mapRegistrationScanInternalError = (error: unknown) =>
         }),
       );
 
+const registrationHandlerNow = serverClockConfig.pipe(
+  Effect.mapError(
+    (error) =>
+      new EventRegistrationInternalError({
+        message: `Invalid server clock configuration:\n${formatConfigError(error)}`,
+      }),
+  ),
+  Effect.flatMap(({ E2E_NOW_ISO }) =>
+    Effect.try({
+      catch: (cause) =>
+        new EventRegistrationInternalError({
+          cause,
+          message: 'Invalid E2E_NOW_ISO server clock value',
+        }),
+      try: () => getServerNow(Option.getOrUndefined(E2E_NOW_ISO)).toJSDate(),
+    }),
+  ),
+);
+
 const CHECK_IN_PRE_START_WINDOW_MS = 60 * 60 * 1000;
 const isActiveRegistrationUniqueViolation = (error: unknown): boolean =>
   isUniqueConstraintViolation(error, ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT);
 
-const isWithinCheckInWindow = (eventStart: Date, now = new Date()): boolean =>
+const isWithinCheckInWindow = (eventStart: Date, now: Date): boolean =>
   eventStart.getTime() - now.getTime() <= CHECK_IN_PRE_START_WINDOW_MS;
 
 const normalizeTransferTargetSearch = (search: string | undefined) =>
@@ -1363,9 +1385,10 @@ export const eventRegistrationHandlers = {
           checkInTime: registration.checkInTime.toISOString(),
         };
       }
+      const now = yield* registrationHandlerNow;
       if (
         !registration.event ||
-        !isWithinCheckInWindow(registration.event.start)
+        !isWithinCheckInWindow(registration.event.start, now)
       ) {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
@@ -1374,7 +1397,7 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      const checkInTime = new Date();
+      const checkInTime = now;
       const checkedInSpotCount =
         (registration.checkInTime ? 0 : 1) + guestCheckInCount;
       const checkedInRegistration = yield* Database.use((database) =>
@@ -1951,7 +1974,11 @@ export const eventRegistrationHandlers = {
       );
       const isAlreadyCheckedInIssue =
         registration.checkInTime !== null && remainingGuestCount === 0;
-      const isTimingIssue = !isWithinCheckInWindow(registration.event.start);
+      const now = yield* registrationHandlerNow;
+      const isTimingIssue = !isWithinCheckInWindow(
+        registration.event.start,
+        now,
+      );
       const isAllowCheckin =
         !isRegistrationStatusIssue &&
         !isSameUserIssue &&
@@ -1975,6 +2002,7 @@ export const eventRegistrationHandlers = {
         appliedDiscountType,
         attendeeCheckedIn: registration.checkInTime !== null,
         checkedInGuestCount: registration.checkedInGuestCount,
+        checkInTimingIssue: isTimingIssue,
         event: {
           start: registration.event.start.toISOString(),
           title: registration.event.title,

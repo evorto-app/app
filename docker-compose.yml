@@ -60,6 +60,8 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
+      E2E_NOW_ISO:
+      E2E_SEED_KEY:
       NEON_LOCAL_PROXY: "true"
       STRIPE_TEST_ACCOUNT_ID:
     command:
@@ -130,6 +132,8 @@ services:
       CLOUDFLARE_IMAGES_API_TOKEN:
       DATABASE_URL: postgresql://neon:npg@db:5432/${NEON_DATABASE_NAME:-appdb}?sslmode=require
       E2E_GLOBAL_ADMIN_AUTH0_IDS:
+      E2E_NOW_ISO:
+      E2E_SEED_KEY:
       ISSUER_BASE_URL:
       NEON_LOCAL_PROXY: "true"
       PORT: "4200"

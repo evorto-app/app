@@ -161,7 +161,9 @@ describe('evaluateRuntimePreflight', () => {
       path.join(process.cwd(), 'playwright.config.ts'),
       'utf8',
     );
-    expect(playwrightConfig).toContain("command: 'bun run docker:webserver'");
+    expect(playwrightConfig).toMatch(
+      /command: 'bun run docker:webserver',[\s\S]*?gracefulShutdown:\s*\{\s*signal:\s*'SIGTERM',\s*timeout:\s*60_000,?\s*\}/,
+    );
     expect(playwrightConfig).not.toContain(
       "command: 'bun run docker:start:foreground'",
     );
@@ -279,6 +281,8 @@ describe('evaluateRuntimePreflight', () => {
 
     expect(dbSetupService).toContain('secrets:');
     expect(dbSetupService).toContain('- FONT_AWESOME_TOKEN');
+    expect(dbSetupService).toContain('E2E_NOW_ISO:');
+    expect(dbSetupService).toContain('E2E_SEED_KEY:');
     expect(dbSetupService).toContain('STRIPE_TEST_ACCOUNT_ID:');
     expect(dbSetupService).toContain('bun helpers/reset-database-schema.ts');
     expect(dbSetupService).toContain(
@@ -289,6 +293,8 @@ describe('evaluateRuntimePreflight', () => {
     for (const variable of [
       'CLIENT_ID',
       'CLIENT_SECRET',
+      'E2E_NOW_ISO',
+      'E2E_SEED_KEY',
       'ISSUER_BASE_URL',
       'SECRET',
       'SSR_RPC_ORIGIN',
@@ -313,6 +319,15 @@ describe('evaluateRuntimePreflight', () => {
     expect(stripeService).toContain(
       './helpers/testing/stripe-listen-docker.sh',
     );
+
+    const runtimeEnvironment = fs.readFileSync(
+      path.join(process.cwd(), 'helpers/testing/runtime-environment.ts'),
+      'utf8',
+    );
+    expect(runtimeEnvironment).toContain('DEFAULT_E2E_NOW_ISO');
+    expect(runtimeEnvironment).toContain('DEFAULT_E2E_SEED_KEY');
+    expect(runtimeEnvironment).toContain('E2E_NOW_ISO: e2eNowIso');
+    expect(runtimeEnvironment).toContain('E2E_SEED_KEY: e2eSeedKey');
 
     expect(composeFile).toContain('FONT_AWESOME_TOKEN:');
     expect(composeFile).toContain('environment: FONT_AWESOME_TOKEN');
