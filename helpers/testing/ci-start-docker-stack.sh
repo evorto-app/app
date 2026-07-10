@@ -52,7 +52,7 @@ build_and_start_compose() {
     echo "::error::Docker Compose build/start timed out before the workflow step timeout"
   fi
   node_modules/.bin/dotenv -c dev -- docker compose ps || true
-  node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100 db db-expiration db-setup minio minio-init evorto stripe || true
+  node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100 db-expiration db-setup minio minio-init evorto || true
   return "${start_status}"
 }
 

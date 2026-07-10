@@ -1,7 +1,7 @@
 services:
   db:
     image: neondatabase/neon_local:v1.5
-    restart: on-failure:5
+    restart: "no"
     environment:
       BRANCH_ID:
       DELETE_BRANCH: "${DELETE_BRANCH:-true}"

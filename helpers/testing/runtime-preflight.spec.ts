@@ -294,6 +294,8 @@ describe('evaluateRuntimePreflight', () => {
 
     expect(dbService).toContain('NEON_API_KEY:');
     expect(dbService).toContain('NEON_PROJECT_ID:');
+    expect(dbService).toContain('restart: "no"');
+    expect(dbService).not.toContain('restart: on-failure');
     expect(dbService).toContain(neonMetadataMount);
     expect(dbService).toContain(
       'chown -R postgres:postgres /tmp/.neon_local && exec /usr/local/bin/startup.sh',
