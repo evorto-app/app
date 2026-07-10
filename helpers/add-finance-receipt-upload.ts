@@ -1,5 +1,7 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
+import { buildReceiptStorageKey } from '@server/effect/rpc/handlers/finance/receipt-media.service';
+
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
@@ -24,7 +26,13 @@ export const addConsumedFinanceReceiptUpload = async (
     id: uploadId,
     mimeType: input.mimeType,
     sizeBytes: input.sizeBytes,
-    storageKey: `receipts/${input.tenantId}/${input.eventId}/${input.uploadedByUserId}/${uploadId}-${input.fileName}`,
+    storageKey: buildReceiptStorageKey({
+      eventId: input.eventId,
+      fileName: input.fileName,
+      tenantId: input.tenantId,
+      uploadId,
+      userId: input.uploadedByUserId,
+    }),
     storageUrl: 'local-unavailable://receipt',
     tenantId: input.tenantId,
     uploadedAt: now,

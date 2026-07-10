@@ -1,5 +1,7 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
+import { buildReceiptStorageKey } from '@server/effect/rpc/handlers/finance/receipt-media.service';
+
 import { createId } from '../src/db/create-id';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
@@ -82,7 +84,13 @@ export const addFinanceReceipts = async (
   await database.insert(schema.financeReceiptUploads).values(
     receiptUploads.map((upload) => ({
       ...upload,
-      storageKey: `receipts/${options.tenantId}/${upload.eventId}/${upload.uploadedByUserId}/${upload.id}-${upload.fileName}`,
+      storageKey: buildReceiptStorageKey({
+        eventId: upload.eventId,
+        fileName: upload.fileName,
+        tenantId: options.tenantId,
+        uploadId: upload.id,
+        userId: upload.uploadedByUserId,
+      }),
     })),
   );
 
