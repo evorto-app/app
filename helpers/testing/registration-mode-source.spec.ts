@@ -1,19 +1,17 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // Source guard: unsupported random registration may remain readable from data,
 // but authoring screens should only expose supported writable modes.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
-const readSource = (path: string): string =>
-  readFileSync(join(repositoryRoot, path), 'utf8');
+const readSource = (sourcePath: string): string =>
+  readFileSync(path.join(repositoryRoot, sourcePath), 'utf8');
 
 const authoringSurfaces = [
-  'src/app/events/event-edit/event-edit.ts',
-  'src/app/templates/template-create/template-create.component.ts',
-  'src/app/templates/template-edit/template-edit.component.ts',
+  'src/app/events/event-edit/event-registration-option-editor.ts',
+  'src/app/shared/components/forms/template-graph-editor/template-registration-option-editor.component.ts',
   'src/app/templates/template-create-event/template-create-event.component.ts',
 ] as const;
 
