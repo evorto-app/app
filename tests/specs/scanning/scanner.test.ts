@@ -55,9 +55,11 @@ const requireScannerFixture = async ({
     );
   }
 
-  const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
-  if (!regularUser) {
-    throw new Error('Expected regular user fixture for scanner coverage');
+  const scannerUser = usersToAuthenticate.find(
+    (user) => user.roles === 'admin',
+  );
+  if (!scannerUser) {
+    throw new Error('Expected admin user fixture for scanner coverage');
   }
 
   return {
@@ -65,7 +67,7 @@ const requireScannerFixture = async ({
     optionBefore,
     registrationOptionId: registrationOption.id,
     tenantId: seeded.tenant.id,
-    userId: regularUser.id,
+    userId: scannerUser.id,
   };
 };
 

@@ -56,10 +56,16 @@ export const seedProfileEventCards = async ({
   userId: string;
 }): Promise<SeededProfileEventCards> => {
   const confirmedRegistrationId = getId();
+  const confirmedEventId = getId();
+  const confirmedEventOptionId = getId();
+  const confirmedEventTitle = `Profile docs confirmed ${seedDate.getTime()}`;
   const confirmedAddonId = getId();
   const confirmedAddonPurchaseId = getId();
   const confirmedAddonTitle = `Profile docs snack ${seedDate.getTime()}`;
   const checkedInRegistrationId = getId();
+  const checkedInEventId = getId();
+  const checkedInEventOptionId = getId();
+  const checkedInEventTitle = `Profile docs checked in ${seedDate.getTime()}`;
   const checkedInAddonId = getId();
   const checkedInAddonPurchaseId = getId();
   const checkedInAddonTitle = `Profile docs checked snack ${seedDate.getTime()}`;
@@ -74,56 +80,45 @@ export const seedProfileEventCards = async ({
   const waitlistOptionId = getId();
   const waitlistRegistrationId = getId();
   const waitlistTitle = `Profile docs waitlist ${seedDate.getTime()}`;
-  const profileEventId = seeded.scenario.events.freeOpen.eventId;
-  const profileEventOptionId = seeded.scenario.events.freeOpen.optionId;
-  const checkedInEventId = seeded.scenario.events.closedReg.eventId;
-  const checkedInEventOptionId = seeded.scenario.events.closedReg.optionId;
-  const profileEvent = seeded.events.find(
-    (event) => event.id === profileEventId,
-  );
-  if (!profileEvent) {
-    throw new Error('Expected seeded free profile event');
-  }
-  const checkedInEvent = seeded.events.find(
-    (event) => event.id === checkedInEventId,
-  );
-  if (!checkedInEvent) {
-    throw new Error('Expected seeded checked-in profile event');
-  }
+  const sourceEventId = seeded.scenario.events.freeOpen.eventId;
   const sourceEvent = await database.query.eventInstances.findFirst({
     where: (eventInstance) =>
       and(
-        eq(eventInstance.id, profileEventId),
+        eq(eventInstance.id, sourceEventId),
         eq(eventInstance.tenantId, seeded.tenant.id),
       ),
   });
   if (!sourceEvent) {
     throw new Error('Expected seeded profile source event');
   }
-  const profileEventOption =
-    await database.query.eventRegistrationOptions.findFirst({
-      where: (registrationOption) =>
-        and(
-          eq(registrationOption.eventId, profileEventId),
-          eq(registrationOption.id, profileEventOptionId),
-        ),
-    });
-  if (!profileEventOption) {
-    throw new Error('Expected seeded profile source registration option');
-  }
-  const checkedInEventOption =
-    await database.query.eventRegistrationOptions.findFirst({
-      where: (registrationOption) =>
-        and(
-          eq(registrationOption.eventId, checkedInEventId),
-          eq(registrationOption.id, checkedInEventOptionId),
-        ),
-    });
-  if (!checkedInEventOption) {
-    throw new Error('Expected seeded checked-in source registration option');
-  }
 
   await database.insert(schema.eventInstances).values([
+    {
+      creatorId: userId,
+      description: 'Profile docs event for confirmed registration coverage.',
+      end: new Date(seedDate.getTime() + 8 * 60 * 60 * 1000),
+      icon: sourceEvent.icon,
+      id: confirmedEventId,
+      location: sourceEvent.location,
+      start: new Date(seedDate.getTime() + 6 * 60 * 60 * 1000),
+      status: 'APPROVED',
+      templateId: sourceEvent.templateId,
+      tenantId: seeded.tenant.id,
+      title: confirmedEventTitle,
+    },
+    {
+      creatorId: userId,
+      description: 'Profile docs event for checked-in registration coverage.',
+      end: new Date(seedDate.getTime() + 60 * 60 * 1000),
+      icon: sourceEvent.icon,
+      id: checkedInEventId,
+      location: sourceEvent.location,
+      start: new Date(seedDate.getTime() - 2 * 60 * 60 * 1000),
+      status: 'APPROVED',
+      templateId: sourceEvent.templateId,
+      tenantId: seeded.tenant.id,
+      title: checkedInEventTitle,
+    },
     {
       creatorId: userId,
       description:
@@ -154,6 +149,32 @@ export const seedProfileEventCards = async ({
   ]);
   await database.insert(schema.eventRegistrationOptions).values([
     {
+      closeRegistrationTime: new Date(seedDate.getTime() + 5 * 60 * 60 * 1000),
+      eventId: confirmedEventId,
+      id: confirmedEventOptionId,
+      isPaid: false,
+      openRegistrationTime: new Date(seedDate.getTime() - 60 * 60 * 1000),
+      organizingRegistration: false,
+      price: 0,
+      registrationMode: 'fcfs',
+      roleIds: [],
+      spots: 20,
+      title: 'Confirmed participant',
+    },
+    {
+      closeRegistrationTime: seedDate,
+      eventId: checkedInEventId,
+      id: checkedInEventOptionId,
+      isPaid: false,
+      openRegistrationTime: new Date(seedDate.getTime() - 3 * 60 * 60 * 1000),
+      organizingRegistration: false,
+      price: 0,
+      registrationMode: 'fcfs',
+      roleIds: [],
+      spots: 20,
+      title: 'Checked-in participant',
+    },
+    {
       closeRegistrationTime: new Date(seedDate.getTime() + 60 * 60 * 1000),
       eventId: pendingCheckoutEventId,
       id: pendingCheckoutOptionId,
@@ -183,8 +204,8 @@ export const seedProfileEventCards = async ({
   await seedFreeRegistrationAddon({
     addonId: confirmedAddonId,
     database,
-    eventId: profileEventId,
-    registrationOptionId: profileEventOptionId,
+    eventId: confirmedEventId,
+    registrationOptionId: confirmedEventOptionId,
     title: confirmedAddonTitle,
   });
   await seedFreeRegistrationAddon({
@@ -196,10 +217,10 @@ export const seedProfileEventCards = async ({
   });
   await database.insert(schema.eventRegistrations).values([
     {
-      eventId: profileEventId,
+      eventId: confirmedEventId,
       guestCount: 1,
       id: confirmedRegistrationId,
-      registrationOptionId: profileEventOptionId,
+      registrationOptionId: confirmedEventOptionId,
       status: 'CONFIRMED',
       tenantId: seeded.tenant.id,
       userId,
@@ -269,7 +290,7 @@ export const seedProfileEventCards = async ({
       addOnTitle: checkedInAddonTitle,
       addonId: checkedInAddonId,
       eventId: checkedInEventId,
-      eventTitle: checkedInEvent.title,
+      eventTitle: checkedInEventTitle,
       registrationId: checkedInRegistrationId,
     },
     cleanup: async () => {
@@ -332,13 +353,25 @@ export const seedProfileEventCards = async ({
       await database
         .delete(schema.eventAddons)
         .where(eq(schema.eventAddons.id, checkedInAddonId));
+      await database
+        .delete(schema.eventRegistrationOptions)
+        .where(eq(schema.eventRegistrationOptions.id, confirmedEventOptionId));
+      await database
+        .delete(schema.eventRegistrationOptions)
+        .where(eq(schema.eventRegistrationOptions.id, checkedInEventOptionId));
+      await database
+        .delete(schema.eventInstances)
+        .where(eq(schema.eventInstances.id, confirmedEventId));
+      await database
+        .delete(schema.eventInstances)
+        .where(eq(schema.eventInstances.id, checkedInEventId));
     },
     confirmed: {
       addOnPurchaseId: confirmedAddonPurchaseId,
       addOnTitle: confirmedAddonTitle,
       addonId: confirmedAddonId,
-      eventId: profileEventId,
-      eventTitle: profileEvent.title,
+      eventId: confirmedEventId,
+      eventTitle: confirmedEventTitle,
       registrationId: confirmedRegistrationId,
     },
     pendingCheckout: {
