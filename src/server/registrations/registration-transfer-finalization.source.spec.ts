@@ -96,7 +96,14 @@ describe('registration transfer transactional finalization source', () => {
       webhook.indexOf("case 'checkout.session.expired'"),
     );
     const transferExpiry = expiry.indexOf('expireRegistrationTransferCheckout');
-    const genericCancellation = expiry.indexOf(".set({ status: 'cancelled' })");
+    const genericCancellationTransition = expiry.indexOf(
+      'yield* runCheckoutWebhookTransition',
+      transferExpiry,
+    );
+    const genericCancellation = expiry.indexOf(
+      "status: 'cancelled'",
+      genericCancellationTransition,
+    );
     const claimedRefund = refund.slice(
       refund.indexOf('const updatedClaims = yield* tx'),
     );
@@ -106,7 +113,8 @@ describe('registration transfer transactional finalization source', () => {
     expect(transferFinalization).toBeGreaterThan(successfulTransaction);
     expect(genericConfirmation).toBeGreaterThan(transferFinalization);
     expect(transferExpiry).toBeGreaterThan(-1);
-    expect(genericCancellation).toBeGreaterThan(transferExpiry);
+    expect(genericCancellationTransition).toBeGreaterThan(transferExpiry);
+    expect(genericCancellation).toBeGreaterThan(genericCancellationTransition);
     expect(
       claimedRefund.indexOf('reconcileRegistrationTransferRefund'),
     ).toBeGreaterThan(claimedRefund.indexOf('.set(refundStatusUpdate'));
