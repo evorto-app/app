@@ -9,7 +9,7 @@ test.use({ storageState: adminStateFile });
 const failRpcOnce = async (page: Page, rpcName: string) => {
   let failureCount = 0;
 
-  await page.route('**/rpc', async (route) => {
+  await page.route('**/rpc/**', async (route) => {
     const request = route.request();
     const requestBody = request.postData() ?? '';
     if (
@@ -39,18 +39,17 @@ const navigateClientSide = async (page: Page, path: string) => {
 test('tenant user list explains a first-load failure and recovers on retry @admin @resilience', async ({
   page,
 }) => {
-  await page.goto('/admin');
+  await page.goto('/admin', { waitUntil: 'networkidle' });
   const failureCount = await failRpcOnce(page, 'users.findMany');
 
   await page.getByRole('link', { exact: true, name: 'Users' }).click();
+  await expect.poll(failureCount).toBe(1);
 
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('Users could not be loaded');
   await expect(alert).toContainText(
     'The user list is unavailable. Check your connection and try again.',
   );
-  expect(failureCount()).toBe(1);
-
   await alert.getByRole('button', { name: 'Try again' }).click();
 
   await expect(alert).toHaveCount(0);
@@ -60,18 +59,17 @@ test('tenant user list explains a first-load failure and recovers on retry @admi
 test('transaction history explains a first-load failure and recovers on retry @finance @resilience', async ({
   page,
 }) => {
-  await page.goto('/finance');
+  await page.goto('/finance', { waitUntil: 'networkidle' });
   const failureCount = await failRpcOnce(page, 'finance.transactions.findMany');
 
   await page.getByRole('link', { exact: true, name: 'Transactions' }).click();
+  await expect.poll(failureCount).toBe(1);
 
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('Transactions could not be loaded');
   await expect(alert).toContainText(
     'The transaction history is unavailable. Check your connection and try again.',
   );
-  expect(failureCount()).toBe(1);
-
   await alert.getByRole('button', { name: 'Try again' }).click();
 
   await expect(alert).toHaveCount(0);
@@ -87,19 +85,18 @@ test('template event creation explains a first-load failure and recovers on retr
     throw new Error('Expected a seeded template for load-recovery coverage');
   }
 
-  await page.goto('/templates');
+  await page.goto('/templates', { waitUntil: 'networkidle' });
   const failureCount = await failRpcOnce(page, 'templates.findOne');
 
   const createEventPath = `/templates/${template.id}/create-event`;
   await navigateClientSide(page, createEventPath);
+  await expect.poll(failureCount).toBe(1);
 
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('Template could not be loaded');
   await expect(alert).toContainText(
     'The event form cannot be prepared until the selected template is available.',
   );
-  expect(failureCount()).toBe(1);
-
   await alert.getByRole('button', { name: 'Try again' }).click();
 
   await expect(alert).toHaveCount(0);
