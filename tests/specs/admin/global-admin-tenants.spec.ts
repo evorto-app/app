@@ -55,9 +55,14 @@ const expectTenantFormScope = async (
   ).toBeVisible();
   await expect(form.locator('input').first()).toBeVisible();
   if (options.expectCreatePlaceholders) {
-    await expect(form.getByPlaceholder('section.example.org')).toBeVisible();
     await expect(
-      form.getByPlaceholder('https://section.example.org'),
+      form.getByRole('textbox', { name: 'Primary domain', exact: true }),
+    ).toBeVisible();
+    await expect(
+      form.getByRole('textbox', {
+        name: 'Canonical root URL',
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(form.getByPlaceholder('acct_...')).toBeVisible();
   }
