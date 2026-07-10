@@ -712,7 +712,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
               } as const;
             }
 
-            const paymentIntent = yield* Effect.tryPromise({
+            const paymentIntentResult = yield* Effect.tryPromise({
               catch: (cause) => new StripePaymentIntentReadError({ cause }),
               try: () =>
                 stripe.paymentIntents.retrieve(
@@ -725,6 +725,9 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
                   },
                 ),
             }).pipe(
+              Effect.map(
+                (paymentIntent) => ({ paymentIntent, type: 'found' }) as const,
+              ),
               Effect.catchTag('StripePaymentIntentReadError', (error) =>
                 isStripeMissingResourceError(error.cause)
                   ? Effect.succeed({ type: 'missing' } as const)
@@ -732,9 +735,10 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
               ),
             );
 
-            if ('type' in paymentIntent && paymentIntent.type === 'missing') {
-              return paymentIntent;
+            if (paymentIntentResult.type === 'missing') {
+              return paymentIntentResult;
             }
+            const { paymentIntent } = paymentIntentResult;
             if (paymentIntent.id !== stripePaymentIntentId) {
               return { type: 'mismatch' } as const;
             }
