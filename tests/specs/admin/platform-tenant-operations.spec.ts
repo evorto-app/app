@@ -51,9 +51,11 @@ test('platform administrator opens target operations, refund recovery, and a det
   await expect(page).toHaveURL(
     new RegExp(`/global-admin/tenants/${tenant.id}/scanner$`),
   );
-  await page
-    .getByLabel('Registration ID or result URL')
-    .fill(`http://localhost:4200/scan/registration/${registration.id}`);
+  const lookupInput = page.getByLabel('Registration ID or result URL');
+  await expect(lookupInput).toBeEnabled();
+  await lookupInput.fill(
+    `http://localhost:4200/scan/registration/${registration.id}`,
+  );
   await page.getByRole('button', { name: 'Inspect' }).click();
 
   await expect(page).toHaveURL(

@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   inject,
@@ -103,6 +104,7 @@ export class PlatformScannerComponent {
   );
   protected readonly guestCheckInCount = signal(0);
   protected readonly lookupError = signal('');
+  protected readonly lookupInteractive = signal(false);
   protected readonly lookupValue = signal('');
   protected readonly reason = signal('');
   protected readonly registrationQuery = injectQuery(() => ({
@@ -118,6 +120,10 @@ export class PlatformScannerComponent {
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
+
+  constructor() {
+    afterNextRender(() => this.lookupInteractive.set(true));
+  }
 
   protected anyActionPending(): boolean {
     return (

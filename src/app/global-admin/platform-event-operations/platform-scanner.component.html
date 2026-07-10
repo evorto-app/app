@@ -14,6 +14,7 @@
       <mat-label>Registration ID or result URL</mat-label>
       <input
         matInput
+        [disabled]="!lookupInteractive()"
         [value]="lookupValue()"
         (input)="setLookupValue($event)"
       />
@@ -25,6 +26,7 @@
       class="sm:mt-2"
       mat-flat-button
       type="button"
+      [disabled]="!lookupInteractive()"
       (click)="openLookup()"
     >
       Inspect

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { registrationIdFromPlatformScannerInput } from './platform-scanner.component';
@@ -31,5 +33,29 @@ describe('registrationIdFromPlatformScannerInput', () => {
     expect(
       registrationIdFromPlatformScannerInput('registration/one'),
     ).toBeUndefined();
+  });
+
+  it('keeps lookup controls disabled until browser hydration completes', () => {
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-scanner.component.ts',
+      ),
+      'utf8',
+    );
+    const template = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-scanner.component.html',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain(
+      'afterNextRender(() => this.lookupInteractive.set(true))',
+    );
+    expect(
+      template.match(/\[disabled\]="!lookupInteractive\(\)"/g),
+    ).toHaveLength(2);
   });
 });
