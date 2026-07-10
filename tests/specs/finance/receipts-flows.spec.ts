@@ -60,6 +60,9 @@ const submitReceiptFromFirstEvent = async (
     .setInputFiles(receiptFile);
   await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
   await expect(receiptDialog).not.toBeVisible();
+  await expect(
+    page.getByText(path.basename(receiptFile), { exact: true }),
+  ).toBeVisible({ timeout: 20_000 });
 };
 
 const seedPendingReceiptForApproval = async ({
