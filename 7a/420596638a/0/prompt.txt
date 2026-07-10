@@ -1,0 +1,6 @@
+For the scanner, if it is likely, you can use playwright to simulate the camera. If that is too much work I would say it is okay to just open a scanner result URL and manually review the camera integration. It is probably too hard to fake the camera reliably.
+
+---
+
+Tell me what you are planning with rls?
+I don't think that is needed since our server handles authorization
