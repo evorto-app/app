@@ -144,7 +144,6 @@ export const handleQrRegistrationCodeWebRequest = (
     const tenant = yield* databaseEffect((database) =>
       database.query.tenants.findFirst({
         columns: {
-          canonicalRootUrl: true,
           domain: true,
         },
         where: { id: registration.tenantId },

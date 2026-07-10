@@ -13,7 +13,6 @@ const requestContext = Schema.decodeUnknownSync(RequestContext)({
   authentication: { isAuthenticated: false },
   permissions: [],
   tenant: {
-    canonicalRootUrl: 'https://tenant.example.com',
     currency: 'EUR',
     domain: 'tenant.example.com',
     id: 'tenant-1',

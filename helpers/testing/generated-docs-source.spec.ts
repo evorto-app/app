@@ -18,10 +18,10 @@ describe('generated docs source current behavior', () => {
       'domain onboarding, brand asset upload, legal text page',
     );
     expect(source).toContain(
-      'A read-only **Tenant identity** summary with tenant name, primary domain, canonical root URL, and Stripe connection state.',
+      'A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state.',
     );
-    expect(source).toContain("name: 'Canonical root URL'");
-    expect(source).toContain('originalTenant.canonicalRootUrl');
+    expect(source).not.toContain('canonicalRootUrl');
+    expect(source).not.toContain('Canonical root URL');
     expect(source).toContain(
       'A **Currency** select with EUR, CZK, and AUD plus a **Timezone** text field that accepts an IANA timezone such as Europe/Berlin.',
     );
@@ -120,7 +120,10 @@ describe('generated docs source current behavior', () => {
       'expect(tenantPrimaryDomainInput(page)).toHaveValue(',
     );
     expect(source).toContain(
-      'Tenant create/edit manages the one active primary domain, its canonical root URL, name, theme, currency, timezone, and connected Stripe account id.',
+      'Tenant create/edit manages the one active primary domain, name, theme, currency, timezone, and connected Stripe account id.',
+    );
+    expect(source).toContain(
+      'The formatting locale remains fixed to **de-DE**.',
     );
     expect(source).toContain(
       'Transactional links and Stripe return URLs use the secure HTTPS origin derived from this normalized domain rather than request headers.',
@@ -135,7 +138,7 @@ describe('generated docs source current behavior', () => {
       'A public-URL migration is rejected while pending Stripe Checkouts or refunds, or active registration transfers, still depend on issued links.',
     );
     expect(source).toContain(
-      'operators must keep HTTPS redirects from the old domain to the new canonical root for already-issued QR codes',
+      'operators must keep HTTPS redirects from the old domain to the new domain for already-issued QR codes',
     );
     expect(source).toContain(
       "getByRole('link', { name: 'Platform audit log' })",
@@ -360,14 +363,17 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('single finance permission');
   });
 
-  it('keeps template docs aligned with the simple-mode relaunch surface', () => {
+  it('keeps template docs aligned with simple and advanced graph authoring', () => {
     const source = readSource('tests/docs/templates/templates.doc.ts');
 
     expect(source).toContain(
       'Simple mode intentionally keeps exactly one organizer registration block and one participant registration block.',
     );
     expect(source).toContain(
-      'Use reusable add-ons, registration questions, option descriptions, role eligibility, and organizer planning tips to capture repeatable event knowledge',
+      'Advanced configuration supports any number of named options and reveals reusable add-ons with explicit option mappings.',
+    );
+    expect(source).toContain(
+      'first save the advanced graph with exactly one organizing and one non-organizing option',
     );
     expect(source).toContain(
       '**Description** and **description for registered users**: Optional reusable',
@@ -391,7 +397,7 @@ describe('generated docs source current behavior', () => {
       'When **Enable Payment** is on, the price and tax-rate fields appear for that registration block.',
     );
     expect(source).toContain(
-      'Add-ons can be free or paid, attached to either the participant or organizer registration option',
+      'Add-ons can be free or paid, mapped to one or more registration options',
     );
     expect(source).toContain(
       'shown on matching registration cards for registration-time purchase',
@@ -403,23 +409,33 @@ describe('generated docs source current behavior', () => {
       'Event-side answer collection is handled separately from this template setup flow.',
     );
     expect(source).toContain('fillTemplateBasics');
+    expect(source).toContain('Switch to advanced configuration?');
+    expect(source).toContain('app-template-registration-option-editor');
+    expect(source).toContain('app-template-addon-editor');
+    expect(source).toContain('app-template-question-editor');
     expect(source).toContain('createdTemplate.planningTips');
     expect(source).toContain('addonToTemplateRegistrationOptions');
     expect(source).toContain('templateRegistrationQuestions.findFirst');
+    expect(source).toContain('includedQuantity: 2');
+    expect(source).toContain('optionalPurchaseQuantity: 1');
+    expect(source).toContain(
+      'expect(createdEvent.simpleModeEnabled).toBe(false)',
+    );
+    expect(source).toContain('eventOptionsAfterTemplateEdit');
+    expect(source).toContain('eventMappingsAfterTemplateEdit');
+    expect(source).toContain('testClock.plus({ months: 2 })');
     expect(source).toContain(
       'Expected template docs flow to persist the reusable add-on',
     );
-    expect(source).not.toContain('bulk registration options');
-    expect(source).not.toContain('multiple participant registration blocks');
+    expect(source).not.toContain('app-template-registration-option-form');
+    expect(source).not.toContain('app-template-addon-form');
+    expect(source).not.toContain('app-template-question-form');
+    expect(source).not.toContain('addOnAttachment.quantity');
+    expect(source).not.toContain('currently the only mode');
     expect(source).not.toContain('public event planning tips');
     expect(source).not.toContain('roles can be selected more than once');
     expect(source).not.toContain(
       'ESNcard pricing is configured on events only',
-    );
-    expect(source).not.toContain('standalone add-on sales are configured here');
-    expect(source).not.toContain('Purchase timing');
-    expect(source).not.toContain(
-      'standalone before-event and during-event add-on sales',
     );
   });
 
@@ -615,6 +631,18 @@ describe('generated docs source current behavior', () => {
     const source = readSource('tests/docs/events/event-management.doc.ts');
 
     expect(source).toContain(
+      'Each draft event owns its registration configuration independently from the source template.',
+    );
+    expect(source).toContain(
+      'Before returning an advanced event to simple mode, save the advanced graph with exactly one option of each kind',
+    );
+    expect(source).toContain("page.getByTestId('event-mode-simple')");
+    expect(source).toContain("page.getByTestId('event-mode-advanced')");
+    expect(source).toContain(
+      'event.id === seeded.scenario.events.draft.eventId',
+    );
+
+    expect(source).toContain(
       'Organizers check in attendees from the dedicated QR scanner.',
     );
     expect(source).toContain(
@@ -653,9 +681,6 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain(
       'Role picker behavior: already selected roles are hidden from suggestions to avoid duplicate eligibility entries.',
-    );
-    expect(source).toContain(
-      'Expected seeded draft event for event-management role autocomplete docs',
     );
     expect(source).toContain(
       'Expected seeded event-management docs draft event "${draftEvent.title}" to have selected registration roles',

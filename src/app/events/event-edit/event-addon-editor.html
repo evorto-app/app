@@ -1,0 +1,171 @@
+@let addOn = addOnForm();
+<article class="border-outline-variant bg-surface rounded-xl border p-4">
+  <div class="mb-4 flex flex-wrap items-start gap-3">
+    <mat-form-field class="min-w-56 flex-1">
+      <mat-label>Add-on name</mat-label>
+      <input matInput [formField]="addOn.title" />
+      @if (addOn.title().touched() && addOn.title().errors()[0]; as error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+    <button type="button" mat-button (click)="removeRequested.emit()">
+      Remove add-on
+    </button>
+  </div>
+
+  <div class="grid gap-5">
+    <section class="grid gap-2">
+      <span class="text-on-surface-variant text-sm">Description</span>
+      <app-editor [control]="addOn.description" />
+    </section>
+
+    <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <mat-form-field>
+        <mat-label>Total stock</mat-label>
+        <input
+          matInput
+          type="number"
+          [formField]="addOn.totalAvailableQuantity"
+        />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Maximum optional units per user</mat-label>
+        <input matInput type="number" [formField]="addOn.maxQuantityPerUser" />
+      </mat-form-field>
+      <mat-checkbox [formField]="addOn.allowMultiple">
+        Allow multiple units
+      </mat-checkbox>
+      <mat-checkbox [formField]="addOn.isPaid">Paid add-on</mat-checkbox>
+    </section>
+
+    @if (!addOn.price().hidden()) {
+      <section class="grid gap-4 sm:grid-cols-2">
+        <mat-form-field>
+          <mat-label>Unit price in cents</mat-label>
+          <input matInput type="number" [formField]="addOn.price" />
+          @if (addOn.price().touched() && addOn.price().errors()[0]; as error) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Tax rate</mat-label>
+          <mat-select [formField]="addOn.stripeTaxRateId">
+            @if (taxRatesQuery.isPending()) {
+              <mat-option disabled>Loading tax rates...</mat-option>
+            } @else if (taxRatesQuery.isSuccess()) {
+              @for (rate of taxRatesQuery.data(); track rate.id) {
+                <mat-option [value]="rate.stripeTaxRateId">
+                  {{ rate.displayName || rate.stripeTaxRateId }} —
+                  {{ rate.percentage ?? "?" }}%
+                </mat-option>
+              }
+            } @else {
+              <mat-option disabled>Failed to load tax rates</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </section>
+    }
+
+    <section class="grid gap-3">
+      <h3 class="title-medium">Purchase windows</h3>
+      <div class="flex flex-wrap gap-x-6 gap-y-2">
+        <mat-checkbox [formField]="addOn.allowPurchaseDuringRegistration">
+          During registration
+        </mat-checkbox>
+        <mat-checkbox [formField]="addOn.allowPurchaseBeforeEvent">
+          After registration, before the event
+        </mat-checkbox>
+        <mat-checkbox [formField]="addOn.allowPurchaseDuringEvent">
+          During the event
+        </mat-checkbox>
+      </div>
+      @if (addOn.title().touched() && addOn.title().errors()[0]; as error) {
+        @if (error.kind === "purchaseWindow") {
+          <p class="text-error text-sm">{{ error.message }}</p>
+        }
+      }
+    </section>
+
+    <section class="grid gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="title-medium">Registration option mappings</h3>
+          <p class="text-on-surface-variant text-sm">
+            Included units are granted automatically. Optional units remain a
+            separate participant choice.
+          </p>
+        </div>
+        <button
+          type="button"
+          mat-button
+          [disabled]="!canAddMapping()"
+          (click)="addMappingRequested.emit()"
+        >
+          Map another option
+        </button>
+      </div>
+
+      @for (
+        mapping of addOn.registrationOptions;
+        track mapping;
+        let mappingIndex = $index
+      ) {
+        <div
+          class="border-outline-variant grid gap-3 border-t pt-3 sm:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto]"
+        >
+          <mat-form-field>
+            <mat-label>Registration option</mat-label>
+            <mat-select [formField]="mapping.registrationOptionKey">
+              @for (option of optionChoices(); track option.key) {
+                <mat-option
+                  [value]="option.key"
+                  [disabled]="
+                    optionUnavailableForMapping(mappingIndex, option.key)
+                  "
+                >
+                  {{ option.title }}
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Included quantity</mat-label>
+            <input
+              matInput
+              type="number"
+              [formField]="mapping.includedQuantity"
+            />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Optional quantity</mat-label>
+            <input
+              matInput
+              type="number"
+              [formField]="mapping.optionalPurchaseQuantity"
+            />
+          </mat-form-field>
+          <button
+            type="button"
+            mat-button
+            (click)="removeMappingRequested.emit(mappingIndex)"
+          >
+            Remove mapping
+          </button>
+        </div>
+      } @empty {
+        <p class="text-on-surface-variant text-sm">
+          This add-on is not currently offered by any registration option.
+        </p>
+      }
+
+      @if (
+        addOn.registrationOptions().touched() &&
+          addOn.registrationOptions().errors()[0];
+        as error
+      ) {
+        <p class="text-error text-sm">{{ error.message }}</p>
+      }
+    </section>
+  </div>
+</article>

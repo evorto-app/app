@@ -38,6 +38,7 @@ export const eventInstances = pgTable(
     location: jsonb('location').$type<EventLocationType>(),
     reviewedAt: timestamp(),
     reviewedBy: varchar({ length: 20 }).references(() => users.id),
+    simpleModeEnabled: boolean().notNull().default(true),
     start: timestamp().notNull(),
     status: eventReviewStatus().notNull().default('DRAFT'),
     statusComment: text(),

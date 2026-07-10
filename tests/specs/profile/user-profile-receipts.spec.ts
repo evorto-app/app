@@ -45,6 +45,7 @@ test('profile receipts show submitted receipt status and event context', async (
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 2048,
       attachmentUploadId: receiptUploadId,
+      currency: seeded.tenant.currency,
       eventId,
       id: receiptId,
       purchaseCountry: 'DE',

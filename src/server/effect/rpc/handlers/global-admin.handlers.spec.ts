@@ -67,7 +67,6 @@ describe('globalAdminHandlers', () => {
             findMany: () =>
               Effect.succeed([
                 {
-                  canonicalRootUrl: 'https://tenant.example.com',
                   currency: 'EUR',
                   domain: 'tenant.example.com',
                   id: 'tenant-1',
@@ -90,7 +89,6 @@ describe('globalAdminHandlers', () => {
 
       expect(tenants).toEqual([
         {
-          canonicalRootUrl: 'https://tenant.example.com',
           currency: 'EUR',
           domain: 'tenant.example.com',
           id: 'tenant-1',
@@ -114,7 +112,6 @@ describe('globalAdminHandlers', () => {
               Effect.succeed(
                 where.id === 'tenant-1'
                   ? {
-                      canonicalRootUrl: 'https://tenant.example.com',
                       currency: 'EUR',
                       domain: 'tenant.example.com',
                       id: 'tenant-1',
@@ -138,7 +135,6 @@ describe('globalAdminHandlers', () => {
       ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(tenant).toEqual({
-        canonicalRootUrl: 'https://tenant.example.com',
         currency: 'EUR',
         domain: 'tenant.example.com',
         id: 'tenant-1',
@@ -313,7 +309,6 @@ describe('globalAdminHandlers', () => {
         resourceId: 'tenant-1',
         resourceType: 'tenant',
         state: {
-          canonicalRootUrl: 'https://section.example.org',
           currency: 'EUR',
           domain: 'section.example.org',
           id: 'tenant-1',
@@ -396,7 +391,6 @@ describe('globalAdminHandlers', () => {
         returning: () =>
           Effect.succeed([
             {
-              canonicalRootUrl: 'https://section.example.org',
               currency: 'CZK',
               domain: 'section.example.org',
               id: 'tenant-1',
@@ -453,7 +447,6 @@ describe('globalAdminHandlers', () => {
           },
           reason: ' Provision requested by section board ',
           tenant: {
-            canonicalRootUrl: ' https://Section.Example.Org/ ',
             currency: 'CZK',
             domain: ' https://Section.Example.Org ',
             name: ' Example Section ',
@@ -466,7 +459,6 @@ describe('globalAdminHandlers', () => {
       ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(capturedInsert).toMatchObject({
-        canonicalRootUrl: 'https://section.example.org',
         currency: 'CZK',
         domain: 'section.example.org',
         locale: 'de-DE',
@@ -487,7 +479,6 @@ describe('globalAdminHandlers', () => {
         resourceId: 'tenant-1',
         resourceType: 'tenant',
         state: {
-          canonicalRootUrl: 'https://section.example.org',
           domain: 'section.example.org',
           id: 'tenant-1',
           privacyPolicyDigestSha256: tenantPrivacyPolicyDigest({
@@ -511,7 +502,6 @@ describe('globalAdminHandlers', () => {
         version: 1,
       });
       expect(tenant).toMatchObject({
-        canonicalRootUrl: 'https://section.example.org',
         domain: 'section.example.org',
         name: 'Example Section',
         stripeAccountId: 'acct_123',
@@ -543,7 +533,6 @@ describe('globalAdminHandlers', () => {
             },
             reason: 'Provision requested by tenant board',
             tenant: {
-              canonicalRootUrl: 'https://tenant.example.com',
               currency: 'EUR',
               domain: 'Tenant.Example.com',
               name: 'Duplicate Tenant',
@@ -578,7 +567,6 @@ describe('globalAdminHandlers', () => {
           },
           reason: 'Provision requested by tenant board',
           tenant: {
-            canonicalRootUrl: 'https://tenant.example.com',
             currency: 'EUR',
             domain: 'tenant.example.com',
             name: 'Tenant',
@@ -599,7 +587,6 @@ describe('globalAdminHandlers', () => {
       let capturedAudit: Record<string, unknown> | undefined;
       let capturedUpdate: Record<string, unknown> | undefined;
       const beforeTenant = {
-        canonicalRootUrl: 'https://tenant.example.com',
         currency: 'EUR',
         domain: 'tenant.example.com',
         id: 'tenant-1',
@@ -613,7 +600,6 @@ describe('globalAdminHandlers', () => {
         returning: () =>
           Effect.succeed([
             {
-              canonicalRootUrl: 'https://tenant.example.com',
               currency: 'EUR',
               domain: 'tenant.example.com',
               id: 'tenant-1',
@@ -666,7 +652,6 @@ describe('globalAdminHandlers', () => {
           id: 'tenant-1',
           reason: ' Tenant requested a support correction ',
           tenant: {
-            canonicalRootUrl: 'https://tenant.example.com',
             currency: 'EUR',
             domain: 'tenant.example.com',
             name: 'Tenant',
@@ -679,7 +664,6 @@ describe('globalAdminHandlers', () => {
       ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(capturedUpdate).toMatchObject({
-        canonicalRootUrl: 'https://tenant.example.com',
         domain: 'tenant.example.com',
         locale: 'de-DE',
         name: 'Tenant',
@@ -719,7 +703,6 @@ describe('globalAdminHandlers', () => {
         for: () =>
           Effect.succeed([
             {
-              canonicalRootUrl: 'https://tenant.example.com',
               currency: 'EUR',
               domain: 'tenant.example.com',
               id: 'tenant-1',
@@ -763,7 +746,6 @@ describe('globalAdminHandlers', () => {
           id: 'tenant-1',
           reason: 'Migrate the connected Stripe account',
           tenant: {
-            canonicalRootUrl: 'https://tenant.example.com',
             currency: 'EUR',
             domain: 'tenant.example.com',
             name: 'Tenant',
@@ -809,7 +791,6 @@ describe('globalAdminHandlers', () => {
 
         for (const scenario of scenarios) {
           const beforeTenant = {
-            canonicalRootUrl: 'https://tenant.example.com',
             currency: 'EUR' as const,
             domain: 'tenant.example.com',
             id: 'tenant-1',
@@ -879,7 +860,6 @@ describe('globalAdminHandlers', () => {
               id: 'tenant-1',
               reason: 'Move the tenant to its verified replacement domain',
               tenant: {
-                canonicalRootUrl: 'https://new.example.com',
                 currency: 'EUR',
                 domain: 'new.example.com',
                 name: 'Tenant',
@@ -916,7 +896,6 @@ describe('globalAdminHandlers', () => {
     () =>
       Effect.gen(function* () {
         const beforeTenant = {
-          canonicalRootUrl: 'https://tenant.example.com',
           currency: 'EUR' as const,
           domain: 'tenant.example.com',
           id: 'tenant-1',
@@ -979,7 +958,6 @@ describe('globalAdminHandlers', () => {
             id: 'tenant-1',
             reason: 'Switch the tenant to Australian dollars',
             tenant: {
-              canonicalRootUrl: 'https://tenant.example.com',
               currency: 'AUD',
               domain: 'tenant.example.com',
               name: 'Tenant',
@@ -1005,7 +983,6 @@ describe('globalAdminHandlers', () => {
     () =>
       Effect.gen(function* () {
         const beforeTenant = {
-          canonicalRootUrl: 'https://tenant.example.com',
           currency: 'EUR',
           domain: 'tenant.example.com',
           id: 'tenant-1',
@@ -1045,7 +1022,6 @@ describe('globalAdminHandlers', () => {
             id: 'tenant-1',
             reason: 'Correct the tenant display name',
             tenant: {
-              canonicalRootUrl: 'https://tenant.example.com',
               currency: 'EUR',
               domain: 'tenant.example.com',
               name: 'Tenant after update',
@@ -1082,7 +1058,6 @@ describe('globalAdminHandlers', () => {
             id: 'tenant-1',
             reason: 'Tenant requested a domain correction',
             tenant: {
-              canonicalRootUrl: 'https://tenant.example.com',
               currency: 'EUR',
               domain: 'Tenant.Example.com',
               name: 'Duplicate Tenant',
@@ -1115,7 +1090,6 @@ describe('globalAdminHandlers', () => {
           },
           reason: 'Provision requested by tenant board',
           tenant: {
-            canonicalRootUrl: 'https://section.example.org',
             currency: 'EUR',
             domain: 'section.example.org/path',
             name: 'Section',
@@ -1132,7 +1106,7 @@ describe('globalAdminHandlers', () => {
   );
 
   it.effect(
-    'rejects a canonical root that does not exactly match the primary domain',
+    'rejects credential-like domains before deriving a trusted origin',
     () =>
       Effect.gen(function* () {
         const database = {
@@ -1155,9 +1129,8 @@ describe('globalAdminHandlers', () => {
             },
             reason: 'Provision requested by tenant board',
             tenant: {
-              canonicalRootUrl: 'https://section.example.org.attacker.invalid',
               currency: 'EUR',
-              domain: 'section.example.org',
+              domain: 'section.example.org@attacker.invalid',
               name: 'Section',
               theme: 'evorto',
               timezone: 'Europe/Berlin',
@@ -1168,7 +1141,7 @@ describe('globalAdminHandlers', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe('Invalid tenant settings');
-        expect(error.reason).toContain('host must match');
+        expect(error.reason).toContain('single host name');
       }),
   );
 });

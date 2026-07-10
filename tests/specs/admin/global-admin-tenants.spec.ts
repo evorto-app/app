@@ -16,7 +16,6 @@ const expectedStripeAccountId =
 
 const expectTenantRows = async (page: Page) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
-  await expect(page.getByText('Canonical root URL').first()).toBeVisible();
   await expect(page.getByText('Tenant ID').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
   await expect(page.getByText('Locale').first()).toBeVisible();
@@ -75,12 +74,12 @@ const expectTenantFormScope = async (
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Domain or canonical-root changes are rejected while Stripe Checkouts, refunds, or registration transfers still depend on issued links.',
+        'Domain changes are rejected while Stripe Checkouts, refunds, or registration transfers still depend on issued links.',
       ),
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Keep HTTPS redirects from the old domain to the new canonical root for already-issued QR codes; their encoded URLs cannot be rewritten.',
+        'Keep HTTPS redirects from the old domain to the new domain for already-issued QR codes; their encoded URLs cannot be rewritten.',
       ),
     ).toBeVisible();
   }
@@ -99,7 +98,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     throw new Error('Expected seeded global-admin tenant');
   }
   const createdTenantDomain = `created-${getId().slice(0, 8)}.example.test`;
-  const createdTenantCanonicalRootUrl = `https://${createdTenantDomain}`;
   const createdTenantName = 'Created Section';
   const createAuditReason = `E2E tenant creation for ${createdTenantDomain}`;
   const updateAuditReason = `E2E tenant review for ${createdTenantDomain}`;
@@ -141,9 +139,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     await createTenantInputs.first().fill(createdTenantName);
     await createTenantInputs.nth(1).fill('section.example.org/path');
     await page
-      .getByLabel('Canonical root URL')
-      .fill('https://section.example.org');
-    await page
       .getByLabel('Privacy policy text')
       .fill('Privacy policy for the new section.');
     await page.getByLabel('Reason for platform change').fill(createAuditReason);
@@ -156,16 +151,10 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await createTenantInputs.nth(1).fill(originalTenant.domain);
-    await page
-      .getByLabel('Canonical root URL')
-      .fill(originalTenant.canonicalRootUrl);
     await page.getByRole('button', { name: 'Create tenant' }).click();
     await expect(page.getByText('Tenant domain already exists')).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await createTenantInputs.nth(1).fill(createdTenantDomain);
-    await page
-      .getByLabel('Canonical root URL')
-      .fill(createdTenantCanonicalRootUrl);
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -186,7 +175,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     createdTenantId = createdTenant.id;
     expect(createdTenant).toEqual(
       expect.objectContaining({
-        canonicalRootUrl: createdTenantCanonicalRootUrl,
         currency: 'EUR',
         domain: createdTenantDomain,
         locale: 'de-DE',
@@ -240,9 +228,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     const blockedDomain = `blocked-${getId().slice(0, 8)}.example.test`;
     await page.getByLabel('Primary domain').fill(blockedDomain);
     await page
-      .getByLabel('Canonical root URL')
-      .fill(`https://${blockedDomain}`);
-    await page
       .getByLabel('Reason for platform change')
       .fill('Verify active-link migration protection');
     await page.getByRole('button', { name: 'Save tenant' }).click();
@@ -256,7 +241,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
       database.query.tenants.findFirst({ where: { id: createdTenant.id } }),
     ).resolves.toEqual(
       expect.objectContaining({
-        canonicalRootUrl: createdTenantCanonicalRootUrl,
         domain: createdTenantDomain,
       }),
     );
@@ -299,9 +283,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     const tenantFormInputs = page.locator('form input');
     await expect(tenantFormInputs.first()).toHaveValue(/.+/);
     await expect(tenantFormInputs.nth(1)).toHaveValue('localhost');
-    await expect(page.getByLabel('Canonical root URL')).toHaveValue(
-      originalTenant.canonicalRootUrl,
-    );
     await expect(
       page.getByRole('button', { name: 'Save tenant' }),
     ).toBeDisabled();
@@ -326,7 +307,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
       .limit(1);
     expect(updatedTenant).toEqual(
       expect.objectContaining({
-        canonicalRootUrl: originalTenant.canonicalRootUrl,
         domain: originalTenant.domain,
         id: originalTenant.id,
         name: updatedTenantName,
@@ -364,7 +344,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     await database
       .update(schema.tenants)
       .set({
-        canonicalRootUrl: originalTenant.canonicalRootUrl,
         currency: originalTenant.currency,
         domain: originalTenant.domain,
         locale: originalTenant.locale,

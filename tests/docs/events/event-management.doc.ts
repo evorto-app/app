@@ -159,6 +159,10 @@ Let's look at each section in detail.
 Registration options determine how people can sign up for your event. Templates can create one or more registration options that are then shown on the event details page.
 Reusable add-ons copied from the source template are shown separately on the event detail page with their price, purchase timing, quantity limits, and attached registration options.
 
+Each draft event owns its registration configuration independently from the source template. **Simple** mode keeps exactly one organizing and one non-organizing option. **Advanced** mode supports any number of named options and reveals reusable add-on mappings with separate included and optional quantities. Missing organizer or participant categories are warnings, not save blockers.
+
+Every mode change asks for confirmation. Before returning an advanced event to simple mode, save the advanced graph with exactly one option of each kind, reopen the editor, and then confirm the separate mode change. Existing option IDs and hidden add-ons are preserved.
+
 When editing a draft event, registration options can include:
 
 - Option title
@@ -186,7 +190,7 @@ Note: The event created from the template already has registration options confi
   );
 
   const draftEvent = events.find(
-    (event) => event.status === 'DRAFT' && event.registrationOptions.length > 0,
+    (event) => event.id === seeded.scenario.events.draft.eventId,
   );
   if (!draftEvent) {
     throw new Error(
@@ -218,6 +222,14 @@ Note: The event created from the template already has registration options confi
       name: draftEvent.title,
     }),
   ).toBeVisible();
+  await expect(page.getByTestId('event-mode-simple')).toBeVisible();
+  await expect(page.getByTestId('event-mode-advanced')).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page.getByLabel('Registration configuration mode'),
+    page,
+    'Event registration configuration modes',
+  );
   await expect(page.getByText(selectedRole.name).first()).toBeVisible();
   const roleInput = page.getByPlaceholder('Add Role...').first();
   await roleInput.click();
@@ -419,7 +431,7 @@ Those flows should be documented separately when they exist in the product.
 ## Event Editing
 
 Draft events can be edited from the event details page when your permissions allow it. An event returned by a reviewer is a draft, with the review feedback shown on the details page.
-The edit form covers the same event details and registration options used during event creation.
+The edit form covers the same event details and the event-owned registration graph used during event creation. Simple and advanced modes require confirmation; advanced graphs may omit either option kind with a warning, and add-ons hidden by simple mode remain stored. Reducing an advanced graph and switching to simple are deliberately separate saves so no option is silently deleted or replaced.
 Pending-review and published events are locked from normal editing.
 
 ## Current Scope

@@ -2481,10 +2481,10 @@ export const eventRegistrationHandlers = {
       });
 
       return yield* EventRegistrationService.approveManualRegistration({
-        eventId,
+        executiveUserId: user.id,
+        expectedEventId: eventId,
         registrationId,
         targetTenant: {
-          canonicalRootUrl: tenant.canonicalRootUrl,
           currency: tenant.currency,
           domain: tenant.domain,
           emailSenderEmail: tenant.emailSenderEmail,
@@ -3290,7 +3290,6 @@ export const eventRegistrationHandlers = {
         guestCount,
         registrationOptionId,
         tenant: {
-          canonicalRootUrl: tenant.canonicalRootUrl,
           currency: tenant.currency,
           domain: tenant.domain,
           id: tenant.id,

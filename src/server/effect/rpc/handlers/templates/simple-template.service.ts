@@ -330,6 +330,14 @@ const validateTemplateAddon = ({
     );
   }
 
+  if (addon.isPaid && addon.price <= 0) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: 'Paid template add-ons require a positive price',
+      }),
+    );
+  }
+
   if (
     addon.optionalPurchaseQuantity > 0 &&
     !addon.allowPurchaseBeforeEvent &&

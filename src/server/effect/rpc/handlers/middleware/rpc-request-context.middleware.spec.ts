@@ -24,7 +24,6 @@ describe('rpc-request-context.middleware', () => {
         kind: 'platformAdministrator',
       }),
       [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
-        canonicalRootUrl: 'https://example.org',
         currency: 'EUR',
         defaultLocation: null,
         discountProviders: null,
@@ -81,7 +80,6 @@ describe('rpc-request-context.middleware', () => {
       [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]:
         encodeRpcContextHeaderJson(null),
       [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
-        canonicalRootUrl: 'https://example.org',
         currency: 'EUR',
         domain: 'example.org',
         id: 'tenant-1',

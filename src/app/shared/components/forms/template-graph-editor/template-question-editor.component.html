@@ -1,0 +1,44 @@
+@let question = questionForm();
+<fieldset class="border-outline-variant grid gap-4 border-t pt-4">
+  <legend class="title-small pr-3">
+    {{ question.title().value().trim() || "Registration question" }}
+  </legend>
+  <div class="grid gap-4 @md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem_auto]">
+    <mat-form-field>
+      <mat-label>Question</mat-label>
+      <input matInput [formField]="question.title" />
+      @for (error of question.title().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Ask during</mat-label>
+      <mat-select [formField]="question.registrationOptionKey">
+        @for (option of optionChoices(); track option.key) {
+          <mat-option [value]="option.key">{{ option.title }}</mat-option>
+        }
+      </mat-select>
+      @for (error of question.registrationOptionKey().errors(); track error) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Sort order</mat-label>
+      <input matInput type="number" [formField]="question.sortOrder" />
+    </mat-form-field>
+    <button
+      mat-icon-button
+      type="button"
+      aria-label="Remove question"
+      title="Remove question"
+      (click)="remove.emit()"
+    >
+      <fa-duotone-icon [icon]="faTrashCan" />
+    </button>
+  </div>
+  <mat-form-field>
+    <mat-label>Help text</mat-label>
+    <textarea matInput rows="3" [formField]="question.description"></textarea>
+  </mat-form-field>
+  <mat-checkbox [formField]="question.required">Require an answer</mat-checkbox>
+</fieldset>

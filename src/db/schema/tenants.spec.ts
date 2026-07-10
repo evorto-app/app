@@ -4,28 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { localeEnum, tenants } from './tenants';
 
 describe('tenant runtime settings schema', () => {
-  it('requires a canonical root URL tied to the primary domain', () => {
-    const table = getTableConfig(tenants);
-    const canonicalRootUrlColumn = table.columns.find(
-      (column) => column.name === 'canonical_root_url',
-    );
-
-    expect(canonicalRootUrlColumn?.notNull).toBe(true);
-    expect(
-      table.checks.some(
-        (constraint) =>
-          constraint.name === 'tenants_canonical_root_url_matches_domain',
-      ),
-    ).toBe(true);
-
-    const tenantInsert = {
-      canonicalRootUrl: 'https://new-york.example.com',
-      domain: 'new-york.example.com',
-      name: 'New York Section',
-    } satisfies typeof tenants.$inferInsert;
-    expect(tenantInsert.canonicalRootUrl).toBe('https://new-york.example.com');
-  });
-
   it('defaults new tenants to the fixed formatting locale', () => {
     const localeColumn = getTableConfig(tenants).columns.find(
       (column) => column.name === 'locale',
@@ -45,7 +23,6 @@ describe('tenant runtime settings schema', () => {
     expect(timezoneColumn?.default).toBe('Europe/Berlin');
 
     const tenantInsert = {
-      canonicalRootUrl: 'https://new-york.example.com',
       domain: 'new-york.example.com',
       name: 'New York Section',
       timezone: 'America/New_York',

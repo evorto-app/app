@@ -31,6 +31,18 @@ describe('platform tenant-admin RPC schemas', () => {
     }),
   );
 
+  it.effect('rejects platform-global permissions on tenant role writes', () =>
+    Effect.gen(function* () {
+      for (const permission of ['globalAdmin:*', 'globalAdmin:manageTenants']) {
+        const error = yield* Schema.decodeUnknownEffect(
+          PlatformRoleCreateInput,
+        )({ ...roleCreateInput, permissions: [permission] }).pipe(Effect.flip);
+
+        expect(error['_tag']).toBe('SchemaError');
+      }
+    }),
+  );
+
   it.effect('bounds the tenant-user page', () =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(

@@ -1,5 +1,9 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
-import { type Permission } from '@shared/permissions/permissions';
+import {
+  partitionTenantRolePermissions,
+  type Permission,
+  type TenantRolePermission,
+} from '@shared/permissions/permissions';
 import { type PlatformAuditSnapshot } from '@shared/platform-audit';
 import {
   type PlatformRoleCreateInput,
@@ -57,7 +61,7 @@ interface NormalizedRoleWrite {
   readonly description: null | string;
   readonly displayInHub: boolean;
   readonly name: string;
-  readonly permissions: Permission[];
+  readonly permissions: TenantRolePermission[];
 }
 
 type QueryDatabase = Pick<DatabaseClient, 'query'>;
@@ -144,14 +148,15 @@ const lockTargetTenant = Effect.fn('PlatformTenantAdmin.lockTargetTenant')(
 export const normalizeTenantAssignableRolePermissions = Effect.fn(
   'PlatformTenantAdmin.normalizeTenantAssignableRolePermissions',
 )(function* (permissions: readonly Permission[]) {
-  if (permissions.some((permission) => permission.startsWith('globalAdmin:'))) {
+  const partitionedPermissions = partitionTenantRolePermissions(permissions);
+  if (partitionedPermissions.rejected.length > 0) {
     return yield* new RpcBadRequestError({
       message: 'Platform authority cannot be granted through a tenant role',
       reason: 'platformPermissionNotAssignable',
     });
   }
 
-  return [...new Set(permissions)].toSorted();
+  return [...new Set(partitionedPermissions.accepted)].toSorted();
 });
 
 export const ensureStripeAccountUnchanged = Effect.fn(
@@ -201,7 +206,7 @@ const toPlatformRoleRecord = (role: {
   displayInHub: boolean;
   id: string;
   name: string;
-  permissions: Permission[];
+  permissions: TenantRolePermission[];
   sortOrder: number;
 }): PlatformRoleRecord => PlatformRoleRecord.make(role);
 

@@ -110,6 +110,7 @@ describe('eventHandlers composition', () => {
       'events.checkInRegistration',
       'events.create',
       'events.eventList',
+      'events.findGraphForEdit',
       'events.findOne',
       'events.findOneForEdit',
       'events.findTransferTargets',
@@ -127,6 +128,7 @@ describe('eventHandlers composition', () => {
       'events.transferMyRegistration',
       'events.undoRegistrationAddonRedemption',
       'events.update',
+      'events.updateGraph',
       'events.updateListing',
     ]);
   });

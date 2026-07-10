@@ -38,7 +38,6 @@ test('collects current requirements before a cross-tenant join and preserves the
   const shortTextQuestionId = getId();
 
   await database.insert(schema.tenants).values({
-    canonicalRootUrl: `https://${joinedTenantDomain}`,
     domain: joinedTenantDomain,
     id: joinedTenantId,
     name: 'Example Exchange Network',

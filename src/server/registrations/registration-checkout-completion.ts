@@ -237,7 +237,6 @@ export const completePaidRegistrationCheckout = Effect.fn(
       const [tenant, notificationContext] = yield* Effect.all([
         database.query.tenants.findFirst({
           columns: {
-            canonicalRootUrl: true,
             domain: true,
             emailSenderEmail: true,
             emailSenderName: true,

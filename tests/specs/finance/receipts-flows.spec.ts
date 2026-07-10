@@ -113,6 +113,7 @@ const seedPendingReceiptForApproval = async ({
     attachmentMimeType: 'application/pdf',
     attachmentSizeBytes: 1024,
     attachmentUploadId: receiptUploadId,
+    currency,
     depositAmount: 150,
     eventId,
     hasAlcohol: true,
@@ -164,7 +165,10 @@ test('submit receipt from event organize page', async ({
       })
       .where(eq(schema.eventInstances.id, eventId));
 
-    await submitReceiptFromFirstEvent(page, eventId, receiptFile);
+    await submitReceiptFromFirstEvent(page, eventId, receiptFile, currency);
+    await expect(
+      page.getByText(`Total: ${formatTenantCurrency(1450, currency)}`),
+    ).toBeVisible();
 
     const [submittedReceipt] = await database
       .select()
@@ -261,6 +265,7 @@ test('approve and record receipt reimbursements in finance', async ({
       .where(eq(schema.users.id, organizerUser.id));
 
     receiptUploadId = await seedPendingReceiptForApproval({
+      currency,
       database,
       eventId: seededEventId,
       receiptFileName,

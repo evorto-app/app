@@ -9,10 +9,8 @@ import {
   type RpcRequestContextShape,
 } from '../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from './shared/rpc-access.service';
-import {
-  normalizeTemplateFindOneRecord,
-  templateHandlers,
-} from './templates.handlers';
+import { templateHandlers } from './templates.handlers';
+import { SimpleTemplateService } from './templates/simple-template.service';
 
 const tenant = {
   currency: 'EUR' as const,
@@ -69,6 +67,15 @@ const createContextLayer = (
   );
 };
 
+const createSimpleHandlerLayer = (
+  permissions: readonly Permission[],
+  database: unknown,
+) =>
+  Layer.mergeAll(
+    createContextLayer(permissions, database),
+    SimpleTemplateService.Default,
+  );
+
 const templateInput = {
   categoryId: 'category-1',
   description: '<p>Useful event template description</p>',
@@ -108,6 +115,107 @@ const templateInput = {
   title: 'Template',
 };
 
+const paidZeroPriceTemplateAddonInput = {
+  allowMultiple: true,
+  allowPurchaseBeforeEvent: true,
+  allowPurchaseDuringEvent: false,
+  allowPurchaseDuringRegistration: true,
+  description: null,
+  includedQuantity: 0,
+  isPaid: true,
+  maxQuantityPerUser: 2,
+  optionalPurchaseQuantity: 1,
+  price: 0,
+  registrationOptionKind: 'participant' as const,
+  stripeTaxRateId: 'txr_vat_19',
+  title: 'Dinner',
+  totalAvailableQuantity: 10,
+};
+
+const graphInput = {
+  addOns: [],
+  categoryId: 'category-1',
+  description: '<p>Useful event template description</p>',
+  icon: {
+    iconColor: 0,
+    iconName: 'calendar:fas',
+  },
+  location: null,
+  planningTips: null,
+  questions: [],
+  registrationOptions: [
+    {
+      cancellationDeadlineHoursBeforeStart: null,
+      closeRegistrationOffset: 24,
+      description: null,
+      esnCardDiscountedPrice: null,
+      isPaid: false,
+      key: 'organizer',
+      openRegistrationOffset: 168,
+      organizingRegistration: true,
+      price: 0,
+      refundFeesOnCancellation: null,
+      registeredDescription: null,
+      registrationMode: 'fcfs' as const,
+      roleIds: ['role-1'],
+      spots: 10,
+      stripeTaxRateId: null,
+      title: 'Organizer registration',
+      transferDeadlineHoursBeforeStart: null,
+    },
+    {
+      cancellationDeadlineHoursBeforeStart: null,
+      closeRegistrationOffset: 24,
+      description: null,
+      esnCardDiscountedPrice: null,
+      isPaid: false,
+      key: 'participant',
+      openRegistrationOffset: 168,
+      organizingRegistration: false,
+      price: 0,
+      refundFeesOnCancellation: null,
+      registeredDescription: null,
+      registrationMode: 'application' as const,
+      roleIds: ['role-1'],
+      spots: 20,
+      stripeTaxRateId: null,
+      title: 'Participant registration',
+      transferDeadlineHoursBeforeStart: null,
+    },
+  ],
+  simpleModeEnabled: true,
+  title: 'Template',
+  unlisted: false,
+};
+
+const createSimpleWriteValidationDatabase = () => {
+  const transactionalDatabase = {
+    execute: () => Effect.void,
+    query: {
+      eventTemplateCategories: {
+        findFirst: () => Effect.succeed({ id: 'category-1' }),
+      },
+      roles: {
+        findMany: () => Effect.succeed([{ id: 'role-1' }]),
+      },
+    },
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          for: () => Effect.succeed([{ currency: 'EUR', id: 'tenant-1' }]),
+        }),
+      }),
+    }),
+  };
+
+  return {
+    $client: {},
+    transaction: (
+      operation: (database: typeof transactionalDatabase) => unknown,
+    ) => operation(transactionalDatabase),
+  };
+};
+
 describe('templateHandlers permissions', () => {
   it('serializes first template creation with tenant currency changes', () => {
     const source = readFileSync(
@@ -123,6 +231,12 @@ describe('templateHandlers permissions', () => {
     ).toBeLessThan(
       source.indexOf('yield* SimpleTemplateService.createSimpleTemplate'),
     );
+    expect(source).toContain("'templates.create'");
+    expect(source).toContain("'templates.update'");
+    expect(source).toContain('TemplateGraphService.createTemplate');
+    expect(source).toContain('TemplateGraphService.updateTemplate');
+    expect(source).toContain('loadTemplateGraphDetail');
+    expect(source).toContain('tenantId: tenant.id');
   });
 
   it.effect('create requires templates:create', () =>
@@ -158,6 +272,90 @@ describe('templateHandlers permissions', () => {
     }),
   );
 
+  it.effect(
+    'simple create surfaces a zero-price paid add-on as a typed bad request',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* templateHandlers['templates.createSimpleTemplate'](
+          {
+            ...templateInput,
+            addOns: [paidZeroPriceTemplateAddonInput],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createSimpleHandlerLayer(
+              ['templates:create'],
+              createSimpleWriteValidationDatabase(),
+            ),
+          ),
+        );
+
+        expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+        expect(error.message).toBe(
+          'Paid template add-ons require a positive price',
+        );
+      }),
+  );
+
+  it.effect(
+    'simple update surfaces a zero-price paid add-on as a typed bad request',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* templateHandlers['templates.updateSimpleTemplate'](
+          {
+            id: 'template-1',
+            ...templateInput,
+            addOns: [paidZeroPriceTemplateAddonInput],
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createSimpleHandlerLayer(
+              ['templates:editAll'],
+              createSimpleWriteValidationDatabase(),
+            ),
+          ),
+        );
+
+        expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+        expect(error.message).toBe(
+          'Paid template add-ons require a positive price',
+        );
+      }),
+  );
+
+  it.effect('graph create requires templates:create', () =>
+    Effect.gen(function* () {
+      const error = yield* templateHandlers['templates.create'](graphInput, {
+        headers: {},
+      } as never).pipe(
+        Effect.flip,
+        Effect.provide(createContextLayer(['templates:view'])),
+      );
+
+      expect(error['_tag']).toBe('RpcForbiddenError');
+      expect(error.permission).toBe('templates:create');
+    }),
+  );
+
+  it.effect('graph update requires templates:editAll', () =>
+    Effect.gen(function* () {
+      const error = yield* templateHandlers['templates.update'](
+        { id: 'template-1', ...graphInput },
+        { headers: {} } as never,
+      ).pipe(
+        Effect.flip,
+        Effect.provide(createContextLayer(['templates:create'])),
+      );
+
+      expect(error['_tag']).toBe('RpcForbiddenError');
+      expect(error.permission).toBe('templates:editAll');
+    }),
+  );
+
   it.effect('groupedByCategory requires templates:view', () =>
     Effect.gen(function* () {
       const error = yield* templateHandlers['templates.groupedByCategory'](
@@ -175,11 +373,13 @@ describe('templateHandlers permissions', () => {
     () =>
       Effect.gen(function* () {
         const database = {
-          query: {
-            eventTemplates: {
-              findFirst: () => Effect.succeed(),
-            },
-          },
+          select: () => ({
+            from: () => ({
+              where: () => ({
+                limit: () => Effect.succeed([]),
+              }),
+            }),
+          }),
         };
 
         const error = yield* templateHandlers['templates.findOne'](
@@ -193,120 +393,4 @@ describe('templateHandlers permissions', () => {
         expect(error['_tag']).toBe('TemplateSimpleNotFoundError');
       }),
   );
-});
-
-describe('normalizeTemplateFindOneRecord', () => {
-  it('returns reusable template add-ons with registration option attachments', () => {
-    const record = normalizeTemplateFindOneRecord(
-      {
-        addOns: [
-          {
-            allowMultiple: true,
-            allowPurchaseBeforeEvent: true,
-            allowPurchaseDuringEvent: false,
-            allowPurchaseDuringRegistration: true,
-            description: 'Optional dinner ticket',
-            id: 'addon-1',
-            isPaid: true,
-            maxQuantityPerUser: 2,
-            price: 1200,
-            stripeTaxRateId: 'txr-1',
-            title: 'Dinner',
-            totalAvailableQuantity: 40,
-          },
-        ],
-        categoryId: 'category-1',
-        description: '<p>Useful event template description</p>',
-        icon: {
-          iconColor: 0,
-          iconName: 'calendar:fas',
-        },
-        id: 'template-1',
-        location: null,
-        planningTips: null,
-        questions: [
-          {
-            description: 'Tell organizers about accessibility needs.',
-            id: 'question-1',
-            registrationOptionId: 'template-option-1',
-            required: false,
-            sortOrder: 0,
-            title: 'Accessibility needs',
-          },
-        ],
-        registrationOptions: [
-          {
-            cancellationDeadlineHoursBeforeStart: 96,
-            closeRegistrationOffset: 24,
-            description: null,
-            id: 'template-option-1',
-            isPaid: true,
-            openRegistrationOffset: 168,
-            organizingRegistration: false,
-            price: 1200,
-            refundFeesOnCancellation: false,
-            registeredDescription: null,
-            registrationMode: 'fcfs',
-            roleIds: [],
-            spots: 20,
-            stripeTaxRateId: 'txr-1',
-            title: 'Participant registration',
-            transferDeadlineHoursBeforeStart: 12,
-          },
-        ],
-        title: 'Template',
-      },
-      new Map(),
-      new Map(),
-      new Map([
-        [
-          'addon-1',
-          [
-            {
-              quantity: 1,
-              registrationOptionId: 'template-option-1',
-            },
-          ],
-        ],
-      ]),
-    );
-
-    expect(record.addOns).toEqual([
-      {
-        allowMultiple: true,
-        allowPurchaseBeforeEvent: true,
-        allowPurchaseDuringEvent: false,
-        allowPurchaseDuringRegistration: true,
-        description: 'Optional dinner ticket',
-        id: 'addon-1',
-        isPaid: true,
-        maxQuantityPerUser: 2,
-        price: 1200,
-        registrationOptions: [
-          {
-            quantity: 1,
-            registrationOptionId: 'template-option-1',
-          },
-        ],
-        stripeTaxRateId: 'txr-1',
-        title: 'Dinner',
-        totalAvailableQuantity: 40,
-      },
-    ]);
-    expect(record.questions).toEqual([
-      {
-        description: 'Tell organizers about accessibility needs.',
-        id: 'question-1',
-        registrationOptionId: 'template-option-1',
-        required: false,
-        sortOrder: 0,
-        title: 'Accessibility needs',
-      },
-    ]);
-    expect(record.registrationOptions[0]).toMatchObject({
-      cancellationDeadlineHoursBeforeStart: 96,
-      refundFeesOnCancellation: false,
-      transferDeadlineHoursBeforeStart: 12,
-    });
-  });
 });

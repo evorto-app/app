@@ -4284,7 +4284,7 @@ describe('EventRegistrationService', () => {
         );
         expect(
           Schema.decodeUnknownSync(Schema.String)(emailInsert?.['html']),
-        ).toContain('https://tenant.example/events/event-1');
+        ).toContain('https://tenant.example.com/events/event-1');
       }),
   );
 
@@ -4618,7 +4618,7 @@ describe('EventRegistrationService', () => {
             appFee: 35,
             id: expect.any(String),
             stripeCheckoutRequest: expect.objectContaining({
-              eventUrl: 'https://tenant.example/events/event-1',
+              eventUrl: 'https://tenant.example.com/events/event-1',
               lineItems: [
                 expect.objectContaining({
                   name: 'Registration fee for Approved event',
@@ -4825,7 +4825,7 @@ describe('EventRegistrationService', () => {
           expect.objectContaining({
             stripeCheckoutRequest: expect.objectContaining({
               customerEmail: 'alice@example.com',
-              eventUrl: 'https://tenant.example/events/event-1',
+              eventUrl: 'https://tenant.example.com/events/event-1',
               lineItems: [
                 {
                   name: 'Registration fee for Approved event',

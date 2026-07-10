@@ -66,6 +66,7 @@ test('Manage user profile', async ({
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 2048,
       attachmentUploadId: profileReceiptUploadId,
+      currency: seeded.tenant.currency,
       eventId: profileEventId,
       id: profileReceiptId,
       purchaseCountry: 'DE',

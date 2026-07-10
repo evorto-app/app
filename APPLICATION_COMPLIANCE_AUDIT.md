@@ -589,35 +589,31 @@ The headline policy decisions are recorded. CI/release enforcement is an
 implementation task: TEST-003 records the verified absence of branch protection
 and required quality checks.
 
-## Planned registration configuration implementation
+## Registration configuration delivery status
 
-This is accepted planning only; no application, schema, API, or UI change has
-been made by this audit update.
+The ordinary tenant registration-graph authoring slice is implemented. Templates
+and draft events now persist their own simple/advanced mode, use stable option
+arrays, model included and optional add-on quantities separately, and expose
+typed graph RPCs backed by tenant and permission checks.
 
-1. **Model and contracts:** add an event-owned simple/advanced mode, replace the
-   two-option-only template write contract with stable option arrays, and model
-   add-on attachment included/optional quantities separately. Extend settled
-   add-on purchase records with granted, included, redeemed, and cancelled
-   quantities. Add the distinct unilateral-cancellation capability.
-2. **Server invariants:** preserve template-to-event snapshots, enforce the
-   safe advanced-to-simple conversion rule, keep warning-only organizer/
-   participant diagnostics, apply tenant and permission checks to every option,
-   attachment, redemption, stock, cancellation, and refund write, and perform
-   stock/refund transitions atomically against the tenant's Stripe Connect
-   account.
-3. **Editor composition:** use a page-owned Signal Form with shallow arrays and
-   projected partial forms. Simple mode shows its two familiar option sections;
-   advanced mode shows individually named options. Add-on editing stays hidden
-   until enabled and uses a reusable add-on list plus explicit option
-   multi-selection, not deeply nested child form models.
-4. **Organizer fulfillment:** extend the scanned-registration response and UI
-   with an add-on overview, one-click redeem, immediate undo, and clear
-   remaining quantities. Keep guest check-in on its existing typed capacity
-   path.
-5. **Evidence:** add schema/handler tests for association, fulfillment,
-   cancellation, refund, stock, tenancy, and permission invariants; add
-   page-backed Playwright and generated documentation for simple/advanced
-   editing, event independence, redemption/undo, and authorized cancellation.
+The server creates an atomic event-owned snapshot of template mode, options,
+discounts, questions, add-ons, and mappings. Mode transitions preserve persisted
+option IDs; an advanced graph must first be saved with exactly one organizing
+and one non-organizing option before a separate confirmed switch to simple.
+Legacy random allocation remains readable but cannot be rewritten through these
+authoring RPCs.
+
+The ordinary Angular editors use page-owned Signal Forms with shallow option,
+question, and add-on arrays. Advanced graphs allow zero or many options and show
+warning-only missing-category diagnostics. Add-ons stay hidden in simple mode
+without being deleted. Focused unit, functional Playwright, generated-document
+source, and inventory coverage now pin mode confirmation, mapping quantities,
+snapshot independence, and legacy-random blocking.
+
+Separate follow-up remains for participant post-registration add-on purchase and
+the broader cancellation/refund capability. Platform compatibility event
+mutations also still need to adopt the ordinary graph updater's mapping diff and
+complete event-mode audit state before they provide equivalent guarantees.
 
 ## Recommended execution order
 

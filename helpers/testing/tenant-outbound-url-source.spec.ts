@@ -18,17 +18,19 @@ const tenantOutboundProducerPaths = [
 ] as const;
 
 describe('tenant outbound URL source boundary', () => {
-  it('routes every tenant-scoped registration producer through the canonical helper', () => {
+  it('routes every tenant-scoped registration producer through the trusted-origin helper', () => {
     for (const producerPath of tenantOutboundProducerPaths) {
       const source = readSource(producerPath);
-      expect(source, producerPath).toContain('tenantOutboundUrl');
+      expect(source, producerPath).toMatch(
+        /tenantOutboundUrl|resolveTenantPublicOrigin/,
+      );
       expect(source, producerPath).not.toContain('serverNetworkConfig');
       expect(source, producerPath).not.toContain("headers['origin']");
       expect(source, producerPath).not.toContain('x-forwarded-host');
     }
   });
 
-  it('keeps canonical root mutation exclusive to platform tenant contracts', () => {
+  it('does not expose a caller-controlled canonical origin in tenant contracts', () => {
     const platformContract = readSource(
       'src/shared/rpc-contracts/app-rpcs/global-admin.rpcs.ts',
     );
@@ -42,19 +44,21 @@ describe('tenant outbound URL source boundary', () => {
       tenantAdminContract.indexOf('export type AdminTenantUpdateSettingsInput'),
     );
 
-    expect(platformContract).toContain(
-      'canonicalRootUrl: Tenant.fields.canonicalRootUrl',
-    );
+    expect(platformContract).not.toContain('canonicalRootUrl');
     expect(tenantAdminSettings).not.toContain('canonicalRootUrl');
     expect(tenantAdminSettings).not.toContain('domain:');
   });
 
-  it('persists the canonical root with a database host-match constraint', () => {
+  it('derives the public origin from the normalized domain', () => {
     const tenantSchema = readSource('src/db/schema/tenants.ts');
+    const tenantOrigin = readSource('src/shared/tenant-origin.ts');
+    const tenantOutbound = readSource('src/server/tenant-outbound-url.ts');
 
-    expect(tenantSchema).toContain(
-      "canonicalRootUrl: text('canonical_root_url').notNull()",
-    );
-    expect(tenantSchema).toContain('tenants_canonical_root_url_matches_domain');
+    expect(tenantSchema).not.toContain('canonicalRootUrl');
+    expect(tenantOrigin).toContain('deriveTenantPublicOrigin');
+    expect(tenantOrigin).toContain('normalizeTenantDomain(primaryDomain)');
+    expect(tenantOrigin).toContain('normalizeLoopbackDevelopmentOrigin');
+    expect(tenantOutbound).toContain('resolveTenantPublicOrigin');
+    expect(tenantOutbound).toContain('primaryDomain: tenant.domain');
   });
 });

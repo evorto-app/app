@@ -18,8 +18,16 @@ const graphRecord: TemplateGraphRecord = {
       maxQuantityPerUser: 2,
       price: 0,
       registrationOptions: [
-        { quantity: 1, registrationOptionId: 'option-1' },
-        { quantity: 2, registrationOptionId: 'option-2' },
+        {
+          includedQuantity: 1,
+          optionalPurchaseQuantity: 2,
+          registrationOptionId: 'option-1',
+        },
+        {
+          includedQuantity: 0,
+          optionalPurchaseQuantity: 2,
+          registrationOptionId: 'option-2',
+        },
       ],
       stripeTaxRateId: null,
       title: 'Shared add-on',
@@ -142,6 +150,22 @@ describe('platform template full-graph handler', () => {
 
     expect(snapshot.state).toEqual(
       expect.objectContaining({
+        addOns: [
+          expect.objectContaining({
+            registrationOptions: [
+              {
+                includedQuantity: 1,
+                optionalPurchaseQuantity: 2,
+                registrationOptionId: 'option-1',
+              },
+              {
+                includedQuantity: 0,
+                optionalPurchaseQuantity: 2,
+                registrationOptionId: 'option-2',
+              },
+            ],
+          }),
+        ],
         simpleModeEnabled: false,
         unlisted: true,
       }),

@@ -124,7 +124,6 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   cancellationDeadlineHoursBeforeStart: nonNegativeNumber.pipe(
     Schema.withDecodingDefaultTypeKey(Effect.sync(() => 120)),
   ),
-  canonicalRootUrl: Schema.NonEmptyString,
   currency: SupportedTenantCurrency,
   defaultLocation: OptionalGoogleLocation,
   discountProviders: Schema.optional(

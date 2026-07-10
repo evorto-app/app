@@ -11,7 +11,6 @@ import {
 } from './global-admin.rpcs';
 
 const tenantWriteInput = {
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   domain: 'tenant.example.com',
   name: 'Tenant',
@@ -73,16 +72,6 @@ describe('GlobalAdminTenantWriteInput', () => {
         ...tenantWriteInput,
         timezone: 'not-a-timezone',
       }),
-    ).toThrow();
-  });
-
-  it('requires a canonical root URL in platform tenant writes', () => {
-    const { canonicalRootUrl: _canonicalRootUrl, ...missingCanonicalRoot } =
-      tenantWriteInput;
-    expect(() =>
-      Schema.decodeUnknownSync(GlobalAdminTenantWriteInput)(
-        missingCanonicalRoot,
-      ),
     ).toThrow();
   });
 

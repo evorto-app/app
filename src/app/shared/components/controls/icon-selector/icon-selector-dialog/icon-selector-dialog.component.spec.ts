@@ -1,7 +1,31 @@
 import { RpcUnauthorizedError } from '@shared/errors/rpc-errors';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { iconAddErrorMessage } from './icon-selector-dialog.component';
+
+const iconSelectorTemplate = () =>
+  readFileSync(
+    path.join(
+      process.cwd(),
+      'src/app/shared/components/controls/icon-selector/icon-selector-dialog/icon-selector-dialog.component.html',
+    ),
+    'utf8',
+  );
+
+describe('IconSelectorDialogComponent accessibility', () => {
+  it('renders icon choices as named, keyboard-focusable buttons', () => {
+    const template = iconSelectorTemplate();
+
+    expect(template).toContain('type="button"');
+    expect(template).toContain(
+      '[attr.aria-labelledby]="\'select-icon-\' + icon.id"',
+    );
+    expect(template).toContain('class="sr-only"');
+    expect(template).toContain('Select {{ icon.friendlyName }} icon');
+  });
+});
 
 describe('iconAddErrorMessage', () => {
   it.each([

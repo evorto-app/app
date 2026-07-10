@@ -6,7 +6,6 @@ import type {
   PlatformRoleRecord,
   PlatformStripeTaxRateRecord,
 } from '@shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
-import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
 import {
   ChangeDetectionStrategy,
@@ -45,505 +44,51 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 
-import type { EventLocationType } from '../../../types/location';
-
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
+import {
+  templateGraphFormToPayload,
+  templateGraphRecordToFormModel,
+} from '../../shared/components/forms/template-graph-editor/template-graph-form.mapper';
+import {
+  createTemplateGraphAddonFormModel,
+  createTemplateGraphFormModel,
+  createTemplateGraphQuestionFormModel,
+  createTemplateGraphRegistrationOptionFormModel,
+  type TemplateGraphFormModel,
+} from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 
 export type PlatformTemplateFormLoadResult =
   { error: string } | { model: PlatformTemplateFormModel };
-export interface PlatformTemplateFormModel {
-  addOns: PlatformTemplateAddonFormModel[];
-  categoryId: string;
-  description: string;
-  iconColor: number;
-  iconName: string;
-  location: PlatformTemplateLocationFormModel;
-  planningTips: string;
-  questions: PlatformTemplateQuestionFormModel[];
+
+export interface PlatformTemplateFormModel extends TemplateGraphFormModel {
   reason: string;
-  registrationOptions: PlatformTemplateRegistrationFormModel[];
-  simpleModeEnabled: boolean;
-  title: string;
-  unlisted: boolean;
 }
-type NullableNumberField = '' | number;
-type PlatformLocationType = 'coordinate' | 'google' | 'none' | 'online';
-
-interface PlatformTemplateAddonFormModel {
-  allowMultiple: boolean;
-  allowPurchaseBeforeEvent: boolean;
-  allowPurchaseDuringEvent: boolean;
-  allowPurchaseDuringRegistration: boolean;
-  description: string;
-  id: string;
-  isPaid: boolean;
-  key: string;
-  maxQuantityPerUser: number;
-  price: number;
-  registrationOptions: PlatformTemplateAddonMappingFormModel[];
-  stripeTaxRateId: string;
-  title: string;
-  totalAvailableQuantity: number;
-}
-
-interface PlatformTemplateAddonMappingFormModel {
-  includedQuantity: number;
-  optionalPurchaseQuantity: number;
-  registrationOptionKey: string;
-}
-
-interface PlatformTemplateLocationFormModel {
-  address: string;
-  latitude: NullableNumberField;
-  longitude: NullableNumberField;
-  meetingInstructions: string;
-  meetingProvider: 'googleMeet' | 'other' | 'teams' | 'zoom';
-  meetingUrl: string;
-  name: string;
-  placeId: string;
-  type: PlatformLocationType;
-}
-
-interface PlatformTemplateQuestionFormModel {
-  description: string;
-  id: string;
-  key: string;
-  registrationOptionKey: string;
-  required: boolean;
-  sortOrder: number;
-  title: string;
-}
-
-interface PlatformTemplateRegistrationFormModel {
-  cancellationDeadlineHoursBeforeStart: NullableNumberField;
-  closeRegistrationOffset: number;
-  description: string;
-  esnCardDiscountedPrice: NullableNumberField;
-  id: string;
-  isPaid: boolean;
-  key: string;
-  openRegistrationOffset: number;
-  organizingRegistration: boolean;
-  price: number;
-  refundFeesOnCancellation: RefundFeesChoice;
-  registeredDescription: string;
-  registrationMode: RegistrationMode;
-  roleIds: string[];
-  spots: number;
-  stripeTaxRateId: string;
-  title: string;
-  transferDeadlineHoursBeforeStart: NullableNumberField;
-}
-
-type PlatformTemplateWritePayload = Omit<
-  PlatformTemplatesCreateInput,
-  'reason' | 'targetTenantId'
->;
-
-type RefundFeesChoice = 'default' | 'doNotRefund' | 'refund';
-
-type RegistrationMode = 'application' | 'fcfs';
-type TemplateRegistrationRecord =
-  TemplateGraphRecord['registrationOptions'][number];
-type WritableTemplateRegistrationRecord = Omit<
-  TemplateRegistrationRecord,
-  'registrationMode'
-> & {
-  registrationMode: RegistrationMode;
-};
-
-const createGraphKey = (): string => globalThis.crypto.randomUUID();
-
-const emptyLocation = (): PlatformTemplateLocationFormModel => ({
-  address: '',
-  latitude: '',
-  longitude: '',
-  meetingInstructions: '',
-  meetingProvider: 'other',
-  meetingUrl: '',
-  name: '',
-  placeId: '',
-  type: 'none',
-});
-
-const emptyRegistration = (
-  title: string,
-  spots: number,
-  organizingRegistration: boolean,
-  key = createGraphKey(),
-): PlatformTemplateRegistrationFormModel => ({
-  cancellationDeadlineHoursBeforeStart: '',
-  closeRegistrationOffset: 1,
-  description: '',
-  esnCardDiscountedPrice: '',
-  id: '',
-  isPaid: false,
-  key,
-  openRegistrationOffset: 168,
-  organizingRegistration,
-  price: 0,
-  refundFeesOnCancellation: 'default',
-  registeredDescription: '',
-  registrationMode: 'fcfs',
-  roleIds: [],
-  spots,
-  stripeTaxRateId: '',
-  title,
-  transferDeadlineHoursBeforeStart: '',
-});
 
 export const createPlatformTemplateFormModel =
   (): PlatformTemplateFormModel => ({
-    addOns: [],
-    categoryId: '',
-    description: '',
-    iconColor: 0,
-    iconName: 'calendar:fas',
-    location: emptyLocation(),
-    planningTips: '',
-    questions: [],
+    ...createTemplateGraphFormModel(),
     reason: '',
-    registrationOptions: [
-      emptyRegistration('Organizer registration', 1, true),
-      emptyRegistration('Participant registration', 20, false),
-    ],
-    simpleModeEnabled: true,
-    title: '',
-    unlisted: false,
   });
 
-export const createPlatformTemplateAddonFormModel = (
-  registrationOptionKey: string,
-): PlatformTemplateAddonFormModel => ({
-  allowMultiple: false,
-  allowPurchaseBeforeEvent: false,
-  allowPurchaseDuringEvent: false,
-  allowPurchaseDuringRegistration: true,
-  description: '',
-  id: '',
-  isPaid: false,
-  key: createGraphKey(),
-  maxQuantityPerUser: 1,
-  price: 0,
-  registrationOptions: [
-    {
-      includedQuantity: 1,
-      optionalPurchaseQuantity: 0,
-      registrationOptionKey,
-    },
-  ],
-  stripeTaxRateId: '',
-  title: '',
-  totalAvailableQuantity: 20,
-});
-
-export const createPlatformTemplateQuestionFormModel = (
-  registrationOptionKey: string,
-): PlatformTemplateQuestionFormModel => ({
-  description: '',
-  id: '',
-  key: createGraphKey(),
-  registrationOptionKey,
-  required: true,
-  sortOrder: 0,
-  title: '',
-});
-
-const refundFeesChoice = (value: boolean | null): RefundFeesChoice => {
-  if (value === null) return 'default';
-  return value ? 'refund' : 'doNotRefund';
-};
-
-const recordLocationToFormModel = (
-  location: EventLocationType | null,
-): PlatformTemplateLocationFormModel => {
-  if (!location) return emptyLocation();
-
-  switch (location.type) {
-    case 'coordinate': {
-      return {
-        ...emptyLocation(),
-        address: location.address ?? '',
-        latitude: location.coordinates.lat,
-        longitude: location.coordinates.lng,
-        name: location.name,
-        type: 'coordinate',
-      };
-    }
-    case 'google': {
-      return {
-        ...emptyLocation(),
-        address: location.address ?? '',
-        latitude: location.coordinates.lat,
-        longitude: location.coordinates.lng,
-        name: location.name,
-        placeId: location.placeId,
-        type: 'google',
-      };
-    }
-    case 'online': {
-      return {
-        ...emptyLocation(),
-        meetingInstructions: location.meetingInstructions ?? '',
-        meetingProvider: location.meetingProvider,
-        meetingUrl: location.meetingUrl,
-        name: location.name,
-        type: 'online',
-      };
-    }
-  }
-};
-
-const registrationRecordToFormModel = (
-  registration: WritableTemplateRegistrationRecord,
-): PlatformTemplateRegistrationFormModel => ({
-  cancellationDeadlineHoursBeforeStart:
-    registration.cancellationDeadlineHoursBeforeStart ?? '',
-  closeRegistrationOffset: registration.closeRegistrationOffset,
-  description: registration.description ?? '',
-  esnCardDiscountedPrice: registration.esnCardDiscountedPrice ?? '',
-  id: registration.id,
-  isPaid: registration.isPaid,
-  key: registration.id,
-  openRegistrationOffset: registration.openRegistrationOffset,
-  organizingRegistration: registration.organizingRegistration,
-  price: registration.price,
-  refundFeesOnCancellation: refundFeesChoice(
-    registration.refundFeesOnCancellation,
-  ),
-  registeredDescription: registration.registeredDescription ?? '',
-  registrationMode: registration.registrationMode,
-  roleIds: [...registration.roleIds],
-  spots: registration.spots,
-  stripeTaxRateId: registration.stripeTaxRateId ?? '',
-  title: registration.title,
-  transferDeadlineHoursBeforeStart:
-    registration.transferDeadlineHoursBeforeStart ?? '',
-});
+export const createPlatformTemplateAddonFormModel =
+  createTemplateGraphAddonFormModel;
+export const createPlatformTemplateQuestionFormModel =
+  createTemplateGraphQuestionFormModel;
+export const platformTemplateFormToPayload = templateGraphFormToPayload;
 
 export const platformTemplateRecordToFormModel = (
-  template: TemplateGraphRecord,
+  template: Parameters<typeof templateGraphRecordToFormModel>[0],
 ): PlatformTemplateFormLoadResult => {
-  const writableRegistrationOptions = template.registrationOptions.filter(
-    (option): option is WritableTemplateRegistrationRecord =>
-      option.registrationMode !== 'random',
-  );
-  if (
-    writableRegistrationOptions.length !== template.registrationOptions.length
-  ) {
-    return {
-      error:
-        'This template uses random allocation, which is deferred and unsupported for the relaunch. It remains readable but cannot be edited here.',
-    };
-  }
-
-  const registrationOptionIds = new Set(
-    template.registrationOptions.map((option) => option.id),
-  );
-  const invalidReference =
-    template.addOns.some((addOn) =>
-      addOn.registrationOptions.some(
-        (mapping) => !registrationOptionIds.has(mapping.registrationOptionId),
-      ),
-    ) ||
-    template.questions.some(
-      (question) => !registrationOptionIds.has(question.registrationOptionId),
-    );
-  if (invalidReference) {
-    return {
-      error:
-        'This template graph contains a registration-option reference that does not belong to the template.',
-    };
-  }
-
-  return {
-    model: {
-      addOns: template.addOns.map((addOn) => {
-        return {
-          allowMultiple: addOn.allowMultiple,
-          allowPurchaseBeforeEvent: addOn.allowPurchaseBeforeEvent,
-          allowPurchaseDuringEvent: addOn.allowPurchaseDuringEvent,
-          allowPurchaseDuringRegistration:
-            addOn.allowPurchaseDuringRegistration,
-          description: addOn.description ?? '',
-          id: addOn.id,
-          isPaid: addOn.isPaid,
-          key: addOn.id,
-          maxQuantityPerUser: addOn.maxQuantityPerUser,
-          price: addOn.price,
-          registrationOptions: addOn.registrationOptions.map((mapping) => ({
-            includedQuantity: mapping.includedQuantity,
-            optionalPurchaseQuantity: mapping.optionalPurchaseQuantity,
-            registrationOptionKey: mapping.registrationOptionId,
-          })),
-          stripeTaxRateId: addOn.stripeTaxRateId ?? '',
-          title: addOn.title,
-          totalAvailableQuantity: addOn.totalAvailableQuantity,
-        };
-      }),
-      categoryId: template.categoryId,
-      description: template.description,
-      iconColor: template.icon.iconColor,
-      iconName: template.icon.iconName,
-      location: recordLocationToFormModel(template.location),
-      planningTips: template.planningTips ?? '',
-      questions: template.questions.map((question) => ({
-        description: question.description ?? '',
-        id: question.id,
-        key: question.id,
-        registrationOptionKey: question.registrationOptionId,
-        required: question.required,
-        sortOrder: question.sortOrder,
-        title: question.title,
-      })),
-      reason: '',
-      registrationOptions: writableRegistrationOptions.map((option) =>
-        registrationRecordToFormModel(option),
-      ),
-      simpleModeEnabled: template.simpleModeEnabled,
-      title: template.title,
-      unlisted: template.unlisted,
-    },
-  };
+  const result = templateGraphRecordToFormModel(template);
+  return 'error' in result
+    ? result
+    : { model: { ...result.model, reason: '' } };
 };
 
-const nullableNumber = (value: NullableNumberField): null | number =>
-  value === '' ? null : value;
-
-const optionalText = (value: string): null | string => value.trim() || null;
-
-const refundFeesValue = (choice: RefundFeesChoice): boolean | null => {
-  if (choice === 'default') return null;
-  return choice === 'refund';
-};
-
-const formLocationToPayload = (
-  location: PlatformTemplateLocationFormModel,
-): EventLocationType | null => {
-  const address = optionalText(location.address);
-  if (location.type === 'none') return null;
-  if (location.type === 'online') {
-    const meetingInstructions = optionalText(location.meetingInstructions);
-    return {
-      ...(meetingInstructions && { meetingInstructions }),
-      meetingProvider: location.meetingProvider,
-      meetingUrl: location.meetingUrl.trim(),
-      name: location.name.trim(),
-      type: 'online',
-    };
-  }
-
-  const coordinates = {
-    lat: location.latitude === '' ? 0 : location.latitude,
-    lng: location.longitude === '' ? 0 : location.longitude,
-  };
-  if (location.type === 'google') {
-    return {
-      ...(address && { address }),
-      coordinates,
-      name: location.name.trim(),
-      placeId: location.placeId.trim(),
-      type: 'google',
-    };
-  }
-  return {
-    ...(address && { address }),
-    coordinates,
-    name: location.name.trim(),
-    type: 'coordinate',
-  };
-};
-
-const registrationFormToPayload = (
-  registration: PlatformTemplateRegistrationFormModel,
-  esnCardEnabled: boolean,
-): PlatformTemplateWritePayload['registrationOptions'][number] => ({
-  cancellationDeadlineHoursBeforeStart: nullableNumber(
-    registration.cancellationDeadlineHoursBeforeStart,
-  ),
-  closeRegistrationOffset: registration.closeRegistrationOffset,
-  description: optionalText(registration.description),
-  esnCardDiscountedPrice:
-    registration.isPaid &&
-    esnCardEnabled &&
-    registration.esnCardDiscountedPrice !== ''
-      ? registration.esnCardDiscountedPrice
-      : null,
-  ...(registration.id && { id: registration.id }),
-  isPaid: registration.isPaid,
-  key: registration.key,
-  openRegistrationOffset: registration.openRegistrationOffset,
-  organizingRegistration: registration.organizingRegistration,
-  price: registration.isPaid ? registration.price : 0,
-  refundFeesOnCancellation: refundFeesValue(
-    registration.refundFeesOnCancellation,
-  ),
-  registeredDescription: optionalText(registration.registeredDescription),
-  registrationMode: registration.registrationMode,
-  roleIds: [...registration.roleIds],
-  spots: registration.spots,
-  stripeTaxRateId:
-    registration.isPaid && registration.stripeTaxRateId
-      ? registration.stripeTaxRateId
-      : null,
-  title: registration.title.trim(),
-  transferDeadlineHoursBeforeStart: nullableNumber(
-    registration.transferDeadlineHoursBeforeStart,
-  ),
-});
-
-export const platformTemplateFormToPayload = (
-  model: PlatformTemplateFormModel,
-  esnCardEnabled: boolean,
-): PlatformTemplateWritePayload => ({
-  addOns: model.addOns.map((addOn) => ({
-    allowMultiple: addOn.allowMultiple,
-    allowPurchaseBeforeEvent: addOn.allowPurchaseBeforeEvent,
-    allowPurchaseDuringEvent: addOn.allowPurchaseDuringEvent,
-    allowPurchaseDuringRegistration: addOn.allowPurchaseDuringRegistration,
-    description: optionalText(addOn.description),
-    ...(addOn.id && { id: addOn.id }),
-    isPaid: addOn.isPaid,
-    key: addOn.key,
-    maxQuantityPerUser: addOn.maxQuantityPerUser,
-    price: addOn.isPaid ? addOn.price : 0,
-    registrationOptions: addOn.registrationOptions.map((mapping) => ({
-      includedQuantity: mapping.includedQuantity,
-      optionalPurchaseQuantity: mapping.optionalPurchaseQuantity,
-      registrationOptionKey: mapping.registrationOptionKey,
-    })),
-    stripeTaxRateId:
-      addOn.isPaid && addOn.stripeTaxRateId ? addOn.stripeTaxRateId : null,
-    title: addOn.title.trim(),
-    totalAvailableQuantity: addOn.totalAvailableQuantity,
-  })),
-  categoryId: model.categoryId,
-  description: model.description,
-  icon: {
-    iconColor: model.iconColor,
-    iconName: model.iconName.trim(),
-  },
-  location: formLocationToPayload(model.location),
-  planningTips: optionalText(model.planningTips),
-  questions: model.questions.map((question) => ({
-    description: optionalText(question.description),
-    ...(question.id && { id: question.id }),
-    key: question.key,
-    registrationOptionKey: question.registrationOptionKey,
-    required: question.required,
-    sortOrder: question.sortOrder,
-    title: question.title.trim(),
-  })),
-  registrationOptions: model.registrationOptions.map((registration) =>
-    registrationFormToPayload(registration, esnCardEnabled),
-  ),
-  simpleModeEnabled: model.simpleModeEnabled,
-  title: model.title.trim(),
-  unlisted: model.unlisted,
-});
+const emptyRegistration = createTemplateGraphRegistrationOptionFormModel;
 
 @Injectable({ providedIn: 'root' })
 export class PlatformTemplateEditorOperations {

@@ -84,7 +84,6 @@ describeWithPostgres(
       categoryIds.push(categoryId);
       templateIds.push(templateId);
       await database.insert(tenants).values({
-        canonicalRootUrl: `https://${suffix}.currency-lock.example`,
         currency: 'EUR',
         domain: `${suffix}.currency-lock.example`,
         id: tenantId,

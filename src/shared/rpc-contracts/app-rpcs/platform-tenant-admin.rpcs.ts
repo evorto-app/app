@@ -4,7 +4,7 @@ import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
-import { PermissionSchema } from '../../permissions/permissions';
+import { TenantRolePermissionSchema } from '../../permissions/permissions';
 import {
   PlatformOperationRpcError,
   PlatformTenantMutationContext,
@@ -37,7 +37,7 @@ export class PlatformRoleRecord extends Schema.Class<PlatformRoleRecord>(
   displayInHub: Schema.Boolean,
   id: Schema.NonEmptyString,
   name: Schema.NonEmptyString,
-  permissions: Schema.mutable(Schema.Array(PermissionSchema)),
+  permissions: Schema.mutable(Schema.Array(TenantRolePermissionSchema)),
   sortOrder: Schema.Number,
 }) {}
 
@@ -66,7 +66,7 @@ const PlatformRoleWriteFields = {
   description: Schema.NullOr(Schema.String),
   displayInHub: Schema.Boolean,
   name: Schema.NonEmptyString,
-  permissions: Schema.mutable(Schema.Array(PermissionSchema)),
+  permissions: Schema.mutable(Schema.Array(TenantRolePermissionSchema)),
 };
 
 export const PlatformRoleWriteInput = Schema.Struct(PlatformRoleWriteFields);

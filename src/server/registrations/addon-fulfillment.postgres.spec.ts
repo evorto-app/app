@@ -77,7 +77,6 @@ const seedFixture = async (
   const now = Date.now();
 
   await database.insert(tenants).values({
-    canonicalRootUrl: `https://${tenantId}.fulfillment.example`,
     domain: `${tenantId}.fulfillment.example`,
     id: tenantId,
     name: 'Fulfillment concurrency',
@@ -322,7 +321,7 @@ describeWithPostgres('add-on fulfillment concurrency', () => {
         registrationAddonId: fixture.purchaseId,
         registrationId: fixture.registrationId,
         tenantId: fixture.tenantId,
-      }).pipe(Effect.provide(layer), Effect.either),
+      }).pipe(Effect.provide(layer), Effect.exit),
     );
     const cancel = Effect.runPromise(
       Database.use((effectDatabase) =>
@@ -336,7 +335,7 @@ describeWithPostgres('add-on fulfillment concurrency', () => {
             tenantId: fixture.tenantId,
           }),
         ),
-      ).pipe(Effect.provide(layer), Effect.either),
+      ).pipe(Effect.provide(layer), Effect.exit),
     );
     await Promise.all([redeem, cancel]);
 
@@ -371,7 +370,7 @@ describeWithPostgres('add-on fulfillment concurrency', () => {
         registrationAddonId: fixture.purchaseId,
         registrationId: fixture.registrationId,
         tenantId: fixture.tenantId,
-      }).pipe(Effect.provide(layer), Effect.either),
+      }).pipe(Effect.provide(layer), Effect.exit),
     );
     const whole = Effect.runPromise(
       Database.use((effectDatabase) =>
@@ -385,7 +384,7 @@ describeWithPostgres('add-on fulfillment concurrency', () => {
             tenantId: fixture.tenantId,
           }),
         ),
-      ).pipe(Effect.provide(layer), Effect.either),
+      ).pipe(Effect.provide(layer), Effect.exit),
     );
     await Promise.all([direct, whole]);
 

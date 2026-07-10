@@ -40,7 +40,6 @@ export const tenants = pgTable(
     )
       .notNull()
       .default(120),
-    canonicalRootUrl: text('canonical_root_url').notNull(),
     createdAt: timestamp().notNull().defaultNow(),
     currency: currencyEnum().notNull().default('EUR'),
     defaultLocation: jsonb('default_location').$type<GoogleLocationType>(),
@@ -96,10 +95,6 @@ export const tenants = pgTable(
     check(
       'tenants_cancellation_deadline_hours_nonnegative',
       sql`${table.cancellationDeadlineHoursBeforeStart} >= 0`,
-    ),
-    check(
-      'tenants_canonical_root_url_matches_domain',
-      sql`${table.canonicalRootUrl} = 'https://' || ${table.domain} OR (${table.domain} IN ('localhost', '127.0.0.1', '[::1]') AND ${table.canonicalRootUrl} = 'http://' || ${table.domain})`,
     ),
     check(
       'tenants_transfer_deadline_hours_nonnegative',

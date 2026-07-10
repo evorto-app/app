@@ -59,7 +59,6 @@ export type PlatformAuditSnapshot = Schema.Schema.Type<
 export class PlatformTenantAuditSnapshot extends Schema.Class<PlatformTenantAuditSnapshot>(
   'PlatformTenantAuditSnapshot',
 )({
-  canonicalRootUrl: Tenant.fields.canonicalRootUrl,
   currency: Tenant.fields.currency,
   domain: Schema.NonEmptyString,
   id: Schema.NonEmptyString,

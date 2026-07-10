@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createGlobalAdminTenantFormModel,
-  globalAdminTenantCanonicalRootUrlError,
   globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
   globalAdminTenantRelaunchScopeItems,
@@ -14,7 +13,6 @@ import {
 describe('global admin tenant form model', () => {
   it('starts new tenants with relaunch defaults', () => {
     expect(createGlobalAdminTenantFormModel()).toEqual({
-      canonicalRootUrl: '',
       currency: 'EUR',
       domain: '',
       name: '',
@@ -36,7 +34,6 @@ describe('global admin tenant form model', () => {
   it('maps tenant records into editable form state without exposing derived values', () => {
     expect(
       globalAdminTenantFormModelFromRecord({
-        canonicalRootUrl: 'https://tenant.example.com',
         currency: 'AUD',
         domain: 'tenant.example.com',
         id: 'tenant-1',
@@ -48,7 +45,6 @@ describe('global admin tenant form model', () => {
         timezone: 'Australia/Brisbane',
       }),
     ).toEqual({
-      canonicalRootUrl: 'https://tenant.example.com',
       currency: 'AUD',
       domain: 'tenant.example.com',
       name: 'Tenant',
@@ -62,7 +58,6 @@ describe('global admin tenant form model', () => {
   it('trims tenant create/edit payloads and clears blank Stripe account IDs', () => {
     expect(
       globalAdminTenantPayloadFromForm({
-        canonicalRootUrl: ' https://section.example.org/ ',
         currency: 'CZK',
         domain: ' section.example.org ',
         name: ' Section ',
@@ -74,7 +69,6 @@ describe('global admin tenant form model', () => {
     ).toEqual({
       reason: 'Production support request',
       tenant: {
-        canonicalRootUrl: 'https://section.example.org',
         currency: 'CZK',
         domain: 'section.example.org',
         name: 'Section',
@@ -97,7 +91,6 @@ describe('global admin tenant form model', () => {
   it('rejects domain paths before submitting tenant create/edit payloads', () => {
     expect(() =>
       globalAdminTenantPayloadFromForm({
-        canonicalRootUrl: 'https://section.example.org',
         currency: 'EUR',
         domain: 'section.example.org/path',
         name: 'Section',
@@ -109,25 +102,18 @@ describe('global admin tenant form model', () => {
     ).toThrow('Domain must be a single host name');
   });
 
-  it('rejects canonical roots that do not exactly match the primary domain', () => {
-    expect(
-      globalAdminTenantCanonicalRootUrlError(
-        'https://section.example.org.attacker.invalid',
-        'section.example.org',
-      ),
-    ).toContain('host must match');
+  it('rejects credential-like domain input before deriving a trusted origin', () => {
     expect(() =>
       globalAdminTenantPayloadFromForm({
-        canonicalRootUrl: 'https://attacker.invalid',
         currency: 'EUR',
-        domain: 'section.example.org',
+        domain: 'section.example.org@attacker.invalid',
         name: 'Section',
         reason: 'Create a production tenant',
         stripeAccountId: '',
         theme: 'evorto',
         timezone: 'Europe/Berlin',
       }),
-    ).toThrow('host must match');
+    ).toThrow('Domain must be a single host name');
   });
 
   it('shows the actionable reason for typed public URL migration blockers', () => {

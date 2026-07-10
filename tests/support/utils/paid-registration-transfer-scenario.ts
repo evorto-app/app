@@ -11,6 +11,7 @@ import {
 } from '@server/registrations/registration-transfer-refund-reconciliation';
 import { createRegistrationTransferCredentials } from '@server/registrations/registration-transfer-credentials';
 import { requeueRegistrationRefundClaim } from '@server/payments/registration-refund';
+import { deriveTenantPublicOrigin } from '@shared/tenant-origin';
 import { and, eq, like } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
@@ -88,7 +89,7 @@ export const seedPaidRegistrationTransferScenario = async (
   const startsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const checkoutExpiresAt = new Date(now.getTime() + 60 * 60 * 1000);
   const originalTenant = await input.database.query.tenants.findFirst({
-    columns: { canonicalRootUrl: true, stripeAccountId: true },
+    columns: { stripeAccountId: true },
     where: { id: input.tenant.id },
   });
   if (!originalTenant) {
@@ -181,7 +182,7 @@ export const seedPaidRegistrationTransferScenario = async (
         eventTitle: input.title,
         eventUrl: new URL(
           `/events/${encodeURIComponent(eventId)}`,
-          originalTenant.canonicalRootUrl,
+          deriveTenantPublicOrigin(input.tenant.domain),
         ).toString(),
         expiresAt: Math.floor(checkoutExpiresAt.getTime() / 1000),
         lineItems: [

@@ -13,6 +13,7 @@ import {
   eventTemplateCategories,
   eventTemplates,
   financeReceipts,
+  financeReceiptUploads,
   tenants,
   transactions,
   users,
@@ -23,6 +24,7 @@ import {
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { financeHandlers } from './finance.handlers';
+import { buildReceiptStorageKey } from './receipt-media.service';
 
 const databaseUrl = process.env['DATABASE_URL'];
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
@@ -67,6 +69,7 @@ describeWithPostgres('receipt review and reimbursement serialization', () => {
   const categoryIds: string[] = [];
   const eventIds: string[] = [];
   const receiptIds: string[] = [];
+  const receiptUploadIds: string[] = [];
   const templateIds: string[] = [];
   const tenantIds: string[] = [];
   const transactionIds: string[] = [];
@@ -83,6 +86,9 @@ describeWithPostgres('receipt review and reimbursement serialization', () => {
     await database
       .delete(financeReceipts)
       .where(inArray(financeReceipts.id, receiptIds));
+    await database
+      .delete(financeReceiptUploads)
+      .where(inArray(financeReceiptUploads.id, receiptUploadIds));
     await database
       .delete(transactions)
       .where(inArray(transactions.id, transactionIds));
@@ -111,15 +117,16 @@ describeWithPostgres('receipt review and reimbursement serialization', () => {
     const templateId = `rf-template-${suffix}`.slice(0, 20);
     const eventId = `rf-event-${suffix}`.slice(0, 20);
     const receiptId = `rf-receipt-${suffix}`.slice(0, 20);
+    const receiptUploadId = `rf-upload-${suffix}`.slice(0, 20);
     tenantIds.push(tenantId);
     userIds.push(userId);
     categoryIds.push(categoryId);
     templateIds.push(templateId);
     eventIds.push(eventId);
     receiptIds.push(receiptId);
+    receiptUploadIds.push(receiptUploadId);
 
     await database.insert(tenants).values({
-      canonicalRootUrl: `https://${suffix}.receipt-lock.example`,
       currency: 'CZK',
       domain: `${suffix}.receipt-lock.example`,
       id: tenantId,
@@ -161,10 +168,31 @@ describeWithPostgres('receipt review and reimbursement serialization', () => {
       tenantId,
       title: 'Receipt lock event',
     });
+    const receiptUploadedAt = new Date('2026-07-31T00:00:00.000Z');
+    await database.insert(financeReceiptUploads).values({
+      consumedAt: receiptUploadedAt,
+      eventId,
+      fileName: 'receipt.png',
+      id: receiptUploadId,
+      mimeType: 'image/png',
+      sizeBytes: 7,
+      storageKey: buildReceiptStorageKey({
+        eventId,
+        fileName: 'receipt.png',
+        tenantId,
+        uploadId: receiptUploadId,
+        userId,
+      }),
+      storageUrl: 'local-unavailable://receipt',
+      tenantId,
+      uploadedAt: receiptUploadedAt,
+      uploadedByUserId: userId,
+    });
     await database.insert(financeReceipts).values({
       attachmentFileName: 'receipt.png',
       attachmentMimeType: 'image/png',
       attachmentSizeBytes: 7,
+      attachmentUploadId: receiptUploadId,
       currency: 'CZK',
       eventId,
       id: receiptId,
@@ -194,6 +222,7 @@ describeWithPostgres('receipt review and reimbursement serialization', () => {
     const user = {
       attributes: [],
       auth0Id: `auth0|receipt-lock-${suffix}`,
+      communicationEmail: `receipt-lock-${suffix}@example.com`,
       email: `receipt-lock-${suffix}@example.com`,
       firstName: 'Receipt',
       iban: 'NL91ABNA0417164300',

@@ -6,6 +6,7 @@ import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { Tenant } from '../../../types/custom/tenant';
+import { GoogleLocation } from '../../../types/location';
 import { TenantRolePermissionSchema } from '../../permissions/permissions';
 import { AdminRoleRpcError, AdminTenantRpcError } from './admin.errors';
 

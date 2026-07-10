@@ -11,7 +11,6 @@ import { adminHandlers } from './admin.handlers';
 
 const createTenant = (id = 'tenant-1') => ({
   cancellationDeadlineHoursBeforeStart: 120,
-  canonicalRootUrl: `https://${id}.example.com`,
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {

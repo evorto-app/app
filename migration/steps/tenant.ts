@@ -4,10 +4,7 @@ import { InferSelectModel } from 'drizzle-orm';
 import * as oldSchema from '../../old/drizzle';
 import { database } from '../../src/db';
 import * as schema from '../../src/db/schema';
-import {
-  defaultTenantCanonicalRootUrl,
-  normalizeTenantDomain,
-} from '../../src/shared/tenant-public-url';
+import { normalizeTenantDomain } from '../../src/shared/tenant-origin';
 
 export const migrateTenant = async (
   newDomain: string,
@@ -18,7 +15,6 @@ export const migrateTenant = async (
   const tenantReturn = await database
     .insert(schema.tenants)
     .values({
-      canonicalRootUrl: defaultTenantCanonicalRootUrl(normalizedDomain),
       currency: oldTenantData.currency,
       domain: normalizedDomain,
       name: oldTenantData.name,

@@ -136,7 +136,6 @@ interface RetryRegistrationTransferCheckoutInput {
 type TransferTenant = Pick<
   Tenant,
   | 'cancellationDeadlineHoursBeforeStart'
-  | 'canonicalRootUrl'
   | 'currency'
   | 'domain'
   | 'emailSenderEmail'
@@ -661,7 +660,6 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
 
             const lockedTenants = yield* tx
               .select({
-                canonicalRootUrl: tenants.canonicalRootUrl,
                 domain: tenants.domain,
                 id: tenants.id,
               })
@@ -1675,7 +1673,6 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           );
           const lockedTenants = yield* tx
             .select({
-              canonicalRootUrl: tenants.canonicalRootUrl,
               currency: tenants.currency,
               discountProviders: tenants.discountProviders,
               domain: tenants.domain,

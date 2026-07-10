@@ -63,17 +63,6 @@ Use **Admin Tools** -> **General settings** to review and change settings for th
       generalSettings.getByText('de-DE', { exact: true }),
     ).toBeVisible();
     await expect(
-      generalSettings.getByText('Canonical root URL', { exact: true }),
-    ).toBeVisible();
-    await expect(
-      generalSettings.getByText(originalTenant.canonicalRootUrl, {
-        exact: true,
-      }),
-    ).toBeVisible();
-    await expect(
-      generalSettings.getByRole('textbox', { name: 'Canonical root URL' }),
-    ).toHaveCount(0);
-    await expect(
       generalSettings.getByRole('combobox', { name: 'Locale' }),
     ).toHaveCount(0);
     const currencySelect = generalSettings.getByRole('combobox', {
@@ -291,7 +280,7 @@ The current general settings page supports:
 
 - A **Deferred settings** summary that keeps custom-domain automation visible as a deferred scope item.
 - A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state. The secure HTTPS origin used for outbound links is derived from the normalized primary domain.
-- **Operations settings** for tenant email reply-to name/email, Stripe account id, and the tenant-wide active registration limit. Event review remains a simple capability policy: users with **events:review** can review events.
+- **Operations settings** for tenant email reply-to name/email, Stripe account id, the tenant-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior. Event review remains a simple capability policy: users with **events:review** can review events.
 - **Default Location** for event location search bias.
 - **Site theme** for the tenant theme.
 - A **Currency** select with EUR, CZK, and AUD plus a **Timezone** text field that accepts an IANA timezone such as Europe/Berlin. Currency and timezone can be changed before the tenant has event or payment data; after that, the server rejects changes unless a migration plan is handled outside this page.
@@ -306,7 +295,7 @@ Tax rates are managed on the separate **Tax Rates** page.
 
 ## Relaunch scope notes
 
-One-domain-per-tenant remains the current relaunch scope in the application schema. The page exposes the active primary domain for operator review and explains that the secure HTTPS origin is derived from its normalized value. Tenant admins can maintain supported currency, locale, timezone, email reply-to settings, Stripe account id, registration limits, uploaded or externally hosted logo/favicon assets, legal links, and hosted legal text, while an in-app deferred-settings summary keeps custom-domain verification visible. Currency, locale, and timezone changes are only accepted before event or payment data exists for the tenant. When one of those accepted changes is saved, Evorto reloads the app so bootstrap-level formatting defaults use the new tenant settings.
+One-domain-per-tenant remains the current relaunch scope in the application schema. The page exposes the active primary domain for operator review and explains that the secure HTTPS origin is derived from its normalized value. Tenant admins can maintain supported currency, timezone, email reply-to settings, Stripe account id, registration limits, uploaded or externally hosted logo/favicon assets, legal links, and hosted legal text, while an in-app deferred-settings summary keeps custom-domain verification visible and the formatting locale remains read-only. Currency and timezone changes are only accepted before event or payment data exists for the tenant. When one of those accepted changes is saved, Evorto reloads the app so bootstrap-level formatting defaults use the new tenant settings.
 `,
     });
   } finally {

@@ -38,7 +38,6 @@ test('tenant admin updates relaunch general settings @admin', async ({
   const seoTitle = `Tenant settings spec ${suffix}`;
   const seoDescription = `Search preview copy for tenant settings spec ${suffix}`;
   const legalNoticeText = `Hosted imprint text ${suffix}`;
-  const privacyPolicyUrl = `https://legal.example.org/${tenant.id}/privacy`;
   const stripeAccountId = `acct_settings_${tenant.id}`;
   const termsText = `Hosted terms text ${suffix}`;
   const buyEsnCardUrl = `https://esncard.example.org/${tenant.id}`;
@@ -56,15 +55,6 @@ test('tenant admin updates relaunch general settings @admin', async ({
     await expect(
       page.getByRole('heading', { name: 'Tenant identity' }),
     ).toBeVisible();
-    await expect(
-      generalSettings.getByText('Canonical root URL', { exact: true }),
-    ).toBeVisible();
-    await expect(
-      generalSettings.getByText(tenant.canonicalRootUrl, { exact: true }),
-    ).toBeVisible();
-    await expect(
-      generalSettings.getByRole('textbox', { name: 'Canonical root URL' }),
-    ).toHaveCount(0);
     await expect(generalSettings).not.toHaveAttribute('ngh', /.*/);
     await expect(
       generalSettings.getByText('Formatting locale', { exact: true }),
@@ -159,9 +149,6 @@ test('tenant admin updates relaunch general settings @admin', async ({
       .getByPlaceholder('Legal notice text shown at /legal/imprint')
       .fill(` ${legalNoticeText} `);
     await page
-      .getByPlaceholder('https://section.example.org/privacy')
-      .fill(` ${privacyPolicyUrl} `);
-    await page
       .getByPlaceholder('Terms shown at /legal/terms')
       .fill(` ${termsText} `);
     const esnCardToggle = generalSettings
@@ -212,7 +199,7 @@ test('tenant admin updates relaunch general settings @admin', async ({
     expect(updatedTenant.seoTitle).toBe(seoTitle);
     expect(updatedTenant.seoDescription).toBe(seoDescription);
     expect(updatedTenant.legalNoticeText).toBe(legalNoticeText);
-    expect(updatedTenant.privacyPolicyUrl).toBe(privacyPolicyUrl);
+    expect(updatedTenant.privacyPolicyUrl).toBe(tenant.privacyPolicyUrl);
     expect(updatedTenant.termsText).toBe(termsText);
     expect(updatedTenant.discountProviders.esnCard).toEqual({
       config: { buyEsnCardUrl },

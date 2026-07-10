@@ -78,7 +78,6 @@ describeWithPostgres('pending Stripe obligation account serialization', () => {
     const originalAccount = `acct_${suffix}`;
     tenantIds.push(tenantId);
     await database.insert(tenants).values({
-      canonicalRootUrl: `https://${suffix}.stripe-lock.example`,
       domain: `${suffix}.stripe-lock.example`,
       id: tenantId,
       name: `Stripe lock ${suffix}`,

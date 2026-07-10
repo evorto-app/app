@@ -627,6 +627,65 @@ describe('SimpleTemplateService', () => {
     }),
   );
 
+  it.effect('rejects a zero-price paid add-on during simple creation', () =>
+    Effect.gen(function* () {
+      const error = yield* SimpleTemplateService.createSimpleTemplate({
+        esnCardEnabled: true,
+        input: {
+          ...validTemplateInput,
+          addOns: [{ ...validTemplateAddonInput, price: 0 }],
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({
+              categoryFound: true,
+              roleIds: [],
+              taxRate: { active: true, inclusive: true },
+            }),
+          ),
+        ),
+      );
+
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe(
+        'Paid template add-ons require a positive price',
+      );
+    }),
+  );
+
+  it.effect('rejects a zero-price paid add-on during simple update', () =>
+    Effect.gen(function* () {
+      const error = yield* SimpleTemplateService.updateSimpleTemplate({
+        esnCardEnabled: true,
+        input: {
+          id: 'template-1',
+          ...validTemplateInput,
+          addOns: [{ ...validTemplateAddonInput, price: 0 }],
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({
+              categoryFound: true,
+              roleIds: [],
+              taxRate: { active: true, inclusive: true },
+            }),
+          ),
+        ),
+      );
+
+      expect(error['_tag']).toBe('TemplateSimpleBadRequestError');
+      expect(error.message).toBe(
+        'Paid template add-ons require a positive price',
+      );
+    }),
+  );
+
   it.effect('fails when a reusable add-on has no purchase window', () =>
     Effect.gen(function* () {
       const program = SimpleTemplateService.createSimpleTemplate({

@@ -15,7 +15,6 @@ import {
 } from './users.handlers';
 
 const createTenant = () => ({
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {

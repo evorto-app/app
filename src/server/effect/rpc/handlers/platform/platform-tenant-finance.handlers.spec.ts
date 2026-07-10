@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect } from 'effect';
+import { readFileSync } from 'node:fs';
 
 import {
   canPlatformReviewReceipt,
@@ -25,6 +26,20 @@ describe('platform tenant finance handlers', () => {
       'platform.finance.refundClaims.requeue',
       'platform.finance.transactions.findMany',
     ]);
+  });
+
+  it('joins the scoped upload for every platform receipt media read', () => {
+    const source = readFileSync(
+      new URL('platform-tenant-finance.handlers.ts', import.meta.url),
+      'utf8',
+    );
+
+    const scopedUploadJoinCount =
+      source.split(
+        '.innerJoin(financeReceiptUploads, financeReceiptUploadJoin)',
+      ).length - 1;
+
+    expect(scopedUploadJoinCount).toBe(3);
   });
 
   it('versions payout details without sending them back in a mutation or audit', () => {

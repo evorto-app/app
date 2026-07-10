@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
-import { inArray } from 'drizzle-orm';
+import { DrizzleQueryError, inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
@@ -67,7 +67,6 @@ const seedFixture = async (
 
   await database.insert(tenants).values(
     fixture.tenantIds.map((tenantId, index) => ({
-      canonicalRootUrl: `https://${tenantId}.tuple-constraints.example`,
       domain: `${tenantId}.tuple-constraints.example`,
       id: tenantId,
       name: `Tuple constraints ${index + 1}`,
@@ -178,10 +177,20 @@ const expectForeignKeyViolation = async (
   operation: PromiseLike<unknown>,
   constraint: string,
 ) => {
-  await expect(operation).rejects.toMatchObject({
-    code: '23503',
-    constraint,
-  });
+  try {
+    await operation;
+    throw new Error(`Expected foreign key constraint ${constraint} to reject`);
+  } catch (error) {
+    expect(error).toBeInstanceOf(DrizzleQueryError);
+    if (!(error instanceof DrizzleQueryError)) {
+      throw error;
+    }
+
+    const cause = error.cause;
+    expect(cause).toBeInstanceOf(Error);
+    expect(cause).toHaveProperty('code', '23503');
+    expect(cause).toHaveProperty('constraint', constraint);
+  }
 };
 
 describeWithPostgres('tenant boundary constraints in PostgreSQL', () => {

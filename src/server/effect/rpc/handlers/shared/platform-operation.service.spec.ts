@@ -17,7 +17,6 @@ const authority = PlatformAdministratorAuthority.make({
 
 const targetTenant = Tenant.make({
   cancellationDeadlineHoursBeforeStart: 120,
-  canonicalRootUrl: 'https://target.example.org',
   currency: 'EUR',
   defaultLocation: undefined,
   discountProviders: {

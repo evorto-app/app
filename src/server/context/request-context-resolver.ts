@@ -4,7 +4,6 @@ import { uniq } from 'es-toolkit';
 import { Database, type DatabaseClient } from '../../db';
 import { getPreparedStatements } from '../../db/prepared-statements';
 import {
-  ALL_PERMISSIONS,
   partitionTenantRolePermissions,
   type Permission,
 } from '../../shared/permissions/permissions';
@@ -79,7 +78,9 @@ export const resolveRequestPermissions = (input: {
   ).accepted;
 
   return normalizePermissions([
-    ...resolveGlobalAdminPermissions(input.oidcUser),
+    ...(resolvePlatformAuthority(input.oidcUser)
+      ? (['globalAdmin:manageTenants'] as const)
+      : []),
     ...tenantPermissions,
   ]);
 };
@@ -219,6 +220,14 @@ export const resolveUserContext = (
     }
 
     if (user.tenantAssignments.length === 0) {
+      return;
+    }
+
+    const onboardingComplete = yield* resolveOnboardingComplete({
+      tenantId: input.tenantId,
+      userId: user.id,
+    });
+    if (!onboardingComplete) {
       return;
     }
 

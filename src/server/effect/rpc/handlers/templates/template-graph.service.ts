@@ -73,6 +73,12 @@ const invalidGraph = (message: string, reason: string) =>
 const hasDuplicates = (values: readonly string[]): boolean =>
   new Set(values).size !== values.length;
 
+const hasSimpleRegistrationOptionShape = (
+  options: readonly { organizingRegistration: boolean }[],
+): boolean =>
+  options.length === 2 &&
+  options.filter((option) => option.organizingRegistration).length === 1;
+
 const invalidInteger = (value: number): boolean => !Number.isInteger(value);
 
 const invalidOptionalInteger = (value: null | number): boolean =>
@@ -154,6 +160,13 @@ const validateAddon = (
   addOn: TemplateGraphAddonInput,
   optionKeys: ReadonlySet<string>,
 ): null | RpcBadRequestError => {
+  if (addOn.isPaid && addOn.price <= 0) {
+    return invalidGraph(
+      'Paid template add-ons require a positive price',
+      'paidTemplateAddonRequiresPositivePrice',
+    );
+  }
+
   const mappedKeys = addOn.registrationOptions.map(
     (mapping) => mapping.registrationOptionKey,
   );
@@ -213,6 +226,17 @@ export const validateTemplateGraphStructure = ({
   esnCardEnabled: boolean;
   input: TemplateGraphValidationInput;
 }): null | RpcBadRequestError => {
+  if (
+    before?.registrationOptions.some(
+      (option) => option.registrationMode === 'random',
+    )
+  ) {
+    return invalidGraph(
+      'Random template allocation is deferred and unsupported for the relaunch',
+      'unsupportedTemplateRegistrationMode',
+    );
+  }
+
   const sanitizedDescription = sanitizeRichTextHtml(input.description);
   if (!input.title.trim() || !isMeaningfulRichTextHtml(sanitizedDescription)) {
     return invalidGraph(
@@ -256,6 +280,43 @@ export const validateTemplateGraphStructure = ({
       'question',
     );
   if (idError) return idError;
+
+  if (before && before.simpleModeEnabled !== input.simpleModeEnabled) {
+    const submittedOptionIds = new Set(
+      input.registrationOptions.flatMap((option) =>
+        option.id === undefined ? [] : [option.id],
+      ),
+    );
+    if (
+      before.registrationOptions.some(
+        (option) => !submittedOptionIds.has(option.id),
+      )
+    ) {
+      return invalidGraph(
+        'Changing template configuration mode must preserve every existing registration option ID',
+        'templateModeTransitionMustPreserveOptionIds',
+      );
+    }
+    if (
+      input.simpleModeEnabled &&
+      !hasSimpleRegistrationOptionShape(before.registrationOptions)
+    ) {
+      return invalidGraph(
+        'Save the advanced template with exactly one organizer option and one participant option before switching to simple configuration',
+        'templateAdvancedToSimpleRequiresPersistedSimpleShape',
+      );
+    }
+  }
+
+  if (
+    input.simpleModeEnabled &&
+    !hasSimpleRegistrationOptionShape(input.registrationOptions)
+  ) {
+    return invalidGraph(
+      'Simple template configuration requires exactly one organizer option and one participant option',
+      'invalidSimpleTemplateConfiguration',
+    );
+  }
 
   for (const option of input.registrationOptions) {
     const error = validateRegistrationOption(option, esnCardEnabled);

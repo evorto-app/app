@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from '@effect/vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from '@effect/vitest';
 import { and, eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer, Result } from 'effect';
@@ -14,6 +22,7 @@ import {
   emailOutbox,
   eventAddons,
   eventInstances,
+  eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
   eventRegistrationOptions,
   eventRegistrations,
@@ -193,13 +202,14 @@ const seedFixture = async (
   const eventId = makeId('event', suffix);
   const optionId = makeId('option', suffix);
   const addOnId = makeId('addon', suffix);
+  const purchaseId = makeId('purchase', suffix);
+  const purchaseLotId = makeId('lot', suffix);
   const registrationId = makeId('reg', suffix);
   const transactionId = makeId('claim', suffix);
   const stripeAccountId = `acct_${suffix}`;
   const now = Date.now();
 
   await database.insert(tenants).values({
-    canonicalRootUrl: `https://${suffix}.cleanup.example`,
     domain: `${suffix}.cleanup.example`,
     id: tenantId,
     name: `Cleanup ${suffix}`,
@@ -272,7 +282,9 @@ const seedFixture = async (
   });
   await database.insert(addonToEventRegistrationOptions).values({
     addonId: addOnId,
-    quantity: 2,
+    eventId,
+    includedQuantity: 1,
+    optionalPurchaseQuantity: 1,
     registrationOptionId: optionId,
   });
   await database.insert(eventRegistrations).values({
@@ -285,8 +297,33 @@ const seedFixture = async (
   });
   await database.insert(eventRegistrationAddonPurchases).values({
     addonId: addOnId,
+    eventId,
+    id: purchaseId,
+    includedQuantity: 1,
+    purchasedQuantity: 1,
     quantity: 2,
     registrationId,
+    registrationOptionId: optionId,
+    tenantId,
+    unitPrice: 0,
+  });
+  await database.insert(eventRegistrationAddonPurchaseLots).values({
+    applicationFeeAmount: 0,
+    baseAmount: 0,
+    currency: 'EUR',
+    eventId,
+    grossAmount: 0,
+    id: purchaseLotId,
+    netAmount: 0,
+    paymentAllocationFinalizedAt: new Date(now),
+    purchaseId,
+    quantity: 1,
+    registrationId,
+    registrationOptionId: optionId,
+    sourceLineKey: `addon-lot:${purchaseLotId}`,
+    stripeFeeAmount: 0,
+    taxAmount: 0,
+    tenantId,
     unitPrice: 0,
   });
   await database.insert(transactions).values({
@@ -410,12 +447,16 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
     database = drizzle({ client: pool, relations });
   });
 
+  afterEach(async () => {
+    for (const fixture of fixtures.toReversed()) {
+      await cleanFixture(database, fixture);
+    }
+    fixtures.length = 0;
+  });
+
   afterAll(async () => {
     if (!databaseUrl) {
       return;
-    }
-    for (const fixture of fixtures.toReversed()) {
-      await cleanFixture(database, fixture);
     }
     await pool.end();
   });
@@ -897,6 +938,7 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
           eventId: fixture.eventId,
           eventRegistrationId: fixture.registrationId,
           executiveUserId: fixture.userId,
+          operationKey: `test-refund:${fixture.transactionId}`,
           sourceTransactionId: fixture.transactionId,
           stripeAccountId: fixture.stripeAccountId,
           targetUserId: fixture.userId,
@@ -904,6 +946,7 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
         }),
       ).pipe(Effect.provide(makeDatabaseServiceLayer(databaseUrl))),
     );
+    expect(refundClaim.id).toHaveLength(20);
 
     const stripe = new Stripe('sk_test_123');
     const { promise: stripeCreateBarrier, resolve: releaseStripeCreate } =
@@ -1003,6 +1046,7 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
           eventId: fixture.eventId,
           eventRegistrationId: fixture.registrationId,
           executiveUserId: fixture.userId,
+          operationKey: `test-refund:${fixture.transactionId}`,
           sourceTransactionId: fixture.transactionId,
           stripeAccountId: fixture.stripeAccountId,
           targetUserId: fixture.userId,

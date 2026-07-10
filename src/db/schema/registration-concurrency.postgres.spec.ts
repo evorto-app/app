@@ -1,6 +1,13 @@
 import type Stripe from 'stripe';
 
-import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+} from '@effect/vitest';
 import { and, eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
@@ -25,6 +32,7 @@ import {
   emailOutbox,
   eventAddons,
   eventInstances,
+  eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
   eventRegistrationOptions,
   eventRegistrations,
@@ -394,6 +402,7 @@ const approvalInput = (fixture: Fixture): ApprovalInput => ({
   registrationId: fixture.registrationId,
   targetTenant: {
     currency: 'EUR',
+    domain: tenantDomainForFixture(fixture),
     emailSenderEmail: null,
     emailSenderName: null,
     id: fixture.tenantId,
@@ -409,6 +418,7 @@ const directRegistrationInput = (fixture: Fixture): RegistrationInput => ({
   registrationOptionId: fixture.optionId,
   tenant: {
     currency: 'EUR',
+    domain: tenantDomainForFixture(fixture),
     id: fixture.tenantId,
     maxActiveRegistrationsPerUser: 0,
     stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
@@ -429,11 +439,12 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
   const eventId = makeId('event', suffix);
   const optionId = makeId('option', suffix);
   const addOnId = makeId('addon', suffix);
+  const purchaseId = makeId('purchase', suffix);
+  const purchaseLotId = makeId('lot', suffix);
   const registrationId = makeId('reg', suffix);
   const now = Date.now();
 
   await database.insert(tenants).values({
-    canonicalRootUrl: `https://${suffix}.concurrency.example`,
     domain: `${suffix}.concurrency.example`,
     id: tenantId,
     name: `Concurrency ${suffix}`,
@@ -505,7 +516,9 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
   });
   await database.insert(addonToEventRegistrationOptions).values({
     addonId: addOnId,
-    quantity: 2,
+    eventId,
+    includedQuantity: 1,
+    optionalPurchaseQuantity: 1,
     registrationOptionId: optionId,
   });
   await database.insert(eventRegistrations).values({
@@ -518,8 +531,33 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
   });
   await database.insert(eventRegistrationAddonPurchases).values({
     addonId: addOnId,
+    eventId,
+    id: purchaseId,
+    includedQuantity: 1,
+    purchasedQuantity: 1,
     quantity: 2,
     registrationId,
+    registrationOptionId: optionId,
+    tenantId,
+    unitPrice: 0,
+  });
+  await database.insert(eventRegistrationAddonPurchaseLots).values({
+    applicationFeeAmount: 0,
+    baseAmount: 0,
+    currency: 'EUR',
+    eventId,
+    grossAmount: 0,
+    id: purchaseLotId,
+    netAmount: 0,
+    paymentAllocationFinalizedAt: new Date(now),
+    purchaseId,
+    quantity: 1,
+    registrationId,
+    registrationOptionId: optionId,
+    sourceLineKey: `addon-lot:${purchaseLotId}`,
+    stripeFeeAmount: 0,
+    taxAmount: 0,
+    tenantId,
     unitPrice: 0,
   });
 
@@ -539,6 +577,14 @@ const prepareDirectRegistrationFixture = async (
   database: TestDatabase,
 ): Promise<Fixture> => {
   const fixture = await seedFixture(database);
+  await database
+    .delete(eventRegistrationAddonPurchaseLots)
+    .where(
+      eq(
+        eventRegistrationAddonPurchaseLots.registrationId,
+        fixture.registrationId,
+      ),
+    );
   await database
     .delete(eventRegistrationAddonPurchases)
     .where(
@@ -865,12 +911,16 @@ describeWithPostgres('paid manual approval concurrency', () => {
     database = drizzle({ client: pool, relations });
   });
 
+  afterEach(async () => {
+    for (const fixture of fixtures.toReversed()) {
+      await cleanFixture(database, fixture);
+    }
+    fixtures.length = 0;
+  });
+
   afterAll(async () => {
     if (!databaseUrl) {
       return;
-    }
-    for (const fixture of fixtures.toReversed()) {
-      await cleanFixture(database, fixture);
     }
     await pool.end();
   });
@@ -1043,19 +1093,26 @@ describeWithPostgres('paid manual approval concurrency', () => {
         () => fakeHttpClient.createRequests.length === 1,
         'Timed out waiting for the approval to create its Stripe session',
       );
-      expect(await cancellation).toEqual({ status: 'success' });
-      releaseCreates(true);
-
-      const approvalOutcome = await approval;
-      expect(approvalOutcome).toEqual(
+      expect(await cancellation).toEqual(
         expect.objectContaining({
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
-            message: 'Registration is no longer awaiting payment',
+            message:
+              'Payment setup changed while cancellation was starting, so this request did not cancel the registration or release its reserved spots. Refresh, then retry cancellation.',
           }),
           status: 'failure',
         }),
       );
+      releaseCreates(true);
+
+      const approvalOutcome = await approval;
+      expect(approvalOutcome).toEqual({
+        status: 'success',
+        value: { status: 'paymentPending' },
+      });
+      expect(await runCancellation({ fixture, serviceLayer })).toEqual({
+        status: 'success',
+      });
       expect(fakeHttpClient.expiredSessionIds).toEqual(
         fakeHttpClient.createdSessionIds,
       );
@@ -1065,13 +1122,13 @@ describeWithPostgres('paid manual approval concurrency', () => {
       expect(state.claims).toEqual([
         expect.objectContaining({
           status: 'cancelled',
-          stripeCheckoutSessionId: null,
+          stripeCheckoutSessionId: fakeHttpClient.createdSessionIds[0],
         }),
       ]);
       expect(state.option?.reservedSpots).toBe(0);
       expect(state.option?.confirmedSpots).toBe(0);
       expect(state.addOn?.totalAvailableQuantity).toBe(5);
-      expect(state.emails).toHaveLength(0);
+      expect(state.emails).toHaveLength(2);
     } finally {
       releaseCreates(true);
       if (!registrationLock.released) {
@@ -1095,12 +1152,16 @@ describeWithPostgres('direct paid registration concurrency', () => {
     database = drizzle({ client: pool, relations });
   });
 
+  afterEach(async () => {
+    for (const fixture of fixtures.toReversed()) {
+      await cleanFixture(database, fixture);
+    }
+    fixtures.length = 0;
+  });
+
   afterAll(async () => {
     if (!databaseUrl) {
       return;
-    }
-    for (const fixture of fixtures.toReversed()) {
-      await cleanFixture(database, fixture);
     }
     await pool.end();
   });
@@ -1120,11 +1181,10 @@ describeWithPostgres('direct paid registration concurrency', () => {
       maxNetworkRetries: 0,
     });
     const serviceLayer = makeServiceLayer(databaseUrl, stripe);
-    const optionLock = await withRowLock(pool, async (client) => {
-      await client.query(
-        'SELECT id FROM event_registration_options WHERE id = $1 FOR UPDATE',
-        [fixture.optionId],
-      );
+    const tenantLock = await withRowLock(pool, async (client) => {
+      await client.query('SELECT id FROM tenants WHERE id = $1 FOR UPDATE', [
+        fixture.tenantId,
+      ]);
     });
 
     try {
@@ -1132,8 +1192,8 @@ describeWithPostgres('direct paid registration concurrency', () => {
       const first = runRegistration(input, serviceLayer);
       const second = runRegistration(input, serviceLayer);
 
-      await waitForBlockedQueries(pool, 'event_registration_options', 2);
-      await optionLock.query('COMMIT');
+      await waitForBlockedQueries(pool, 'tenants', 2);
+      await tenantLock.query('COMMIT');
       await waitFor(
         () => fakeHttpClient.createRequests.length === 1,
         'Timed out waiting for the winning registration to create its Stripe session',
@@ -1188,10 +1248,10 @@ describeWithPostgres('direct paid registration concurrency', () => {
       ]);
     } finally {
       releaseCreates(true);
-      if (!optionLock.released) {
-        await optionLock.query('ROLLBACK').catch(() => null);
+      if (!tenantLock.released) {
+        await tenantLock.query('ROLLBACK').catch(() => null);
       }
-      optionLock.release();
+      tenantLock.release();
     }
   }, 30_000);
 

@@ -60,6 +60,7 @@ export const financeReceipts = pgTable(
     attachmentMimeType: text().notNull(),
     attachmentSizeBytes: integer().notNull(),
     attachmentUploadId: varchar({ length: 20 }).notNull(),
+    currency: currencyEnum().notNull(),
     depositAmount: integer().notNull().default(0),
     eventId: varchar({ length: 20 })
       .notNull()

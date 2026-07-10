@@ -13,7 +13,6 @@ import {
   inArray,
   isNotNull,
   isNull,
-  not,
   TransactionRollbackError,
 } from 'drizzle-orm';
 import { Effect } from 'effect';
@@ -64,6 +63,11 @@ const financeDatabaseEffect = <A>(
       ),
     ),
   );
+
+const isTransactionRollbackError = (
+  error: unknown,
+): error is TransactionRollbackError =>
+  error instanceof TransactionRollbackError;
 
 const financeReceiptUploadJoin = and(
   eq(financeReceipts.attachmentUploadId, financeReceiptUploads.id),
@@ -922,6 +926,7 @@ export const financeReceiptsHandlers = {
                 attachmentMimeType: upload.mimeType,
                 attachmentSizeBytes: upload.sizeBytes,
                 attachmentUploadId: upload.id,
+                currency: tenant.currency,
                 depositAmount,
                 eventId: input.eventId,
                 hasAlcohol: input.fields.hasAlcohol,

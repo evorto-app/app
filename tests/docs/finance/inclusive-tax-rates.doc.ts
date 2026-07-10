@@ -158,13 +158,15 @@ Each paid registration displays the final price together with its inclusive tax 
     await expect(editForm).toBeVisible();
 
     const organizerSection = editForm
-      .locator('app-template-registration-option-form')
+      .locator('app-template-registration-option-editor')
       .filter({
         has: page.getByRole('textbox', {
           name: 'Registration option name',
         }),
       })
-      .filter({ has: page.getByRole('combobox', { name: 'Tax rate' }) })
+      .filter({
+        has: page.getByRole('combobox', { name: 'Inclusive tax rate' }),
+      })
       .first();
     await expect(
       organizerSection.getByRole('textbox', {
@@ -172,7 +174,7 @@ Each paid registration displays the final price together with its inclusive tax 
       }),
     ).toHaveValue('Organizer');
     await expect(
-      organizerSection.getByRole('combobox', { name: 'Tax rate' }),
+      organizerSection.getByRole('combobox', { name: 'Inclusive tax rate' }),
     ).toBeVisible();
 
     await takeScreenshot(

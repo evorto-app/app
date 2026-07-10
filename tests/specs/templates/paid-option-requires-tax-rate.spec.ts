@@ -8,7 +8,7 @@ test.use({ storageState: organizerStateFile });
 
 const enablePaymentForLastRegistrationOption = async (page: Page) => {
   const participantOptionForm = page
-    .locator('app-template-registration-option-form')
+    .locator('app-template-registration-option-editor')
     .last();
   const paymentCheckbox = participantOptionForm.getByRole('checkbox', {
     name: 'Enable payment',
@@ -25,14 +25,14 @@ const priceInputForRegistrationOption = (
 
 const taxRateSelectForRegistrationOption = (
   participantOptionForm: ReturnType<Page['locator']>,
-) => participantOptionForm.getByLabel('Tax rate');
+) => participantOptionForm.getByLabel('Inclusive tax rate');
 
 const ensureLastRegistrationOptionHasRole = async (
   page: Page,
   roleName: string,
 ) => {
   const participantOptionForm = page
-    .locator('app-template-registration-option-form')
+    .locator('app-template-registration-option-editor')
     .last();
   if (
     (await participantOptionForm.getByText(roleName, { exact: true }).count()) >
@@ -65,12 +65,12 @@ test.describe('Template Tax Rate Validation', () => {
     });
 
     const saveButton = page.getByRole('button', { name: 'Save template' });
-    await expect(page.getByLabel('Tax rate')).toHaveCount(0);
+    await expect(page.getByLabel('Inclusive tax rate')).toHaveCount(0);
 
     await enablePaymentForLastRegistrationOption(page);
 
     const participantOptionForm = page
-      .locator('app-template-registration-option-form')
+      .locator('app-template-registration-option-editor')
       .last();
     await expect(
       priceInputForRegistrationOption(participantOptionForm),
@@ -120,7 +120,7 @@ test.describe('Template Tax Rate Validation', () => {
     await enablePaymentForLastRegistrationOption(page);
     await ensureLastRegistrationOptionHasRole(page, defaultUserRole.name);
     const participantOptionForm = page
-      .locator('app-template-registration-option-form')
+      .locator('app-template-registration-option-editor')
       .last();
     await priceInputForRegistrationOption(participantOptionForm).fill('1000');
     await taxRateSelectForRegistrationOption(participantOptionForm).click();

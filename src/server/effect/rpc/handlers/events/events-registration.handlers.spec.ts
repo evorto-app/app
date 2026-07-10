@@ -32,7 +32,16 @@ import {
 import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { EventRegistrationService } from './event-registration.service';
-import { eventRegistrationHandlers } from './events-registration.handlers';
+import {
+  cancelRegistrationForTenant,
+  eventRegistrationHandlers,
+  hasReachedRegistrationCancellationDeadline,
+  planNonStripeCancellationRefund,
+  registrationCancellationStripeRefundTerms,
+  resolveCancellationDeadlineHoursBeforeStart,
+  resolveRefundFeesOnCancellation,
+} from './events-registration.handlers';
+import { EventRegistrationConflictError } from './events.errors';
 
 type StripeClientDouble = Pick<Stripe, 'checkout' | 'refunds'>;
 
@@ -84,7 +93,6 @@ const registrationConfigProviderLayer = ConfigProvider.layer(
 
 const tenant = {
   cancellationDeadlineHoursBeforeStart: 0,
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {
@@ -174,6 +182,7 @@ const createContextLayer = ({
         env: {
           BASE_URL: 'https://app.example',
           NODE_ENV: 'production',
+          RESEND_API_KEY: 're_test_123',
           ...(nowIso && { E2E_NOW_ISO: nowIso }),
         },
       }),
@@ -1065,18 +1074,46 @@ describe('event registration trusted URLs', () => {
         const stripe = createStripeClientDouble({ createCheckoutSession });
         const registrationTransaction = {
           insert: (table: unknown) => ({
-            values: () =>
+            values: (values: Record<string, unknown>) =>
               table === eventRegistrations
                 ? {
                     returning: () => Effect.succeed([{ id: 'registration-1' }]),
                   }
-                : Effect.void,
+                : table === transactions
+                  ? {
+                      returning: () =>
+                        Effect.succeed([
+                          {
+                            appFee: values['appFee'],
+                            currency: values['currency'],
+                            id: values['id'],
+                            stripeAccountId: values['stripeAccountId'],
+                            stripeCheckoutRequest:
+                              values['stripeCheckoutRequest'],
+                            stripeCheckoutSessionId: null,
+                            stripeCheckoutUrl: null,
+                          },
+                        ]),
+                    }
+                  : Effect.void,
           }),
           query: {
             eventRegistrations: {
               findMany: () => Effect.succeed([]),
             },
           },
+          select: () => ({
+            from: (table: unknown) => ({
+              where: () => ({
+                for: () =>
+                  table === tenants
+                    ? Effect.succeed([{ stripeAccountId: 'acct_123' }])
+                    : table === eventRegistrations
+                      ? Effect.succeed([{ status: 'PENDING' }])
+                      : Effect.succeed([{ stripeCheckoutSessionId: null }]),
+              }),
+            }),
+          }),
           update: () => ({
             set: () => ({
               where: () => ({
@@ -1122,6 +1159,15 @@ describe('event registration trusted URLs', () => {
               findMany: () => Effect.succeed([]),
             },
           },
+          select: () => ({
+            from: () => ({
+              innerJoin: () => ({
+                leftJoin: () => ({
+                  where: () => Effect.succeed([]),
+                }),
+              }),
+            }),
+          }),
           transaction: (
             run: (
               transaction: typeof registrationTransaction,

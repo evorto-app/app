@@ -68,12 +68,23 @@ export class TemplateCreateEventOperations {
 export const templateCreateEventSubmitDisabled = ({
   formInvalid,
   formSubmitting,
+  legacyRandomBlocked,
   mutationPending,
 }: {
   formInvalid: boolean;
   formSubmitting: boolean;
+  legacyRandomBlocked: boolean;
   mutationPending: boolean;
-}): boolean => formInvalid || formSubmitting || mutationPending;
+}): boolean =>
+  formInvalid || formSubmitting || legacyRandomBlocked || mutationPending;
+
+export const templateHasLegacyRandomRegistration = (
+  registrationOptions: readonly { registrationMode: string }[],
+): boolean =>
+  registrationOptions.some((option) => option.registrationMode === 'random');
+
+export const legacyRandomTemplateEventMessage =
+  'This template uses legacy random allocation. It remains readable, but an event cannot be created from it until the registration configuration is explicitly migrated to a supported mode.';
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
@@ -132,6 +143,15 @@ export class TemplateCreateEventComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleInfo = faCircleInfo;
   protected readonly iconUsage = EventCreateIconUsage.make({});
+  protected readonly legacyRandomBlocked = computed(
+    () =>
+      this.templateQuery.isSuccess() &&
+      templateHasLegacyRandomRegistration(
+        this.templateQuery.data().registrationOptions,
+      ),
+  );
+  protected readonly legacyRandomTemplateEventMessage =
+    legacyRandomTemplateEventMessage;
   protected readonly registrationModes = writableRegistrationModes;
   protected readonly templateCreateEventSubmitDisabled =
     templateCreateEventSubmitDisabled;
@@ -146,6 +166,10 @@ export class TemplateCreateEventComponent {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
       if (this.initializedTemplateId() === template.id) return;
+      if (templateHasLegacyRandomRegistration(template.registrationOptions)) {
+        this.initializedTemplateId.set(template.id);
+        return;
+      }
 
       const startDateTime = this.toDateTime(
         untracked(() => this.createEventForm.start().value()),
@@ -159,6 +183,9 @@ export class TemplateCreateEventComponent {
     effect(() => {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
+      if (templateHasLegacyRandomRegistration(template.registrationOptions)) {
+        return;
+      }
       const eventStart = this.createEventForm.start().value();
       const registrationOptions = this.createEventModel().registrationOptions;
       if (!eventStart || registrationOptions.length === 0) return;
@@ -203,6 +230,7 @@ export class TemplateCreateEventComponent {
       templateCreateEventSubmitDisabled({
         formInvalid: this.createEventForm().invalid(),
         formSubmitting: this.createEventForm().submitting(),
+        legacyRandomBlocked: this.legacyRandomBlocked(),
         mutationPending: this.createEventMutation.isPending(),
       })
     ) {

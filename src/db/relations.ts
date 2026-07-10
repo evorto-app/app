@@ -304,6 +304,9 @@ export const relations = defineRelations(schema, (r) => ({
     events: r.many.eventInstances(),
     financeReceipts: r.many.financeReceipts(),
     financeReceiptUploads: r.many.financeReceiptUploads(),
+    homeUsers: r.many.users({
+      alias: 'users_homeTenantId_tenants_id',
+    }),
     icons: r.many.icons(),
     roles: r.many.roles(),
     stripeTaxRates: r.many.tenantStripeTaxRates(),
@@ -374,6 +377,11 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     financeReceiptUploads_uploadedByUserId: r.many.financeReceiptUploads({
       alias: 'financeReceiptUploads_uploadedByUserId_users_id',
+    }),
+    homeTenant: r.one.tenants({
+      alias: 'users_homeTenantId_tenants_id',
+      from: r.users.homeTenantId,
+      to: r.tenants.id,
     }),
     tenantAssignments: r.many.usersToTenants(),
     tenants: r.many.tenants(),

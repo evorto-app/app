@@ -82,6 +82,70 @@ describe('tenant role graph concurrency boundary', () => {
     ).toBeGreaterThanOrEqual(2);
   });
 
+  it('takes the role graph advisory lock before template rows in every authoring path', () => {
+    const ordinaryTemplates = readSource(
+      'src/server/effect/rpc/handlers/templates.handlers.ts',
+    );
+    const ordinaryUpdate = ordinaryTemplates.slice(
+      ordinaryTemplates.indexOf("'templates.update':"),
+      ordinaryTemplates.indexOf("'templates.updateSimpleTemplate':"),
+    );
+    expect(ordinaryUpdate).toContain('lockTenantRoleGraph(');
+    expect(ordinaryUpdate).toContain(".for('update')");
+    expect(ordinaryUpdate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
+      ordinaryUpdate.indexOf(".for('update')"),
+    );
+
+    const platformTemplates = readSource(
+      'src/server/effect/rpc/handlers/platform/platform-templates.handlers.ts',
+    );
+    const platformCreate = platformTemplates.slice(
+      platformTemplates.indexOf("'platform.templates.create':"),
+      platformTemplates.indexOf("'platform.templates.findOne':"),
+    );
+    expect(platformCreate).toContain('lockTenantRoleGraph(');
+    expect(platformCreate).toContain(
+      'lockTenantCurrencyForFinancialConfiguration(',
+    );
+    expect(platformCreate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
+      platformCreate.indexOf('lockTenantCurrencyForFinancialConfiguration('),
+    );
+
+    const platformUpdate = platformTemplates.slice(
+      platformTemplates.indexOf("'platform.templates.update':"),
+    );
+    expect(platformUpdate).toContain('lockTenantRoleGraph(');
+    expect(platformUpdate).toContain(".for('update')");
+    expect(platformUpdate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
+      platformUpdate.indexOf(".for('update')"),
+    );
+
+    const simpleTemplateService = readSource(
+      'src/server/effect/rpc/handlers/templates/simple-template.service.ts',
+    );
+    const simpleUpdate = simpleTemplateService.slice(
+      simpleTemplateService.indexOf('const updateSimpleTemplate'),
+    );
+    expect(simpleUpdate).toContain('lockTenantRoleGraph(');
+    expect(simpleUpdate).toContain('.update(eventTemplates)');
+    expect(simpleUpdate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
+      simpleUpdate.indexOf('.update(eventTemplates)'),
+    );
+
+    const events = readSource(
+      'src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts',
+    );
+    const eventCreate = events.slice(
+      events.indexOf('export const createEventGraph'),
+      events.indexOf('const isExpectedEventCreateError'),
+    );
+    expect(eventCreate).toContain('lockTenantRoleGraph(');
+    expect(eventCreate).toContain(".for('share')");
+    expect(eventCreate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
+      eventCreate.indexOf(".for('share')"),
+    );
+  });
+
   it('holds the role graph lock across event option validation and writes', () => {
     const source = readSource(
       'src/server/effect/rpc/handlers/events/events-lifecycle.handlers.ts',

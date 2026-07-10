@@ -151,18 +151,39 @@ test('create template with reusable add-ons and registration questions', async (
   });
   await page.getByLabel('Organizer planning tips').fill(planningTips);
 
+  await page
+    .getByRole('button', { name: 'Use advanced configuration' })
+    .click();
+  await expect(
+    page.getByRole('heading', {
+      name: 'Switch to advanced configuration?',
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Switch to advanced', exact: true })
+    .click();
+
   await page.getByRole('button', { name: 'Add add-on' }).click();
-  const addOnForm = page.locator('app-template-addon-form').first();
-  await addOnForm.locator('input').nth(0).fill(addOnTitle);
-  await addOnForm.locator('textarea').first().fill(addOnDescription);
-  await addOnForm.locator('input').nth(1).fill('2');
-  await addOnForm.locator('input').nth(2).fill('12');
-  await addOnForm.locator('input').nth(3).fill('3');
+  const addOnEditor = page.locator('app-template-addon-editor').first();
+  await addOnEditor.getByLabel('Add-on name').fill(addOnTitle);
+  await addOnEditor.getByLabel('Description').fill(addOnDescription);
+  await addOnEditor.getByLabel('Registration option').click();
+  await page
+    .getByRole('option', { name: 'Participant registration', exact: true })
+    .click();
+  await addOnEditor.getByLabel('Included quantity').fill('2');
+  await addOnEditor.getByLabel('Optional purchase quantity').fill('0');
+  await addOnEditor.getByLabel('Available quantity').fill('12');
+  await addOnEditor.getByLabel('Maximum per user').fill('3');
 
   await page.getByRole('button', { name: 'Add question' }).click();
-  const questionForm = page.locator('app-template-question-form').first();
-  await questionForm.locator('input').first().fill(questionTitle);
-  await questionForm.locator('textarea').first().fill(questionDescription);
+  const questionEditor = page.locator('app-template-question-editor').first();
+  await questionEditor.getByLabel('Question').fill(questionTitle);
+  await questionEditor.getByLabel('Ask during').click();
+  await page
+    .getByRole('option', { name: 'Participant registration', exact: true })
+    .click();
+  await questionEditor.getByLabel('Help text').fill(questionDescription);
 
   await page.getByRole('button', { name: 'Save template' }).click();
   await expect(page).toHaveURL(/\/templates\/[^/]+$/);
@@ -226,7 +247,8 @@ test('create template with reusable add-ons and registration questions', async (
   }
   expect(addOnAttachment).toEqual(
     expect.objectContaining({
-      quantity: 2,
+      includedQuantity: 2,
+      optionalPurchaseQuantity: 0,
     }),
   );
 

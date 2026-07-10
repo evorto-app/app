@@ -772,6 +772,151 @@ export const EventsUpdateRegistrationOptionInput = Schema.Struct({
   transferDeadlineHoursBeforeStart: NullablePolicyHoursInput,
 });
 
+export const EventGraphRegistrationOptionInput = Schema.Struct({
+  cancellationDeadlineHoursBeforeStart: NullablePolicyHoursInput,
+  closeRegistrationTime: Schema.NonEmptyString,
+  description: Schema.NullOr(Schema.String),
+  esnCardDiscountedPrice: Schema.NullOr(nonNegativeNumber),
+  id: Schema.optional(Schema.NonEmptyString),
+  isPaid: Schema.Boolean,
+  key: Schema.NonEmptyString,
+  openRegistrationTime: Schema.NonEmptyString,
+  organizingRegistration: Schema.Boolean,
+  price: nonNegativeNumber,
+  refundFeesOnCancellation: NullableRefundFeesInput,
+  registeredDescription: Schema.NullOr(Schema.String),
+  registrationMode: EventsWritableRegistrationMode,
+  roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
+  spots: nonNegativeNumber,
+  stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
+  title: Schema.NonEmptyString,
+  transferDeadlineHoursBeforeStart: NullablePolicyHoursInput,
+});
+
+export type EventGraphRegistrationOptionInput = Schema.Schema.Type<
+  typeof EventGraphRegistrationOptionInput
+>;
+
+export const EventGraphAddonRegistrationOptionInput = Schema.Struct({
+  includedQuantity: NonNegativeInteger,
+  optionalPurchaseQuantity: NonNegativeInteger,
+  registrationOptionKey: Schema.NonEmptyString,
+});
+
+export const EventGraphAddonInput = Schema.Struct({
+  allowMultiple: Schema.Boolean,
+  allowPurchaseBeforeEvent: Schema.Boolean,
+  allowPurchaseDuringEvent: Schema.Boolean,
+  allowPurchaseDuringRegistration: Schema.Boolean,
+  description: Schema.NullOr(Schema.String),
+  id: Schema.optional(Schema.NonEmptyString),
+  isPaid: Schema.Boolean,
+  key: Schema.NonEmptyString,
+  maxQuantityPerUser: PositiveInteger,
+  price: NonNegativeInteger,
+  registrationOptions: Schema.mutable(
+    Schema.Array(EventGraphAddonRegistrationOptionInput),
+  ),
+  stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
+  title: Schema.NonEmptyString,
+  totalAvailableQuantity: NonNegativeInteger,
+});
+
+export type EventGraphAddonInput = Schema.Schema.Type<
+  typeof EventGraphAddonInput
+>;
+
+export const EventGraphQuestionInput = Schema.Struct({
+  description: Schema.NullOr(Schema.String),
+  id: Schema.optional(Schema.NonEmptyString),
+  key: Schema.NonEmptyString,
+  registrationOptionKey: Schema.NonEmptyString,
+  required: Schema.Boolean,
+  sortOrder: NonNegativeInteger,
+  title: Schema.NonEmptyString,
+});
+
+export type EventGraphQuestionInput = Schema.Schema.Type<
+  typeof EventGraphQuestionInput
+>;
+
+export const EventGraphAddonRecord = Schema.Struct({
+  allowMultiple: Schema.Boolean,
+  allowPurchaseBeforeEvent: Schema.Boolean,
+  allowPurchaseDuringEvent: Schema.Boolean,
+  allowPurchaseDuringRegistration: Schema.Boolean,
+  description: Schema.NullOr(Schema.String),
+  id: Schema.NonEmptyString,
+  isPaid: Schema.Boolean,
+  maxQuantityPerUser: Schema.Number,
+  price: Schema.Number,
+  registrationOptions: Schema.Array(EventsFindOneAddonRegistrationOption),
+  stripeTaxRateId: Schema.NullOr(Schema.String),
+  title: Schema.NonEmptyString,
+  totalAvailableQuantity: Schema.Number,
+});
+
+export const EventGraphQuestionRecord = Schema.Struct({
+  description: Schema.NullOr(Schema.String),
+  id: Schema.NonEmptyString,
+  registrationOptionId: Schema.NonEmptyString,
+  required: Schema.Boolean,
+  sortOrder: Schema.Number,
+  title: Schema.NonEmptyString,
+});
+
+export const EventGraphEditRecord = Schema.Struct({
+  addOns: Schema.Array(EventGraphAddonRecord),
+  description: Schema.NonEmptyString,
+  end: Schema.NonEmptyString,
+  icon: iconSchema,
+  id: Schema.NonEmptyString,
+  location: Schema.NullOr(EventLocation),
+  questions: Schema.Array(EventGraphQuestionRecord),
+  registrationOptions: Schema.Array(EventsFindOneForEditRegistrationOption),
+  simpleModeEnabled: Schema.Boolean,
+  start: Schema.NonEmptyString,
+  title: Schema.NonEmptyString,
+});
+
+export type EventGraphEditRecord = Schema.Schema.Type<
+  typeof EventGraphEditRecord
+>;
+
+export const EventsFindGraphForEdit = asRpcQuery(
+  Rpc.make('events.findGraphForEdit', {
+    error: EventsFindOneForEditRpcError,
+    payload: Schema.Struct({
+      id: Schema.NonEmptyString,
+    }),
+    success: EventGraphEditRecord,
+  }),
+);
+
+export const EventsUpdateGraph = asRpcMutation(
+  Rpc.make('events.updateGraph', {
+    error: EventsUpdateRpcError,
+    payload: Schema.Struct({
+      addOns: Schema.mutable(Schema.Array(EventGraphAddonInput)),
+      description: Schema.NonEmptyString,
+      end: Schema.NonEmptyString,
+      eventId: Schema.NonEmptyString,
+      icon: iconSchema,
+      location: Schema.NullOr(EventLocation),
+      questions: Schema.mutable(Schema.Array(EventGraphQuestionInput)),
+      registrationOptions: Schema.mutable(
+        Schema.Array(EventGraphRegistrationOptionInput),
+      ),
+      simpleModeEnabled: Schema.Boolean,
+      start: Schema.NonEmptyString,
+      title: Schema.NonEmptyString,
+    }),
+    success: Schema.Struct({
+      id: Schema.NonEmptyString,
+    }),
+  }),
+);
+
 export const EventsUpdate = asRpcMutation(
   Rpc.make('events.update', {
     error: EventsUpdateRpcError,
@@ -804,6 +949,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsEventList,
   EventsFindOne,
   EventsFindOneForEdit,
+  EventsFindGraphForEdit,
   EventsFindTransferTargets,
   EventsGetRegistrationAddonFulfillment,
   EventsGetOrganizeOverview,
@@ -816,6 +962,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsReviewEvent,
   EventsSubmitForReview,
   EventsUpdate,
+  EventsUpdateGraph,
   EventsUpdateListing,
   EventsUndoRegistrationAddonRedemption,
   EventsCancelRegistrationAddon,

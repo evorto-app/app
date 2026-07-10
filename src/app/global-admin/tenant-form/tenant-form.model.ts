@@ -6,8 +6,9 @@ import type {
 
 import { normalizeTenantDomain } from '@shared/tenant-origin';
 
+import { getErrorMessage } from '../../core/error-message';
+
 export interface GlobalAdminTenantFormModel {
-  canonicalRootUrl: string;
   currency: GlobalAdminTenantWriteInput['currency'];
   domain: string;
   name: string;
@@ -25,7 +26,6 @@ export const globalAdminTenantRelaunchScopeItems = [
 
 export const createGlobalAdminTenantFormModel =
   (): GlobalAdminTenantFormModel => ({
-    canonicalRootUrl: '',
     currency: 'EUR',
     domain: '',
     name: '',
@@ -38,7 +38,6 @@ export const createGlobalAdminTenantFormModel =
 export const globalAdminTenantFormModelFromRecord = (
   tenant: GlobalAdminTenantRecord,
 ): GlobalAdminTenantFormModel => ({
-  canonicalRootUrl: tenant.canonicalRootUrl,
   currency: tenant.currency,
   domain: tenant.domain,
   name: tenant.name,
@@ -54,21 +53,38 @@ const optionalTrimmed = (value: string): string | undefined =>
 export const normalizeGlobalAdminTenantDomain = (value: string): string =>
   normalizeTenantDomain(value);
 
+export const globalAdminTenantUpdateErrorMessage = (error: unknown): string => {
+  const message = getErrorMessage(error, 'Failed to update tenant');
+  if (
+    !error ||
+    typeof error !== 'object' ||
+    Reflect.get(error, '_tag') !== 'GlobalAdminTenantUrlMigrationBlockedError'
+  ) {
+    return message;
+  }
+
+  const reason = Reflect.get(error, 'reason');
+  return typeof reason === 'string' && reason.trim().length > 0
+    ? `${message}. ${reason}`
+    : message;
+};
+
 export const globalAdminTenantPayloadFromForm = (
   model: GlobalAdminTenantFormModel,
-): GlobalAdminTenantWriteInput => {
-  const domain = normalizeTenantDomain(model.domain);
-
-  return {
-    currency: model.currency,
-    domain,
-    locale: model.locale,
-    name: model.name.trim(),
-    stripeAccountId: optionalTrimmed(model.stripeAccountId),
-    theme: model.theme,
-    timezone: model.timezone,
-  };
-};
+): GlobalAdminTenantMutationInput => ({
+  reason: model.reason.trim(),
+  tenant: (() => {
+    const domain = normalizeTenantDomain(model.domain);
+    return {
+      currency: model.currency,
+      domain,
+      name: model.name.trim(),
+      stripeAccountId: optionalTrimmed(model.stripeAccountId),
+      theme: model.theme,
+      timezone: model.timezone,
+    };
+  })(),
+});
 
 export const globalAdminTenantSubmitDisabled = ({
   formInvalid,

@@ -11,10 +11,12 @@ import type { Tenant } from '../../../types/custom/tenant';
 
 import { ConfigService } from '../../core/config.service';
 import {
+  legacyRandomTemplateEventMessage,
   templateAddOnCopyNotice,
   TemplateCreateEventComponent,
   TemplateCreateEventOperations,
   templateCreateEventSubmitDisabled,
+  templateHasLegacyRandomRegistration,
 } from './template-create-event.component';
 
 describe('templateCreateEventSubmitDisabled', () => {
@@ -23,6 +25,7 @@ describe('templateCreateEventSubmitDisabled', () => {
       templateCreateEventSubmitDisabled({
         formInvalid: false,
         formSubmitting: false,
+        legacyRandomBlocked: false,
         mutationPending: false,
       }),
     ).toBe(false);
@@ -30,6 +33,7 @@ describe('templateCreateEventSubmitDisabled', () => {
       templateCreateEventSubmitDisabled({
         formInvalid: true,
         formSubmitting: false,
+        legacyRandomBlocked: false,
         mutationPending: false,
       }),
     ).toBe(true);
@@ -37,6 +41,7 @@ describe('templateCreateEventSubmitDisabled', () => {
       templateCreateEventSubmitDisabled({
         formInvalid: false,
         formSubmitting: true,
+        legacyRandomBlocked: false,
         mutationPending: false,
       }),
     ).toBe(true);
@@ -44,9 +49,38 @@ describe('templateCreateEventSubmitDisabled', () => {
       templateCreateEventSubmitDisabled({
         formInvalid: false,
         formSubmitting: false,
+        legacyRandomBlocked: false,
         mutationPending: true,
       }),
     ).toBe(true);
+    expect(
+      templateCreateEventSubmitDisabled({
+        formInvalid: false,
+        formSubmitting: false,
+        legacyRandomBlocked: true,
+        mutationPending: false,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('template legacy random allocation guard', () => {
+  it('blocks event creation without coercing the template mode', () => {
+    const registrationOptions = [
+      { registrationMode: 'fcfs' },
+      { registrationMode: 'random' },
+    ];
+    expect(templateHasLegacyRandomRegistration(registrationOptions)).toBe(true);
+    expect(registrationOptions[1]?.registrationMode).toBe('random');
+    expect(legacyRandomTemplateEventMessage).toContain(
+      'cannot be created from it until',
+    );
+    expect(
+      templateHasLegacyRandomRegistration([
+        { registrationMode: 'fcfs' },
+        { registrationMode: 'application' },
+      ]),
+    ).toBe(false);
   });
 });
 

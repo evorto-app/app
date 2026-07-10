@@ -80,7 +80,6 @@ export class TenantCreateComponent {
   protected readonly relaunchScopeItems = globalAdminTenantRelaunchScopeItems;
   protected readonly tenantModel = signal(createGlobalAdminTenantFormModel());
   protected readonly tenantForm = form(this.tenantModel, (schema) => {
-    required(schema.canonicalRootUrl);
     required(schema.domain);
     required(schema.name);
     required(schema.reason);

@@ -10,8 +10,6 @@ import {
 } from './request-context-resolver';
 
 const createTenant = (domain: string) => ({
-  canonicalRootUrl:
-    domain === 'localhost' ? 'http://localhost' : `https://${domain}`,
   currency: 'EUR',
   defaultLocation: null,
   discountProviders: null,
@@ -282,6 +280,49 @@ describe('request-context-resolver', () => {
   );
 
   it.effect(
+    'does not expose an assigned tenant user before current onboarding is complete',
+    () =>
+      Effect.gen(function* () {
+        const attributesExecute = vi.fn(() => Effect.succeed([]));
+        const resolveOnboardingComplete = vi.fn(() => Effect.succeed(false));
+        const database = createPreparedDatabase({
+          attributesExecute,
+          userExecute: vi.fn(() =>
+            Effect.succeed({
+              auth0Id: 'auth0|member',
+              communicationEmail: 'member@example.org',
+              email: 'member@example.org',
+              firstName: 'Member',
+              homeTenant: { name: 'Home Section' },
+              homeTenantId: 'tenant-home',
+              iban: null,
+              id: 'user-1',
+              lastName: 'Example',
+              paypalEmail: null,
+              tenantAssignments: [{ roles: [] }],
+            }),
+          ),
+        });
+
+        const user = yield* resolveUserContext(
+          {
+            isAuthenticated: true,
+            oidcUser: { sub: 'auth0|member' },
+            tenantId: 'tenant-1',
+          },
+          resolveOnboardingComplete,
+        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+        expect(user).toBeUndefined();
+        expect(resolveOnboardingComplete).toHaveBeenCalledWith({
+          tenantId: 'tenant-1',
+          userId: 'user-1',
+        });
+        expect(attributesExecute).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
     'discards poisoned platform permissions while preserving tenant role permissions',
     () =>
       Effect.gen(function* () {
@@ -315,11 +356,14 @@ describe('request-context-resolver', () => {
           ),
         });
 
-        const user = yield* resolveUserContext({
-          isAuthenticated: true,
-          oidcUser: { sub: 'auth0|tenant-user' },
-          tenantId: 'tenant-1',
-        }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+        const user = yield* resolveUserContext(
+          {
+            isAuthenticated: true,
+            oidcUser: { sub: 'auth0|tenant-user' },
+            tenantId: 'tenant-1',
+          },
+          () => Effect.succeed(true),
+        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
         expect(user?.permissions).toEqual(['events:viewPublic', 'events:*']);
         expect(user?.roleIds).toEqual(['role-mixed']);
@@ -338,6 +382,7 @@ describe('request-context-resolver', () => {
         'evorto.app/app_metadata': {
           globalAdmin: true,
         },
+        sub: 'auth0|platform-admin',
       },
       user: {
         permissions: ['events:viewPublic'],

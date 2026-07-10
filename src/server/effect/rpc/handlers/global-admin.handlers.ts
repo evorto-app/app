@@ -18,10 +18,7 @@ import {
   type GlobalAdminTenantRecord as GlobalAdminTenantRecordType,
   GlobalAdminTenantUrlMigrationBlockedError,
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
-import {
-  normalizeTenantCanonicalRootUrl,
-  normalizeTenantDomain,
-} from '@shared/tenant-public-url';
+import { normalizeTenantDomain } from '@shared/tenant-origin';
 import {
   and,
   count,
@@ -40,11 +37,21 @@ import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import {
-  includesPermission,
-  type Permission,
-} from '../../../../shared/permissions/permissions';
-import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import { normalizeTenantDomain } from '../../../../shared/tenant-origin';
+  emailOutbox,
+  platformAuditEntries,
+  registrationTransfers,
+  tenantPrivacyPolicyVersions,
+  tenants,
+} from '../../../../db/schema';
+import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
+import { TENANT_FORMATTING_LOCALE } from '../../../../types/custom/tenant';
+import { emailOutboxStaleSendingPredicate } from '../../../notifications/email-outbox-lease';
+import { normalizeTenantPrivacyPolicy } from '../../../onboarding/tenant-onboarding.service';
+import { tenantHasPendingStripeObligations } from '../../../payments/pending-stripe-obligations';
+import {
+  tenantCurrencyChangeBlockedErrorDetails,
+  tenantHasCurrencyDependentData,
+} from '../../../tenant-currency-integrity';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -151,7 +158,6 @@ const toGlobalAdminPlatformAuditRecord = (entry: {
   });
 
 const toGlobalAdminTenantRecord = (tenant: {
-  canonicalRootUrl: string;
   currency: string;
   domain: string;
   id: string;
@@ -167,6 +173,40 @@ const toGlobalAdminTenantRecord = (tenant: {
   });
 };
 
+const toPlatformTenantAuditSnapshot = (
+  tenant: GlobalAdminTenantRecordType,
+  privacyPolicy?: {
+    privacyPolicyDigestSha256: string;
+    privacyPolicyVersionId: string;
+  },
+): PlatformAuditSnapshot => ({
+  resourceId: tenant.id,
+  resourceType: 'tenant',
+  state: {
+    currency: tenant.currency,
+    domain: tenant.domain,
+    id: tenant.id,
+    locale: tenant.locale,
+    name: tenant.name,
+    ...privacyPolicy,
+    stripeAccountId: tenant.stripeAccountId,
+    stripeConnected: tenant.stripeConnected,
+    theme: tenant.theme,
+    timezone: tenant.timezone,
+  },
+});
+
+export const tenantPrivacyPolicyDigest = (policy: {
+  privacyPolicyText: null | string;
+  privacyPolicyUrl: null | string;
+}): string =>
+  createHash('sha256')
+    .update(
+      JSON.stringify([policy.privacyPolicyText, policy.privacyPolicyUrl]),
+      'utf8',
+    )
+    .digest('hex');
+
 const normalizeTenantWriteInput = (
   input: GlobalAdminTenantWriteInput,
 ): GlobalAdminTenantWriteInput => {
@@ -178,13 +218,8 @@ const normalizeTenantWriteInput = (
   const domain = normalizeTenantDomain(input.domain);
 
   return {
-    canonicalRootUrl: normalizeTenantCanonicalRootUrl(
-      input.canonicalRootUrl,
-      domain,
-    ),
     currency: input.currency,
     domain,
-    locale: input.locale,
     name,
     stripeAccountId: input.stripeAccountId?.trim() || undefined,
     theme: input.theme,
@@ -203,7 +238,6 @@ const normalizeTenantWritePayload = (input: GlobalAdminTenantWriteInput) =>
   });
 
 const globalAdminTenantColumns = {
-  canonicalRootUrl: true,
   currency: true,
   domain: true,
   id: true,
@@ -215,7 +249,6 @@ const globalAdminTenantColumns = {
 } as const;
 
 const globalAdminTenantReturningColumns = {
-  canonicalRootUrl: tenants.canonicalRootUrl,
   currency: tenants.currency,
   domain: tenants.domain,
   id: tenants.id,
@@ -547,7 +580,6 @@ export const globalAdminHandlers = {
             }
 
             const tenantPublicUrlChanged =
-              beforeTenant.canonicalRootUrl !== tenantInput.canonicalRootUrl ||
               beforeTenant.domain !== tenantInput.domain;
             if (tenantPublicUrlChanged) {
               // The tenant row is the serialization lock shared with Checkout

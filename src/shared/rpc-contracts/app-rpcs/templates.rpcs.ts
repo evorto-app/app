@@ -12,6 +12,7 @@ import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 import { EventLocation } from '../../../types/location';
 import { iconSchema } from '../../types/icon';
 import {
+  TemplateGraphRpcError,
   TemplatesGroupedByCategoryError,
   TemplateSimpleRpcError,
 } from './templates.errors';
@@ -290,13 +291,32 @@ export const TemplatesCreateSimpleTemplate = asRpcMutation(
   }),
 );
 
+export const TemplatesCreate = asRpcMutation(
+  Rpc.make('templates.create', {
+    error: TemplateGraphRpcError,
+    payload: TemplateGraphInput,
+    success: TemplateGraphRecord,
+  }),
+);
+
 export const TemplatesFindOne = asRpcQuery(
   Rpc.make('templates.findOne', {
     error: TemplateSimpleRpcError,
     payload: Schema.Struct({
       id: Schema.NonEmptyString,
     }),
-    success: TemplateFindOneRecord,
+    success: TemplateGraphRecord,
+  }),
+);
+
+export const TemplatesUpdate = asRpcMutation(
+  Rpc.make('templates.update', {
+    error: TemplateGraphRpcError,
+    payload: Schema.Struct({
+      id: Schema.NonEmptyString,
+      ...TemplateGraphInput.fields,
+    }),
+    success: TemplateGraphRecord,
   }),
 );
 
@@ -332,7 +352,9 @@ export const TemplatesGroupedByCategory = asRpcQuery(
 
 export class TemplatesRpcs extends RpcGroup.make(
   TemplatesCreateSimpleTemplate,
+  TemplatesCreate,
   TemplatesFindOne,
   TemplatesGroupedByCategory,
   TemplatesUpdateSimpleTemplate,
+  TemplatesUpdate,
 ) {}

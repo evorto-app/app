@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
+import { TransactionRollbackError } from 'drizzle-orm';
 import { Effect, Layer } from 'effect';
 
 import { Database } from '../../../../../db';
@@ -511,11 +512,13 @@ const submittedReceiptRow = {
   updatedAt: new Date('2026-05-19T10:00:00.000Z'),
 };
 
-const databaseWithMyReceipts = () => {
+const databaseWithMyReceipts = (
+  rows: readonly (typeof submittedReceiptRow)[] = [submittedReceiptRow],
+) => {
   const query = {
     from: () => query,
     innerJoin: () => query,
-    orderBy: () => Effect.succeed([submittedReceiptRow]),
+    orderBy: () => Effect.succeed(rows),
     select: () => query,
     where: () => query,
   };
@@ -586,6 +589,40 @@ describe('finance profile receipt reads', () => {
       }),
     ).toBe('login@example.com');
   });
+
+  it.effect(
+    'returns current-user receipt media for an exact scoped upload binding',
+    () =>
+      Effect.gen(function* () {
+        const attachmentStorageKey =
+          'receipts/tenant-1/event-1/user-1/upload-1-receipt.png';
+        const result = yield* financeHandlers['finance.receipts.my'](
+          undefined,
+          { headers: {} } as never,
+        ).pipe(
+          Effect.provide(
+            createContextLayer([], {
+              database: databaseWithMyReceipts([
+                {
+                  ...submittedReceiptRow,
+                  attachmentStorageKey,
+                  attachmentStorageUrl: 'local-unavailable://receipt',
+                },
+              ]),
+            }),
+          ),
+        );
+
+        expect(result).toEqual([
+          expect.objectContaining({
+            attachmentStorageKey,
+            currency: 'AUD',
+            id: 'receipt-1',
+            previewImageUrl: null,
+          }),
+        ]);
+      }),
+  );
 
   it.effect(
     'fails closed for invalid upload bindings in current-user receipt rows',
@@ -1005,6 +1042,7 @@ describe('finance receipt amount validation', () => {
       expect(receiptDatabase.insertedValues()).toEqual(
         expect.objectContaining({
           attachmentUploadId: 'upload-1',
+          currency: 'EUR',
           eventId: 'event-1',
           status: 'submitted',
           submittedByUserId: 'user-1',

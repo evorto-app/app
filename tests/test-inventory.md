@@ -94,6 +94,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/smoke/semantic-theme-colors.test.ts
   - specs/template-categories/template-categories.test.ts
   - specs/templates/paid-option-requires-tax-rate.spec.ts [finance]
+  - specs/templates/registration-configuration.spec.ts
   - specs/templates/template-actions-permissions.spec.ts [permissions]
   - specs/templates/templates.test.ts
 
@@ -130,6 +131,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     `src/app/templates/template-details`
   - app mapper and submit-guard coverage in
     `src/app/templates/template-create-event`
+  - `specs/templates/registration-configuration.spec.ts` confirms every
+    simple/advanced mode change, proves warning-only advanced states, requires
+    the compatible advanced shape to be saved before a separate switch back to
+    simple, preserves stable option IDs and hidden mappings, blocks legacy
+    random graphs, and verifies that later template edits do not rewrite an
+    event-owned snapshot
   - shared registration-mode label coverage in `src/shared`
 - Roles and permissions:
   - `docs/roles/about-permissions.doc.ts`
@@ -591,16 +598,15 @@ and the release-gated live ESNcard provider credential path.
     claim, automatic abandoned-claim recovery, and exhausted failures, and is
     explicit that interactive tenant/status filtering and manual requeueing are
     not current UI features.
-  - Canonical tenant URL coverage pins one persisted root URL per primary
-    domain, exact host matching, HTTPS outside loopback development, and
-    rejection of credentials, ports, paths, alternate hosts, and absolute URL
-    overrides. Production notification and Stripe return links ignore request
-    origins and global app origins; local development may use only an explicit
-    loopback runtime origin. Platform tenant create/edit, database readback,
-    application/API append-only audit snapshots, tenant detail links, and
-    generated docs cover
-    the field. Tenant administrators see the value read-only and cannot mutate
-    it through tenant settings.
+  - Trusted tenant URL coverage derives one secure HTTPS public origin from the
+    normalized primary domain and rejects credentials, non-default ports,
+    paths, fragments, alternate hosts, and absolute URL overrides. Production
+    notification and Stripe return links ignore request origins and global app
+    origins; local development may use only an explicit loopback runtime
+    origin. Platform tenant create/edit, database readback, application/API
+    append-only audit snapshots, tenant detail links, and generated docs cover
+    the normalized domain. Tenant administrators see the primary domain
+    read-only and cannot mutate it through tenant settings.
 - Roles/user management:
   - Docker-backed system-Chrome least-privilege organizer coverage exercises
     event/template role selectors through the organizer fixture. Server
@@ -618,14 +624,14 @@ and the release-gated live ESNcard provider credential path.
   - Keep template-to-event mapper coverage aligned with the event form as richer
     reusable template data is added. Local app coverage now proves event
     defaults, source registration option ids, registration-window offsets, and
-    private organizer planning tips at the template-to-event boundary. It also
-    pins that reusable add-ons do not enter event form data until event-side
-    add-on fulfillment exists.
+    private organizer planning tips at the template-to-event boundary. The
+    server snapshots template mode, questions, reusable add-ons, and every
+    included/optional option mapping into event-owned rows; later template edits
+    leave that snapshot unchanged.
   - Template detail component coverage pins reusable add-on purchase timing and
-    registration-option labels. Server handler coverage pins the current
-    add-on read model while event-side add-on fulfillment remains out of scope.
-    Create-event component coverage pins the visible add-on boundary notice when
-    a template has reusable add-ons.
+    registration-option labels. Server handler coverage pins event-owned add-on
+    snapshots and organizer fulfillment. Create-event component coverage pins
+    the visible copy notice when a template has reusable add-ons.
   - Seed baseline coverage pins free and paid reusable template add-ons attached
     to participant template options so the template detail add-on surface has
     deterministic data once Browser/runtime review is available.

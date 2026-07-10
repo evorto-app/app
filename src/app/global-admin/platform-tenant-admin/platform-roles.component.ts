@@ -28,8 +28,8 @@ import {
 import type { PlatformRoleRecord } from '../../../shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
 
 import {
-  type Permission,
   PERMISSION_GROUPS,
+  type TenantRolePermission,
 } from '../../../shared/permissions/permissions';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
@@ -43,7 +43,7 @@ interface PlatformRoleFormModel {
   description: string;
   displayInHub: boolean;
   name: string;
-  permissions: Permission[];
+  permissions: TenantRolePermission[];
   reason: string;
 }
 

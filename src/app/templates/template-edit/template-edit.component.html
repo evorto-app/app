@@ -1,105 +1,92 @@
-<div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink=".." mat-icon-button>
+<div class="mb-4 flex items-center gap-2">
+  <a routerLink=".." mat-icon-button aria-label="Back to template">
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">Edit template</h1>
 </div>
 
-<main class="flex flex-col gap-4">
-  @if (templateQuery.isSuccess()) {
-    <form
-      (submit)="onSubmit($event)"
-      class="text-on-surface flex flex-col gap-6"
+<main>
+  @if (templateQuery.isPending()) {
+    <p role="status" aria-live="polite">Loading template...</p>
+  } @else if (templateQuery.isError()) {
+    <section
+      class="bg-error-container text-on-error-container p-4"
+      role="alert"
     >
-      <div class="bg-surface rounded-2xl p-4">
+      <p>{{ errorMessage(templateQuery.error()) }}</p>
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="templateQuery.isFetching()"
+        (click)="templateQuery.refetch()"
+      >
+        {{ templateQuery.isFetching() ? "Retrying..." : "Try again" }}
+      </button>
+    </section>
+  } @else if (editorLoadError()) {
+    <section
+      class="bg-error-container text-on-error-container grid gap-3 p-4"
+      role="alert"
+      data-testid="template-graph-readonly"
+    >
+      <h2 class="title-medium">This template is read-only</h2>
+      <p>{{ editorLoadError() }}</p>
+      <p>
+        The template remains available on its detail page. Replace the legacy
+        random allocation through a supported migration before editing it.
+      </p>
+      <a mat-stroked-button routerLink="..">Back to template</a>
+    </section>
+  } @else if (templateQuery.isSuccess()) {
+    <form
+      class="text-on-surface grid max-w-6xl gap-6"
+      (submit)="onSubmit($event)"
+    >
+      <section
+        class="border-outline-variant bg-surface grid gap-4 rounded-lg border p-4"
+        aria-labelledby="template-details-title"
+      >
+        <h2 id="template-details-title" class="title-medium">
+          Template details
+        </h2>
         <app-template-general-form
           [generalForm]="templateForm"
           [iconUsage]="iconUsage()"
         />
-      </div>
+        <mat-checkbox [formField]="templateForm.unlisted">
+          Hide this template from the standard template list
+        </mat-checkbox>
+      </section>
 
-      <div class="bg-surface rounded-2xl p-4">
-        <h2 class="mb-4 text-lg font-semibold">Simple Registration Setup</h2>
-        <p class="mb-4 text-sm">
-          This is the simple registration mode, which creates one registration
-          option for organizers and one for participants.
+      <section class="border-outline-variant bg-surface rounded-lg border p-4">
+        <app-template-graph-editor
+          [defaultParticipantRoleIds]="defaultParticipantRoleIds()"
+          [esnEnabled]="esnEnabled()"
+          [graphForm]="templateForm"
+          [persistedTemplate]="templateQuery.data()"
+          [taxRates]="taxRatesQuery.data() ?? []"
+          [taxRateState]="taxRateState()"
+        />
+      </section>
+
+      @if (updateTemplateMutation.isError()) {
+        <p class="text-error" role="alert">
+          {{ errorMessage(updateTemplateMutation.error()) }}
         </p>
+      }
 
-        <div class="grid grid-cols-1 gap-4 2xl:grid-cols-2">
-          <app-template-registration-option-form
-            class="bg-surface-container-lowest rounded-xl p-4 grid gap-4"
-            [esnEnabled]="esnEnabled()"
-            [registrationForm]="templateForm.organizerRegistration"
-            [registrationModes]="registrationModes"
-          />
-          <app-template-registration-option-form
-            class="bg-surface-container-lowest rounded-xl p-4 grid gap-4"
-            [esnEnabled]="esnEnabled()"
-            [registrationForm]="templateForm.participantRegistration"
-            [registrationModes]="registrationModes"
-          />
-        </div>
+      <div class="flex justify-end">
+        <button
+          mat-flat-button
+          type="submit"
+          data-testid="save-template-graph"
+          [disabled]="!canSubmit()"
+        >
+          {{
+            updateTemplateMutation.isPending() ? "Saving..." : "Update template"
+          }}
+        </button>
       </div>
-
-      <section class="bg-surface rounded-2xl p-4">
-        <div class="mb-4 flex items-center justify-between gap-4">
-          <h2 class="text-lg font-semibold">Reusable add-ons</h2>
-          <button type="button" mat-button (click)="addTemplateAddOn()">
-            <fa-duotone-icon [icon]="faPlus" />
-            Add add-on
-          </button>
-        </div>
-
-        <div class="grid gap-4">
-          @for (addOn of templateForm.addOns; track addOn; let index = $index) {
-            <app-template-addon-form
-              class="bg-surface-container-lowest rounded-xl p-4 grid gap-4"
-              [addOnForm]="addOn"
-              (remove)="removeTemplateAddOn(index)"
-            />
-          } @empty {
-            <p class="text-on-surface-variant text-sm">
-              No add-ons configured.
-            </p>
-          }
-        </div>
-      </section>
-
-      <section class="bg-surface rounded-2xl p-4">
-        <div class="mb-4 flex items-center justify-between gap-4">
-          <h2 class="text-lg font-semibold">Registration questions</h2>
-          <button type="button" mat-button (click)="addTemplateQuestion()">
-            <fa-duotone-icon [icon]="faPlus" />
-            Add question
-          </button>
-        </div>
-
-        <div class="grid gap-4">
-          @for (
-            question of templateForm.questions;
-            track question;
-            let index = $index
-          ) {
-            <app-template-question-form
-              class="bg-surface-container-lowest rounded-xl p-4 grid gap-4"
-              [questionForm]="question"
-              (remove)="removeTemplateQuestion(index)"
-            />
-          } @empty {
-            <p class="text-on-surface-variant text-sm">
-              No registration questions configured.
-            </p>
-          }
-        </div>
-      </section>
-
-      <button type="submit" mat-button [disabled]="!canSubmit()">
-        Update template
-      </button>
     </form>
-  } @else if (templateQuery.isError()) {
-    <p class="text-error">Failed to load template</p>
-  } @else {
-    <p>Loading...</p>
   }
 </main>

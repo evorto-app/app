@@ -3,7 +3,6 @@ import { Tenant } from '@types/custom/tenant';
 import { Schema } from 'effect';
 
 const tenantInput = {
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR',
   domain: 'tenant.example.com',
   id: 'tenant-1',
@@ -20,15 +19,6 @@ const omitUndefinedValues = (value: Record<string, unknown>) =>
   );
 
 describe('Tenant schema', () => {
-  it('requires the persisted canonical root in tenant request context', () => {
-    const { canonicalRootUrl: _canonicalRootUrl, ...missingCanonicalRoot } =
-      tenantInput;
-
-    expect(() =>
-      Schema.decodeUnknownSync(Tenant)(missingCanonicalRoot),
-    ).toThrow();
-  });
-
   it('applies secure tenant registration policy defaults', () => {
     const tenant = Schema.decodeUnknownSync(Tenant)(tenantInput);
 

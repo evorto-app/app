@@ -3,8 +3,7 @@ import {
   resolveTenantDiscountProviders,
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
-import { resolveTenantPublicOrigin } from '@shared/tenant-origin';
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { ConfigProvider, Context, Effect, Layer, Option } from 'effect';
 import Stripe from 'stripe';
 
@@ -45,7 +44,10 @@ import {
 import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obligations';
 import { registrationCheckoutInitialReconcileAt } from '../../../../registrations/registration-checkout-completion';
 import { StripeClient } from '../../../../stripe-client';
-import { tenantOutboundUrl } from '../../../../tenant-outbound-url';
+import {
+  tenantOutboundRootUrl,
+  tenantOutboundUrl,
+} from '../../../../tenant-outbound-url';
 import {
   ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,
   isUniqueConstraintViolation,
@@ -145,29 +147,6 @@ export const isUserEligibleForRegistrationOption = ({
   optionRoleIds.length === 0 ||
   optionRoleIds.some((roleId) => userRoleIds.includes(roleId));
 
-const resolveRegistrationPublicOrigin = ({
-  baseUrl,
-  domain,
-  nodeEnvironment,
-}: {
-  baseUrl: string | undefined;
-  domain: string;
-  nodeEnvironment: string | undefined;
-}) =>
-  Effect.try({
-    catch: (cause) =>
-      new EventRegistrationInternalError({
-        cause,
-        message: 'Invalid tenant domain configuration',
-      }),
-    try: () =>
-      resolveTenantPublicOrigin({
-        baseUrl,
-        nodeEnvironment,
-        primaryDomain: domain,
-      }),
-  });
-
 const resolveDiscount = ({
   basePrice,
   cards,
@@ -234,7 +213,6 @@ export interface ApproveManualRegistrationArguments {
   registrationId: string;
   targetTenant: Pick<
     Tenant,
-    | 'canonicalRootUrl'
     | 'currency'
     | 'domain'
     | 'emailSenderEmail'
@@ -1119,11 +1097,15 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const pinnedNowIso = Option.getOrUndefined(
           serverEnvironment.E2E_NOW_ISO,
         );
-        const publicOrigin = yield* resolveRegistrationPublicOrigin({
-          baseUrl: Option.getOrUndefined(serverEnvironment.BASE_URL),
-          domain: tenant.domain,
-          nodeEnvironment: Option.getOrUndefined(serverEnvironment.NODE_ENV),
-        });
+        yield* tenantOutboundRootUrl(tenant).pipe(
+          Effect.mapError(
+            (cause) =>
+              new EventRegistrationInternalError({
+                cause,
+                message: 'Invalid tenant domain configuration',
+              }),
+          ),
+        );
 
         const registration = yield* databaseEffect((database) =>
           database.query.eventRegistrations.findFirst({
@@ -1335,15 +1317,19 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           selectedAddonTotalPrice;
         const requiresCheckout = effectiveTotalPrice > 0;
         const appFee = Math.round(effectiveTotalPrice * 0.035);
-        const stripeAccount = tenant.stripeAccountId;
-        if (requiresCheckout && !stripeAccount) {
-          return yield* Effect.fail(
-            new EventRegistrationInternalError({
-              message: 'Stripe account not found',
-            }),
-          );
-        }
-        const eventUrl = `${publicOrigin}/events/${eventId}`;
+        const eventUrl = yield* tenantOutboundUrl(
+          tenant,
+          `/events/${encodeURIComponent(eventId)}`,
+        ).pipe(
+          Effect.mapError(
+            (cause) =>
+              new EventRegistrationInternalError({
+                cause,
+                message:
+                  'Tenant event URL is invalid for registration approval',
+              }),
+          ),
+        );
         const notificationEmail =
           registration.user.communicationEmail?.trim() ||
           registration.user.email;
@@ -2268,11 +2254,18 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const pinnedNowIso = Option.getOrUndefined(
           serverEnvironment.E2E_NOW_ISO,
         );
-        const publicOrigin = yield* resolveRegistrationPublicOrigin({
-          baseUrl: Option.getOrUndefined(serverEnvironment.BASE_URL),
-          domain: tenant.domain,
-          nodeEnvironment: Option.getOrUndefined(serverEnvironment.NODE_ENV),
-        });
+        const registrationEventUrl = yield* tenantOutboundUrl(
+          tenant,
+          `/events/${encodeURIComponent(eventId)}`,
+        ).pipe(
+          Effect.mapError(
+            (cause) =>
+              new EventRegistrationInternalError({
+                cause,
+                message: 'Invalid tenant domain configuration',
+              }),
+          ),
+        );
         const now = getServerNow(pinnedNowIso).toJSDate();
         if (!Number.isInteger(guestCount) || guestCount < 0) {
           return yield* Effect.fail(
@@ -2616,19 +2609,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
         let directConfirmationTicketUrl: string | undefined;
         if (!manualApproval && !requiresCheckout) {
-          directConfirmationTicketUrl = yield* tenantOutboundUrl(
-            tenant,
-            `/events/${encodeURIComponent(eventId)}`,
-          ).pipe(
-            Effect.mapError(
-              (cause) =>
-                new EventRegistrationInternalError({
-                  cause,
-                  message:
-                    'Tenant event URL is invalid for registration confirmation email',
-                }),
-            ),
-          );
+          directConfirmationTicketUrl = registrationEventUrl;
         }
 
         let directCheckout:
@@ -2646,19 +2627,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               }),
             );
           }
-          const eventUrl = yield* tenantOutboundUrl(
-            tenant,
-            `/events/${encodeURIComponent(eventId)}`,
-          ).pipe(
-            Effect.mapError(
-              (cause) =>
-                new EventRegistrationInternalError({
-                  cause,
-                  message:
-                    'Tenant event URL is invalid for registration checkout',
-                }),
-            ),
-          );
+          const eventUrl = registrationEventUrl;
           const checkoutLineItems: RegistrationCheckoutLineItemSnapshot[] = [];
           if (effectivePrice > 0) {
             checkoutLineItems.push({

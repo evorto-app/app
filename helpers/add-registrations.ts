@@ -16,7 +16,7 @@ import consola from 'consola';
  * 8. For paid registrations, creates associated transactions as if Stripe webhooks fired
  * 9. Handles various registration statuses and payment transaction outcomes for comprehensive testing scenarios
  */
-import { InferInsertModel, eq } from 'drizzle-orm';
+import { eq, InferInsertModel } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { relations } from '../src/db/relations';
@@ -42,6 +42,42 @@ export interface EventRegistrationInput {
   tenantId?: string;
   title?: string;
 }
+
+const MAX_REGISTRATIONS_PER_USER = 4;
+const MAX_REGISTRATIONS_PER_TEST_USER = 1;
+
+export const claimRegistrationSeedUsers = <User extends { id: string }>(
+  candidates: readonly User[],
+  totalRegistrations: number,
+  selectedUserIdsForEvent: Set<string>,
+  seededCountByUser: Map<string, number>,
+  testerUserIds: ReadonlySet<string>,
+): User[] => {
+  if (totalRegistrations <= 0) {
+    return [];
+  }
+
+  const selectedUsers: User[] = [];
+
+  for (const user of candidates) {
+    const limit = testerUserIds.has(user.id)
+      ? MAX_REGISTRATIONS_PER_TEST_USER
+      : MAX_REGISTRATIONS_PER_USER;
+    const currentCount = seededCountByUser.get(user.id) ?? 0;
+    if (selectedUserIdsForEvent.has(user.id) || currentCount >= limit) {
+      continue;
+    }
+
+    selectedUserIdsForEvent.add(user.id);
+    seededCountByUser.set(user.id, currentCount + 1);
+    selectedUsers.push(user);
+    if (selectedUsers.length >= totalRegistrations) {
+      break;
+    }
+  }
+
+  return selectedUsers;
+};
 
 /**
  * Adds realistic event registrations to the database.
@@ -126,10 +162,12 @@ export async function addRegistrations(
     for (const rid of roleIds) {
       const list = byRole.get(rid) ?? [];
       for (const u of list) {
-        if (!seen.has(u.id)) {
-          seen.add(u.id);
-          result.push(u);
+        if (seen.has(u.id)) {
+          continue;
         }
+
+        seen.add(u.id);
+        result.push(u);
       }
     }
     return result;
@@ -145,8 +183,6 @@ export async function addRegistrations(
 
   const testerUserIds = new Set(usersToAuthenticate.map((user) => user.id));
   const seededCountByUser = new Map<string, number>();
-  const MAX_REGISTRATIONS_PER_USER = 4;
-  const MAX_REGISTRATIONS_PER_TEST_USER = 1;
 
   // Process each event with varied registration patterns
   for (const [eventIndex, event] of events.entries()) {
@@ -154,6 +190,8 @@ export async function addRegistrations(
     if (!event.id || !event.registrationOptions?.length) {
       continue;
     }
+
+    const selectedUserIdsForEvent = new Set<string>();
 
     // Determine event popularity and registration patterns
     const eventDate = new Date(event.start);
@@ -242,33 +280,24 @@ export async function addRegistrations(
       let checkedInCount = 0;
 
       // Deterministically select K users using partial shuffle (faster than full sort)
-      const shuffledUsers = eligibleUsers.slice();
+      const shuffledUsers = [...eligibleUsers];
       for (let i = shuffledUsers.length - 1; i > 0; i--) {
-        const j = randNumber({ min: 0, max: i });
+        const j = randNumber({ max: i, min: 0 });
         const tmp = shuffledUsers[i];
         shuffledUsers[i] = shuffledUsers[j];
         shuffledUsers[j] = tmp;
       }
 
-      const selectedUsers: (typeof users)[number][] = [];
-      for (const user of shuffledUsers) {
-        const limit = testerUserIds.has(user.id)
-          ? MAX_REGISTRATIONS_PER_TEST_USER
-          : MAX_REGISTRATIONS_PER_USER;
-        const currentCount = seededCountByUser.get(user.id) ?? 0;
-        if (currentCount >= limit) {
-          continue;
-        }
-        selectedUsers.push(user);
-        if (selectedUsers.length >= totalRegistrations) {
-          break;
-        }
-      }
+      const selectedUsers = claimRegistrationSeedUsers(
+        shuffledUsers,
+        totalRegistrations,
+        selectedUserIdsForEvent,
+        seededCountByUser,
+        testerUserIds,
+      );
 
       // Create registrations
-      for (let index = 0; index < selectedUsers.length; index++) {
-        const user = selectedUsers[index];
-
+      for (const [index, user] of selectedUsers.entries()) {
         // Get userTenant relationship for this specific tenant
         const userTenantRelation = user.tenantAssignments?.find(
           (t) => t.tenantId === tenantId,
@@ -341,9 +370,6 @@ export async function addRegistrations(
           userId: user.id,
         });
 
-        const previousCount = seededCountByUser.get(user.id) ?? 0;
-        seededCountByUser.set(user.id, previousCount + 1);
-
         // For paid registrations, create a transaction record
         if (option.isPaid && paymentState) {
           transactions.push({
@@ -374,35 +400,29 @@ export async function addRegistrations(
     }
   }
 
-  // Execute writes without an explicit transaction.
-  // Neon local + fetch transport under Bun can hit websocket-only transaction paths.
-  // Best-effort seed consistency is sufficient for test fixtures.
-  try {
-    // Insert all registrations in a single statement (no chunking)
-    if (registrations.length > 0) {
-      await database.insert(schema.eventRegistrations).values(registrations);
-    }
+  // Execute writes without an explicit transaction because Neon Local's fetch
+  // transport under Bun can require websocket-only transaction paths. A failed
+  // write must still reject the seed so db:reset cannot report partial data as
+  // a successful setup.
+  if (registrations.length > 0) {
+    await database.insert(schema.eventRegistrations).values(registrations);
+  }
 
-    // Insert all transactions in a single statement (no chunking)
-    if (transactions.length > 0) {
-      await database.insert(schema.transactions).values(transactions);
-    }
+  if (transactions.length > 0) {
+    await database.insert(schema.transactions).values(transactions);
+  }
 
-    if (optionUpdates.size > 0) {
-      for (const [id, counts] of optionUpdates) {
-        await database
-          .update(schema.eventRegistrationOptions)
-          .set({
-            checkedInSpots: counts.checkedInSpots,
-            confirmedSpots: counts.confirmedSpots,
-            waitlistSpots: counts.waitlistSpots,
-          })
-          .where(eq(schema.eventRegistrationOptions.id, id));
-      }
+  if (optionUpdates.size > 0) {
+    for (const [id, counts] of optionUpdates) {
+      await database
+        .update(schema.eventRegistrationOptions)
+        .set({
+          checkedInSpots: counts.checkedInSpots,
+          confirmedSpots: counts.confirmedSpots,
+          waitlistSpots: counts.waitlistSpots,
+        })
+        .where(eq(schema.eventRegistrationOptions.id, id));
     }
-  } catch (error) {
-    consola.error('Failed to create registrations:', error);
-    return [];
   }
   consola.success(
     `Created ${registrations.length} registrations and ${transactions.length} transactions`,

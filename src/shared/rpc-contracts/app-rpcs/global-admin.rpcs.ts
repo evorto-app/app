@@ -48,7 +48,6 @@ export const GlobalAdminTenantIdInput = Schema.Struct({
 });
 
 export const GlobalAdminTenantWriteInput = Schema.Struct({
-  canonicalRootUrl: Tenant.fields.canonicalRootUrl,
   currency: Tenant.fields.currency,
   domain: Schema.NonEmptyString,
   name: Schema.NonEmptyString,

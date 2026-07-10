@@ -16,7 +16,12 @@ import { AppRpc } from '../../../core/effect-rpc-angular-client';
 import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 import { LocationSelectorField } from '../../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
-import { TemplateFormData } from './template-form.utilities';
+import { TemplateGeneralFormModel } from './template-general-form.utilities';
+
+type TemplateGeneralFormFields = Pick<
+  FieldTree<TemplateGeneralFormModel>,
+  'categoryId' | 'description' | 'icon' | 'location' | 'planningTips' | 'title'
+>;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,7 +38,7 @@ import { TemplateFormData } from './template-form.utilities';
   templateUrl: './template-general-form.component.html',
 })
 export class TemplateGeneralFormComponent {
-  public readonly generalForm = input.required<FieldTree<TemplateFormData>>();
+  public readonly generalForm = input.required<TemplateGeneralFormFields>();
   public readonly iconUsage = input.required<IconAddUsage>();
 
   private readonly rpc = AppRpc.injectClient();

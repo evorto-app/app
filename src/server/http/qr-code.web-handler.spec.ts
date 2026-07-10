@@ -10,7 +10,6 @@ import { Database } from '../../db';
 import { handleQrRegistrationCodeWebRequest } from './qr-code.web-handler';
 
 const tenant = {
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: undefined,
   discountProviders: {
@@ -119,7 +118,6 @@ const createDatabase = ({
     tenants: {
       findFirst: () =>
         Effect.succeed({
-          canonicalRootUrl: tenant.canonicalRootUrl,
           domain: tenant.domain,
         }),
     },
@@ -165,7 +163,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
   );
 
   it.effect(
-    'uses the saved canonical tenant root instead of the request origin',
+    'uses the derived tenant origin instead of the request origin',
     () =>
       Effect.gen(function* () {
         const response = yield* runQrRequest({

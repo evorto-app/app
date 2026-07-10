@@ -1,15 +1,13 @@
 import {
-  buildTenantOutboundUrl,
-  resolveTenantOutboundRootUrl,
-  type TenantOutboundRootUrlInput,
-} from '@shared/tenant-public-url';
+  buildTenantPublicUrl,
+  resolveTenantPublicOrigin,
+} from '@shared/tenant-origin';
 import { Effect, Option, Schema } from 'effect';
 
 import { formatConfigError } from './config/config-error';
 import { serverPublicUrlConfig } from './config/server-config';
 
 export interface TenantOutboundUrlTenant {
-  readonly canonicalRootUrl: string;
   readonly domain: string;
   readonly id?: string | undefined;
 }
@@ -40,11 +38,10 @@ const runtimeInput = (
     BASE_URL: Option.Option<string>;
     NODE_ENV: Option.Option<string>;
   },
-): TenantOutboundRootUrlInput => ({
-  canonicalRootUrl: tenant.canonicalRootUrl,
-  domain: tenant.domain,
-  localRuntimeOrigin: Option.getOrUndefined(environment.BASE_URL),
+) => ({
+  baseUrl: Option.getOrUndefined(environment.BASE_URL),
   nodeEnvironment: Option.getOrUndefined(environment.NODE_ENV),
+  primaryDomain: tenant.domain,
 });
 
 export const tenantOutboundRootUrl = Effect.fn('tenantOutboundRootUrl')(
@@ -61,13 +58,8 @@ export const tenantOutboundRootUrl = Effect.fn('tenantOutboundRootUrl')(
 
     return yield* Effect.try({
       catch: (cause) =>
-        failTenantOutboundUrl(
-          tenant,
-          'Tenant canonical root URL is invalid',
-          cause,
-        ),
-      try: () =>
-        resolveTenantOutboundRootUrl(runtimeInput(tenant, environment)),
+        failTenantOutboundUrl(tenant, 'Tenant public origin is invalid', cause),
+      try: () => resolveTenantPublicOrigin(runtimeInput(tenant, environment)),
     });
   },
 );
@@ -94,7 +86,7 @@ export const tenantOutboundUrl = Effect.fn('tenantOutboundUrl')(function* (
         cause,
       ),
     try: () =>
-      buildTenantOutboundUrl({
+      buildTenantPublicUrl({
         ...runtimeInput(tenant, environment),
         path,
       }),

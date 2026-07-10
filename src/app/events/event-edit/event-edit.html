@@ -1,12 +1,18 @@
 <div class="mb-4 flex w-full flex-row items-center gap-2">
   <a
-    routerLink="/events/{{ eventId() }}"
+    [routerLink]="['/events', eventId()]"
     mat-icon-button
     aria-label="Back to event"
   >
     <fa-icon [icon]="faArrowLeft" />
   </a>
-  <h1 class="title-large">{{ eventQuery.data()?.title ?? "Loading ..." }}</h1>
+  <h1 class="title-large">
+    @if (eventQuery.isSuccess()) {
+      {{ eventQuery.data().title }}
+    } @else {
+      Edit event
+    }
+  </h1>
   <div class="grow"></div>
   <button
     type="button"
@@ -17,65 +23,397 @@
   >
     <fa-icon [icon]="faEllipsisVertical" />
   </button>
-  <mat-menu #menu="matMenu">
-    <!--    <button mat-menu-item (click)="updateVisibility()">-->
-    <!--      Update visibility-->
-    <!--    </button>-->
-  </mat-menu>
+  <mat-menu #menu="matMenu"></mat-menu>
 </div>
-<main>
-  <form (submit)="saveEvent($event)">
-    <div class="grid gap-6">
-      <section class="bg-surface text-on-surface rounded-2xl p-4">
-        <h2 class="title-large mb-4">Event Details</h2>
-        <app-event-general-form
-          [generalForm]="editEventForm"
-          [iconUsage]="iconUsage()"
-        />
-      </section>
 
-      <section
-        class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-2"
-      >
-        <h2 class="title-large mb-4 p-2">Registration Options</h2>
-        <div
-          class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:[grid-template-rows:auto_auto_auto_auto_auto_auto_auto]"
-        >
-          @for (option of editEventForm.registrationOptions; track option) {
-            <app-registration-option-form
-              class="bg-surface text-on-surface rounded-xl p-4 grid gap-4 lg:row-span-7 lg:grid-rows-subgrid"
-              [esnEnabled]="esnEnabled()"
-              [registrationOptionForm]="option"
-              [registrationModes]="registrationModes"
-            />
-          }
-        </div>
-      </section>
+<main class="mx-auto w-full max-w-6xl pb-24">
+  @if (eventQuery.isPending()) {
+    <p class="text-on-surface-variant py-8">Loading event configuration…</p>
+  } @else if (eventQuery.isError()) {
+    <section
+      class="bg-error-container text-on-error-container rounded-xl p-4"
+      role="alert"
+    >
+      <h2 class="title-medium">Event editor unavailable</h2>
+      <p class="mt-2">{{ queryErrorMessage() }}</p>
+    </section>
+  } @else if (loadBlock(); as message) {
+    <section
+      class="bg-error-container text-on-error-container rounded-xl p-4"
+      role="alert"
+      data-testid="event-graph-readonly"
+    >
+      <h2 class="title-medium">Registration configuration is read-only</h2>
+      <p class="mt-2">{{ message }}</p>
+      <p class="mt-2 text-sm">
+        Nothing has been converted or removed. Contact a platform administrator
+        to repair or explicitly migrate this event graph.
+      </p>
+    </section>
+  } @else {
+    <form (submit)="saveEvent($event)">
+      <div class="grid gap-6">
+        <section class="bg-surface text-on-surface rounded-xl p-4">
+          <h2 class="title-large mb-4">Event details</h2>
+          <div class="grid gap-4">
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-[auto_1fr]">
+              <app-icon-selector-field
+                [formField]="eventForm.icon"
+                [usage]="iconUsage()"
+              />
+              <mat-form-field>
+                <mat-label>Event title</mat-label>
+                <input matInput [formField]="eventForm.title" />
+              </mat-form-field>
+            </div>
 
-      <div class="flex justify-end">
-        <button
-          type="submit"
-          mat-button
-          [disabled]="
-            eventEditSubmitDisabled({
-              formInvalid: editEventForm().invalid(),
-              formSubmitting: editEventForm().submitting(),
-              mutationPending: updateEventMutation.isPending(),
-            })
-          "
-        >
-          @if (updateEventMutation.isPending()) {
-            Saving...
-          } @else {
-            Save Changes
-          }
-        </button>
-        @if (updateEventMutation.error()) {
-          <div class="text-error mt-2 text-sm">
-            Failed to save event. Please try again.
+            <app-location-selector-field [formField]="eventForm.location" />
+
+            <div class="grid gap-2">
+              <span class="text-on-surface-variant text-sm">Description</span>
+              <app-editor [control]="eventForm.description" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <mat-form-field>
+                <mat-label>Start date</mat-label>
+                <input
+                  matInput
+                  [matDatepicker]="eventStartDatePicker"
+                  [formField]="eventForm.start"
+                />
+                <mat-hint>DD.MM.YYYY</mat-hint>
+                <mat-datepicker-toggle
+                  matIconSuffix
+                  [for]="eventStartDatePicker"
+                />
+                <mat-datepicker #eventStartDatePicker />
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Start time</mat-label>
+                <input
+                  matInput
+                  [matTimepicker]="eventStartTimePicker"
+                  [formField]="eventForm.start"
+                />
+                <mat-timepicker #eventStartTimePicker />
+                <mat-timepicker-toggle matSuffix [for]="eventStartTimePicker" />
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>End date</mat-label>
+                <input
+                  matInput
+                  [matDatepicker]="eventEndDatePicker"
+                  [formField]="eventForm.end"
+                />
+                <mat-hint>DD.MM.YYYY</mat-hint>
+                <mat-datepicker-toggle
+                  matIconSuffix
+                  [for]="eventEndDatePicker"
+                />
+                <mat-datepicker #eventEndDatePicker />
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>End time</mat-label>
+                <input
+                  matInput
+                  [matTimepicker]="eventEndTimePicker"
+                  [formField]="eventForm.end"
+                />
+                <mat-timepicker #eventEndTimePicker />
+                <mat-timepicker-toggle matSuffix [for]="eventEndTimePicker" />
+              </mat-form-field>
+            </div>
           </div>
+        </section>
+
+        <section
+          class="bg-surface-container-low text-on-surface rounded-xl p-4"
+          aria-labelledby="registration-mode-heading"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 id="registration-mode-heading" class="title-large">
+                Registration configuration
+              </h2>
+              <p class="text-on-surface-variant mt-1 max-w-3xl text-sm">
+                Simple mode keeps one organizer and one participant option.
+                Advanced mode supports any number of named options and reveals
+                add-on configuration.
+              </p>
+            </div>
+            <div
+              class="border-outline-variant flex gap-1 rounded-lg border p-1"
+              aria-label="Registration configuration mode"
+            >
+              <button
+                type="button"
+                mat-button
+                data-testid="event-mode-simple"
+                [attr.aria-pressed]="eventModel().simpleModeEnabled"
+                [class.bg-primary-container]="eventModel().simpleModeEnabled"
+                (click)="requestModeChange(true)"
+              >
+                Simple
+              </button>
+              <button
+                type="button"
+                mat-button
+                data-testid="event-mode-advanced"
+                [attr.aria-pressed]="!eventModel().simpleModeEnabled"
+                [class.bg-primary-container]="!eventModel().simpleModeEnabled"
+                (click)="requestModeChange(false)"
+              >
+                Advanced
+              </button>
+            </div>
+          </div>
+
+          @if (!eventModel().simpleModeEnabled && simpleModeIssue()) {
+            <p class="text-on-surface-variant mt-3 text-sm">
+              To return to simple mode, keep exactly one organizing and one
+              non-organizing option. Switching modes never deletes options for
+              you.
+            </p>
+          }
+          @if (graphActionMessage(); as message) {
+            <p
+              class="bg-error-container text-on-error-container mt-3 rounded-lg p-3 text-sm"
+              role="alert"
+            >
+              {{ message }}
+            </p>
+          }
+        </section>
+
+        <section
+          class="bg-surface-container-high text-on-surface rounded-xl p-4"
+          aria-labelledby="registration-options-heading"
+        >
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 id="registration-options-heading" class="title-large">
+                Registration options
+              </h2>
+              @if (eventModel().simpleModeEnabled) {
+                <p class="text-on-surface-variant mt-1 text-sm">
+                  Both options remain fully editable. Switch to advanced mode
+                  before adding or removing options.
+                </p>
+              }
+            </div>
+            @if (!eventModel().simpleModeEnabled) {
+              <button
+                type="button"
+                mat-button
+                (click)="addRegistrationOption()"
+              >
+                Add registration option
+              </button>
+            }
+          </div>
+
+          @if (!eventModel().simpleModeEnabled && advancedWarnings().length) {
+            <div
+              class="bg-tertiary-container text-on-tertiary-container mb-4 rounded-lg p-3"
+              role="status"
+            >
+              @for (warning of advancedWarnings(); track warning) {
+                <p data-testid="event-graph-warning">{{ warning }}</p>
+              }
+              <p class="mt-1 text-sm">
+                This is allowed for operational events and does not block saving
+                or publishing.
+              </p>
+            </div>
+          }
+
+          <div class="grid gap-4">
+            @for (
+              option of eventForm.registrationOptions;
+              track option.key().value()
+            ) {
+              <app-event-registration-option-editor
+                [esnEnabled]="esnEnabled()"
+                [optionForm]="option"
+                [removable]="!eventModel().simpleModeEnabled"
+                [simpleMode]="eventModel().simpleModeEnabled"
+                (removeRequested)="
+                  removeRegistrationOption(option.key().value())
+                "
+              />
+            } @empty {
+              <p class="text-on-surface-variant py-4 text-sm">
+                This operational event has no registration options. Add one when
+                participants or organizers should register.
+              </p>
+            }
+          </div>
+        </section>
+
+        <section
+          class="bg-surface-container-low text-on-surface rounded-xl p-4"
+          aria-labelledby="registration-questions-heading"
+        >
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 id="registration-questions-heading" class="title-large">
+                Registration questions
+              </h2>
+              <p class="text-on-surface-variant mt-1 text-sm">
+                Each question belongs to one concrete option. Duplicate it
+                deliberately when multiple options should ask the same thing.
+              </p>
+            </div>
+            <button
+              type="button"
+              mat-button
+              [disabled]="eventModel().registrationOptions.length === 0"
+              (click)="addQuestion()"
+            >
+              Add question
+            </button>
+          </div>
+
+          <div class="grid gap-4">
+            @for (
+              question of eventForm.questions;
+              track question.key().value();
+              let questionIndex = $index
+            ) {
+              <article
+                class="border-outline-variant bg-surface rounded-xl border p-4"
+              >
+                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <mat-form-field class="lg:col-span-2">
+                    <mat-label>Question</mat-label>
+                    <input matInput [formField]="question.title" />
+                  </mat-form-field>
+                  <mat-form-field>
+                    <mat-label>Registration option</mat-label>
+                    <mat-select [formField]="question.registrationOptionKey">
+                      @for (option of optionChoices(); track option.key) {
+                        <mat-option [value]="option.key">
+                          {{ option.title }}
+                        </mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  <mat-form-field>
+                    <mat-label>Sort order</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [formField]="question.sortOrder"
+                    />
+                  </mat-form-field>
+                </div>
+                <mat-form-field class="w-full">
+                  <mat-label>Supporting description</mat-label>
+                  <textarea
+                    matInput
+                    rows="2"
+                    [formField]="question.description"
+                  ></textarea>
+                </mat-form-field>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <mat-checkbox [formField]="question.required">
+                    Required question
+                  </mat-checkbox>
+                  <div class="flex gap-2">
+                    <button
+                      type="button"
+                      mat-button
+                      (click)="duplicateQuestion(questionIndex)"
+                    >
+                      Duplicate question
+                    </button>
+                    <button
+                      type="button"
+                      mat-button
+                      (click)="removeQuestion(questionIndex)"
+                    >
+                      Remove question
+                    </button>
+                  </div>
+                </div>
+              </article>
+            } @empty {
+              <p class="text-on-surface-variant text-sm">
+                No registration questions are configured.
+              </p>
+            }
+          </div>
+        </section>
+
+        @if (!eventModel().simpleModeEnabled) {
+          <section
+            class="bg-surface-container-high text-on-surface rounded-xl p-4"
+            aria-labelledby="event-addons-heading"
+            data-testid="event-addons-section"
+          >
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 id="event-addons-heading" class="title-large">Add-ons</h2>
+                <p class="text-on-surface-variant mt-1 text-sm">
+                  Reuse one add-on across several options. Each mapping has its
+                  own included and optional quantities.
+                </p>
+              </div>
+              <button type="button" mat-button (click)="addAddOn()">
+                Add add-on
+              </button>
+            </div>
+
+            <div class="grid gap-4">
+              @for (
+                addOn of eventForm.addOns;
+                track addOn.key().value();
+                let addOnIndex = $index
+              ) {
+                <app-event-addon-editor
+                  [addOnForm]="addOn"
+                  [optionChoices]="optionChoices()"
+                  (addMappingRequested)="addAddOnMapping(addOnIndex)"
+                  (removeMappingRequested)="
+                    removeAddOnMapping(addOnIndex, $event)
+                  "
+                  (removeRequested)="removeAddOn(addOnIndex)"
+                />
+              } @empty {
+                <p class="text-on-surface-variant text-sm">
+                  Add-ons are disabled for this event.
+                </p>
+              }
+            </div>
+          </section>
         }
+
+        <div class="flex flex-col items-end gap-2">
+          @if (saveError(); as message) {
+            <p class="text-error text-sm" role="alert">{{ message }}</p>
+          }
+          <button
+            type="submit"
+            mat-flat-button
+            data-testid="save-event-graph"
+            [disabled]="
+              eventEditSubmitDisabled({
+                formInvalid: eventForm().invalid(),
+                formSubmitting: eventForm().submitting(),
+                graphReadOnly: loadBlock() !== null,
+                mutationPending: updateEventMutation.isPending(),
+              })
+            "
+          >
+            @if (updateEventMutation.isPending()) {
+              Saving…
+            } @else {
+              Save changes
+            }
+          </button>
+        </div>
       </div>
-    </div>
-  </form>
+    </form>
+  }
 </main>

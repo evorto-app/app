@@ -12,6 +12,7 @@ import { databaseLayer } from '../database.layer';
 import { createNodePgPoolConfig } from '../pg-connection-config';
 import { relations } from '../relations';
 import {
+  emailOutbox,
   eventInstances,
   eventRegistrationOptions,
   eventRegistrations,
@@ -28,6 +29,7 @@ const describeWithPostgres = databaseUrl ? describe : describe.skip;
 
 interface LimitFixture {
   readonly categoryId: string;
+  readonly domain: string;
   readonly eventIds: readonly [string, string];
   readonly membershipId: string;
   readonly optionIds: readonly [string, string];
@@ -134,6 +136,7 @@ const seedLimitFixture = async (
   database: TestDatabase,
 ): Promise<LimitFixture> => {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+  const domain = `${suffix}.limit-concurrency.example`;
   const tenantId = makeId('tenant', suffix);
   const userId = makeId('user', suffix);
   const membershipId = makeId('member', suffix);
@@ -150,14 +153,14 @@ const seedLimitFixture = async (
   const now = Date.now();
 
   await database.insert(tenants).values({
-    canonicalRootUrl: `https://${suffix}.limit-concurrency.example`,
-    domain: `${suffix}.limit-concurrency.example`,
+    domain,
     id: tenantId,
     maxActiveRegistrationsPerUser: 1,
     name: `Limit concurrency ${suffix}`,
   });
   await database.insert(users).values({
     auth0Id: `auth0|limit-${suffix}`,
+    communicationEmail: `${suffix}@example.com`,
     email: `${suffix}@example.com`,
     firstName: 'Limit',
     id: userId,
@@ -213,6 +216,7 @@ const seedLimitFixture = async (
 
   return {
     categoryId,
+    domain,
     eventIds,
     membershipId,
     optionIds,
@@ -226,6 +230,9 @@ const cleanLimitFixture = async (
   database: TestDatabase,
   fixture: LimitFixture,
 ) => {
+  await database
+    .delete(emailOutbox)
+    .where(inArray(emailOutbox.tenantId, [fixture.tenantId]));
   await database
     .delete(eventRegistrations)
     .where(inArray(eventRegistrations.eventId, fixture.eventIds));
@@ -257,6 +264,7 @@ const registrationInput = (
   registrationOptionId: fixture.optionIds[eventIndex],
   tenant: {
     currency: 'EUR',
+    domain: fixture.domain,
     id: fixture.tenantId,
     maxActiveRegistrationsPerUser: 1,
     stripeAccountId: null,

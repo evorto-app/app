@@ -63,6 +63,7 @@ test('Review and reimburse receipts @finance', async ({
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 1024,
       attachmentUploadId: receiptUploadId,
+      currency: tenant.currency,
       depositAmount: 150,
       eventId,
       hasAlcohol: true,

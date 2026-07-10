@@ -96,7 +96,6 @@ const waitForBlockedTenantLock = async (pool: Pool) => {
 
 const runUrlMigration = (
   tenant: {
-    readonly canonicalRootUrl: string;
     readonly currency: GlobalAdminTenantWriteInput['currency'];
     readonly domain: string;
     readonly id: string;
@@ -114,7 +113,6 @@ const runUrlMigration = (
         id: tenant.id,
         reason: 'Exercise tenant public URL serialization',
         tenant: {
-          canonicalRootUrl: `https://${nextDomain}`,
           currency: tenant.currency,
           domain: nextDomain,
           name: tenant.name,
@@ -215,7 +213,6 @@ describeWithPostgres('tenant public URL migration serialization', () => {
     fixtures.push(fixture);
 
     await database.insert(tenants).values({
-      canonicalRootUrl: `https://${domain}`,
       domain,
       id: tenantId,
       name: `URL race ${suffix}`,
@@ -291,15 +288,12 @@ describeWithPostgres('tenant public URL migration serialization', () => {
               .for('update');
             const lockedTenants = yield* tx
               .select({
-                canonicalRootUrl: tenants.canonicalRootUrl,
                 domain: tenants.domain,
               })
               .from(tenants)
               .where(eq(tenants.id, tenantId))
               .for('update');
-            expect(lockedTenants[0]?.canonicalRootUrl).toBe(
-              `https://${domain}`,
-            );
+            expect(lockedTenants[0]?.domain).toBe(domain);
             yield* tx.insert(registrationTransfers).values({
               claimCodeHash: createHash('sha256')
                 .update(`code-${suffix}`)
@@ -327,7 +321,6 @@ describeWithPostgres('tenant public URL migration serialization', () => {
 
     const migration = runUrlMigration(
       {
-        canonicalRootUrl: `https://${domain}`,
         currency: 'EUR',
         domain,
         id: tenantId,
@@ -359,7 +352,6 @@ describeWithPostgres('tenant public URL migration serialization', () => {
     const persistedTenant = await database.query.tenants.findFirst({
       where: { id: tenantId },
     });
-    expect(persistedTenant?.canonicalRootUrl).toBe(`https://${domain}`);
     expect(persistedTenant?.domain).toBe(domain);
   }, 30_000);
 
@@ -372,7 +364,6 @@ describeWithPostgres('tenant public URL migration serialization', () => {
     const stripeAccountId = `acct_${suffix}`;
     fixtures.push({ tenantId, transactionId });
     await database.insert(tenants).values({
-      canonicalRootUrl: `https://${domain}`,
       domain,
       id: tenantId,
       name: `Stripe URL race ${suffix}`,
@@ -409,7 +400,6 @@ describeWithPostgres('tenant public URL migration serialization', () => {
 
     const migration = runUrlMigration(
       {
-        canonicalRootUrl: `https://${domain}`,
         currency: 'EUR',
         domain,
         id: tenantId,
@@ -441,7 +431,6 @@ describeWithPostgres('tenant public URL migration serialization', () => {
     const persistedTenant = await database.query.tenants.findFirst({
       where: { id: tenantId },
     });
-    expect(persistedTenant?.canonicalRootUrl).toBe(`https://${domain}`);
     expect(persistedTenant?.domain).toBe(domain);
   }, 30_000);
 });

@@ -2,6 +2,9 @@ import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import {
+  EventGraphAddonInput,
+  EventGraphEditRecord,
+  EventGraphRegistrationOptionInput,
   EventReviewStatus,
   EventsApproveRegistrationResult,
   EventsCreateRegistrationOptionInput,
@@ -262,6 +265,123 @@ describe('events RPC add-on schema', () => {
         taxRatePercentage: '19',
         title: 'Equipment rental',
         totalAvailableQuantity: 20,
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe('events RPC editable graph schema', () => {
+  const writableOption = {
+    cancellationDeadlineHoursBeforeStart: null,
+    closeRegistrationTime: '2026-09-20T12:00:00.000Z',
+    description: null,
+    esnCardDiscountedPrice: null,
+    id: 'option-1',
+    isPaid: false,
+    key: 'option-1',
+    openRegistrationTime: '2026-09-10T12:00:00.000Z',
+    organizingRegistration: false,
+    price: 0,
+    refundFeesOnCancellation: null,
+    registeredDescription: null,
+    registrationMode: 'fcfs',
+    roleIds: ['role-1'],
+    spots: 10,
+    stripeTaxRateId: null,
+    title: 'Participant',
+    transferDeadlineHoursBeforeStart: null,
+  };
+
+  it('accepts event-owned mode and the complete editable graph', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventGraphEditRecord)({
+        addOns: [
+          {
+            allowMultiple: true,
+            allowPurchaseBeforeEvent: true,
+            allowPurchaseDuringEvent: false,
+            allowPurchaseDuringRegistration: true,
+            description: null,
+            id: 'addon-1',
+            isPaid: false,
+            maxQuantityPerUser: 2,
+            price: 0,
+            registrationOptions: [
+              {
+                includedQuantity: 1,
+                optionalPurchaseQuantity: 1,
+                registrationOptionId: 'option-1',
+              },
+            ],
+            stripeTaxRateId: null,
+            title: 'Equipment',
+            totalAvailableQuantity: 20,
+          },
+        ],
+        description: '<p>Event description</p>',
+        end: '2026-09-20T14:00:00.000Z',
+        icon: { iconColor: 0, iconName: 'calendar:fas' },
+        id: 'event-1',
+        location: null,
+        questions: [
+          {
+            description: null,
+            id: 'question-1',
+            registrationOptionId: 'option-1',
+            required: false,
+            sortOrder: 0,
+            title: 'Dietary requirements',
+          },
+        ],
+        registrationOptions: [
+          {
+            ...writableOption,
+            registrationMode: 'random',
+          },
+        ],
+        simpleModeEnabled: false,
+        start: '2026-09-20T12:00:00.000Z',
+        title: 'Event',
+      }),
+    ).not.toThrow();
+  });
+
+  it('keeps legacy random readable but rejects it in graph writes', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventGraphRegistrationOptionInput)({
+        ...writableOption,
+        registrationMode: 'random',
+      }),
+    ).toThrow();
+  });
+
+  it('accepts distinct included and optional quantities per option mapping', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventGraphAddonInput)({
+        allowMultiple: true,
+        allowPurchaseBeforeEvent: true,
+        allowPurchaseDuringEvent: true,
+        allowPurchaseDuringRegistration: true,
+        description: null,
+        isPaid: false,
+        key: 'addon-1',
+        maxQuantityPerUser: 3,
+        price: 0,
+        registrationOptions: [
+          {
+            includedQuantity: 2,
+            optionalPurchaseQuantity: 1,
+            registrationOptionKey: 'option-1',
+          },
+          {
+            includedQuantity: 0,
+            optionalPurchaseQuantity: 3,
+            registrationOptionKey: 'option-2',
+          },
+        ],
+        stripeTaxRateId: null,
+        title: 'Equipment',
+        totalAvailableQuantity: 30,
       }),
     ).not.toThrow();
   });

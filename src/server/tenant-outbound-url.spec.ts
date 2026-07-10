@@ -7,7 +7,6 @@ import {
 } from './tenant-outbound-url';
 
 const tenant = {
-  canonicalRootUrl: 'https://section.example.org',
   domain: 'section.example.org',
   id: 'tenant-1',
 };
@@ -19,7 +18,7 @@ const provideEnvironment = (environment: Record<string, string>) =>
 
 describe('tenant outbound URL', () => {
   it.effect(
-    'uses the saved tenant root in production and ignores global origins',
+    'derives the tenant origin in production and ignores global origins',
     () =>
       Effect.gen(function* () {
         const url = yield* tenantOutboundUrl(
@@ -54,7 +53,7 @@ describe('tenant outbound URL', () => {
   );
 
   it.effect(
-    'uses the saved tenant root for a Fly-like runtime with NODE_ENV unset',
+    'derives the tenant origin for a Fly-like runtime with NODE_ENV unset',
     () =>
       Effect.gen(function* () {
         expect(yield* tenantOutboundRootUrl(tenant)).toBe(
@@ -67,12 +66,12 @@ describe('tenant outbound URL', () => {
       ),
   );
 
-  it.effect('fails closed for a mismatched saved tenant root', () =>
+  it.effect('fails closed for an invalid tenant domain', () =>
     Effect.gen(function* () {
       const error = yield* tenantOutboundUrl(
         {
           ...tenant,
-          canonicalRootUrl: 'https://attacker.invalid',
+          domain: 'section.example.org/path',
         },
         '/events/event-1',
       ).pipe(Effect.flip);

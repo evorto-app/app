@@ -49,14 +49,12 @@
                 Public URL migration
               </h2>
               <p class="body-medium">
-                Domain or canonical-root changes are rejected while Stripe
-                Checkouts, refunds, or registration transfers still depend on
-                issued links.
+                Domain changes are rejected while Stripe Checkouts, refunds, or
+                registration transfers still depend on issued links.
               </p>
               <p class="body-medium">
-                Keep HTTPS redirects from the old domain to the new canonical
-                root for already-issued QR codes; their encoded URLs cannot be
-                rewritten.
+                Keep HTTPS redirects from the old domain to the new domain for
+                already-issued QR codes; their encoded URLs cannot be rewritten.
               </p>
             </div>
           </div>
@@ -74,19 +72,6 @@
             >One primary host. Checkout returns and transactional links use the
             secure HTTPS origin derived from this normalized domain.</mat-hint
           >
-        </mat-form-field>
-
-        <mat-form-field>
-          <mat-label>Canonical root URL</mat-label>
-          <input
-            matInput
-            type="url"
-            [formField]="tenantForm.canonicalRootUrl"
-          />
-          <mat-hint>
-            HTTPS origin for email and payment links; its host must exactly
-            match the primary domain.
-          </mat-hint>
         </mat-form-field>
 
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">

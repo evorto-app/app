@@ -18,6 +18,7 @@ test('Manage templates', async ({
   page,
   templateCategories,
   tenant,
+  testClock,
 }, testInfo) => {
   const category = templateCategories[0];
   if (!category) {
@@ -38,6 +39,7 @@ test('Manage templates', async ({
 For this guide, we assume you have an account with all required permissions. These are:
 - **templates:create**: This permission is required to create a new template.
 - **templates:editAll**: This permission is required to edit templates.
+- **events:create**: This permission is required to create an event from the template.
 {% /callout %}
 Templates are the base for all events.
 They are used to save common settings for events and have to be created before you can create an event.
@@ -75,10 +77,10 @@ There are a few general settings that are required for templates:
   await testInfo.attach('markdown', {
     body: `
 #### Registration settings
-In simple mode (currently the only mode), the registration settings are split in two.
+Simple mode is the default and splits registration settings in two.
 There are the settings for participants, and separately, those for organizers.
 Both have the same structure, but you can see that different roles are preselected.
-Simple mode intentionally keeps exactly one organizer registration block and one participant registration block. Use reusable add-ons, registration questions, option descriptions, role eligibility, and organizer planning tips to capture repeatable event knowledge that does not need a separate registration option.
+Simple mode intentionally keeps exactly one organizer registration block and one participant registration block. Advanced configuration supports any number of named options and reveals reusable add-ons with explicit option mappings. Every mode change asks for confirmation. To return to simple mode, first save the advanced graph with exactly one organizing and one non-organizing option; switching modes never silently replaces option IDs.
 The registration consists of the following settings:
 - **Registration option name**: The reusable label copied into events created
   from this template.
@@ -97,10 +99,9 @@ The registration consists of the following settings:
   });
   await takeScreenshot(
     testInfo,
-    page
-      .locator('app-template-create form')
-      .locator('div', { hasText: 'Simple Registration Setup' }),
+    page.locator('app-template-graph-editor'),
     page,
+    'Simple registration configuration',
   );
 
   await testInfo.attach('markdown', {
@@ -110,12 +111,12 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
 `,
   });
   const paymentToggle = page
-    .locator('app-template-registration-option-form')
+    .locator('app-template-registration-option-editor')
     .first()
     .getByRole('checkbox', { name: 'Enable payment' });
   await paymentToggle.check();
   const organizerRegistrationForm = page
-    .locator('app-template-registration-option-form')
+    .locator('app-template-registration-option-editor')
     .first();
   await expect(
     organizerRegistrationForm
@@ -127,7 +128,7 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
   await expect(
     organizerRegistrationForm
       .locator('mat-form-field')
-      .filter({ hasText: 'Tax rate' })
+      .filter({ hasText: 'Inclusive tax rate' })
       .locator('mat-select')
       .first(),
   ).toBeVisible();
@@ -175,15 +176,26 @@ Role selection also avoids duplicate entries by hiding already selected roles fr
     body: `
 #### Reusable add-ons
 Templates can also store optional add-ons such as meals, equipment, or other extras.
-Add-ons can be free or paid, attached to either the participant or organizer registration option, and can limit the included quantity, total availability, and maximum quantity per user.
+Add-ons can be free or paid, mapped to one or more registration options, and can separately limit included units, optional purchases, total availability, and the maximum quantity per user.
 When a template creates an event, those reusable add-ons are copied into the event and shown on matching registration cards for registration-time purchase.
 `,
   });
+  await page
+    .getByRole('button', { name: 'Use advanced configuration' })
+    .click();
+  await expect(
+    page.getByRole('heading', {
+      name: 'Switch to advanced configuration?',
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Switch to advanced', exact: true })
+    .click();
   await page.getByRole('button', { name: 'Add add-on' }).click();
-  const addOnForm = page.locator('app-template-addon-form').first();
-  await expect(addOnForm.getByLabel('Add-on name')).toBeVisible();
-  await expect(addOnForm.getByLabel('Attach to')).toBeVisible();
-  await takeScreenshot(testInfo, addOnForm, page, 'Reusable add-on form');
+  const addOnEditor = page.locator('app-template-addon-editor').first();
+  await expect(addOnEditor.getByLabel('Add-on name')).toBeVisible();
+  await expect(addOnEditor.getByLabel('Registration option')).toBeVisible();
+  await takeScreenshot(testInfo, addOnEditor, page, 'Reusable add-on mappings');
 
   await testInfo.attach('markdown', {
     body: `
@@ -193,15 +205,15 @@ Questions can include help text and can be marked as required. Event-side answer
 `,
   });
   await page.getByRole('button', { name: 'Add question' }).click();
-  const questionForm = page.locator('app-template-question-form').first();
+  const questionEditor = page.locator('app-template-question-editor').first();
   await expect(
-    questionForm.getByRole('textbox', { name: 'Question' }),
+    questionEditor.getByRole('textbox', { name: 'Question' }),
   ).toBeVisible();
-  await expect(questionForm.getByLabel('Ask during')).toBeVisible();
+  await expect(questionEditor.getByLabel('Ask during')).toBeVisible();
   await expect(page.getByText('Require an answer')).toBeVisible();
   await takeScreenshot(
     testInfo,
-    questionForm,
+    questionEditor,
     page,
     'Reusable registration question form',
   );
@@ -222,15 +234,27 @@ You will be redirected to the detail page for that template.
     title: templateTitle,
   });
   await page.getByLabel('Organizer planning tips').fill(planningTips);
-  await addOnForm.getByLabel('Add-on name').fill(addOnTitle);
-  await addOnForm.getByLabel('Description').fill(addOnDescription);
-  await addOnForm.getByLabel('Included quantity').fill('2');
-  await addOnForm.getByLabel('Available quantity').fill('8');
-  await addOnForm.getByLabel('Max per user').fill('3');
-  await questionForm
+  await addOnEditor.getByLabel('Add-on name').fill(addOnTitle);
+  await addOnEditor.getByLabel('Description').fill(addOnDescription);
+  await addOnEditor.getByLabel('Registration option').click();
+  await page
+    .getByRole('option', { name: 'Participant registration', exact: true })
+    .click();
+  await addOnEditor.getByLabel('Included quantity').fill('2');
+  await addOnEditor.getByLabel('Optional purchase quantity').fill('1');
+  await addOnEditor.getByLabel('Available quantity').fill('8');
+  await addOnEditor.getByLabel('Maximum per user').fill('3');
+  await questionEditor
     .getByRole('textbox', { name: 'Question' })
     .fill(questionTitle);
-  await questionForm.getByLabel('Help text').fill(questionDescription);
+  await questionEditor.getByLabel('Ask during').click();
+  await page
+    .getByRole('option', { name: 'Participant registration', exact: true })
+    .click();
+  await questionEditor.getByLabel('Help text').fill(questionDescription);
+  await questionEditor
+    .getByRole('checkbox', { name: 'Require an answer' })
+    .check();
   await page.getByRole('button', { name: 'Save template' }).click();
   await expect(page).toHaveURL(/\/templates\/[^/]+$/);
   await expect(
@@ -296,7 +320,12 @@ You will be redirected to the detail page for that template.
       'Expected template docs flow to persist the add-on registration option attachment',
     );
   }
-  expect(addOnAttachment.quantity).toBe(2);
+  expect(addOnAttachment).toEqual(
+    expect.objectContaining({
+      includedQuantity: 2,
+      optionalPurchaseQuantity: 1,
+    }),
+  );
 
   const question = await database.query.templateRegistrationQuestions.findFirst(
     {
@@ -322,7 +351,7 @@ You will be redirected to the detail page for that template.
   await testInfo.attach('markdown', {
     body: `
 ## Creating an event from a template
-Open the template detail page and click **Create event**. The event form starts with the template title, description, registration options, reusable add-ons, registration questions, and organizer planning tips already copied into the event draft.
+Open the template detail page and click **Create event**. The event form starts with the template title, description, and registration options. On save, the server atomically snapshots the template-owned mode, questions, add-ons, and mappings into event-owned rows. Later template edits never rewrite that event snapshot.
 
 Dates use the fixed **de-DE** format. Enter times in the tenant's business timezone; Evorto preserves that meaning even when an organizer's browser is set to another timezone.
 `,
@@ -333,7 +362,7 @@ Dates use the fixed **de-DE** format. Enter times in the tenant's business timez
   await page.getByLabel('Event title').fill(eventTitle);
 
   const eventForm = page.locator('app-event-general-form');
-  const futureStart = DateTime.now().plus({ months: 2 });
+  const futureStart = testClock.plus({ months: 2 });
   await eventForm
     .getByRole('textbox', { name: 'Start date' })
     .fill(futureStart.setLocale('de-DE').toLocaleString(DateTime.DATE_SHORT));
@@ -392,6 +421,7 @@ Dates use the fixed **de-DE** format. Enter times in the tenant's business timez
     await database.query.eventRegistrationOptions.findMany({
       where: { eventId: createdEvent.id },
     });
+  expect(createdEvent.simpleModeEnabled).toBe(false);
   expect(createdEventOptions.length).toBe(registrationOptions.length);
 
   const createdEventAddOn = await database.query.eventAddons.findFirst({
@@ -417,10 +447,84 @@ Dates use the fixed **de-DE** format. Enter times in the tenant's business timez
       'Expected template docs flow to copy registration questions into the event',
     );
   }
+  const createdEventMappings =
+    await database.query.addonToEventRegistrationOptions.findMany({
+      where: { addonId: createdEventAddOn.id, eventId: createdEvent.id },
+    });
+  expect(createdEventMappings).toEqual([
+    expect.objectContaining({
+      includedQuantity: 2,
+      optionalPurchaseQuantity: 1,
+    }),
+  ]);
 
-  await database
-    .delete(schema.eventRegistrationOptions)
-    .where(eq(schema.eventRegistrationOptions.eventId, createdEvent.id));
+  const eventOptionSnapshot = createdEventOptions
+    .map((option) => ({ id: option.id, title: option.title }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const eventMappingSnapshot = createdEventMappings
+    .map((mapping) => ({
+      includedQuantity: mapping.includedQuantity,
+      optionalPurchaseQuantity: mapping.optionalPurchaseQuantity,
+      registrationOptionId: mapping.registrationOptionId,
+    }))
+    .sort((left, right) =>
+      left.registrationOptionId.localeCompare(right.registrationOptionId),
+    );
+
+  await testInfo.attach('markdown', {
+    body: `
+## Template and event independence
+The event now owns its copied registration graph. Editing the source template changes future events only; the existing event keeps its option IDs, labels, add-on mappings, and quantities.
+`,
+  });
+  await page.goto(`/templates/${createdTemplate.id}/edit`);
+  const participantOptionEditor = page
+    .locator('app-template-registration-option-editor')
+    .filter({
+      has: page.getByDisplayValue('Participant registration'),
+    });
+  const updatedParticipantTitle = 'Participant registration updated';
+  await participantOptionEditor
+    .getByLabel('Registration option name')
+    .fill(updatedParticipantTitle);
+  await page
+    .locator('app-template-addon-editor')
+    .filter({ hasText: addOnTitle })
+    .getByLabel('Included quantity')
+    .fill('3');
+  await page.getByTestId('save-template-graph').click();
+  await expect(page).toHaveURL(`/templates/${createdTemplate.id}`);
+
+  const editedParticipantOption =
+    await database.query.templateRegistrationOptions.findFirst({
+      where: { id: participantRegistrationOption.id },
+    });
+  const eventOptionsAfterTemplateEdit =
+    await database.query.eventRegistrationOptions.findMany({
+      where: { eventId: createdEvent.id },
+    });
+  const eventMappingsAfterTemplateEdit =
+    await database.query.addonToEventRegistrationOptions.findMany({
+      where: { addonId: createdEventAddOn.id, eventId: createdEvent.id },
+    });
+  expect(editedParticipantOption?.title).toBe(updatedParticipantTitle);
+  expect(
+    eventOptionsAfterTemplateEdit
+      .map((option) => ({ id: option.id, title: option.title }))
+      .sort((left, right) => left.id.localeCompare(right.id)),
+  ).toEqual(eventOptionSnapshot);
+  expect(
+    eventMappingsAfterTemplateEdit
+      .map((mapping) => ({
+        includedQuantity: mapping.includedQuantity,
+        optionalPurchaseQuantity: mapping.optionalPurchaseQuantity,
+        registrationOptionId: mapping.registrationOptionId,
+      }))
+      .sort((left, right) =>
+        left.registrationOptionId.localeCompare(right.registrationOptionId),
+      ),
+  ).toEqual(eventMappingSnapshot);
+
   await database
     .delete(schema.eventInstances)
     .where(

@@ -9,7 +9,6 @@ describe('tenantIdentityRows', () => {
   it('summarizes read-only tenant identity and runtime settings', () => {
     expect(
       tenantIdentityRows({
-        canonicalRootUrl: 'https://tenant.example.com',
         currency: 'EUR',
         domain: 'tenant.example.com',
         name: 'Example Tenant',
@@ -19,10 +18,6 @@ describe('tenantIdentityRows', () => {
     ).toEqual([
       { label: 'Tenant name', value: 'Example Tenant' },
       { label: 'Primary domain', value: 'tenant.example.com' },
-      {
-        label: 'Canonical root URL',
-        value: 'https://tenant.example.com',
-      },
       { label: 'Currency', value: 'EUR' },
       { label: 'Formatting locale', value: 'de-DE' },
       { label: 'Timezone', value: 'Europe/Berlin' },
@@ -32,7 +27,6 @@ describe('tenantIdentityRows', () => {
 
   it('shows a readable Stripe state when no account is configured', () => {
     const rows = tenantIdentityRows({
-      canonicalRootUrl: 'https://tenant.example.com',
       currency: 'EUR',
       domain: 'tenant.example.com',
       name: 'Example Tenant',
@@ -48,7 +42,6 @@ describe('tenantIdentityRows', () => {
 
   it('treats an undefined Stripe account as not connected', () => {
     const rows = tenantIdentityRows({
-      canonicalRootUrl: 'https://tenant.example.com',
       currency: 'EUR',
       domain: 'tenant.example.com',
       name: 'Example Tenant',

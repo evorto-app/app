@@ -2,16 +2,18 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   input,
-  linkedSignal,
+  signal,
+  untracked,
 } from '@angular/core';
-import { apply, applyEach, form, schema, submit } from '@angular/forms/signals';
+import { form, FormField, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowLeft, faPlus } from '@fortawesome/duotone-regular-svg-icons';
-import { writableRegistrationModes } from '@shared/registration-modes';
+import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { TemplateEditIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
@@ -21,58 +23,30 @@ import {
 import consola from 'consola/browser';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { TemplateAddonFormComponent } from '../shared/template-form/template-addon-form.component';
-import { templateAddonFormSchema } from '../shared/template-form/template-addon-form.schema';
+import { getErrorMessage } from '../../core/error-message';
 import {
-  createTemplateAddonFormModel,
-  templateAddonRecordToFormModel,
-  toTemplateAddonSubmitData,
-} from '../shared/template-form/template-addon-form.utilities';
-import {
-  mergeTemplateFormOverrides,
-  TemplateFormData,
-  TemplateFormOverrides,
-  TemplateFormSubmitData,
-  templateWriteSubmitDisabled,
-} from '../shared/template-form/template-form.utilities';
+  createOrdinaryTemplateGraphFormModel,
+  ordinaryTemplateGraphFormToPayload,
+  ordinaryTemplateGraphRecordToFormModel,
+} from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form';
+import { ordinaryTemplateGraphFormSchema } from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form.schema';
+import { TemplateGraphEditorComponent } from '../../shared/components/forms/template-graph-editor/template-graph-editor.component';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
-import { templateGeneralFormSchema } from '../shared/template-form/template-general-form.schema';
-import { TemplateQuestionFormComponent } from '../shared/template-form/template-question-form.component';
-import { templateQuestionFormSchema } from '../shared/template-form/template-question-form.schema';
-import {
-  createTemplateQuestionFormModel,
-  templateQuestionRecordToFormModel,
-  toTemplateQuestionSubmitData,
-} from '../shared/template-form/template-question-form.utilities';
-import { TemplateRegistrationOptionFormComponent } from '../shared/template-form/template-registration-option-form.component';
-import { templateRegistrationOptionFormSchema } from '../shared/template-form/template-registration-option-form.schema';
-import {
-  RegistrationMode,
-  toTemplateRegistrationSubmitData,
-} from '../shared/template-form/template-registration-option-form.utilities';
 
-const templateFormSchema = schema<TemplateFormData>((formPath) => {
-  apply(formPath, templateGeneralFormSchema);
-  applyEach(formPath.addOns, templateAddonFormSchema);
-  apply(formPath.organizerRegistration, templateRegistrationOptionFormSchema);
-  apply(formPath.participantRegistration, templateRegistrationOptionFormSchema);
-  applyEach(formPath.questions, templateQuestionFormSchema);
-});
 const logger = consola.withTag('app/templates/edit');
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    MatButtonModule,
     FontAwesomeModule,
+    FormField,
+    MatButtonModule,
+    MatCheckboxModule,
     RouterLink,
-    TemplateAddonFormComponent,
     TemplateGeneralFormComponent,
-    TemplateQuestionFormComponent,
-    TemplateRegistrationOptionFormComponent,
+    TemplateGraphEditorComponent,
   ],
   selector: 'app-template-edit',
-  styles: ``,
   templateUrl: './template-edit.component.html',
 })
 export class TemplateEditComponent {
@@ -80,176 +54,126 @@ export class TemplateEditComponent {
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
-
+  protected readonly editorLoadError = signal('');
+  private readonly templateModel = signal(
+    createOrdinaryTemplateGraphFormModel(),
+  );
+  protected readonly templateForm = form(
+    this.templateModel,
+    ordinaryTemplateGraphFormSchema,
+  );
   protected readonly templateId = input.required<string>();
   protected readonly templateQuery = injectQuery(() =>
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
-  protected readonly simpleTemplateData = computed(() => {
-    if (!this.templateQuery.isSuccess()) return;
-    const templateData = this.templateQuery.data();
-    const organizerRegistration = templateData.registrationOptions.find(
-      (option) => option.organizingRegistration,
-    );
-    const participantRegistration = templateData.registrationOptions.find(
-      (option) => !option.organizingRegistration,
-    );
-    if (!organizerRegistration || !participantRegistration) {
-      throw new Error('Template is missing required registration options');
-    }
-    return {
-      ...templateData,
-      addOns: templateData.addOns.map((addOn) =>
-        templateAddonRecordToFormModel({
-          addOn,
-          organizerRegistrationOptionId: organizerRegistration?.id,
-          participantRegistrationOptionId: participantRegistration?.id,
-        }),
-      ),
-      organizerRegistration,
-      participantRegistration,
-      questions: templateData.questions.map((question) =>
-        templateQuestionRecordToFormModel({
-          organizerRegistrationOptionId: organizerRegistration?.id,
-          participantRegistrationOptionId: participantRegistration?.id,
-          question,
-        }),
-      ),
-    };
-  });
-  private readonly templateModel = linkedSignal<
-    TemplateFormOverrides,
-    TemplateFormData
-  >({
-    computation: (data, previous) =>
-      mergeTemplateFormOverrides(data, previous?.value),
-    source: () => this.simpleTemplateData() ?? {},
-  });
-
-  protected readonly templateForm = form(
-    this.templateModel,
-    templateFormSchema,
-  );
-
   protected readonly updateTemplateMutation = injectMutation(() =>
-    this.rpc.templates.updateSimpleTemplate.mutationOptions(),
+    this.rpc.templates.update.mutationOptions(),
   );
-
+  private readonly defaultUserRolesQuery = injectQuery(() =>
+    this.rpc.roles.findMany.queryOptions({ defaultUserRole: true }),
+  );
   protected readonly canSubmit = computed(
     () =>
+      this.templateQuery.isSuccess() &&
+      this.defaultUserRolesQuery.isSuccess() &&
       this.discountProvidersQuery.isSuccess() &&
-      !templateWriteSubmitDisabled({
-        formInvalid: this.templateForm().invalid(),
-        formSubmitting: this.templateForm().submitting(),
-        mutationPending: this.updateTemplateMutation.isPending(),
-      }),
+      !this.editorLoadError() &&
+      !this.templateForm().invalid() &&
+      !this.templateForm().submitting() &&
+      !this.updateTemplateMutation.isPending(),
   );
-
+  protected readonly defaultParticipantRoleIds = computed(() =>
+    this.defaultUserRolesQuery.isSuccess()
+      ? this.defaultUserRolesQuery.data().map((role) => role.id)
+      : [],
+  );
   protected readonly esnEnabled = computed(() => {
     if (!this.discountProvidersQuery.isSuccess()) return false;
-    const providers = this.discountProvidersQuery.data();
     return (
-      providers.find((provider) => provider.type === 'esnCard')?.status ===
-      'enabled'
+      this.discountProvidersQuery
+        .data()
+        .find((provider) => provider.type === 'esnCard')?.status === 'enabled'
     );
   });
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly faPlus = faPlus;
   protected readonly iconUsage = computed(() =>
     TemplateEditIconUsage.make({ templateId: this.templateId() }),
   );
-  protected readonly registrationModes: readonly RegistrationMode[] =
-    writableRegistrationModes;
-  private queryClient = inject(QueryClient);
-  private router = inject(Router);
+  protected readonly taxRatesQuery = injectQuery(() =>
+    this.rpc.taxRates.listActive.queryOptions(),
+  );
+  protected readonly taxRateState = computed(() =>
+    this.taxRatesQuery.isPending()
+      ? ('loading' as const)
+      : this.taxRatesQuery.isError()
+        ? ('error' as const)
+        : ('ready' as const),
+  );
 
-  async onSubmit(event: Event) {
-    event.preventDefault();
-    if (
-      templateWriteSubmitDisabled({
-        formInvalid: this.templateForm().invalid(),
-        formSubmitting: this.templateForm().submitting(),
-        mutationPending: this.updateTemplateMutation.isPending(),
-      })
-    ) {
-      return;
-    }
+  private readonly initializedTemplateId = signal<null | string>(null);
+  private readonly queryClient = inject(QueryClient);
+  private readonly router = inject(Router);
 
-    await submit(this.templateForm, async (formState) => {
-      const formValue = formState().value();
-      if (!formValue.icon) {
-        logger.warn('Submit blocked: missing icon', {
-          value: formValue,
-        });
+  constructor() {
+    effect(() => {
+      const templateId = this.templateId();
+      if (
+        !this.templateQuery.isSuccess() ||
+        this.initializedTemplateId() === templateId
+      ) {
         return;
       }
-      if (!this.discountProvidersQuery.isSuccess()) {
-        logger.warn('Submit blocked: discount providers are not loaded');
-        return;
-      }
-      const id = this.templateId();
-      const payload: TemplateFormSubmitData = {
-        ...formValue,
-        addOns: formValue.addOns.map((addOn) =>
-          toTemplateAddonSubmitData(addOn),
-        ),
-        icon: formValue.icon,
-        organizerRegistration: toTemplateRegistrationSubmitData(
-          formValue.organizerRegistration,
-          { esnEnabled: this.esnEnabled() },
-        ),
-        participantRegistration: toTemplateRegistrationSubmitData(
-          formValue.participantRegistration,
-          { esnEnabled: this.esnEnabled() },
-        ),
-        questions: formValue.questions.map((question) =>
-          toTemplateQuestionSubmitData(question),
-        ),
-      };
-      await this.updateTemplateMutation.mutateAsync(
-        { id, ...payload },
-        {
-          onSuccess: async () => {
-            await this.queryClient.invalidateQueries({
-              queryKey: this.rpc.templates.findOne.queryKey({ id }),
-            });
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['templates', 'groupedByCategory']),
-            );
-            this.router.navigate(['/templates', id]);
-          },
-        },
+      const result = ordinaryTemplateGraphRecordToFormModel(
+        this.templateQuery.data(),
       );
+      untracked(() => {
+        if ('error' in result) {
+          this.editorLoadError.set(result.error);
+        } else {
+          this.editorLoadError.set('');
+          this.templateModel.set(result.model);
+          this.templateForm().reset();
+        }
+        this.initializedTemplateId.set(templateId);
+      });
     });
   }
 
-  protected addTemplateAddOn() {
-    this.templateModel.update((model) => ({
-      ...model,
-      addOns: [...model.addOns, createTemplateAddonFormModel()],
-    }));
+  protected errorMessage(error: unknown): string {
+    return getErrorMessage(error, 'Failed to update template');
   }
 
-  protected addTemplateQuestion() {
-    this.templateModel.update((model) => ({
-      ...model,
-      questions: [...model.questions, createTemplateQuestionFormModel()],
-    }));
-  }
+  protected async onSubmit(event: Event) {
+    event.preventDefault();
+    if (!this.canSubmit()) return;
 
-  protected removeTemplateAddOn(index: number) {
-    this.templateModel.update((model) => ({
-      ...model,
-      addOns: model.addOns.filter((_, addOnIndex) => addOnIndex !== index),
-    }));
-  }
-
-  protected removeTemplateQuestion(index: number) {
-    this.templateModel.update((model) => ({
-      ...model,
-      questions: model.questions.filter(
-        (_, questionIndex) => questionIndex !== index,
-      ),
-    }));
+    await submit(this.templateForm, async (formState) => {
+      const value = formState().value();
+      if (!value.icon || !this.discountProvidersQuery.isSuccess()) return;
+      const payload = ordinaryTemplateGraphFormToPayload(
+        { ...value, icon: value.icon },
+        this.esnEnabled(),
+      );
+      try {
+        const template = await this.updateTemplateMutation.mutateAsync({
+          ...payload,
+          id: this.templateId(),
+        });
+        await Promise.all([
+          this.queryClient.invalidateQueries({
+            queryKey: this.rpc.templates.findOne.queryKey({
+              id: this.templateId(),
+            }),
+          }),
+          this.queryClient.invalidateQueries(
+            this.rpc.queryFilter(['templates', 'groupedByCategory']),
+          ),
+        ]);
+        logger.info('Template graph updated', { templateId: template.id });
+        await this.router.navigate(['/templates', template.id]);
+      } catch (error) {
+        logger.error('Template graph update failed', error);
+      }
+    });
   }
 }

@@ -24,6 +24,7 @@ import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventInstances,
   financeReceipts,
+  financeReceiptUploads,
   registrationTransfers,
   tenants,
   transactions,
@@ -69,6 +70,8 @@ interface FinanceReceiptSubmitterRow extends FinanceReceiptRow {
   readonly submittedByFirstName: string;
   readonly submittedByLastName: string;
 }
+
+type FinanceReceiptTableRow = typeof financeReceipts.$inferSelect;
 
 type PlatformTenantFinanceHandlers = RpcGroup.HandlersFrom<
   Rpc.AddMiddleware<
@@ -185,6 +188,13 @@ const submitterEmail = (submitter: {
   readonly submittedByEmail: string;
 }): string =>
   submitter.submittedByCommunicationEmail?.trim() || submitter.submittedByEmail;
+
+const financeReceiptUploadJoin = and(
+  eq(financeReceipts.attachmentUploadId, financeReceiptUploads.id),
+  eq(financeReceipts.tenantId, financeReceiptUploads.tenantId),
+  eq(financeReceipts.eventId, financeReceiptUploads.eventId),
+  eq(financeReceipts.submittedByUserId, financeReceiptUploads.uploadedByUserId),
+);
 
 export const payoutDetailsVersion = (
   payoutType: Schema.Schema.Type<typeof PlatformFinancePayoutType>,
@@ -326,7 +336,7 @@ const loadLockedTargetTenant = Effect.fn(
 });
 
 const reviewAuditSnapshot = (
-  receipt: FinanceReceiptRow,
+  receipt: FinanceReceiptTableRow,
 ): PlatformAuditSnapshot => ({
   resourceId: receipt.id,
   resourceType: 'receipt',
@@ -430,7 +440,7 @@ export const platformReceiptReviewUpdate = (input: {
 });
 
 export const canPlatformReviewReceipt = (
-  status: FinanceReceiptRow['status'],
+  status: FinanceReceiptTableRow['status'],
 ): boolean => status === 'submitted';
 
 export const resolvePlatformReimbursementCurrency = Effect.fn(
@@ -585,7 +595,7 @@ const reviewReceipt = (input: PlatformFinanceReceiptReviewInput) =>
                 input.targetTenantId,
               );
               const lockedReceipts = yield* transaction
-                .select(financeReceiptView)
+                .select()
                 .from(financeReceipts)
                 .where(
                   and(
@@ -671,7 +681,7 @@ const reviewReceipt = (input: PlatformFinanceReceiptReviewInput) =>
                     eq(financeReceipts.status, 'submitted'),
                   ),
                 )
-                .returning(financeReceiptView)
+                .returning()
                 .pipe(Effect.orDie);
               const after = updatedReceipts[0];
               if (!after) {
@@ -1111,6 +1121,7 @@ export const platformTenantFinanceHandlers = {
               submittedByLastName: users.lastName,
             })
             .from(financeReceipts)
+            .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
             .innerJoin(
               eventInstances,
               and(
@@ -1160,6 +1171,7 @@ export const platformTenantFinanceHandlers = {
               submittedByLastName: users.lastName,
             })
             .from(financeReceipts)
+            .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
             .innerJoin(
               eventInstances,
               and(
@@ -1232,6 +1244,7 @@ export const platformTenantFinanceHandlers = {
               submittedByLastName: users.lastName,
             })
             .from(financeReceipts)
+            .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
             .innerJoin(
               eventInstances,
               and(

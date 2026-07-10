@@ -58,7 +58,7 @@ import {
   resolvePlatformRead,
   writePlatformAudit,
 } from '../shared/platform-operation.service';
-import { loadPlatformTemplateDetail } from './platform-templates.handlers';
+import { loadTemplateGraphDetail } from '../templates/template-graph.query';
 
 type DatabaseReader = Pick<DatabaseClient, 'select'>;
 interface PlatformEventMutationTarget {
@@ -990,7 +990,7 @@ export const platformEventHandlers = {
                 );
               }
 
-              const template = yield* loadPlatformTemplateDetail(
+              const template = yield* loadTemplateGraphDetail(
                 transaction,
                 input.targetTenantId,
                 input.templateId,
