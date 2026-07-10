@@ -138,7 +138,9 @@ bun run lint
   `public` schema, pushes schema, and resets/seeds the Docker database.
   Neon Local and the branch-expiration helper share a project-scoped named
   metadata volume by default so Docker Desktop does not need a macOS host bind
-  mount during shutdown cleanup. `NEON_LOCAL_METADATA_DIR` remains available
+  mount during shutdown cleanup. The database container assigns that mount to
+  Neon's `postgres` user before startup so branch state remains writable for
+  expiration and shutdown cleanup. `NEON_LOCAL_METADATA_DIR` remains available
   for controlled environments such as CI that intentionally provide a host
   metadata directory.
   Playwright `webServer` uses

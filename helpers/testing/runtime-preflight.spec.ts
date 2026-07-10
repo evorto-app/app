@@ -295,6 +295,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(dbService).toContain('NEON_API_KEY:');
     expect(dbService).toContain('NEON_PROJECT_ID:');
     expect(dbService).toContain(neonMetadataMount);
+    expect(dbService).toContain(
+      'chown -R postgres:postgres /tmp/.neon_local && exec /usr/local/bin/startup.sh',
+    );
     expect(dbExpirationService).toContain(neonMetadataMount);
     expect(composeFile).toContain('\n  neon-local-metadata:\n');
     expect(composeFile).not.toContain(

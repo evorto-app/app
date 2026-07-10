@@ -91,7 +91,9 @@ a short Neon branch expiration as a fallback for interrupted local or CI
 shutdowns. Both services share the project-scoped `neon-local-metadata` Docker
 volume by default. Keeping that shutdown-critical state off a macOS host bind
 mount avoids Docker Desktop file-sharing stalls while Neon Local reads the
-metadata during branch cleanup. CI or another controlled environment can set
+metadata during branch cleanup. The database container assigns the mount to
+Neon's `postgres` user before startup so the branch state is writable during
+expiration and shutdown cleanup. CI or another controlled environment can set
 `NEON_LOCAL_METADATA_DIR` to an absolute host directory when a bind mount is
 intentional. Playwright `webServer` uses `bun run docker:webserver`, which
 starts the foreground Compose stack without forcing `docker compose down` first.

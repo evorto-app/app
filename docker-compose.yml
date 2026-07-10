@@ -11,6 +11,10 @@ services:
       PARENT_BRANCH_ID:
     volumes:
       - "${NEON_LOCAL_METADATA_DIR:-neon-local-metadata}:/tmp/.neon_local"
+    command:
+      - /bin/bash
+      - -lc
+      - chown -R postgres:postgres /tmp/.neon_local && exec /usr/local/bin/startup.sh
     ports:
       - "${NEON_LOCAL_HOST_PORT:-55432}:5432"
     healthcheck:
