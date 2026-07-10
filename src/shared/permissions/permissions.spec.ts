@@ -4,9 +4,11 @@ import { describe, expect, it } from 'vitest';
 import {
   ALL_PERMISSIONS,
   includesPermission,
+  partitionTenantRolePermissions,
   PERMISSION_GROUPS,
   permissionLabel,
   PermissionSchema,
+  TenantRolePermissionSchema,
 } from './permissions';
 
 describe('PermissionSchema', () => {
@@ -31,6 +33,40 @@ describe('PermissionSchema', () => {
   });
 });
 
+describe('TenantRolePermissionSchema', () => {
+  it('accepts concrete tenant permissions, tenant wildcards, and legacy tax aliases', () => {
+    expect(
+      Schema.decodeUnknownSync(Schema.Array(TenantRolePermissionSchema))([
+        'events:viewPublic',
+        'events:*',
+        'admin:manageTaxes',
+      ]),
+    ).toEqual(['events:viewPublic', 'events:*', 'admin:manageTaxes']);
+  });
+
+  it('rejects both platform-global permissions', () => {
+    for (const permission of ['globalAdmin:*', 'globalAdmin:manageTenants']) {
+      expect(() =>
+        Schema.decodeUnknownSync(TenantRolePermissionSchema)(permission),
+      ).toThrow();
+    }
+  });
+
+  it('partitions only platform-global permissions from stored tenant roles', () => {
+    expect(
+      partitionTenantRolePermissions([
+        'events:viewPublic',
+        'events:*',
+        'globalAdmin:*',
+        'globalAdmin:manageTenants',
+      ]),
+    ).toEqual({
+      accepted: ['events:viewPublic', 'events:*'],
+      rejected: ['globalAdmin:*', 'globalAdmin:manageTenants'],
+    });
+  });
+});
+
 describe('PERMISSION_GROUPS', () => {
   it('defines admin-facing labels and descriptions for every visible permission', () => {
     for (const permission of PERMISSION_GROUPS.flatMap(
@@ -48,10 +84,10 @@ describe('PERMISSION_GROUPS', () => {
       expect.arrayContaining([
         expect.objectContaining({
           description: expect.stringContaining(
-            'not available in the current admin UI',
+            'full tenant-administrator authority',
           ),
           key: 'users:assignRoles',
-          label: 'Assign user roles (future)',
+          label: 'Assign all user roles (tenant admin)',
         }),
       ]),
     );

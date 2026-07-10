@@ -74,6 +74,52 @@ export const organizerRegistrationTransferAvailable = ({
 const canInspectTenantEvents = (permissions: readonly Permission[]): boolean =>
   includesPermission('globalAdmin:manageTenants', permissions);
 
+export const canOrganizeEvent = Effect.fn('events.canOrganizeEvent')(
+  function* ({
+    eventId,
+    tenantId,
+    user,
+  }: {
+    eventId: string;
+    tenantId: string;
+    user: { id: string; permissions: readonly Permission[] };
+  }) {
+    if (
+      includesPermission('events:organizeAll', user.permissions) ||
+      includesPermission('finance:manageReceipts', user.permissions)
+    ) {
+      return true;
+    }
+
+    const registrations = yield* databaseEffect((database) =>
+      database
+        .select({
+          id: eventRegistrations.id,
+        })
+        .from(eventRegistrations)
+        .innerJoin(
+          eventRegistrationOptions,
+          eq(
+            eventRegistrations.registrationOptionId,
+            eventRegistrationOptions.id,
+          ),
+        )
+        .where(
+          and(
+            eq(eventRegistrations.tenantId, tenantId),
+            eq(eventRegistrations.eventId, eventId),
+            eq(eventRegistrations.userId, user.id),
+            eq(eventRegistrations.status, 'CONFIRMED'),
+            eq(eventRegistrationOptions.organizingRegistration, true),
+          ),
+        )
+        .limit(1),
+    );
+
+    return registrations.length > 0;
+  },
+);
+
 export const eventQueryHandlers = {
   'events.canOrganize': ({ eventId }, _options) =>
     Effect.gen(function* () {
@@ -81,39 +127,11 @@ export const eventQueryHandlers = {
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
 
-      if (
-        includesPermission('events:organizeAll', user.permissions) ||
-        includesPermission('finance:manageReceipts', user.permissions)
-      ) {
-        return true;
-      }
-
-      const registrations = yield* databaseEffect((database) =>
-        database
-          .select({
-            id: eventRegistrations.id,
-          })
-          .from(eventRegistrations)
-          .innerJoin(
-            eventRegistrationOptions,
-            eq(
-              eventRegistrations.registrationOptionId,
-              eventRegistrationOptions.id,
-            ),
-          )
-          .where(
-            and(
-              eq(eventRegistrations.tenantId, tenant.id),
-              eq(eventRegistrations.eventId, eventId),
-              eq(eventRegistrations.userId, user.id),
-              eq(eventRegistrations.status, 'CONFIRMED'),
-              eq(eventRegistrationOptions.organizingRegistration, true),
-            ),
-          )
-          .limit(1),
-      );
-
-      return registrations.length > 0;
+      return yield* canOrganizeEvent({
+        eventId,
+        tenantId: tenant.id,
+        user,
+      });
     }),
   'events.eventList': (input, _options) =>
     Effect.gen(function* () {
@@ -830,6 +848,21 @@ export const eventQueryHandlers = {
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+
+      const canOrganize = yield* canOrganizeEvent({
+        eventId,
+        tenantId: tenant.id,
+        user,
+      });
+      if (!canOrganize) {
+        return yield* Effect.fail(
+          new RpcForbiddenError({
+            message: 'Organizer access required',
+            permission: 'events:organizeAll',
+          }),
+        );
+      }
 
       const registrations = yield* databaseEffect((database) =>
         database.query.eventRegistrations.findMany({

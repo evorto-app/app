@@ -6,7 +6,7 @@ import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { Tenant } from '../../../types/custom/tenant';
-import { PermissionSchema } from '../../permissions/permissions';
+import { TenantRolePermissionSchema } from '../../permissions/permissions';
 import { AdminRoleRpcError, AdminTenantRpcError } from './admin.errors';
 
 const UrlString = Schema.String.pipe(
@@ -55,7 +55,7 @@ export const AdminRoleRecord = Schema.Struct({
   displayInHub: Schema.Boolean,
   id: Schema.NonEmptyString,
   name: Schema.NonEmptyString,
-  permissions: Schema.mutable(Schema.Array(PermissionSchema)),
+  permissions: Schema.mutable(Schema.Array(TenantRolePermissionSchema)),
   sortOrder: Schema.Number,
 });
 
@@ -123,7 +123,7 @@ export const AdminRolesCreateInput = Schema.Struct({
   description: Schema.NullOr(Schema.NonEmptyString),
   displayInHub: Schema.Boolean,
   name: Schema.NonEmptyString,
-  permissions: Schema.mutable(Schema.Array(PermissionSchema)),
+  permissions: Schema.mutable(Schema.Array(TenantRolePermissionSchema)),
 });
 
 export type AdminRolesCreateInput = Schema.Schema.Type<
@@ -158,19 +158,19 @@ export const AdminRolesSearch = asRpcQuery(
   }),
 );
 
+export const AdminRolesUpdateInput = Schema.Struct({
+  ...AdminRolesCreateInput.fields,
+  id: Schema.NonEmptyString,
+});
+
+export type AdminRolesUpdateInput = Schema.Schema.Type<
+  typeof AdminRolesUpdateInput
+>;
+
 export const AdminRolesUpdate = asRpcMutation(
   Rpc.make('admin.roles.update', {
     error: AdminRoleRpcError,
-    payload: Schema.Struct({
-      collapseMembersInHup: Schema.Boolean,
-      defaultOrganizerRole: Schema.Boolean,
-      defaultUserRole: Schema.Boolean,
-      description: Schema.NullOr(Schema.NonEmptyString),
-      displayInHub: Schema.Boolean,
-      id: Schema.NonEmptyString,
-      name: Schema.NonEmptyString,
-      permissions: Schema.mutable(Schema.Array(PermissionSchema)),
-    }),
+    payload: AdminRolesUpdateInput,
     success: AdminRoleRecord,
   }),
 );

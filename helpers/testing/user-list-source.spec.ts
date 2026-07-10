@@ -1,14 +1,13 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // Source guard: the relaunch user-list owns tenant-scoped role assignment for
 // existing users, so review-only copy should not reappear.
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
-const readSource = (path: string): string =>
-  readFileSync(join(repositoryRoot, path), 'utf8');
+const readSource = (sourcePath: string): string =>
+  readFileSync(path.join(repositoryRoot, sourcePath), 'utf8');
 
 describe('tenant user role assignment source', () => {
   it('keeps the user-list table scoped to review columns', () => {
@@ -37,6 +36,16 @@ describe('tenant user role assignment source', () => {
     expect(template).not.toContain('mat-checkbox');
   });
 
+  it('warns that unrestricted role assignment is tenant-admin authority', () => {
+    const roleForm = readSource(
+      'src/app/admin/components/role-form/role-form.component.html',
+    );
+
+    expect(roleForm).toContain('Full tenant-administrator authority.');
+    expect(roleForm).toContain('form.permissions["users:assignRoles"]');
+    expect(roleForm).toContain('including to themselves');
+  });
+
   it('keeps user-list role names tenant-scoped in the read-only RPC', () => {
     const source = readSource(
       'src/server/effect/rpc/handlers/users.handlers.ts',
@@ -58,6 +67,7 @@ describe('tenant user role assignment source', () => {
     expect(source).toContain(
       'Assigning roles to existing users happens from the **All users** page and is guarded by **users:assignRoles**.',
     );
+    expect(source).toContain('full tenant-administrator authority');
     expect(source).not.toContain('existing-user role assignment is deferred');
     expect(source).not.toContain('Edit user roles');
   });

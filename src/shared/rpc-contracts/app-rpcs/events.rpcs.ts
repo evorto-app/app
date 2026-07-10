@@ -14,11 +14,11 @@ import {
   EventsEventListRpcError,
   EventsFindOneForEditRpcError,
   EventsFindOneRpcError,
+  EventsOrganizeRpcError,
   EventsRegisterForEventError,
   EventsRegistrationScannedError,
   EventsReviewEventRpcError,
   EventsReviewRpcError,
-  EventsRpcError,
   EventsSubmitForReviewRpcError,
   EventsUpdateListingRpcError,
   EventsUpdateRpcError,
@@ -55,7 +55,7 @@ export const EventsWritableRegistrationMode = literalUnion(
 
 export const EventsCanOrganize = asRpcQuery(
   Rpc.make('events.canOrganize', {
-    error: EventsRpcError,
+    error: EventsOrganizeRpcError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
     }),
@@ -396,7 +396,7 @@ export const EventsGetOrganizeOverviewOption = Schema.Struct({
 
 export const EventsGetOrganizeOverview = asRpcQuery(
   Rpc.make('events.getOrganizeOverview', {
-    error: EventsRpcError,
+    error: EventsOrganizeRpcError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
     }),

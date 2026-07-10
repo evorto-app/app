@@ -15,10 +15,10 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 
 import {
   ALL_PERMISSIONS,
-  Permission,
   PERMISSION_DEPENDENCIES,
   PERMISSION_GROUPS,
   permissionLabel,
+  TenantRolePermission,
 } from '../../../../shared/permissions/permissions';
 import {
   DEPENDENT_PERMISSION_PARENTS,
@@ -109,13 +109,13 @@ export class RoleFormComponent {
         description: formValue.description || null,
         permissions: ALL_PERMISSIONS.filter(
           (permission) => formValue.permissions[permission],
-        ) as Permission[],
+        ),
       });
     });
   }
 
   toggleGroup(
-    group: { permissions: { key: Permission }[] },
+    group: { permissions: { key: TenantRolePermission }[] },
     checked: boolean,
   ): void {
     if (!checked) {
@@ -124,17 +124,21 @@ export class RoleFormComponent {
     this.setGroupPermissions(group, checked);
   }
 
-  protected getDependentPermissionLabels(permission: Permission): string {
+  protected getDependentPermissionLabels(
+    permission: TenantRolePermission,
+  ): string {
     return this.getDependentPermissions(permission)
       .map((dependentPermission) => permissionLabel(dependentPermission))
       .join(', ');
   }
 
-  protected getDependentPermissions(permission: Permission): Permission[] {
+  protected getDependentPermissions(
+    permission: TenantRolePermission,
+  ): TenantRolePermission[] {
     return PERMISSION_DEPENDENCIES[permission] || [];
   }
 
-  protected getPermissionTooltip(permission: Permission): string {
+  protected getPermissionTooltip(permission: TenantRolePermission): string {
     const form = this.roleForm();
     const parents = DEPENDENT_PERMISSION_PARENTS[permission];
     if (parents.length === 0) return '';
@@ -151,7 +155,7 @@ export class RoleFormComponent {
   }
 
   private setGroupPermissions(
-    group: { permissions: { key: Permission }[] },
+    group: { permissions: { key: TenantRolePermission }[] },
     checked: boolean,
   ): void {
     const form = this.roleForm();

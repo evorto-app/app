@@ -30,6 +30,7 @@ test('Manage tenant roles and review users @admin', async ({
 For this guide, we assume you have an admin account with all required permissions. These are:
 - **admin:manageRoles**: This permission is required to create and manage roles.
 - **users:viewAll**: This permission is required to review the tenant user list.
+- **users:assignRoles**: This full tenant-administrator permission can assign any existing tenant role to any tenant user, including yourself.
 {% /callout %}
 Roles are the way to manage permissions in the app.
 You can create roles with different permissions.
@@ -72,7 +73,7 @@ Start by navigating to **Admin tools**. The current relaunch admin surface separ
       body: `
 ## User review
 
-The **All users** page supports searching tenant users by name or email and, for administrators with **users:assignRoles**, exposes tenant-scoped role assignment controls for existing users. Users without that permission still see read-only role chips.
+The **All users** page supports searching tenant users by name or email and, for administrators with **users:assignRoles**, exposes tenant-scoped role assignment controls for existing users. Users without that permission still see read-only role chips. Because the capability allows assigning any existing tenant role, including to yourself, it is full tenant-administrator authority rather than limited delegation.
 
 Navigate to the **User roles** page to create or edit tenant roles.
 `,
@@ -104,6 +105,8 @@ There are some flags you can set:
 You can also add permissions to the role. The permissions are grouped by category. Learn more at [about permissions](/docs/about-permissions).
 
 Permissions that are required by another permission are automatically included and shown as non-editable dependent permissions with the same admin-facing labels used in the permission reference.
+
+Selecting **Assign all user roles (tenant admin)** displays an explicit warning: this capability can assign any existing tenant role to any tenant user, including the current administrator, and can therefore acquire every tenant capability present in those roles.
 `,
     });
     const roleForm = page.locator('app-role-form');
@@ -121,6 +124,15 @@ Permissions that are required by another permission are automatically included a
     await expect(roleFormCheckbox(/^Create events$/)).toBeChecked();
     await expect(roleForm.getByText('Includes: View templates')).toBeVisible();
     await expect(roleFormCheckbox(/^View templates$/)).toBeChecked();
+    const fullTenantAdminPermission = roleFormCheckbox(
+      /^Assign all user roles \(tenant admin\)$/,
+    );
+    await fullTenantAdminPermission.setChecked(true);
+    await expect(
+      roleForm.getByText('Full tenant-administrator authority.'),
+    ).toBeVisible();
+    await expect(roleForm.getByText(/including to themselves/)).toBeVisible();
+    await fullTenantAdminPermission.setChecked(false);
     await takeScreenshot(
       testInfo,
       roleForm,
@@ -148,7 +160,7 @@ Permissions that are required by another permission are automatically included a
       body: `
 After you have saved your newly configured role, you will be redirected to the role details page.
 The role can now be used by flows that reference tenant roles, such as event and template eligibility.
-Assigning roles to existing users happens from the **All users** page and is guarded by **users:assignRoles**. Role changes apply only inside the current tenant.
+Assigning roles to existing users happens from the **All users** page and is guarded by **users:assignRoles**. This capability is full tenant-administrator authority: it may assign any existing tenant role, including to the current user. Role changes apply only inside the current tenant.
 `,
     });
   } finally {

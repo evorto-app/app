@@ -2,8 +2,8 @@ import { readonly, required, schema } from '@angular/forms/signals';
 
 import {
   ALL_PERMISSIONS,
-  Permission,
   PERMISSION_DEPENDENCIES,
+  TenantRolePermission,
 } from '../../../../shared/permissions/permissions';
 
 export interface RoleFormData {
@@ -13,7 +13,7 @@ export interface RoleFormData {
   description: null | string;
   displayInHub: boolean;
   name: string;
-  permissions: Permission[];
+  permissions: TenantRolePermission[];
 }
 
 export interface RoleFormModel {
@@ -23,23 +23,25 @@ export interface RoleFormModel {
   description: string;
   displayInHub: boolean;
   name: string;
-  permissions: Record<Permission, boolean>;
+  permissions: Record<TenantRolePermission, boolean>;
 }
 
 export interface RoleFormOverrides extends Partial<
   Omit<RoleFormModel, 'description' | 'permissions'>
 > {
   description?: null | string;
-  permissions?: Partial<Record<Permission, boolean>> | Permission[];
+  permissions?:
+    Partial<Record<TenantRolePermission, boolean>> | TenantRolePermission[];
 }
 
 const emptyPermissions = Object.fromEntries(
   ALL_PERMISSIONS.map((permission) => [permission, false]),
-) as Record<Permission, boolean>;
+) as Record<TenantRolePermission, boolean>;
 
 const buildPermissions = (
-  selected?: Partial<Record<Permission, boolean>> | Permission[],
-): Record<Permission, boolean> => {
+  selected?:
+    Partial<Record<TenantRolePermission, boolean>> | TenantRolePermission[],
+): Record<TenantRolePermission, boolean> => {
   const next = { ...emptyPermissions };
   if (Array.isArray(selected)) {
     for (const permission of selected) {
@@ -83,12 +85,15 @@ export const mergeRoleFormOverrides = (
 };
 
 export const DEPENDENT_PERMISSION_PARENTS = Object.fromEntries(
-  ALL_PERMISSIONS.map((permission) => [permission, [] as Permission[]]),
-) as Record<Permission, Permission[]>;
+  ALL_PERMISSIONS.map((permission) => [
+    permission,
+    [] as TenantRolePermission[],
+  ]),
+) as Record<TenantRolePermission, TenantRolePermission[]>;
 
 for (const [permission, dependencies] of Object.entries(
   PERMISSION_DEPENDENCIES,
-) as [Permission, Permission[]][]) {
+) as [TenantRolePermission, TenantRolePermission[]][]) {
   for (const dependent of dependencies) {
     DEPENDENT_PERMISSION_PARENTS[dependent].push(permission);
   }

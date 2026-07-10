@@ -266,4 +266,71 @@ describe('request-context-resolver', () => {
       expect(attributesExecute).not.toHaveBeenCalled();
     }),
   );
+
+  it.effect(
+    'discards poisoned platform permissions while preserving tenant role permissions',
+    () =>
+      Effect.gen(function* () {
+        const database = createPreparedDatabase({
+          userExecute: vi.fn(() =>
+            Effect.succeed({
+              auth0Id: 'auth0|tenant-user',
+              communicationEmail: null,
+              email: 'member@example.com',
+              firstName: 'Tenant',
+              iban: null,
+              id: 'user-1',
+              lastName: 'Member',
+              paypalEmail: null,
+              tenantAssignments: [
+                {
+                  roles: [
+                    {
+                      id: 'role-mixed',
+                      permissions: [
+                        'events:viewPublic',
+                        'events:*',
+                        'globalAdmin:*',
+                        'globalAdmin:manageTenants',
+                      ],
+                    },
+                  ],
+                },
+              ],
+            }),
+          ),
+        });
+
+        const user = yield* resolveUserContext({
+          isAuthenticated: true,
+          oidcUser: { sub: 'auth0|tenant-user' },
+          tenantId: 'tenant-1',
+        }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+
+        expect(user?.permissions).toEqual(['events:viewPublic', 'events:*']);
+        expect(user?.roleIds).toEqual(['role-mixed']);
+        expect(
+          resolveRequestPermissions({
+            oidcUser: { sub: 'auth0|tenant-user' },
+            user,
+          }),
+        ).not.toContain('globalAdmin:manageTenants');
+      }),
+  );
+
+  it('retains platform-global authority for genuine platform principals', () => {
+    const permissions = resolveRequestPermissions({
+      oidcUser: {
+        'evorto.app/app_metadata': {
+          globalAdmin: true,
+        },
+      },
+      user: {
+        permissions: ['events:viewPublic'],
+      },
+    });
+
+    expect(permissions).toContain('events:viewPublic');
+    expect(permissions).toContain('globalAdmin:manageTenants');
+  });
 });
