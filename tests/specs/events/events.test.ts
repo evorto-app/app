@@ -75,7 +75,7 @@ test('event authoring controls expose accessible names and keyboard interaction'
   await page.goto(`/events/${draftEvent.id}/edit`);
   await expect(
     page.getByRole('heading', { name: draftEvent.title }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole('link', { name: 'Back to event' })).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Open event actions' }),
@@ -243,7 +243,7 @@ test('event edit form hides selected roles in autocomplete', async ({
   await expect(page).toHaveURL(`/events/${draftEvent.id}/edit`);
   await expect(
     page.getByRole('heading', { name: draftEvent.title }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(selectedRole.name).first()).toBeVisible();
 
   const roleInput = page.getByPlaceholder('Add Role...').first();

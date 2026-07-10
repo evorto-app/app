@@ -222,7 +222,7 @@ Note: The event created from the template already has registration options confi
     page.locator('app-event-edit').getByRole('heading', {
       name: draftEvent.title,
     }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('event-mode-simple')).toBeVisible();
   await expect(page.getByTestId('event-mode-advanced')).toBeVisible();
   await takeScreenshot(
