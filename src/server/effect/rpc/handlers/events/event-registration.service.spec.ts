@@ -19,7 +19,6 @@ import { EventRegistrationConflictError } from './events.errors';
 
 const stripeClient = new Stripe('sk_test_123');
 const tenantPublicOrigin = {
-  canonicalRootUrl: 'https://tenant.example.com',
   domain: 'tenant.example.com',
 } as const;
 const configProviderLayer = ConfigProvider.layer(
@@ -234,7 +233,7 @@ describe('EventRegistrationService', () => {
   });
 
   it.effect(
-    'rejects an invalid tenant canonical origin before reading or writing registration data',
+    'rejects an invalid tenant domain before reading or writing registration data',
     () =>
       Effect.gen(function* () {
         const findRegistration = vi.fn(() => Effect.succeed(null));
@@ -251,9 +250,8 @@ describe('EventRegistrationService', () => {
           guestCount: 0,
           registrationOptionId: 'option-1',
           tenant: {
-            canonicalRootUrl: 'https://attacker.example',
             currency: 'EUR',
-            domain: 'tenant.example.com',
+            domain: 'tenant.example.com/path',
             id: 'tenant-1',
             stripeAccountId: undefined,
           },
@@ -273,9 +271,7 @@ describe('EventRegistrationService', () => {
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe(
-          'Invalid tenant canonical root URL configuration',
-        );
+        expect(error.message).toBe('Invalid tenant domain configuration');
         expect(findRegistration).not.toHaveBeenCalled();
       }),
   );

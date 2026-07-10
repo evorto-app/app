@@ -18,7 +18,6 @@ import { financeHandlers } from './finance.handlers';
 import { ReceiptMediaService } from './receipt-media.service';
 
 const tenant = {
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {

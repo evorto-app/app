@@ -3,7 +3,6 @@ import { Tenant } from '@types/custom/tenant';
 import { Schema } from 'effect';
 
 const tenantInput = {
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR',
   domain: 'tenant.example.com',
   id: 'tenant-1',

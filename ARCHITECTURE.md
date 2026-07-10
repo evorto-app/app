@@ -63,11 +63,11 @@ Tenants are resolved by domain.
 The current relaunch schema stores one active primary domain per tenant. That
 domain may be an Evorto-provided subdomain or a manually configured custom
 domain, but automated multi-domain/custom-domain verification is outside the
-current runtime model. The tenant record must also hold a canonical root URL
-validated against that primary domain. Use it for production email and Stripe
-return links; local development may use an explicit local runtime origin. Never
-derive an external URL from caller-controlled request headers. Only a platform
-administrator may change the saved tenant host or canonical root URL.
+current runtime model. Derive the production HTTPS origin for email and Stripe
+return links from the normalized primary domain; local development may use an
+explicit loopback runtime origin. Never derive an external URL from
+caller-controlled request headers. Only a platform administrator may change
+the saved tenant host.
 
 If no tenant matches the request domain, fail closed or show a tenant-not-found state. Do not guess a tenant.
 

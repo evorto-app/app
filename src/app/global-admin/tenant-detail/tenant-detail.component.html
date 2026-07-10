@@ -46,17 +46,14 @@
         >
           Edit tenant
         </a>
-        @if (
-          tenantCanonicalRootUrl(tenant.canonicalRootUrl, tenant.domain);
-          as canonicalRootUrl
-        ) {
+        @if (tenantPublicOrigin(tenant.domain); as tenantPublicOrigin) {
           <a
             mat-button
-            [href]="canonicalRootUrl"
+            [href]="tenantPublicOrigin"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Open canonical URL
+            Open tenant
           </a>
         }
       </div>

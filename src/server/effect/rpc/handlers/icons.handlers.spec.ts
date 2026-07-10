@@ -22,7 +22,6 @@ import {
 import { RpcAccess } from './shared/rpc-access.service';
 
 const tenant = {
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {

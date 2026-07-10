@@ -36,7 +36,6 @@ export async function setupDatabase(
   const developmentTenants: Partial<InferInsertModel<typeof schema.tenants>>[] =
     [
       {
-        canonicalRootUrl: 'https://localhost',
         domain: 'localhost',
         name: 'Development',
         ...(stripeTestAccountId && { stripeAccountId: stripeTestAccountId }),
@@ -45,13 +44,11 @@ export async function setupDatabase(
   if (!onlyDevelopmentTenants) {
     developmentTenants.push(
       {
-        canonicalRootUrl: 'https://evorto.fly.dev',
         domain: 'evorto.fly.dev',
         name: 'Fly Deployment',
         ...(stripeTestAccountId && { stripeAccountId: stripeTestAccountId }),
       },
       {
-        canonicalRootUrl: 'https://alpha.evorto.app',
         domain: 'alpha.evorto.app',
         name: 'Evorto alpha',
         ...(stripeTestAccountId && { stripeAccountId: stripeTestAccountId }),
@@ -67,9 +64,6 @@ export async function setupDatabase(
       profile: 'demo',
       seedDate,
     };
-    if (typeof tenant.canonicalRootUrl === 'string') {
-      seedOptions.canonicalRootUrl = tenant.canonicalRootUrl;
-    }
     if (typeof tenant.domain === 'string') {
       seedOptions.domain = tenant.domain;
     }

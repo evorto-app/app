@@ -33,10 +33,7 @@ import {
   type Permission,
 } from '../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
-import {
-  normalizeTenantCanonicalRootUrl,
-  normalizeTenantDomain,
-} from '../../../../shared/tenant-origin';
+import { normalizeTenantDomain } from '../../../../shared/tenant-origin';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -81,7 +78,6 @@ const ensurePermission = (
   });
 
 const toGlobalAdminTenantRecord = (tenant: {
-  canonicalRootUrl: string;
   currency: string;
   domain: string;
   id: string;
@@ -108,10 +104,6 @@ const normalizeTenantWriteInput = (
   const domain = normalizeTenantDomain(input.domain);
 
   return {
-    canonicalRootUrl: normalizeTenantCanonicalRootUrl(
-      input.canonicalRootUrl,
-      domain,
-    ),
     currency: input.currency,
     domain,
     locale: input.locale,
@@ -133,7 +125,6 @@ const normalizeTenantWritePayload = (input: GlobalAdminTenantWriteInput) =>
   });
 
 const globalAdminTenantColumns = {
-  canonicalRootUrl: true,
   currency: true,
   domain: true,
   id: true,
@@ -145,7 +136,6 @@ const globalAdminTenantColumns = {
 } as const;
 
 const globalAdminTenantReturningColumns = {
-  canonicalRootUrl: tenants.canonicalRootUrl,
   currency: tenants.currency,
   domain: tenants.domain,
   id: tenants.id,

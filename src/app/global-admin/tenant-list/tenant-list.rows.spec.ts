@@ -10,7 +10,6 @@ import {
 } from './tenant-list.rows';
 
 const tenant = {
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR',
   domain: 'tenant.example.com',
   id: 'tenant-1',
@@ -26,10 +25,6 @@ describe('globalAdminTenantRows', () => {
   it('summarizes tenant operational state for global admin review', () => {
     expect(globalAdminTenantRows(tenant)).toEqual([
       { label: 'Primary domain', value: 'tenant.example.com' },
-      {
-        label: 'Canonical root URL',
-        value: 'https://tenant.example.com',
-      },
       { label: 'Tenant ID', monospace: true, value: 'tenant-1' },
       { label: 'Theme', value: 'esn' },
       { label: 'Locale', value: 'en-GB' },
@@ -42,7 +37,6 @@ describe('globalAdminTenantRows', () => {
   it('reuses the operational rows for tenant detail review', () => {
     expect(globalAdminTenantRows(tenant).map((row) => row.label)).toEqual([
       'Primary domain',
-      'Canonical root URL',
       'Tenant ID',
       'Theme',
       'Locale',
@@ -55,7 +49,6 @@ describe('globalAdminTenantRows', () => {
   it('shows a readable Stripe state when the tenant is not connected', () => {
     const rows = globalAdminTenantRows({
       ...tenant,
-      canonicalRootUrl: 'https://tenant.example.com',
       currency: 'EUR',
       domain: 'tenant.example.com',
       id: 'tenant-1',
@@ -106,7 +99,6 @@ describe('filterGlobalAdminTenants', () => {
   it('matches tenant operational fields case-insensitively', () => {
     const secondTenant = {
       ...tenant,
-      canonicalRootUrl: 'https://north.example.com',
       currency: 'AUD',
       domain: 'north.example.com',
       id: 'tenant-2',

@@ -3,13 +3,9 @@ import type {
   GlobalAdminTenantWriteInput,
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
-import {
-  normalizeTenantCanonicalRootUrl,
-  normalizeTenantDomain,
-} from '@shared/tenant-origin';
+import { normalizeTenantDomain } from '@shared/tenant-origin';
 
 export interface GlobalAdminTenantFormModel {
-  canonicalRootUrl: string;
   currency: GlobalAdminTenantWriteInput['currency'];
   domain: string;
   locale: GlobalAdminTenantWriteInput['locale'];
@@ -20,14 +16,13 @@ export interface GlobalAdminTenantFormModel {
 }
 
 export const globalAdminTenantRelaunchScopeItems = [
-  'One active primary domain and its canonical root URL are managed here.',
+  'One active primary domain is managed here; its secure HTTPS origin is derived from the normalized host.',
   'Custom-domain verification and multi-domain automation are deferred.',
   'Tenant-admin impersonation is not available in the current relaunch surface.',
 ] as const;
 
 export const createGlobalAdminTenantFormModel =
   (): GlobalAdminTenantFormModel => ({
-    canonicalRootUrl: '',
     currency: 'EUR',
     domain: '',
     locale: 'en-GB',
@@ -40,7 +35,6 @@ export const createGlobalAdminTenantFormModel =
 export const globalAdminTenantFormModelFromRecord = (
   tenant: GlobalAdminTenantRecord,
 ): GlobalAdminTenantFormModel => ({
-  canonicalRootUrl: tenant.canonicalRootUrl,
   currency: tenant.currency,
   domain: tenant.domain,
   locale: tenant.locale,
@@ -62,10 +56,6 @@ export const globalAdminTenantPayloadFromForm = (
   const domain = normalizeTenantDomain(model.domain);
 
   return {
-    canonicalRootUrl: normalizeTenantCanonicalRootUrl(
-      model.canonicalRootUrl,
-      domain,
-    ),
     currency: model.currency,
     domain,
     locale: model.locale,
