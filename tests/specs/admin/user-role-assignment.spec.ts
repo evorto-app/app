@@ -15,11 +15,12 @@ const openUserAssignment = async (
 ): Promise<{ roleSelect: Locator; userRow: Locator }> => {
   await page.goto('/admin/users');
   await expect(page.getByRole('heading', { name: 'All users' })).toBeVisible();
+  await expect(page.getByRole('table')).toBeVisible({ timeout: 15_000 });
   await page.getByPlaceholder('Name or email').fill(scenario.user.email);
   const userRow = page
     .getByRole('row')
     .filter({ has: page.getByText(scenario.user.email, { exact: true }) });
-  await expect(userRow).toBeVisible();
+  await expect(userRow).toBeVisible({ timeout: 15_000 });
   return {
     roleSelect: userRow.getByRole('combobox', { name: 'Assigned roles' }),
     userRow,

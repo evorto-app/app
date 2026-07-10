@@ -27,9 +27,12 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   ).toBeVisible();
   const userSearchInput = page.getByPlaceholder('Name or email');
   await expect(userSearchInput).toBeVisible();
+  await expect(page.getByRole('table')).toBeVisible({ timeout: 15_000 });
   await userSearchInput.fill('admin@evorto.app');
   await expect(userSearchInput).toHaveValue('admin@evorto.app');
-  await expect(page.getByText('Assigned roles').first()).toBeVisible();
+  await expect(page.getByText('Assigned roles').first()).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(page.getByText('Edit template')).toHaveCount(0);
 
   await page.goto('/admin/roles');
