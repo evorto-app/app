@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "fdf185bd1653",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "helpers/seed-tenant.ts",
+    "tests/support/fixtures/parallel-test.ts",
+    "tests/support/utils/profile-event-cards.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/fd/f185bd1653/0/metadata.json",
+      "transcript": "/fd/f185bd1653/0/full.jsonl",
+      "content_hash": "/fd/f185bd1653/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 81758,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 19952896,
+    "output_tokens": 9090,
+    "api_call_count": 80
+  }
+}
