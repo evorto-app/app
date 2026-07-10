@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "5ac57faf4eae",
+  "strategy": "manual-commit",
+  "branch": "codex/security-registration-concurrency",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/server/effect/rpc/handlers/events/event-registration.service.spec.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/5a/c57faf4eae/0/metadata.json",
+      "transcript": "/5a/c57faf4eae/0/full.jsonl",
+      "content_hash": "/5a/c57faf4eae/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 213305,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 10273792,
+    "output_tokens": 23075,
+    "api_call_count": 90
+  }
+}
