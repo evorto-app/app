@@ -1,14 +1,30 @@
-import type { EventsRegistrationStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+import type {
+  EventsPurchaseRegistrationAddonResult,
+  EventsRegistrationAddonRecord,
+  EventsRegistrationStatus,
+  EventsRegistrationStatusRecord,
+} from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { CurrencyPipe, DatePipe, NgOptimizedImage } from '@angular/common';
+import {
+  CurrencyPipe,
+  DatePipe,
+  DOCUMENT,
+  NgOptimizedImage,
+} from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  effect,
   inject,
+  Injectable,
   input,
+  signal,
+  untracked,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import {
   injectMutation,
   QueryClient,
@@ -16,16 +32,79 @@ import {
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { normalizeStripeCheckoutUrl } from '../../core/stripe-checkout-url';
+import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
+import {
+  clampRegistrationAddonQuantity,
+  reconcileRegistrationAddonPurchaseAttempts,
+  registrationAddonHasCanonicalPendingOrder,
+  registrationAddonKey,
+  type RegistrationAddonPurchaseAttempt,
+  registrationAddonPurchaseBlockedCopy,
+  registrationHasPendingAddonPayment,
+  resolveRegistrationAddonPurchaseAttempt,
+} from './event-active-registration-addon-purchase';
 import {
   EventRegistrationTransferDialogComponent,
   type EventRegistrationTransferDialogData,
 } from './event-registration-transfer-dialog.component';
 
+interface RegistrationAddonPurchaseNotice {
+  readonly kind: 'completed' | 'error' | 'pending';
+  readonly message: string;
+}
+
+const withoutRecordEntry = <Value>(
+  record: Readonly<Record<string, Value>>,
+  key: string,
+): Readonly<Record<string, Value>> =>
+  Object.fromEntries(
+    Object.entries(record).filter(([entryKey]) => entryKey !== key),
+  );
+
+interface RegistrationStatusQueryData {
+  readonly isRegistered: boolean;
+  readonly registrations: readonly EventsRegistrationStatusRecord[];
+}
+
+type RegistrationTransferBlockedReason =
+  EventsRegistrationStatusRecord['transferBlockedReason'];
+
+@Injectable({ providedIn: 'root' })
+export class EventActiveRegistrationOperations {
+  private readonly rpc = AppRpc.injectClient();
+
+  cancelRegistration() {
+    return this.rpc.events.cancelRegistration.mutationOptions();
+  }
+
+  cancelTransfer() {
+    return this.rpc.registrationTransfers.cancel.mutationOptions();
+  }
+
+  createTransfer() {
+    return this.rpc.registrationTransfers.createOffer.mutationOptions();
+  }
+
+  eventDetailsQueryKey(eventId: string) {
+    return this.rpc.events.findOne.queryKey({ id: eventId });
+  }
+
+  purchaseRegistrationAddon() {
+    return this.rpc.events.purchaseRegistrationAddon.mutationOptions();
+  }
+
+  registrationStatusQueryKey(eventId: string) {
+    return this.rpc.events.getRegistrationStatus.queryKey({ eventId });
+  }
+
+  userEventsQueryKey() {
+    return this.rpc.users.events.queryKey();
+  }
+}
+
 export const recipientTransferCheckoutPending = (registration: {
-  activeTransfer: null | {
-    registrationSide: 'recipient' | 'source';
-    status: 'checkout_pending' | 'open';
-  };
+  activeTransfer: EventsRegistrationStatusRecord['activeTransfer'];
   status: EventsRegistrationStatus;
 }): boolean =>
   registration.status === 'PENDING' &&
@@ -33,10 +112,7 @@ export const recipientTransferCheckoutPending = (registration: {
   registration.activeTransfer.status === 'checkout_pending';
 
 export const registrationCancellationCopy = (registration: {
-  activeTransfer: null | {
-    registrationSide: 'recipient' | 'source';
-    status: 'checkout_pending' | 'open';
-  };
+  activeTransfer: EventsRegistrationStatusRecord['activeTransfer'];
   guestCount: number;
   paymentPending: boolean;
   status: EventsRegistrationStatus;
@@ -94,9 +170,47 @@ export const registrationDeferredActionCopy = (registration: {
   return null;
 };
 
+export const registrationTransferBlockedCopy = (
+  reason: RegistrationTransferBlockedReason,
+): string => {
+  switch (reason) {
+    case 'activeTransfer': {
+      return 'A transfer offer is already active for this ticket.';
+    }
+    case 'addonFulfillmentState': {
+      return 'Redeemed or cancelled add-ons must be resolved by an organizer before this ticket can be transferred.';
+    }
+    case 'addonPaymentPending': {
+      return 'Finish or let the pending add-on checkout expire before transferring this ticket.';
+    }
+    case 'checkedIn': {
+      return 'This ticket has already been checked in and can no longer be transferred.';
+    }
+    case 'deadlinePassed': {
+      return 'The transfer deadline for this event has passed.';
+    }
+    case 'eventUnavailable': {
+      return 'This event is not currently available for ticket transfers.';
+    }
+    case 'none': {
+      return '';
+    }
+    case 'paidAddon': {
+      return 'This ticket includes a paid add-on and cannot be transferred.';
+    }
+    case 'registrationStatus': {
+      return 'Only confirmed registrations can be transferred.';
+    }
+    case 'unsupportedPaymentMethod': {
+      return 'This ticket was paid using a method that does not support automated transfer refunds. Contact an organizer for help.';
+    }
+  }
+};
+
 export const registrationTransferActionCopy = (registration: {
   status: EventsRegistrationStatus;
   transferAvailable: boolean;
+  transferBlockedReason: RegistrationTransferBlockedReason;
 }): null | {
   buttonLabel: string;
   helperText: string;
@@ -115,94 +229,173 @@ export const registrationTransferActionCopy = (registration: {
 
   return {
     buttonLabel: 'Transfer unavailable',
-    helperText:
-      'Transfer is available only for confirmed, not-yet-checked-in registrations before the configured transfer deadline.',
+    helperText: registrationTransferBlockedCopy(
+      registration.transferBlockedReason,
+    ),
   };
 };
 
+export const registrationActiveTransferStatusCopy = (
+  activeTransfer: NonNullable<EventsRegistrationStatusRecord['activeTransfer']>,
+): {
+  body: string;
+  cancelLabel: null | string;
+  showExpiry: boolean;
+  title: string;
+} => {
+  switch (activeTransfer.status) {
+    case 'checkout_pending': {
+      return activeTransfer.registrationSide === 'recipient'
+        ? {
+            body: 'Canceling stops this checkout and keeps the original ticket with its current owner.',
+            cancelLabel: 'Cancel pending transfer payment',
+            showExpiry: true,
+            title: 'Transfer payment is pending',
+          }
+        : {
+            body: 'Your registration remains confirmed until the recipient payment is confirmed.',
+            cancelLabel: 'Cancel transfer offer',
+            showExpiry: true,
+            title: 'Recipient payment is pending',
+          };
+    }
+    case 'open': {
+      return {
+        body: 'Your registration remains confirmed until a recipient completes the transfer.',
+        cancelLabel: 'Cancel transfer offer',
+        showExpiry: true,
+        title: 'Transfer offer is active',
+      };
+    }
+    case 'refund_failed': {
+      return {
+        body:
+          activeTransfer.registrationSide === 'recipient'
+            ? 'The ticket transfer is complete, but the previous owner refund needs organizer attention. Your ticket remains confirmed.'
+            : 'The ticket transfer is complete, but your refund needs organizer attention. The transfer can no longer be cancelled.',
+        cancelLabel: null,
+        showExpiry: false,
+        title: 'Transfer refund needs attention',
+      };
+    }
+    case 'refund_pending': {
+      return {
+        body:
+          activeTransfer.registrationSide === 'recipient'
+            ? 'The ticket transfer is complete while the previous owner refund is processed. Your ticket remains confirmed.'
+            : 'The ticket transfer is complete and your refund is being processed. The transfer can no longer be cancelled.',
+        cancelLabel: null,
+        showExpiry: false,
+        title: 'Transfer refund is processing',
+      };
+    }
+  }
+};
+
 export const registrationCancellationActionDisabled = (input: {
+  addonPurchasePending: boolean;
   cancellationPending: boolean;
   transferPending: boolean;
-}): boolean => input.cancellationPending || input.transferPending;
+}): boolean =>
+  input.addonPurchasePending ||
+  input.cancellationPending ||
+  input.transferPending;
 
 export const registrationTransferActionDisabled = (input: {
+  addonPurchasePending: boolean;
   cancellationPending: boolean;
   transferAvailable: boolean;
   transferPending: boolean;
 }): boolean =>
   !input.transferAvailable ||
+  input.addonPurchasePending ||
   input.cancellationPending ||
   input.transferPending;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe, DatePipe, MatButtonModule, NgOptimizedImage],
+  imports: [
+    CurrencyPipe,
+    DatePipe,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    NgOptimizedImage,
+    PriceWithTaxComponent,
+  ],
   selector: 'app-event-active-registration',
   styles: ``,
   templateUrl: './event-active-registration.component.html',
 })
 export class EventActiveRegistrationComponent {
-  public readonly registrations = input.required<
-    readonly {
-      activeTransfer: null | {
-        expiresAt: string;
-        registrationSide: 'recipient' | 'source';
-        status: 'checkout_pending' | 'open';
-        transferId: string;
-      };
-      addonPurchases: readonly {
-        quantity: number;
-        title: string;
-        unitPrice: number;
-      }[];
-      appliedDiscountedPrice?: null | number | undefined;
-      appliedDiscountType?: 'esnCard' | null | undefined;
-      basePriceAtRegistration?: null | number | undefined;
-      checkoutUrl?: null | string | undefined;
-      discountAmount?: null | number | undefined;
-      guestCount: number;
-      id: string;
-      paymentPending: boolean;
-      registeredDescription?: null | string | undefined;
-      registrationOptionTitle: string;
-      status: EventsRegistrationStatus;
-      transferAvailable: boolean;
-    }[]
-  >();
+  public readonly eventId = input.required<string>();
+  public readonly registrations =
+    input.required<readonly EventsRegistrationStatusRecord[]>();
+
+  protected readonly activePurchaseKey = signal<null | string>(null);
+
   protected readonly cancellationCopy = registrationCancellationCopy;
-  private readonly rpc = AppRpc.injectClient();
+  private readonly operations = inject(EventActiveRegistrationOperations);
   protected readonly cancelRegistrationMutation = injectMutation(() =>
-    this.rpc.events.cancelRegistration.mutationOptions(),
+    this.operations.cancelRegistration(),
   );
   protected readonly cancelTransferMutation = injectMutation(() =>
-    this.rpc.registrationTransfers.cancel.mutationOptions(),
+    this.operations.cancelTransfer(),
   );
   protected readonly deferredActionCopy = registrationDeferredActionCopy;
+  protected readonly purchaseRegistrationAddonMutation = injectMutation(() =>
+    this.operations.purchaseRegistrationAddon(),
+  );
   protected readonly recipientTransferCheckoutPending =
     recipientTransferCheckoutPending;
+  protected readonly registrationActiveTransferStatusCopy =
+    registrationActiveTransferStatusCopy;
+  protected readonly registrationAddonHasCanonicalPendingOrder =
+    registrationAddonHasCanonicalPendingOrder;
+  protected readonly registrationAddonPurchaseBlockedCopy =
+    registrationAddonPurchaseBlockedCopy;
   protected readonly registrationCancellationActionDisabled =
     registrationCancellationActionDisabled;
+  protected readonly registrationHasPendingAddonPayment =
+    registrationHasPendingAddonPayment;
   protected readonly registrationTransferActionDisabled =
     registrationTransferActionDisabled;
+
   protected readonly transferActionCopy = registrationTransferActionCopy;
   protected readonly transferRegistrationMutation = injectMutation(() =>
-    this.rpc.registrationTransfers.createOffer.mutationOptions(),
+    this.operations.createTransfer(),
   );
 
   private readonly dialog = inject(MatDialog);
+  private readonly document = inject(DOCUMENT);
+  private readonly localCheckoutUrls = signal<Readonly<Record<string, string>>>(
+    {},
+  );
+  private readonly purchaseAttempts = signal<
+    Readonly<Record<string, RegistrationAddonPurchaseAttempt>>
+  >({});
+  private readonly purchaseNotices = signal<
+    Readonly<Record<string, RegistrationAddonPurchaseNotice>>
+  >({});
   private readonly queryClient = inject(QueryClient);
+  private readonly selectedAddonQuantities = signal<
+    Readonly<Record<string, number>>
+  >({});
 
-  cancelRegistration(registration: {
-    activeTransfer: null | {
-      registrationSide: 'recipient' | 'source';
-      status: 'checkout_pending' | 'open';
-    };
-    id: string;
-    status: EventsRegistrationStatus;
-  }) {
+  constructor() {
+    effect(() => {
+      const registrations = this.registrations();
+      untracked(() => this.reconcileOwnerPurchaseAttempts(registrations));
+    });
+  }
+
+  cancelRegistration(registration: EventsRegistrationStatusRecord): void {
     if (
       recipientTransferCheckoutPending(registration) ||
       registrationCancellationActionDisabled({
+        addonPurchasePending:
+          this.purchaseRegistrationAddonMutation.isPending() ||
+          registrationHasPendingAddonPayment(registration),
         cancellationPending: this.cancelRegistrationMutation.isPending(),
         transferPending:
           this.transferRegistrationMutation.isPending() ||
@@ -218,12 +411,7 @@ export class EventActiveRegistrationComponent {
       },
       {
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['events', 'getRegistrationStatus']),
-          );
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['events', 'findOne']),
-          );
+          await this.invalidateOwnerQueries(false);
         },
       },
     );
@@ -231,6 +419,7 @@ export class EventActiveRegistrationComponent {
 
   cancelTransfer(transferId: string): void {
     if (
+      this.purchaseRegistrationAddonMutation.isPending() ||
       this.transferRegistrationMutation.isPending() ||
       this.cancelTransferMutation.isPending()
     ) {
@@ -240,20 +429,18 @@ export class EventActiveRegistrationComponent {
       { transferId },
       {
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['events', 'getRegistrationStatus']),
-          );
+          await this.invalidateOwnerQueries(false);
         },
       },
     );
   }
 
-  transferRegistration(registration: {
-    id: string;
-    transferAvailable: boolean;
-  }): void {
+  transferRegistration(registration: EventsRegistrationStatusRecord): void {
     if (
       registrationTransferActionDisabled({
+        addonPurchasePending:
+          this.purchaseRegistrationAddonMutation.isPending() ||
+          registrationHasPendingAddonPayment(registration),
         cancellationPending: this.cancelRegistrationMutation.isPending(),
         transferAvailable: registration.transferAvailable,
         transferPending:
@@ -277,14 +464,41 @@ export class EventActiveRegistrationComponent {
             data: offer,
             width: '560px',
           });
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['events', 'getRegistrationStatus']),
-          );
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['events', 'findOne']),
-          );
+          await this.invalidateOwnerQueries(false);
         },
       },
+    );
+  }
+
+  protected addOnTaxRate(addOn: EventsRegistrationAddonRecord): null | {
+    displayName: null | string;
+    percentage: null | string;
+  } {
+    if (
+      addOn.nextPurchaseTaxRateDisplayName === null &&
+      addOn.nextPurchaseTaxRatePercentage === null
+    ) {
+      return null;
+    }
+
+    return {
+      displayName: addOn.nextPurchaseTaxRateDisplayName,
+      percentage: addOn.nextPurchaseTaxRatePercentage,
+    };
+  }
+
+  protected checkoutUrl(
+    registrationId: string,
+    addOn: EventsRegistrationAddonRecord,
+  ): null | string {
+    if (addOn.pendingCheckoutUrl !== null) {
+      return normalizeStripeCheckoutUrl(addOn.pendingCheckoutUrl);
+    }
+
+    return (
+      this.localCheckoutUrls()[
+        registrationAddonKey(registrationId, addOn.addOnId)
+      ] ?? null
     );
   }
 
@@ -292,7 +506,300 @@ export class EventActiveRegistrationComponent {
     return getErrorMessage(error, 'Cancellation failed');
   }
 
+  protected pendingCheckoutUrlInvalid(
+    addOn: EventsRegistrationAddonRecord,
+  ): boolean {
+    return (
+      addOn.pendingCheckoutUrl !== null &&
+      normalizeStripeCheckoutUrl(addOn.pendingCheckoutUrl) === null
+    );
+  }
+
+  protected purchaseNotice(
+    registrationId: string,
+    addOnId: string,
+  ): RegistrationAddonPurchaseNotice | undefined {
+    return this.purchaseNotices()[
+      registrationAddonKey(registrationId, addOnId)
+    ];
+  }
+
+  protected async purchaseRegistrationAddon(
+    registrationId: string,
+    addOn: EventsRegistrationAddonRecord,
+  ): Promise<void> {
+    if (this.purchaseRegistrationAddonMutation.isPending()) {
+      return;
+    }
+
+    const key = registrationAddonKey(registrationId, addOn.addOnId);
+    const attempt = resolveRegistrationAddonPurchaseAttempt({
+      addOn,
+      createOperationKey: () => crypto.randomUUID(),
+      existingAttempt: this.purchaseAttempts()[key],
+      quantity: this.selectedAddonQuantity(registrationId, addOn),
+    });
+    if (!attempt) {
+      return;
+    }
+
+    this.activePurchaseKey.set(key);
+    this.setPurchaseAttempt(key, attempt);
+    this.clearLocalCheckoutUrl(key);
+    this.clearPurchaseNotice(key);
+
+    try {
+      const result = await this.purchaseRegistrationAddonMutation.mutateAsync({
+        addOnId: addOn.addOnId,
+        operationKey: attempt.operationKey,
+        quantity: attempt.quantity,
+        registrationId,
+      });
+      await this.handlePurchaseSuccess({
+        addOn,
+        attempt,
+        key,
+        result,
+      });
+    } catch (error) {
+      await this.handlePurchaseFailure({ error, key });
+    } finally {
+      this.activePurchaseKey.set(null);
+    }
+  }
+
+  protected registrationCheckoutUrl(
+    checkoutUrl: null | string | undefined,
+  ): null | string {
+    return normalizeStripeCheckoutUrl(checkoutUrl);
+  }
+
+  protected selectedAddonQuantity(
+    registrationId: string,
+    addOn: EventsRegistrationAddonRecord,
+  ): number {
+    const key = registrationAddonKey(registrationId, addOn.addOnId);
+    return clampRegistrationAddonQuantity(
+      this.selectedAddonQuantities()[key] ?? 1,
+      addOn.maxPurchasableQuantity,
+    );
+  }
+
   protected transferErrorMessage(error: unknown): string {
     return getErrorMessage(error, 'Transfer failed');
+  }
+
+  protected updateAddonQuantity(
+    registrationId: string,
+    addOn: EventsRegistrationAddonRecord,
+    event: Event,
+  ): void {
+    if (this.purchaseRegistrationAddonMutation.isPending()) {
+      return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) {
+      return;
+    }
+
+    const key = registrationAddonKey(registrationId, addOn.addOnId);
+    const quantity = clampRegistrationAddonQuantity(
+      Number(target.value),
+      addOn.maxPurchasableQuantity,
+    );
+    this.selectedAddonQuantities.update((quantities) => ({
+      ...quantities,
+      [key]: quantity,
+    }));
+
+    const attempt = this.purchaseAttempts()[key];
+    if (attempt && attempt.quantity !== quantity) {
+      this.clearPurchaseAttempt(key);
+    }
+    this.clearPurchaseNotice(key);
+  }
+
+  private clearLocalCheckoutUrl(key: string): void {
+    this.localCheckoutUrls.update((urls) => withoutRecordEntry(urls, key));
+  }
+
+  private clearPurchaseAttempt(key: string): void {
+    this.purchaseAttempts.update((attempts) =>
+      withoutRecordEntry(attempts, key),
+    );
+  }
+
+  private clearPurchaseNotice(key: string): void {
+    this.purchaseNotices.update((notices) => withoutRecordEntry(notices, key));
+  }
+
+  private async handlePurchaseFailure(input: {
+    error: unknown;
+    key: string;
+  }): Promise<void> {
+    const refreshed = await this.invalidateOwnerQueries(true);
+    const recoveryCopy = refreshed
+      ? 'Retry reuses this exact purchase request. If a pending checkout has definitively expired, reload before deliberately starting a new purchase.'
+      : 'The latest ticket status could not be refreshed. Retry will reuse this exact purchase request.';
+    this.setPurchaseNotice(input.key, {
+      kind: 'error',
+      message: `${getErrorMessage(input.error, 'Add-on purchase failed')} ${recoveryCopy}`,
+    });
+  }
+
+  private async handlePurchaseSuccess(input: {
+    addOn: EventsRegistrationAddonRecord;
+    attempt: RegistrationAddonPurchaseAttempt;
+    key: string;
+    result: EventsPurchaseRegistrationAddonResult;
+  }): Promise<void> {
+    const refreshed = await this.invalidateOwnerQueries(true);
+
+    if (input.result.status === 'completed') {
+      this.clearPurchaseAttempt(input.key);
+      this.clearLocalCheckoutUrl(input.key);
+      this.setPurchaseNotice(input.key, {
+        kind: 'completed',
+        message: refreshed
+          ? `${input.attempt.quantity} × ${input.addOn.title} added to your ticket.`
+          : `${input.attempt.quantity} × ${input.addOn.title} added to your ticket. Reload this page to refresh the displayed quantities.`,
+      });
+      return;
+    }
+
+    if (
+      !this.purchaseAttempts()[input.key] &&
+      input.attempt.source === 'local'
+    ) {
+      this.setPurchaseAttempt(input.key, input.attempt);
+    }
+    const checkoutUrl = normalizeStripeCheckoutUrl(input.result.checkoutUrl);
+    if (!checkoutUrl) {
+      this.setPurchaseNotice(input.key, {
+        kind: 'error',
+        message:
+          'Evorto received an invalid payment link and did not open it. Refresh the status or contact an organizer.',
+      });
+      return;
+    }
+
+    this.localCheckoutUrls.update((urls) => ({
+      ...urls,
+      [input.key]: checkoutUrl,
+    }));
+    this.setPurchaseNotice(input.key, {
+      kind: 'pending',
+      message: refreshed
+        ? 'Stripe checkout is ready. Your ticket updates only after Stripe confirms payment.'
+        : 'Stripe checkout is ready, but the latest ticket status could not be refreshed. Your ticket updates only after Stripe confirms payment.',
+    });
+
+    try {
+      this.document.location.assign(checkoutUrl);
+    } catch {
+      this.setPurchaseNotice(input.key, {
+        kind: 'pending',
+        message:
+          'Stripe checkout is ready but could not be opened automatically. Continue with the same checkout below.',
+      });
+    }
+  }
+
+  private async invalidateOwnerQueries(
+    reconcileAttempts: boolean,
+  ): Promise<boolean> {
+    const eventId = this.eventId();
+    const registrationStatusQueryKey =
+      this.operations.registrationStatusQueryKey(eventId);
+    const eventDetailsQueryKey = this.operations.eventDetailsQueryKey(eventId);
+    const userEventsQueryKey = this.operations.userEventsQueryKey();
+    const previousOwnerStatus =
+      this.queryClient.getQueryData<RegistrationStatusQueryData>(
+        registrationStatusQueryKey,
+      );
+    const previousUpdatedAt =
+      this.queryClient.getQueryState(registrationStatusQueryKey)
+        ?.dataUpdatedAt ?? 0;
+
+    const [registrationStatusResult, eventDetailsResult, userEventsResult] =
+      await Promise.allSettled([
+        this.queryClient.invalidateQueries(
+          { exact: true, queryKey: registrationStatusQueryKey },
+          { throwOnError: true },
+        ),
+        this.queryClient.invalidateQueries(
+          { exact: true, queryKey: eventDetailsQueryKey },
+          { throwOnError: true },
+        ),
+        this.queryClient.invalidateQueries(
+          { exact: true, queryKey: userEventsQueryKey },
+          { throwOnError: true },
+        ),
+      ]);
+
+    if (registrationStatusResult.status === 'fulfilled' && reconcileAttempts) {
+      const ownerStatus =
+        this.queryClient.getQueryData<RegistrationStatusQueryData>(
+          registrationStatusQueryKey,
+        );
+      const updatedAt =
+        this.queryClient.getQueryState(registrationStatusQueryKey)
+          ?.dataUpdatedAt ?? 0;
+      if (
+        ownerStatus &&
+        (ownerStatus !== previousOwnerStatus || updatedAt > previousUpdatedAt)
+      ) {
+        this.reconcileOwnerPurchaseAttempts(ownerStatus.registrations);
+      }
+    }
+
+    return (
+      registrationStatusResult.status === 'fulfilled' &&
+      eventDetailsResult.status === 'fulfilled' &&
+      userEventsResult.status === 'fulfilled'
+    );
+  }
+
+  private reconcileOwnerPurchaseAttempts(
+    registrations: readonly EventsRegistrationStatusRecord[],
+  ): void {
+    const previousAttempts = this.purchaseAttempts();
+    const reconciledAttempts = reconcileRegistrationAddonPurchaseAttempts(
+      previousAttempts,
+      registrations,
+    );
+    this.purchaseAttempts.set(reconciledAttempts);
+    for (const [key, attempt] of Object.entries(previousAttempts)) {
+      if (
+        attempt.source !== 'canonical' ||
+        reconciledAttempts[key] !== undefined
+      ) {
+        continue;
+      }
+
+      this.clearLocalCheckoutUrl(key);
+      this.clearPurchaseNotice(key);
+    }
+  }
+
+  private setPurchaseAttempt(
+    key: string,
+    attempt: RegistrationAddonPurchaseAttempt,
+  ): void {
+    this.purchaseAttempts.update((attempts) => ({
+      ...attempts,
+      [key]: attempt,
+    }));
+  }
+
+  private setPurchaseNotice(
+    key: string,
+    notice: RegistrationAddonPurchaseNotice,
+  ): void {
+    this.purchaseNotices.update((notices) => ({
+      ...notices,
+      [key]: notice,
+    }));
   }
 }
