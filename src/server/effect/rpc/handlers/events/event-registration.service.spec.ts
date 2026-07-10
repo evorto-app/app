@@ -1411,6 +1411,68 @@ describe('EventRegistrationService', () => {
   );
 
   it.effect(
+    'retains the approval claim when expiring an unbound checkout is ambiguous',
+    () =>
+      Effect.gen(function* () {
+        const operationOrder: string[] = [];
+        const database = createPaidManualApprovalDatabase({
+          bindingSucceeds: false,
+          operationOrder,
+        });
+        const checkoutStripeClient = new Stripe('sk_test_123');
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'create',
+        ).mockImplementation(
+          vi.fn(() => {
+            operationOrder.push('stripe');
+            return Promise.resolve({
+              id: 'cs_test_1',
+              payment_intent: null,
+              url: 'https://checkout.stripe.test/session',
+            });
+          }),
+        );
+        const expireSession = vi.fn(() => {
+          operationOrder.push('expire');
+          return Promise.reject(new Error('Stripe expiry connection reset'));
+        });
+        vi.spyOn(
+          checkoutStripeClient.checkout.sessions,
+          'expire',
+        ).mockImplementation(expireSession);
+
+        const error = yield* EventRegistrationService.approveManualRegistration(
+          {
+            eventId: 'event-1',
+            registrationId: 'registration-1',
+            tenant: {
+              ...tenantPublicOrigin,
+              currency: 'EUR',
+              emailSenderEmail: null,
+              emailSenderName: null,
+              id: 'tenant-1',
+              name: 'Tenant',
+              stripeAccountId: 'acct_123',
+            },
+            user: { id: 'organizer-1' },
+          },
+        ).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, database as DatabaseClient)),
+          Effect.provideService(StripeClient, checkoutStripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        expect(error['_tag']).toBe('EventRegistrationInternalError');
+        expect(error.message).toBe('Failed to bind stripe checkout session');
+        expect(operationOrder).toEqual(['claim', 'stripe', 'bind', 'expire']);
+        expect(expireSession).toHaveBeenCalledOnce();
+      }),
+  );
+
+  it.effect(
     'retains the payment claim when Stripe creation has an ambiguous failure',
     () =>
       Effect.gen(function* () {

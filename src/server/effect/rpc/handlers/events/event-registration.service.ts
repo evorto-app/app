@@ -1115,6 +1115,19 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           ).pipe(
             Effect.catchCause((bindingCause) =>
               expireCheckoutSession(session.id, stripeAccount).pipe(
+                Effect.catchCause((expiryCause) =>
+                  Effect.logError(
+                    'Failed to expire unbound Stripe checkout session; retaining approval claim',
+                  ).pipe(
+                    Effect.annotateLogs({
+                      expiryCause,
+                      registrationId: registration.id,
+                      stripeCheckoutSessionId: session.id,
+                      transactionId,
+                    }),
+                    Effect.andThen(Effect.failCause(bindingCause)),
+                  ),
+                ),
                 Effect.andThen(releaseApprovalClaim()),
                 Effect.andThen(Effect.failCause(bindingCause)),
               ),
