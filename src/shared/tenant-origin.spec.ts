@@ -1,27 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  normalizeTenantCanonicalRootUrl,
+  deriveTenantPublicOrigin,
   normalizeTenantDomain,
   resolveTenantPublicOrigin,
 } from './tenant-origin';
 
 describe('tenant origin', () => {
-  it('normalizes primary domains and matching HTTPS canonical origins', () => {
+  it('normalizes primary domains and derives HTTPS public origins', () => {
     expect(normalizeTenantDomain(' HTTPS://Section.Example.Org:443 ')).toBe(
       'section.example.org',
     );
-    expect(
-      normalizeTenantCanonicalRootUrl(
-        ' https://Section.Example.Org:443 ',
-        'section.example.org',
-      ),
-    ).toBe('https://section.example.org');
+    expect(deriveTenantPublicOrigin(' HTTPS://Section.Example.Org:443 ')).toBe(
+      'https://section.example.org',
+    );
   });
 
   it.each([
-    'http://section.example.org',
-    'https://other.example.org',
     'https://section.example.org:8443',
     'https://user@section.example.org',
     'https://section.example.org/events',
@@ -31,10 +26,10 @@ describe('tenant origin', () => {
     'https://section.example.org#',
     'https://@section.example.org',
     'https://section.example.org.',
-  ])('rejects unsafe canonical roots: %s', (canonicalRootUrl) => {
-    expect(() =>
-      normalizeTenantCanonicalRootUrl(canonicalRootUrl, 'section.example.org'),
-    ).toThrow();
+  ])('rejects unsafe primary domains: %s', (primaryDomain) => {
+    expect(() => deriveTenantPublicOrigin(primaryDomain)).toThrow(
+      'Domain must be a single host name',
+    );
   });
 
   it('rejects trailing-dot primary domains', () => {
@@ -49,7 +44,6 @@ describe('tenant origin', () => {
   it('uses a loopback BASE_URL only in development and test', () => {
     const input = {
       baseUrl: 'http://localhost:4200',
-      canonicalRootUrl: 'https://section.example.org',
       primaryDomain: 'section.example.org',
     } as const;
 
@@ -64,11 +58,10 @@ describe('tenant origin', () => {
     ).toBe('https://section.example.org');
   });
 
-  it('ignores non-loopback BASE_URL values and validates canonical config first', () => {
+  it('ignores non-loopback BASE_URL values and validates the domain first', () => {
     expect(
       resolveTenantPublicOrigin({
         baseUrl: 'https://attacker.example',
-        canonicalRootUrl: 'https://section.example.org',
         nodeEnvironment: 'development',
         primaryDomain: 'section.example.org',
       }),
@@ -77,10 +70,9 @@ describe('tenant origin', () => {
     expect(() =>
       resolveTenantPublicOrigin({
         baseUrl: 'http://localhost:4200',
-        canonicalRootUrl: 'https://attacker.example',
         nodeEnvironment: 'development',
-        primaryDomain: 'section.example.org',
+        primaryDomain: 'section.example.org/path',
       }),
-    ).toThrow('Canonical root URL must match the primary domain');
+    ).toThrow('Domain must be a single host name');
   });
 });

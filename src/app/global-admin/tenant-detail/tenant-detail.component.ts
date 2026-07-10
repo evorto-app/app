@@ -3,19 +3,29 @@ import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
-import { normalizeTenantCanonicalRootUrl } from '@shared/tenant-origin';
+import { deriveTenantPublicOrigin } from '@shared/tenant-origin';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { globalAdminTenantRows } from '../tenant-list/tenant-list.rows';
 
-export const globalAdminTenantCanonicalRootUrl = (
-  canonicalRootUrl: string,
+export const globalAdminTenantPublicOrigin = (
   domain: string,
 ): null | string => {
   try {
-    return normalizeTenantCanonicalRootUrl(canonicalRootUrl, domain);
+    const origin = deriveTenantPublicOrigin(domain);
+    const hostname = new URL(origin).hostname.toLowerCase();
+
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '[::1]'
+    ) {
+      return null;
+    }
+
+    return origin;
   } catch {
     return null;
   }
@@ -31,7 +41,7 @@ export const globalAdminTenantCanonicalRootUrl = (
 export class TenantDetailComponent {
   readonly tenantId = input.required<string>();
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly tenantCanonicalRootUrl = globalAdminTenantCanonicalRootUrl;
+  protected readonly tenantPublicOrigin = globalAdminTenantPublicOrigin;
 
   private readonly rpc = AppRpc.injectClient();
   protected readonly tenantQuery = injectQuery(() =>

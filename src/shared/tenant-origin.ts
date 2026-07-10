@@ -58,25 +58,8 @@ export const normalizeTenantDomain = (value: string): string => {
   return url.hostname;
 };
 
-export const normalizeTenantCanonicalRootUrl = (
-  value: string,
-  primaryDomain: string,
-): string => {
-  const normalizedDomain = normalizeTenantDomain(primaryDomain);
-  const url = parseOrigin(value, 'Canonical root URL');
-
-  if (url.protocol !== 'https:') {
-    throw new Error('Canonical root URL must use HTTPS');
-  }
-  if (url.port) {
-    throw new Error('Canonical root URL must not use a non-default port');
-  }
-  if (url.hostname !== normalizedDomain) {
-    throw new Error('Canonical root URL must match the primary domain');
-  }
-
-  return url.origin;
-};
+export const deriveTenantPublicOrigin = (primaryDomain: string): string =>
+  `https://${normalizeTenantDomain(primaryDomain)}`;
 
 const normalizeLoopbackDevelopmentOrigin = (value: string): null | string => {
   try {
@@ -96,26 +79,21 @@ const normalizeLoopbackDevelopmentOrigin = (value: string): null | string => {
 
 export const resolveTenantPublicOrigin = ({
   baseUrl,
-  canonicalRootUrl,
   nodeEnvironment,
   primaryDomain,
 }: {
   baseUrl: string | undefined;
-  canonicalRootUrl: string;
   nodeEnvironment: string | undefined;
   primaryDomain: string;
 }): string => {
-  const canonicalOrigin = normalizeTenantCanonicalRootUrl(
-    canonicalRootUrl,
-    primaryDomain,
-  );
+  const tenantOrigin = deriveTenantPublicOrigin(primaryDomain);
   const normalizedEnvironment = nodeEnvironment?.trim().toLowerCase();
   const canUseDevelopmentOverride =
     normalizedEnvironment === 'development' || normalizedEnvironment === 'test';
 
   if (canUseDevelopmentOverride && baseUrl) {
-    return normalizeLoopbackDevelopmentOrigin(baseUrl) ?? canonicalOrigin;
+    return normalizeLoopbackDevelopmentOrigin(baseUrl) ?? tenantOrigin;
   }
 
-  return canonicalOrigin;
+  return tenantOrigin;
 };

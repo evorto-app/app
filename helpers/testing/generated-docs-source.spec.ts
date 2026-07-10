@@ -1,15 +1,14 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
 // Source guard: generated documentation is product-facing, so these checks keep
 // the docs tied to implemented flows instead of stale aspirational copy.
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 
-const readSource = (path: string): string =>
-  readFileSync(join(repositoryRoot, path), 'utf8');
+const readSource = (sourcePath: string): string =>
+  readFileSync(path.join(repositoryRoot, sourcePath), 'utf8');
 
 describe('generated docs source current behavior', () => {
   it('keeps tenant general-settings docs aligned with implemented branding and legal routes', () => {
@@ -19,7 +18,7 @@ describe('generated docs source current behavior', () => {
       'domain onboarding, brand asset upload, legal text page',
     );
     expect(source).toContain(
-      'A read-only **Tenant identity** summary with tenant name, primary domain, canonical root URL, and Stripe connection state.',
+      'A read-only **Tenant identity** summary with tenant name, primary domain, and Stripe connection state.',
     );
     expect(source).toContain(
       '**Currency**, **Locale**, and **Timezone** selection within the supported relaunch policy.',
@@ -63,8 +62,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Search tenants');
     expect(source).toContain('No tenants match this search');
     expect(source).toContain('Read-only operational tenant review');
-    expect(source).toContain('Open canonical URL');
-    expect(source).toContain('Canonical root URL');
+    expect(source).toContain('Open tenant');
+    expect(source).not.toContain('canonicalRootUrl');
+    expect(source).not.toContain('Canonical root URL');
     expect(source).toContain('Stripe account');
     expect(source).toContain('Expected generated global-admin docs tenant');
     expect(source).toContain(
@@ -84,10 +84,10 @@ describe('generated docs source current behavior', () => {
       'expect(tenantPrimaryDomainInput(page)).toHaveValue(',
     );
     expect(source).toContain(
-      'Tenant create/edit manages the one active primary domain, the matching HTTPS canonical root URL, name, theme, locale, currency, timezone, and connected Stripe account id.',
+      'Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id.',
     );
     expect(source).toContain(
-      'Transactional links and Stripe return URLs use this persisted canonical origin rather than request headers.',
+      'Transactional links and Stripe return URLs use the secure HTTPS origin derived from this normalized domain rather than request headers.',
     );
     expect(source).toContain(
       'The generated journey creates a temporary tenant, reads the created row back from the database, saves a tenant-name edit on that temporary tenant, verifies the saved row, and cleans it up after the doc run.',

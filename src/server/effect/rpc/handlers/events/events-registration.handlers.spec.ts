@@ -58,7 +58,6 @@ const registrationConfigProviderLayer = ConfigProvider.layer(
 );
 
 const tenant = {
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {

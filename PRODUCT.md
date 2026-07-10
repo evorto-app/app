@@ -59,13 +59,12 @@ Communication email is user-managed and may differ from the Auth0 login email.
 It is the address used for product notifications across the user's tenants.
 
 Tenants are resolved by domain. For relaunch, each tenant has one active primary
-domain and a configured canonical root URL in its database record. The root URL
-is the source for production email and Stripe return links and must be validated
-against the active primary domain. Local development uses an explicitly
-configured local runtime origin instead; outbound URLs must never be derived
+domain. Production email and Stripe return origins use HTTPS and are derived
+from the normalized primary domain. Local development uses an explicitly
+configured loopback runtime origin instead; outbound URLs must never be derived
 from a caller-controlled request header. Only a platform administrator may
-change the saved tenant host or canonical root URL. If a domain does not match a
-tenant, fail closed or show a tenant-not-found state; do not guess a tenant.
+change the saved tenant host. If a domain does not match a tenant, fail closed
+or show a tenant-not-found state; do not guess a tenant.
 
 ## Personas
 
@@ -450,7 +449,7 @@ Not in scope for now:
 
 Tenants should be able to customize:
 
-- primary domain and canonical root URL
+- primary domain
 - logo
 - favicon
 - theme choice
