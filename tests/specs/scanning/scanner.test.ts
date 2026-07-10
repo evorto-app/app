@@ -3,14 +3,13 @@ import { and, eq } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
-import {
-  adminStateFile,
-  usersToAuthenticate,
-} from '../../../helpers/user-data';
+import { adminStateFile } from '../../../helpers/user-data';
 import type { relations } from '../../../src/db/relations';
 import {
   eventRegistrationOptions,
   eventRegistrations,
+  users,
+  usersToTenants,
 } from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
@@ -55,19 +54,35 @@ const requireScannerFixture = async ({
     );
   }
 
-  const scannerUser = usersToAuthenticate.find(
-    (user) => user.roles === 'admin',
-  );
-  if (!scannerUser) {
-    throw new Error('Expected admin user fixture for scanner coverage');
-  }
+  const scannerUserId = getId();
+  const scannerTenantUserId = getId();
+  const scannerUserEmail = `scanner-${scannerUserId}@example.test`;
+  await database.insert(users).values({
+    auth0Id: `test|scanner-${scannerUserId}`,
+    communicationEmail: scannerUserEmail,
+    email: scannerUserEmail,
+    firstName: 'Scanner',
+    id: scannerUserId,
+    lastName: 'Fixture',
+  });
+  await database.insert(usersToTenants).values({
+    id: scannerTenantUserId,
+    tenantId: seeded.tenant.id,
+    userId: scannerUserId,
+  });
 
   return {
+    cleanupUser: async () => {
+      await database
+        .delete(usersToTenants)
+        .where(eq(usersToTenants.id, scannerTenantUserId));
+      await database.delete(users).where(eq(users.id, scannerUserId));
+    },
     eventId,
     optionBefore,
     registrationOptionId: registrationOption.id,
     tenantId: seeded.tenant.id,
-    userId: scannerUser.id,
+    userId: scannerUserId,
   };
 };
 
@@ -149,6 +164,7 @@ test('scan confirmed registration records check-in', async ({
       .where(
         eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );
+    await scannerFixture.cleanupUser();
   }
 });
 
@@ -240,5 +256,6 @@ test('scan checked-in registration records remaining guest arrival', async ({
       .where(
         eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );
+    await scannerFixture.cleanupUser();
   }
 });
