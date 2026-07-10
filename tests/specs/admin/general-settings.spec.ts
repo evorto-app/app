@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import { eq } from 'drizzle-orm';
+import { Buffer } from 'node:buffer';
 
 import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
@@ -9,6 +10,11 @@ test.setTimeout(120_000);
 
 test.use({ storageState: adminStateFile });
 
+const onePixelPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
+
 test('tenant admin updates relaunch general settings @admin', async ({
   database,
   page,
@@ -16,16 +22,15 @@ test('tenant admin updates relaunch general settings @admin', async ({
   tenant: seededTenant,
 }) => {
   const tenant = await database.query.tenants.findFirst({
-    where: (tenantTable) => eq(tenantTable.id, seededTenant.id),
+    where: { id: seededTenant.id },
   });
   if (!tenant) {
     throw new Error(`Expected tenant row for ${seededTenant.id}`);
   }
+  expect(tenant.domain).toBe(seededTenant.domain);
   const suffix = seedDate.getTime();
   const emailSenderEmail = `operations+${suffix}@example.org`;
   const emailSenderName = `Operations ${suffix}`;
-  const logoUrl = `/tenant-assets/${tenant.id}/logo/logo-${suffix}.png`;
-  const faviconUrl = `/tenant-assets/${tenant.id}/favicon/favicon-${suffix}.ico`;
   const maxActiveRegistrationsPerUser = 3;
   const transferDeadlineHoursBeforeStart = 18;
   const cancellationDeadlineHoursBeforeStart = 84;
@@ -111,12 +116,39 @@ test('tenant admin updates relaunch general settings @admin', async ({
     if (await refundFeesToggle.isChecked()) {
       await refundFeesToggle.click();
     }
-    await page
-      .getByPlaceholder('https://section.example.org/logo.svg')
-      .fill(` ${logoUrl} `);
-    await page
-      .getByPlaceholder('https://section.example.org/favicon.ico')
-      .fill(` ${faviconUrl} `);
+    const logoUrlInput = generalSettings.getByRole('textbox', {
+      name: 'Logo URL',
+    });
+    await generalSettings.getByLabel('Upload tenant logo file').setInputFiles({
+      buffer: onePixelPng,
+      mimeType: 'image/png',
+      name: `tenant-logo-${suffix}.png`,
+    });
+    await expect(
+      page.getByText('Logo uploaded. Save settings to publish it.'),
+    ).toBeVisible();
+    await expect(logoUrlInput).toHaveValue(
+      new RegExp(`^/tenant-assets/${tenant.id}/logo/`),
+    );
+    const logoUrl = await logoUrlInput.inputValue();
+
+    const faviconUrlInput = generalSettings.getByRole('textbox', {
+      name: 'Favicon URL',
+    });
+    await generalSettings
+      .getByLabel('Upload tenant favicon file')
+      .setInputFiles({
+        buffer: onePixelPng,
+        mimeType: 'image/png',
+        name: `tenant-favicon-${suffix}.png`,
+      });
+    await expect(
+      page.getByText('Favicon uploaded. Save settings to publish it.'),
+    ).toBeVisible();
+    await expect(faviconUrlInput).toHaveValue(
+      new RegExp(`^/tenant-assets/${tenant.id}/favicon/`),
+    );
+    const faviconUrl = await faviconUrlInput.inputValue();
     await page
       .getByPlaceholder('Tenant name or public site title')
       .fill(` ${seoTitle} `);
@@ -149,13 +181,13 @@ test('tenant admin updates relaunch general settings @admin', async ({
     await expect
       .poll(async () => {
         const tenantRecord = await database.query.tenants.findFirst({
-          where: (tenantTable) => eq(tenantTable.id, tenant.id),
+          where: { id: tenant.id },
         });
         return tenantRecord?.logoUrl ?? null;
       })
       .toBe(logoUrl);
     const updatedTenant = await database.query.tenants.findFirst({
-      where: (tenantTable) => eq(tenantTable.id, tenant.id),
+      where: { id: tenant.id },
     });
     if (!updatedTenant) {
       throw new Error('Expected tenant row after general-settings update');
@@ -187,6 +219,13 @@ test('tenant admin updates relaunch general settings @admin', async ({
       status: 'enabled',
     });
 
+    for (const assetUrl of [logoUrl, faviconUrl]) {
+      const assetResponse = await page.request.get(assetUrl);
+      expect(assetResponse.status()).toBe(200);
+      expect(assetResponse.headers()['content-type']).toBe('image/png');
+      expect(await assetResponse.body()).toEqual(onePixelPng);
+    }
+
     await page.reload();
     await expect(page.getByPlaceholder('Example Section')).toHaveValue(
       emailSenderName,
@@ -211,6 +250,8 @@ test('tenant admin updates relaunch general settings @admin', async ({
       }),
     ).toHaveValue(String(cancellationDeadlineHoursBeforeStart));
     await expect(refundFeesToggle).not.toBeChecked();
+    await expect(logoUrlInput).toHaveValue(logoUrl);
+    await expect(faviconUrlInput).toHaveValue(faviconUrl);
   } finally {
     await database
       .update(schema.tenants)

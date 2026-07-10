@@ -26,7 +26,10 @@ test('global admin reviews active Email Outbox delivery and recovery states @adm
   try {
     await page.goto('/global-admin');
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Global admin' }),
+      page.getByRole('heading', {
+        level: 1,
+        name: 'Platform administration',
+      }),
     ).toBeVisible();
     await page.getByRole('link', { name: 'Email outbox' }).click();
 

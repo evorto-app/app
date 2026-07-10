@@ -163,7 +163,7 @@ For this guide, we assume you are signed in with explicit platform administrator
 
 # Global Tenant Administration
 
-Platform administrators can review, create, and edit tenants from the **Platform administration** area without a tenant membership. This authority is separate from tenant roles and does not grant ordinary tenant-user actions. Every tenant change requires a reason and records an immutable before/after audit entry.
+Platform administrators can review, create, and edit tenants from the **Platform administration** area without a tenant membership. This authority is separate from tenant roles and does not grant ordinary tenant-user actions. Every tenant change requires a reason and records an application/API append-only before/after audit entry. Authorization is enforced in the Effect server layer, not by database RLS.
 `,
     });
 
@@ -375,7 +375,7 @@ Platform administrators can review, create, and edit tenants from the **Platform
       testInfo,
       page.locator('app-platform-audit'),
       page,
-      'Immutable platform audit log',
+      'Application append-only platform audit log',
     );
 
     await testInfo.attach('markdown', {

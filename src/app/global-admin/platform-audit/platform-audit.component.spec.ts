@@ -6,7 +6,7 @@ import {
 } from './platform-audit.component';
 
 describe('platformAuditActionLabel', () => {
-  it('uses plain operational labels for each immutable action', () => {
+  it('uses plain operational labels for each application audit action', () => {
     expect(platformAuditActionLabel('tenant.create')).toBe('Tenant created');
     expect(platformAuditActionLabel('tenant.update')).toBe(
       'Tenant settings updated',

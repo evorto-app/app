@@ -59,7 +59,7 @@ describe('platform authority source', () => {
     );
   });
 
-  it('keeps platform tenant changes atomic and append-only', () => {
+  it('keeps platform tenant changes atomic and application/API append-only', () => {
     const handlers = readSource(
       'src/server/effect/rpc/handlers/global-admin.handlers.ts',
     );
@@ -67,6 +67,14 @@ describe('platform authority source', () => {
     const createTemplate = readSource(
       'src/app/global-admin/tenant-create/tenant-create.component.html',
     );
+    const databaseDeploymentBoundary = [
+      auditSchema,
+      readSource('.github/workflows/fly-deploy.yml'),
+      readSource('helpers/reset-database-schema.ts'),
+      readSource('migration/index.ts'),
+      readSource('migration/migrator-database.ts'),
+      readSource('package.json'),
+    ].join('\n');
 
     expect(handlers).toContain('database.transaction((transaction)');
     expect(handlers).toContain(
@@ -87,9 +95,19 @@ describe('platform authority source', () => {
     expect(handlers).not.toContain('.delete(platformAuditEntries)');
     expect(auditSchema).not.toContain('updatedAt');
     expect(auditSchema).not.toContain('deletedAt');
+    expect(auditSchema).not.toContain('pgPolicy');
+    expect(auditSchema).not.toContain('enableRLS');
     expect(auditSchema).toContain('platform_audit_reason_nonempty_check');
+    expect(databaseDeploymentBoundary).not.toMatch(
+      /\b(?:enable|force)\s+row\s+level\s+security\b/iu,
+    );
+    expect(databaseDeploymentBoundary).not.toMatch(/\bcreate\s+policy\b/iu);
+    expect(databaseDeploymentBoundary).not.toMatch(
+      /\b(?:grant|revoke)\b[^;]*\bplatform_audit_entries\b/iu,
+    );
     expect(createTemplate).toContain('Reason for platform change');
     expect(createTemplate).toContain('Initial tenant privacy policy');
+    expect(createTemplate).toContain('application append-only');
   });
 
   it('uses typed resource audit envelopes and tenant-scoped tax uniqueness', () => {

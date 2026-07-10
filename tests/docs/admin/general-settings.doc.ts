@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { Buffer } from 'node:buffer';
 
 import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
@@ -7,17 +8,23 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.use({ storageState: adminStateFile });
 
+const onePixelPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
+
 test('Manage tenant general settings @admin', async ({
   database,
   page,
   tenant,
 }, testInfo) => {
   const originalTenant = await database.query.tenants.findFirst({
-    where: (tenantTable) => eq(tenantTable.id, tenant.id),
+    where: { id: tenant.id },
   });
   if (!originalTenant) {
     throw new Error('Expected generated general-settings docs tenant');
   }
+  expect(originalTenant.domain).toBe(tenant.domain);
   const documentedEmailSenderName = 'Documentation Operations';
   const documentedEmailSenderEmail = `operations+${tenant.id}@example.org`;
   const documentedStripeAccountId = `acct_docs_${tenant.id}`;
@@ -93,6 +100,62 @@ Use **Admin Tools** -> **General settings** to review and change settings for th
 
     await testInfo.attach('markdown', {
       body: `
+## Upload tenant branding
+
+The **Brand assets** section supports uploaded files and externally hosted HTTP(S) URLs.
+
+To upload a logo:
+
+1. Select **Upload logo** and choose a PNG, JPEG, WebP, or GIF file no larger than 5 MB.
+2. Wait for **Logo uploaded. Save settings to publish it.** Evorto stores the file under a path belonging to the current tenant and puts that path in **Logo URL**.
+3. Review the generated URL, then select **Save** with the rest of the settings. Uploading the file alone does not publish it as the tenant logo.
+
+Use **Upload favicon** the same way. Favicons additionally accept ICO files. If an upload is rejected, choose a supported, non-empty file within the size limit and try again. You can instead paste an externally hosted HTTP(S) URL into either URL field; uploaded paths from a different tenant are rejected.
+`,
+    });
+
+    const logoUrlInput = generalSettings.getByRole('textbox', {
+      name: 'Logo URL',
+    });
+    await generalSettings.getByLabel('Upload tenant logo file').setInputFiles({
+      buffer: onePixelPng,
+      mimeType: 'image/png',
+      name: `documentation-logo-${tenant.id}.png`,
+    });
+    await expect(
+      page.getByText('Logo uploaded. Save settings to publish it.'),
+    ).toBeVisible();
+    await expect(logoUrlInput).toHaveValue(
+      new RegExp(`^/tenant-assets/${tenant.id}/logo/`),
+    );
+    const documentedLogoUrl = await logoUrlInput.inputValue();
+
+    const faviconUrlInput = generalSettings.getByRole('textbox', {
+      name: 'Favicon URL',
+    });
+    await generalSettings
+      .getByLabel('Upload tenant favicon file')
+      .setInputFiles({
+        buffer: onePixelPng,
+        mimeType: 'image/png',
+        name: `documentation-favicon-${tenant.id}.png`,
+      });
+    await expect(
+      page.getByText('Favicon uploaded. Save settings to publish it.'),
+    ).toBeVisible();
+    await expect(faviconUrlInput).toHaveValue(
+      new RegExp(`^/tenant-assets/${tenant.id}/favicon/`),
+    );
+    const documentedFaviconUrl = await faviconUrlInput.inputValue();
+    await takeScreenshot(
+      testInfo,
+      generalSettings,
+      page,
+      'Uploaded tenant brand assets awaiting save',
+    );
+
+    await testInfo.attach('markdown', {
+      body: `
 ## Understand the operations fields before saving
 
 In **Operations settings**:
@@ -104,7 +167,7 @@ In **Operations settings**:
 5. **Cancellation deadline before event (hours)** says how long before an event starts participant cancellations close. The default **120** is five days.
 6. **Refund fees on cancellation** controls whether eligible cancellation refunds include refundable payment fees.
 
-The generated journey below changes all seven fields on its disposable tenant, saves them, checks the stored tenant row, reloads the page, and checks that the same values are read back.
+The generated journey below changes all seven fields and the uploaded brand assets on its disposable tenant, saves them, checks the stored tenant row, reloads the page, and checks that the same values are read back.
 `,
     });
 
@@ -143,7 +206,7 @@ The generated journey below changes all seven fields on its disposable tenant, s
     await expect
       .poll(async () => {
         const persistedTenant = await database.query.tenants.findFirst({
-          where: (tenantTable) => eq(tenantTable.id, tenant.id),
+          where: { id: tenant.id },
         });
         return persistedTenant
           ? {
@@ -151,6 +214,8 @@ The generated journey below changes all seven fields on its disposable tenant, s
                 persistedTenant.cancellationDeadlineHoursBeforeStart,
               emailSenderEmail: persistedTenant.emailSenderEmail,
               emailSenderName: persistedTenant.emailSenderName,
+              faviconUrl: persistedTenant.faviconUrl,
+              logoUrl: persistedTenant.logoUrl,
               maxActiveRegistrationsPerUser:
                 persistedTenant.maxActiveRegistrationsPerUser,
               refundFeesOnCancellation:
@@ -166,6 +231,8 @@ The generated journey below changes all seven fields on its disposable tenant, s
           documentedCancellationDeadlineHours,
         emailSenderEmail: documentedEmailSenderEmail,
         emailSenderName: documentedEmailSenderName,
+        faviconUrl: documentedFaviconUrl,
+        logoUrl: documentedLogoUrl,
         maxActiveRegistrationsPerUser: documentedRegistrationLimit,
         refundFeesOnCancellation: documentedRefundFeesOnCancellation,
         stripeAccountId: documentedStripeAccountId,
@@ -196,6 +263,13 @@ The generated journey below changes all seven fields on its disposable tenant, s
       }),
     ).toHaveValue(String(documentedCancellationDeadlineHours));
     await expect(refundFeesToggle).not.toBeChecked();
+    await expect(logoUrlInput).toHaveValue(documentedLogoUrl);
+    await expect(faviconUrlInput).toHaveValue(documentedFaviconUrl);
+    for (const assetUrl of [documentedLogoUrl, documentedFaviconUrl]) {
+      const assetResponse = await page.request.get(assetUrl);
+      expect(assetResponse.status()).toBe(200);
+      expect(assetResponse.headers()['content-type']).toBe('image/png');
+    }
     await takeScreenshot(
       testInfo,
       generalSettings,
@@ -243,6 +317,8 @@ One-domain-per-tenant remains the current relaunch scope in the application sche
           originalTenant.cancellationDeadlineHoursBeforeStart,
         emailSenderEmail: originalTenant.emailSenderEmail,
         emailSenderName: originalTenant.emailSenderName,
+        faviconUrl: originalTenant.faviconUrl,
+        logoUrl: originalTenant.logoUrl,
         maxActiveRegistrationsPerUser:
           originalTenant.maxActiveRegistrationsPerUser,
         refundFeesOnCancellation: originalTenant.refundFeesOnCancellation,

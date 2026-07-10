@@ -821,8 +821,8 @@
           [formField]="templateForm.reason"
         ></textarea>
         <mat-hint>
-          Required. The template graph and immutable audit entry commit
-          atomically.
+          Required. The template graph and application audit entry commit
+          atomically; the API exposes no audit update or delete operation.
         </mat-hint>
         @for (error of templateForm.reason().errors(); track error) {
           <mat-error>{{ error.message }}</mat-error>

@@ -45,6 +45,154 @@ export interface RegistrationAddonCancellationSelection {
   readonly lots: readonly { readonly id: string; readonly quantity: number }[];
 }
 
+type RegistrationAddonRefundHistoryAllocation = Pick<
+  typeof eventRegistrationAddonFulfillmentAllocations.$inferSelect,
+  'fulfillmentEventId' | 'quantity' | 'source'
+>;
+
+type RegistrationAddonRefundHistoryClaim = Pick<
+  typeof eventRegistrationAddonRefundAllocations.$inferSelect,
+  'fulfillmentEventId' | 'quantity'
+> &
+  Pick<typeof transactions.$inferSelect, 'status' | 'stripeRefundStatus'>;
+
+type RegistrationAddonRefundHistoryEvent = Pick<
+  typeof eventRegistrationAddonFulfillmentEvents.$inferSelect,
+  'id' | 'refundDisposition' | 'refundRequested' | 'type'
+>;
+
+type RegistrationAddonRefundHistoryLot = Pick<
+  typeof eventRegistrationAddonPurchaseLots.$inferSelect,
+  | 'cancelledQuantity'
+  | 'grossAmount'
+  | 'quantity'
+  | 'redeemedQuantity'
+  | 'sourceTransactionId'
+>;
+
+export const deriveRegistrationAddonRefundState = (input: {
+  readonly allocations: readonly RegistrationAddonRefundHistoryAllocation[];
+  readonly cancelledQuantity: number;
+  readonly events: readonly RegistrationAddonRefundHistoryEvent[];
+  readonly lots: readonly RegistrationAddonRefundHistoryLot[];
+  readonly purchasedQuantity: number;
+  readonly refunds: readonly RegistrationAddonRefundHistoryClaim[];
+}): Pick<
+  EventsRegistrationAddonFulfillmentRecord,
+  'refundAvailability' | 'refundStatus'
+> => {
+  const purchasedCancelledQuantity = input.lots.reduce(
+    (sum, lot) => sum + lot.cancelledQuantity,
+    0,
+  );
+  const cancellablePurchasedLots = input.lots.filter(
+    (lot) => lot.redeemedQuantity + lot.cancelledQuantity < lot.quantity,
+  );
+  const cancellablePurchasedQuantity = cancellablePurchasedLots.reduce(
+    (sum, lot) =>
+      sum + lot.quantity - lot.redeemedQuantity - lot.cancelledQuantity,
+    0,
+  );
+  const monetaryRefundAvailable = cancellablePurchasedLots.some(
+    (lot) => lot.sourceTransactionId !== null && (lot.grossAmount ?? 1) > 0,
+  );
+  const refundAvailability: EventsRegistrationAddonFulfillmentRecord['refundAvailability'] =
+    cancellablePurchasedQuantity === 0
+      ? 'none'
+      : monetaryRefundAvailable
+        ? 'monetaryRefundAvailable'
+        : 'noMonetaryRefundRequired';
+
+  if (input.purchasedQuantity === 0) {
+    return {
+      refundAvailability,
+      refundStatus:
+        input.cancelledQuantity > 0 ? 'notRequired' : 'notApplicable',
+    };
+  }
+
+  const purchasedQuantityByEventId = new Map<string, number>();
+  for (const allocation of input.allocations) {
+    if (allocation.source !== 'purchased') continue;
+    purchasedQuantityByEventId.set(
+      allocation.fulfillmentEventId,
+      (purchasedQuantityByEventId.get(allocation.fulfillmentEventId) ?? 0) +
+        allocation.quantity,
+    );
+  }
+  const purchasedCancellationEvents = input.events.flatMap((event) => {
+    const quantity = purchasedQuantityByEventId.get(event.id) ?? 0;
+    return event.type === 'cancelled' && quantity > 0
+      ? [{ ...event, quantity }]
+      : [];
+  });
+  const purchasedCancellationEventIds = new Set(
+    purchasedCancellationEvents.map((event) => event.id),
+  );
+  const purchasedRefunds = input.refunds.filter((refund) =>
+    purchasedCancellationEventIds.has(refund.fulfillmentEventId),
+  );
+  const refundedQuantity = purchasedRefunds
+    .filter(
+      (refund) =>
+        refund.status === 'successful' ||
+        refund.stripeRefundStatus === 'succeeded',
+    )
+    .reduce((sum, refund) => sum + refund.quantity, 0);
+  const hasFailedRefund = purchasedRefunds.some(
+    (refund) =>
+      refund.status === 'cancelled' ||
+      refund.stripeRefundStatus === 'failed' ||
+      refund.stripeRefundStatus === 'canceled',
+  );
+  const hasPendingRefund = purchasedRefunds.some(
+    (refund) => refund.status === 'pending',
+  );
+  const cancellationWithoutRefundQuantity = purchasedCancellationEvents
+    .filter((event) => !event.refundRequested)
+    .reduce((sum, event) => sum + event.quantity, 0);
+  const noMonetaryRefundRequiredQuantity = purchasedCancellationEvents
+    .filter(
+      (event) =>
+        event.refundRequested &&
+        event.refundDisposition === 'no_monetary_refund_required',
+    )
+    .reduce((sum, event) => sum + event.quantity, 0);
+  const claimsRequestedQuantity = purchasedCancellationEvents
+    .filter(
+      (event) =>
+        event.refundRequested && event.refundDisposition === 'claims_created',
+    )
+    .reduce((sum, event) => sum + event.quantity, 0);
+  const allocatedPurchasedCancellationQuantity =
+    cancellationWithoutRefundQuantity +
+    noMonetaryRefundRequiredQuantity +
+    claimsRequestedQuantity;
+
+  let refundStatus: EventsRegistrationAddonRefundStatus = 'notRequested';
+  if (hasFailedRefund) refundStatus = 'failed';
+  else if (hasPendingRefund) refundStatus = 'pending';
+  else if (refundedQuantity > 0) {
+    refundStatus =
+      refundedQuantity >= purchasedCancelledQuantity
+        ? 'refunded'
+        : 'partiallyRefunded';
+  } else if (purchasedCancelledQuantity > 0) {
+    if (
+      cancellationWithoutRefundQuantity > 0 ||
+      allocatedPurchasedCancellationQuantity < purchasedCancelledQuantity
+    ) {
+      refundStatus = 'cancelledWithoutRefund';
+    } else if (noMonetaryRefundRequiredQuantity >= purchasedCancelledQuantity) {
+      refundStatus = 'notRequired';
+    } else if (claimsRequestedQuantity > 0) {
+      refundStatus = 'pending';
+    }
+  }
+
+  return { refundAvailability, refundStatus };
+};
+
 export type RegistrationAddonFulfillmentActor =
   | { readonly kind: 'platform' | 'system'; readonly subject: string }
   | { readonly kind: 'user'; readonly userId: string };
@@ -243,99 +391,127 @@ export const getRegistrationAddonFulfillment = Effect.fn(
             return { addOns: [], registrationId: input.registrationId };
           }
           const purchaseIds = purchases.map(({ id }) => id);
-          const [lots, fulfillmentEvents, refundRows] = yield* Effect.all([
-            tx
-              .select({
-                cancelledQuantity:
-                  eventRegistrationAddonPurchaseLots.cancelledQuantity,
-                grossAmount: eventRegistrationAddonPurchaseLots.grossAmount,
-                purchaseId: eventRegistrationAddonPurchaseLots.purchaseId,
-                quantity: eventRegistrationAddonPurchaseLots.quantity,
-                redeemedQuantity:
-                  eventRegistrationAddonPurchaseLots.redeemedQuantity,
-                refundAllocatedQuantity:
-                  eventRegistrationAddonPurchaseLots.refundAllocatedQuantity,
-                sourceTransactionId:
-                  eventRegistrationAddonPurchaseLots.sourceTransactionId,
-              })
-              .from(eventRegistrationAddonPurchaseLots)
-              .where(
-                and(
-                  inArray(
-                    eventRegistrationAddonPurchaseLots.purchaseId,
-                    purchaseIds,
-                  ),
-                  eq(
-                    eventRegistrationAddonPurchaseLots.tenantId,
-                    input.tenantId,
+          const [lots, fulfillmentAllocations, fulfillmentEvents, refundRows] =
+            yield* Effect.all([
+              tx
+                .select({
+                  cancelledQuantity:
+                    eventRegistrationAddonPurchaseLots.cancelledQuantity,
+                  grossAmount: eventRegistrationAddonPurchaseLots.grossAmount,
+                  purchaseId: eventRegistrationAddonPurchaseLots.purchaseId,
+                  quantity: eventRegistrationAddonPurchaseLots.quantity,
+                  redeemedQuantity:
+                    eventRegistrationAddonPurchaseLots.redeemedQuantity,
+                  refundAllocatedQuantity:
+                    eventRegistrationAddonPurchaseLots.refundAllocatedQuantity,
+                  sourceTransactionId:
+                    eventRegistrationAddonPurchaseLots.sourceTransactionId,
+                })
+                .from(eventRegistrationAddonPurchaseLots)
+                .where(
+                  and(
+                    inArray(
+                      eventRegistrationAddonPurchaseLots.purchaseId,
+                      purchaseIds,
+                    ),
+                    eq(
+                      eventRegistrationAddonPurchaseLots.tenantId,
+                      input.tenantId,
+                    ),
                   ),
                 ),
-              ),
-            tx
-              .select({
-                createdAt: eventRegistrationAddonFulfillmentEvents.createdAt,
-                id: eventRegistrationAddonFulfillmentEvents.id,
-                purchaseId: eventRegistrationAddonFulfillmentEvents.purchaseId,
-                refundDisposition:
-                  eventRegistrationAddonFulfillmentEvents.refundDisposition,
-                refundRequested:
-                  eventRegistrationAddonFulfillmentEvents.refundRequested,
-                reversesEventId:
-                  eventRegistrationAddonFulfillmentEvents.reversesEventId,
-                type: eventRegistrationAddonFulfillmentEvents.type,
-              })
-              .from(eventRegistrationAddonFulfillmentEvents)
-              .where(
-                and(
-                  inArray(
+              tx
+                .select({
+                  fulfillmentEventId:
+                    eventRegistrationAddonFulfillmentAllocations.fulfillmentEventId,
+                  purchaseId:
+                    eventRegistrationAddonFulfillmentAllocations.purchaseId,
+                  quantity:
+                    eventRegistrationAddonFulfillmentAllocations.quantity,
+                  source: eventRegistrationAddonFulfillmentAllocations.source,
+                })
+                .from(eventRegistrationAddonFulfillmentAllocations)
+                .where(
+                  and(
+                    inArray(
+                      eventRegistrationAddonFulfillmentAllocations.purchaseId,
+                      purchaseIds,
+                    ),
+                    eq(
+                      eventRegistrationAddonFulfillmentAllocations.tenantId,
+                      input.tenantId,
+                    ),
+                  ),
+                ),
+              tx
+                .select({
+                  createdAt: eventRegistrationAddonFulfillmentEvents.createdAt,
+                  id: eventRegistrationAddonFulfillmentEvents.id,
+                  purchaseId:
                     eventRegistrationAddonFulfillmentEvents.purchaseId,
-                    purchaseIds,
+                  refundDisposition:
+                    eventRegistrationAddonFulfillmentEvents.refundDisposition,
+                  refundRequested:
+                    eventRegistrationAddonFulfillmentEvents.refundRequested,
+                  reversesEventId:
+                    eventRegistrationAddonFulfillmentEvents.reversesEventId,
+                  type: eventRegistrationAddonFulfillmentEvents.type,
+                })
+                .from(eventRegistrationAddonFulfillmentEvents)
+                .where(
+                  and(
+                    inArray(
+                      eventRegistrationAddonFulfillmentEvents.purchaseId,
+                      purchaseIds,
+                    ),
+                    eq(
+                      eventRegistrationAddonFulfillmentEvents.tenantId,
+                      input.tenantId,
+                    ),
                   ),
-                  eq(
-                    eventRegistrationAddonFulfillmentEvents.tenantId,
-                    input.tenantId,
-                  ),
+                )
+                .orderBy(
+                  desc(eventRegistrationAddonFulfillmentEvents.createdAt),
+                  desc(eventRegistrationAddonFulfillmentEvents.id),
                 ),
-              )
-              .orderBy(
-                desc(eventRegistrationAddonFulfillmentEvents.createdAt),
-                desc(eventRegistrationAddonFulfillmentEvents.id),
-              ),
-            tx
-              .select({
-                purchaseId: eventRegistrationAddonFulfillmentEvents.purchaseId,
-                quantity: eventRegistrationAddonRefundAllocations.quantity,
-                status: transactions.status,
-                stripeRefundStatus: transactions.stripeRefundStatus,
-              })
-              .from(eventRegistrationAddonRefundAllocations)
-              .innerJoin(
-                eventRegistrationAddonFulfillmentEvents,
-                eq(
-                  eventRegistrationAddonFulfillmentEvents.id,
-                  eventRegistrationAddonRefundAllocations.fulfillmentEventId,
-                ),
-              )
-              .innerJoin(
-                transactions,
-                eq(
-                  transactions.id,
-                  eventRegistrationAddonRefundAllocations.refundTransactionId,
-                ),
-              )
-              .where(
-                and(
-                  inArray(
+              tx
+                .select({
+                  fulfillmentEventId:
+                    eventRegistrationAddonRefundAllocations.fulfillmentEventId,
+                  purchaseId:
                     eventRegistrationAddonFulfillmentEvents.purchaseId,
-                    purchaseIds,
-                  ),
+                  quantity: eventRegistrationAddonRefundAllocations.quantity,
+                  status: transactions.status,
+                  stripeRefundStatus: transactions.stripeRefundStatus,
+                })
+                .from(eventRegistrationAddonRefundAllocations)
+                .innerJoin(
+                  eventRegistrationAddonFulfillmentEvents,
                   eq(
-                    eventRegistrationAddonRefundAllocations.tenantId,
-                    input.tenantId,
+                    eventRegistrationAddonFulfillmentEvents.id,
+                    eventRegistrationAddonRefundAllocations.fulfillmentEventId,
+                  ),
+                )
+                .innerJoin(
+                  transactions,
+                  eq(
+                    transactions.id,
+                    eventRegistrationAddonRefundAllocations.refundTransactionId,
+                  ),
+                )
+                .where(
+                  and(
+                    inArray(
+                      eventRegistrationAddonFulfillmentEvents.purchaseId,
+                      purchaseIds,
+                    ),
+                    eq(
+                      eventRegistrationAddonRefundAllocations.tenantId,
+                      input.tenantId,
+                    ),
                   ),
                 ),
-              ),
-          ]);
+            ]);
 
           const addOns = purchases.map((purchase) => {
             const purchaseLots = lots.filter(
@@ -370,54 +546,18 @@ export const getRegistrationAddonFulfillment = Effect.fn(
             const purchaseRefunds = refundRows.filter(
               (refund) => refund.purchaseId === purchase.id,
             );
-            const refundedQuantity = purchaseRefunds
-              .filter(
-                (refund) =>
-                  refund.status === 'successful' ||
-                  refund.stripeRefundStatus === 'succeeded',
-              )
-              .reduce((sum, refund) => sum + refund.quantity, 0);
-            const hasFailedRefund = purchaseRefunds.some(
-              (refund) =>
-                refund.status === 'cancelled' ||
-                refund.stripeRefundStatus === 'failed' ||
-                refund.stripeRefundStatus === 'canceled',
+            const purchaseAllocations = fulfillmentAllocations.filter(
+              (allocation) => allocation.purchaseId === purchase.id,
             );
-            const hasPendingRefund = purchaseRefunds.some(
-              (refund) => refund.status === 'pending',
-            );
-            const cancellationRequested = purchaseEvents.some(
-              (event) => event.type === 'cancelled' && event.refundRequested,
-            );
-            const noMonetaryRefundRequired = purchaseEvents.some(
-              (event) =>
-                event.type === 'cancelled' &&
-                event.refundDisposition === 'no_monetary_refund_required',
-            );
-            const monetaryPurchase = purchaseLots.some(
-              (lot) =>
-                lot.sourceTransactionId !== null && (lot.grossAmount ?? 1) > 0,
-            );
-            let refundStatus: EventsRegistrationAddonRefundStatus =
-              purchase.purchasedQuantity === 0
-                ? purchase.cancelledQuantity > 0
-                  ? 'notRequired'
-                  : 'notApplicable'
-                : 'notRequested';
-            if (hasFailedRefund) refundStatus = 'failed';
-            else if (hasPendingRefund) refundStatus = 'pending';
-            else if (refundedQuantity > 0) {
-              refundStatus =
-                refundedQuantity >= purchasedCancelledQuantity
-                  ? 'refunded'
-                  : 'partiallyRefunded';
-            } else if (purchasedCancelledQuantity > 0) {
-              refundStatus = cancellationRequested
-                ? noMonetaryRefundRequired || !monetaryPurchase
-                  ? 'notRequired'
-                  : 'pending'
-                : 'cancelledWithoutRefund';
-            }
+            const { refundAvailability, refundStatus } =
+              deriveRegistrationAddonRefundState({
+                allocations: purchaseAllocations,
+                cancelledQuantity: purchase.cancelledQuantity,
+                events: purchaseEvents,
+                lots: purchaseLots,
+                purchasedQuantity: purchase.purchasedQuantity,
+                refunds: purchaseRefunds,
+              });
             return {
               addOnId: purchase.addonId,
               cancellablePurchasedQuantity,
@@ -450,12 +590,7 @@ export const getRegistrationAddonFulfillment = Effect.fn(
                 registration.status === 'CONFIRMED' &&
                 purchase.redeemedQuantity + purchase.cancelledQuantity <
                   purchase.quantity,
-              refundAvailability:
-                cancellablePurchasedQuantity === 0
-                  ? 'none'
-                  : monetaryPurchase
-                    ? 'monetaryRefundAvailable'
-                    : 'noMonetaryRefundRequired',
+              refundAvailability,
               refundStatus,
               registrationAddonId: purchase.id,
               remainingQuantity: Math.max(

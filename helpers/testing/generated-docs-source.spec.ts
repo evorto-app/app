@@ -56,7 +56,14 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Expected generated general-settings docs tenant');
     expect(source).toContain('.update(schema.tenants)');
     expect(source).toContain(
-      'The generated journey below changes all seven fields on its disposable tenant, saves them, checks the stored tenant row, reloads the page, and checks that the same values are read back.',
+      'The generated journey below changes all seven fields and the uploaded brand assets on its disposable tenant, saves them, checks the stored tenant row, reloads the page, and checks that the same values are read back.',
+    );
+    expect(source).toContain("getByLabel('Upload tenant logo file')");
+    expect(source).toContain("getByLabel('Upload tenant favicon file')");
+    expect(source).toContain('documentedLogoUrl');
+    expect(source).toContain('documentedFaviconUrl');
+    expect(source).toContain(
+      'uploaded paths from a different tenant are rejected',
     );
     expect(source).toContain('Transfer deadline before event (hours)');
     expect(source).toContain('Cancellation deadline before event (hours)');

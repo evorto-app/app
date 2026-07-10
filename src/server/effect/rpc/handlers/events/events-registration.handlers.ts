@@ -216,6 +216,144 @@ export const registrationCancellationStripeRefundTerms = ({
   };
 };
 
+export interface NonStripeAddonLotRefundAllocation {
+  readonly fulfillmentEventId: string;
+  readonly grossAmount: number;
+  readonly purchaseId: string;
+  readonly purchaseLotId: string;
+  readonly quantity: number;
+}
+
+export type NonStripeCancellationRefundPlan =
+  | {
+      readonly _tag: 'ManualReviewRequired';
+      readonly reason: string;
+    }
+  | {
+      readonly _tag: 'Refundable';
+      readonly amount: number;
+      readonly lotRefunds: readonly NonStripeAddonLotRefundAllocation[];
+    };
+
+/**
+ * Proves the refundable portion of one non-Stripe source. The registration
+ * portion excludes every paid add-on lot, then adds back only lots cancelled
+ * by this operation. Redeemed and previously cancelled-without-refund units
+ * therefore remain protected from an accidental full-source refund.
+ */
+export const planNonStripeCancellationRefund = (input: {
+  readonly cancellations: readonly {
+    readonly fulfillmentEventId: string;
+    readonly lot: Pick<
+      typeof eventRegistrationAddonPurchaseLots.$inferSelect,
+      'id' | 'sourceTransactionId'
+    >;
+    readonly purchaseId: string;
+    readonly quantity: number;
+  }[];
+  readonly lots: readonly Pick<
+    typeof eventRegistrationAddonPurchaseLots.$inferSelect,
+    | 'grossAmount'
+    | 'id'
+    | 'quantity'
+    | 'refundAllocatedQuantity'
+    | 'sourceTransactionId'
+  >[];
+  readonly source: {
+    readonly amount: number;
+    readonly id: string;
+    readonly type: 'addon' | 'registration';
+  };
+}): NonStripeCancellationRefundPlan => {
+  if (!Number.isSafeInteger(input.source.amount) || input.source.amount <= 0) {
+    return {
+      _tag: 'ManualReviewRequired',
+      reason: 'The non-Stripe source amount is invalid.',
+    };
+  }
+  const sourceLots = input.lots.filter(
+    (lot) => lot.sourceTransactionId === input.source.id,
+  );
+  if (input.source.type === 'addon' && sourceLots.length === 0) {
+    return {
+      _tag: 'ManualReviewRequired',
+      reason: 'The non-Stripe add-on source has no immutable purchase lots.',
+    };
+  }
+  if (
+    sourceLots.some(
+      (lot) =>
+        lot.grossAmount === null ||
+        !Number.isSafeInteger(lot.grossAmount) ||
+        lot.grossAmount < 0,
+    )
+  ) {
+    return {
+      _tag: 'ManualReviewRequired',
+      reason: 'The non-Stripe add-on gross allocation is not finalized.',
+    };
+  }
+
+  const fullAddonAmount = sourceLots.reduce(
+    (sum, lot) => sum + (lot.grossAmount ?? 0),
+    0,
+  );
+  if (
+    fullAddonAmount > input.source.amount ||
+    (input.source.type === 'addon' && fullAddonAmount !== input.source.amount)
+  ) {
+    return {
+      _tag: 'ManualReviewRequired',
+      reason: 'The non-Stripe source and add-on allocations do not reconcile.',
+    };
+  }
+
+  const sourceLotById = new Map(sourceLots.map((lot) => [lot.id, lot]));
+  const sourceCancellations = input.cancellations.filter(
+    (allocation) => allocation.lot.sourceTransactionId === input.source.id,
+  );
+  const lotRefunds: NonStripeAddonLotRefundAllocation[] = [];
+  for (const allocation of sourceCancellations) {
+    const lot = sourceLotById.get(allocation.lot.id);
+    if (
+      !lot ||
+      lot.grossAmount === null ||
+      !Number.isSafeInteger(allocation.quantity) ||
+      allocation.quantity <= 0 ||
+      lot.refundAllocatedQuantity + allocation.quantity > lot.quantity
+    ) {
+      return {
+        _tag: 'ManualReviewRequired',
+        reason: 'The non-Stripe cancellation allocation is inconsistent.',
+      };
+    }
+    const grossAmount = allocateCumulativeQuantityAmount({
+      alreadyAllocatedQuantity: lot.refundAllocatedQuantity,
+      amount: lot.grossAmount,
+      quantity: allocation.quantity,
+      totalQuantity: lot.quantity,
+    });
+    lotRefunds.push({
+      fulfillmentEventId: allocation.fulfillmentEventId,
+      grossAmount,
+      purchaseId: allocation.purchaseId,
+      purchaseLotId: lot.id,
+      quantity: allocation.quantity,
+    });
+  }
+  const registrationAmount =
+    input.source.type === 'registration'
+      ? input.source.amount - fullAddonAmount
+      : 0;
+  return {
+    _tag: 'Refundable',
+    amount:
+      registrationAmount +
+      lotRefunds.reduce((sum, allocation) => sum + allocation.grossAmount, 0),
+    lotRefunds,
+  };
+};
+
 const activeRegistrationTransferConflict = () =>
   new EventRegistrationConflictError({
     message:
@@ -635,8 +773,15 @@ export const cancelRegistrationForTenant = Effect.fn(
         ),
       ),
     ];
+    const stripeAddOnSourceIds = addOnSourceIds.filter((sourceTransactionId) =>
+      registration.transactions.some(
+        (transaction) =>
+          transaction.id === sourceTransactionId &&
+          transaction.method === 'stripe',
+      ),
+    );
     yield* Effect.forEach(
-      addOnSourceIds,
+      stripeAddOnSourceIds,
       (sourceTransactionId) =>
         ensureAddonPaymentAllocations(sourceTransactionId).pipe(
           Effect.mapError(
@@ -916,6 +1061,112 @@ export const cancelRegistrationForTenant = Effect.fn(
             }
           }
 
+          const lockedAddonPurchases = yield* tx
+            .select({ id: eventRegistrationAddonPurchases.id })
+            .from(eventRegistrationAddonPurchases)
+            .where(
+              and(
+                eq(
+                  eventRegistrationAddonPurchases.registrationId,
+                  lockedRegistration.id,
+                ),
+                eq(eventRegistrationAddonPurchases.tenantId, tenant.id),
+              ),
+            )
+            .orderBy(eventRegistrationAddonPurchases.id)
+            .for('update');
+          const lockedAddonLots =
+            lockedAddonPurchases.length === 0
+              ? []
+              : yield* tx
+                  .select()
+                  .from(eventRegistrationAddonPurchaseLots)
+                  .where(
+                    and(
+                      inArray(
+                        eventRegistrationAddonPurchaseLots.purchaseId,
+                        lockedAddonPurchases.map(({ id }) => id),
+                      ),
+                      eq(
+                        eventRegistrationAddonPurchaseLots.tenantId,
+                        tenant.id,
+                      ),
+                    ),
+                  )
+                  .orderBy(eventRegistrationAddonPurchaseLots.id)
+                  .for('update');
+          if (
+            lockedRegistration.status === 'CONFIRMED' &&
+            successfulPaidRegistrationTransaction
+          ) {
+            const successfulRegistrationSources =
+              lockedRegistrationTransactions.filter(
+                (transaction) =>
+                  transaction.type === 'registration' &&
+                  transaction.status === 'successful' &&
+                  transaction.amount > 0,
+              );
+            const successfulPaymentSources =
+              lockedRegistrationTransactions.filter(
+                (transaction) =>
+                  (transaction.type === 'registration' ||
+                    transaction.type === 'addon') &&
+                  transaction.status === 'successful' &&
+                  transaction.amount > 0,
+              );
+            const sourceById = new Map(
+              successfulPaymentSources.map((source) => [source.id, source]),
+            );
+            const registrationSource = successfulRegistrationSources[0];
+            const hasMixedPaymentMethods = successfulPaymentSources.some(
+              (source) => source.method !== registrationSource?.method,
+            );
+            const positiveLots = lockedAddonLots.filter(
+              (lot) =>
+                lot.baseAmount > 0 ||
+                lot.unitPrice > 0 ||
+                (lot.grossAmount ?? 0) > 0,
+            );
+            const hasUnassignedPositiveLot = positiveLots.some(
+              (lot) => lot.sourceTransactionId === null,
+            );
+            const hasUnknownPositiveLotSource = positiveLots.some(
+              (lot) =>
+                lot.sourceTransactionId !== null &&
+                !sourceById.has(lot.sourceTransactionId),
+            );
+            const hasUnfinalizedNonStripeLot = positiveLots.some((lot) => {
+              if (!lot.sourceTransactionId) return false;
+              const source = sourceById.get(lot.sourceTransactionId);
+              return source?.method !== 'stripe' && lot.grossAmount === null;
+            });
+            const sourceIdsWithPositiveLots = new Set(
+              positiveLots.flatMap((lot) =>
+                lot.sourceTransactionId ? [lot.sourceTransactionId] : [],
+              ),
+            );
+            const hasUnassignedAddonSource = successfulPaymentSources.some(
+              (source) =>
+                source.type === 'addon' &&
+                !sourceIdsWithPositiveLots.has(source.id),
+            );
+            if (
+              successfulRegistrationSources.length !== 1 ||
+              hasMixedPaymentMethods ||
+              hasUnassignedPositiveLot ||
+              hasUnknownPositiveLotSource ||
+              hasUnfinalizedNonStripeLot ||
+              hasUnassignedAddonSource
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'This payment needs pending manual refund review because each successful registration source and paid add-on lot cannot be assigned to one exact refund plan. The registration was not cancelled, no refund was created, and no inventory or spots were released.',
+                }),
+              );
+            }
+          }
+
           const lockedTenants = yield* tx
             .select({
               cancellationDeadlineHoursBeforeStart:
@@ -1122,6 +1373,12 @@ export const cancelRegistrationForTenant = Effect.fn(
             lockedRegistration.status === 'CONFIRMED' &&
             successfulPaidRegistrationTransaction
           ) {
+            const cancellationEventIds = new Set(
+              addonCancellationAllocations.map(
+                ({ fulfillmentEventId }) => fulfillmentEventId,
+              ),
+            );
+            const monetaryCancellationEventIds = new Set<string>();
             if (successfulPaidRegistrationTransaction.method === 'stripe') {
               if (
                 !successfulPaidRegistrationTransaction.stripeAccountId ||
@@ -1138,20 +1395,6 @@ export const cancelRegistrationForTenant = Effect.fn(
                 );
               }
 
-              const lockedAddonLots = yield* tx
-                .select()
-                .from(eventRegistrationAddonPurchaseLots)
-                .where(
-                  and(
-                    eq(
-                      eventRegistrationAddonPurchaseLots.registrationId,
-                      lockedRegistration.id,
-                    ),
-                    eq(eventRegistrationAddonPurchaseLots.tenantId, tenant.id),
-                  ),
-                )
-                .orderBy(eventRegistrationAddonPurchaseLots.id)
-                .for('update');
               const stripeSources = lockedRegistrationTransactions.filter(
                 (transaction) =>
                   transaction.method === 'stripe' &&
@@ -1160,12 +1403,6 @@ export const cancelRegistrationForTenant = Effect.fn(
                   (transaction.type === 'registration' ||
                     transaction.type === 'addon'),
               );
-              const cancellationEventIds = new Set(
-                addonCancellationAllocations.map(
-                  ({ fulfillmentEventId }) => fulfillmentEventId,
-                ),
-              );
-              const monetaryCancellationEventIds = new Set<string>();
               for (const source of stripeSources) {
                 if (
                   !source.stripeAccountId ||
@@ -1321,43 +1558,147 @@ export const cancelRegistrationForTenant = Effect.fn(
                   }
                 }
               }
-              // eslint-disable-next-line unicorn/prefer-set-methods -- the project TypeScript lib intentionally remains below ES2025
-              const noMonetaryRefundEventIds = [...cancellationEventIds].filter(
-                (eventId) => !monetaryCancellationEventIds.has(eventId),
-              );
-              if (noMonetaryRefundEventIds.length > 0) {
-                yield* tx
-                  .update(eventRegistrationAddonFulfillmentEvents)
-                  .set({
-                    refundDisposition: 'no_monetary_refund_required',
-                  })
-                  .where(
-                    inArray(
-                      eventRegistrationAddonFulfillmentEvents.id,
-                      noMonetaryRefundEventIds,
-                    ),
-                  );
-              }
             } else {
-              const manualRefundTransactionId = createId();
-              yield* tx.insert(transactions).values({
-                amount: -Math.abs(successfulPaidRegistrationTransaction.amount),
-                comment: `Pending manual refund record for cancelled registration ${lockedRegistration.id}.`,
-                currency: successfulPaidRegistrationTransaction.currency,
-                eventId: lockedRegistration.eventId,
-                eventRegistrationId: lockedRegistration.id,
-                executiveUserId,
-                id: manualRefundTransactionId,
-                manuallyCreated: true,
-                method: successfulPaidRegistrationTransaction.method,
-                refundOperationKey: `registration-cancellation:${lockedRegistration.id}`,
-                sourceTransactionId: successfulPaidRegistrationTransaction.id,
-                status: 'pending',
-                targetUserId: lockedRegistration.userId,
-                tenantId: tenant.id,
-                type: 'refund',
-              });
-              refundTransactionId = manualRefundTransactionId;
+              const nonStripeSources = lockedRegistrationTransactions.filter(
+                (
+                  transaction,
+                ): transaction is typeof transaction & {
+                  type: 'addon' | 'registration';
+                } =>
+                  transaction.method !== 'stripe' &&
+                  transaction.status === 'successful' &&
+                  transaction.amount > 0 &&
+                  (transaction.type === 'registration' ||
+                    transaction.type === 'addon'),
+              );
+              const hasMixedStripeSource = lockedRegistrationTransactions.some(
+                (transaction) =>
+                  transaction.method === 'stripe' &&
+                  transaction.status === 'successful' &&
+                  transaction.amount > 0 &&
+                  transaction.type === 'addon',
+              );
+              const nonStripeSourceIds = new Set(
+                nonStripeSources.map(({ id }) => id),
+              );
+              const hasUnownedSourceLot = lockedAddonLots.some(
+                (lot) =>
+                  lot.sourceTransactionId !== null &&
+                  !nonStripeSourceIds.has(lot.sourceTransactionId),
+              );
+              const plans = nonStripeSources.map((source) => ({
+                plan: planNonStripeCancellationRefund({
+                  cancellations: addonCancellationAllocations,
+                  lots: lockedAddonLots,
+                  source,
+                }),
+                source,
+              }));
+              const manualReviewPlan = plans.find(
+                ({ plan }) => plan._tag === 'ManualReviewRequired',
+              );
+              if (
+                hasMixedStripeSource ||
+                hasUnownedSourceLot ||
+                manualReviewPlan
+              ) {
+                const detail =
+                  manualReviewPlan?.plan._tag === 'ManualReviewRequired'
+                    ? ` ${manualReviewPlan.plan.reason}`
+                    : '';
+                return yield* Effect.fail(
+                  new EventRegistrationConflictError({
+                    message: `This non-Stripe payment needs pending manual refund review because its registration-only and add-on amounts cannot be proven exactly.${detail} The registration was not cancelled, no refund was created, and no inventory or spots were released.`,
+                  }),
+                );
+              }
+
+              for (const { plan, source } of plans) {
+                if (plan._tag !== 'Refundable' || plan.amount <= 0) continue;
+                const manualRefundTransactionId = createId();
+                yield* tx.insert(transactions).values({
+                  amount: -plan.amount,
+                  comment: `Pending manual source-split refund for cancelled registration ${lockedRegistration.id}; protected redeemed and previously non-refunded add-on value remains excluded.`,
+                  currency: source.currency,
+                  eventId: lockedRegistration.eventId,
+                  eventRegistrationId: lockedRegistration.id,
+                  executiveUserId,
+                  id: manualRefundTransactionId,
+                  manuallyCreated: true,
+                  method: source.method,
+                  refundOperationKey: `registration-cancellation:${lockedRegistration.id}:${source.id}`,
+                  sourceTransactionId: source.id,
+                  status: 'pending',
+                  targetUserId: lockedRegistration.userId,
+                  tenantId: tenant.id,
+                  type: 'refund',
+                });
+                refundTransactionId ??= manualRefundTransactionId;
+                for (const allocation of plan.lotRefunds) {
+                  monetaryCancellationEventIds.add(
+                    allocation.fulfillmentEventId,
+                  );
+                  yield* tx
+                    .update(eventRegistrationAddonPurchaseLots)
+                    .set({
+                      refundAllocatedGrossAmount: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedGrossAmount} + ${allocation.grossAmount}`,
+                      refundAllocatedNetAmount: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedNetAmount} + ${allocation.grossAmount}`,
+                      refundAllocatedQuantity: sql`${eventRegistrationAddonPurchaseLots.refundAllocatedQuantity} + ${allocation.quantity}`,
+                    })
+                    .where(
+                      eq(
+                        eventRegistrationAddonPurchaseLots.id,
+                        allocation.purchaseLotId,
+                      ),
+                    );
+                  yield* tx
+                    .update(eventRegistrationAddonPurchases)
+                    .set({
+                      refundAllocatedPurchasedQuantity: sql`${eventRegistrationAddonPurchases.refundAllocatedPurchasedQuantity} + ${allocation.quantity}`,
+                    })
+                    .where(
+                      eq(
+                        eventRegistrationAddonPurchases.id,
+                        allocation.purchaseId,
+                      ),
+                    );
+                  yield* tx
+                    .insert(eventRegistrationAddonRefundAllocations)
+                    .values({
+                      applicationFeeAmount: 0,
+                      applicationFeeRefunded: false,
+                      currency: source.currency,
+                      eventId: lockedRegistration.eventId,
+                      fulfillmentEventId: allocation.fulfillmentEventId,
+                      grossEntitlementAmount: allocation.grossAmount,
+                      netEntitlementAmount: allocation.grossAmount,
+                      purchaseId: allocation.purchaseId,
+                      purchaseLotId: allocation.purchaseLotId,
+                      quantity: allocation.quantity,
+                      refundAmount: allocation.grossAmount,
+                      refundTransactionId: manualRefundTransactionId,
+                      registrationId: lockedRegistration.id,
+                      tenantId: tenant.id,
+                    });
+                }
+              }
+            }
+            // eslint-disable-next-line unicorn/prefer-set-methods -- the project TypeScript lib intentionally remains below ES2025
+            const noMonetaryRefundEventIds = [...cancellationEventIds].filter(
+              (eventId) => !monetaryCancellationEventIds.has(eventId),
+            );
+            if (noMonetaryRefundEventIds.length > 0) {
+              yield* tx
+                .update(eventRegistrationAddonFulfillmentEvents)
+                .set({
+                  refundDisposition: 'no_monetary_refund_required',
+                })
+                .where(
+                  inArray(
+                    eventRegistrationAddonFulfillmentEvents.id,
+                    noMonetaryRefundEventIds,
+                  ),
+                );
             }
           }
 

@@ -40,7 +40,10 @@ The **Email outbox** is an operational overview across every tenant. Use it to u
     });
 
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Global admin' }),
+      page.getByRole('heading', {
+        level: 1,
+        name: 'Platform administration',
+      }),
     ).toBeVisible();
     await page.getByRole('link', { name: 'Email outbox' }).click();
     await expect(page).toHaveURL(/\/global-admin\/email-outbox$/);

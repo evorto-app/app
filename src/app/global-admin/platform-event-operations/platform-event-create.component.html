@@ -83,7 +83,9 @@
     <mat-form-field>
       <mat-label>Operational reason</mat-label>
       <textarea matInput rows="3" [formField]="createForm.reason"></textarea>
-      <mat-hint>Stored with the immutable platform audit entry.</mat-hint>
+      <mat-hint>
+        Stored with the application append-only platform audit entry.
+      </mat-hint>
       @for (error of createForm.reason().errors(); track error) {
         <mat-error>{{ error.message }}</mat-error>
       }

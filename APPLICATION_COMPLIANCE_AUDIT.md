@@ -302,8 +302,9 @@ platform-admin override explicit and auditable.
 
 Represent platform-administrator authority explicitly in request context, route guards, and server authorization rather than treating it as an ordinary tenant role. Allow the intended direct platform operations without a tenant membership, log each cross-tenant action with actor and target tenant, and keep user-context actions distinct from platform actions.
 
-Use immutable audit entries with actor, target tenant, action, before/after data,
-reason, and timestamp.
+Use application/API append-only audit entries with actor, target tenant, action,
+before/after data, reason, and timestamp. Keep authorization in the Effect
+server layer; do not claim database-level RLS or privilege enforcement.
 
 ### CI-001 — CI excludes product-facing finance docs
 
@@ -554,8 +555,8 @@ continue to state them honestly.
   names with `Europe/Berlin` as the default.
 - Every privacy-policy change requires re-acceptance, and required short-text
   or selection-list answers are checked and collected for every tenant user.
-- Platform actions have immutable actor, target, action, before/after, reason,
-  and timestamp audit entries.
+- Platform actions have actor, target, action, before/after, reason, and
+  timestamp in application/API append-only audit entries.
 - Live ESNcard add, refresh, and remove verification is required for release.
 - Codex in-app Browser walkthroughs remain the requested manual-review tool and
   complement, rather than replace, Playwright coverage.

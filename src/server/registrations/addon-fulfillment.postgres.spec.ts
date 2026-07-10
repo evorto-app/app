@@ -12,6 +12,8 @@ import {
   addonToEventRegistrationOptions,
   eventAddons,
   eventInstances,
+  eventRegistrationAddonFulfillmentAllocations,
+  eventRegistrationAddonFulfillmentEvents,
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
   eventRegistrationOptions,
@@ -245,6 +247,65 @@ describeWithPostgres('add-on fulfillment concurrency', () => {
       await cleanFixture(database, fixture);
     }
     await pool.end();
+  });
+
+  it('redeems two distinct intents from one snapshot and keeps an exact retry idempotent', async () => {
+    if (!databaseUrl) return;
+    const fixture = await seedFixture(database, {
+      includedQuantity: 2,
+      purchasedQuantity: 0,
+    });
+    fixtures.push(fixture);
+    const redeem = (operationKey: string) =>
+      Effect.runPromise(
+        redeemRegistrationAddon({
+          actorUserId: fixture.userId,
+          operationKey,
+          registrationAddonId: fixture.purchaseId,
+          registrationId: fixture.registrationId,
+          tenantId: fixture.tenantId,
+        }).pipe(Effect.provide(layer)),
+      );
+
+    const [first, second] = await Promise.all([
+      redeem(`redeem:${fixture.purchaseId}:intent-a`),
+      redeem(`redeem:${fixture.purchaseId}:intent-b`),
+    ]);
+    const firstRetry = await redeem(`redeem:${fixture.purchaseId}:intent-a`);
+
+    expect(first.fulfillmentEventId).not.toBe(second.fulfillmentEventId);
+    expect(firstRetry.fulfillmentEventId).toBe(first.fulfillmentEventId);
+    expect(
+      await database.query.eventRegistrationAddonPurchases.findFirst({
+        columns: { redeemedQuantity: true },
+        where: { id: fixture.purchaseId },
+      }),
+    ).toEqual({ redeemedQuantity: 2 });
+    expect(
+      await database
+        .select({ id: eventRegistrationAddonFulfillmentEvents.id })
+        .from(eventRegistrationAddonFulfillmentEvents)
+        .where(
+          eq(
+            eventRegistrationAddonFulfillmentEvents.purchaseId,
+            fixture.purchaseId,
+          ),
+        ),
+    ).toHaveLength(2);
+    expect(
+      await database
+        .select({
+          fulfillmentEventId:
+            eventRegistrationAddonFulfillmentAllocations.fulfillmentEventId,
+        })
+        .from(eventRegistrationAddonFulfillmentAllocations)
+        .where(
+          eq(
+            eventRegistrationAddonFulfillmentAllocations.purchaseId,
+            fixture.purchaseId,
+          ),
+        ),
+    ).toHaveLength(2);
   });
 
   it('serializes redemption against whole-registration add-on cancellation', async () => {

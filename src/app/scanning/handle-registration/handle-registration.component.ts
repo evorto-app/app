@@ -43,6 +43,7 @@ type RegistrationAddonOperationKeyInput =
     }
   | {
       action: 'redeem';
+      intentNonce: string;
       latestFulfillmentEventId: null | string;
       registrationAddonId: string;
     }
@@ -59,13 +60,68 @@ export const registrationAddonOperationKey = (
       return `scanner-cancel:${input.registrationAddonId}:${input.latestFulfillmentEventId ?? 'initial'}:${input.quantity}:${input.refundRequested ? 'refund' : 'no-refund'}`;
     }
     case 'redeem': {
-      return `scanner-redeem:${input.registrationAddonId}:${input.latestFulfillmentEventId ?? 'initial'}`;
+      return `scanner-redeem:${input.registrationAddonId}:${input.intentNonce}`;
     }
     case 'undo': {
       return `scanner-undo:${input.redemptionEventId}`;
     }
   }
 };
+
+interface RegistrationAddonRedeemSnapshot {
+  latestFulfillmentEventId: null | string;
+  registrationAddonId: string;
+}
+
+/**
+ * Create this once per logical redemption intent. Reusing the returned intent
+ * preserves its operation key across retry clicks, while a separate client
+ * creates a separate nonce even when both clients started from the same state.
+ */
+export const createRegistrationAddonRedeemIntent = (
+  snapshot: RegistrationAddonRedeemSnapshot,
+  createNonce: () => string = () =>
+    globalThis.crypto.randomUUID().replaceAll('-', ''),
+): Extract<RegistrationAddonOperationKeyInput, { action: 'redeem' }> => ({
+  action: 'redeem',
+  intentNonce: createNonce(),
+  ...snapshot,
+});
+
+/** Retains an intent until the fulfillment snapshot changes or success is known. */
+export class RegistrationAddonRedeemIntentStore {
+  private readonly intents = new Map<
+    string,
+    Extract<RegistrationAddonOperationKeyInput, { action: 'redeem' }>
+  >();
+
+  constructor(
+    private readonly createNonce: () => string = () =>
+      globalThis.crypto.randomUUID().replaceAll('-', ''),
+  ) {}
+
+  complete(registrationAddonId: string): void {
+    this.intents.delete(registrationAddonId);
+  }
+
+  forSnapshot(
+    snapshot: RegistrationAddonRedeemSnapshot,
+  ): Extract<RegistrationAddonOperationKeyInput, { action: 'redeem' }> {
+    const existing = this.intents.get(snapshot.registrationAddonId);
+    if (
+      existing?.latestFulfillmentEventId === snapshot.latestFulfillmentEventId
+    ) {
+      return existing;
+    }
+
+    const intent = createRegistrationAddonRedeemIntent(
+      snapshot,
+      this.createNonce,
+    );
+    this.intents.set(snapshot.registrationAddonId, intent);
+    return intent;
+  }
+}
 
 export const registrationAddonRefundStatusLabel = (
   status: EventsRegistrationAddonRefundStatus,
@@ -251,6 +307,7 @@ export class HandleRegistrationComponent {
   protected readonly scanSpotCountLabel = scanSpotCountLabel;
   private readonly dialog = inject(MatDialog);
   private readonly queryClient = inject(QueryClient);
+  private readonly redeemIntentStore = new RegistrationAddonRedeemIntentStore();
 
   checkIn() {
     const scanResult = this.scanResultQuery.data();
@@ -369,20 +426,21 @@ export class HandleRegistrationComponent {
       return;
     }
 
+    const intent = this.redeemIntentStore.forSnapshot({
+      latestFulfillmentEventId: addOn.latestFulfillmentEventId,
+      registrationAddonId: addOn.registrationAddonId,
+    });
     this.beginAddonAction(addOn.registrationAddonId);
     this.redeemAddonMutation.mutate(
       {
-        operationKey: registrationAddonOperationKey({
-          action: 'redeem',
-          latestFulfillmentEventId: addOn.latestFulfillmentEventId,
-          registrationAddonId: addOn.registrationAddonId,
-        }),
+        operationKey: registrationAddonOperationKey(intent),
         registrationAddonId: addOn.registrationAddonId,
         registrationId: this.registrationId(),
       },
       {
         onError: (error) => this.addonActionFailed(error),
         onSuccess: async () => {
+          this.redeemIntentStore.complete(addOn.registrationAddonId);
           await this.addonActionSucceeded(`${addOn.title} redeemed.`);
         },
       },

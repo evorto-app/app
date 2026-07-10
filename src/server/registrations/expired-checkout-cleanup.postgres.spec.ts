@@ -19,6 +19,7 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
+  registrationTransfers,
   tenants,
   transactions,
   users,
@@ -35,9 +36,11 @@ import { StripeClient } from '../stripe-client';
 import {
   cancelExpiredBoundRegistrationClaim,
   claimDueBoundRegistrationCheckoutCandidates,
+  expiredUnboundRegistrationClaimPredicate,
   processDueBoundRegistrationCheckouts,
   processExpiredUnboundRegistrationCheckouts,
 } from './expired-checkout-cleanup';
+import { expiredRegistrationTransferCheckoutCandidatePredicate } from './registration-transfer-finalization';
 
 const databaseUrl = process.env['DATABASE_URL'];
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
@@ -415,6 +418,31 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
       await cleanFixture(database, fixture);
     }
     await pool.end();
+  });
+
+  it('executes typed JSONPath deadline selectors for registration and transfer claims', async () => {
+    if (!databaseUrl) {
+      return;
+    }
+    const deadline = 1_750_000_000;
+
+    await database
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(expiredUnboundRegistrationClaimPredicate(deadline))
+      .limit(1);
+    await database
+      .select({ id: registrationTransfers.id })
+      .from(registrationTransfers)
+      .innerJoin(
+        transactions,
+        eq(
+          transactions.id,
+          registrationTransfers.recipientCheckoutTransactionId,
+        ),
+      )
+      .where(expiredRegistrationTransferCheckoutCandidatePredicate(deadline))
+      .limit(1);
   });
 
   it('releases one reservation exactly once across simultaneous sweepers', async () => {

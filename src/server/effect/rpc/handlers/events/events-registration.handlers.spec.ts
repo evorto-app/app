@@ -11,6 +11,10 @@ import {
   activeEventRegistrationUniqueIndexName,
   emailOutbox,
   eventAddons,
+  eventRegistrationAddonFulfillmentEvents,
+  eventRegistrationAddonPurchaseLots,
+  eventRegistrationAddonPurchases,
+  eventRegistrationAddonRefundAllocations,
   eventRegistrationOptions,
   eventRegistrations,
   registrationTransfers,
@@ -253,6 +257,8 @@ const createRegistrationMutationGuardSelect = ({
 
 const createCancellationTransactionSelect = ({
   activeTransfers = [],
+  addonLots = [],
+  addonPurchases = [],
   cancellationDeadlineHoursBeforeStart = 0,
   checkInTime = null,
   eventId = 'event-1',
@@ -272,6 +278,8 @@ const createCancellationTransactionSelect = ({
     sourceRegistrationId: string;
     status: 'checkout_pending' | 'open' | 'refund_failed' | 'refund_pending';
   }[];
+  addonLots?: readonly object[];
+  addonPurchases?: readonly object[];
   cancellationDeadlineHoursBeforeStart?: number;
   checkInTime?: Date | null;
   eventId?: string;
@@ -304,6 +312,12 @@ const createCancellationTransactionSelect = ({
           }
           if (table === transactions) {
             return Effect.succeed(currentTransactions);
+          }
+          if (table === eventRegistrationAddonPurchases) {
+            return Effect.succeed(addonPurchases);
+          }
+          if (table === eventRegistrationAddonPurchaseLots) {
+            return Effect.succeed(addonLots);
           }
           if (table === registrationTransfers) {
             return Effect.succeed(activeTransfers);
@@ -451,6 +465,189 @@ const createGuestCancellationDatabase = ({
   };
 
   return { database, insertedEmails, updateSets };
+};
+
+const createNonStripeAddonCancellationDatabase = ({
+  additionalRegistrationSource = false,
+  grossAmount,
+  mixedPaymentMethods = false,
+  sourceTransactionId,
+}: {
+  additionalRegistrationSource?: boolean;
+  grossAmount: null | number;
+  mixedPaymentMethods?: boolean;
+  sourceTransactionId?: null | string;
+}) => {
+  const insertedRefundAllocations: Record<string, unknown>[] = [];
+  const insertedTransactions: Record<string, unknown>[] = [];
+  let writeCount = 0;
+  const sourceTransaction = {
+    amount: mixedPaymentMethods ? 1500 : 2500,
+    appFee: mixedPaymentMethods ? 100 : null,
+    currency: 'EUR' as const,
+    id: 'transaction-1',
+    method: mixedPaymentMethods ? ('stripe' as const) : ('cash' as const),
+    status: 'successful' as const,
+    stripeAccountId: mixedPaymentMethods ? 'acct_persisted' : null,
+    stripeChargeId: mixedPaymentMethods ? 'ch_registration' : null,
+    stripeCheckoutSessionId: null,
+    stripeFee: mixedPaymentMethods ? 50 : null,
+    stripeNetAmount: mixedPaymentMethods ? 1350 : null,
+    stripePaymentIntentId: mixedPaymentMethods ? 'pi_registration' : null,
+    type: 'registration' as const,
+  };
+  const addonSourceTransaction = {
+    ...sourceTransaction,
+    amount: 1000,
+    appFee: null,
+    id: 'addon-transaction-1',
+    method: 'cash' as const,
+    stripeAccountId: null,
+    stripeChargeId: null,
+    stripeFee: null,
+    stripeNetAmount: null,
+    stripePaymentIntentId: null,
+    type: 'addon' as const,
+  };
+  const currentTransactions = [
+    sourceTransaction,
+    ...(mixedPaymentMethods ? [addonSourceTransaction] : []),
+    ...(additionalRegistrationSource
+      ? [
+          {
+            ...sourceTransaction,
+            amount: 500,
+            id: 'transaction-2',
+          },
+        ]
+      : []),
+  ];
+  const lotSourceTransactionId =
+    sourceTransactionId === undefined
+      ? mixedPaymentMethods
+        ? addonSourceTransaction.id
+        : sourceTransaction.id
+      : sourceTransactionId;
+  const purchase = {
+    addonId: 'addon-1',
+    cancelledQuantity: 1,
+    id: 'purchase-1',
+    includedQuantity: 0,
+    purchasedQuantity: 4,
+    quantity: 4,
+    redeemedQuantity: 1,
+  };
+  const lot = {
+    baseAmount: 1000,
+    cancelledQuantity: 1,
+    grossAmount,
+    id: 'lot-1',
+    quantity: 4,
+    redeemedQuantity: 1,
+    refundAllocatedQuantity: 0,
+    sourceTransactionId: lotSourceTransactionId,
+    unitPrice: 250,
+  };
+  const tx = {
+    ...createCancellationTransactionSelect({
+      addonLots: [lot],
+      addonPurchases: [purchase],
+      status: 'CONFIRMED',
+      transactions: currentTransactions,
+    }),
+    insert: (table: unknown) => ({
+      values: (values: Record<string, unknown>) => {
+        writeCount += 1;
+        if (table === transactions) insertedTransactions.push(values);
+        if (table === eventRegistrationAddonRefundAllocations) {
+          insertedRefundAllocations.push(values);
+        }
+        return Effect.void;
+      },
+    }),
+    update: (table: unknown) => ({
+      set: (values: Record<string, unknown>) => {
+        writeCount += 1;
+        return {
+          where: () => {
+            if (
+              table === eventRegistrationAddonPurchaseLots ||
+              table === eventRegistrationAddonFulfillmentEvents
+            ) {
+              return Effect.void;
+            }
+            if (
+              table === eventRegistrationAddonPurchases &&
+              'refundAllocatedPurchasedQuantity' in values
+            ) {
+              return Effect.void;
+            }
+            return {
+              returning: () => Effect.succeed([{ id: 'updated' }]),
+            };
+          },
+        };
+      },
+    }),
+  };
+  const database = {
+    query: {
+      eventRegistrations: {
+        findFirst: () =>
+          Effect.succeed({
+            addonPurchases: [
+              {
+                addonId: 'addon-1',
+                purchasedQuantity: 4,
+                quantity: 4,
+              },
+            ],
+            checkInTime: null,
+            event: {
+              start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+            eventId: 'event-1',
+            guestCount: 0,
+            id: 'registration-1',
+            registrationOption: {
+              cancellationDeadlineHoursBeforeStart: 0,
+              id: 'option-1',
+              refundFeesOnCancellation: true,
+            },
+            registrationOptionId: 'option-1',
+            status: 'CONFIRMED',
+            transactions: currentTransactions,
+            userId: 'attendee-1',
+          }),
+      },
+    },
+    select: () => ({
+      from: (table: unknown) =>
+        table === transactions
+          ? {
+              where: () => ({
+                limit: () => Effect.succeed(currentTransactions),
+              }),
+            }
+          : {
+              where: () =>
+                Effect.succeed(
+                  table === eventRegistrationAddonPurchaseLots
+                    ? [{ sourceTransactionId: lotSourceTransactionId }]
+                    : [],
+                ),
+            },
+    }),
+    transaction: vi.fn((callback: (transaction: typeof tx) => unknown) =>
+      callback(tx),
+    ),
+  };
+  return {
+    database,
+    insertedRefundAllocations,
+    insertedTransactions,
+    writeCount: () => writeCount,
+  };
 };
 
 const createTransferDatabase = ({
@@ -993,6 +1190,79 @@ describe('event registration cancellation handlers', () => {
     expect(resolveCancellationDeadlineHoursBeforeStart(0, 120)).toBe(0);
     expect(resolveRefundFeesOnCancellation(null, true)).toBe(true);
     expect(resolveRefundFeesOnCancellation(false, true)).toBe(false);
+  });
+
+  it('source-splits non-Stripe refunds and protects redeemed or previously non-refunded add-ons', () => {
+    const lot = {
+      grossAmount: 1000,
+      id: 'lot-1',
+      quantity: 4,
+      refundAllocatedQuantity: 0,
+      sourceTransactionId: 'transaction-1',
+    } as const;
+
+    expect(
+      planNonStripeCancellationRefund({
+        cancellations: [
+          {
+            fulfillmentEventId: 'cancellation-1',
+            lot,
+            purchaseId: 'purchase-1',
+            quantity: 2,
+          },
+        ],
+        lots: [lot],
+        source: {
+          amount: 2500,
+          id: 'transaction-1',
+          type: 'registration',
+        },
+      }),
+    ).toEqual({
+      _tag: 'Refundable',
+      amount: 2000,
+      lotRefunds: [
+        {
+          fulfillmentEventId: 'cancellation-1',
+          grossAmount: 500,
+          purchaseId: 'purchase-1',
+          purchaseLotId: 'lot-1',
+          quantity: 2,
+        },
+      ],
+    });
+  });
+
+  it('requires explicit manual review when a non-Stripe add-on allocation is not proven', () => {
+    const lot = {
+      grossAmount: null,
+      id: 'lot-1',
+      quantity: 2,
+      refundAllocatedQuantity: 0,
+      sourceTransactionId: 'transaction-1',
+    } as const;
+
+    expect(
+      planNonStripeCancellationRefund({
+        cancellations: [
+          {
+            fulfillmentEventId: 'cancellation-1',
+            lot,
+            purchaseId: 'purchase-1',
+            quantity: 1,
+          },
+        ],
+        lots: [lot],
+        source: {
+          amount: 2500,
+          id: 'transaction-1',
+          type: 'registration',
+        },
+      }),
+    ).toEqual({
+      _tag: 'ManualReviewRequired',
+      reason: 'The non-Stripe add-on gross allocation is not finalized.',
+    });
   });
 
   it('enforces the cancellation boundary and derives exact Stripe refund terms', () => {
@@ -1540,9 +1810,149 @@ describe('event registration cancellation handlers', () => {
           }),
         );
         expect(insertedTransaction?.['comment']).toContain(
-          'Pending manual refund record',
+          'Pending manual source-split refund',
         );
         expect(database.transaction).toHaveBeenCalledOnce();
+      }),
+  );
+
+  it.effect(
+    'source-splits a non-Stripe whole-registration refund and preserves protected add-on value',
+    () =>
+      Effect.gen(function* () {
+        const { database, insertedRefundAllocations, insertedTransactions } =
+          createNonStripeAddonCancellationDatabase({ grossAmount: 1000 });
+
+        yield* cancelRegistrationForTenant({
+          cancelledBy: 'organizer',
+          enforceParticipantDeadline: false,
+          executiveUserId: 'organizer-1',
+          registrationId: 'registration-1',
+          targetTenant: tenant,
+        }).pipe(Effect.provide(createContextLayer({ database })));
+
+        expect(insertedTransactions).toEqual([
+          expect.objectContaining({
+            amount: -2000,
+            manuallyCreated: true,
+            method: 'cash',
+            refundOperationKey:
+              'registration-cancellation:registration-1:transaction-1',
+            sourceTransactionId: 'transaction-1',
+            status: 'pending',
+            type: 'refund',
+          }),
+        ]);
+        expect(insertedRefundAllocations).toEqual([
+          expect.objectContaining({
+            applicationFeeRefunded: false,
+            fulfillmentEventId: expect.any(String),
+            grossEntitlementAmount: 500,
+            netEntitlementAmount: 500,
+            purchaseId: 'purchase-1',
+            purchaseLotId: 'lot-1',
+            quantity: 2,
+            refundAmount: 500,
+          }),
+        ]);
+      }),
+  );
+
+  it.effect(
+    'routes an unverifiable non-Stripe add-on source to explicit manual review without a full refund',
+    () =>
+      Effect.gen(function* () {
+        const { database, insertedTransactions, writeCount } =
+          createNonStripeAddonCancellationDatabase({ grossAmount: null });
+
+        const error = yield* cancelRegistrationForTenant({
+          cancelledBy: 'organizer',
+          enforceParticipantDeadline: false,
+          executiveUserId: 'organizer-1',
+          registrationId: 'registration-1',
+          targetTenant: tenant,
+        }).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error).toBeInstanceOf(EventRegistrationConflictError);
+        expect(error.message).toContain('pending manual refund review');
+        expect(error.message).toContain('registration was not cancelled');
+        expect(insertedTransactions).toEqual([]);
+        expect(writeCount()).toBe(0);
+      }),
+  );
+
+  it.effect(
+    'rejects a positive non-Stripe add-on lot without a source before any cancellation write',
+    () =>
+      Effect.gen(function* () {
+        const { database, insertedTransactions, writeCount } =
+          createNonStripeAddonCancellationDatabase({
+            grossAmount: null,
+            sourceTransactionId: null,
+          });
+
+        const error = yield* cancelRegistrationForTenant({
+          cancelledBy: 'organizer',
+          enforceParticipantDeadline: false,
+          executiveUserId: 'organizer-1',
+          registrationId: 'registration-1',
+          targetTenant: tenant,
+        }).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error).toBeInstanceOf(EventRegistrationConflictError);
+        expect(error.message).toContain('pending manual refund review');
+        expect(insertedTransactions).toEqual([]);
+        expect(writeCount()).toBe(0);
+      }),
+  );
+
+  it.effect(
+    'rejects mixed successful registration sources before any cancellation write',
+    () =>
+      Effect.gen(function* () {
+        const { database, insertedTransactions, writeCount } =
+          createNonStripeAddonCancellationDatabase({
+            additionalRegistrationSource: true,
+            grossAmount: 1000,
+          });
+
+        const error = yield* cancelRegistrationForTenant({
+          cancelledBy: 'organizer',
+          enforceParticipantDeadline: false,
+          executiveUserId: 'organizer-1',
+          registrationId: 'registration-1',
+          targetTenant: tenant,
+        }).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error).toBeInstanceOf(EventRegistrationConflictError);
+        expect(error.message).toContain('pending manual refund review');
+        expect(insertedTransactions).toEqual([]);
+        expect(writeCount()).toBe(0);
+      }),
+  );
+
+  it.effect(
+    'rejects a Stripe registration plus cash add-on source before any cancellation write',
+    () =>
+      Effect.gen(function* () {
+        const { database, insertedTransactions, writeCount } =
+          createNonStripeAddonCancellationDatabase({
+            grossAmount: 1000,
+            mixedPaymentMethods: true,
+          });
+
+        const error = yield* cancelRegistrationForTenant({
+          cancelledBy: 'organizer',
+          enforceParticipantDeadline: false,
+          executiveUserId: 'organizer-1',
+          registrationId: 'registration-1',
+          targetTenant: tenant,
+        }).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error).toBeInstanceOf(EventRegistrationConflictError);
+        expect(error.message).toContain('pending manual refund review');
+        expect(insertedTransactions).toEqual([]);
+        expect(writeCount()).toBe(0);
       }),
   );
 

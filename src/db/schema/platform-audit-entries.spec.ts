@@ -4,7 +4,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core';
 import { platformAuditEntries } from './platform-audit-entries';
 
 describe('platform audit schema', () => {
-  it('defines append-oriented audit constraints and lookup indexes', () => {
+  it('defines audit record constraints and lookup indexes without lifecycle columns', () => {
     const tableConfig = getTableConfig(platformAuditEntries);
 
     expect(tableConfig.columns.map((column) => column.name)).not.toContain(

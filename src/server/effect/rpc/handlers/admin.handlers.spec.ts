@@ -512,6 +512,37 @@ describe('adminHandlers tenant settings', () => {
       }),
   );
 
+  it.effect(
+    'rejects uploaded brand asset paths owned by another tenant or asset kind',
+    () =>
+      Effect.gen(function* () {
+        const database = {
+          update: () => {
+            throw new Error('database should not be touched');
+          },
+        };
+
+        for (const logoUrl of [
+          '/tenant-assets/tenant-2/logo/logo.png',
+          '/tenant-assets/tenant-1/favicon/logo.png',
+        ]) {
+          const error = yield* adminHandlers['admin.tenant.updateSettings'](
+            {
+              ...createSettingsInput(),
+              logoUrl,
+            },
+            createSettingsAdminOptions(),
+          ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+
+          expect(error['_tag']).toBe('RpcBadRequestError');
+          expect(error.message).toBe('Invalid tenant brand assets');
+          expect(error.reason).toContain(
+            'uploaded logo path for the current tenant',
+          );
+        }
+      }),
+  );
+
   it.effect('rejects currency changes when tenant events exist', () =>
     Effect.gen(function* () {
       const database = withTenantSettingsTransaction({

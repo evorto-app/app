@@ -16,6 +16,10 @@ import {
 import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
+import type {
+  AdminHubRoleRecord,
+  AdminTenantBrandAssetKind,
+} from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
@@ -25,7 +29,6 @@ import {
   partitionTenantRolePermissions,
   type Permission,
 } from '../../../../shared/permissions/permissions';
-import { type AdminHubRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { User } from '../../../../types/custom/user';
@@ -113,7 +116,13 @@ const decodeTenantAssetSegment = (value: string): string | undefined => {
   }
 };
 
-const normalizeTenantAssetPath = (value: string): string | undefined => {
+const normalizeTenantAssetPath = (
+  value: string,
+  expected: {
+    kind: AdminTenantBrandAssetKind;
+    tenantId: string;
+  },
+): string | undefined => {
   const parsed = new URL(value, 'https://tenant-assets.invalid');
   if (
     parsed.origin !== 'https://tenant-assets.invalid' ||
@@ -129,7 +138,12 @@ const normalizeTenantAssetPath = (value: string): string | undefined => {
   const tenantId = match?.[1] ? decodeTenantAssetSegment(match[1]) : undefined;
   const kind = match?.[2] ? decodeTenantAssetSegment(match[2]) : undefined;
   const fileName = match?.[3] ? decodeTenantAssetSegment(match[3]) : undefined;
-  if (!tenantId || (kind !== 'favicon' && kind !== 'logo') || !fileName) {
+  if (
+    !tenantId ||
+    kind !== expected.kind ||
+    tenantId !== expected.tenantId ||
+    !fileName
+  ) {
     return;
   }
 
@@ -138,7 +152,11 @@ const normalizeTenantAssetPath = (value: string): string | undefined => {
 
 const normalizeOptionalBrandAssetUrl = (
   value: string | undefined,
-  fieldName: string,
+  options: {
+    fieldName: string;
+    kind: AdminTenantBrandAssetKind;
+    tenantId: string;
+  },
 ): null | string => {
   const trimmedValue = value?.trim();
   if (!trimmedValue) {
@@ -146,17 +164,17 @@ const normalizeOptionalBrandAssetUrl = (
   }
 
   if (trimmedValue.startsWith('/')) {
-    const assetPath = normalizeTenantAssetPath(trimmedValue);
+    const assetPath = normalizeTenantAssetPath(trimmedValue, options);
     if (assetPath) {
       return assetPath;
     }
 
     throw new Error(
-      `${fieldName} must be an uploaded tenant asset path or a valid http or https URL`,
+      `${options.fieldName} must be an uploaded ${options.kind} path for the current tenant or a valid http or https URL`,
     );
   }
 
-  return normalizeOptionalUrl(trimmedValue, fieldName);
+  return normalizeOptionalUrl(trimmedValue, options.fieldName);
 };
 
 const normalizeTenantLegalLinks = (input: {
@@ -178,12 +196,23 @@ const normalizeTenantLegalLinks = (input: {
   termsUrl: normalizeOptionalUrl(input.termsUrl, 'termsUrl'),
 });
 
-const normalizeTenantBrandAssets = (input: {
-  faviconUrl?: string | undefined;
-  logoUrl?: string | undefined;
-}) => ({
-  faviconUrl: normalizeOptionalBrandAssetUrl(input.faviconUrl, 'faviconUrl'),
-  logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, 'logoUrl'),
+const normalizeTenantBrandAssets = (
+  input: {
+    faviconUrl?: string | undefined;
+    logoUrl?: string | undefined;
+  },
+  tenantId: string,
+) => ({
+  faviconUrl: normalizeOptionalBrandAssetUrl(input.faviconUrl, {
+    fieldName: 'faviconUrl',
+    kind: 'favicon',
+    tenantId,
+  }),
+  logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, {
+    fieldName: 'logoUrl',
+    kind: 'logo',
+    tenantId,
+  }),
 });
 
 const normalizeMaxActiveRegistrationsPerUser = (value: number): number =>
@@ -784,7 +813,7 @@ export const adminHandlers = {
             message: 'Invalid tenant brand assets',
             reason: error instanceof Error ? error.message : String(error),
           }),
-        try: () => normalizeTenantBrandAssets(input),
+        try: () => normalizeTenantBrandAssets(input, tenant.id),
       });
       const nextTenant = {
         ...tenant,

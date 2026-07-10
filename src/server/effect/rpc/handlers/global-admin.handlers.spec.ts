@@ -306,7 +306,7 @@ describe('globalAdminHandlers', () => {
     }),
   );
 
-  it.effect('returns immutable platform audit entries', () =>
+  it.effect('returns application append-only platform audit entries', () =>
     Effect.gen(function* () {
       const createdAt = new Date('2026-07-10T09:15:00.000Z');
       const after = {

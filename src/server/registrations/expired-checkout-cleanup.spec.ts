@@ -47,6 +47,7 @@ describe('expired checkout cleanup', () => {
     );
     expect(query.sql).toContain('jsonb_path_exists');
     expect(query.sql).toContain('$.expiresAt');
+    expect(query.sql).toContain("jsonb_build_object('deadline', $4::bigint)");
     expect(query.sql).toContain('from "registration_transfers"');
     expect(query.sql).toContain(
       '"registration_transfers"."recipient_checkout_transaction_id" = "transactions"."id"',
@@ -110,6 +111,14 @@ describe('expired checkout cleanup', () => {
     expect(query.sql).toContain(
       '"transactions"."stripeCheckoutSessionId" is null',
     );
+    expect(query.sql).toContain("jsonb_build_object('deadline', $5::bigint)");
+    expect(query.params).toEqual([
+      'checkout_pending',
+      'stripe',
+      'pending',
+      'registration',
+      1_750_000_000,
+    ]);
   });
 
   it.effect(

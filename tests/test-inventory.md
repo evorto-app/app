@@ -161,7 +161,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     target-operation links, opens the refund-recovery tab, and resolves an
     attendee ticket URL through the target-scoped platform scanner route.
   - global-admin unit/source coverage pins explicit platform authority,
-    append-only tenant action audit records, full event graph writes, bounded
+    application/API append-only tenant action audit records, full event graph
+    writes, bounded
     registration reads, and required operator reasons
   - `helpers/testing/email-outbox-kind-source.spec.ts` keeps the typed kinds,
     operator labels, React Email producers, transactional transition splices,
@@ -530,7 +531,7 @@ and the release-gated live ESNcard provider credential path.
     fields, connected Stripe-account support lookup, tenant detail review,
     create/edit form relaunch-scope copy, disabled empty create submit, and
     a temporary tenant create with initial privacy-policy and database readback,
-    required create/edit reasons, atomic immutable audit readback, and cleanup,
+    required create/edit reasons, atomic application-audit readback, and cleanup,
     plus seeded edit save with database readback and fixture restoration. Generated
     global-admin docs now read the seeded localhost tenant row before asserting
     list/detail/search/edit fields, create a temporary tenant with database
@@ -596,7 +597,8 @@ and the release-gated live ESNcard provider credential path.
     overrides. Production notification and Stripe return links ignore request
     origins and global app origins; local development may use only an explicit
     loopback runtime origin. Platform tenant create/edit, database readback,
-    immutable audit snapshots, tenant detail links, and generated docs cover
+    application/API append-only audit snapshots, tenant detail links, and
+    generated docs cover
     the field. Tenant administrators see the value read-only and cannot mutate
     it through tenant settings.
 - Roles/user management:

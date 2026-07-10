@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   registrationAddonCancellationBlockedMessage,
   registrationAddonOperationKey,
+  RegistrationAddonRedeemIntentStore,
   registrationAddonRefundStatusLabel,
   scanCheckInActionDisabled,
   scanCheckInButtonLabel,
@@ -28,10 +29,11 @@ describe('registration add-on fulfillment copy', () => {
     expect(
       registrationAddonOperationKey({
         action: 'redeem',
+        intentNonce: 'intent-a',
         latestFulfillmentEventId: 'history-1',
         registrationAddonId: 'add-on-1',
       }),
-    ).toBe('scanner-redeem:add-on-1:history-1');
+    ).toBe('scanner-redeem:add-on-1:intent-a');
     expect(
       registrationAddonOperationKey({
         action: 'undo',
@@ -58,32 +60,78 @@ describe('registration add-on fulfillment copy', () => {
     ).toBe('scanner-cancel:add-on-1:history-1:2:no-refund');
   });
 
-  it('uses distinct keys for redeem A, undo A, and redeem B after the undo', () => {
-    const redeemA = registrationAddonOperationKey({
-      action: 'redeem',
-      latestFulfillmentEventId: null,
-      registrationAddonId: 'add-on-1',
-    });
-    const redeemARetry = registrationAddonOperationKey({
-      action: 'redeem',
-      latestFulfillmentEventId: null,
-      registrationAddonId: 'add-on-1',
-    });
-    const undoA = registrationAddonOperationKey({
-      action: 'undo',
-      redemptionEventId: 'redemption-a',
-    });
-    const redeemB = registrationAddonOperationKey({
-      action: 'redeem',
-      latestFulfillmentEventId: 'undo-a',
-      registrationAddonId: 'add-on-1',
-    });
+  it('reuses one intent nonce for retry and isolates clients on the same snapshot', () => {
+    const snapshot = {
+      latestFulfillmentEventId: '11111111-1111-4111-8111-111111111111',
+      registrationAddonId: '22222222-2222-4222-8222-222222222222',
+    } as const;
+    const organizerANonce = vi.fn(() => 'a'.repeat(32));
+    const organizerBNonce = vi.fn(() => 'b'.repeat(32));
+    const organizerAStore = new RegistrationAddonRedeemIntentStore(
+      organizerANonce,
+    );
+    const organizerBStore = new RegistrationAddonRedeemIntentStore(
+      organizerBNonce,
+    );
+    const organizerAIntent = organizerAStore.forSnapshot(snapshot);
+    const organizerBIntent = organizerBStore.forSnapshot(snapshot);
+    const organizerAFirstAttempt =
+      registrationAddonOperationKey(organizerAIntent);
+    const organizerARetry = registrationAddonOperationKey(
+      organizerAStore.forSnapshot(snapshot),
+    );
+    const organizerBFirstAttempt =
+      registrationAddonOperationKey(organizerBIntent);
 
-    expect(redeemARetry).toBe(redeemA);
-    expect(redeemA).toBe('scanner-redeem:add-on-1:initial');
-    expect(undoA).toBe('scanner-undo:redemption-a');
-    expect(redeemB).toBe('scanner-redeem:add-on-1:undo-a');
-    expect(new Set([redeemA, redeemB, undoA]).size).toBe(3);
+    expect(organizerANonce).toHaveBeenCalledOnce();
+    expect(organizerBNonce).toHaveBeenCalledOnce();
+    expect(organizerARetry).toBe(organizerAFirstAttempt);
+    expect(organizerBFirstAttempt).not.toBe(organizerAFirstAttempt);
+    expect(organizerAFirstAttempt).toBe(
+      `scanner-redeem:22222222-2222-4222-8222-222222222222:${'a'.repeat(32)}`,
+    );
+    expect(organizerAFirstAttempt.length).toBeLessThanOrEqual(100);
+  });
+
+  it('retries a commit-then-response-loss with the same key until success or changed fulfillment state', () => {
+    const createNonce = vi
+      .fn<() => string>()
+      .mockReturnValueOnce('committed-intent')
+      .mockReturnValueOnce('after-state-change')
+      .mockReturnValueOnce('after-success');
+    const store = new RegistrationAddonRedeemIntentStore(createNonce);
+    const snapshot = {
+      latestFulfillmentEventId: 'history-1',
+      registrationAddonId: 'add-on-1',
+    } as const;
+
+    const committedRequest = registrationAddonOperationKey(
+      store.forSnapshot(snapshot),
+    );
+    // The server committed, but the component received a transport failure and
+    // therefore deliberately does not call complete().
+    const responseLossRetry = registrationAddonOperationKey(
+      store.forSnapshot(snapshot),
+    );
+    const sameSnapshotAfterRefetch = registrationAddonOperationKey(
+      store.forSnapshot({ ...snapshot }),
+    );
+    const afterChangedFulfillment = registrationAddonOperationKey(
+      store.forSnapshot({
+        ...snapshot,
+        latestFulfillmentEventId: 'history-2',
+      }),
+    );
+    store.complete(snapshot.registrationAddonId);
+    const afterKnownSuccess = registrationAddonOperationKey(
+      store.forSnapshot(snapshot),
+    );
+
+    expect(responseLossRetry).toBe(committedRequest);
+    expect(sameSnapshotAfterRefetch).toBe(committedRequest);
+    expect(afterChangedFulfillment).not.toBe(committedRequest);
+    expect(afterKnownSuccess).not.toBe(afterChangedFulfillment);
+    expect(createNonce).toHaveBeenCalledTimes(3);
   });
 
   it('keeps every durable refund state explicit', () => {

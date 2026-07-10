@@ -90,7 +90,7 @@ const graphRecord: TemplateGraphRecord = {
 };
 
 describe('platform template full-graph handler', () => {
-  it('keeps create, update, and immutable audit writes in one transaction', () => {
+  it('keeps create, update, and application audit writes in one transaction', () => {
     const source = readFileSync(
       new URL('platform-templates.handlers.ts', import.meta.url),
       'utf8',

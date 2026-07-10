@@ -99,7 +99,7 @@ const expiredRegistrationClaimPredicate = (nowEpochSeconds: number) =>
     sql<boolean>`jsonb_path_exists(
       ${transactions.stripeCheckoutRequest},
       '$.expiresAt ? (@.type() == "number" && @ <= $deadline)'::jsonpath,
-      jsonb_build_object('deadline', ${nowEpochSeconds})
+      jsonb_build_object('deadline', ${nowEpochSeconds}::bigint)
     )`,
   );
 

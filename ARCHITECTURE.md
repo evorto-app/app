@@ -200,9 +200,11 @@ Changing auth provider is possible in the future, but not an incidental task.
 Platform administrators are independent platform principals. They may perform
 any platform operation for any tenant at any time without a tenant membership.
 Keep that authority explicit in the request context and audit trail rather than
-silently reusing a tenant user's identity or roles. Record immutable actor,
-target tenant, action, before/after data, reason, and timestamp for every
-cross-tenant platform action.
+silently reusing a tenant user's identity or roles. Record actor, target tenant,
+action, before/after data, reason, and timestamp in application/API append-only
+audit entries for every cross-tenant platform action. Authorization remains in
+the Effect server layer; the database schema does not install RLS policies or
+privilege-revocation hooks for this boundary.
 
 ## Payment Boundary
 

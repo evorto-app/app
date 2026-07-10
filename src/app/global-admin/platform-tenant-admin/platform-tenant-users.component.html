@@ -98,7 +98,9 @@
         rows="3"
         [formField]="assignmentForm.reason"
       ></textarea>
-      <mat-hint>Recorded in the immutable platform audit.</mat-hint>
+      <mat-hint>
+        Recorded in the application append-only platform audit.
+      </mat-hint>
       @for (error of assignmentForm.reason().errors(); track error) {
         <mat-error>{{ error.message }}</mat-error>
       }

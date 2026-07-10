@@ -470,7 +470,7 @@ describe('platform event, template, and registration handlers', () => {
       }),
   );
 
-  it('keeps immutable audit snapshots PII-free and resource typed', () => {
+  it('keeps application audit snapshots PII-free and resource typed', () => {
     const eventSnapshot = platformEventAuditSnapshot(eventRecord);
     const registrationSnapshot =
       platformRegistrationAuditSnapshot(registrationRecord);

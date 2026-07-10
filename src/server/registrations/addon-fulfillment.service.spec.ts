@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { selectRegistrationAddonCancellation } from './addon-fulfillment.service';
+import {
+  deriveRegistrationAddonRefundState,
+  selectRegistrationAddonCancellation,
+} from './addon-fulfillment.service';
 
 describe('selectRegistrationAddonCancellation', () => {
   const lots = [
@@ -77,6 +80,63 @@ describe('selectRegistrationAddonCancellation', () => {
         redeemedQuantity: 0,
       }),
     ).toBeUndefined();
+  });
+});
+
+describe('deriveRegistrationAddonRefundState', () => {
+  it('keeps purchased cancellation truth isolated from later included-only history', () => {
+    expect(
+      deriveRegistrationAddonRefundState({
+        allocations: [
+          {
+            fulfillmentEventId: 'cancel-purchased',
+            quantity: 1,
+            source: 'purchased',
+          },
+          {
+            fulfillmentEventId: 'cancel-included',
+            quantity: 1,
+            source: 'included',
+          },
+        ],
+        cancelledQuantity: 2,
+        events: [
+          {
+            id: 'cancel-purchased',
+            refundDisposition: 'not_requested',
+            refundRequested: false,
+            type: 'cancelled',
+          },
+          {
+            id: 'cancel-included',
+            refundDisposition: 'no_monetary_refund_required',
+            refundRequested: true,
+            type: 'cancelled',
+          },
+        ],
+        lots: [
+          {
+            cancelledQuantity: 1,
+            grossAmount: 1000,
+            quantity: 1,
+            redeemedQuantity: 0,
+            sourceTransactionId: 'paid-source',
+          },
+          {
+            cancelledQuantity: 0,
+            grossAmount: 0,
+            quantity: 1,
+            redeemedQuantity: 0,
+            sourceTransactionId: null,
+          },
+        ],
+        purchasedQuantity: 2,
+        refunds: [],
+      }),
+    ).toEqual({
+      refundAvailability: 'noMonetaryRefundRequired',
+      refundStatus: 'cancelledWithoutRefund',
+    });
   });
 });
 
