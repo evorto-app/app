@@ -366,7 +366,7 @@ export interface PersistedCheckoutSessionBinding {
   readonly stripeCheckoutSessionId: null | string;
   readonly stripePaymentIntentId: null | string;
   readonly tenantId: string;
-  readonly type: 'other' | 'refund' | 'registration';
+  readonly type: 'addon' | 'other' | 'refund' | 'registration';
 }
 
 interface CheckoutSessionBindingInput {
