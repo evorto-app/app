@@ -1,11 +1,3 @@
-Get us to the latest state of main
-
----
-
-Please work on the issues found in `/private/var/folders/d5/ghwypcsd403dfcl8bpl7grfw0000gn/T/codex-security-scans-18uSN6/evorto/9545a2c68d209c56e723f2cbdf5f99daca11172d_20260709T182627Z_ofgqi40z/findings.json` We can clear up any issues that remain and need input.
-
----
-
 PLEASE IMPLEMENT THIS PLAN:
 # Remediate the Codex Security Findings
 
