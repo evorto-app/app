@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "2323d962270d",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/harden-registration-payment-integrity.md",
+    "helpers/testing/generated-docs-source.spec.ts",
+    "src/server/effect/rpc/handlers/onboarding.handlers.ts",
+    "src/server/effect/rpc/handlers/platform/platform-tenant-finance.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/platform/platform-tenant-finance.handlers.ts",
+    "src/server/integrations/stripe-checkout.spec.ts",
+    "src/server/integrations/stripe-checkout.ts",
+    "src/server/registrations/registration-checkout-completion.spec.ts",
+    "src/server/registrations/registration-transfer.service.ts",
+    "src/shared/rpc-contracts/app-rpcs/onboarding.rpcs.spec.ts",
+    "src/shared/rpc-contracts/app-rpcs/registration-transfers.rpcs.spec.ts",
+    "tests/README.md",
+    "tests/docs/events/manual-approval.doc.ts",
+    "tests/docs/events/register.doc.ts",
+    "tests/docs/events/registration-transfer.doc.ts",
+    "tests/specs/events/events.test.ts",
+    "tests/specs/events/free-registration.test.ts",
+    "tests/specs/events/manual-approval.spec.ts",
+    "tests/specs/events/negative-registration-states.spec.ts",
+    "tests/specs/events/registration-addons.test.ts",
+    "tests/specs/events/registration-transfer.spec.ts",
+    "tests/specs/scanning/scanner.test.ts",
+    "tests/support/utils/event-registration-page.ts",
+    "tests/support/utils/manual-approval-scenario.ts",
+    "tests/support/utils/paid-registration-transfer-scenario.ts",
+    "tests/support/utils/post-registration-addon-purchase-scenario.ts",
+    "tests/support/utils/registration-checkout-webhook.ts",
+    "tests/support/utils/server-test-clock.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/23/23d962270d/0/metadata.json",
+      "transcript": "/23/23d962270d/0/full.jsonl",
+      "content_hash": "/23/23d962270d/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1024276,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 75043840,
+    "output_tokens": 102826,
+    "api_call_count": 493
+  }
+}
