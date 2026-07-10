@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "81715a1ee962",
+  "strategy": "manual-commit",
+  "branch": "codex/security-registration-concurrency",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/db/schema/event-registrations.spec.ts",
+    "src/db/schema/event-registrations.ts",
+    "src/db/schema/registration-concurrency.postgres.spec.ts",
+    "src/db/schema/transactions.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.spec.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.ts",
+    "src/server/http/stripe-webhook.web-handler.spec.ts",
+    "src/server/http/stripe-webhook.web-handler.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/81/715a1ee962/0/metadata.json",
+      "transcript": "/81/715a1ee962/0/full.jsonl",
+      "content_hash": "/81/715a1ee962/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 103776,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 5911552,
+    "output_tokens": 10880,
+    "api_call_count": 67
+  }
+}
