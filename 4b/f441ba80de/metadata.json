@@ -42,14 +42,14 @@
       "metadata": "/4b/f441ba80de/0/metadata.json",
       "transcript": "/4b/f441ba80de/0/full.jsonl",
       "content_hash": "/4b/f441ba80de/0/content_hash.txt",
-      "prompt": "/4b/f441ba80de/0/prompt.txt"
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 1239521,
+    "input_tokens": 11453,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 54631936,
-    "output_tokens": 91537,
-    "api_call_count": 339
+    "cache_read_tokens": 1838336,
+    "output_tokens": 1515,
+    "api_call_count": 7
   }
 }
