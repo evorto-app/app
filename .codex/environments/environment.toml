@@ -40,11 +40,33 @@ fi
 
 echo "[setup] Copying environment files"
 if [ "$(pwd -P)" != "$SOURCE_ROOT" ]; then
-  for file in .env .env.dev.local .npmrc; do
+  for file in .env.dev.local .npmrc; do
     if [ -f "$SOURCE_ROOT/$file" ]; then
       cp "$SOURCE_ROOT/$file" .
     fi
   done
+fi
+
+MAIN_CHECKOUT_WITH_SENTINEL=$(
+  git worktree list --porcelain -z 2>/dev/null |
+    perl -0ne 'if (!$found && /^worktree /) { chomp; s/^worktree //; print "$_."; $found = 1 }' ||
+    true
+)
+MAIN_CHECKOUT=${MAIN_CHECKOUT_WITH_SENTINEL%?}
+if [ -n "$MAIN_CHECKOUT" ] && [ "$(pwd -P)" != "$MAIN_CHECKOUT" ] && [ ! -e .env ] && [ ! -L .env ] && [ -f "$MAIN_CHECKOUT/.env" ]; then
+  (
+    umask 077
+    ENV_TEMP=$(mktemp .env.tmp.XXXXXX)
+    trap 'rm -f "$ENV_TEMP"' EXIT
+    cp "$MAIN_CHECKOUT/.env" "$ENV_TEMP"
+    chmod 600 "$ENV_TEMP"
+    if ln "$ENV_TEMP" .env 2>/dev/null; then
+      echo "[setup] Copied .env from the main checkout."
+    elif [ ! -e .env ] && [ ! -L .env ]; then
+      echo "[setup] Could not publish .env in the new worktree." >&2
+      exit 1
+    fi
+  )
 fi
 if [ -z "${FONT_AWESOME_TOKEN:-}" ]; then
   echo "[setup] FONT_AWESOME_TOKEN is not set; cannot install private @fortawesome packages."

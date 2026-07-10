@@ -20,6 +20,10 @@ This repo uses three local env files:
 - `.env.dev.local` — tracked shared default dev config
 - `.env.dev` — generated worktree-specific overrides via `bun run env:runtime`
 
+When Codex initializes a new linked worktree, it copies a missing `.env` from
+the primary checkout with owner-only permissions. It leaves an existing
+worktree `.env` unchanged, while `.env.dev` remains generated per worktree.
+
 Use `.env.example` as the no-secret checklist for values that must be copied
 into `.env` or exported before Docker can start. `bun run docker:check` reports
 which required values are still missing before any Docker containers are
