@@ -35,6 +35,7 @@ test('applies ESN discount to paid registrations @finance', async ({
       has: page.getByRole('heading', { level: 3, name: option.title }),
     })
     .first();
+  await expect(registrationOptionCard).toBeVisible({ timeout: 15_000 });
   const discountedPrice = new Intl.NumberFormat(TENANT_FORMATTING_LOCALE, {
     currency: 'EUR',
     style: 'currency',
