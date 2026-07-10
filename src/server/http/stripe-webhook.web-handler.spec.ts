@@ -1,8 +1,13 @@
+import type Stripe from 'stripe';
+
 import { describe, expect, it } from '@effect/vitest';
-import { Effect } from 'effect';
+import { ConfigProvider, Effect, Layer } from 'effect';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { Database, type DatabaseClient } from '../../db';
+import * as dbSchema from '../../db/schema';
+import { StripeClient } from '../stripe-client';
 import {
   handleStripeWebhookWebRequest,
   MAX_STRIPE_WEBHOOK_SIZE_BYTES,
@@ -40,6 +45,12 @@ const validBindingInput = {
 const handlerSource = readFileSync(
   fileURLToPath(new URL('stripe-webhook.web-handler.ts', import.meta.url)),
   'utf8',
+);
+
+const stripeWebhookConfigLayer = ConfigProvider.layer(
+  ConfigProvider.fromEnv({
+    env: { STRIPE_WEBHOOK_SECRET: 'whsec_test' },
+  }),
 );
 
 describe('readStripeWebhookBody', () => {
@@ -223,6 +234,153 @@ describe('validateCheckoutSessionBinding', () => {
       }),
     ).toEqual({ type: 'state-conflict' });
   });
+
+  it('accepts an exact cancelled registration as an idempotent expiry replay only', () => {
+    const cancelledBinding = {
+      ...validBindingInput,
+      allowFinalizedExpiry: true,
+      persisted: { ...persistedBinding, status: 'cancelled' as const },
+      registrationStatus: 'CANCELLED' as const,
+      requirePaymentIntent: false,
+    };
+
+    expect(validateCheckoutSessionBinding(cancelledBinding)).toEqual({
+      type: 'already-finalized-expiry',
+    });
+    expect(
+      validateCheckoutSessionBinding({
+        ...cancelledBinding,
+        registrationStatus: 'PENDING',
+      }),
+    ).toEqual({ type: 'state-conflict' });
+    expect(
+      validateCheckoutSessionBinding({
+        ...cancelledBinding,
+        eventAccount: 'acct_foreign',
+      }),
+    ).toMatchObject({ type: 'invalid-binding' });
+    expect(
+      validateCheckoutSessionBinding({
+        ...cancelledBinding,
+        allowFinalizedExpiry: false,
+      }),
+    ).toEqual({ type: 'state-conflict' });
+  });
+});
+
+describe('checkout expiry replay', () => {
+  const runFinalizedExpiry = (eventAccount: string) =>
+    Effect.gen(function* () {
+      const deletedTables: unknown[] = [];
+      const updatedTables: unknown[] = [];
+      const updateValues: unknown[] = [];
+      const database = {
+        delete: (table: unknown) => ({
+          where: () => {
+            deletedTables.push(table);
+            return Effect.succeed([]);
+          },
+        }),
+        insert: () => ({
+          values: () => ({
+            onConflictDoNothing: () => ({
+              returning: () =>
+                Effect.succeed([
+                  { status: 'processing', stripeEventId: 'evt_expired_1' },
+                ]),
+            }),
+          }),
+        }),
+        query: {
+          eventRegistrations: {
+            findFirst: () => Effect.succeed({ status: 'CANCELLED' }),
+          },
+          tenants: {
+            findFirst: () => Effect.succeed({ stripeAccountId: 'acct_tenant' }),
+          },
+          transactions: {
+            findFirst: () =>
+              Effect.succeed({
+                ...persistedBinding,
+                status: 'cancelled',
+              }),
+          },
+        },
+        update: (table: unknown) => ({
+          set: (values: unknown) => ({
+            where: () => {
+              updatedTables.push(table);
+              updateValues.push(values);
+              return Effect.succeed([]);
+            },
+          }),
+        }),
+      };
+      const event = {
+        account: eventAccount,
+        data: {
+          object: {
+            id: 'checkout-1',
+            metadata: validBindingInput.metadata,
+            payment_intent: null,
+            status: 'expired',
+          },
+        },
+        id: 'evt_expired_1',
+        type: 'checkout.session.expired',
+      } as Stripe.Event;
+      const stripe = {
+        webhooks: {
+          constructEvent: () => event,
+        },
+      } as Stripe;
+
+      const response = yield* handleStripeWebhookWebRequest(
+        new Request('https://tenant.example.com/webhooks/stripe', {
+          body: '{}',
+          headers: { 'stripe-signature': 'test-signature' },
+          method: 'POST',
+        }),
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(Database, database as DatabaseClient),
+            Layer.succeed(StripeClient, stripe),
+            stripeWebhookConfigLayer,
+          ),
+        ),
+      );
+
+      return { deletedTables, response, updatedTables, updateValues };
+    });
+
+  it.effect(
+    'acknowledges an exact already-cancelled expiry and marks its claim processed without releasing resources again',
+    () =>
+      Effect.gen(function* () {
+        const result = yield* runFinalizedExpiry('acct_tenant');
+
+        expect(result.response.status).toBe(200);
+        expect(yield* Effect.promise(() => result.response.text())).toBe(
+          'Success',
+        );
+        expect(result.updatedTables).toEqual([dbSchema.stripeWebhookEvents]);
+        expect(result.updateValues).toEqual([
+          expect.objectContaining({ status: 'processed' }),
+        ]);
+        expect(result.deletedTables).toEqual([]);
+      }),
+  );
+
+  it.effect('rejects the replay when the connected account mismatches', () =>
+    Effect.gen(function* () {
+      const result = yield* runFinalizedExpiry('acct_foreign');
+
+      expect(result.response.status).toBe(400);
+      expect(result.updatedTables).toEqual([]);
+      expect(result.deletedTables).toEqual([dbSchema.stripeWebhookEvents]);
+    }),
+  );
 });
 
 describe('runCheckoutWebhookTransition', () => {
@@ -257,6 +415,21 @@ describe('runCheckoutWebhookTransition', () => {
       expect(optionUpdate).toBeGreaterThanOrEqual(0);
     },
   );
+
+  it('orders checkout-expiry add-on releases before updating stock rows', () => {
+    const expirySource = handlerSource.slice(
+      handlerSource.indexOf("case 'checkout.session.expired':"),
+      handlerSource.indexOf('default: {'),
+    );
+    const addOnOrder = expirySource.indexOf('.orderBy(');
+    const addOnUpdate = expirySource.indexOf('.update(schema.eventAddons)');
+
+    expect(addOnOrder).toBeGreaterThanOrEqual(0);
+    expect(expirySource).toMatch(
+      /\.orderBy\(\s*schema\.eventRegistrationAddonPurchases\.addonId,\s*\)/u,
+    );
+    expect(addOnUpdate).toBeGreaterThan(addOnOrder);
+  });
 
   it.effect(
     'locks registration before transaction update and registration mutation',

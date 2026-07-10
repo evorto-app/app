@@ -1,9 +1,12 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
+  index,
   integer,
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -13,28 +16,41 @@ import { discountTypes, registrationStatus } from './global-enums';
 import { modelOfTenant } from './model';
 import { users } from './users';
 
-export const eventRegistrations = pgTable('event_registrations', {
-  appliedDiscountedPrice: integer('applied_discounted_price'),
-  appliedDiscountType: discountTypes('applied_discount_type'),
-  basePriceAtRegistration: integer('base_price_at_registration'),
-  ...modelOfTenant,
-  checkedInGuestCount: integer('checked_in_guest_count').notNull().default(0),
-  checkInTime: timestamp(),
-  discountAmount: integer('discount_amount'),
-  eventId: varchar({ length: 20 })
-    .notNull()
-    .references(() => eventInstances.id),
-  guestCount: integer('guest_count').notNull().default(0),
-  paymentId: varchar({ length: 255 }),
-  registrationOptionId: varchar({ length: 20 })
-    .notNull()
-    .references(() => eventRegistrationOptions.id),
-  status: registrationStatus().notNull(),
-  stripeTaxRateId: varchar('tax_rate_id'),
-  taxRateDisplayName: text('tax_rate_name'),
-  taxRateInclusive: boolean('tax_rate_inclusive'),
-  taxRatePercentage: text('tax_rate_percentage'),
-  userId: varchar({ length: 20 })
-    .notNull()
-    .references(() => users.id),
-});
+export const eventRegistrations = pgTable(
+  'event_registrations',
+  {
+    appliedDiscountedPrice: integer('applied_discounted_price'),
+    appliedDiscountType: discountTypes('applied_discount_type'),
+    basePriceAtRegistration: integer('base_price_at_registration'),
+    ...modelOfTenant,
+    checkedInGuestCount: integer('checked_in_guest_count').notNull().default(0),
+    checkInTime: timestamp(),
+    discountAmount: integer('discount_amount'),
+    eventId: varchar({ length: 20 })
+      .notNull()
+      .references(() => eventInstances.id),
+    guestCount: integer('guest_count').notNull().default(0),
+    paymentId: varchar({ length: 255 }),
+    registrationOptionId: varchar({ length: 20 })
+      .notNull()
+      .references(() => eventRegistrationOptions.id),
+    status: registrationStatus().notNull(),
+    stripeTaxRateId: varchar('tax_rate_id'),
+    taxRateDisplayName: text('tax_rate_name'),
+    taxRateInclusive: boolean('tax_rate_inclusive'),
+    taxRatePercentage: text('tax_rate_percentage'),
+    userId: varchar({ length: 20 })
+      .notNull()
+      .references(() => users.id),
+  },
+  (table) => ({
+    activeByTenantUserIndex: index('event_registrations_active_tenant_user_idx')
+      .on(table.tenantId, table.userId)
+      .where(sql`${table.status} <> 'CANCELLED'`),
+    oneActiveRegistrationPerUserAndEvent: uniqueIndex(
+      'event_registrations_active_user_event_unique',
+    )
+      .on(table.eventId, table.userId)
+      .where(sql`${table.status} <> 'CANCELLED'`),
+  }),
+);
