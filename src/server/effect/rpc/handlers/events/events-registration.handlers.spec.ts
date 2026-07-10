@@ -652,6 +652,13 @@ describe('event registration trusted URLs', () => {
               findMany: () => Effect.succeed([]),
             },
           },
+          select: () => ({
+            from: () => ({
+              where: () => ({
+                for: () => Effect.succeed([{ id: 'tenant-user-1' }]),
+              }),
+            }),
+          }),
           update: () => ({
             set: () => ({
               where: () => ({
