@@ -1,3 +1,4 @@
+import { RpcUnauthorizedError } from '@shared/errors/rpc-errors';
 import { describe, expect, it } from 'vitest';
 
 import { iconAddErrorMessage } from './icon-selector-dialog.component';
@@ -16,5 +17,13 @@ describe('iconAddErrorMessage', () => {
     ['RpcForbiddenError', 'You do not have permission to add icons here.'],
   ])('maps %s to a clear message', (tag, expected) => {
     expect(iconAddErrorMessage({ _tag: tag })).toBe(expected);
+  });
+
+  it('surfaces the typed authentication error message', () => {
+    expect(
+      iconAddErrorMessage(
+        new RpcUnauthorizedError({ message: 'Authentication required' }),
+      ),
+    ).toBe('Authentication required');
   });
 });

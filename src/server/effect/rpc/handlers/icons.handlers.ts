@@ -34,6 +34,8 @@ const forbidden = (permission?: Permission) =>
     permission,
   });
 
+const forbiddenUnhandledIconUsage = (_usage: never) => forbidden();
+
 export const ensureIconCatalogReader = Effect.fn(
   'icons.ensureIconCatalogReader',
 )(function* () {
@@ -140,6 +142,9 @@ export const ensureIconUsageAuthorized = Effect.fn(
         return yield* forbidden('templates:editAll');
       }
       return;
+    }
+    default: {
+      return yield* forbiddenUnhandledIconUsage(usage);
     }
   }
 });

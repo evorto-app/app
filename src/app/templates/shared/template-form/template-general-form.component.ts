@@ -8,9 +8,9 @@ import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { type IconAddUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { type IconAddUsage } from '../../../../shared/rpc-contracts/app-rpcs/icons.rpcs';
 import { type TemplateCategoryRecord } from '../../../../shared/rpc-contracts/app-rpcs/template-categories.rpcs';
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
 import { EditorComponent } from '../../../shared/components/controls/editor/editor.component';
