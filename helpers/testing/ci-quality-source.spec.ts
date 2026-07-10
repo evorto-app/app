@@ -3,12 +3,24 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import {
+  DEFAULT_E2E_NOW_ISO,
+  DEFAULT_E2E_SEED_KEY,
+} from '@shared/testing/deterministic-test-defaults';
+
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 const readSource = (relativePath: string): string =>
   readFileSync(path.join(repositoryRoot, relativePath), 'utf8');
 
 describe('CI quality source', () => {
+  it('starts Docker and Playwright with the same deterministic clock', () => {
+    const source = readSource('.github/workflows/e2e-baseline.yml');
+
+    expect(source).toContain(`E2E_NOW_ISO: "${DEFAULT_E2E_NOW_ISO}"`);
+    expect(source).toContain(`E2E_SEED_KEY: ${DEFAULT_E2E_SEED_KEY}`);
+  });
+
   it('collects only the explicit non-secret Docker service log allowlist', () => {
     const sourcePaths = [
       '.github/workflows/e2e-baseline.yml',

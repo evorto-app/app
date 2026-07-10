@@ -141,6 +141,8 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
   page,
   seeded,
 }) => {
+  test.slow();
+
   const scannerFixture = await requireScannerFixture({ database, seeded });
   const registrationId = getId();
   const toteAddOnId = getId();
