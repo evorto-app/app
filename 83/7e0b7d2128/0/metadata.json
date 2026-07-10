@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "837e0b7d2128",
+  "session_id": "019f4ad3-b8c0-7f22-82fa-1f72046bb6a5",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-10T08:16:28.766184Z",
+  "branch": "codex/security-registration-concurrency",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "18e7b70ff08f",
+  "checkpoint_transcript_start": 2047,
+  "transcript_lines_at_start": 2047,
+  "token_usage": {
+    "input_tokens": 73011,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 7508736,
+    "output_tokens": 4905,
+    "api_call_count": 31
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-10T08:16:28.672344Z",
+    "agent_lines": 7,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 7,
+    "total_lines_changed": 7,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
