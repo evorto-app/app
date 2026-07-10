@@ -522,6 +522,77 @@ describe('SimpleTemplateService', () => {
     }),
   );
 
+  it.effect(
+    'rejects a zero-price paid registration during simple creation',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* SimpleTemplateService.createSimpleTemplate({
+          esnCardEnabled: false,
+          input: {
+            ...validTemplateInput,
+            organizerRegistration: {
+              ...validTemplateInput.organizerRegistration,
+              isPaid: true,
+              price: 0,
+              stripeTaxRateId: 'txr_vat_19',
+            },
+          },
+          tenantId: 'tenant-1',
+        }).pipe(
+          Effect.flip,
+          Effect.provide(
+            createValidationLayer(
+              createValidationDatabase({
+                categoryFound: true,
+                roleIds: [],
+                taxRate: { active: true, inclusive: true },
+              }),
+            ),
+          ),
+        );
+
+        expect(error).toMatchObject({
+          _tag: 'TemplateSimpleBadRequestError',
+          message: 'organizer paid registration requires a positive price',
+        });
+      }),
+  );
+
+  it.effect('rejects a zero-price paid registration during simple update', () =>
+    Effect.gen(function* () {
+      const error = yield* SimpleTemplateService.updateSimpleTemplate({
+        esnCardEnabled: false,
+        input: {
+          id: 'template-1',
+          ...validTemplateInput,
+          participantRegistration: {
+            ...validTemplateInput.participantRegistration,
+            isPaid: true,
+            price: 0,
+            stripeTaxRateId: 'txr_vat_19',
+          },
+        },
+        tenantId: 'tenant-1',
+      }).pipe(
+        Effect.flip,
+        Effect.provide(
+          createValidationLayer(
+            createValidationDatabase({
+              categoryFound: true,
+              roleIds: [],
+              taxRate: { active: true, inclusive: true },
+            }),
+          ),
+        ),
+      );
+
+      expect(error).toMatchObject({
+        _tag: 'TemplateSimpleBadRequestError',
+        message: 'participant paid registration requires a positive price',
+      });
+    }),
+  );
+
   it.effect('fails when a free registration keeps a stale tax rate', () =>
     Effect.gen(function* () {
       const program = SimpleTemplateService.updateSimpleTemplate({

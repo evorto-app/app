@@ -267,6 +267,24 @@ const validateRegistrationOffsetOrdering = ({
   return Effect.void;
 };
 
+const validateRegistrationPrice = ({
+  kind,
+  registration,
+}: {
+  kind: 'organizer' | 'participant';
+  registration: SimpleTemplateRegistrationInput;
+}) => {
+  if (registration.isPaid && registration.price <= 0) {
+    return Effect.fail(
+      new TemplateSimpleBadRequestError({
+        message: `${kind} paid registration requires a positive price`,
+      }),
+    );
+  }
+
+  return Effect.void;
+};
+
 const collectRegistrationRoleIds = (
   input: SimpleTemplateValidationInput,
 ): string[] => [
@@ -510,6 +528,14 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
           registration: input.organizerRegistration,
         });
         yield* validateRegistrationOffsetOrdering({
+          kind: 'participant',
+          registration: input.participantRegistration,
+        });
+        yield* validateRegistrationPrice({
+          kind: 'organizer',
+          registration: input.organizerRegistration,
+        });
+        yield* validateRegistrationPrice({
           kind: 'participant',
           registration: input.participantRegistration,
         });
