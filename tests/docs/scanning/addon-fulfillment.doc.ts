@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { getId } from '../../../helpers/get-id';
 import {
   adminStateFile,
+  emptyStateFile,
   usersToAuthenticate,
 } from '../../../helpers/user-data';
 import {
@@ -26,7 +27,9 @@ test('Fulfill scanned registration add-ons', async ({
   const participantOption = event?.registrationOptions.find(
     (option) => !option.organizingRegistration,
   );
-  const attendee = usersToAuthenticate.find((user) => user.roles === 'user');
+  const attendee = usersToAuthenticate.find(
+    (user) => user.stateFile === emptyStateFile,
+  );
   if (!event || !participantOption || !attendee) {
     throw new Error(
       'Expected a past event, participant option, and attendee for add-on fulfillment documentation',

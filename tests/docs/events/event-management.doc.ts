@@ -4,6 +4,7 @@ import { DateTime } from 'luxon';
 import { getId } from '../../../helpers/get-id';
 import {
   adminStateFile,
+  emptyStateFile,
   usersToAuthenticate,
 } from '../../../helpers/user-data';
 import {
@@ -340,7 +341,9 @@ Those flows should be documented separately when they exist in the product.
     );
   }
   const initialCheckedInSpots = scannerRegistrationOption.checkedInSpots;
-  const scannerUser = usersToAuthenticate.find((user) => user.roles === 'user');
+  const scannerUser = usersToAuthenticate.find(
+    (user) => user.stateFile === emptyStateFile,
+  );
   if (!scannerUser) {
     throw new Error('Expected regular user fixture for scanner documentation');
   }

@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { getId } from '../../../helpers/get-id';
 import {
   adminStateFile,
+  emptyStateFile,
   usersToAuthenticate,
 } from '../../../helpers/user-data';
 import {
@@ -35,7 +36,9 @@ test('Check in event attendees', async ({
     );
   }
 
-  const attendee = usersToAuthenticate.find((user) => user.roles === 'user');
+  const attendee = usersToAuthenticate.find(
+    (user) => user.stateFile === emptyStateFile,
+  );
   if (!attendee) {
     throw new Error('Expected regular user fixture for check-in documentation');
   }
