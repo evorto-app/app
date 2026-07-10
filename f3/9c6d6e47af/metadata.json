@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "f39c6d6e47af",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/specs/admin/roles-management.spec.ts",
+    "tests/specs/admin/user-role-assignment.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f3/9c6d6e47af/0/metadata.json",
+      "transcript": "/f3/9c6d6e47af/0/full.jsonl",
+      "content_hash": "/f3/9c6d6e47af/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2659,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 68352,
+    "output_tokens": 239,
+    "api_call_count": 1
+  }
+}
