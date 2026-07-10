@@ -1,4 +1,5 @@
 import { userStateFile } from '../../../helpers/user-data';
+import { TENANT_FORMATTING_LOCALE } from '../../../src/types/custom/tenant';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({ storageState: userStateFile });
@@ -34,7 +35,12 @@ test('applies ESN discount to paid registrations @finance', async ({
       has: page.getByRole('heading', { level: 3, name: option.title }),
     })
     .first();
-  const discountedPrice = `€${(expectedAmount / 100).toFixed(2)}`;
+  const discountedPrice = new Intl.NumberFormat(TENANT_FORMATTING_LOCALE, {
+    currency: 'EUR',
+    style: 'currency',
+  })
+    .format(expectedAmount / 100)
+    .replaceAll('\u00a0', ' ');
   await expect(
     registrationOptionCard.getByText('ESNcard discount applied'),
   ).toBeVisible();

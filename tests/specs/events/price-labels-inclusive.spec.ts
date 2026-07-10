@@ -4,10 +4,16 @@ import { eq } from 'drizzle-orm';
 import { adminStateFile, userStateFile } from '../../../helpers/user-data';
 import * as schema from '@db/schema';
 import { formatInclusiveTaxLabel } from '@shared/price/format-inclusive-tax-label';
+import { TENANT_FORMATTING_LOCALE } from '@types/custom/tenant';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 const priceText = (amountInCents: number) =>
-  `€${(amountInCents / 100).toFixed(2)}`;
+  new Intl.NumberFormat(TENANT_FORMATTING_LOCALE, {
+    currency: 'EUR',
+    style: 'currency',
+  })
+    .format(amountInCents / 100)
+    .replaceAll('\u00a0', ' ');
 
 const registrationOptionCard = (page: Page, optionTitle: string) =>
   page.locator('app-event-registration-option').filter({
