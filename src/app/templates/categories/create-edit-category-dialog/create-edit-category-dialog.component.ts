@@ -18,6 +18,7 @@ import {
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { CategoryManagementIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 
 import { IconSelectorFieldComponent } from '../../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 
@@ -65,6 +66,7 @@ export class CreateEditCategoryDialogComponent {
         defaultIcon?: IconValue;
         mode: 'create';
       };
+  protected readonly iconUsage = CategoryManagementIconUsage.make({});
   private readonly dialogRef = inject(
     MatDialogRef<CreateEditCategoryDialogComponent>,
   );

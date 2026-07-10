@@ -33,6 +33,7 @@ import {
   type Permission,
 } from '../../../../shared/permissions/permissions';
 import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
+import { normalizeTenantDomain } from '../../../../shared/tenant-origin';
 import {
   decodeRpcContextHeaderJson,
   RPC_CONTEXT_HEADERS,
@@ -92,29 +93,6 @@ const toGlobalAdminTenantRecord = (tenant: {
   });
 };
 
-const normalizeTenantDomain = (value: string): string => {
-  const trimmedValue = value.trim().toLocaleLowerCase();
-  if (!trimmedValue) {
-    throw new Error('Domain is required');
-  }
-
-  const url = new URL(
-    trimmedValue.includes('://') ? trimmedValue : `https://${trimmedValue}`,
-  );
-  if (
-    !url.hostname ||
-    url.pathname !== '/' ||
-    url.search ||
-    url.hash ||
-    url.username ||
-    url.password
-  ) {
-    throw new Error('Domain must be a single host name');
-  }
-
-  return url.hostname;
-};
-
 const normalizeTenantWriteInput = (
   input: GlobalAdminTenantWriteInput,
 ): GlobalAdminTenantWriteInput => {
@@ -123,9 +101,11 @@ const normalizeTenantWriteInput = (
     throw new Error('Tenant name is required');
   }
 
+  const domain = normalizeTenantDomain(input.domain);
+
   return {
     currency: input.currency,
-    domain: normalizeTenantDomain(input.domain),
+    domain,
     locale: input.locale,
     name,
     stripeAccountId: input.stripeAccountId?.trim() || undefined,

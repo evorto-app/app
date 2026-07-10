@@ -13,11 +13,28 @@ import {
 
 const MAX_RECEIPT_ORIGINAL_SIZE_BYTES = 20 * 1024 * 1024;
 const RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS = 60 * 15;
-const LOCAL_RECEIPT_STORAGE_KEY_PREFIX = 'local-unavailable/';
+const LOCAL_RECEIPT_STORAGE_URL_PREFIX = 'local-unavailable://';
 
 export interface ReceiptWithStoragePreview {
   attachmentStorageKey: null | string;
+  attachmentStorageUrl: null | string;
+  attachmentUploadConsumedAt: Date | null;
+  attachmentUploadedAt: Date | null;
+  attachmentUploadedByUserId: string;
+  attachmentUploadEventId: string;
+  attachmentUploadId: string;
+  attachmentUploadTenantId: string;
+  eventId: string;
   previewImageUrl: null | string;
+  submittedByUserId: string;
+  tenantId: string;
+}
+
+interface ReceiptWithValidStoragePreview extends ReceiptWithStoragePreview {
+  attachmentStorageKey: string;
+  attachmentStorageUrl: string;
+  attachmentUploadConsumedAt: Date;
+  attachmentUploadedAt: Date;
 }
 
 const isAllowedReceiptMimeType = (mimeType: string): boolean =>
@@ -43,23 +60,67 @@ const isObjectStorageConfigured = objectStorageConfig.pipe(
   ),
 );
 
+export const hasValidReceiptUploadBinding = (
+  receipt: ReceiptWithStoragePreview,
+): receipt is ReceiptWithValidStoragePreview => {
+  if (!receipt.attachmentStorageKey) {
+    return false;
+  }
+
+  const expectedStoragePrefix = [
+    'receipts',
+    receipt.tenantId,
+    receipt.eventId,
+    receipt.submittedByUserId,
+    '',
+  ].join('/');
+  return (
+    receipt.attachmentUploadTenantId === receipt.tenantId &&
+    receipt.attachmentUploadEventId === receipt.eventId &&
+    receipt.attachmentUploadedByUserId === receipt.submittedByUserId &&
+    receipt.attachmentUploadedAt !== null &&
+    receipt.attachmentUploadConsumedAt !== null &&
+    receipt.attachmentStorageUrl !== null &&
+    receipt.attachmentStorageKey.startsWith(expectedStoragePrefix) &&
+    receipt.attachmentStorageKey.length > expectedStoragePrefix.length
+  );
+};
+
 export const withSignedReceiptPreviewUrl = <
   T extends ReceiptWithStoragePreview,
 >(
   receipt: T,
-): Effect.Effect<T> =>
+) =>
   Effect.gen(function* () {
+    if (!hasValidReceiptUploadBinding(receipt)) {
+      yield* Effect.logWarning(
+        'Refusing to sign receipt preview with an invalid upload binding',
+      ).pipe(
+        Effect.annotateLogs({
+          attachmentUploadId: receipt.attachmentUploadId,
+          eventId: receipt.eventId,
+          submittedByUserId: receipt.submittedByUserId,
+          tenantId: receipt.tenantId,
+        }),
+      );
+
+      return {
+        ...receipt,
+        attachmentStorageKey: null,
+        previewImageUrl: null,
+      };
+    }
+
+    const receiptStorageKey = receipt.attachmentStorageKey;
     if (
-      !receipt.attachmentStorageKey ||
-      receipt.attachmentStorageKey.startsWith(LOCAL_RECEIPT_STORAGE_KEY_PREFIX)
+      receipt.attachmentStorageUrl.startsWith(LOCAL_RECEIPT_STORAGE_URL_PREFIX)
     ) {
       return {
         ...receipt,
         previewImageUrl: null,
-      } as T;
+      };
     }
 
-    const receiptStorageKey = receipt.attachmentStorageKey as string;
     const signedPreviewUrl = yield* getSignedReceiptObjectUrlFromR2({
       expiresInSeconds: RECEIPT_PREVIEW_SIGNED_URL_TTL_SECONDS,
       key: receiptStorageKey,
@@ -78,14 +139,14 @@ export const withSignedReceiptPreviewUrl = <
     return {
       ...receipt,
       previewImageUrl: signedPreviewUrl,
-    } as T;
+    };
   });
 
 export const withSignedReceiptPreviewUrls = <
   T extends ReceiptWithStoragePreview,
 >(
   receipts: readonly T[],
-): Effect.Effect<readonly T[]> =>
+) =>
   Effect.forEach(receipts, (receipt) => withSignedReceiptPreviewUrl(receipt), {
     concurrency: 'unbounded',
   });
@@ -97,8 +158,27 @@ interface UploadOriginalInput {
   fileSizeBytes: number;
   mimeType: string;
   tenantId: string;
+  uploadId: string;
   userId: string;
 }
+
+export const buildReceiptStorageKey = ({
+  eventId,
+  fileName,
+  tenantId,
+  uploadId,
+  userId,
+}: Pick<
+  UploadOriginalInput,
+  'eventId' | 'fileName' | 'tenantId' | 'uploadId' | 'userId'
+>): string =>
+  [
+    'receipts',
+    tenantId,
+    eventId,
+    userId,
+    `${uploadId}-${sanitizeFileName(fileName)}`,
+  ].join('/');
 
 export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
   '@server/effect/rpc/handlers/finance/ReceiptMediaService',
@@ -112,6 +192,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
           fileSizeBytes,
           mimeType,
           tenantId,
+          uploadId,
           userId,
         }: UploadOriginalInput) {
           if (!isAllowedReceiptMimeType(mimeType)) {
@@ -138,16 +219,13 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
             );
           }
 
-          const datePrefix = new Date().toISOString().slice(0, 10);
-          const safeFileName = sanitizeFileName(fileName);
-          const storageKey = [
-            'receipts',
-            tenantId,
+          const storageKey = buildReceiptStorageKey({
             eventId,
+            fileName,
+            tenantId,
+            uploadId,
             userId,
-            datePrefix,
-            `${Date.now()}-${safeFileName}`,
-          ].join('/');
+          });
 
           const uploaded = yield* uploadReceiptOriginalToR2({
             body,
@@ -166,7 +244,7 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
                   configured
                     ? Effect.fail(error)
                     : Effect.succeed({
-                        storageKey: `${LOCAL_RECEIPT_STORAGE_KEY_PREFIX}${storageKey}`,
+                        storageKey,
                         storageUrl: 'local-unavailable://receipt',
                       }),
                 ),

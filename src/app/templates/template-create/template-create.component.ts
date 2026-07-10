@@ -12,6 +12,7 @@ import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft, faPlus } from '@fortawesome/duotone-regular-svg-icons';
 import { writableRegistrationModes } from '@shared/registration-modes';
+import { TemplateCreateIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
   injectQuery,
@@ -136,6 +137,7 @@ export class TemplateCreateComponent {
 
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faPlus = faPlus;
+  protected readonly iconUsage = TemplateCreateIconUsage.make({});
   protected readonly registrationModes: readonly RegistrationMode[] =
     writableRegistrationModes;
 

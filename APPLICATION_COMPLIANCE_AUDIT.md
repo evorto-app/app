@@ -350,11 +350,10 @@ Use a disposable role and tenant user in a functional spec and generated doc: ch
 
 `src/server/effect/rpc/app-rpcs.request-handler.ts:30-60` preserves original request headers. `src/server/effect/rpc/handlers/events/event-registration.service.ts:86-96` trusts `headers['origin']` without validating it against the tenant, then uses it for approval emails (`:566`) and Stripe success/cancel URLs (`:801-817`). An authorized or compromised organizer can choose a phishing destination for an applicant.
 
-**Fix direction:** persist a canonical root URL on the tenant record, validate
-it against the active primary domain, and derive production public URLs from it.
-Only a platform administrator may change the saved tenant host or root URL. Use
-an explicit local runtime origin in development; never trust caller-controlled
-`Origin`, forwarded-host, or request headers.
+**Fix direction:** normalize the tenant's persisted primary domain and derive
+its production public origin as HTTPS. Only a platform administrator may change
+the saved tenant host. Use an explicit loopback runtime origin in development;
+never trust caller-controlled `Origin`, forwarded-host, or request headers.
 
 ### OPS-001 — Claimed outbox messages can remain permanently stuck in `sending`
 
@@ -506,9 +505,9 @@ continue to state them honestly.
   is required before a paid-event production replacement launch.
 - The first completed tenant membership becomes a user's home tenant. Users can
   change it only through an explicit profile action.
-- Production public links use the tenant record's validated canonical root URL;
-  development uses an explicit local runtime origin, and only a platform
-  administrator may change the saved tenant host or root URL.
+- Production public links use the HTTPS origin derived from the tenant record's
+  normalized primary domain; development uses an explicit loopback runtime
+  origin, and only a platform administrator may change the saved tenant host.
 - Payments and refunds use the tenant's Stripe Connect account. Evorto attaches
   that account id to the Stripe request and adds only its application fee.
 - Waitlist messages are informative and never reserve capacity or hold checkout.

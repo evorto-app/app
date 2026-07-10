@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 
+import { addConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
@@ -28,12 +29,22 @@ test('profile receipts show submitted receipt status and event context', async (
 
   const receiptId = getId();
   const receiptFileName = `profile-receipt-${seedDate.getTime()}.pdf`;
+  let receiptUploadId: string | undefined;
 
   try {
+    receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
+      eventId,
+      fileName: receiptFileName,
+      mimeType: 'application/pdf',
+      sizeBytes: 2048,
+      tenantId: seeded.tenant.id,
+      uploadedByUserId: regularUser.id,
+    });
     await database.insert(schema.financeReceipts).values({
       attachmentFileName: receiptFileName,
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 2048,
+      attachmentUploadId: receiptUploadId,
       eventId,
       id: receiptId,
       purchaseCountry: 'DE',
@@ -82,5 +93,10 @@ test('profile receipts show submitted receipt status and event context', async (
     await database
       .delete(schema.financeReceipts)
       .where(eq(schema.financeReceipts.id, receiptId));
+    if (receiptUploadId) {
+      await database
+        .delete(schema.financeReceiptUploads)
+        .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
+    }
   }
 });

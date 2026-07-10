@@ -46,14 +46,14 @@
         >
           Edit tenant
         </a>
-        @if (tenantDomainUrl(tenant.domain); as domainUrl) {
+        @if (tenantPublicOrigin(tenant.domain); as tenantPublicOrigin) {
           <a
             mat-button
-            [href]="domainUrl"
+            [href]="tenantPublicOrigin"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Open tenant domain
+            Open tenant
           </a>
         }
       </div>

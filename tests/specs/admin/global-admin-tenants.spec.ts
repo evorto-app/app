@@ -38,7 +38,9 @@ const expectTenantFormScope = async (
     page.getByRole('heading', { name: 'Relaunch tenant scope' }),
   ).toBeVisible();
   await expect(
-    page.getByText('One active primary domain is managed here.'),
+    page.getByText(
+      'One active primary domain is managed here; its secure HTTPS origin is derived from the normalized host.',
+    ),
   ).toBeVisible();
   await expect(
     page.getByText(
@@ -52,7 +54,9 @@ const expectTenantFormScope = async (
   ).toBeVisible();
   await expect(form.locator('input').first()).toBeVisible();
   if (options.expectCreatePlaceholders) {
-    await expect(form.getByPlaceholder('section.example.org')).toBeVisible();
+    await expect(
+      form.getByRole('textbox', { name: 'Primary domain', exact: true }),
+    ).toBeVisible();
     await expect(form.getByPlaceholder('acct_...')).toBeVisible();
   }
   await expect(form.getByRole('combobox').first()).toBeVisible();
@@ -166,9 +170,9 @@ test('global tenant admin reviews tenant list, detail, and forms @admin @globalA
       page.getByText('Read-only operational tenant review'),
     ).toBeVisible();
     await expectTenantRows(page);
-    await expect(
-      page.getByRole('link', { name: 'Open tenant domain' }),
-    ).toHaveAttribute('href', 'https://localhost');
+    await expect(page.getByRole('link', { name: 'Open tenant' })).toHaveCount(
+      0,
+    );
     await expect(
       page.getByRole('link', { name: 'Edit tenant' }),
     ).toHaveAttribute('href', `${reviewTenantHref}/edit`);

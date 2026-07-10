@@ -3,33 +3,29 @@ import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import { deriveTenantPublicOrigin } from '@shared/tenant-origin';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { globalAdminTenantRows } from '../tenant-list/tenant-list.rows';
 
-export const globalAdminTenantDomainUrl = (domain: string): null | string => {
-  const normalizedDomain = domain.trim().toLowerCase();
-  if (!normalizedDomain || normalizedDomain.includes('://')) {
-    return null;
-  }
-
+export const globalAdminTenantPublicOrigin = (
+  domain: string,
+): null | string => {
   try {
-    const url = new URL(`https://${normalizedDomain}`);
+    const origin = deriveTenantPublicOrigin(domain);
+    const hostname = new URL(origin).hostname.toLowerCase();
+
     if (
-      !url.hostname ||
-      url.pathname !== '/' ||
-      url.port ||
-      url.search ||
-      url.hash ||
-      url.username ||
-      url.password
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '[::1]'
     ) {
       return null;
     }
 
-    return `https://${url.hostname}`;
+    return origin;
   } catch {
     return null;
   }
@@ -45,7 +41,7 @@ export const globalAdminTenantDomainUrl = (domain: string): null | string => {
 export class TenantDetailComponent {
   readonly tenantId = input.required<string>();
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly tenantDomainUrl = globalAdminTenantDomainUrl;
+  protected readonly tenantPublicOrigin = globalAdminTenantPublicOrigin;
 
   private readonly rpc = AppRpc.injectClient();
   protected readonly tenantQuery = injectQuery(() =>

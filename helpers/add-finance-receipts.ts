@@ -1,5 +1,7 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
+import { buildReceiptStorageKey } from '@server/effect/rpc/handlers/finance/receipt-media.service';
+
 import { createId } from '../src/db/create-id';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
@@ -37,6 +39,60 @@ export const addFinanceReceipts = async (
 
   const now = new Date();
   const [eventA, eventB, eventC] = options.eventIds;
+  const kitchenSuppliesUploadId = getId();
+  const venueDepositUploadId = getId();
+  const transportTicketUploadId = getId();
+  const profileReceiptUploadId = getId();
+  const receiptUploads = [
+    {
+      eventId: eventA,
+      fileName: 'kitchen-supplies.pdf',
+      id: kitchenSuppliesUploadId,
+      sizeBytes: 42_000,
+      uploadedByUserId: reimbursementUserId,
+    },
+    {
+      eventId: eventB ?? eventA,
+      fileName: 'venue-deposit.pdf',
+      id: venueDepositUploadId,
+      sizeBytes: 48_000,
+      uploadedByUserId: reimbursementUserId,
+    },
+    {
+      eventId: eventC ?? eventA,
+      fileName: 'transport-ticket.pdf',
+      id: transportTicketUploadId,
+      sizeBytes: 21_000,
+      uploadedByUserId: reimbursementUserId,
+    },
+    {
+      eventId: eventA,
+      fileName: 'profile-receipt.pdf',
+      id: profileReceiptUploadId,
+      sizeBytes: 30_000,
+      uploadedByUserId: regularUserId,
+    },
+  ].map((upload) => ({
+    ...upload,
+    consumedAt: now,
+    mimeType: 'application/pdf',
+    storageUrl: 'local-unavailable://receipt',
+    tenantId: options.tenantId,
+    uploadedAt: now,
+  }));
+
+  await database.insert(schema.financeReceiptUploads).values(
+    receiptUploads.map((upload) => ({
+      ...upload,
+      storageKey: buildReceiptStorageKey({
+        eventId: upload.eventId,
+        fileName: upload.fileName,
+        tenantId: options.tenantId,
+        uploadId: upload.id,
+        userId: upload.uploadedByUserId,
+      }),
+    })),
+  );
 
   await database.insert(schema.financeReceipts).values([
     {
@@ -44,7 +100,7 @@ export const addFinanceReceipts = async (
       attachmentFileName: 'kitchen-supplies.pdf',
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 42_000,
-      attachmentStorageKey: `local-unavailable/${getId()}.pdf`,
+      attachmentUploadId: kitchenSuppliesUploadId,
       depositAmount: 0,
       eventId: eventA,
       hasAlcohol: false,
@@ -62,7 +118,7 @@ export const addFinanceReceipts = async (
       attachmentFileName: 'venue-deposit.pdf',
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 48_000,
-      attachmentStorageKey: `local-unavailable/${getId()}.pdf`,
+      attachmentUploadId: venueDepositUploadId,
       depositAmount: 1000,
       eventId: eventB ?? eventA,
       hasAlcohol: true,
@@ -82,7 +138,7 @@ export const addFinanceReceipts = async (
       attachmentFileName: 'transport-ticket.pdf',
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 21_000,
-      attachmentStorageKey: `local-unavailable/${getId()}.pdf`,
+      attachmentUploadId: transportTicketUploadId,
       depositAmount: 0,
       eventId: eventC ?? eventA,
       hasAlcohol: true,
@@ -102,7 +158,7 @@ export const addFinanceReceipts = async (
       attachmentFileName: 'profile-receipt.pdf',
       attachmentMimeType: 'application/pdf',
       attachmentSizeBytes: 30_000,
-      attachmentStorageKey: `local-unavailable/${getId()}.pdf`,
+      attachmentUploadId: profileReceiptUploadId,
       depositAmount: 0,
       eventId: eventA,
       hasAlcohol: false,

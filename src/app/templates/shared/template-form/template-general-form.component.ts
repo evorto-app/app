@@ -8,6 +8,7 @@ import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { type IconAddUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { type TemplateCategoryRecord } from '../../../../shared/rpc-contracts/app-rpcs/template-categories.rpcs';
@@ -33,6 +34,7 @@ import { TemplateFormData } from './template-form.utilities';
 })
 export class TemplateGeneralFormComponent {
   public readonly generalForm = input.required<FieldTree<TemplateFormData>>();
+  public readonly iconUsage = input.required<IconAddUsage>();
 
   private readonly rpc = AppRpc.injectClient();
   protected readonly templateCategoriesQuery = injectQuery(() =>

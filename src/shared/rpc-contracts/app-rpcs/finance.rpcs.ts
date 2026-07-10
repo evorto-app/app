@@ -34,10 +34,7 @@ export type FinanceReceiptStatus = Schema.Schema.Type<
 
 export const FinanceReceiptAttachmentInput = Schema.Struct({
   fileName: Schema.NonEmptyString,
-  mimeType: Schema.NonEmptyString,
-  sizeBytes: positiveNumber,
-  storageKey: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
-  storageUrl: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  uploadId: Schema.NonEmptyString,
 });
 export type FinanceReceiptAttachmentInput = Schema.Schema.Type<
   typeof FinanceReceiptAttachmentInput
@@ -268,9 +265,7 @@ export const FinanceReceiptMediaUploadOriginal = asRpcMutation(
       mimeType: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
-      sizeBytes: positiveNumber,
-      storageKey: Schema.NonEmptyString,
-      storageUrl: Schema.NonEmptyString,
+      uploadId: Schema.NonEmptyString,
     }),
   }),
 );

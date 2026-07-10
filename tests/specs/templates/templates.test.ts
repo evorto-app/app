@@ -61,6 +61,67 @@ test('create a new template', async ({ page, templateCategories }) => {
   await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
 });
 
+test('add a valid template icon and explain invalid icon names', async ({
+  database,
+  page,
+  templateCategories,
+  tenant,
+}) => {
+  const category = templateCategories[0];
+  if (!category) {
+    throw new Error('Expected seeded template category before icon selection');
+  }
+
+  await page.goto(`/templates/create/${category.id}`);
+  await page.getByRole('button', { name: 'Change Icon' }).click();
+  const iconDialog = page.locator('app-icon-selector-dialog');
+  const searchInput = iconDialog.getByLabel('Search');
+
+  await searchInput.fill('invalid/icon');
+  await expect(
+    iconDialog.getByText('To add an Icons8 icon, use a lowercase name'),
+  ).toBeVisible();
+  await expect(iconDialog.getByTestId('direct-access-icon')).toBeHidden();
+
+  const iconName = `security-icon-${getId().slice(0, 6).toLowerCase()}`;
+  await searchInput.fill(iconName);
+  const directAccessIcon = iconDialog.getByTestId('direct-access-icon');
+  await expect(directAccessIcon).toBeVisible();
+
+  await database.insert(schema.icons).values({
+    commonName: iconName,
+    friendlyName: 'Security Icon',
+    sourceColor: 0,
+    tenantId: tenant.id,
+  });
+
+  const addRequestPromise = page.waitForRequest((request) => {
+    const rpcPath = new URL(request.url()).pathname.replace(/\/+$/, '');
+    return (
+      rpcPath === '/rpc' &&
+      request.postData()?.includes('"tag":"icons.add"') === true
+    );
+  });
+  await directAccessIcon.click();
+  const addRequest = await addRequestPromise;
+  const requestBody: unknown = JSON.parse(addRequest.postData() ?? 'null');
+  const messages = Array.isArray(requestBody) ? requestBody : [requestBody];
+  const addMessage = messages.find(
+    (message) =>
+      message !== null &&
+      typeof message === 'object' &&
+      Reflect.get(message, 'tag') === 'icons.add',
+  );
+
+  expect(addMessage).toBeDefined();
+  expect(Reflect.get(addMessage ?? {}, 'payload')).toMatchObject({
+    icon: iconName,
+    usage: { _tag: 'templateCreate' },
+  });
+  await expect(iconDialog).toBeHidden();
+  await expect(page.getByAltText(iconName)).toBeVisible();
+});
+
 test('create template with reusable add-ons and registration questions', async ({
   database,
   page,

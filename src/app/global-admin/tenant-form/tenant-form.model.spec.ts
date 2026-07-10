@@ -24,7 +24,7 @@ describe('global admin tenant form model', () => {
 
   it('keeps the visible relaunch scope aligned with the one-domain tenant workflow', () => {
     expect(globalAdminTenantRelaunchScopeItems).toEqual([
-      'One active primary domain is managed here.',
+      'One active primary domain is managed here; its secure HTTPS origin is derived from the normalized host.',
       'Custom-domain verification and multi-domain automation are deferred.',
       'Tenant-admin impersonation is not available in the current relaunch surface.',
     ]);
@@ -80,8 +80,8 @@ describe('global admin tenant form model', () => {
     expect(
       normalizeGlobalAdminTenantDomain(' https://Section.Example.Org:443 '),
     ).toBe('section.example.org');
-    expect(normalizeGlobalAdminTenantDomain(' LOCALHOST:4200 ')).toBe(
-      'localhost',
+    expect(() => normalizeGlobalAdminTenantDomain(' LOCALHOST:4200 ')).toThrow(
+      'Domain must be a single host name',
     );
   });
 

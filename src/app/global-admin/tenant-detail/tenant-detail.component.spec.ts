@@ -1,23 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
-import { globalAdminTenantDomainUrl } from './tenant-detail.component';
+import { globalAdminTenantPublicOrigin } from './tenant-detail.component';
 
-describe('globalAdminTenantDomainUrl', () => {
-  it('builds tenant-domain links from single host names', () => {
-    expect(globalAdminTenantDomainUrl(' Tenant.Example.Org ')).toBe(
-      'https://tenant.example.org',
-    );
-    expect(globalAdminTenantDomainUrl('localhost')).toBe('https://localhost');
+describe('globalAdminTenantPublicOrigin', () => {
+  it('derives a secure public origin from the normalized primary domain', () => {
+    expect(
+      globalAdminTenantPublicOrigin(' HTTPS://Tenant.Example.Org:443 '),
+    ).toBe('https://tenant.example.org');
   });
 
-  it('fails closed for URL-shaped or malformed tenant domains', () => {
-    expect(globalAdminTenantDomainUrl('https://tenant.example.org')).toBeNull();
-    expect(globalAdminTenantDomainUrl('tenant.example.org/path')).toBeNull();
-    expect(
-      globalAdminTenantDomainUrl('tenant.example.org?next=/admin'),
-    ).toBeNull();
-    expect(globalAdminTenantDomainUrl('tenant.example.org#admin')).toBeNull();
-    expect(globalAdminTenantDomainUrl('user@tenant.example.org')).toBeNull();
-    expect(globalAdminTenantDomainUrl('')).toBeNull();
+  it('fails closed for malformed primary domains', () => {
+    expect(globalAdminTenantPublicOrigin('tenant.example.org/path')).toBeNull();
+    expect(globalAdminTenantPublicOrigin('tenant.example.org:8443')).toBeNull();
+    expect(globalAdminTenantPublicOrigin('')).toBeNull();
+  });
+
+  it('does not render an unusable HTTPS link for loopback tenants', () => {
+    expect(globalAdminTenantPublicOrigin('localhost')).toBeNull();
+    expect(globalAdminTenantPublicOrigin('127.0.0.1')).toBeNull();
+    expect(globalAdminTenantPublicOrigin('[::1]')).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 import type Stripe from 'stripe';
 
 import { describe, expect, it, vi } from '@effect/vitest';
-import { Effect, Layer } from 'effect';
+import { ConfigProvider, Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -20,14 +20,20 @@ import {
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { StripeClient } from '../../../../stripe-client';
 import { RpcAccess } from '../shared/rpc-access.service';
+import { EventRegistrationService } from './event-registration.service';
 import { eventRegistrationHandlers } from './events-registration.handlers';
 
 type StripeClientDouble = Pick<Stripe, 'checkout' | 'refunds'>;
 
-const createStripeClientDouble = (): StripeClientDouble =>
+const createStripeClientDouble = ({
+  createCheckoutSession = vi.fn(),
+}: {
+  createCheckoutSession?: ReturnType<typeof vi.fn>;
+} = {}): StripeClientDouble =>
   ({
     checkout: {
       sessions: {
+        create: createCheckoutSession,
         expire: vi.fn(),
       },
     },
@@ -39,6 +45,16 @@ const createStripeClientDouble = (): StripeClientDouble =>
 const emptyHandlerOptions = {
   headers: Headers.fromInput({}),
 };
+
+const registrationConfigProviderLayer = ConfigProvider.layer(
+  ConfigProvider.fromEnv({
+    env: {
+      BASE_URL: 'https://deployment.example',
+      NODE_ENV: 'production',
+      RESEND_API_KEY: 're_test_123',
+    },
+  }),
+);
 
 const tenant = {
   currency: 'EUR' as const,
@@ -505,6 +521,140 @@ const createTransferTargetsDatabase = ({
 
   return database;
 };
+
+describe('event registration trusted URLs', () => {
+  it.effect(
+    'ignores forged request origins when creating Stripe checkout return URLs',
+    () =>
+      Effect.gen(function* () {
+        const createCheckoutSession = vi.fn(() =>
+          Promise.resolve({
+            id: 'cs_test_123',
+            payment_intent: null,
+            url: 'https://checkout.stripe.test/cs_test_123',
+          }),
+        );
+        const stripe = createStripeClientDouble({ createCheckoutSession });
+        const registrationTransaction = {
+          insert: (table: unknown) => ({
+            values: () =>
+              table === eventRegistrations
+                ? {
+                    returning: () => Effect.succeed([{ id: 'registration-1' }]),
+                  }
+                : Effect.void,
+          }),
+          query: {
+            eventRegistrations: {
+              findMany: () => Effect.succeed([]),
+            },
+          },
+          update: () => ({
+            set: () => ({
+              where: () => ({
+                returning: () => Effect.succeed([{ id: 'option-1' }]),
+              }),
+            }),
+          }),
+        };
+        const database = {
+          insert: () => ({
+            values: () => Effect.void,
+          }),
+          query: {
+            eventRegistrationOptions: {
+              findFirst: () =>
+                Effect.succeed({
+                  closeRegistrationTime: new Date('2099-01-02T00:00:00.000Z'),
+                  confirmedSpots: 0,
+                  event: {
+                    start: new Date('2099-01-01T12:00:00.000Z'),
+                    status: 'APPROVED',
+                    tenantId: tenant.id,
+                    title: 'Trusted URL event',
+                  },
+                  eventId: 'event-1',
+                  id: 'option-1',
+                  isPaid: true,
+                  openRegistrationTime: new Date('2000-01-01T00:00:00.000Z'),
+                  organizingRegistration: false,
+                  price: 1000,
+                  questions: [],
+                  registrationMode: 'fcfs',
+                  reservedSpots: 0,
+                  roleIds: [],
+                  spots: 10,
+                  stripeTaxRateId: null,
+                }),
+            },
+            eventRegistrations: {
+              findFirst: () => Effect.succeed(null),
+            },
+            userDiscountCards: {
+              findMany: () => Effect.succeed([]),
+            },
+          },
+          transaction: (
+            run: (
+              transaction: typeof registrationTransaction,
+            ) => Effect.Effect<unknown>,
+          ) => run(registrationTransaction),
+          update: () => ({
+            set: () => ({
+              where: () => Effect.void,
+            }),
+          }),
+        };
+        const attackerOptions = {
+          headers: Headers.fromInput({
+            host: 'attacker.example',
+            origin: 'https://attacker.example',
+            'x-forwarded-host': 'attacker.example',
+            'x-forwarded-proto': 'https',
+          }),
+        };
+
+        yield* eventRegistrationHandlers['events.registerForEvent'](
+          {
+            eventId: 'event-1',
+            guestCount: 0,
+            registrationOptionId: 'option-1',
+          },
+          attackerOptions,
+        ).pipe(
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(
+            createContextLayer({
+              database,
+              stripe,
+              tenant: {
+                ...tenant,
+                stripeAccountId: 'acct_123',
+              },
+              user: createUser({ id: 'attendee-1' }),
+            }),
+          ),
+          Effect.provide(registrationConfigProviderLayer),
+        );
+
+        expect(createCheckoutSession).toHaveBeenCalledOnce();
+        expect(createCheckoutSession).toHaveBeenCalledWith(
+          expect.objectContaining({
+            cancel_url:
+              'https://tenant.example.com/events/event-1?registrationStatus=cancel',
+            success_url:
+              'https://tenant.example.com/events/event-1?registrationStatus=success',
+          }),
+          expect.objectContaining({
+            stripeAccount: 'acct_123',
+          }),
+        );
+        expect(JSON.stringify(createCheckoutSession.mock.calls)).not.toContain(
+          'attacker.example',
+        );
+      }),
+  );
+});
 
 describe('event registration cancellation handlers', () => {
   it.effect(

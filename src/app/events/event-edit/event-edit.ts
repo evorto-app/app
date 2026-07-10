@@ -20,6 +20,7 @@ import {
   requireWritableRegistrationMode,
   writableRegistrationModes,
 } from '@shared/registration-modes';
+import { EventEditIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
   injectQuery,
@@ -91,6 +92,9 @@ export class EventEdit {
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly iconUsage = computed(() =>
+    EventEditIconUsage.make({ eventId: this.eventId() }),
+  );
   protected readonly registrationModes = writableRegistrationModes;
   protected readonly updateEventMutation = injectMutation(() =>
     this.rpc.events.update.mutationOptions(),

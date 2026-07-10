@@ -81,7 +81,9 @@ const expectGlobalAdminTenantFormSurface = async (page: Page) => {
     page.getByRole('heading', { name: 'Relaunch tenant scope' }),
   ).toBeVisible();
   await expect(
-    page.getByText('One active primary domain is managed here.'),
+    page.getByText(
+      'One active primary domain is managed here; its secure HTTPS origin is derived from the normalized host.',
+    ),
   ).toBeVisible();
   await expect(
     page.getByText(
@@ -95,6 +97,11 @@ const expectGlobalAdminTenantFormSurface = async (page: Page) => {
   ).toBeVisible();
   await expect(tenantNameInput(page)).toBeVisible();
   await expect(tenantPrimaryDomainInput(page)).toBeVisible();
+  await expect(
+    page.getByText(
+      'Checkout returns and transactional links use the secure HTTPS origin derived from this normalized domain.',
+    ),
+  ).toBeVisible();
   await expect(tenantForm(page).getByRole('combobox')).toHaveCount(4);
   await expect(tenantStripeAccountInput(page)).toBeVisible();
 };
@@ -236,7 +243,7 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     ).toBeVisible();
     await expectGlobalAdminTenantRows(page, createdTenant);
     await expect(
-      page.getByRole('link', { name: 'Open tenant domain' }),
+      page.getByRole('link', { name: 'Open tenant' }),
     ).toHaveAttribute('href', `https://${createdTenantDomain}`);
     await expect(
       page.getByRole('link', { name: 'Edit tenant' }),
@@ -287,9 +294,9 @@ Global admins can review, create, and edit tenants from the **Global admin** are
       body: `
 ## Current relaunch surface
 
-The current global-admin page is a searchable tenant list with tenant creation, tenant editing, and a tenant detail review. Each entry shows the tenant name, domain, tenant id, theme, locale, currency, timezone, and Stripe account state plus connected account id for support and operational review. The tenant detail page repeats the operational fields, links to the edit form, and provides an external link to open the tenant's primary domain.
+The current global-admin page is a searchable tenant list with tenant creation, tenant editing, and a tenant detail review. Each entry shows the tenant name, primary domain, tenant id, theme, locale, currency, timezone, and Stripe account state plus connected account id for support and operational review. The tenant detail page repeats the operational fields, links to the edit form, and provides an external link to open the tenant at the secure HTTPS origin derived from its normalized primary domain.
 
-Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id. The server normalizes primary domains to a single-host value and rejects duplicates before saving, so each tenant keeps one unique primary domain. The generated journey creates a temporary tenant, reads the created row back from the database, saves a tenant-name edit on that temporary tenant, verifies the saved row, and cleans it up after the doc run. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
+Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id. The server normalizes primary domains to a single-host value and rejects duplicates, paths, queries, fragments, credentials, and non-default ports. Transactional links and Stripe return URLs use the secure HTTPS origin derived from this normalized domain rather than request headers. The generated journey creates a temporary tenant, reads the created row back from the database, saves a tenant-name edit on that temporary tenant, verifies the saved row, and cleans it up after the doc run. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here and its HTTPS origin is derived, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
 
 The create journey also checks the one-domain guardrails before saving: domains with paths are rejected in the form before mutation, and duplicate primary domains return a visible error while keeping the admin on the create page.
 `,

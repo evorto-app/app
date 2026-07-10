@@ -119,7 +119,11 @@ export interface SeedTenantResult {
     tenantId: string;
     title: string;
   }[];
-  tenant: { domain: string; id: string; name: string };
+  tenant: {
+    domain: string;
+    id: string;
+    name: string;
+  };
 }
 
 export const seedBaseUsers = async (
@@ -321,6 +325,10 @@ export async function seedTenant(
       tenantId: t.tenantId,
       title: t.title,
     })),
-    tenant: { domain: tenant.domain, id: tenant.id, name: tenant.name },
+    tenant: {
+      domain: tenant.domain,
+      id: tenant.id,
+      name: tenant.name,
+    },
   } satisfies SeedTenantResult;
 }

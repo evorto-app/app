@@ -20,6 +20,14 @@ describe('GlobalAdminTenantWriteInput', () => {
     ).not.toThrow();
   });
 
+  it('requires a primary domain on tenant writes', () => {
+    const { domain: _domain, ...missingDomain } = tenantWriteInput;
+
+    expect(() =>
+      Schema.decodeUnknownSync(GlobalAdminTenantWriteInput)(missingDomain),
+    ).toThrow();
+  });
+
   it('rejects unsupported tenant runtime settings', () => {
     expect(() =>
       Schema.decodeUnknownSync(GlobalAdminTenantWriteInput)({
