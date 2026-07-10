@@ -28,7 +28,6 @@ const readFirstTenantRowValue = async (
 
 type GlobalAdminTenantDocRow = Pick<
   typeof schema.tenants.$inferSelect,
-  | 'canonicalRootUrl'
   | 'currency'
   | 'domain'
   | 'id'
@@ -44,7 +43,6 @@ const expectGlobalAdminTenantRows = async (
   tenant: GlobalAdminTenantDocRow,
 ) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
-  await expect(page.getByText('Canonical root URL').first()).toBeVisible();
   await expect(page.getByText('Tenant ID').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
   await expect(page.getByText('Locale').first()).toBeVisible();
@@ -52,7 +50,6 @@ const expectGlobalAdminTenantRows = async (
   await expect(page.getByText('Timezone').first()).toBeVisible();
   await expect(page.getByText('Stripe account').first()).toBeVisible();
   await expect(page.getByText(tenant.domain).first()).toBeVisible();
-  await expect(page.getByText(tenant.canonicalRootUrl).first()).toBeVisible();
   await expect(page.getByText(tenant.id).first()).toBeVisible();
   await expect(page.getByText(tenant.theme).first()).toBeVisible();
   await expect(page.getByText(tenant.locale).first()).toBeVisible();
@@ -77,9 +74,6 @@ const tenantPrimaryDomainInput = (page: Page) =>
   tenantForm(page).locator('input').nth(1);
 
 const tenantStripeAccountInput = (page: Page) =>
-  tenantForm(page).locator('input').nth(3);
-
-const tenantCanonicalRootUrlInput = (page: Page) =>
   tenantForm(page).locator('input').nth(2);
 
 const expectGlobalAdminTenantFormSurface = async (page: Page) => {
@@ -88,7 +82,7 @@ const expectGlobalAdminTenantFormSurface = async (page: Page) => {
   ).toBeVisible();
   await expect(
     page.getByText(
-      'One active primary domain and its canonical root URL are managed here.',
+      'One active primary domain is managed here; its secure HTTPS origin is derived from the normalized host.',
     ),
   ).toBeVisible();
   await expect(
@@ -103,7 +97,11 @@ const expectGlobalAdminTenantFormSurface = async (page: Page) => {
   ).toBeVisible();
   await expect(tenantNameInput(page)).toBeVisible();
   await expect(tenantPrimaryDomainInput(page)).toBeVisible();
-  await expect(tenantCanonicalRootUrlInput(page)).toBeVisible();
+  await expect(
+    page.getByText(
+      'Checkout returns and transactional links use the secure HTTPS origin derived from this normalized domain.',
+    ),
+  ).toBeVisible();
   await expect(tenantForm(page).getByRole('combobox')).toHaveCount(4);
   await expect(tenantStripeAccountInput(page)).toBeVisible();
 };
@@ -119,7 +117,6 @@ test('Review global tenant administration @admin @globalAdmin', async ({
     throw new Error('Expected generated global-admin docs tenant');
   }
   const createdTenantDomain = `docs-created-${getId().slice(0, 8)}.example.test`;
-  const createdTenantCanonicalRootUrl = `https://${createdTenantDomain}`;
   const createdTenantName = 'Documentation Section';
 
   try {
@@ -181,7 +178,6 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     ).toBeDisabled();
     await tenantNameInput(page).fill(createdTenantName);
     await tenantPrimaryDomainInput(page).fill('section.example.org/path');
-    await tenantCanonicalRootUrlInput(page).fill('https://section.example.org');
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -191,14 +187,10 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await tenantPrimaryDomainInput(page).fill(documentedTenant.domain);
-    await tenantCanonicalRootUrlInput(page).fill(
-      documentedTenant.canonicalRootUrl,
-    );
     await page.getByRole('button', { name: 'Create tenant' }).click();
     await expect(page.getByText('Tenant domain already exists')).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await tenantPrimaryDomainInput(page).fill(createdTenantDomain);
-    await tenantCanonicalRootUrlInput(page).fill(createdTenantCanonicalRootUrl);
     await expect(
       page.getByRole('button', { name: 'Create tenant' }),
     ).toBeEnabled();
@@ -218,7 +210,6 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     }
     expect(createdTenant).toEqual(
       expect.objectContaining({
-        canonicalRootUrl: createdTenantCanonicalRootUrl,
         currency: 'EUR',
         domain: createdTenantDomain,
         locale: 'en-GB',
@@ -252,8 +243,8 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     ).toBeVisible();
     await expectGlobalAdminTenantRows(page, createdTenant);
     await expect(
-      page.getByRole('link', { name: 'Open canonical URL' }),
-    ).toHaveAttribute('href', createdTenantCanonicalRootUrl);
+      page.getByRole('link', { name: 'Open tenant' }),
+    ).toHaveAttribute('href', `https://${createdTenantDomain}`);
     await expect(
       page.getByRole('link', { name: 'Edit tenant' }),
     ).toHaveAttribute('href', `${reviewTenantHref}/edit`);
@@ -272,9 +263,6 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     await expect(tenantNameInput(page)).toHaveValue(createdTenant.name);
     await expect(tenantPrimaryDomainInput(page)).toHaveValue(
       createdTenantDomain,
-    );
-    await expect(tenantCanonicalRootUrlInput(page)).toHaveValue(
-      createdTenantCanonicalRootUrl,
     );
     await expect(tenantStripeAccountInput(page)).toHaveValue(
       createdTenant.stripeAccountId ?? '',
@@ -296,7 +284,6 @@ Global admins can review, create, and edit tenants from the **Global admin** are
     });
     expect(updatedTenant).toEqual(
       expect.objectContaining({
-        canonicalRootUrl: createdTenant.canonicalRootUrl,
         domain: createdTenant.domain,
         id: createdTenant.id,
         name: updatedTenantName,
@@ -307,9 +294,9 @@ Global admins can review, create, and edit tenants from the **Global admin** are
       body: `
 ## Current relaunch surface
 
-The current global-admin page is a searchable tenant list with tenant creation, tenant editing, and a tenant detail review. Each entry shows the tenant name, primary domain, canonical root URL, tenant id, theme, locale, currency, timezone, and Stripe account state plus connected account id for support and operational review. The tenant detail page repeats the operational fields, links to the edit form, and provides an external link to open the canonical root URL.
+The current global-admin page is a searchable tenant list with tenant creation, tenant editing, and a tenant detail review. Each entry shows the tenant name, primary domain, tenant id, theme, locale, currency, timezone, and Stripe account state plus connected account id for support and operational review. The tenant detail page repeats the operational fields, links to the edit form, and provides an external link to open the tenant at the secure HTTPS origin derived from its normalized primary domain.
 
-Tenant create/edit manages the one active primary domain, the matching HTTPS canonical root URL, name, theme, locale, currency, timezone, and connected Stripe account id. The server normalizes primary domains to a single-host value, rejects duplicates, and rejects canonical roots with a different host or any path, query, fragment, credentials, insecure scheme, or non-default port. Transactional links and Stripe return URLs use this persisted canonical origin rather than request headers. The generated journey creates a temporary tenant, reads the created row back from the database, saves a tenant-name edit on that temporary tenant, verifies the saved row, and cleans it up after the doc run. The create/edit forms show the relaunch tenant scope directly: one active primary domain and its canonical root URL are managed here, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
+Tenant create/edit manages the one active primary domain, name, theme, locale, currency, timezone, and connected Stripe account id. The server normalizes primary domains to a single-host value and rejects duplicates, paths, queries, fragments, credentials, and non-default ports. Transactional links and Stripe return URLs use the secure HTTPS origin derived from this normalized domain rather than request headers. The generated journey creates a temporary tenant, reads the created row back from the database, saves a tenant-name edit on that temporary tenant, verifies the saved row, and cleans it up after the doc run. The create/edit forms show the relaunch tenant scope directly: one active primary domain is managed here and its HTTPS origin is derived, custom-domain verification and multi-domain automation are deferred, and tenant-admin impersonation is not available in the current relaunch surface.
 
 The create journey also checks the one-domain guardrails before saving: domains with paths are rejected in the form before mutation, and duplicate primary domains return a visible error while keeping the admin on the create page.
 `,

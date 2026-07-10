@@ -47,7 +47,6 @@ describe('globalAdminHandlers', () => {
             findMany: () =>
               Effect.succeed([
                 {
-                  canonicalRootUrl: 'https://tenant.example.com',
                   currency: 'EUR',
                   domain: 'tenant.example.com',
                   id: 'tenant-1',
@@ -70,7 +69,6 @@ describe('globalAdminHandlers', () => {
 
       expect(tenants).toEqual([
         {
-          canonicalRootUrl: 'https://tenant.example.com',
           currency: 'EUR',
           domain: 'tenant.example.com',
           id: 'tenant-1',
@@ -94,7 +92,6 @@ describe('globalAdminHandlers', () => {
               Effect.succeed(
                 where.id === 'tenant-1'
                   ? {
-                      canonicalRootUrl: 'https://tenant.example.com',
                       currency: 'EUR',
                       domain: 'tenant.example.com',
                       id: 'tenant-1',
@@ -118,7 +115,6 @@ describe('globalAdminHandlers', () => {
       ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(tenant).toEqual({
-        canonicalRootUrl: 'https://tenant.example.com',
         currency: 'EUR',
         domain: 'tenant.example.com',
         id: 'tenant-1',
@@ -318,7 +314,6 @@ describe('globalAdminHandlers', () => {
         returning: () =>
           Effect.succeed([
             {
-              canonicalRootUrl: 'https://section.example.org',
               currency: 'CZK',
               domain: 'section.example.org',
               id: 'tenant-1',
@@ -345,7 +340,6 @@ describe('globalAdminHandlers', () => {
 
       const tenant = yield* globalAdminHandlers['globalAdmin.tenants.create'](
         {
-          canonicalRootUrl: ' https://Section.Example.Org:443 ',
           currency: 'CZK',
           domain: ' https://Section.Example.Org ',
           locale: 'en-GB',
@@ -358,7 +352,6 @@ describe('globalAdminHandlers', () => {
       ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(capturedInsert).toMatchObject({
-        canonicalRootUrl: 'https://section.example.org',
         currency: 'CZK',
         domain: 'section.example.org',
         locale: 'en-GB',
@@ -368,7 +361,6 @@ describe('globalAdminHandlers', () => {
         timezone: 'Europe/Prague',
       });
       expect(tenant).toMatchObject({
-        canonicalRootUrl: 'https://section.example.org',
         domain: 'section.example.org',
         name: 'Example Section',
         stripeAccountId: 'acct_123',
@@ -394,7 +386,6 @@ describe('globalAdminHandlers', () => {
 
         const error = yield* globalAdminHandlers['globalAdmin.tenants.create'](
           {
-            canonicalRootUrl: 'https://tenant.example.com',
             currency: 'EUR',
             domain: 'Tenant.Example.com',
             locale: 'en-GB',
@@ -418,7 +409,6 @@ describe('globalAdminHandlers', () => {
         returning: () =>
           Effect.succeed([
             {
-              canonicalRootUrl: 'https://tenant.example.com',
               currency: 'EUR',
               domain: 'tenant.example.com',
               id: 'tenant-1',
@@ -446,7 +436,6 @@ describe('globalAdminHandlers', () => {
 
       const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
         {
-          canonicalRootUrl: 'https://tenant.example.com',
           currency: 'EUR',
           domain: 'tenant.example.com',
           id: 'tenant-1',
@@ -460,7 +449,6 @@ describe('globalAdminHandlers', () => {
       ).pipe(Effect.provide(provideDatabase(database)));
 
       expect(capturedUpdate).toMatchObject({
-        canonicalRootUrl: 'https://tenant.example.com',
         domain: 'tenant.example.com',
         name: 'Tenant',
         stripeAccountId: null,
@@ -486,7 +474,6 @@ describe('globalAdminHandlers', () => {
 
         const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
-            canonicalRootUrl: 'https://tenant.example.com',
             currency: 'EUR',
             domain: 'Tenant.Example.com',
             id: 'tenant-1',
@@ -514,7 +501,6 @@ describe('globalAdminHandlers', () => {
 
       const error = yield* globalAdminHandlers['globalAdmin.tenants.create'](
         {
-          canonicalRootUrl: 'https://section.example.org',
           currency: 'EUR',
           domain: 'section.example.org/path',
           locale: 'en-GB',
@@ -528,42 +514,5 @@ describe('globalAdminHandlers', () => {
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe('Invalid tenant settings');
     }),
-  );
-
-  it.effect(
-    'rejects mismatched canonical roots before querying or mutating tenants',
-    () =>
-      Effect.gen(function* () {
-        const database = {
-          insert: () => {
-            throw new Error('database should not be touched');
-          },
-          query: {
-            tenants: {
-              findFirst: () =>
-                Effect.fail(new Error('database should not be touched')),
-            },
-          },
-        };
-
-        const error = yield* globalAdminHandlers['globalAdmin.tenants.create'](
-          {
-            canonicalRootUrl: 'https://attacker.example',
-            currency: 'EUR',
-            domain: 'section.example.org',
-            locale: 'en-GB',
-            name: 'Section',
-            theme: 'evorto',
-            timezone: 'Europe/Berlin',
-          },
-          { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
-
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe('Invalid tenant settings');
-        expect(error.reason).toBe(
-          'Canonical root URL must match the primary domain',
-        );
-      }),
   );
 });

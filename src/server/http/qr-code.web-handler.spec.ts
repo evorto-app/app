@@ -8,7 +8,6 @@ import { Database } from '../../db';
 import { handleQrRegistrationCodeWebRequest } from './qr-code.web-handler';
 
 const tenant = {
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: undefined,
   discountProviders: {

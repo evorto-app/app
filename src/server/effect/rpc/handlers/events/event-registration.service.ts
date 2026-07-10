@@ -85,12 +85,10 @@ export const isUserEligibleForRegistrationOption = ({
 
 const resolveRegistrationPublicOrigin = ({
   baseUrl,
-  canonicalRootUrl,
   domain,
   nodeEnvironment,
 }: {
   baseUrl: string | undefined;
-  canonicalRootUrl: string;
   domain: string;
   nodeEnvironment: string | undefined;
 }) =>
@@ -98,12 +96,11 @@ const resolveRegistrationPublicOrigin = ({
     catch: (cause) =>
       new EventRegistrationInternalError({
         cause,
-        message: 'Invalid tenant canonical root URL configuration',
+        message: 'Invalid tenant domain configuration',
       }),
     try: () =>
       resolveTenantPublicOrigin({
         baseUrl,
-        canonicalRootUrl,
         nodeEnvironment,
         primaryDomain: domain,
       }),
@@ -170,7 +167,6 @@ interface ApproveManualRegistrationArguments {
   registrationId: string;
   tenant: Pick<
     Tenant,
-    | 'canonicalRootUrl'
     | 'currency'
     | 'domain'
     | 'emailSenderEmail'
@@ -197,10 +193,7 @@ interface RegisterForEventArguments {
   guestCount: number;
   registrationOptionId: string;
   tenant: Partial<Pick<Tenant, 'maxActiveRegistrationsPerUser'>> &
-    Pick<
-      Tenant,
-      'canonicalRootUrl' | 'currency' | 'domain' | 'id' | 'stripeAccountId'
-    >;
+    Pick<Tenant, 'currency' | 'domain' | 'id' | 'stripeAccountId'>;
   user: Pick<User, 'email' | 'id' | 'roleIds'>;
 }
 
@@ -360,7 +353,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         );
         const publicOrigin = yield* resolveRegistrationPublicOrigin({
           baseUrl: Option.getOrUndefined(serverEnvironment.BASE_URL),
-          canonicalRootUrl: tenant.canonicalRootUrl,
           domain: tenant.domain,
           nodeEnvironment: Option.getOrUndefined(serverEnvironment.NODE_ENV),
         });
@@ -930,7 +922,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         );
         const publicOrigin = yield* resolveRegistrationPublicOrigin({
           baseUrl: Option.getOrUndefined(serverEnvironment.BASE_URL),
-          canonicalRootUrl: tenant.canonicalRootUrl,
           domain: tenant.domain,
           nodeEnvironment: Option.getOrUndefined(serverEnvironment.NODE_ENV),
         });

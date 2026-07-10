@@ -10,7 +10,6 @@ import {
 import { taxRateHandlers } from './tax-rates.handlers';
 
 const tenant = {
-  canonicalRootUrl: 'https://tenant.example.com',
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {

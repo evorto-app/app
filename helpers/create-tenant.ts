@@ -6,7 +6,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { tenants } from '../src/db/schema';
-import { normalizeTenantCanonicalRootUrl } from '../src/shared/tenant-origin';
+import { normalizeTenantDomain } from '../src/shared/tenant-origin';
 import { getId } from './get-id';
 import { usersToAuthenticate } from './user-data';
 
@@ -19,16 +19,11 @@ export const createTenant = async (
   tenantData?: Partial<InferInsertModel<typeof schema.tenants>>,
 ) => {
   const t0 = Date.now();
-  const domain = tenantData?.domain ?? createId();
-  const canonicalRootUrl = normalizeTenantCanonicalRootUrl(
-    tenantData?.canonicalRootUrl ?? `https://${domain}`,
-    domain,
-  );
+  const domain = normalizeTenantDomain(tenantData?.domain ?? createId());
   const tenant = await database
     .insert(tenants)
     .values({
       ...tenantData,
-      canonicalRootUrl,
       domain,
       id: getId(),
       name: tenantData?.name ?? 'ESN Murnau',
