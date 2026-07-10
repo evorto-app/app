@@ -788,6 +788,7 @@ test('invalid checkout bindings and stale state leave registrations, payments, a
       id: transactionId,
       method: 'stripe',
       status: isTransactionRace ? 'successful' : 'pending',
+      stripeAccountId,
       stripeCheckoutSessionId: checkoutSessionId,
       stripeCheckoutUrl:
         'https://checkout.stripe.com/c/pay/' + checkoutSessionId,

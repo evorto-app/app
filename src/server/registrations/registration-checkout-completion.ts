@@ -18,6 +18,9 @@ import { finalizeRegistrationTransferCheckout } from './registration-transfer-fi
 
 const initialCheckoutReconcileDelayMs = 5000;
 
+export type RegistrationCheckoutCompletionErrorKind =
+  'internal' | 'invalidBinding' | 'stateConflict';
+
 export interface RegistrationCheckoutCompletionIdentity {
   readonly registrationId: string;
   readonly stripeAccountId: string;
@@ -25,7 +28,6 @@ export interface RegistrationCheckoutCompletionIdentity {
   readonly tenantId: string;
   readonly transactionId: string;
 }
-
 export type RegistrationCheckoutCompletionStatus =
   'alreadyCompleted' | 'alreadyFinalized' | 'compensationQueued' | 'finalized';
 
@@ -33,6 +35,7 @@ export class RegistrationCheckoutCompletionError extends Schema.TaggedErrorClass
   'RegistrationCheckoutCompletionError',
   {
     cause: Schema.optional(Schema.Defect()),
+    kind: Schema.Literals(['internal', 'invalidBinding', 'stateConflict']),
     message: Schema.String,
     registrationId: Schema.String,
     transactionId: Schema.String,
@@ -43,19 +46,39 @@ export const registrationCheckoutInitialReconcileAt = (
   now = new Date(),
 ): Date => new Date(now.getTime() + initialCheckoutReconcileDelayMs);
 
-const failCompletion = (
+const failCompletionWithKind = (
   input: RegistrationCheckoutCompletionIdentity,
+  kind: RegistrationCheckoutCompletionErrorKind,
   message: string,
   cause?: unknown,
 ) =>
   Effect.fail(
     new RegistrationCheckoutCompletionError({
       ...(cause !== undefined && { cause }),
+      kind,
       message,
       registrationId: input.registrationId,
       transactionId: input.transactionId,
     }),
   );
+
+const failCompletion = (
+  input: RegistrationCheckoutCompletionIdentity,
+  message: string,
+  cause?: unknown,
+) => failCompletionWithKind(input, 'internal', message, cause);
+
+const failInvalidBinding = (
+  input: RegistrationCheckoutCompletionIdentity,
+  message: string,
+  cause?: unknown,
+) => failCompletionWithKind(input, 'invalidBinding', message, cause);
+
+const failStateConflict = (
+  input: RegistrationCheckoutCompletionIdentity,
+  message: string,
+  cause?: unknown,
+) => failCompletionWithKind(input, 'stateConflict', message, cause);
 
 export const registrationCheckoutPaymentIntentId = (
   session: Stripe.Checkout.Session,
@@ -157,13 +180,19 @@ export const completePaidRegistrationCheckout = Effect.fn(
     session.status !== 'complete' ||
     session.payment_status !== 'paid'
   ) {
-    return yield* failCompletion(
+    return yield* failInvalidBinding(
       input,
       'Registration Checkout is not the exact completed and paid session',
     );
   }
 
   const paymentIntentId = registrationCheckoutPaymentIntentId(session);
+  if (!paymentIntentId) {
+    return yield* failInvalidBinding(
+      input,
+      'Registration Checkout payment intent is missing',
+    );
+  }
   const preflight = yield* Database.use((database) =>
     Effect.gen(function* () {
       const claims = yield* database
@@ -273,19 +302,19 @@ export const completePaidRegistrationCheckout = Effect.fn(
     }),
   );
   if (!preflight) {
-    return yield* failCompletion(
+    return yield* failInvalidBinding(
       input,
       'Registration Checkout claim ownership does not match persisted state',
     );
   }
   if (preflight.type === 'ownershipMismatch') {
-    return yield* failCompletion(
+    return yield* failInvalidBinding(
       input,
       'Registration Checkout metadata ownership does not match persisted state',
     );
   }
   if (preflight.type === 'paymentMismatch') {
-    return yield* failCompletion(
+    return yield* failInvalidBinding(
       input,
       'Registration Checkout amount or currency does not match persisted payment terms',
     );
@@ -300,38 +329,37 @@ export const completePaidRegistrationCheckout = Effect.fn(
   const inlineChargeId = latestChargeId(session.payment_intent);
   const stripeChargeId =
     inlineChargeId ??
-    (paymentIntentId
-      ? yield* Effect.gen(function* () {
-          const stripe = yield* StripeClient;
-          return yield* Effect.promise(() =>
-            stripe.paymentIntents.retrieve(
-              paymentIntentId,
-              { expand: ['latest_charge'] },
-              { stripeAccount: input.stripeAccountId },
-            ),
-          ).pipe(
-            Effect.catchDefect((cause) =>
-              isStripeMissingResourceError(cause)
-                ? Effect.logWarning(
-                    'Stripe payment intent missing during checkout completion',
-                  ).pipe(
-                    Effect.annotateLogs({
-                      paymentIntentId,
-                      sessionId: session.id,
-                      tenantId: input.tenantId,
-                    }),
-                    Effect.as<null | Stripe.PaymentIntent>(null),
-                  )
-                : failCompletion(
-                    input,
-                    'Stripe payment intent could not be resolved during checkout completion',
-                    cause,
-                  ),
-            ),
-            Effect.map((paymentIntent) => latestChargeId(paymentIntent)),
-          );
-        })
-      : undefined);
+    (yield* Effect.gen(function* () {
+      const stripe = yield* StripeClient;
+      const paymentIntent = yield* Effect.promise(() =>
+        stripe.paymentIntents.retrieve(
+          paymentIntentId,
+          { expand: ['latest_charge'] },
+          { stripeAccount: input.stripeAccountId },
+        ),
+      ).pipe(
+        Effect.catchDefect((cause) =>
+          isStripeMissingResourceError(cause)
+            ? failInvalidBinding(
+                input,
+                'Stripe payment intent is missing during checkout completion',
+                cause,
+              )
+            : failCompletion(
+                input,
+                'Stripe payment intent could not be resolved during checkout completion',
+                cause,
+              ),
+        ),
+      );
+      if (paymentIntent.id !== paymentIntentId) {
+        return yield* failInvalidBinding(
+          input,
+          'Stripe payment intent ownership does not match Checkout',
+        );
+      }
+      return latestChargeId(paymentIntent);
+    }));
 
   const notificationEventUrl =
     preflight.type === 'direct'
@@ -343,6 +371,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
             (cause) =>
               new RegistrationCheckoutCompletionError({
                 cause,
+                kind: 'internal',
                 message: 'Registration Checkout notification URL is invalid',
                 registrationId: input.registrationId,
                 transactionId: input.transactionId,
@@ -371,7 +400,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
           .for('update');
         const lockedRegistration = lockedRegistrations[0];
         if (!lockedRegistration) {
-          return yield* failCompletion(
+          return yield* failStateConflict(
             input,
             'Registration Checkout registration no longer exists',
           );
@@ -402,7 +431,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
           .for('update');
         const lockedTransaction = lockedTransactions[0];
         if (!lockedTransaction) {
-          return yield* failCompletion(
+          return yield* failStateConflict(
             input,
             'Registration Checkout transaction ownership changed',
           );
@@ -417,7 +446,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
             sessionCurrency: session.currency,
           })
         ) {
-          return yield* failCompletion(
+          return yield* failStateConflict(
             input,
             'Registration Checkout amount or currency ownership changed',
           );
@@ -427,7 +456,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
           paymentIntentId &&
           lockedTransaction.paymentIntentId !== paymentIntentId
         ) {
-          return yield* failCompletion(
+          return yield* failStateConflict(
             input,
             'Registration Checkout payment intent ownership changed',
           );
@@ -436,7 +465,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
           lockedTransaction.status !== 'pending' &&
           lockedTransaction.status !== 'successful'
         ) {
-          return yield* failCompletion(
+          return yield* failStateConflict(
             input,
             'Paid Registration Checkout transaction is no longer completable',
           );
@@ -448,6 +477,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
             .set({
               status: 'successful',
               stripeChargeId,
+              stripeCheckoutCancellationRequestedAt: null,
               stripeCheckoutReconcileLastError: null,
               stripeCheckoutReconcileLeaseExpiresAt: null,
               stripeCheckoutReconcileLeaseId: null,
@@ -473,7 +503,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
             )
             .returning({ id: transactions.id });
           if (completedTransactions.length !== 1) {
-            return yield* failCompletion(
+            return yield* failStateConflict(
               input,
               'Locked pending registration transaction could not be completed',
             );
@@ -490,7 +520,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
           return transferFinalization;
         }
         if (preflight.type === 'transfer') {
-          return yield* failCompletion(
+          return yield* failStateConflict(
             input,
             'Registration transfer mapping changed during Checkout completion',
           );
@@ -503,7 +533,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
           return 'alreadyCompleted' as const;
         }
         if (lockedRegistration.status !== 'PENDING') {
-          return yield* failCompletion(
+          return yield* failStateConflict(
             input,
             'Paid Registration Checkout registration is no longer pending',
           );
@@ -526,7 +556,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
           });
         const updatedRegistration = updatedRegistrations[0];
         if (!updatedRegistration) {
-          return yield* failCompletion(
+          return yield* failStateConflict(
             input,
             'Locked pending registration could not be confirmed',
           );
@@ -556,7 +586,7 @@ export const completePaidRegistrationCheckout = Effect.fn(
           preflight.notificationContext.registrationOptionId !==
             updatedRegistration.registrationOptionId
         ) {
-          return yield* failCompletion(
+          return yield* failStateConflict(
             input,
             'Confirmed registration notification context is stale',
           );

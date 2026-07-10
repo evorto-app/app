@@ -751,6 +751,10 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
       fixture,
       now,
     );
+    await database
+      .update(transactions)
+      .set({ stripeCheckoutCancellationRequestedAt: now })
+      .where(eq(transactions.id, fixture.transactionId));
     const stripePaymentIntentId = `pi_${fixture.transactionId}`;
     const stripeChargeId = `ch_${fixture.transactionId}`;
     const stripe = new Stripe('sk_test_123');
@@ -811,6 +815,7 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
       expect.objectContaining({
         status: 'successful',
         stripeChargeId,
+        stripeCheckoutCancellationRequestedAt: null,
         stripeCheckoutReconcileLeaseId: null,
         stripeCheckoutReconcileNextAt: null,
         stripePaymentIntentId,
