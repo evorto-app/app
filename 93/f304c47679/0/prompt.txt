@@ -1,0 +1,1 @@
+Add to our docs as a general guideline, tests HAVE TO pass ENTIRELY locally before a CI run is even attempted.
