@@ -18,11 +18,7 @@ import { RuntimeConfig } from '../config/runtime-config';
 const SESSION_COOKIE_NAME = 'appSession';
 
 export interface AuthSession {
-  accessToken: string;
   authData: Record<string, unknown>;
-  expiresAt: number;
-  idToken?: string;
-  refreshToken?: string;
 }
 
 interface AuthStoreOptions {
@@ -270,7 +266,7 @@ const createAuth0Client = (request: HttpServerRequest.HttpServerRequest) =>
     });
   });
 
-const toAuthSession = (sessionData: SessionData | undefined) => {
+export const toAuthSession = (sessionData: SessionData | undefined) => {
   if (!sessionData) {
     return;
   }
@@ -280,14 +276,13 @@ const toAuthSession = (sessionData: SessionData | undefined) => {
     return;
   }
 
-  const authData = toRecord(sessionData.user) ?? {};
+  const authData = toRecord(sessionData.user);
+  if (!authData || !asString(authData['sub'])) {
+    return;
+  }
 
   return {
-    accessToken: primaryTokenSet.accessToken,
     authData,
-    expiresAt: primaryTokenSet.expiresAt * 1000,
-    ...(sessionData.idToken && { idToken: sessionData.idToken }),
-    ...(sessionData.refreshToken && { refreshToken: sessionData.refreshToken }),
   };
 };
 
@@ -332,12 +327,10 @@ export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
       auth0Client.getSession(storeOptions),
     );
 
-    const session = toAuthSession(sessionData);
-    if (!session || session.expiresAt <= Date.now()) {
-      return;
-    }
-
-    return session;
+    // The SDK has already validated the encrypted application session here.
+    // OAuth access-token expiry is independent of that session lifetime; use
+    // ServerClient.getAccessToken() if a downstream integration needs a token.
+    return toAuthSession(sessionData);
   });
 
 export const handleLoginRequest = (
