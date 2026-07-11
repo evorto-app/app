@@ -178,7 +178,9 @@ test('create template with reusable add-ons and registration questions', async (
 
   await page.getByRole('button', { name: 'Add question' }).click();
   const questionEditor = page.locator('app-template-question-editor').first();
-  await questionEditor.getByLabel('Question').fill(questionTitle);
+  await questionEditor
+    .getByRole('textbox', { name: 'Question', exact: true })
+    .fill(questionTitle);
   await questionEditor.getByLabel('Ask during').click();
   await page
     .getByRole('option', { name: 'Participant registration', exact: true })

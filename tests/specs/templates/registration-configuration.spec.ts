@@ -12,6 +12,18 @@ test.setTimeout(120_000);
 
 test.use({ storageState: adminStateFile });
 
+const addEditor = async (
+  page: Page,
+  buttonName: string,
+  selector: string,
+): Promise<Locator> => {
+  const editors = page.locator(selector);
+  const previousCount = await editors.count();
+  await page.getByRole('button', { name: buttonName, exact: true }).click();
+  await expect(editors).toHaveCount(previousCount + 1);
+  return editors.nth(previousCount);
+};
+
 const templateOptionEditorByTitle = async (
   page: Page,
   title: string,
@@ -146,10 +158,11 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
   await expect(page.getByTestId('template-addons-section')).toBeVisible();
 
   const addedOptionTitle = `Volunteers ${getId().slice(0, 6)}`;
-  await page.getByRole('button', { name: 'Add registration option' }).click();
-  const addedOptionEditor = page
-    .locator('app-template-registration-option-editor')
-    .last();
+  const addedOptionEditor = await addEditor(
+    page,
+    'Add registration option',
+    'app-template-registration-option-editor',
+  );
   await addedOptionEditor
     .getByLabel('Registration option name')
     .fill(addedOptionTitle);
@@ -166,8 +179,11 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
   );
 
   const addOnTitle = `Template equipment ${getId().slice(0, 6)}`;
-  await page.getByRole('button', { name: 'Add add-on' }).click();
-  const addOnEditor = page.locator('app-template-addon-editor').last();
+  const addOnEditor = await addEditor(
+    page,
+    'Add add-on',
+    'app-template-addon-editor',
+  );
   await addOnEditor.getByLabel('Add-on name').fill(addOnTitle);
   await addOnEditor.getByLabel('Available quantity').fill('12');
   await addOnEditor.getByLabel('Maximum per user').fill('3');
@@ -178,9 +194,14 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
   await addOnEditor.getByLabel('Optional purchase quantity').nth(1).fill('3');
 
   const questionTitle = `Accessibility ${getId().slice(0, 6)}`;
-  await page.getByRole('button', { name: 'Add question' }).click();
-  const questionEditor = page.locator('app-template-question-editor').last();
-  await questionEditor.getByLabel('Question').fill(questionTitle);
+  const questionEditor = await addEditor(
+    page,
+    'Add question',
+    'app-template-question-editor',
+  );
+  await questionEditor
+    .getByRole('textbox', { name: 'Question', exact: true })
+    .fill(questionTitle);
 
   const saveTemplate = page.getByTestId('save-template-graph');
   await expect(saveTemplate).toBeEnabled();
@@ -355,12 +376,14 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
   await expect(page.getByTestId('event-addons-section')).toBeVisible();
 
   const addedOptionTitle = `Event helpers ${getId().slice(0, 6)}`;
-  await page.getByRole('button', { name: 'Add registration option' }).click();
-  await page
-    .locator('app-event-registration-option-editor')
-    .last()
-    .getByLabel('Option name')
-    .fill(addedOptionTitle);
+  const addedOptionEditor = await addEditor(
+    page,
+    'Add registration option',
+    'app-event-registration-option-editor',
+  );
+  const addedOptionName = addedOptionEditor.getByLabel('Option name');
+  await expect(addedOptionName).toHaveValue('New registration option');
+  await addedOptionName.fill(addedOptionTitle);
   const organizerEditor = await eventOptionEditorByTitle(
     page,
     initialOrganizer.title,
@@ -373,8 +396,11 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
   );
 
   const addOnTitle = `Event equipment ${getId().slice(0, 6)}`;
-  await page.getByRole('button', { name: 'Add add-on' }).click();
-  const addOnEditor = page.locator('app-event-addon-editor').last();
+  const addOnEditor = await addEditor(
+    page,
+    'Add add-on',
+    'app-event-addon-editor',
+  );
   await addOnEditor.getByLabel('Add-on name').fill(addOnTitle);
   await addOnEditor.getByLabel('Total stock').fill('12');
   await addOnEditor.getByLabel('Maximum optional units per user').fill('3');
