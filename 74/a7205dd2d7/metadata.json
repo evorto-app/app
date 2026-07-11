@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "74a7205dd2d7",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/security-findings-remediation.md",
+    "src/app/shared/components/controls/role-select/role-select.component.html",
+    "src/app/shared/components/controls/role-select/role-select.component.spec.ts",
+    "src/app/shared/components/controls/role-select/role-select.component.ts",
+    "src/server.ts",
+    "src/server/effect/rpc/handlers/events/event-registration.service.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts",
+    "src/server/effect/rpc/handlers/events/events-registration.handlers.ts",
+    "src/server/http/server-response.middleware.spec.ts",
+    "src/server/http/server-response.middleware.ts",
+    "tests/specs/events/events.test.ts",
+    "tests/support/utils/manual-approval-scenario.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/74/a7205dd2d7/0/metadata.json",
+      "transcript": "/74/a7205dd2d7/0/full.jsonl",
+      "content_hash": "/74/a7205dd2d7/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 622150,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 50704384,
+    "output_tokens": 77962,
+    "api_call_count": 347
+  }
+}
