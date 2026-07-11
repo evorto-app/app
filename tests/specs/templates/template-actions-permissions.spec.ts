@@ -24,7 +24,7 @@ test('template pages present a deliberate read-only experience without write cap
       'templates:editAll',
       'templates:manageCategories',
     ],
-    roleName: 'Admin',
+    roleName: ['Admin', 'Section member'],
   });
 
   await page.goto('/templates');

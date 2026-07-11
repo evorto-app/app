@@ -24,35 +24,57 @@ const addEditor = async (
   return editors.nth(previousCount);
 };
 
+const optionEditorByTitle = async (
+  page: Page,
+  editorSelector: string,
+  inputLabel: string,
+  title: string,
+  kind: string,
+): Promise<Locator> => {
+  const editors = page.locator(editorSelector);
+  const inputs = editors.getByLabel(inputLabel, { exact: true });
+  let matchingIndex = -1;
+
+  await expect
+    .poll(
+      async () => {
+        matchingIndex = (await inputs.allInputValues()).indexOf(title);
+        return matchingIndex;
+      },
+      {
+        message: `Expected ${kind} registration option "${title}"`,
+        timeout: 15_000,
+      },
+    )
+    .toBeGreaterThanOrEqual(0);
+
+  return editors.nth(matchingIndex);
+};
+
 const templateOptionEditorByTitle = async (
   page: Page,
   title: string,
 ): Promise<Locator> => {
-  const editors = page.locator('app-template-registration-option-editor');
-  for (let index = 0; index < (await editors.count()); index += 1) {
-    const editor = editors.nth(index);
-    if (
-      (await editor.getByLabel('Registration option name').inputValue()) ===
-      title
-    ) {
-      return editor;
-    }
-  }
-  throw new Error(`Expected template registration option "${title}"`);
+  return optionEditorByTitle(
+    page,
+    'app-template-registration-option-editor',
+    'Registration option name',
+    title,
+    'template',
+  );
 };
 
 const eventOptionEditorByTitle = async (
   page: Page,
   title: string,
 ): Promise<Locator> => {
-  const editors = page.locator('app-event-registration-option-editor');
-  for (let index = 0; index < (await editors.count()); index += 1) {
-    const editor = editors.nth(index);
-    if ((await editor.getByLabel('Option name').inputValue()) === title) {
-      return editor;
-    }
-  }
-  throw new Error(`Expected event registration option "${title}"`);
+  return optionEditorByTitle(
+    page,
+    'app-event-registration-option-editor',
+    'Option name',
+    title,
+    'event',
+  );
 };
 
 const confirmTemplateMode = async (
