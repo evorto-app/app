@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "46f8ea35425f",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-11T06:46:40.593948Z",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/specs/profile/tenant-onboarding.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "0903f52c94f8",
+  "checkpoint_transcript_start": 28015,
+  "transcript_lines_at_start": 28015,
+  "token_usage": {
+    "input_tokens": 448356,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 16995840,
+    "output_tokens": 21966,
+    "api_call_count": 90
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-11T06:46:39.808778Z",
+    "agent_lines": 4,
+    "agent_removed": 1,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 4,
+    "total_lines_changed": 5,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
