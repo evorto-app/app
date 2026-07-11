@@ -59,7 +59,19 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          for attempt in 1 2 3; do
+            if bun install --frozen-lockfile; then
+              exit 0
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "::error::Dependency installation failed after 3 attempts"
+              exit 1
+            fi
+            retry_delay_seconds=$((attempt * 15))
+            echo "::warning::Dependency installation attempt ${attempt} failed; retrying in ${retry_delay_seconds}s"
+            sleep "${retry_delay_seconds}"
+          done
 
       - name: Lint without uncommitted fixes
         run: |

@@ -67,4 +67,17 @@ describe('CI quality source', () => {
     expect(source).toMatch(/run: bun run test:unit\n/u);
     expect(source).toContain('bun run build:app');
   });
+
+  it('retries frozen dependency installs in required pull request workflows', () => {
+    for (const sourcePath of [
+      '.github/workflows/e2e-baseline.yml',
+      '.github/workflows/pr-quality.yml',
+    ]) {
+      const source = readSource(sourcePath);
+
+      expect(source).toContain('for attempt in 1 2 3; do');
+      expect(source).toContain('if bun install --frozen-lockfile; then');
+      expect(source).toContain('sleep "${retry_delay_seconds}"');
+    }
+  });
 });
