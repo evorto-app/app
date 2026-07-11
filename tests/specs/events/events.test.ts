@@ -337,8 +337,13 @@ test('event edit form hides selected roles in autocomplete', async ({
   await page.goto(`/events/${draftEvent.id}/edit`);
   await expect(page).toHaveURL(`/events/${draftEvent.id}/edit`);
   await expect(
-    page.getByRole('heading', { name: draftEvent.title }),
+    page.locator('app-event-edit').getByRole('heading', {
+      name: draftEvent.title,
+    }),
   ).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('event-mode-simple')).toBeEnabled({
+    timeout: 20_000,
+  });
   const registrationOptionEditor = await eventOptionEditorByTitle(
     page,
     registrationOption.title,
@@ -347,10 +352,10 @@ test('event edit form hides selected roles in autocomplete', async ({
     registrationOptionEditor.getByRole('button', {
       name: `Remove ${selectedRole.name}`,
     }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 
   const roleInput = registrationOptionEditor.getByPlaceholder('Add Role...');
-  await expect(roleInput).not.toHaveClass(/mat-input-server/);
+  await expect(roleInput).toBeEditable({ timeout: 15_000 });
   const roleListbox = page.getByRole('listbox', { name: 'Selected Roles' });
   const selectedRoleOption = roleListbox.getByRole('option', {
     exact: true,

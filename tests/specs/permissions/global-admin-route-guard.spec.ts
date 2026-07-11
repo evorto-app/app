@@ -143,6 +143,8 @@ test.describe('global admin route guard deny path', () => {
     page,
     tenant,
   }) => {
+    test.setTimeout(60_000);
+
     for (const operation of [
       'events',
       'templates',

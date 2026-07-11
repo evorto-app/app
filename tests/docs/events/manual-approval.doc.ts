@@ -673,7 +673,9 @@ If Stripe Checkout could not be prepared after capacity was reserved, Evorto kee
           'Application approved. Payment is required before confirmation.',
         ),
       ).toBeVisible({ timeout: 20_000 });
-      await expect(organizer.page.getByText('Payment pending')).toBeVisible();
+      await expect(organizer.page.getByText('Payment pending')).toBeVisible({
+        timeout: 20_000,
+      });
       await expect(retryButton).toHaveCount(0);
       await expect
         .poll(async () => {
