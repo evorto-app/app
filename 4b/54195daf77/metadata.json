@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "4b54195daf77",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/specs/templates/registration-configuration.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/4b/54195daf77/0/metadata.json",
+      "transcript": "/4b/54195daf77/0/full.jsonl",
+      "content_hash": "/4b/54195daf77/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 60231,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3962368,
+    "output_tokens": 9143,
+    "api_call_count": 61
+  }
+}
