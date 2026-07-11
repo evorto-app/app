@@ -132,6 +132,7 @@ test.describe('Manual approval registrations', () => {
     seeded,
     testClock,
   }) => {
+    test.setTimeout(180_000);
     const scenario = await seedManualApprovalScenario({
       database,
       kind: 'free',

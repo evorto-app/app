@@ -720,13 +720,29 @@ test('event creation snapshots an advanced template before later page-backed tem
     page,
     sourceTitleBeforeEdit,
   );
-  await sourceOptionEditor
-    .getByLabel('Registration option name')
-    .fill(changedSourceTitle);
   const sourceAddOnEditor = page
     .locator('app-template-addon-editor')
     .filter({ hasText: sourceAddOnTitle });
-  await sourceAddOnEditor.getByLabel('Included quantity').first().fill('4');
+  const sourceMappingEditor = sourceAddOnEditor
+    .getByTestId('template-addon-mapping')
+    .filter({
+      has: page
+        .getByRole('combobox', {
+          name: 'Registration option',
+          exact: true,
+        })
+        .getByText(sourceTitleBeforeEdit, { exact: true }),
+    });
+  await expect(sourceMappingEditor).toHaveCount(1);
+  await sourceMappingEditor
+    .getByRole('spinbutton', {
+      name: 'Included quantity',
+      exact: true,
+    })
+    .fill('4');
+  await sourceOptionEditor
+    .getByLabel('Registration option name')
+    .fill(changedSourceTitle);
   await page.getByTestId('save-template-graph').click();
   await expect(page).toHaveURL(`/templates/${template.id}`, {
     timeout: 15_000,
