@@ -257,7 +257,10 @@ test('a tenant admin publishes a version and is immediately required to re-accep
   try {
     await admin.page.goto('/admin/onboarding');
     await expect(
-      admin.page.getByRole('heading', { name: 'Tenant onboarding' }),
+      admin.page.getByRole('main').getByRole('heading', {
+        level: 1,
+        name: 'Tenant onboarding',
+      }),
     ).toBeVisible();
     await expect(
       admin.page.getByText(
