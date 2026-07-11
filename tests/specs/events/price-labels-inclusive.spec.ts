@@ -21,9 +21,18 @@ const registrationOptionCard = (page: Page, optionTitle: string) =>
   });
 
 const templateOptionCard = (page: Page, optionTitle: string) =>
-  page.locator('.bg-surface').filter({
-    has: page.getByRole('heading', { level: 3, name: optionTitle }),
-  });
+  page
+    .locator('section')
+    .filter({
+      has: page.getByRole('heading', {
+        level: 2,
+        name: 'Registration Options',
+      }),
+    })
+    .locator('.bg-surface')
+    .filter({
+      has: page.getByRole('heading', { level: 3, name: optionTitle }),
+    });
 
 const visiblePrice = (card: Locator, amountInCents: number) =>
   card
