@@ -38,7 +38,15 @@ const optionEditorByTitle = async (
   await expect
     .poll(
       async () => {
-        matchingIndex = (await inputs.allInputValues()).indexOf(title);
+        const inputValues = await inputs.evaluateAll((elements) =>
+          elements.map((element) => {
+            if (!(element instanceof HTMLInputElement)) {
+              throw new Error('Expected a registration option input');
+            }
+            return element.value;
+          }),
+        );
+        matchingIndex = inputValues.indexOf(title);
         return matchingIndex;
       },
       {
