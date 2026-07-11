@@ -176,13 +176,18 @@ test.describe('Register for events', () => {
     await participantRegistrationCard
       .getByRole('button', { name: 'Register' })
       .click();
-    await expect(page.getByText('You are registered')).toBeVisible();
     await waitForActiveRegistration(page);
+    const activeRegistration = page.locator('app-event-active-registration');
+    await expect(
+      activeRegistration.getByText('You are registered', { exact: true }),
+    ).toBeVisible();
     const snackVoucherRow = registrationAddOnRow(page, 'Snack voucher');
     await expect(
-      page
-        .locator('app-event-active-registration')
-        .getByRole('heading', { exact: true, level: 4, name: 'Add-ons' }),
+      activeRegistration.getByRole('heading', {
+        exact: true,
+        level: 4,
+        name: 'Add-ons',
+      }),
     ).toBeVisible();
     await expect(snackVoucherRow).toBeVisible();
     await expect(

@@ -183,13 +183,18 @@ test('registers with a free add-on and required registration question', async ({
       .getByRole('button', { name: 'Register' })
       .click();
 
-    await expect(page.getByText('You are registered')).toBeVisible();
     await waitForRegistrationStatus(page);
+    const activeRegistration = page.locator('app-event-active-registration');
+    await expect(
+      activeRegistration.getByText('You are registered', { exact: true }),
+    ).toBeVisible();
     const snackVoucherRow = registrationAddOnRow(page, 'Snack voucher');
     await expect(
-      page
-        .locator('app-event-active-registration')
-        .getByRole('heading', { exact: true, level: 4, name: 'Add-ons' }),
+      activeRegistration.getByRole('heading', {
+        exact: true,
+        level: 4,
+        name: 'Add-ons',
+      }),
     ).toBeVisible();
     await expect(snackVoucherRow).toBeVisible();
     await expect(
