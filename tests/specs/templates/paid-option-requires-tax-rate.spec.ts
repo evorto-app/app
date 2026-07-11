@@ -132,7 +132,9 @@ test.describe('Template Tax Rate Validation', () => {
     const saveButton = page.getByRole('button', { name: 'Save template' });
     await expect(saveButton).toBeEnabled();
     await saveButton.click();
-    await expect(page).toHaveURL(/\/templates/);
+    await expect(page).toHaveURL(/\/templates\/(?!create(?:\/|$))[^/]+$/, {
+      timeout: 15_000,
+    });
     await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
   });
 });

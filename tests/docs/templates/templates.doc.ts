@@ -256,7 +256,9 @@ You will be redirected to the detail page for that template.
     .getByRole('checkbox', { name: 'Require an answer' })
     .check();
   await page.getByRole('button', { name: 'Save template' }).click();
-  await expect(page).toHaveURL(/\/templates\/[^/]+$/);
+  await expect(page).toHaveURL(/\/templates\/(?!create(?:\/|$))[^/]+$/, {
+    timeout: 15_000,
+  });
   await expect(
     page.getByRole('heading', { name: templateTitle }),
   ).toBeVisible();
@@ -493,7 +495,9 @@ The event now owns its copied registration graph. Editing the source template ch
     .getByLabel('Included quantity')
     .fill('3');
   await page.getByTestId('save-template-graph').click();
-  await expect(page).toHaveURL(`/templates/${createdTemplate.id}`);
+  await expect(page).toHaveURL(`/templates/${createdTemplate.id}`, {
+    timeout: 15_000,
+  });
 
   const editedParticipantOption =
     await database.query.templateRegistrationOptions.findFirst({

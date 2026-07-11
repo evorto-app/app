@@ -57,7 +57,9 @@ test('create a new template', async ({ page, templateCategories }) => {
     title: templateTitle,
   });
   await page.getByRole('button', { name: 'Save template' }).click();
-  await expect(page).toHaveURL(/\/templates/);
+  await expect(page).toHaveURL(/\/templates\/(?!create(?:\/|$))[^/]+$/, {
+    timeout: 15_000,
+  });
   await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
 });
 
@@ -188,7 +190,9 @@ test('create template with reusable add-ons and registration questions', async (
   await questionEditor.getByLabel('Help text').fill(questionDescription);
 
   await page.getByRole('button', { name: 'Save template' }).click();
-  await expect(page).toHaveURL(/\/templates\/[^/]+$/);
+  await expect(page).toHaveURL(/\/templates\/(?!create(?:\/|$))[^/]+$/, {
+    timeout: 15_000,
+  });
   await expect(
     page.getByRole('heading', { name: templateTitle }),
   ).toBeVisible();

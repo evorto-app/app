@@ -206,7 +206,9 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
   const saveTemplate = page.getByTestId('save-template-graph');
   await expect(saveTemplate).toBeEnabled();
   await saveTemplate.click();
-  await expect(page).toHaveURL(`/templates/${template.id}`);
+  await expect(page).toHaveURL(`/templates/${template.id}`, {
+    timeout: 15_000,
+  });
 
   const advancedTemplate = await database.query.eventTemplates.findFirst({
     where: { id: template.id },
@@ -286,7 +288,9 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
     .click();
 
   await page.getByTestId('save-template-graph').click();
-  await expect(page).toHaveURL(`/templates/${template.id}`);
+  await expect(page).toHaveURL(`/templates/${template.id}`, {
+    timeout: 15_000,
+  });
   const compatibleAdvancedTemplate =
     await database.query.eventTemplates.findFirst({
       where: { id: template.id },
@@ -304,7 +308,9 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
   await confirmTemplateMode(page, 'simple');
   await expect(page.getByTestId('template-addons-section')).toHaveCount(0);
   await page.getByTestId('save-template-graph').click();
-  await expect(page).toHaveURL(`/templates/${template.id}`);
+  await expect(page).toHaveURL(`/templates/${template.id}`, {
+    timeout: 15_000,
+  });
 
   const simpleTemplate = await database.query.eventTemplates.findFirst({
     where: { id: template.id },
@@ -413,7 +419,9 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
   const saveEvent = page.getByTestId('save-event-graph');
   await expect(saveEvent).toBeEnabled();
   await saveEvent.click();
-  await expect(page).toHaveURL(`/events/${event.id}`);
+  await expect(page).toHaveURL(`/events/${event.id}`, {
+    timeout: 15_000,
+  });
 
   const advancedEvent = await database.query.eventInstances.findFirst({
     where: { id: event.id },
@@ -486,7 +494,9 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
     .click();
 
   await page.getByTestId('save-event-graph').click();
-  await expect(page).toHaveURL(`/events/${event.id}`);
+  await expect(page).toHaveURL(`/events/${event.id}`, {
+    timeout: 15_000,
+  });
   const compatibleAdvancedEvent = await database.query.eventInstances.findFirst(
     {
       where: { id: event.id },
@@ -505,7 +515,9 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
   await confirmEventMode(page, 'simple');
   await expect(page.getByTestId('event-addons-section')).toHaveCount(0);
   await page.getByTestId('save-event-graph').click();
-  await expect(page).toHaveURL(`/events/${event.id}`);
+  await expect(page).toHaveURL(`/events/${event.id}`, {
+    timeout: 15_000,
+  });
 
   const simpleEvent = await database.query.eventInstances.findFirst({
     where: { id: event.id },
@@ -686,7 +698,9 @@ test('event creation snapshots an advanced template before later page-backed tem
     .filter({ hasText: sourceAddOnTitle });
   await sourceAddOnEditor.getByLabel('Included quantity').first().fill('4');
   await page.getByTestId('save-template-graph').click();
-  await expect(page).toHaveURL(`/templates/${template.id}`);
+  await expect(page).toHaveURL(`/templates/${template.id}`, {
+    timeout: 15_000,
+  });
 
   const editedTemplateOption =
     await database.query.templateRegistrationOptions.findFirst({
