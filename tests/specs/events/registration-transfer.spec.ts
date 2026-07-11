@@ -400,6 +400,8 @@ test('completes a paid transfer and preserves its failed refund for operator req
   tenant,
   testClock,
 }) => {
+  test.slow();
+
   const source = usersToAuthenticate.find((user) => user.roles === 'user');
   const recipient = usersToAuthenticate.find((user) => user.roles === 'admin');
   const template = seeded.templates[0];

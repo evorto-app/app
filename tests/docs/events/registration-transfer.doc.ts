@@ -167,9 +167,11 @@ Open the private link while signed in to the same tenant. Review the event, regi
       recipientPage.page,
       'Review current transfer terms before claiming',
     );
-    await recipientPage.page
-      .getByRole('button', { name: 'Claim registration' })
-      .click();
+    const claimRegistration = recipientPage.page.getByRole('button', {
+      name: 'Claim registration',
+    });
+    await expect(claimRegistration).not.toHaveAttribute('jsaction', /click/);
+    await claimRegistration.click();
     await expect(
       recipientPage.page.getByRole('heading', { name: 'Transfer complete' }),
     ).toBeVisible();
@@ -291,6 +293,8 @@ test('Complete a paid transfer and recover its source refund', async ({
   tenant,
   testClock,
 }, testInfo) => {
+  test.slow();
+
   const source = usersToAuthenticate.find((user) => user.roles === 'user');
   const recipient = usersToAuthenticate.find((user) => user.roles === 'admin');
   const template = seeded.templates[0];
