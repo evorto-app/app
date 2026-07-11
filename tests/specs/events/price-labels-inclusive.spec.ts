@@ -29,6 +29,10 @@ const visiblePrice = (card: Locator, amountInCents: number) =>
   card
     .locator('app-price-with-tax')
     .getByText(priceText(amountInCents), { exact: true });
+const cardRenderTimeoutMs = 15_000;
+
+const expectCardReady = (card: Locator) =>
+  expect(card).toBeVisible({ timeout: cardRenderTimeoutMs });
 
 test.describe('Inclusive price labels', () => {
   test.describe('without a verified discount card', () => {
@@ -59,6 +63,7 @@ test.describe('Inclusive price labels', () => {
       await expect(page).toHaveURL(`/events/${paidEventId}`);
 
       const card = registrationOptionCard(page, paidOption.title);
+      await expectCardReady(card);
       await expect(visiblePrice(card, paidOption.price)).toBeVisible();
       await expect(
         card.getByText(formatInclusiveTaxLabel(taxRate)),
@@ -84,6 +89,7 @@ test.describe('Inclusive price labels', () => {
       await expect(page).toHaveURL(`/events/${freeEventId}`);
 
       const card = registrationOptionCard(page, freeOption.title);
+      await expectCardReady(card);
       await expect(card.locator('app-price-with-tax')).toHaveCount(0);
       await expect(card.getByText('Incl.')).toHaveCount(0);
       await expect(card.getByText('Tax free')).toHaveCount(0);
@@ -123,6 +129,7 @@ test.describe('Inclusive price labels', () => {
         await expect(page).toHaveURL(`/events/${paidEventId}`);
 
         const card = registrationOptionCard(page, paidOption.title);
+        await expectCardReady(card);
         await expect(visiblePrice(card, paidOption.price)).toBeVisible();
         await expect(card.getByText('Tax free')).toBeVisible();
       } finally {
@@ -158,6 +165,7 @@ test.describe('Inclusive price labels', () => {
         await expect(page).toHaveURL(`/events/${paidEventId}`);
 
         const card = registrationOptionCard(page, paidOption.title);
+        await expectCardReady(card);
         await expect(visiblePrice(card, paidOption.price)).toBeVisible();
         await expect(card.getByText('Incl. Tax')).toBeVisible();
       } finally {
@@ -201,6 +209,7 @@ test.describe('Inclusive price labels', () => {
       await expect(page).toHaveURL(`/templates/${paidTemplate.id}`);
 
       const card = templateOptionCard(page, paidOption.title);
+      await expectCardReady(card);
       await expect(visiblePrice(card, paidOption.price)).toBeVisible();
       await expect(
         card.getByText(formatInclusiveTaxLabel(taxRate)),
@@ -239,6 +248,7 @@ test.describe('Inclusive price labels', () => {
       await expect(page).toHaveURL(`/events/${paidEventId}`);
 
       const card = registrationOptionCard(page, paidOption.title);
+      await expectCardReady(card);
       await expect(visiblePrice(card, discountedPrice)).toBeVisible();
       await expect(
         card.getByText(formatInclusiveTaxLabel(taxRate)),
