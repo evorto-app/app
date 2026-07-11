@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "3e655483a6a1",
+  "session_id": "019f4ad9-7c3e-7723-95b1-7f48fec5349a",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-11T02:47:15.200982Z",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/docs/scanning/addon-fulfillment.doc.ts",
+    "tests/specs/scanning/scanner.test.ts",
+    "tests/support/utils/scanner-result-page.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "0903f52c94f8",
+  "checkpoint_transcript_start": 24469,
+  "transcript_lines_at_start": 24469,
+  "token_usage": {
+    "input_tokens": 120466,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 18641152,
+    "output_tokens": 12207,
+    "api_call_count": 92
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-11T02:47:14.499216Z",
+    "agent_lines": 19,
+    "agent_removed": 7,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 19,
+    "total_lines_changed": 26,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
