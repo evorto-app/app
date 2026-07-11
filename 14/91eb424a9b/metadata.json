@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "1491eb424a9b",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/docs/scanning/addon-fulfillment.doc.ts",
+    "tests/specs/scanning/scanner.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/14/91eb424a9b/0/metadata.json",
+      "transcript": "/14/91eb424a9b/0/full.jsonl",
+      "content_hash": "/14/91eb424a9b/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 164053,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 9793280,
+    "output_tokens": 16269,
+    "api_call_count": 108
+  }
+}
