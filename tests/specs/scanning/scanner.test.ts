@@ -19,6 +19,7 @@ import {
 } from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { installMockCamera } from '../../support/utils/mock-camera';
+import { waitForScannerAddonFulfillment } from '../../support/utils/scanner-result-page';
 import { seedScannerFulfillmentAddon } from '../../support/utils/seed-scanner-fulfillment';
 
 test.use({ storageState: adminStateFile });
@@ -210,9 +211,7 @@ test('scanner redeems, immediately undoes, and cancels add-on quantities with ex
     });
 
     await page.goto(`/scan/registration/${registrationId}`);
-    await expect(
-      page.getByRole('heading', { name: 'Add-on fulfillment' }),
-    ).toBeVisible();
+    await waitForScannerAddonFulfillment(page);
 
     const tote = page.locator('article').filter({ hasText: toteTitle });
     const voucher = page.locator('article').filter({ hasText: voucherTitle });
@@ -665,6 +664,7 @@ test.describe('organizer add-on cancellation permissions', () => {
       });
 
       await page.goto('/scan/registration/' + registrationId);
+      await waitForScannerAddonFulfillment(page);
       const addOn = page.locator('article').filter({ hasText: title });
       await expect(
         addOn.getByRole('button', { name: 'Redeem 1' }),
@@ -690,6 +690,7 @@ test.describe('organizer add-on cancellation permissions', () => {
         roleName: 'Section member',
       });
       await page.reload();
+      await waitForScannerAddonFulfillment(page);
       await expect(
         addOn.getByRole('button', { name: 'Cancel unredeemed units' }),
       ).toBeVisible();

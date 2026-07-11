@@ -13,6 +13,7 @@ import {
 } from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { waitForScannerAddonFulfillment } from '../../support/utils/scanner-result-page';
 import { seedScannerFulfillmentAddon } from '../../support/utils/seed-scanner-fulfillment';
 
 test.use({ storageState: adminStateFile });
@@ -90,9 +91,7 @@ This generated walkthrough opens the deterministic registration-result URL direc
     await expect(
       page.getByRole('heading', { level: 1, name: 'Registration scanned' }),
     ).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: 'Add-on fulfillment' }),
-    ).toBeVisible();
+    const fulfillmentHeading = await waitForScannerAddonFulfillment(page);
     const addOn = page.locator('article').filter({ hasText: addOnTitle });
     await expect(addOn).toContainText(
       '1 included (1 unredeemed) · 2 optional (2 unredeemed)',
@@ -103,7 +102,7 @@ This generated walkthrough opens the deterministic registration-result URL direc
     await expect(addOn.getByText('Remaining').locator('..')).toContainText('3');
     await takeScreenshot(
       testInfo,
-      page.getByRole('heading', { name: 'Add-on fulfillment' }),
+      fulfillmentHeading,
       page,
       'Review included and optional add-on quantities',
     );
