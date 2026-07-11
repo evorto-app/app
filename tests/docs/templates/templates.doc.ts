@@ -194,7 +194,12 @@ When a template creates an event, those reusable add-ons are copied into the eve
   await page.getByRole('button', { name: 'Add add-on' }).click();
   const addOnEditor = page.locator('app-template-addon-editor').first();
   await expect(addOnEditor.getByLabel('Add-on name')).toBeVisible();
-  await expect(addOnEditor.getByLabel('Registration option')).toBeVisible();
+  await expect(
+    addOnEditor.getByRole('combobox', {
+      name: 'Registration option',
+      exact: true,
+    }),
+  ).toBeVisible();
   await takeScreenshot(testInfo, addOnEditor, page, 'Reusable add-on mappings');
 
   await testInfo.attach('markdown', {
@@ -236,7 +241,9 @@ You will be redirected to the detail page for that template.
   await page.getByLabel('Organizer planning tips').fill(planningTips);
   await addOnEditor.getByLabel('Add-on name').fill(addOnTitle);
   await addOnEditor.getByLabel('Description').fill(addOnDescription);
-  await addOnEditor.getByLabel('Registration option').click();
+  await addOnEditor
+    .getByRole('combobox', { name: 'Registration option', exact: true })
+    .click();
   await page
     .getByRole('option', { name: 'Participant registration', exact: true })
     .click();

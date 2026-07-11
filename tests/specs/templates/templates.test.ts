@@ -169,7 +169,9 @@ test('create template with reusable add-ons and registration questions', async (
   const addOnEditor = page.locator('app-template-addon-editor').first();
   await addOnEditor.getByLabel('Add-on name').fill(addOnTitle);
   await addOnEditor.getByLabel('Description').fill(addOnDescription);
-  await addOnEditor.getByLabel('Registration option').click();
+  await addOnEditor
+    .getByRole('combobox', { name: 'Registration option', exact: true })
+    .click();
   await page
     .getByRole('option', { name: 'Participant registration', exact: true })
     .click();
