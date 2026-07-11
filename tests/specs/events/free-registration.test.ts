@@ -104,7 +104,7 @@ test('register for a free event as regular user', async ({
     const registerButton = page
       .getByRole('button', { name: 'Register' })
       .first();
-    await expect(registerButton).not.toHaveAttribute('jsaction', /click/);
+    await expect(registerButton).toBeEnabled({ timeout: 20_000 });
     await registerButton.click();
 
     // After registering, the status refetches; wait for the loading indicator

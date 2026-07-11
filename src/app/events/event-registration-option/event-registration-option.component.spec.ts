@@ -313,19 +313,35 @@ describe('registration add-on selections', () => {
 describe('registrationOptionWriteActionDisabled', () => {
   it('disables registration writes while register or waitlist mutations are pending', () => {
     expect(
-      registrationOptionWriteActionDisabled({ mutationPending: true }),
+      registrationOptionWriteActionDisabled({
+        controlsInteractive: true,
+        mutationPending: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('disables registration writes before the client controls are interactive', () => {
+    expect(
+      registrationOptionWriteActionDisabled({
+        controlsInteractive: false,
+        mutationPending: false,
+      }),
     ).toBe(true);
   });
 
   it('allows registration writes while no register or waitlist mutation is pending', () => {
     expect(
-      registrationOptionWriteActionDisabled({ mutationPending: false }),
+      registrationOptionWriteActionDisabled({
+        controlsInteractive: true,
+        mutationPending: false,
+      }),
     ).toBe(false);
   });
 
   it('disables registration writes while required answers are missing', () => {
     expect(
       registrationOptionWriteActionDisabled({
+        controlsInteractive: true,
         missingRequiredAnswers: true,
         mutationPending: false,
       }),

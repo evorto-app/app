@@ -1,5 +1,6 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -229,9 +230,13 @@ export const registrationQuestionsMissingRequired = (
   );
 
 export const registrationOptionWriteActionDisabled = (input: {
+  controlsInteractive: boolean;
   missingRequiredAnswers?: boolean;
   mutationPending: boolean;
-}): boolean => input.mutationPending || input.missingRequiredAnswers === true;
+}): boolean =>
+  !input.controlsInteractive ||
+  input.mutationPending ||
+  input.missingRequiredAnswers === true;
 
 export const registrationOptionAvailability = (
   option: Pick<
@@ -251,6 +256,9 @@ export const registrationOptionAvailability = (
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[attr.aria-busy]': '!controlsInteractive() || mutationPending()',
+  },
   imports: [
     MatButtonModule,
     MatFormFieldModule,
@@ -277,6 +285,7 @@ export class EventRegistrationOptionComponent {
   protected readonly availableSpots = computed(() =>
     registrationOptionAvailableSpots(this.registrationOption()),
   );
+  protected readonly controlsInteractive = signal(false);
   protected readonly full = computed(() => {
     const option = this.registrationOption();
     return (
@@ -362,6 +371,10 @@ export class EventRegistrationOptionComponent {
 
   private queryClient = inject(QueryClient);
 
+  constructor() {
+    afterNextRender(() => this.controlsInteractive.set(true));
+  }
+
   addonIncludedQuantity(addOn: EventRegistrationAddonView): number {
     return (
       addOn.registrationOptions.find(
@@ -397,6 +410,7 @@ export class EventRegistrationOptionComponent {
   joinWaitlist(registrationOption: { eventId: string; id: string }) {
     if (
       registrationOptionWriteActionDisabled({
+        controlsInteractive: this.controlsInteractive(),
         missingRequiredAnswers:
           this.registrationQuestionAnswersMissingRequired(),
         mutationPending: this.mutationPending(),
@@ -434,6 +448,7 @@ export class EventRegistrationOptionComponent {
   register(registrationOption: { eventId: string; id: string }) {
     if (
       registrationOptionWriteActionDisabled({
+        controlsInteractive: this.controlsInteractive(),
         missingRequiredAnswers:
           this.registrationQuestionAnswersMissingRequired(),
         mutationPending: this.mutationPending(),

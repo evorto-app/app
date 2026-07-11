@@ -31,7 +31,7 @@ export const openEventFromEventsNavigation = async ({
   ).toBeVisible();
 
   const eventLink = page.locator(`a[href="/events/${eventId}"]`).first();
-  await expect(eventLink).toBeVisible();
+  await expect(eventLink).toBeVisible({ timeout: 20_000 });
   await eventLink.click();
   await expect(page).toHaveURL(new RegExp(`/events/${eventId}$`));
   await expect(

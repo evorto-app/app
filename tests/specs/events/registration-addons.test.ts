@@ -180,14 +180,17 @@ test('registers with a free add-on and required registration question', async ({
     const registerButton = participantRegistrationCard.getByRole('button', {
       name: 'Register',
     });
-    // SSR controls accept DOM input before Angular attaches its live handlers.
-    // Event replay removes `jsaction` once this action is safely interactive.
-    await expect(registerButton).not.toHaveAttribute('jsaction', /click/);
+    await expect(participantRegistrationCard).toHaveAttribute(
+      'aria-busy',
+      'false',
+      { timeout: 20_000 },
+    );
+    await expect(questionInput).toBeEditable();
     await quantityInput.fill('2');
     await expect(quantityInput).toHaveValue('2');
     await questionInput.fill('Vegetarian snack, please.');
     await expect(questionInput).toHaveValue('Vegetarian snack, please.');
-    await expect(registerButton).toBeEnabled();
+    await expect(registerButton).toBeEnabled({ timeout: 20_000 });
     await registerButton.click();
 
     await waitForRegistrationStatus(page);

@@ -66,6 +66,7 @@
                 matInput
                 type="number"
                 min="0"
+                [disabled]="!controlsInteractive()"
                 [max]="addonMaxQuantity(addOn)"
                 [value]="addonQuantity(addOn.id)"
                 (input)="updateAddonQuantity(addOn, $event)"
@@ -86,6 +87,7 @@
           <textarea
             matInput
             rows="3"
+            [disabled]="!controlsInteractive()"
             [required]="question.required"
             [value]="registrationQuestionAnswer(question.id)"
             (input)="updateRegistrationQuestionAnswer(question.id, $event)"
@@ -110,6 +112,7 @@
               type="button"
               [disabled]="
                 registrationOptionWriteActionDisabled({
+                  controlsInteractive: controlsInteractive(),
                   missingRequiredAnswers:
                     registrationQuestionAnswersMissingRequired(),
                   mutationPending: mutationPending(),
@@ -129,6 +132,7 @@
                 matInput
                 type="number"
                 min="0"
+                [disabled]="!controlsInteractive()"
                 [max]="maxGuestCount()"
                 [value]="selectedGuestCount()"
                 (input)="updateGuestCount($event)"
@@ -145,6 +149,7 @@
               type="button"
               [disabled]="
                 registrationOptionWriteActionDisabled({
+                  controlsInteractive: controlsInteractive(),
                   missingRequiredAnswers:
                     registrationQuestionAnswersMissingRequired(),
                   mutationPending: mutationPending(),
@@ -162,6 +167,7 @@
               type="button"
               [disabled]="
                 registrationOptionWriteActionDisabled({
+                  controlsInteractive: controlsInteractive(),
                   missingRequiredAnswers:
                     registrationQuestionAnswersMissingRequired(),
                   mutationPending: mutationPending(),
