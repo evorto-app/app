@@ -169,7 +169,7 @@ This guide demonstrates submitting an event, returning it to draft with feedback
     const submitButton = draftStatusSurface.getByRole('button', {
       name: 'Submit for Review',
     });
-    await expect(submitButton).toBeVisible();
+    await expect(submitButton).toBeEnabled({ timeout: 20_000 });
     await testInfo.attach('markdown', {
       body: `
 ## 1. Submit a draft for review
@@ -280,7 +280,11 @@ This gives creators clear guidance before they re-submit.
       'Returned draft status with review feedback',
     );
 
-    await page.getByRole('button', { name: 'Submit for Review' }).click();
+    const resubmitButton = page.getByRole('button', {
+      name: 'Submit for Review',
+    });
+    await expect(resubmitButton).toBeEnabled({ timeout: 20_000 });
+    await resubmitButton.click();
     const resubmitDialog = submitForReviewDialogSurface(page);
     await expect(resubmitDialog).toBeVisible();
     await resubmitDialog

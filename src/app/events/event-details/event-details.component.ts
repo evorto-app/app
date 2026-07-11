@@ -1,12 +1,14 @@
 import type { EventReviewStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   effect,
   inject,
   input,
+  signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -59,23 +61,32 @@ export const registrationOptionsState = (event: {
 
 export const eventReviewActionDisabled = ({
   canReview,
+  controlsInteractive,
   mutationPending,
   status,
 }: {
   canReview: boolean;
+  controlsInteractive: boolean;
   mutationPending: boolean;
   status: EventReviewStatus;
-}): boolean => !canReview || status !== 'PENDING_REVIEW' || mutationPending;
+}): boolean =>
+  !controlsInteractive ||
+  !canReview ||
+  status !== 'PENDING_REVIEW' ||
+  mutationPending;
 
 export const eventSubmitForReviewActionDisabled = ({
   canEdit,
+  controlsInteractive,
   mutationPending,
   status,
 }: {
   canEdit: boolean;
+  controlsInteractive: boolean;
   mutationPending: boolean;
   status: EventReviewStatus;
-}): boolean => !canEdit || status !== 'DRAFT' || mutationPending;
+}): boolean =>
+  !controlsInteractive || !canEdit || status !== 'DRAFT' || mutationPending;
 
 export const eventAddonPurchaseTiming = (addOn: {
   allowPurchaseBeforeEvent: boolean;
@@ -121,6 +132,9 @@ export const eventAddonsForRegistrationOption = <
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[attr.aria-busy]': '!controlsInteractive() || null',
+  },
   imports: [
     MatButtonModule,
     MatMenuModule,
@@ -218,6 +232,7 @@ export class EventDetailsComponent {
     if (!latestValidTo) return false;
     return latestValidTo <= new Date(event.start);
   });
+  protected readonly controlsInteractive = signal(false);
   protected readonly eventAddonPurchaseTiming = eventAddonPurchaseTiming;
   protected readonly eventAddonsForRegistrationOption =
     eventAddonsForRegistrationOption;
@@ -258,6 +273,8 @@ export class EventDetailsComponent {
   private queryClient = inject(QueryClient);
 
   constructor() {
+    afterNextRender(() => this.controlsInteractive.set(true));
+
     effect(() => {
       const event = this.eventQuery.data();
       if (event) {
@@ -268,6 +285,8 @@ export class EventDetailsComponent {
   }
 
   async updateVisibility() {
+    if (!this.controlsInteractive()) return;
+
     const unlisted = await firstValueFrom(
       this.dialog
         .open(UpdateVisibilityDialogComponent, {
@@ -308,6 +327,7 @@ export class EventDetailsComponent {
       !event ||
       eventReviewActionDisabled({
         canReview: this.canReview(),
+        controlsInteractive: this.controlsInteractive(),
         mutationPending: this.reviewMutation.isPending(),
         status: event.status,
       })
@@ -354,6 +374,7 @@ export class EventDetailsComponent {
       !event ||
       eventSubmitForReviewActionDisabled({
         canEdit: this.canEdit(),
+        controlsInteractive: this.controlsInteractive(),
         mutationPending: this.submitForReviewMutation.isPending(),
         status: event.status,
       })

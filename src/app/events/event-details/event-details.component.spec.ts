@@ -49,6 +49,7 @@ describe('eventReviewActionDisabled', () => {
     expect(
       eventReviewActionDisabled({
         canReview: true,
+        controlsInteractive: true,
         mutationPending: false,
         status: 'PENDING_REVIEW',
       }),
@@ -56,6 +57,7 @@ describe('eventReviewActionDisabled', () => {
     expect(
       eventReviewActionDisabled({
         canReview: false,
+        controlsInteractive: true,
         mutationPending: false,
         status: 'PENDING_REVIEW',
       }),
@@ -63,6 +65,7 @@ describe('eventReviewActionDisabled', () => {
     expect(
       eventReviewActionDisabled({
         canReview: true,
+        controlsInteractive: true,
         mutationPending: true,
         status: 'PENDING_REVIEW',
       }),
@@ -70,8 +73,17 @@ describe('eventReviewActionDisabled', () => {
     expect(
       eventReviewActionDisabled({
         canReview: true,
+        controlsInteractive: true,
         mutationPending: false,
         status: 'APPROVED',
+      }),
+    ).toBe(true);
+    expect(
+      eventReviewActionDisabled({
+        canReview: true,
+        controlsInteractive: false,
+        mutationPending: false,
+        status: 'PENDING_REVIEW',
       }),
     ).toBe(true);
   });
@@ -82,6 +94,7 @@ describe('eventSubmitForReviewActionDisabled', () => {
     expect(
       eventSubmitForReviewActionDisabled({
         canEdit: true,
+        controlsInteractive: true,
         mutationPending: false,
         status: 'DRAFT',
       }),
@@ -89,6 +102,7 @@ describe('eventSubmitForReviewActionDisabled', () => {
     expect(
       eventSubmitForReviewActionDisabled({
         canEdit: false,
+        controlsInteractive: true,
         mutationPending: false,
         status: 'DRAFT',
       }),
@@ -96,6 +110,7 @@ describe('eventSubmitForReviewActionDisabled', () => {
     expect(
       eventSubmitForReviewActionDisabled({
         canEdit: true,
+        controlsInteractive: true,
         mutationPending: true,
         status: 'DRAFT',
       }),
@@ -103,8 +118,17 @@ describe('eventSubmitForReviewActionDisabled', () => {
     expect(
       eventSubmitForReviewActionDisabled({
         canEdit: true,
+        controlsInteractive: true,
         mutationPending: false,
         status: 'PENDING_REVIEW',
+      }),
+    ).toBe(true);
+    expect(
+      eventSubmitForReviewActionDisabled({
+        canEdit: true,
+        controlsInteractive: false,
+        mutationPending: false,
+        status: 'DRAFT',
       }),
     ).toBe(true);
   });

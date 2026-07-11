@@ -24,6 +24,7 @@
           *appIfAnyPermission="['events:changeListing']"
           mat-icon-button
           [matMenuTriggerFor]="menu"
+          [disabled]="!controlsInteractive()"
           aria-label="Open event actions"
         >
           <fa-duotone-icon [icon]="faEllipsisVertical" />
@@ -107,6 +108,7 @@
                 [disabled]="
                   eventReviewActionDisabled({
                     canReview: canReview(),
+                    controlsInteractive: controlsInteractive(),
                     mutationPending: reviewMutation.isPending(),
                     status: eventQuery.data().status,
                   })
@@ -120,6 +122,7 @@
                 [disabled]="
                   eventReviewActionDisabled({
                     canReview: canReview(),
+                    controlsInteractive: controlsInteractive(),
                     mutationPending: reviewMutation.isPending(),
                     status: eventQuery.data().status,
                   })
@@ -140,6 +143,7 @@
                 [disabled]="
                   eventSubmitForReviewActionDisabled({
                     canEdit: canEdit(),
+                    controlsInteractive: controlsInteractive(),
                     mutationPending: submitForReviewMutation.isPending(),
                     status: eventQuery.data().status,
                   })
