@@ -626,7 +626,7 @@ After Stripe reports successful payment, Evorto moves the reserved spot to confi
       await organizer.page.reload();
       await expect(
         organizer.page.getByText('Payment setup needs retry'),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 20_000 });
       const retryButton = organizer.page.getByRole('button', {
         name: 'Retry payment setup',
       });

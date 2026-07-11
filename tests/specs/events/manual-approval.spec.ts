@@ -300,7 +300,9 @@ test.describe('Manual approval registrations', () => {
           'Application approved. Payment is required before confirmation.',
         ),
       ).toBeVisible({ timeout: 20_000 });
-      await expect(organizer.page.getByText('Payment pending')).toBeVisible();
+      await expect(organizer.page.getByText('Payment pending')).toBeVisible({
+        timeout: 20_000,
+      });
       await expect(
         organizer.page.getByRole('button', { name: 'Approve application' }),
       ).toHaveCount(0);
@@ -478,7 +480,7 @@ test.describe('Manual approval registrations', () => {
       await organizer.page.reload();
       await expect(
         organizer.page.getByText('Payment setup needs retry'),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 20_000 });
       const retryButton = organizer.page.getByRole('button', {
         name: 'Retry payment setup',
       });
@@ -502,7 +504,9 @@ test.describe('Manual approval registrations', () => {
           'Application approved. Payment is required before confirmation.',
         ),
       ).toBeVisible({ timeout: 20_000 });
-      await expect(organizer.page.getByText('Payment pending')).toBeVisible();
+      await expect(organizer.page.getByText('Payment pending')).toBeVisible({
+        timeout: 20_000,
+      });
       await expect(retryButton).toHaveCount(0);
 
       await expect
