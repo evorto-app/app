@@ -421,22 +421,23 @@ Selecting **Approve application** reserves one spot and prepares one Stripe Chec
       await expect(organizer.page.getByText('Payment pending')).toBeVisible();
       await expect(approveButton).toHaveCount(0);
 
-      await expect
-        .poll(async () => {
-          const transactions = await database.query.transactions.findMany({
-            where: {
-              eventRegistrationId: registration.id,
-              status: 'pending',
-              type: 'registration',
-            },
-          });
-          return {
-            count: transactions.length,
-            hasSession: Boolean(transactions[0]?.stripeCheckoutSessionId),
-            hasUrl: Boolean(transactions[0]?.stripeCheckoutUrl),
-          };
-        })
-        .toEqual({ count: 1, hasSession: true, hasUrl: true });
+      await expect(async () => {
+        const transactions = await database.query.transactions.findMany({
+          where: {
+            eventRegistrationId: registration.id,
+            status: 'pending',
+            type: 'registration',
+          },
+        });
+        expect({
+          count: transactions.length,
+          hasSession: Boolean(transactions[0]?.stripeCheckoutSessionId),
+          hasUrl: Boolean(transactions[0]?.stripeCheckoutUrl),
+        }).toEqual({ count: 1, hasSession: true, hasUrl: true });
+      }).toPass({
+        intervals: [250, 500, 1_000],
+        timeout: 15_000,
+      });
       const [pendingTransaction] = await database.query.transactions.findMany({
         where: {
           eventRegistrationId: registration.id,
