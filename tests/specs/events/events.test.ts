@@ -258,26 +258,41 @@ test('event edit form hides selected roles in autocomplete', async ({
   await expect(
     page.getByRole('heading', { name: draftEvent.title }),
   ).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(selectedRole.name).first()).toBeVisible();
-
-  const roleInput = page.getByPlaceholder('Add Role...').first();
-  await roleInput.click();
+  const registrationOptionEditor = page
+    .locator('app-event-registration-option-editor')
+    .filter({
+      has: page.getByDisplayValue(registrationOption.title, { exact: true }),
+    });
+  await expect(registrationOptionEditor).toHaveCount(1);
   await expect(
-    page.getByRole('option', {
-      exact: true,
-      name: selectedRole.name,
+    registrationOptionEditor.getByRole('button', {
+      name: `Remove ${selectedRole.name}`,
     }),
-  ).toHaveCount(0);
+  ).toBeVisible();
 
-  await page
-    .getByRole('option', { exact: true, name: unselectedRole.name })
-    .click();
+  const roleInput = registrationOptionEditor.getByPlaceholder('Add Role...');
+  await roleInput.click();
+  const roleListbox = page.getByRole('listbox', { name: 'Selected Roles' });
+  const selectedRoleOption = roleListbox.getByRole('option', {
+    exact: true,
+    name: selectedRole.name,
+  });
+  const unselectedRoleOption = roleListbox.getByRole('option', {
+    exact: true,
+    name: unselectedRole.name,
+  });
+  await expect(roleListbox).toBeVisible();
+  await expect(unselectedRoleOption).toBeVisible();
+  await expect(selectedRoleOption).toHaveCount(0);
+
+  await unselectedRoleOption.click();
+  await expect(
+    registrationOptionEditor.getByRole('button', {
+      name: `Remove ${unselectedRole.name}`,
+    }),
+  ).toBeVisible();
 
   await roleInput.click();
-  await expect(
-    page.getByRole('option', {
-      exact: true,
-      name: unselectedRole.name,
-    }),
-  ).toHaveCount(0);
+  await expect(roleListbox).toBeVisible();
+  await expect(unselectedRoleOption).toHaveCount(0);
 });
