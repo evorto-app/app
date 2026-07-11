@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "93f304c47679",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/app/core/guards/user-account.guard.spec.ts",
+    "src/app/core/guards/user-account.guard.ts",
+    "tests/specs/events/registration-transfer.spec.ts",
+    "tests/support/utils/paid-registration-transfer-scenario.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/93/f304c47679/0/metadata.json",
+      "transcript": "/93/f304c47679/0/full.jsonl",
+      "content_hash": "/93/f304c47679/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 386724,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 13272576,
+    "output_tokens": 12010,
+    "api_call_count": 62
+  }
+}
