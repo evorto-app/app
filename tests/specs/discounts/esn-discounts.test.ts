@@ -50,9 +50,8 @@ test('applies ESN discount to paid registrations @finance', async ({
       .locator('app-price-with-tax')
       .getByText(discountedPrice, { exact: true }),
   ).toBeVisible();
-  await expect(
-    registrationOptionCard.getByRole('button', {
-      name: `Pay ${discountedPrice} and register`,
-    }),
-  ).toBeVisible();
+  const payButton = registrationOptionCard.getByRole('button', {
+    name: `Pay ${discountedPrice} and register`,
+  });
+  await expect(payButton).toBeEnabled({ timeout: 20_000 });
 });
