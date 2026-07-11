@@ -4,8 +4,8 @@ import { and, eq, inArray, like } from 'drizzle-orm';
 
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
 
-import { getId } from '../../../helpers/get-id';
 import { usersToAuthenticate } from '../../../helpers/user-data';
+import { createId } from '../../../src/db/create-id';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import { futureServerEventWindow } from './server-test-clock';
@@ -239,7 +239,7 @@ export const seedManualApprovalScenario = async ({
           'Payment setup recovery requires a paid scenario with a Stripe account',
         );
       }
-      const transactionId = getId();
+      const transactionId = createId();
       const eventUrl = new URL(
         `/events/${encodeURIComponent(event.id)}`,
         baseUrl,

@@ -96,6 +96,12 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
       : [];
   });
   protected faCircleXmark = faCircleXmark;
+  protected readonly searchInputHasValue = signal(false);
+  protected readonly hasChipGridRole = computed(
+    () =>
+      this.searchInputHasValue() ||
+      this.currentRolesQuery().some((role) => role.data() !== undefined),
+  );
 
   add() {
     if (this.disabled() || this.readonly()) return;
@@ -108,6 +114,7 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
       this.value.set(next);
       this.touched.set(true);
       this.searchForm.query().value.set('');
+      this.searchInputHasValue.set(false);
     }
   }
 
@@ -127,6 +134,7 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
     ]);
     this.touched.set(true);
     this.searchForm.query().value.set('');
+    this.searchInputHasValue.set(false);
     event.option.deselect();
   }
 }

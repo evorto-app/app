@@ -82,11 +82,7 @@ export const isDefinitiveCheckoutSessionCreateFailure = (
   );
 };
 
-const expireCheckoutSession = (
-  sessionId: string,
-  stripeAccount: string,
-  idempotencyKey: string,
-) =>
+const expireCheckoutSession = (sessionId: string, stripeAccount: string) =>
   Effect.gen(function* () {
     const stripe = yield* StripeClient;
     const expiredSession = yield* Effect.tryPromise({
@@ -98,7 +94,6 @@ const expireCheckoutSession = (
       try: () =>
         Promise.race([
           stripe.checkout.sessions.expire(sessionId, undefined, {
-            idempotencyKey,
             stripeAccount,
           }),
           new Promise<never>((_, reject) => {
@@ -623,11 +618,7 @@ const resumeDirectRegistrationCheckout = Effect.fn(
     const missingUrlError = new EventRegistrationInternalError({
       message: 'Stripe checkout session did not provide a payment URL',
     });
-    return yield* expireCheckoutSession(
-      session.id,
-      stripeAccount,
-      `expire-unbound-checkout-${paymentClaim.id}`,
-    ).pipe(
+    return yield* expireCheckoutSession(session.id, stripeAccount).pipe(
       Effect.andThen(releaseDirectCheckoutClaim(session.id)),
       Effect.andThen(Effect.fail(missingUrlError)),
     );
@@ -830,11 +821,7 @@ const resumeDirectRegistrationCheckout = Effect.fn(
           if (reconciliation._tag === 'Conflict') {
             return Effect.failCause(bindingCause);
           }
-          return expireCheckoutSession(
-            session.id,
-            stripeAccount,
-            `expire-unbound-checkout-${paymentClaim.id}`,
-          ).pipe(
+          return expireCheckoutSession(session.id, stripeAccount).pipe(
             Effect.catchCause((expiryCause) =>
               Effect.logError(
                 'Failed to expire unbound direct checkout session; retaining payment claim',
@@ -857,11 +844,7 @@ const resumeDirectRegistrationCheckout = Effect.fn(
   );
 
   if (bindingResult._tag === 'RegistrationUnavailable') {
-    yield* expireCheckoutSession(
-      session.id,
-      stripeAccount,
-      `expire-unbound-checkout-${paymentClaim.id}`,
-    ).pipe(
+    yield* expireCheckoutSession(session.id, stripeAccount).pipe(
       Effect.mapError(
         (cause) =>
           new EventRegistrationInternalError({
@@ -1953,11 +1936,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           const missingUrlError = new EventRegistrationInternalError({
             message: 'Stripe checkout session did not provide a payment URL',
           });
-          return yield* expireCheckoutSession(
-            session.id,
-            stripeAccount,
-            `expire-unbound-checkout-${paymentClaim.id}`,
-          ).pipe(
+          return yield* expireCheckoutSession(session.id, stripeAccount).pipe(
             Effect.andThen(releaseApprovalClaim()),
             Effect.andThen(Effect.fail(missingUrlError)),
           );
@@ -2193,11 +2172,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 if (reconciliation._tag === 'Conflict') {
                   return Effect.failCause(bindingCause);
                 }
-                return expireCheckoutSession(
-                  session.id,
-                  stripeAccount,
-                  `expire-unbound-checkout-${paymentClaim.id}`,
-                ).pipe(
+                return expireCheckoutSession(session.id, stripeAccount).pipe(
                   Effect.catchCause((expiryCause) =>
                     Effect.logError(
                       'Failed to expire unbound Stripe checkout session; retaining approval claim',
@@ -2220,11 +2195,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         );
 
         if (bindingResult._tag === 'RegistrationUnavailable') {
-          yield* expireCheckoutSession(
-            session.id,
-            stripeAccount,
-            `expire-unbound-checkout-${paymentClaim.id}`,
-          ).pipe(
+          yield* expireCheckoutSession(session.id, stripeAccount).pipe(
             Effect.mapError(
               (cause) =>
                 new EventRegistrationInternalError({

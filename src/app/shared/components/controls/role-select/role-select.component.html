@@ -1,8 +1,15 @@
 @if (!hidden()) {
   <mat-form-field class="w-full">
     <mat-label>Selected Roles</mat-label>
-    <mat-chip-grid #chipGrid aria-label="Role selection">
-      @for (role of currentRolesQuery(); track role.data()?.id) {
+    <mat-chip-grid
+      #chipGrid
+      [attr.aria-label]="hasChipGridRole() ? 'Selected roles' : null"
+      [disabled]="disabled() || readonly()"
+    >
+      @for (
+        role of currentRolesQuery();
+        track value()[$index] ?? role.data()?.id ?? $index
+      ) {
         @if (role.data(); as roleData) {
           <mat-chip-row (removed)="remove(roleData.id)">
             {{ roleData.name }}
@@ -10,6 +17,7 @@
               type="button"
               matChipRemove
               [attr.aria-label]="'Remove ' + roleData.name"
+              [disabled]="disabled() || readonly()"
             >
               <fa-icon [icon]="faCircleXmark" />
             </button>
@@ -25,6 +33,7 @@
       [matChipInputFor]="chipGrid"
       [matAutocomplete]="auto"
       [matChipInputSeparatorKeyCodes]="separatorKeysCodes"
+      (input)="searchInputHasValue.set(roleInput.value.length > 0)"
       (matChipInputTokenEnd)="add()"
     />
     <mat-autocomplete

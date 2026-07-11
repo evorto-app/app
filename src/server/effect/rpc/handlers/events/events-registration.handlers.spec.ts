@@ -3238,10 +3238,7 @@ describe('event registration cancellation handlers', () => {
         expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith(
           'checkout-1',
           undefined,
-          {
-            idempotencyKey: 'cancel-registration-checkout-transaction-1',
-            stripeAccount: 'acct_123',
-          },
+          { stripeAccount: 'acct_123' },
         );
         expect(stripe.checkout.sessions.retrieve).toHaveBeenCalledWith(
           'checkout-1',
@@ -3564,10 +3561,7 @@ describe('event registration cancellation handlers', () => {
         expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith(
           'checkout-1',
           undefined,
-          {
-            idempotencyKey: 'cancel-registration-checkout-transaction-1',
-            stripeAccount: 'acct_123',
-          },
+          { stripeAccount: 'acct_123' },
         );
         expect(database.transaction.mock.invocationCallOrder[0]).toBeLessThan(
           vi.mocked(stripe.checkout.sessions.expire).mock

@@ -1,6 +1,7 @@
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatChipGridHarness } from '@angular/material/chips/testing';
+import { MatFormFieldHarness } from '@angular/material/form-field/testing';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -71,6 +72,11 @@ describe('RoleSelectComponent', () => {
           'button[aria-label="Remove Organizer"]',
         ),
       ).not.toBeNull();
+      expect(
+        fixture.nativeElement
+          .querySelector('mat-chip-grid')
+          ?.getAttribute('aria-label'),
+      ).toBe('Selected roles');
     });
 
     const removeButton: HTMLButtonElement = fixture.nativeElement.querySelector(
@@ -81,6 +87,12 @@ describe('RoleSelectComponent', () => {
     );
     expect(removeButton.type).toBe('button');
 
+    const chipGrid: HTMLElement | null =
+      fixture.nativeElement.querySelector('mat-chip-grid');
+    expect(chipGrid).not.toBeNull();
+    expect(chipGrid?.getAttribute('role')).toBe('grid');
+    expect(chipGrid?.getAttribute('aria-label')).toBe('Selected roles');
+
     const roleInput: HTMLInputElement = fixture.nativeElement.querySelector(
       'input[placeholder="Add Role..."]',
     );
@@ -88,6 +100,104 @@ describe('RoleSelectComponent', () => {
 
     roleInput.focus();
     expect(document.activeElement).toBe(roleInput);
+  });
+
+  it('names the grid only while Material exposes grid semantics', async () => {
+    fixture.componentRef.setInput('value', []);
+    fixture.detectChanges();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelectorAll('mat-chip-row'),
+      ).toHaveLength(0);
+    });
+
+    const chipGrid: HTMLElement | null =
+      fixture.nativeElement.querySelector('mat-chip-grid');
+    expect(chipGrid).not.toBeNull();
+    expect(chipGrid?.getAttribute('role')).toBeNull();
+    expect(chipGrid?.getAttribute('aria-label')).toBeNull();
+
+    const loader = TestbedHarnessEnvironment.loader(fixture);
+    const formField = await loader.getHarness(MatFormFieldHarness);
+    expect(await formField.getLabel()).toBe('Selected Roles');
+
+    const roleInput: HTMLInputElement = fixture.nativeElement.querySelector(
+      'input[placeholder="Add Role..."]',
+    );
+    roleInput.value = 'orga';
+    roleInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(chipGrid?.getAttribute('role')).toBe('grid');
+    expect(chipGrid?.getAttribute('aria-label')).toBe('Selected roles');
+
+    roleInput.value = '';
+    roleInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(chipGrid?.getAttribute('role')).toBeNull();
+    expect(chipGrid?.getAttribute('aria-label')).toBeNull();
+  });
+
+  it.each(['disabled', 'readonly'] as const)(
+    'disables chip removal when the control is %s',
+    async (state) => {
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(
+          fixture.nativeElement.querySelector(
+            'button[aria-label="Remove Organizer"]',
+          ),
+        ).not.toBeNull();
+      });
+
+      fixture.componentRef.setInput(state, true);
+      fixture.detectChanges();
+
+      const chipGrid: HTMLElement =
+        fixture.nativeElement.querySelector('mat-chip-grid');
+      const removeButton: HTMLButtonElement =
+        fixture.nativeElement.querySelector(
+          'button[aria-label="Remove Organizer"]',
+        );
+      const roleInput: HTMLInputElement = fixture.nativeElement.querySelector(
+        'input[placeholder="Add Role..."]',
+      );
+
+      expect(chipGrid.getAttribute('aria-disabled')).toBe('true');
+      expect(removeButton.disabled).toBe(true);
+      expect(roleInput.disabled).toBe(true);
+
+      removeButton.click();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.value()).toEqual([role.id]);
+    },
+  );
+
+  it('tracks multiple role queries uniquely while the value resets', async () => {
+    fixture.componentRef.setInput('value', ['role-organizer', 'role-finance']);
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelectorAll('mat-chip-row'),
+      ).toHaveLength(2);
+    });
+    const warning = vi
+      .spyOn(console, 'warn')
+      .mockImplementation((...messages) => void messages);
+
+    fixture.componentRef.setInput('value', []);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(
+      warning.mock.calls.some((call) =>
+        call.some((value) => String(value).includes('NG0955')),
+      ),
+    ).toBe(false);
+    warning.mockRestore();
   });
 
   it('removes a selected role through the chip keyboard action', async () => {

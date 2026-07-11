@@ -150,12 +150,36 @@ test('event authoring controls expose accessible names and keyboard interaction'
   expect(authoringAccessibilityScan.violations).toEqual([]);
 
   const roleChips = roleSelect.locator('mat-chip-row');
-  const initialRoleCount = await roleChips.count();
-  await roleSelect.getByPlaceholder('Add Role...').focus();
-  await page.keyboard.press('Backspace');
-  await expect(roleChips.last().getByRole('gridcell').first()).toBeFocused();
-  await page.keyboard.press('Delete');
-  await expect(roleChips).toHaveCount(initialRoleCount - 1);
+  const initialRoleCount = registrationOption.roleIds.length;
+  await expect(roleChips).toHaveCount(initialRoleCount);
+  const roleInput = roleSelect.getByRole('combobox', {
+    name: 'Selected Roles',
+  });
+  for (let remaining = initialRoleCount; remaining > 0; remaining -= 1) {
+    await roleInput.focus();
+    await page.keyboard.press('Backspace');
+    await expect(roleChips.last().getByRole('gridcell').first()).toBeFocused();
+    await page.keyboard.press('Delete');
+    await expect(roleChips).toHaveCount(remaining - 1);
+  }
+  const emptyChipGrid = roleSelect.locator('mat-chip-grid');
+  await expect(emptyChipGrid).not.toHaveAttribute('role');
+  await expect(emptyChipGrid).not.toHaveAttribute('aria-label');
+  await expect(roleInput).toHaveAccessibleName('Selected Roles');
+  await roleInput.fill('accessibility-state-check');
+  await expect(emptyChipGrid).toHaveAttribute('role', 'grid');
+  await expect(emptyChipGrid).toHaveAttribute('aria-label', 'Selected roles');
+  const searchingRoleSelectAccessibilityScan = await makeAxeBuilder()
+    .include('app-role-select')
+    .analyze();
+  expect(searchingRoleSelectAccessibilityScan.violations).toEqual([]);
+  await roleInput.fill('');
+  await expect(emptyChipGrid).not.toHaveAttribute('role');
+  await expect(emptyChipGrid).not.toHaveAttribute('aria-label');
+  const emptyRoleSelectAccessibilityScan = await makeAxeBuilder()
+    .include('app-role-select')
+    .analyze();
+  expect(emptyRoleSelectAccessibilityScan.violations).toEqual([]);
 
   const changeIconButton = page.getByRole('button', { name: 'Change Icon' });
   await changeIconButton.focus();

@@ -2071,7 +2071,6 @@ export const cancelRegistrationForTenant = Effect.fn(
               stripeCheckoutSessionId,
               undefined,
               {
-                idempotencyKey: `cancel-registration-checkout-${transactionId}`,
                 stripeAccount: stripeAccountId,
               },
             ),

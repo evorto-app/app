@@ -40,7 +40,7 @@ import {
 import { serverLoggerLayer } from './server/effect/server-logger.layer';
 import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
-import { applySecurityHeaders } from './server/http/security-headers';
+import { makeServerResponseMiddleware } from './server/http/server-response.middleware';
 import { handleStripeWebhookWebRequest } from './server/http/stripe-webhook.web-handler';
 import { handleTenantBrandAssetWebRequest } from './server/http/tenant-brand-asset.web-handler';
 import { runEmailOutboxProcessor } from './server/notifications/email-delivery';
@@ -412,11 +412,9 @@ const staticAndAngularCatchAllLayer = HttpLayerRouter.add('*', '*', (request) =>
   }),
 );
 
-const securityHeadersMiddlewareLayer = HttpLayerRouter.middleware(
-  (effect) =>
-    effect.pipe(Effect.map((response) => applySecurityHeaders(response))),
-  { global: true },
-);
+const responseMiddlewareLayer = HttpLayerRouter.middleware<{
+  handles: unknown;
+}>()(makeServerResponseMiddleware(Sentry.captureException), { global: true });
 
 const routesLayer = Layer.mergeAll(
   healthRouteLayer,
@@ -429,72 +427,8 @@ const routesLayer = Layer.mergeAll(
   stripeWebhookRouteLayer,
   rpcRouteLayer,
   staticAndAngularCatchAllLayer,
-  securityHeadersMiddlewareLayer,
+  responseMiddlewareLayer,
 );
-
-const createInternalErrorResponse = (
-  request: HttpServerRequest.HttpServerRequest,
-) => {
-  const acceptHeader = request.headers['accept'] ?? '';
-  if (typeof acceptHeader === 'string' && acceptHeader.includes('text/html')) {
-    return HttpServerResponse.redirect('/500', { status: 303 });
-  }
-
-  return HttpServerResponse.jsonUnsafe(
-    { error: 'Internal Server Error' },
-    { status: 500 },
-  );
-};
-
-const withSsrFallback = <E, R>(
-  effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
-) =>
-  effect.pipe(
-    Effect.catch((error) =>
-      Effect.gen(function* () {
-        const request = yield* HttpServerRequest.HttpServerRequest;
-
-        if (error instanceof HttpServerError.RouteNotFound) {
-          return notFoundServerResponse;
-        }
-
-        yield* Effect.logError('Unhandled server error').pipe(
-          Effect.annotateLogs({
-            error:
-              error instanceof Error
-                ? {
-                    message: error.message,
-                    name: error.name,
-                    stack: error.stack,
-                  }
-                : String(error),
-          }),
-        );
-        Sentry.captureException(error);
-        return createInternalErrorResponse(request);
-      }),
-    ),
-    Effect.catchDefect((defect) =>
-      Effect.gen(function* () {
-        const request = yield* HttpServerRequest.HttpServerRequest;
-
-        yield* Effect.logError('Unhandled server defect').pipe(
-          Effect.annotateLogs({
-            error:
-              defect instanceof Error
-                ? {
-                    message: defect.message,
-                    name: defect.name,
-                    stack: defect.stack,
-                  }
-                : String(defect),
-          }),
-        );
-        Sentry.captureException(defect);
-        return createInternalErrorResponse(request);
-      }),
-    ),
-  );
 
 const keyValueStoreLayer = KeyValueStore.layerFileSystem(
   keyValueStoreDirectory,
@@ -546,12 +480,8 @@ const getRequestHandler = () => {
     Layer.provide(handlerRuntimeLayer),
     Layer.provide(configuredDatabaseLayer),
   );
-  const { handler: serverHandler } = HttpLayerRouter.toWebHandler(
-    handlerAppLayer,
-    {
-      middleware: withSsrFallback,
-    },
-  );
+  const { handler: serverHandler } =
+    HttpLayerRouter.toWebHandler(handlerAppLayer);
   const handlerContext = EffectContext.empty() as Parameters<
     typeof serverHandler
   >[1];
@@ -587,9 +517,7 @@ const serveEffect = Effect.gen(function* () {
     );
   const { PORT: port } = yield* configuredServerConfig;
 
-  const serverLayer = HttpLayerRouter.serve(routesLayer, {
-    middleware: withSsrFallback,
-  }).pipe(
+  const serverLayer = HttpLayerRouter.serve(routesLayer).pipe(
     Layer.provide(
       Layer.mergeAll(
         BunHttpServer.layer({ port }),
