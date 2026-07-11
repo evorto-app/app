@@ -502,6 +502,13 @@ test('completes a paid transfer and preserves its failed refund for operator req
     });
 
     expect(await scenario.requeueSourceRefund()).toEqual({
+      refundAfter: {
+        attempts: 0,
+        generation: 1,
+        refundId: null,
+        status: 'pending',
+        stripeRefundStatus: null,
+      },
       recoveryMode: 'newGeneration',
       transferStatus: 'requeued',
     });
@@ -515,7 +522,6 @@ test('completes a paid transfer and preserves its failed refund for operator req
       await database.query.transactions.findFirst({
         columns: {
           status: true,
-          stripeRefundAttempts: true,
           stripeRefundGeneration: true,
           stripeRefundHistory: true,
           stripeRefundId: true,
@@ -526,7 +532,6 @@ test('completes a paid transfer and preserves its failed refund for operator req
       }),
     ).toMatchObject({
       status: 'pending',
-      stripeRefundAttempts: 0,
       stripeRefundGeneration: 1,
       stripeRefundHistory: [
         expect.objectContaining({

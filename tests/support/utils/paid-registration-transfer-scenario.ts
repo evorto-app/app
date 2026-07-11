@@ -10,7 +10,10 @@ import {
   reconcileRegistrationTransferRefund,
 } from '@server/registrations/registration-transfer-refund-reconciliation';
 import { createRegistrationTransferCredentials } from '@server/registrations/registration-transfer-credentials';
-import { requeueRegistrationRefundClaim } from '@server/payments/registration-refund';
+import {
+  type RegistrationRefundRequeueState,
+  requeueRegistrationRefundClaim,
+} from '@server/payments/registration-refund';
 import { deriveTenantPublicOrigin } from '@shared/tenant-origin';
 import { and, eq, like } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -60,6 +63,7 @@ export interface PaidRegistrationTransferScenario {
   >;
   failSourceRefund: () => Promise<string>;
   requeueSourceRefund: () => Promise<{
+    readonly refundAfter: RegistrationRefundRequeueState;
     readonly recoveryMode: 'newGeneration' | 'resumeGeneration';
     readonly transferStatus: 'alreadyPending' | 'notTransfer' | 'requeued';
   }>;
@@ -353,6 +357,7 @@ export const seedPaidRegistrationTransferScenario = async (
                 tenantId: input.tenant.id,
               });
             return {
+              refundAfter: recovery.after,
               recoveryMode: recovery.mode,
               transferStatus,
             };
