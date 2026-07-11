@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b4f9733ac4e4",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/docs/events/event-approval.doc.ts",
+    "tests/docs/events/event-management.doc.ts",
+    "tests/docs/events/manual-approval.doc.ts",
+    "tests/docs/events/register.doc.ts",
+    "tests/docs/scanning/check-in.doc.ts",
+    "tests/specs/events/unlisted-visibility.test.ts",
+    "tests/specs/scanning/scanner.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b4/f9733ac4e4/0/metadata.json",
+      "transcript": "/b4/f9733ac4e4/0/full.jsonl",
+      "content_hash": "/b4/f9733ac4e4/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 122006,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 25605376,
+    "output_tokens": 13116,
+    "api_call_count": 112
+  }
+}
