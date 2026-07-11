@@ -422,16 +422,26 @@ You will be redirected to the detail page for that template.
   await expect(page.getByText(addOnTitle)).toBeVisible();
   await expect(page.getByText(questionTitle)).toBeVisible();
 
-  const createdTemplate = await database.query.eventTemplates.findFirst({
-    where: {
-      tenantId: tenant.id,
-      title: templateTitle,
-    },
+  let createdTemplate: typeof schema.eventTemplates.$inferSelect | undefined;
+  await expect(async () => {
+    const template = await database.query.eventTemplates.findFirst({
+      where: {
+        tenantId: tenant.id,
+        title: templateTitle,
+      },
+    });
+    if (!template) {
+      throw new Error('Expected template docs flow to persist the template');
+    }
+    createdTemplate = template;
+    expect(createdTemplate.planningTips).toBe(planningTips);
+  }).toPass({
+    intervals: [250, 500, 1_000],
+    timeout: 15_000,
   });
   if (!createdTemplate) {
     throw new Error('Expected template docs flow to persist the template');
   }
-  expect(createdTemplate.planningTips).toBe(planningTips);
 
   const registrationOptions =
     await database.query.templateRegistrationOptions.findMany({
