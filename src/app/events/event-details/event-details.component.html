@@ -24,7 +24,7 @@
           *appIfAnyPermission="['events:changeListing']"
           mat-icon-button
           [matMenuTriggerFor]="menu"
-          [disabled]="!controlsInteractive()"
+          [disabled]="!controlsInteractive() || !eventQuery.isSuccess()"
           aria-label="Open event actions"
         >
           <fa-duotone-icon [icon]="faEllipsisVertical" />

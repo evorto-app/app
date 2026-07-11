@@ -226,6 +226,9 @@ describe('EventDetails template', () => {
     expect(template).toContain('registrationStatusQuery.isError()');
     expect(template).toContain('Failed to load registration status.');
     expect(template).toContain('registrationStatusQuery.isSuccess()');
+    expect(template).toContain(
+      '[disabled]="!controlsInteractive() || !eventQuery.isSuccess()"',
+    );
   });
 
   it('uses the accepted return-to-draft review language', () => {

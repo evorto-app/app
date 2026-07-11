@@ -285,12 +285,14 @@ export class EventDetailsComponent {
   }
 
   async updateVisibility() {
-    if (!this.controlsInteractive()) return;
+    if (!this.controlsInteractive() || !this.eventQuery.isSuccess()) return;
+
+    const event = this.eventQuery.data();
 
     const unlisted = await firstValueFrom(
       this.dialog
         .open(UpdateVisibilityDialogComponent, {
-          data: { event: this.eventQuery.data() },
+          data: { event },
         })
         .afterClosed(),
     );
