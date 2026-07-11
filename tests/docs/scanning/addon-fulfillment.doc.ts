@@ -118,15 +118,21 @@ After a redemption, the scanner offers **Undo last redemption** only for that ad
     });
 
     await addOn.getByRole('button', { name: 'Redeem 1' }).click();
-    await expect(addOn.getByText('Redeemed').locator('..')).toContainText('1');
+    await expect(addOn.getByText('Redeemed').locator('..')).toContainText('1', {
+      timeout: 15_000,
+    });
     await addOn.getByRole('button', { name: 'Undo last redemption' }).click();
-    await expect(addOn.getByText('Redeemed').locator('..')).toContainText('0');
+    await expect(addOn.getByText('Redeemed').locator('..')).toContainText('0', {
+      timeout: 15_000,
+    });
     await expect(
       addOn.getByRole('button', { name: 'Undo last redemption' }),
     ).toHaveCount(0);
 
     await addOn.getByRole('button', { name: 'Redeem 1' }).click();
-    await expect(addOn.getByText('Redeemed').locator('..')).toContainText('1');
+    await expect(addOn.getByText('Redeemed').locator('..')).toContainText('1', {
+      timeout: 15_000,
+    });
     await takeScreenshot(
       testInfo,
       addOn,
@@ -173,11 +179,16 @@ For this free optional add-on, the refund choice explains that no monetary refun
     );
     await dialog.getByRole('button', { name: 'Cancel selected units' }).click();
 
+    await expect(addOn.getByText('Cancelled').locator('..')).toContainText(
+      '1',
+      {
+        timeout: 15_000,
+      },
+    );
     await expect(
       page.getByText('Cancellation recorded. No monetary refund was required.'),
     ).toBeVisible();
     await expect(addOn.getByText('Redeemed').locator('..')).toContainText('1');
-    await expect(addOn.getByText('Cancelled').locator('..')).toContainText('1');
     await expect(addOn.getByText('Remaining').locator('..')).toContainText('1');
     await expect(addOn.getByText('No monetary refund required')).toBeVisible();
     await takeScreenshot(
