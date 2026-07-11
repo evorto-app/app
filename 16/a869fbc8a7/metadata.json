@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "16a869fbc8a7",
+  "strategy": "manual-commit",
+  "branch": "codex/production-readiness-compliance",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/docs/users/tenant-onboarding.doc.ts",
+    "tests/specs/events/events.test.ts",
+    "tests/specs/events/manual-approval.spec.ts",
+    "tests/specs/profile/tenant-onboarding.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/16/a869fbc8a7/0/metadata.json",
+      "transcript": "/16/a869fbc8a7/0/full.jsonl",
+      "content_hash": "/16/a869fbc8a7/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 103038,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 19810816,
+    "output_tokens": 15963,
+    "api_call_count": 91
+  }
+}
