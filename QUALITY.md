@@ -224,9 +224,20 @@ the durable Playwright and generated-documentation coverage.
 
 ## Done Criteria
 
+### Local-first CI gate
+
+Before any push, PR update, or other action that can trigger CI, run the full
+local equivalent of every CI test suite that the change will trigger. The local
+run must complete entirely: every collected test passes, with zero failures,
+skips, todos, fixmes, or interrupted tests. A suite that omits tests because a
+database, external service, environment variable, or credential is unavailable
+does not satisfy this gate. Resolve the dependency and rerun locally before CI
+is attempted. CI is confirmation of an already-green local result, not the
+first place to discover whether the complete suite passes.
+
 For a typical change, before finishing:
 
-- relevant tests pass
+- the local-first CI gate passes for every CI suite the change will trigger
 - lint/format expectations are satisfied
 - new or changed behavior has tests where practical
 - Browser walkthrough was performed for UI behavior changes

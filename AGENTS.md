@@ -140,6 +140,12 @@ package scripts instead of bare `dotenv` shell commands.
 
 ## Verification
 
+- Before any push, PR update, or other action that can trigger CI, run the full
+  local equivalent of every CI test suite that the change will trigger. Every
+  collected test must pass: zero failures, skips, todos, fixmes, or interrupted
+  tests. Missing local services, environment variables, or credentials are
+  blockers to resolve, not reasons to defer coverage to CI. CI confirms an
+  already-green local result; it is never the first full test run.
 - After every file edit, run `bun run lint` and `bun run format:write`.
 - Markdown-only edits do not need a WebStorm `get_file_problems` pass.
 - Before calling WebStorm `get_file_problems` on edited files, run `bun run lint`.
