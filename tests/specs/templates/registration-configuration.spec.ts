@@ -113,7 +113,9 @@ const confirmEventMode = async (
   page: Page,
   mode: 'advanced' | 'simple',
 ): Promise<void> => {
-  await page.getByTestId(`event-mode-${mode}`).click();
+  const modeButton = page.getByTestId(`event-mode-${mode}`);
+  await expect(modeButton).not.toHaveAttribute('jsaction', /click/);
+  await modeButton.click();
   await expect(
     page.getByRole('heading', {
       name: 'Change registration configuration?',
@@ -498,7 +500,9 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
     );
 
   await page.goto(`/events/${event.id}/edit`);
-  await page.getByTestId('event-mode-simple').click();
+  const simpleModeButton = page.getByTestId('event-mode-simple');
+  await expect(simpleModeButton).not.toHaveAttribute('jsaction', /click/);
+  await simpleModeButton.click();
   await expect(page.getByRole('alert')).toContainText(
     'Simple mode requires exactly one organizing and one non-organizing registration option.',
   );
@@ -689,6 +693,7 @@ test('event creation snapshots an advanced template before later page-backed tem
   }
   const eventOptionsBeforeTemplateEdit =
     await database.query.eventRegistrationOptions.findMany({
+      orderBy: { id: 'asc' },
       where: { eventId: createdEvent.id },
     });
   const eventAddOn = await database.query.eventAddons.findFirst({
@@ -703,6 +708,7 @@ test('event creation snapshots an advanced template before later page-backed tem
   }
   const eventMappingsBeforeTemplateEdit =
     await database.query.addonToEventRegistrationOptions.findMany({
+      orderBy: { registrationOptionId: 'asc' },
       where: { addonId: eventAddOn.id, eventId: createdEvent.id },
     });
   expect(createdEvent.simpleModeEnabled).toBe(false);
@@ -764,10 +770,12 @@ test('event creation snapshots an advanced template before later page-backed tem
   });
   const eventOptionsAfterTemplateEdit =
     await database.query.eventRegistrationOptions.findMany({
+      orderBy: { id: 'asc' },
       where: { eventId: createdEvent.id },
     });
   const eventMappingsAfterTemplateEdit =
     await database.query.addonToEventRegistrationOptions.findMany({
+      orderBy: { registrationOptionId: 'asc' },
       where: { addonId: eventAddOn.id, eventId: createdEvent.id },
     });
 

@@ -52,8 +52,10 @@ import {
 import { expiredRegistrationTransferCheckoutCandidatePredicate } from './registration-transfer-finalization';
 
 const databaseUrl = process.env['DATABASE_URL'];
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
+}
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
-const describeWithPostgres = databaseUrl ? describe : describe.skip;
 
 interface Fixture {
   readonly addOnId: string;
@@ -434,15 +436,12 @@ const readFixtureState = async (database: TestDatabase, fixture: Fixture) => {
   return { addOn, claim, option, registration };
 };
 
-describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
+describe('expired unbound checkout cleanup concurrency', () => {
   let database: TestDatabase;
   const fixtures: Fixture[] = [];
   let pool: Pool;
 
   beforeAll(() => {
-    if (!databaseUrl) {
-      return;
-    }
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
     database = drizzle({ client: pool, relations });
   });
@@ -455,16 +454,10 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
   });
 
   afterAll(async () => {
-    if (!databaseUrl) {
-      return;
-    }
     await pool.end();
   });
 
   it('executes typed JSONPath deadline selectors for registration and transfer claims', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const deadline = 1_750_000_000;
 
     await database
@@ -487,9 +480,6 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
   });
 
   it('releases one reservation exactly once across simultaneous sweepers', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const expiresAt = 4_000_000_000;
     const fixture = await seedFixture(database, expiresAt);
     fixtures.push(fixture);
@@ -532,9 +522,6 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
   }, 30_000);
 
   it('preserves a claim that becomes bound while the sweeper waits', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const expiresAt = 4_000_000_000;
     const fixture = await seedFixture(database, expiresAt);
     fixtures.push(fixture);
@@ -587,9 +574,6 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
   }, 30_000);
 
   it('releases one bound expired Checkout reservation exactly once across simultaneous reconcilers', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const expiresAt = 4_000_000_000;
     const fixture = await seedFixture(database, expiresAt);
     fixtures.push(fixture);
@@ -653,9 +637,6 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
   }, 30_000);
 
   it('leases fair due batches across two workers without starving later claims', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const now = new Date('2026-07-10T12:00:00.000Z');
     const firstFixture = await seedFixture(database, 4_000_000_000);
     const secondFixture = await seedFixture(database, 4_000_000_000);
@@ -680,9 +661,6 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
   }, 30_000);
 
   it('releases database locks before retrieving a leased Checkout from Stripe', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const now = new Date('2026-07-10T12:00:00.000Z');
     const fixture = await seedFixture(database, 4_000_000_000);
     fixtures.push(fixture);
@@ -740,9 +718,6 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
   }, 30_000);
 
   it('recovers a lost direct paid-completion webhook exactly once', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const now = new Date('2026-07-10T12:00:00.000Z');
     const fixture = await seedFixture(database, 4_000_000_000);
     fixtures.push(fixture);
@@ -846,9 +821,6 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
   }, 30_000);
 
   it('fails closed before registration mutation when Stripe gross or currency differs', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const now = new Date('2026-07-10T12:00:00.000Z');
     const amountMismatch = await seedFixture(database, 4_000_000_000);
     const currencyMismatch = await seedFixture(database, 4_000_000_000);
@@ -920,9 +892,6 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
   }, 30_000);
 
   it('claims one durable refund across simultaneous workers and preserves the source gross amount', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const fixture = await seedFixture(database, 4_000_000_000);
     fixtures.push(fixture);
     const stripePaymentIntentId = `pi_${fixture.transactionId}`;
@@ -1032,9 +1001,6 @@ describeWithPostgres('expired unbound checkout cleanup concurrency', () => {
   }, 30_000);
 
   it('atomically requeues one terminal refund generation and rejects its late archived webhook', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const fixture = await seedFixture(database, 4_000_000_000);
     fixtures.push(fixture);
     const stripePaymentIntentId = `pi_${fixture.transactionId}`;

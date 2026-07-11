@@ -1,4 +1,8 @@
+import type { IncomingMessage } from 'node:http';
+
+import * as BunStream from '@effect/platform-bun/BunStream';
 import { Effect, Schema, Stream } from 'effect';
+import { finished } from 'node:stream/promises';
 
 export class RequestBodyInvalidContentLengthError extends Schema.TaggedErrorClass<RequestBodyInvalidContentLengthError>()(
   'RequestBodyInvalidContentLengthError',
@@ -63,6 +67,66 @@ const cancelBody = Effect.fn('cancelRequestBody')(function* (
   );
 });
 
+const collectBoundedBody = Effect.fn('collectBoundedRequestBody')(function* <
+  E,
+  R,
+>(body: Stream.Stream<Uint8Array, E, R>, maxBytes: number) {
+  const chunks = yield* body.pipe(
+    Stream.mapAccumEffect(
+      () => 0,
+      (totalBytes, chunk) => {
+        const nextTotalBytes = totalBytes + chunk.byteLength;
+        if (nextTotalBytes > maxBytes) {
+          return Effect.fail(new RequestBodyTooLargeError({ maxBytes }));
+        }
+
+        return Effect.succeed<readonly [number, readonly Uint8Array[]]>([
+          nextTotalBytes,
+          chunk.byteLength === 0 ? [] : [chunk],
+        ]);
+      },
+    ),
+    Stream.runCollect,
+  );
+
+  return concatenateChunks(chunks);
+});
+
+const webBodyStream = (body: ReadableStream<Uint8Array>) =>
+  Stream.fromReadableStream({
+    evaluate: () => body,
+    onError: (cause) => new RequestBodyReadError({ cause }),
+  });
+
+const nodeBodyStream = (request: IncomingMessage) =>
+  BunStream.fromReadable<Uint8Array, RequestBodyReadError>({
+    closeOnDone: false,
+    evaluate: () => request,
+    onError: (cause) => new RequestBodyReadError({ cause }),
+  });
+
+const failOnPrematureNodeBodyClose = (request: IncomingMessage) =>
+  Effect.tryPromise({
+    catch: (cause) => new RequestBodyReadError({ cause }),
+    try: (signal) =>
+      finished(request, {
+        cleanup: true,
+        readable: true,
+        signal,
+        writable: false,
+      }),
+  }).pipe(Effect.andThen(Effect.never));
+
+const rejectNodeBody = (request: IncomingMessage) =>
+  Effect.sync(() => {
+    const absorbDrainError = () => null;
+    request.on('error', absorbDrainError);
+    request.once('close', () => {
+      request.off('error', absorbDrainError);
+    });
+    request.resume();
+  });
+
 /**
  * Reads a Web request body without allowing either a declared or streamed body
  * to exceed the route limit. The stream is cancelled as soon as the limit is
@@ -90,26 +154,45 @@ export const readRequestBody = Effect.fn('readRequestBody')(function* (
     return new ArrayBuffer(0);
   }
 
-  const chunks = yield* Stream.fromReadableStream({
-    evaluate: () => requestBody,
-    onError: (cause) => new RequestBodyReadError({ cause }),
-  }).pipe(
-    Stream.mapAccumEffect(
-      () => 0,
-      (totalBytes, chunk) => {
-        const nextTotalBytes = totalBytes + chunk.byteLength;
-        if (nextTotalBytes > maxBytes) {
-          return Effect.fail(new RequestBodyTooLargeError({ maxBytes }));
-        }
-
-        return Effect.succeed<readonly [number, readonly Uint8Array[]]>([
-          nextTotalBytes,
-          [chunk],
-        ]);
-      },
-    ),
-    Stream.runCollect,
-  );
-
-  return concatenateChunks(chunks);
+  return yield* collectBoundedBody(webBodyStream(requestBody), maxBytes);
 });
+
+/**
+ * Reads a raw Node request before Angular adapts it to a Web Request. Bun's
+ * Node-to-Web bridge can surface a second unhandled rejection when a client
+ * disconnects, so local Node SSR must enforce route limits at this boundary.
+ */
+export const readNodeRequestBody = Effect.fn('readNodeRequestBody')(function* (
+  request: IncomingMessage,
+  maxBytes: number,
+) {
+  const contentLength = request.headers['content-length'] ?? null;
+  if (contentLength !== null && !contentLengthPattern.test(contentLength)) {
+    yield* rejectNodeBody(request);
+    return yield* new RequestBodyInvalidContentLengthError({
+      contentLength,
+    });
+  }
+
+  if (contentLength !== null && BigInt(contentLength) > BigInt(maxBytes)) {
+    yield* rejectNodeBody(request);
+    return yield* new RequestBodyTooLargeError({ maxBytes });
+  }
+
+  return yield* Effect.raceFirst(
+    collectBoundedBody(nodeBodyStream(request), maxBytes),
+    failOnPrematureNodeBodyClose(request),
+  ).pipe(
+    Effect.tapErrorTag('RequestBodyTooLargeError', () =>
+      rejectNodeBody(request),
+    ),
+  );
+});
+
+/**
+ * Discards an unsupported Node request body without retaining attacker bytes
+ * or delaying the route response until an untrusted sender reaches EOF.
+ */
+export const discardNodeRequestBody = (request: IncomingMessage): void => {
+  Effect.runSync(rejectNodeBody(request));
+};

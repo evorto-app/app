@@ -19,7 +19,7 @@ jobs:
     environment: esncard-release-certification
     env:
       APP_HOST_PORT: 4200
-      APP_READY_PATH: /robots.txt
+      APP_READY_PATH: /readyz
       BASE_URL: http://localhost:4200
       CI: true
       CLIENT_ID: ${{ secrets.CLIENT_ID }}
@@ -107,7 +107,7 @@ jobs:
 
       - name: Start Docker stack
         run: |
-          docker compose down --remove-orphans
+          docker compose down --timeout 60 --remove-orphans
           docker compose up -d db db-expiration minio stripe minio-init
           for attempt in $(seq 1 60); do
             if docker compose exec -T db pg_isready -h 127.0.0.1 -p 5432 -U neon -d "${NEON_DATABASE_NAME}" >/dev/null 2>&1; then
@@ -130,7 +130,8 @@ jobs:
         run: |
           ready_url="${BASE_URL}${APP_READY_PATH}"
           for attempt in $(seq 1 60); do
-            if curl --fail --silent --show-error "${ready_url}" >/dev/null; then
+            ready_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${ready_url}" || true)"
+            if [ "${ready_status}" = "204" ]; then
               echo "Application is reachable"
               exit 0
             fi
@@ -148,4 +149,4 @@ jobs:
 
       - name: Stop Docker stack
         if: always()
-        run: docker compose down --remove-orphans
+        run: docker compose down --timeout 60 --remove-orphans

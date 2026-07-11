@@ -61,6 +61,9 @@ interface BaseFixtures {
     lastName: string;
     password: string;
   };
+  registerDatabaseCleanup: (
+    cleanup: (database: NodePgDatabase<typeof relations>) => Promise<void>,
+  ) => void;
   seedDate: Date;
   testClock: DateTime;
   tenantDomain?: string;
@@ -182,6 +185,28 @@ export const test = base.extend<BaseFixtures>({
     });
     await use(page);
   },
+  registerDatabaseCleanup: [
+    async ({ database }, use) => {
+      const cleanups: Array<
+        (database: NodePgDatabase<typeof relations>) => Promise<void>
+      > = [];
+      await use((cleanup) => cleanups.push(cleanup));
+
+      const errors: unknown[] = [];
+      for (const cleanup of cleanups.toReversed()) {
+        try {
+          await cleanup(database);
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+
+      if (errors.length > 0) {
+        throw new AggregateError(errors, 'Database test cleanup failed');
+      }
+    },
+    { timeout: 60_000 },
+  ],
   seedDate: [
     async ({}, use) => {
       await use(getSeedDate());

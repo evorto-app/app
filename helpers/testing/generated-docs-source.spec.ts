@@ -110,9 +110,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('.delete(schema.tenants)');
     expect(source).toContain("where: { domain: 'localhost' }");
     expect(source).toContain('documentedTenant.stripeAccountId');
-    expect(source).toContain(
-      'page.getByLabel(tenantSearchLabel).fill(primaryDomain)',
-    );
+    expect(source).toContain('await fillTenantSearch(page, primaryDomain)');
     expect(source).toContain(
       'expect(tenantNameInput(page)).toHaveValue(createdTenant.name)',
     );
@@ -295,6 +293,52 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('tenantPrivacyPolicyAcceptances.findFirst');
     expect(source).toContain('tenantOnboardingQuestionAnswers.findFirst');
     expect(source).toContain('Make this my home tenant');
+  });
+
+  it('keeps receipt-submission cleanup deterministic and database-only', () => {
+    const source = readSource('tests/docs/finance/receipt-submission.doc.ts');
+    const cleanupStart = source.indexOf(
+      'registerDatabaseCleanup(async (cleanupDatabase) => {',
+    );
+    const cleanupEnd = source.indexOf(
+      "await testInfo.attach('markdown'",
+      cleanupStart,
+    );
+
+    expect(cleanupStart).toBeGreaterThanOrEqual(0);
+    expect(cleanupEnd).toBeGreaterThan(cleanupStart);
+    const cleanupSource = source.slice(cleanupStart, cleanupEnd);
+
+    expect(cleanupSource).toContain(
+      'attachmentUploadId: schema.financeReceipts.attachmentUploadId',
+    );
+    expect(cleanupSource).toContain(
+      'eq(schema.financeReceipts.tenantId, tenant.id)',
+    );
+    expect(cleanupSource).toContain(
+      'eq(schema.financeReceipts.eventId, eventId)',
+    );
+    expect(cleanupSource).toContain(
+      'eq(schema.financeReceipts.submittedByUserId, submitter.id)',
+    );
+    expect(cleanupSource).toContain(
+      'eq(schema.financeReceipts.attachmentFileName, receiptName)',
+    );
+    expect(cleanupSource).toContain('.delete(schema.financeReceipts)');
+    expect(cleanupSource).toContain('.delete(schema.financeReceiptUploads)');
+    expect(cleanupSource).toContain(
+      'inArray(schema.financeReceiptUploads.id, uploadIds)',
+    );
+    expect(cleanupSource).toContain(
+      'eq(schema.financeReceiptUploads.tenantId, tenant.id)',
+    );
+    expect(cleanupSource).toContain(
+      'eq(schema.financeReceiptUploads.eventId, eventId)',
+    );
+    expect(cleanupSource).toContain(
+      'eq(schema.financeReceiptUploads.uploadedByUserId, submitter.id)',
+    );
+    expect(cleanupSource).not.toMatch(/DeleteObject|S3Client/u);
   });
 
   it('keeps finance receipt docs aligned with email notification and reimbursement scope', () => {
@@ -518,7 +562,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Continue Stripe checkout');
     expect(source).not.toContain('await scenario.beginPaidCheckout(2)');
     expect(source).toContain("name: 'Continue to Stripe'");
-    expect(source).toContain('page.waitForURL(/checkout\\.stripe\\.com/');
+    expect(source).toContain(
+      String.raw`page.waitForURL(/checkout\.stripe\.com/`,
+    );
     expect(source).toContain('scenario.readPendingCheckout()');
     expect(source).toContain('scenario.completeCheckout()');
     expect(source).toContain('eventRegistrationAddonPurchaseOrders');
@@ -778,8 +824,15 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain("page.getByText('Includes 2 guests.')");
     expect(source).toContain(
-      "page.getByRole('button', { name: 'Confirm 3 check-ins' })",
+      "import { fillScannerGuestCheckInCount } from '../../support/utils/scanner-result-page';",
     );
+    expect(source).toContain(
+      `const confirmScannerCheckIn = await fillScannerGuestCheckInCount(page, {
+      guestCount: 2,
+      includeAttendee: true,
+    });`,
+    );
+    expect(source).toContain('await confirmScannerCheckIn.click()');
     expect(source).toContain('Scanned registration with guest check-in');
     expect(source).toContain("page.getByText('Check-in recorded')");
     expect(source).toContain('checkedInGuestCount: true');
@@ -807,7 +860,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'Expected seeded event-management docs draft event "${draftEvent.title}" to have an unselected role for autocomplete',
     );
-    expect(source).toContain("page.getByPlaceholder('Add Role...')");
+    expect(source).toContain(
+      "registrationOptionEditor.getByPlaceholder('Add Role...')",
+    );
     expect(source).toContain('Event edit role picker duplicate prevention');
     expect(source).not.toContain('manual check-in from the organizer overview');
     expect(source).not.toContain('automatic refund controls are available');

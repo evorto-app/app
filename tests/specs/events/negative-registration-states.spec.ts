@@ -157,12 +157,19 @@ test.describe('Negative registration states', () => {
         const waitlistButton = page.getByRole('button', {
           name: 'Join waitlist',
         });
+        const registrationQuestionInput = page.getByLabel(
+          registrationQuestion.title,
+        );
         await expect(waitlistButton).toBeVisible();
-        await expect(page.getByLabel(registrationQuestion.title)).toBeVisible();
+        await expect(registrationQuestionInput).toBeVisible();
         await expect(waitlistButton).toBeDisabled();
-        await page
-          .getByLabel(registrationQuestion.title)
-          .fill('Please tell me if a spot opens.');
+        // SSR controls accept DOM input before Angular attaches its live input
+        // listener. Event replay removes `jsaction` once the action is live.
+        await expect(waitlistButton).not.toHaveAttribute('jsaction', /click/);
+        await registrationQuestionInput.fill('Please tell me if a spot opens.');
+        await expect(registrationQuestionInput).toHaveValue(
+          'Please tell me if a spot opens.',
+        );
         await expect(waitlistButton).toBeEnabled();
         await expect(
           page.getByRole('button', { name: /^Register$/ }),

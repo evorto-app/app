@@ -81,14 +81,18 @@ The Neon Local container does not emit every proxied query in its default loggin
 Docker Compose now also runs one-shot `db-expiration` and `db-setup`
 containers before `evorto` starts. `bun run docker:start`,
 `bun run docker:start:foreground`, and `bun run docker:start:watch` run
-`docker compose down` first, then run the equivalent of `bun run db:reset`
+`docker compose down --timeout 60 --remove-orphans` first, then run the
+equivalent of `bun run db:reset`
 against the Docker database during stack startup. That Docker reset path drops
 and recreates the `public` schema before running Drizzle so the one-shot
 container cannot get stuck on non-TTY confirmation prompts from older local
 branch state. Neon Local still receives `DELETE_BRANCH=true` so normal
-`docker compose down` deletes the branch, and `db-expiration` immediately sets
-a short Neon branch expiration as a fallback for interrupted local or CI
-shutdowns. Both services share the project-scoped `neon-local-metadata` Docker
+`docker compose down` deletes the branch. The database receives a 60-second
+shutdown grace period for that cleanup, and `db-expiration` must successfully
+set a short Neon branch expiration before database setup can continue. The
+expiration is a fallback for interrupted local or CI shutdowns; failure is a
+startup blocker rather than silently accepting lost cleanup coverage. Both
+services share the project-scoped `neon-local-metadata` Docker
 volume by default. Keeping that shutdown-critical state off a macOS host bind
 mount avoids Docker Desktop file-sharing stalls while Neon Local reads the
 metadata during branch cleanup. The database container assigns the mount to
@@ -100,15 +104,34 @@ branch. CI or another controlled environment can set
 `NEON_LOCAL_METADATA_DIR` to an absolute host directory when a bind mount is
 intentional. Playwright `webServer` uses `bun run docker:webserver`, which
 starts the foreground Compose stack without forcing `docker compose down` first.
-Playwright gives a stack it started a 60-second `SIGTERM` shutdown window so
-Compose can stop its containers. When Playwright reuses a stack that was
-already serving the app, that stack remains user-owned and keeps running. Use
-`bun run docker:resume` only for an already initialized stack when you want to
-bring stopped containers back without recreating them. Use `bun run docker:ps`
-to inspect the generated worktree Compose project; bare `docker compose ps` can
-point at the wrong project because it does not preload `.env.dev`. The package
-scripts preload the needed environment with `dotenv -c dev` before invoking
-Docker.
+The wrapper traps process exit and Playwright shutdown signals, then runs the
+project-scoped `docker compose down --timeout 60 --remove-orphans` so stopped
+containers and networks do not linger. Playwright allows 90 seconds for that
+60-second Compose shutdown plus object removal. When Playwright reuses a stack
+that was already serving the app, it never starts that wrapper; the user-owned
+stack therefore keeps running. `bun run docker:resume` rejects the default
+ephemeral `DELETE_BRANCH=true` mode because the branch is gone after the
+database stops. It inspects the existing database container rather than
+trusting current dotenv values, because retained containers keep the
+environment from their creation. Resume only when that container was created
+with an explicit existing `BRANCH_ID` or `DELETE_BRANCH=false`; otherwise start
+a fresh stack.
+
+Resume also verifies that the existing `db`, `minio`, `stripe`, and `evorto`
+containers are present and that the original `db-expiration`, `db-setup`, and
+`minio-init` containers completed successfully. It starts the retained database
+and MinIO container IDs directly, waits for both to become healthy, and then
+starts the retained Stripe and app container IDs. It never invokes Compose
+startup dependency resolution or starts the one-shot services again, so a
+resume cannot create a replacement container and preserves the initialized
+schema, seed data, bucket, and branch-expiration state. If any container is
+missing or any one-shot setup failed, use `bun run docker:start` for an
+intentional fresh reset instead.
+
+Use `bun run docker:ps` to inspect the generated worktree Compose project; bare
+`docker compose ps` can point at the wrong project because it does not preload
+`.env.dev`. The package scripts preload the needed environment with
+`dotenv -c dev` before invoking Docker.
 
 Inside Docker, keep `BASE_URL` browser-facing so Auth0 redirects point at the
 host-mapped app URL, and keep `SSR_RPC_ORIGIN` pointed at the app container's

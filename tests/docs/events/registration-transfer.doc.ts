@@ -17,6 +17,10 @@ import { seedPaidRegistrationTransferScenario } from '../../support/utils/paid-r
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
+// These guides reuse the same authenticated user fixtures while exercising
+// user row locks. Keep each guide independent, but avoid cross-guide deadlocks.
+test.describe.configure({ mode: 'default' });
+
 test('Transfer a registration with a private link', async ({
   browser,
   database,
@@ -108,6 +112,10 @@ Open the event while signed in as the current registration owner. Under the conf
 
     await page.goto(`/events/${eventId}`);
     await waitForRegistrationPage(page);
+    // SSR exposes the registration actions before Angular has attached their
+    // client handlers. Hydration removes these markers once the actions are
+    // interactive, so wait before issuing the single transfer mutation.
+    await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
     const createButton = page.getByRole('button', {
       name: 'Create transfer link',
     });

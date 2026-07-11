@@ -13,6 +13,7 @@ import {
 } from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { fillScannerGuestCheckInCount } from '../../support/utils/scanner-result-page';
 
 test.use({ storageState: adminStateFile });
 
@@ -231,25 +232,75 @@ Note: The event created from the template already has registration options confi
     page,
     'Event registration configuration modes',
   );
-  await expect(page.getByText(selectedRole.name).first()).toBeVisible();
-  const roleInput = page.getByPlaceholder('Add Role...').first();
-  await roleInput.click();
+  const registrationOptionEditors = page.locator(
+    'app-event-registration-option-editor',
+  );
+  const registrationOptionTitleInputs = registrationOptionEditors.getByRole(
+    'textbox',
+    { exact: true, name: 'Option name' },
+  );
+  let registrationOptionEditorIndex = -1;
+  await expect
+    .poll(
+      async () => {
+        const optionTitles = await registrationOptionTitleInputs.evaluateAll(
+          (elements) =>
+            elements.map((element) => {
+              if (!(element instanceof HTMLInputElement)) {
+                throw new Error('Expected an event option title input');
+              }
+              return element.value;
+            }),
+        );
+        registrationOptionEditorIndex = optionTitles.indexOf(
+          registrationOption.title,
+        );
+        return registrationOptionEditorIndex;
+      },
+      {
+        message: `Expected event registration option "${registrationOption.title}"`,
+        timeout: 15_000,
+      },
+    )
+    .toBeGreaterThanOrEqual(0);
+  const registrationOptionEditor = registrationOptionEditors.nth(
+    registrationOptionEditorIndex,
+  );
   await expect(
-    page.getByRole('option', {
-      exact: true,
-      name: selectedRole.name,
+    registrationOptionEditor.getByRole('button', {
+      name: `Remove ${selectedRole.name}`,
     }),
-  ).toHaveCount(0);
-  await page
-    .getByRole('option', { exact: true, name: unselectedRole.name })
-    .click();
-  await roleInput.click();
-  await expect(
-    page.getByRole('option', {
-      exact: true,
-      name: unselectedRole.name,
-    }),
-  ).toHaveCount(0);
+  ).toBeVisible();
+  const roleInput = registrationOptionEditor.getByPlaceholder('Add Role...');
+  const roleListbox = page.getByRole('listbox', { name: 'Selected Roles' });
+  const selectedRoleOption = roleListbox.getByRole('option', {
+    exact: true,
+    name: selectedRole.name,
+  });
+  const unselectedRoleOption = roleListbox.getByRole('option', {
+    exact: true,
+    name: unselectedRole.name,
+  });
+
+  await expect(async () => {
+    await roleInput.fill(selectedRole.name);
+    await expect(roleInput).toHaveValue(selectedRole.name);
+    await expect(selectedRoleOption).toHaveCount(0);
+  }).toPass({ timeout: 15_000 });
+
+  await expect(async () => {
+    await roleInput.fill(unselectedRole.name);
+    await expect(roleInput).toHaveValue(unselectedRole.name);
+    await expect(roleListbox).toBeVisible();
+    await expect(unselectedRoleOption).toBeVisible();
+  }).toPass({ timeout: 15_000 });
+  await unselectedRoleOption.click();
+
+  await expect(async () => {
+    await roleInput.fill(unselectedRole.name);
+    await expect(roleInput).toHaveValue(unselectedRole.name);
+    await expect(unselectedRoleOption).toHaveCount(0);
+  }).toPass({ timeout: 15_000 });
   await page.keyboard.press('Escape');
 
   await testInfo.attach('markdown', {
@@ -367,17 +418,17 @@ Those flows should be documented separately when they exist in the product.
     ).toBeVisible();
     await expect(page.getByText('Includes 2 guests.')).toBeVisible();
     await expect(page.getByText('0 checked in, 2 remaining.')).toBeVisible();
-    await page.getByLabel('Guests to check in now').fill('2');
-    await expect(
-      page.getByRole('button', { name: 'Confirm 3 check-ins' }),
-    ).toBeVisible();
+    const confirmScannerCheckIn = await fillScannerGuestCheckInCount(page, {
+      guestCount: 2,
+      includeAttendee: true,
+    });
     await takeScreenshot(
       testInfo,
       page.locator('app-handle-registration'),
       page,
       'Scanned registration with guest check-in',
     );
-    await page.getByRole('button', { name: 'Confirm 3 check-ins' }).click();
+    await confirmScannerCheckIn.click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
     await expect
       .poll(async () => {

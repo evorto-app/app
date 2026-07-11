@@ -30,8 +30,10 @@ import {
 } from './addon-fulfillment.service';
 
 const databaseUrl = process.env['DATABASE_URL'];
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
+}
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
-const describeWithPostgres = databaseUrl ? describe : describe.skip;
 interface Fixture {
   readonly addOnId: string;
   readonly categoryId: string;
@@ -227,21 +229,19 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
   await database.delete(tenants).where(eq(tenants.id, fixture.tenantId));
 };
 
-describeWithPostgres('add-on fulfillment concurrency', () => {
+describe('add-on fulfillment concurrency', () => {
   let database: TestDatabase;
   const fixtures: Fixture[] = [];
   let layer: ReturnType<typeof makeLayer>;
   let pool: Pool;
 
   beforeAll(() => {
-    if (!databaseUrl) return;
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
     database = drizzle({ client: pool, relations });
     layer = makeLayer(databaseUrl);
   });
 
   afterAll(async () => {
-    if (!databaseUrl) return;
     for (const fixture of fixtures.toReversed()) {
       await cleanFixture(database, fixture);
     }
@@ -249,7 +249,6 @@ describeWithPostgres('add-on fulfillment concurrency', () => {
   });
 
   it('redeems two distinct intents from one snapshot and keeps an exact retry idempotent', async () => {
-    if (!databaseUrl) return;
     const fixture = await seedFixture(database, {
       includedQuantity: 2,
       purchasedQuantity: 0,
@@ -308,7 +307,6 @@ describeWithPostgres('add-on fulfillment concurrency', () => {
   });
 
   it('serializes redemption against whole-registration add-on cancellation', async () => {
-    if (!databaseUrl) return;
     const fixture = await seedFixture(database, {
       includedQuantity: 0,
       purchasedQuantity: 2,
@@ -354,7 +352,6 @@ describeWithPostgres('add-on fulfillment concurrency', () => {
   });
 
   it('serializes direct add-on cancellation against registration cancellation', async () => {
-    if (!databaseUrl) return;
     const fixture = await seedFixture(database, {
       includedQuantity: 1,
       purchasedQuantity: 1,

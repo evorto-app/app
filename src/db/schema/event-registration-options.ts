@@ -57,7 +57,7 @@ export const eventRegistrationOptions = pgTable(
   },
   (table) => [
     check(
-      'event_registration_options_cancellation_deadline_hours_nonnegative',
+      'event_registration_options_cancellation_deadline_hours_nonnegat',
       sql`${table.cancellationDeadlineHoursBeforeStart} IS NULL OR ${table.cancellationDeadlineHoursBeforeStart} >= 0`,
     ),
     check(

@@ -102,6 +102,12 @@ test('tenant admin reviews users and manages role definitions @admin @permission
   await page.goto(`/admin/roles/${createdRole.id}/edit`);
 
   await expect(page.getByRole('heading', { name: 'Edit Role' })).toBeVisible();
+  // The SSR form is visible before Angular attaches its submit handler.
+  // Event replay removes `jsaction` once saving is safely interactive.
+  await expect(roleForm.locator('form')).not.toHaveAttribute(
+    'jsaction',
+    /submit/,
+  );
   await roleForm.locator('textarea').first().fill(updatedDescription);
   await setRoleFormCheckbox('Show this role in the hub', false);
   await expect(roleFormCheckbox('Show this role in the hub')).not.toBeChecked();

@@ -18,6 +18,16 @@ export interface GlobalAdminTenantFormModel {
   timezone: GlobalAdminTenantWriteInput['timezone'];
 }
 
+interface GlobalAdminTenantEditFormSource {
+  tenant: GlobalAdminTenantRecord | null | undefined;
+  tenantId: string;
+}
+
+interface PreviousGlobalAdminTenantEditFormModel {
+  source: GlobalAdminTenantEditFormSource;
+  value: GlobalAdminTenantFormModel;
+}
+
 export const globalAdminTenantRelaunchScopeItems = [
   'One active primary domain is managed here; its secure HTTPS origin is derived from the normalized host.',
   'Custom-domain verification and multi-domain automation are deferred.',
@@ -46,6 +56,26 @@ export const globalAdminTenantFormModelFromRecord = (
   theme: tenant.theme,
   timezone: tenant.timezone,
 });
+
+export const resolveGlobalAdminTenantEditFormModel = (
+  { tenant, tenantId }: GlobalAdminTenantEditFormSource,
+  previous?: PreviousGlobalAdminTenantEditFormModel,
+): GlobalAdminTenantFormModel => {
+  if (tenant?.id === tenantId) {
+    if (
+      previous?.source.tenant?.id === tenant.id &&
+      previous.source.tenantId === tenantId
+    ) {
+      return previous.value;
+    }
+
+    return globalAdminTenantFormModelFromRecord(tenant);
+  }
+
+  return previous?.source.tenantId === tenantId
+    ? previous.value
+    : createGlobalAdminTenantFormModel();
+};
 
 const optionalTrimmed = (value: string): string | undefined =>
   value.trim() || undefined;

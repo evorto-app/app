@@ -1,6 +1,5 @@
 import path from 'node:path';
 
-import type { Page } from '@playwright/test';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, desc, eq } from 'drizzle-orm';
 
@@ -14,71 +13,14 @@ import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
 import type { SupportedTenantCurrency } from '../../../src/types/custom/tenant';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import {
+  completeReceiptSubmissionForm,
+  formatTenantCurrency,
+  openOrganizerReceiptsFromNavigation,
+  openReceiptSubmissionDialog,
+} from '../../support/utils/receipt-submission';
 
 test.use({ storageState: adminStateFile });
-
-const openEventOrganizePage = async (page: Page, eventId: string) => {
-  await page.goto(`/events/${eventId}/organize`);
-};
-
-const formatTenantCurrency = (
-  amountInMinorUnits: number,
-  currency: SupportedTenantCurrency,
-): string =>
-  new Intl.NumberFormat('de-DE', {
-    currency,
-    style: 'currency',
-  }).format(amountInMinorUnits / 100);
-
-const submitReceiptFromFirstEvent = async (
-  page: Page,
-  eventId: string,
-  receiptFile: string,
-  currency: SupportedTenantCurrency,
-) => {
-  await openEventOrganizePage(page, eventId);
-  await expect(page.getByRole('heading', { name: 'Receipts' })).toBeVisible();
-  await expect(page.getByText('Loading receipts...')).not.toBeVisible({
-    timeout: 20_000,
-  });
-  await expect(
-    page.getByText('Receipts can be added after the event has loaded.'),
-  ).not.toBeVisible({ timeout: 20_000 });
-  await page.getByRole('button', { name: 'Add receipt' }).click();
-  const receiptDialog = page.locator('app-receipt-submit-dialog');
-  await expect(receiptDialog).toBeVisible();
-  await expect(
-    receiptDialog.getByLabel(`Deposit amount (${currency})`),
-  ).not.toBeVisible();
-  await receiptDialog
-    .getByRole('checkbox', { name: 'Deposit involved' })
-    .check();
-  await expect(
-    receiptDialog.getByLabel(`Deposit amount (${currency})`),
-  ).toBeVisible();
-  await expect(
-    receiptDialog.getByLabel(`Alcohol amount (${currency})`),
-  ).not.toBeVisible();
-  await receiptDialog
-    .getByRole('checkbox', { name: 'Alcohol purchased' })
-    .check();
-  await expect(
-    receiptDialog.getByLabel(`Alcohol amount (${currency})`),
-  ).toBeVisible();
-
-  await receiptDialog.getByLabel(`Total amount (${currency})`).fill('14.50');
-  await receiptDialog.getByLabel(`Alcohol amount (${currency})`).fill('1.50');
-  await receiptDialog.getByLabel('Purchase country').click();
-  await page.getByRole('option', { name: 'Germany (DE)' }).click();
-  await receiptDialog
-    .locator('input[type="file"][accept="image/*,application/pdf"]')
-    .setInputFiles(receiptFile);
-  await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
-  await expect(receiptDialog).not.toBeVisible();
-  await expect(
-    page.getByText(path.basename(receiptFile), { exact: true }),
-  ).toBeVisible({ timeout: 20_000 });
-};
 
 const seedPendingReceiptForApproval = async ({
   currency,
@@ -131,14 +73,14 @@ const seedPendingReceiptForApproval = async ({
   return receiptUploadId;
 };
 
-test('submit receipt from event organize page', async ({
+test('submit receipt through Events and organizer navigation', async ({
   database,
   page,
   seeded,
   tenant,
 }) => {
   const currency = 'AUD';
-  const eventId = seeded.scenario.events.past.eventId;
+  const eventId = seeded.scenario.events.freeOpen.eventId;
   const receiptFile = path.resolve('tests/fixtures/sample-receipt.pdf');
   const [event] = await database
     .select()
@@ -146,7 +88,7 @@ test('submit receipt from event organize page', async ({
     .where(eq(schema.eventInstances.id, eventId))
     .limit(1);
   if (!event) {
-    throw new Error('Expected seeded past event for receipt submission flow');
+    throw new Error('Expected seeded listed event for receipt submission flow');
   }
   let submittedReceiptId: string | undefined;
   let submittedUploadId: string | undefined;
@@ -156,18 +98,35 @@ test('submit receipt from event organize page', async ({
       .update(schema.tenants)
       .set({ currency })
       .where(eq(schema.tenants.id, tenant.id));
-    const now = new Date();
-    await database
-      .update(schema.eventInstances)
-      .set({
-        end: new Date(now.getTime() - 60 * 60 * 1000),
-        start: new Date(now.getTime() - 3 * 60 * 60 * 1000),
-      })
-      .where(eq(schema.eventInstances.id, eventId));
 
-    await submitReceiptFromFirstEvent(page, eventId, receiptFile, currency);
+    const receiptSection = await openOrganizerReceiptsFromNavigation({
+      eventId,
+      eventTitle: event.title,
+      page,
+    });
+    const receiptDialog = await openReceiptSubmissionDialog({
+      page,
+      receiptSection,
+    });
+    await completeReceiptSubmissionForm({
+      alcoholAmount: '1.50',
+      currency,
+      depositAmount: '2.50',
+      dialog: receiptDialog,
+      page,
+      receiptFile,
+      taxAmount: '2.10',
+      totalAmount: '14.50',
+    });
+    await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
+    await expect(receiptDialog).not.toBeVisible();
     await expect(
-      page.getByText(`Total: ${formatTenantCurrency(1450, currency)}`),
+      receiptSection.getByText(path.basename(receiptFile), { exact: true }),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(
+      receiptSection.getByText(
+        `Total: ${formatTenantCurrency(1450, currency)}`,
+      ),
     ).toBeVisible();
 
     const [submittedReceipt] = await database
@@ -189,6 +148,20 @@ test('submit receipt from event organize page', async ({
     }
     submittedReceiptId = submittedReceipt.id;
     submittedUploadId = submittedReceipt.attachmentUploadId;
+    expect(submittedReceipt).toEqual(
+      expect.objectContaining({
+        alcoholAmount: 150,
+        currency,
+        depositAmount: 250,
+        hasAlcohol: true,
+        hasDeposit: true,
+        purchaseCountry: 'DE',
+        status: 'submitted',
+        taxAmount: 210,
+        tenantId: tenant.id,
+        totalAmount: 1450,
+      }),
+    );
 
     const uploadedReceipt =
       await database.query.financeReceiptUploads.findFirst({
@@ -215,13 +188,6 @@ test('submit receipt from event organize page', async ({
         .delete(schema.financeReceiptUploads)
         .where(eq(schema.financeReceiptUploads.id, submittedUploadId));
     }
-    await database
-      .update(schema.eventInstances)
-      .set({
-        end: event.end,
-        start: event.start,
-      })
-      .where(eq(schema.eventInstances.id, eventId));
   }
 });
 
@@ -419,7 +385,7 @@ test('receipt dialog shows Other option when tenant allows it', async ({
     .where(eq(schema.tenants.id, tenant.id));
 
   const eventId = seeded.scenario.events.past.eventId;
-  await openEventOrganizePage(page, eventId);
+  await page.goto(`/events/${eventId}/organize`);
   await page.getByRole('button', { name: 'Add receipt' }).click();
   await page.getByLabel('Purchase country').click();
   const otherCountryOption = page.getByRole('option', {

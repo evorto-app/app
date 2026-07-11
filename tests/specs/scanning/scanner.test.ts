@@ -19,7 +19,10 @@ import {
 } from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { installMockCamera } from '../../support/utils/mock-camera';
-import { waitForScannerAddonFulfillment } from '../../support/utils/scanner-result-page';
+import {
+  fillScannerGuestCheckInCount,
+  waitForScannerAddonFulfillment,
+} from '../../support/utils/scanner-result-page';
 import { seedScannerFulfillmentAddon } from '../../support/utils/seed-scanner-fulfillment';
 
 test.use({ storageState: adminStateFile });
@@ -733,8 +736,11 @@ test('scan confirmed registration records check-in', async ({
       page.getByRole('heading', { name: 'Registration scanned' }),
     ).toBeVisible();
     await expect(page.getByText('Event starting in the future')).toHaveCount(0);
-    await page.getByLabel('Guests to check in now').fill('2');
-    await page.getByRole('button', { name: 'Confirm 3 check-ins' }).click();
+    const confirmCheckIn = await fillScannerGuestCheckInCount(page, {
+      guestCount: 2,
+      includeAttendee: true,
+    });
+    await confirmCheckIn.click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Checked in' }),
@@ -828,8 +834,11 @@ test('scan checked-in registration records remaining guest arrival', async ({
     await expect(page.getByText('1 checked in, 1 remaining.')).toBeVisible();
     await expect(page.getByText('Already checked in')).toHaveCount(0);
 
-    await page.getByLabel('Guests to check in now').fill('1');
-    await page.getByRole('button', { name: 'Confirm check-in' }).click();
+    const confirmGuestCheckIn = await fillScannerGuestCheckInCount(page, {
+      guestCount: 1,
+      includeAttendee: false,
+    });
+    await confirmGuestCheckIn.click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Checked in' }),

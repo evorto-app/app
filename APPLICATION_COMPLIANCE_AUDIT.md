@@ -514,7 +514,8 @@ Uncodixfy assessment: **mostly compliant**. The app avoids decorative gradients,
 - QR rendering is owner/organizer-scoped, and the scanner independently enforces tenant-scoped organizer authorization.
 - Receipt review queues email through a transactional outbox rather than direct fire-and-forget delivery.
 - Template add-on/question authoring and template-to-event copying have generated-doc persistence/readback coverage.
-- The skip/fixme inventory guard is strict; intentional credential gates are explicitly recorded.
+- The skip/fixme inventory is required to stay empty; selected
+  credential-dependent runs fail preflight instead of reporting skipped tests.
 - Angular Material, system tokens, OnPush components, signals, native control flow, and responsive two-column patterns are broadly established.
 
 ## Explicitly deferred scope — not counted as a defect by itself

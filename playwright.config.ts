@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import { formatConfigError } from '@server/config/config-error';
+import { APPLICATION_READINESS_PATH } from '@server/http/application-readiness';
 import { ConfigError, ConfigProvider, Effect } from 'effect';
 
 import { playwrightEnvironmentConfig } from './tests/support/config/environment';
@@ -59,36 +60,44 @@ const webServer = (() => {
     return;
   }
 
-  const url = environment.BASE_URL;
+  const readinessUrl = new URL(
+    APPLICATION_READINESS_PATH,
+    environment.BASE_URL,
+  ).toString();
 
   return {
     command: 'bun run docker:webserver',
     gracefulShutdown: {
       signal: 'SIGTERM',
-      timeout: 60_000,
+      timeout: 90_000,
     },
     reuseExistingServer: true,
     timeout: 240_000,
-    url,
+    url: readinessUrl,
   } as const;
 })();
 
 const listOnly = process.argv.includes('--list');
+const completeRunReporter = [
+  './tests/support/reporters/complete-playwright-run-reporter.ts',
+];
 
 // Configure reporters: avoid blocking HTML server opening; prefer terminal output
 const reporters = environment.CI
-  ? [['github'], ['dot']]
+  ? [['github'], ['dot'], completeRunReporter]
   : listOnly
-    ? [['dot']]
+    ? [['dot'], completeRunReporter]
     : [
         ['html', { open: 'never' }],
         ['dot'],
         ['./tests/support/reporters/documentation-reporter.ts'],
+        completeRunReporter,
       ];
 
 export default defineConfig({
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
-  forbidOnly: environment.CI,
+  /* Focused or flaky tests are never an acceptable local or CI result. */
+  failOnFlakyTests: true,
+  forbidOnly: true,
   ...(environment.CI && { maxFailures: 1 }),
   /* Run tests in files in parallel */
   fullyParallel: true,

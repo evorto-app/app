@@ -55,11 +55,11 @@ export const templateRegistrationOptions = pgTable(
   },
   (table) => ({
     cancellationDeadlineHoursNonnegative: check(
-      'template_registration_options_cancellation_deadline_hours_nonnegative',
+      'template_registration_options_cancellation_deadline_hours_nonne',
       sql`${table.cancellationDeadlineHoursBeforeStart} IS NULL OR ${table.cancellationDeadlineHoursBeforeStart} >= 0`,
     ),
     transferDeadlineHoursNonnegative: check(
-      'template_registration_options_transfer_deadline_hours_nonnegative',
+      'template_registration_options_transfer_deadline_hours_nonnegati',
       sql`${table.transferDeadlineHoursBeforeStart} IS NULL OR ${table.transferDeadlineHoursBeforeStart} >= 0`,
     ),
     uniqueIdTemplateId: unique().on(table.id, table.templateId),

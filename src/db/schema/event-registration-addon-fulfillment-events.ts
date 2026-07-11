@@ -65,7 +65,7 @@ export const eventRegistrationAddonFulfillmentEvents = pgTable(
       sql`${table.quantity} > 0`,
     ),
     check(
-      'event_registration_addon_fulfillment_event_operation_key_nonblank',
+      'event_registration_addon_fulfillment_event_operation_key_nonbla',
       sql`length(trim(${table.operationKey})) BETWEEN 1 AND 100`,
     ),
     check(
@@ -124,7 +124,7 @@ export const eventRegistrationAddonFulfillmentEvents = pgTable(
       table.tenantId,
     ),
     unique(
-      'event_registration_addon_fulfillment_event_purchase_tenant_unique',
+      'event_registration_addon_fulfillment_event_purchase_tenant_uniq',
     ).on(table.id, table.purchaseId, table.tenantId),
     uniqueIndex('event_registration_addon_redemption_undo_unique')
       .on(table.reversesEventId)

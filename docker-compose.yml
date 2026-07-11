@@ -2,6 +2,7 @@ services:
   db:
     image: neondatabase/neon_local:v1.5
     restart: "no"
+    stop_grace_period: 60s
     environment:
       BRANCH_ID:
       DELETE_BRANCH: "${DELETE_BRANCH:-true}"
@@ -48,7 +49,7 @@ services:
     command:
       - /bin/sh
       - -lc
-      - bun helpers/testing/set-neon-local-branch-expiration.ts || true
+      - bun helpers/testing/set-neon-local-branch-expiration.ts
     restart: "no"
 
   db-setup:

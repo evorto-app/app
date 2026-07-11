@@ -1,4 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import type { Locator, Page } from '@playwright/test';
+
+import { and, eq, inArray } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 
 import { getId } from '../../../helpers/get-id';
@@ -8,6 +10,40 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { fillTemplateBasics } from '../../support/utils/template-form';
 
+const templateOptionEditorByTitle = async (
+  page: Page,
+  title: string,
+): Promise<Locator> => {
+  const editors = page.locator('app-template-registration-option-editor');
+  const inputs = editors.getByLabel('Registration option name', {
+    exact: true,
+  });
+  let matchingIndex = -1;
+
+  await expect
+    .poll(
+      async () => {
+        const inputValues = await inputs.evaluateAll((elements) =>
+          elements.map((element) => {
+            if (!(element instanceof HTMLInputElement)) {
+              throw new Error('Expected a template registration option input');
+            }
+            return element.value;
+          }),
+        );
+        matchingIndex = inputValues.indexOf(title);
+        return matchingIndex;
+      },
+      {
+        message: `Expected template registration option "${title}"`,
+        timeout: 15_000,
+      },
+    )
+    .toBeGreaterThanOrEqual(0);
+
+  return editors.nth(matchingIndex);
+};
+
 test.use({
   storageState: adminStateFile,
   timezoneId: 'America/Los_Angeles',
@@ -15,6 +51,7 @@ test.use({
 
 test('Manage templates', async ({
   database,
+  registerDatabaseCleanup,
   page,
   templateCategories,
   tenant,
@@ -31,6 +68,118 @@ test('Manage templates', async ({
   const questionTitle = `Docs accessibility needs ${getId().slice(0, 6)}`;
   const questionDescription = 'Tell organizers what support you need.';
   const eventTitle = `Docs event from template ${getId().slice(0, 6)}`;
+
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    const createdEvents = await cleanupDatabase
+      .select({ id: schema.eventInstances.id })
+      .from(schema.eventInstances)
+      .where(
+        and(
+          eq(schema.eventInstances.tenantId, tenant.id),
+          eq(schema.eventInstances.title, eventTitle),
+        ),
+      );
+    const eventIds = createdEvents.map((event) => event.id);
+    if (eventIds.length > 0) {
+      const copiedOptions = await cleanupDatabase
+        .select({ id: schema.eventRegistrationOptions.id })
+        .from(schema.eventRegistrationOptions)
+        .where(inArray(schema.eventRegistrationOptions.eventId, eventIds));
+      const copiedOptionIds = copiedOptions.map((option) => option.id);
+      if (copiedOptionIds.length > 0) {
+        await cleanupDatabase
+          .delete(schema.eventRegistrationOptionDiscounts)
+          .where(
+            inArray(
+              schema.eventRegistrationOptionDiscounts.registrationOptionId,
+              copiedOptionIds,
+            ),
+          );
+      }
+      await cleanupDatabase
+        .delete(schema.eventRegistrationQuestions)
+        .where(inArray(schema.eventRegistrationQuestions.eventId, eventIds));
+      await cleanupDatabase
+        .delete(schema.addonToEventRegistrationOptions)
+        .where(
+          inArray(schema.addonToEventRegistrationOptions.eventId, eventIds),
+        );
+      await cleanupDatabase
+        .delete(schema.eventAddons)
+        .where(inArray(schema.eventAddons.eventId, eventIds));
+      await cleanupDatabase
+        .delete(schema.eventRegistrationOptions)
+        .where(inArray(schema.eventRegistrationOptions.eventId, eventIds));
+      await cleanupDatabase
+        .delete(schema.eventInstances)
+        .where(
+          and(
+            eq(schema.eventInstances.tenantId, tenant.id),
+            inArray(schema.eventInstances.id, eventIds),
+          ),
+        );
+    }
+
+    const createdTemplates = await cleanupDatabase
+      .select({ id: schema.eventTemplates.id })
+      .from(schema.eventTemplates)
+      .where(
+        and(
+          eq(schema.eventTemplates.tenantId, tenant.id),
+          eq(schema.eventTemplates.title, templateTitle),
+        ),
+      );
+    const templateIds = createdTemplates.map((template) => template.id);
+    if (templateIds.length === 0) {
+      return;
+    }
+    const templateOptions = await cleanupDatabase
+      .select({ id: schema.templateRegistrationOptions.id })
+      .from(schema.templateRegistrationOptions)
+      .where(
+        inArray(schema.templateRegistrationOptions.templateId, templateIds),
+      );
+    const templateOptionIds = templateOptions.map((option) => option.id);
+    if (templateOptionIds.length > 0) {
+      await cleanupDatabase
+        .delete(schema.templateRegistrationOptionDiscounts)
+        .where(
+          inArray(
+            schema.templateRegistrationOptionDiscounts.registrationOptionId,
+            templateOptionIds,
+          ),
+        );
+    }
+    await cleanupDatabase
+      .delete(schema.templateRegistrationQuestions)
+      .where(
+        inArray(schema.templateRegistrationQuestions.templateId, templateIds),
+      );
+    await cleanupDatabase
+      .delete(schema.addonToTemplateRegistrationOptions)
+      .where(
+        inArray(
+          schema.addonToTemplateRegistrationOptions.templateId,
+          templateIds,
+        ),
+      );
+    await cleanupDatabase
+      .delete(schema.templateEventAddons)
+      .where(inArray(schema.templateEventAddons.templateId, templateIds));
+    await cleanupDatabase
+      .delete(schema.templateRegistrationOptions)
+      .where(
+        inArray(schema.templateRegistrationOptions.templateId, templateIds),
+      );
+    await cleanupDatabase
+      .delete(schema.eventTemplates)
+      .where(
+        and(
+          eq(schema.eventTemplates.tenantId, tenant.id),
+          inArray(schema.eventTemplates.id, templateIds),
+        ),
+      );
+  });
 
   await page.goto('.');
   await testInfo.attach('markdown', {
@@ -487,11 +636,10 @@ The event now owns its copied registration graph. Editing the source template ch
 `,
   });
   await page.goto(`/templates/${createdTemplate.id}/edit`);
-  const participantOptionEditor = page
-    .locator('app-template-registration-option-editor')
-    .filter({
-      has: page.getByDisplayValue('Participant registration'),
-    });
+  const participantOptionEditor = await templateOptionEditorByTitle(
+    page,
+    'Participant registration',
+  );
   const updatedParticipantTitle = 'Participant registration updated';
   await participantOptionEditor
     .getByLabel('Registration option name')
@@ -535,38 +683,4 @@ The event now owns its copied registration graph. Editing the source template ch
         left.registrationOptionId.localeCompare(right.registrationOptionId),
       ),
   ).toEqual(eventMappingSnapshot);
-
-  await database
-    .delete(schema.eventInstances)
-    .where(
-      and(
-        eq(schema.eventInstances.id, createdEvent.id),
-        eq(schema.eventInstances.tenantId, tenant.id),
-      ),
-    );
-
-  await database
-    .delete(schema.addonToTemplateRegistrationOptions)
-    .where(eq(schema.addonToTemplateRegistrationOptions.addonId, addOn.id));
-  await database
-    .delete(schema.templateRegistrationQuestions)
-    .where(
-      eq(schema.templateRegistrationQuestions.templateId, createdTemplate.id),
-    );
-  await database
-    .delete(schema.templateEventAddons)
-    .where(eq(schema.templateEventAddons.templateId, createdTemplate.id));
-  await database
-    .delete(schema.templateRegistrationOptions)
-    .where(
-      eq(schema.templateRegistrationOptions.templateId, createdTemplate.id),
-    );
-  await database
-    .delete(schema.eventTemplates)
-    .where(
-      and(
-        eq(schema.eventTemplates.id, createdTemplate.id),
-        eq(schema.eventTemplates.tenantId, tenant.id),
-      ),
-    );
 });

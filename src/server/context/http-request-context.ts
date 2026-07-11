@@ -41,7 +41,6 @@ export const resolveHttpRequestContext = (
   Effect.gen(function* () {
     const requestOrigin = resolveRequestOrigin(request);
     const authentication = resolveAuthenticationContext({
-      appSessionCookie: request.cookies['appSession'],
       isAuthenticated: isAuthenticated(authSession),
     });
 

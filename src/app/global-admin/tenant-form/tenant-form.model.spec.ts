@@ -8,6 +8,7 @@ import {
   globalAdminTenantSubmitDisabled,
   globalAdminTenantUpdateErrorMessage,
   normalizeGlobalAdminTenantDomain,
+  resolveGlobalAdminTenantEditFormModel,
 } from './tenant-form.model';
 
 describe('global admin tenant form model', () => {
@@ -53,6 +54,95 @@ describe('global admin tenant form model', () => {
       theme: 'esn',
       timezone: 'Australia/Brisbane',
     });
+  });
+
+  it('preserves same-tenant edits when the query refreshes', () => {
+    const tenant = {
+      currency: 'EUR' as const,
+      domain: 'tenant.example.com',
+      id: 'tenant-1',
+      locale: 'de-DE' as const,
+      name: 'Tenant',
+      stripeAccountId: null,
+      stripeConnected: false,
+      theme: 'evorto' as const,
+      timezone: 'Europe/Berlin' as const,
+    };
+    const editedModel = {
+      ...globalAdminTenantFormModelFromRecord(tenant),
+      domain: 'next.tenant.example.com',
+      reason: 'Move the public URL',
+    };
+
+    expect(
+      resolveGlobalAdminTenantEditFormModel(
+        { tenant: { ...tenant }, tenantId: tenant.id },
+        {
+          source: { tenant, tenantId: tenant.id },
+          value: editedModel,
+        },
+      ),
+    ).toBe(editedModel);
+  });
+
+  it('initializes the edit form when tenant data first arrives', () => {
+    const tenant = {
+      currency: 'EUR' as const,
+      domain: 'tenant.example.com',
+      id: 'tenant-1',
+      locale: 'de-DE' as const,
+      name: 'Tenant',
+      stripeAccountId: null,
+      stripeConnected: false,
+      theme: 'evorto' as const,
+      timezone: 'Europe/Berlin' as const,
+    };
+
+    expect(
+      resolveGlobalAdminTenantEditFormModel(
+        { tenant, tenantId: tenant.id },
+        {
+          source: { tenant: undefined, tenantId: tenant.id },
+          value: createGlobalAdminTenantFormModel(),
+        },
+      ),
+    ).toEqual(globalAdminTenantFormModelFromRecord(tenant));
+  });
+
+  it('resets the edit form when navigation selects another tenant', () => {
+    const previousTenant = {
+      currency: 'EUR' as const,
+      domain: 'first.example.com',
+      id: 'tenant-1',
+      locale: 'de-DE' as const,
+      name: 'First tenant',
+      stripeAccountId: null,
+      stripeConnected: false,
+      theme: 'evorto' as const,
+      timezone: 'Europe/Berlin' as const,
+    };
+    const nextTenant = {
+      ...previousTenant,
+      domain: 'second.example.com',
+      id: 'tenant-2',
+      name: 'Second tenant',
+    };
+
+    expect(
+      resolveGlobalAdminTenantEditFormModel(
+        { tenant: nextTenant, tenantId: nextTenant.id },
+        {
+          source: {
+            tenant: previousTenant,
+            tenantId: previousTenant.id,
+          },
+          value: {
+            ...globalAdminTenantFormModelFromRecord(previousTenant),
+            name: 'Unsaved edit',
+          },
+        },
+      ),
+    ).toEqual(globalAdminTenantFormModelFromRecord(nextTenant));
   });
 
   it('trims tenant create/edit payloads and clears blank Stripe account IDs', () => {

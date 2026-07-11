@@ -219,6 +219,7 @@ test('collects current requirements before a cross-tenant join and preserves the
 test('a tenant admin publishes a version and is immediately required to re-accept it @admin', async ({
   browser,
   database,
+  registerDatabaseCleanup,
   page,
   tenant,
   testClock,
@@ -254,87 +255,13 @@ test('a tenant admin publishes a version and is immediately required to re-accep
       .map((question) => question.id),
   );
 
-  try {
-    await admin.page.goto('/admin/onboarding');
-    const settings = admin.page.locator('app-onboarding-settings');
-    await expect(
-      settings.getByRole('heading', {
-        level: 1,
-        name: 'Tenant onboarding',
-      }),
-    ).toBeVisible();
-    await expect(settings.getByRole('note')).toContainText(
-      'Publishing changed policy text or a changed link immediately requires every tenant user, including you, to accept the new version before using protected tenant features.',
-    );
-    await admin.page
-      .getByRole('textbox', { name: 'Privacy policy text' })
-      .fill('Updated privacy policy for the current academic year.');
-    await admin.page.getByRole('button', { name: 'Add question' }).click();
-    await admin.page
-      .getByRole('textbox', { name: 'Question' })
-      .fill('Which member group should welcome you?');
-    await admin.page.getByRole('combobox', { name: 'Answer type' }).click();
-    await admin.page.getByRole('option', { name: 'Selection list' }).click();
-    await admin.page
-      .getByRole('textbox', { name: 'Selection options' })
-      .fill('Buddy team\nEvents team');
-    await admin.page.getByRole('button', { name: 'Publish settings' }).click();
-    await expect(
-      admin.page.getByText(/tenant users must accept it before continuing/i),
-    ).toBeVisible();
-
-    const allPolicies =
-      await database.query.tenantPrivacyPolicyVersions.findMany({
-        where: { tenantId: tenant.id },
-      });
-    const publishedPolicy = allPolicies.find(
-      (policy) => !originalPolicyIds.has(policy.id),
-    );
-    expect(publishedPolicy?.createdByUserId).toBeTruthy();
-
-    await admin.page.goto('/admin');
-    await expect(admin.page).toHaveURL(/\/create-account$/);
-    await expect(
-      admin.page.getByRole('heading', {
-        name: `Privacy policy version ${publishedPolicy?.version}`,
-      }),
-    ).toBeVisible();
-    await admin.page
-      .getByRole('combobox', {
-        name: 'Which member group should welcome you?',
-      })
-      .click();
-    await admin.page.getByRole('option', { name: 'Buddy team' }).click();
-    await admin.page
-      .getByRole('checkbox', { name: /I accept .* current privacy policy/ })
-      .check();
-    await admin.page
-      .getByRole('button', { name: 'Confirm and continue' })
-      .click();
-    await expect(admin.page).toHaveURL(/\/profile$/);
-
-    const adminUser = usersToAuthenticate.find(
-      (user) => user.stateFile === adminStateFile,
-    );
-    if (!adminUser || !publishedPolicy) {
-      throw new Error('Expected admin user and published policy');
-    }
-    expect(
-      await database.query.tenantPrivacyPolicyAcceptances.findFirst({
-        where: {
-          policyVersionId: publishedPolicy.id,
-          tenantId: tenant.id,
-          userId: adminUser.id,
-        },
-      }),
-    ).toBeDefined();
-  } finally {
+  registerDatabaseCleanup(async (cleanupDatabase) => {
     const createdPolicies =
-      await database.query.tenantPrivacyPolicyVersions.findMany({
+      await cleanupDatabase.query.tenantPrivacyPolicyVersions.findMany({
         where: { tenantId: tenant.id },
       });
     const createdQuestions =
-      await database.query.tenantOnboardingQuestions.findMany({
+      await cleanupDatabase.query.tenantOnboardingQuestions.findMany({
         where: { tenantId: tenant.id },
       });
     const createdPolicyIds = createdPolicies
@@ -344,7 +271,7 @@ test('a tenant admin publishes a version and is immediately required to re-accep
       .filter((question) => !originalQuestionIds.has(question.id))
       .map((question) => question.id);
     if (createdQuestionIds.length > 0) {
-      await database
+      await cleanupDatabase
         .delete(schema.tenantOnboardingQuestionAnswers)
         .where(
           inArray(
@@ -352,14 +279,14 @@ test('a tenant admin publishes a version and is immediately required to re-accep
             createdQuestionIds,
           ),
         );
-      await database
+      await cleanupDatabase
         .delete(schema.tenantOnboardingQuestions)
         .where(
           inArray(schema.tenantOnboardingQuestions.id, createdQuestionIds),
         );
     }
     if (createdPolicyIds.length > 0) {
-      await database
+      await cleanupDatabase
         .delete(schema.tenantPrivacyPolicyAcceptances)
         .where(
           inArray(
@@ -367,14 +294,14 @@ test('a tenant admin publishes a version and is immediately required to re-accep
             createdPolicyIds,
           ),
         );
-      await database
+      await cleanupDatabase
         .delete(schema.tenantPrivacyPolicyVersions)
         .where(
           inArray(schema.tenantPrivacyPolicyVersions.id, createdPolicyIds),
         );
     }
     if (originalActiveQuestionIds.size > 0) {
-      await database
+      await cleanupDatabase
         .update(schema.tenantOnboardingQuestions)
         .set({ retiredAt: null })
         .where(
@@ -387,7 +314,7 @@ test('a tenant admin publishes a version and is immediately required to re-accep
         );
     }
     if (originalTenant) {
-      await database
+      await cleanupDatabase
         .update(schema.tenants)
         .set({
           privacyPolicyText: originalTenant.privacyPolicyText,
@@ -395,6 +322,99 @@ test('a tenant admin publishes a version and is immediately required to re-accep
         })
         .where(eq(schema.tenants.id, tenant.id));
     }
-    await admin.context.close();
+  });
+  registerDatabaseCleanup(async () => admin.context.close());
+
+  await admin.page.goto('/admin/onboarding');
+  const settings = admin.page.locator('app-onboarding-settings');
+  await expect(
+    settings.getByRole('heading', {
+      level: 1,
+      name: 'Tenant onboarding',
+    }),
+  ).toBeVisible();
+  await expect(settings.getByRole('note')).toContainText(
+    'Publishing changed policy text or a changed link immediately requires every tenant user, including you, to accept the new version before using protected tenant features.',
+  );
+  await expect(settings).not.toHaveAttribute('ngh', /.*/);
+  if (!originalTenant?.privacyPolicyText) {
+    throw new Error('Expected seeded tenant privacy policy text');
   }
+  const privacyPolicyText = settings.getByRole('textbox', {
+    name: 'Privacy policy text',
+  });
+  await expect(privacyPolicyText).toHaveValue(originalTenant.privacyPolicyText);
+  await privacyPolicyText.fill(
+    'Updated privacy policy for the current academic year.',
+  );
+  const questionInputs = settings.getByRole('textbox', { name: 'Question' });
+  const previousQuestionCount = await questionInputs.count();
+  await settings.getByRole('button', { name: 'Add question' }).click();
+  await expect(questionInputs).toHaveCount(previousQuestionCount + 1);
+  await questionInputs
+    .nth(previousQuestionCount)
+    .fill('Which member group should welcome you?');
+  await settings.getByRole('combobox', { name: 'Answer type' }).last().click();
+  await admin.page.getByRole('option', { name: 'Selection list' }).click();
+  await settings
+    .getByRole('textbox', { name: 'Selection options' })
+    .last()
+    .fill('Buddy team\nEvents team');
+  await settings.getByRole('button', { name: 'Publish settings' }).click();
+  await expect(
+    admin.page.getByText(/tenant users must accept it before continuing/i),
+  ).toBeVisible();
+
+  const allPolicies = await database.query.tenantPrivacyPolicyVersions.findMany(
+    {
+      where: { tenantId: tenant.id },
+    },
+  );
+  const publishedPolicy = allPolicies.find(
+    (policy) => !originalPolicyIds.has(policy.id),
+  );
+  expect(publishedPolicy?.createdByUserId).toBeTruthy();
+
+  await admin.page.goto('/admin');
+  await expect(admin.page).toHaveURL(/\/create-account$/);
+  const onboarding = admin.page.locator('app-create-account');
+  await expect(
+    onboarding.getByRole('heading', { name: 'Complete tenant setup' }),
+  ).toBeVisible();
+  await expect(
+    onboarding.getByRole('heading', {
+      name: `Privacy policy version ${publishedPolicy?.version}`,
+    }),
+  ).toBeVisible();
+  const onboardingQuestion = onboarding.getByRole('combobox', {
+    name: 'Which member group should welcome you?',
+  });
+  await expect(onboardingQuestion).toBeVisible();
+  await onboardingQuestion.focus();
+  await expect(onboardingQuestion).toBeFocused();
+  await onboardingQuestion.press('Space');
+  await admin.page.getByRole('option', { name: 'Buddy team' }).click();
+  await admin.page
+    .getByRole('checkbox', { name: /I accept .* current privacy policy/ })
+    .check();
+  await admin.page
+    .getByRole('button', { name: 'Confirm and continue' })
+    .click();
+  await expect(admin.page).toHaveURL(/\/profile$/);
+
+  const adminUser = usersToAuthenticate.find(
+    (user) => user.stateFile === adminStateFile,
+  );
+  if (!adminUser || !publishedPolicy) {
+    throw new Error('Expected admin user and published policy');
+  }
+  expect(
+    await database.query.tenantPrivacyPolicyAcceptances.findFirst({
+      where: {
+        policyVersionId: publishedPolicy.id,
+        tenantId: tenant.id,
+        userId: adminUser.id,
+      },
+    }),
+  ).toBeDefined();
 });

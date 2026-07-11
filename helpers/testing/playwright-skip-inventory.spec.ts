@@ -3,23 +3,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-// Source guard: every skipped browser/doc test needs an explicit reason here so
-// uncovered behavior does not disappear behind permanent `test.skip` calls.
+// Source guard: browser/doc coverage must fail explicitly when a precondition
+// is unavailable instead of disappearing behind `skip` or `fixme` calls.
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 const testsRoot = path.join(repositoryRoot, 'tests');
 const testInventoryPath = path.join(testsRoot, 'test-inventory.md');
-
-const allowedPlaywrightSkipEntries = [
-  {
-    entry: 'tests/specs/profile/user-profile-live-esncard.spec.ts:16:test.skip',
-    reason:
-      'Local runs may omit the live ESNcard identifier; the protected release workflow fails closed and must run external provider coverage.',
-  },
-] as const;
-
-const allowedEntries = new Set(
-  allowedPlaywrightSkipEntries.map((entry) => entry.entry),
-);
 
 const skipPattern = /\b(?:test|it|describe)\.(skip|fixme)\b/g;
 const placeholderMetadataPattern = /@(track|req|doc)\(/g;
@@ -127,18 +115,10 @@ describe('Playwright skip inventory', () => {
     );
   });
 
-  it('keeps every skip and fixme explicitly classified', () => {
+  it('keeps active Playwright coverage free of skip and fixme calls', () => {
     const entries = collectPlaywrightSkipEntries().toSorted();
 
-    expect(entries).toEqual([...allowedEntries].toSorted());
-  });
-
-  it('keeps every allowed skip and fixme tied to a reason', () => {
-    expect(
-      allowedPlaywrightSkipEntries.map((entry) => entry.reason.trim()),
-    ).toEqual([
-      'Local runs may omit the live ESNcard identifier; the protected release workflow fails closed and must run external provider coverage.',
-    ]);
+    expect(entries).toEqual([]);
   });
 
   it('keeps real Playwright titles free of placeholder metadata', () => {

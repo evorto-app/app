@@ -14,7 +14,6 @@ import {
   provideAppInitializer,
   provideZonelessChangeDetection,
 } from '@angular/core';
-import { isDevMode } from '@angular/core';
 import { provideLuxonDateAdapter } from '@angular/material-luxon-adapter';
 import { DateAdapter, MAT_DATE_LOCALE } from '@angular/material/core';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
@@ -35,14 +34,10 @@ import {
   provideEffectRpcProtocolHttpLayer,
 } from '@heddendorp/effect-platform-angular';
 import * as Sentry from '@sentry/angular';
-import {
-  provideTanStackQuery,
-  QueryClient,
-} from '@tanstack/angular-query-experimental';
-import { withDevtools } from '@tanstack/angular-query-experimental/devtools';
 
 import { TENANT_FORMATTING_LOCALE } from '../types/custom/tenant';
 import { routes } from './app.routes';
+import { appQueryProviders } from './core/app-query-client';
 import { authTokenInterceptor } from './core/auth-token.interceptor';
 import { ConfigService } from './core/config.service';
 import { AppRpc, resolveRpcUrl } from './core/effect-rpc-angular-client';
@@ -67,11 +62,7 @@ export const appConfig: ApplicationConfig = {
     provideEffectHttpClient(),
     provideEffectRpcProtocolHttpLayer({ url: resolveRpcUrl }),
     provideClientHydration(withEventReplay()),
-    // Enable TanStack Query devtools only in dev mode
-    provideTanStackQuery(
-      new QueryClient(),
-      ...(isDevMode() ? ([withDevtools()] as const) : ([] as const)),
-    ),
+    appQueryProviders,
     AppRpc.providers,
     provideLuxonDateAdapter(),
     {

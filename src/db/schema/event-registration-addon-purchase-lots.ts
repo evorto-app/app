@@ -144,7 +144,7 @@ export const eventRegistrationAddonPurchaseLots = pgTable(
       table.tenantId,
     ),
     unique(
-      'event_registration_addon_purchase_lots_registration_owner_unique',
+      'event_registration_addon_purchase_lots_registration_owner_uniqu',
     ).on(table.id, table.registrationId, table.tenantId),
     uniqueIndex('event_registration_addon_purchase_lots_source_line_unique')
       .on(table.tenantId, table.sourceTransactionId, table.sourceLineKey)

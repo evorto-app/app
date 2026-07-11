@@ -13,6 +13,7 @@ import {
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { installMockCamera } from '../../support/utils/mock-camera';
+import { fillScannerGuestCheckInCount } from '../../support/utils/scanner-result-page';
 
 test.use({ storageState: adminStateFile });
 
@@ -144,17 +145,17 @@ After a valid ticket is scanned, check the attendee name, event, registration op
     await expect(page.getByText('Event starting in the future')).toHaveCount(0);
     await expect(page.getByText('Includes 2 guests.')).toBeVisible();
     await expect(page.getByText('0 checked in, 2 remaining.')).toBeVisible();
-    await page.getByLabel('Guests to check in now').fill('1');
-    await expect(
-      page.getByRole('button', { name: 'Confirm 2 check-ins' }),
-    ).toBeVisible();
+    const confirmAttendeeAndGuest = await fillScannerGuestCheckInCount(page, {
+      guestCount: 1,
+      includeAttendee: true,
+    });
     await takeScreenshot(
       testInfo,
       page.locator('app-handle-registration'),
       page,
       'Verify attendee and first arriving guest',
     );
-    await page.getByRole('button', { name: 'Confirm 2 check-ins' }).click();
+    await confirmAttendeeAndGuest.click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
 
     await expect
@@ -193,8 +194,11 @@ The first confirmation above checks in the attendee and one guest. If another gu
 
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(page.getByText('1 checked in, 1 remaining.')).toBeVisible();
-    await page.getByLabel('Guests to check in now').fill('1');
-    await page.getByRole('button', { name: 'Confirm check-in' }).click();
+    const confirmRemainingGuest = await fillScannerGuestCheckInCount(page, {
+      guestCount: 1,
+      includeAttendee: false,
+    });
+    await confirmRemainingGuest.click();
     await expect(page.getByText('Check-in recorded')).toBeVisible();
 
     await page.goto(`/scan/registration/${registrationId}`);

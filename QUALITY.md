@@ -217,10 +217,12 @@ the durable Playwright and generated-documentation coverage.
    reliable.
 6. **Live ESNcard provider:** the Release workflow must complete the protected
    `ESNcard Release Certification` job for add, refresh, remove, and provider
-   error UX. Use its manual dispatch for rotation checks. Local discovery may
-   still run
-   `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard`, but a
-   local skip is never release certification.
+   error UX. Use its manual dispatch for rotation checks. Local certification
+   runs with
+   `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard:release`
+   and must pass the same fail-closed credential preflight plus the provider
+   error unit check. A missing identifier fails the run; live-provider coverage
+   is never converted into a skipped test.
 
 ## Done Criteria
 
@@ -229,11 +231,38 @@ the durable Playwright and generated-documentation coverage.
 Before any push, PR update, or other action that can trigger CI, run the full
 local equivalent of every CI test suite that the change will trigger. The local
 run must complete entirely: every collected test passes, with zero failures,
-skips, todos, fixmes, or interrupted tests. A suite that omits tests because a
-database, external service, environment variable, or credential is unavailable
-does not satisfy this gate. Resolve the dependency and rerun locally before CI
-is attempted. CI is confirmation of an already-green local result, not the
-first place to discover whether the complete suite passes.
+skips, todos, fixmes, expected failures, retries/flakes, interrupted tests, or
+focused tests. A suite that omits tests because a database, external service,
+environment variable, or credential is unavailable does not satisfy this gate.
+Resolve the dependency and rerun locally before CI is attempted. CI is
+confirmation of an already-green local result, not the first place to discover
+whether the complete suite passes.
+
+The canonical, unfiltered repository-owned Vitest and Playwright commands
+enforce completeness within each collected suite at runtime: skipped, todo,
+interrupted, expected-failure, retried/flaky, or focused tests make the run
+fail. Any caller-forwarded selector beyond a canonical package script that
+reduces collection is diagnostic-only and never counts as final gate evidence,
+including file arguments, `--filter`, `--grep`, `--grep-invert`, `--include`,
+`--last-failed`, `--related`, project, shard, `--changed`, or reporter
+overrides. Run the complete PR-equivalent command set documented in `README.md`;
+one selected suite or a clean source scan never replaces the complete runtime
+result. Changes to Auth0 Management, Cloudflare Images, or Google Maps
+integration paths additionally require `bun run test:e2e:integration` with
+their local credentials. Before merging, pushing, or releasing to `main`, run
+`bun run test:e2e:live-esncard:release` with the protected live-provider
+identifier.
+
+Docker-backed Playwright follows explicit ownership. When Playwright starts
+`docker:webserver`, that process removes its own project-scoped Compose objects
+on exit or shutdown. When `reuseExistingServer` finds a running app, Playwright
+does not own that stack and leaves it running. A final gate must not trust an
+unknown reused server: stop it and let the gate start a fresh stack, or start
+the exact checkout being pushed and verify that provenance explicitly.
+`/readyz` proves behavior, not commit identity. Do not resume the default
+ephemeral Neon Local stack after it stops; start fresh unless an explicit
+existing `BRANCH_ID` or `DELETE_BRANCH=false` made the existing database
+container's branch persistent when that container was created.
 
 For a typical change, before finishing:
 
@@ -267,7 +296,8 @@ For a new feature:
 For a refactor:
 
 - keep behavior unchanged
-- run targeted tests
+- run targeted tests during the edit loop, then the complete local-first CI
+  gate before any CI-triggering action
 - avoid changing product behavior accidentally
 - mention if any product behavior changed intentionally
 

@@ -59,8 +59,8 @@ describe('registration policy settings schema', () => {
       ),
     ).toEqual(
       expect.arrayContaining([
-        'template_registration_options_cancellation_deadline_hours_nonnegative',
-        'template_registration_options_transfer_deadline_hours_nonnegative',
+        'template_registration_options_cancellation_deadline_hours_nonne',
+        'template_registration_options_transfer_deadline_hours_nonnegati',
       ]),
     );
   });
@@ -81,7 +81,7 @@ describe('registration policy settings schema', () => {
       'utf8',
     );
     expect(source).toContain(
-      'event_registration_options_cancellation_deadline_hours_nonnegative',
+      'event_registration_options_cancellation_deadline_hours_nonnegat',
     );
     expect(source).toContain(
       'event_registration_options_transfer_deadline_hours_nonnegative',

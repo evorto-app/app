@@ -84,7 +84,9 @@ The **Email outbox** is an operational overview across every tenant. Use it to u
     await expect(exhaustedRow).toContainText('Failed');
     await expect(exhaustedRow).toContainText('8/8');
     await expect(exhaustedRow).toContainText('Recipient address was rejected');
-    await expect(exhaustedRow.getByText('Exhausted')).toBeVisible();
+    await expect(
+      exhaustedRow.getByText('Exhausted', { exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole('heading', { name: 'Email delivery needs attention' }),
     ).toBeVisible();

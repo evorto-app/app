@@ -46,17 +46,21 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run build:app` - build client + server bundles.
 - `bun run test:unit` - run unit tests.
 - `bun run test:unit:server` - run server unit tests.
+- `bun run test:integration:postgres` - run the fail-closed PostgreSQL 17 integration suite.
+- `bun run test:integration:postgres:local` - run that suite with supported local dotenv configuration.
 - `bun run test:e2e` - run Playwright e2e.
 - `bun run test:e2e:docs` - run Playwright documentation tests.
+- `bun run test:e2e:integration` - run credential-gated integration Playwright projects.
+- `bun run test:e2e:live-esncard:release` - run the full live-provider release certification locally.
 - `bun run test:e2e:install` - install the local Playwright browser binaries.
 - `bun run lint` - lint with autofix.
 - `bun run format:write` - format with Prettier.
 - `bun run docker:start` / `bun run docker:stop` - start/stop local services;
   `docker:start` may reset local data and should leave enough seeded data to
   get going from zero.
-- `bun run docker:resume` - bring back an already initialized Docker stack
-  without recreating containers; use it only when preserving local Docker state
-  matters.
+- `bun run docker:resume` - bring back the existing `db`, `minio`, `stripe`,
+  and `evorto` containers without recreating them or rerunning the one-shot
+  setup services; it refuses incomplete or unsuccessfully initialized stacks.
 - `bun run db:migrate`, `bun run db:push`, `bun run db:reset` - database commands.
 
 ## Local Environment
@@ -142,10 +146,11 @@ package scripts instead of bare `dotenv` shell commands.
 
 - Before any push, PR update, or other action that can trigger CI, run the full
   local equivalent of every CI test suite that the change will trigger. Every
-  collected test must pass: zero failures, skips, todos, fixmes, or interrupted
-  tests. Missing local services, environment variables, or credentials are
-  blockers to resolve, not reasons to defer coverage to CI. CI confirms an
-  already-green local result; it is never the first full test run.
+  collected test must pass: zero failures, skips, todos, fixmes, expected
+  failures, retries/flakes, interrupted tests, or focused tests. Missing local
+  services, environment variables, or credentials are blockers to resolve, not
+  reasons to defer coverage to CI. CI confirms an already-green local result;
+  it is never the first full test run.
 - After every file edit, run `bun run lint` and `bun run format:write`.
 - Markdown-only edits do not need a WebStorm `get_file_problems` pass.
 - Before calling WebStorm `get_file_problems` on edited files, run `bun run lint`.

@@ -25,6 +25,9 @@ export const fillTemplateBasics = async (
     .then(() => true)
     .catch(() => false);
   if (hasIconPicker) {
+    // SSR exposes the control before Angular attaches its live click listener.
+    // Event replay removes `jsaction` once the hydrated action is interactive.
+    await expect(changeIconButton).not.toHaveAttribute('jsaction', /click/);
     await changeIconButton.click();
     await expect(
       page.getByRole('heading', { name: 'Select an Icon' }),

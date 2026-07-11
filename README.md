@@ -87,6 +87,50 @@ bun run build:app
 
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
 
+## Mandatory local CI gate
+
+Before any push, PR update, or other action that can trigger CI, the exact local
+equivalent of every triggered CI suite must pass completely. Run the canonical,
+unfiltered commands below against the commit that will be pushed:
+
+```bash
+bun install --frozen-lockfile
+knope --validate
+bun run format:write
+bun run lint
+git diff --exit-code
+test -z "$(git status --porcelain=v1)"
+bun run test:unit:server
+bun run test:unit
+bun run test:integration:postgres:local
+bun run build:app
+bun run test:e2e
+bun run test:e2e:docs
+```
+
+Every collected test must pass with zero skips, todos, fixmes, expected
+failures, retries/flakes, interruptions, or focused tests. Missing services,
+credentials, environment variables, or local tools block the gate; they are not
+reasons to defer a suite to CI. Commands with forwarded file, filter, project,
+shard, `--changed`, or reporter arguments are useful diagnostics but never
+satisfy the final gate. See [QUALITY.md](QUALITY.md) for the done criteria and
+[tests/README.md](tests/README.md) for the disposable PostgreSQL prerequisite.
+
+The block above is the normal pull-request baseline. Any caller-forwarded
+selector beyond a canonical package script that reduces collection is
+diagnostic-only, including file arguments, `--filter`, `--grep`,
+`--grep-invert`, `--include`, `--last-failed`, `--related`, project, shard,
+`--changed`, or reporter overrides. Changes to Auth0 Management, Cloudflare
+Images, or Google Maps integration paths also require
+`bun run test:e2e:integration` with the applicable local credentials. Before
+merging, pushing, or releasing to `main`, also run
+`bun run test:e2e:live-esncard:release` with the protected provider identifier.
+
+The final Playwright runs must exercise the exact checkout being pushed. Stop
+an unknown reused server and let the gate own a fresh stack, or start the exact
+checkout yourself and verify its provenance; a successful `/readyz` response
+alone does not prove commit identity.
+
 ## Running unit tests
 
 To execute Angular/UI unit tests, use the following command:

@@ -24,8 +24,10 @@ import {
 } from './index';
 
 const databaseUrl = process.env['DATABASE_URL'];
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
+}
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
-const describeWithPostgres = databaseUrl ? describe : describe.skip;
 
 interface TenantBoundaryFixture {
   categoryIds: readonly [string, string];
@@ -193,32 +195,23 @@ const expectForeignKeyViolation = async (
   }
 };
 
-describeWithPostgres('tenant boundary constraints in PostgreSQL', () => {
+describe('tenant boundary constraints in PostgreSQL', () => {
   let database: TestDatabase;
   const fixture = makeFixture();
   let pool: Pool;
 
   beforeAll(async () => {
-    if (!databaseUrl) {
-      return;
-    }
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
     database = drizzle({ client: pool, relations });
     await seedFixture(database, fixture);
   });
 
   afterAll(async () => {
-    if (!databaseUrl) {
-      return;
-    }
     await cleanFixture(database, fixture);
     await pool.end();
   });
 
   it('rejects role and membership tuples from different tenants', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     await expectForeignKeyViolation(
       database.insert(rolesToTenantUsers).values({
         roleId: fixture.roleIds[0],
@@ -246,9 +239,6 @@ describeWithPostgres('tenant boundary constraints in PostgreSQL', () => {
   });
 
   it('rejects registrations with a foreign tenant or event option', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     await expectForeignKeyViolation(
       database.insert(eventRegistrations).values({
         eventId: fixture.eventIds[0],

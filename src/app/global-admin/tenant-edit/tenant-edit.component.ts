@@ -38,13 +38,12 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import {
-  createGlobalAdminTenantFormModel,
   type GlobalAdminTenantFormModel,
-  globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
   globalAdminTenantRelaunchScopeItems,
   globalAdminTenantSubmitDisabled,
   globalAdminTenantUpdateErrorMessage,
+  resolveGlobalAdminTenantEditFormModel,
 } from '../tenant-form/tenant-form.model';
 
 @Component({
@@ -77,15 +76,7 @@ export class TenantEditComponent {
     { tenant: GlobalAdminTenantRecord | null | undefined; tenantId: string },
     GlobalAdminTenantFormModel
   >({
-    computation: ({ tenant, tenantId }, previous) => {
-      if (tenant) {
-        return globalAdminTenantFormModelFromRecord(tenant);
-      }
-
-      return previous?.source.tenantId === tenantId
-        ? previous.value
-        : createGlobalAdminTenantFormModel();
-    },
+    computation: resolveGlobalAdminTenantEditFormModel,
     source: () => ({
       tenant: this.tenantQuery.isSuccess()
         ? this.tenantQuery.data()

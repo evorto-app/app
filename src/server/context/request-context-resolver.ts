@@ -135,10 +135,8 @@ const findTenantByDomain = (domain: string) =>
   );
 
 export const resolveAuthenticationContext = (input: {
-  appSessionCookie: string | undefined;
   isAuthenticated: boolean;
 }): Authentication => ({
-  cookie: input.appSessionCookie,
   isAuthenticated: input.isAuthenticated,
 });
 

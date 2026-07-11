@@ -31,8 +31,10 @@ import {
 import { lockTenantStripeAccount } from './payments/pending-stripe-obligations';
 
 const databaseUrl = process.env['DATABASE_URL'];
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
+}
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
-const describeWithPostgres = databaseUrl ? describe : describe.skip;
 
 interface TenantFixture {
   readonly categoryId?: string;
@@ -134,19 +136,17 @@ const runUrlMigration = (
     ),
   );
 
-describeWithPostgres('tenant public URL migration serialization', () => {
+describe('tenant public URL migration serialization', () => {
   let database: TestDatabase;
   const fixtures: TenantFixture[] = [];
   let pool: Pool;
 
   beforeAll(() => {
-    if (!databaseUrl) return;
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
     database = drizzle({ client: pool, relations });
   });
 
   afterAll(async () => {
-    if (!databaseUrl) return;
     for (const fixture of fixtures.toReversed()) {
       await database
         .delete(platformAuditEntries)
@@ -189,7 +189,6 @@ describeWithPostgres('tenant public URL migration serialization', () => {
   });
 
   it('makes a concurrent URL migration observe and reject a newly committed active transfer offer', async () => {
-    if (!databaseUrl) return;
     const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
     const tenantId = makeId('tenant', suffix);
     const userId = makeId('user', suffix);
@@ -356,7 +355,6 @@ describeWithPostgres('tenant public URL migration serialization', () => {
   }, 30_000);
 
   it('makes a concurrent URL migration observe and reject a newly committed Stripe obligation', async () => {
-    if (!databaseUrl) return;
     const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
     const tenantId = makeId('tenant', suffix);
     const transactionId = makeId('checkout', suffix);

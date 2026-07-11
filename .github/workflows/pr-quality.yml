@@ -30,6 +30,68 @@ jobs:
       - name: Validate Knope configuration and change files
         run: knope --validate
 
+  postgres-integration:
+    name: PostgreSQL integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: true
+      FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
+      POSTGRES_INTEGRATION_DATABASE_URL: postgresql://evorto:integration@localhost:5432/evorto_postgres_integration
+      POSTGRES_INTEGRATION_DISPOSABLE: "true"
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.23@sha256:8189a1f6e40904781fc9e2612687877791d21679866db58b1de996b31fc312e4
+        env:
+          POSTGRES_DB: evorto_postgres_integration
+          POSTGRES_PASSWORD: integration
+          POSTGRES_USER: evorto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U evorto -d evorto_postgres_integration"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.15.0"
+
+      - name: Validate required configuration
+        run: |
+          if [ -z "${FONT_AWESOME_TOKEN}" ]; then
+            echo "::error::Missing required secret: FONT_AWESOME_TOKEN"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if bun install --frozen-lockfile; then
+              exit 0
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "::error::Dependency installation failed after 3 attempts"
+              exit 1
+            fi
+            retry_delay_seconds=$((attempt * 15))
+            echo "::warning::Dependency installation attempt ${attempt} failed; retrying in ${retry_delay_seconds}s"
+            sleep "${retry_delay_seconds}"
+          done
+
+      - name: Run PostgreSQL integration tests
+        run: bun run test:integration:postgres
+
   code-quality:
     name: Lint, unit tests, and build
     runs-on: ubuntu-latest

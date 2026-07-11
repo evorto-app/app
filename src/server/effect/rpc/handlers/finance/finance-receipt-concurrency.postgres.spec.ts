@@ -27,8 +27,10 @@ import { financeHandlers } from './finance.handlers';
 import { buildReceiptStorageKey } from './receipt-media.service';
 
 const databaseUrl = process.env['DATABASE_URL'];
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
+}
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
-const describeWithPostgres = databaseUrl ? describe : describe.skip;
 
 type TestDatabase = NodePgDatabase<typeof relations>;
 
@@ -63,7 +65,7 @@ const waitForBlockedReceiptLock = async (pool: Pool) => {
   throw new Error('Timed out waiting for blocked finance receipt lock');
 };
 
-describeWithPostgres('receipt review and reimbursement serialization', () => {
+describe('receipt review and reimbursement serialization', () => {
   let database: TestDatabase;
   let pool: Pool;
   const categoryIds: string[] = [];
@@ -76,13 +78,11 @@ describeWithPostgres('receipt review and reimbursement serialization', () => {
   const userIds: string[] = [];
 
   beforeAll(() => {
-    if (!databaseUrl) return;
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
     database = drizzle({ client: pool, relations });
   });
 
   afterAll(async () => {
-    if (!databaseUrl) return;
     await database
       .delete(financeReceipts)
       .where(inArray(financeReceipts.id, receiptIds));
@@ -107,9 +107,6 @@ describeWithPostgres('receipt review and reimbursement serialization', () => {
   });
 
   const seedReceipt = async (status: 'approved' | 'submitted') => {
-    if (!databaseUrl) {
-      throw new Error('DATABASE_URL is required for Postgres receipt tests');
-    }
     const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
     const tenantId = `rf-tenant-${suffix}`.slice(0, 20);
     const userId = `rf-user-${suffix}`.slice(0, 20);
@@ -253,7 +250,6 @@ describeWithPostgres('receipt review and reimbursement serialization', () => {
   };
 
   it('re-reads the locked amount and currency before inserting the reimbursement ledger row', async () => {
-    if (!databaseUrl) return;
     const fixture = await seedReceipt('approved');
     const client = await pool.connect();
     try {
@@ -305,7 +301,6 @@ describeWithPostgres('receipt review and reimbursement serialization', () => {
   }, 30_000);
 
   it('rejects a review that waits behind a concurrent reimbursement status transition', async () => {
-    if (!databaseUrl) return;
     const fixture = await seedReceipt('approved');
     const client = await pool.connect();
     try {

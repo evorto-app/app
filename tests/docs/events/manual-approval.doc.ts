@@ -79,12 +79,18 @@ const applyForApproval = async (
       'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
     ),
   ).toBeVisible();
-  await registrationCard
-    .getByRole('button', { name: 'Apply for approval' })
-    .click();
+  const applyButton = registrationCard.getByRole('button', {
+    name: 'Apply for approval',
+  });
+  // SSR exposes the application action before Angular attaches its live click
+  // listener. Event replay removes `jsaction` once the action is interactive.
+  await expect(applyButton).not.toHaveAttribute('jsaction', /click/, {
+    timeout: 20_000,
+  });
+  await applyButton.click();
   await expect(
     page.getByText('Your registration is pending organizer approval.'),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   return registrationCard;
 };
 
@@ -259,6 +265,9 @@ For a free option, this decision immediately confirms one spot. Evorto also queu
       const approveButton = organizer.page.getByRole('button', {
         name: 'Approve application',
       });
+      await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
+        timeout: 20_000,
+      });
       await takeScreenshot(
         testInfo,
         [organizer.page.getByText('Awaiting approval'), approveButton],
@@ -268,7 +277,7 @@ For a free option, this decision immediately confirms one spot. Evorto also queu
       await approveButton.click();
       await expect(
         organizer.page.getByText('Registration confirmed'),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 20_000 });
       await expect(approveButton).toHaveCount(0);
 
       await expect
@@ -386,6 +395,9 @@ A paid manual-approval option still begins with an application, not a payment. F
       const approveButton = organizer.page.getByRole('button', {
         name: 'Approve application',
       });
+      await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
+        timeout: 20_000,
+      });
       await takeScreenshot(
         testInfo,
         approveButton,
@@ -405,7 +417,7 @@ Selecting **Approve application** reserves one spot and prepares one Stripe Chec
         organizer.page.getByText(
           'Application approved. Payment is required before confirmation.',
         ),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 20_000 });
       await expect(organizer.page.getByText('Payment pending')).toBeVisible();
       await expect(approveButton).toHaveCount(0);
 
@@ -618,6 +630,9 @@ After Stripe reports successful payment, Evorto moves the reserved spot to confi
         name: 'Retry payment setup',
       });
       await expect(retryButton).toBeEnabled();
+      await expect(retryButton).not.toHaveAttribute('jsaction', /click/, {
+        timeout: 20_000,
+      });
 
       await testInfo.attach('markdown', {
         body: `
@@ -657,7 +672,7 @@ If Stripe Checkout could not be prepared after capacity was reserved, Evorto kee
         organizer.page.getByText(
           'Application approved. Payment is required before confirmation.',
         ),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 20_000 });
       await expect(organizer.page.getByText('Payment pending')).toBeVisible();
       await expect(retryButton).toHaveCount(0);
       await expect
@@ -676,7 +691,17 @@ If Stripe Checkout could not be prepared after capacity was reserved, Evorto kee
       await page.reload();
       await waitForRegistrationStatus(page);
       await expect(page.getByRole('link', { name: 'Pay now' })).toBeVisible();
-      await page.getByRole('button', { name: 'Cancel registration' }).click();
+      const cancelRegistrationButton = page.getByRole('button', {
+        name: 'Cancel registration',
+      });
+      // The reloaded SSR page exposes this action before its client listener.
+      // Wait for event replay to hand the button to the hydrated application.
+      await expect(cancelRegistrationButton).not.toHaveAttribute(
+        'jsaction',
+        /click/,
+        { timeout: 20_000 },
+      );
+      await cancelRegistrationButton.click();
       await expect(
         page.getByRole('button', { name: 'Apply for approval' }),
       ).toBeVisible();

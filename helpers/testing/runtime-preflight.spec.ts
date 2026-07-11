@@ -139,6 +139,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(packageJson.scripts['docker:ps']).toBe(
       'bun run env:runtime && dotenv -c dev -- docker compose ps',
     );
+    expect(packageJson.scripts['docker:stop']).toBe(
+      'bun run env:runtime && dotenv -c dev -- docker compose down --timeout 60 --remove-orphans',
+    );
 
     for (const scriptName of [
       'docker:start',
@@ -146,23 +149,54 @@ describe('evaluateRuntimePreflight', () => {
       'docker:start:foreground',
     ]) {
       expect(packageJson.scripts[scriptName]).toMatch(
-        /^bun run docker:check && dotenv -c dev -- docker compose down && /,
+        /^bun run docker:check && dotenv -c dev -- docker compose down --timeout 60 --remove-orphans && /,
       );
     }
 
     expect(packageJson.scripts['docker:resume']).toBe(
-      'bun run docker:check && dotenv -c dev -- docker compose up --no-recreate -d',
+      'bun run docker:check && dotenv -c dev -- bash helpers/testing/docker-resume.sh',
     );
     expect(packageJson.scripts['docker:webserver']).toBe(
-      'bun run docker:check && dotenv -c dev -- docker compose up --build',
+      'bun run docker:check && dotenv -c dev -- bash helpers/testing/docker-webserver.sh',
     );
+
+    const lifecycleSources = [
+      fs.readFileSync(
+        path.join(process.cwd(), 'helpers/testing/ci-start-docker-stack.sh'),
+        'utf8',
+      ),
+      fs.readFileSync(
+        path.join(process.cwd(), 'helpers/testing/docker-webserver.sh'),
+        'utf8',
+      ),
+      fs.readFileSync(
+        path.join(process.cwd(), '.github/workflows/e2e-baseline.yml'),
+        'utf8',
+      ),
+      fs.readFileSync(
+        path.join(
+          process.cwd(),
+          '.github/workflows/esncard-release-certification.yml',
+        ),
+        'utf8',
+      ),
+      ...Object.values(packageJson.scripts),
+    ].join('\n');
+    for (const downCommand of lifecycleSources.matchAll(
+      /docker compose down[^\n"']*/g,
+    )) {
+      expect(downCommand[0]).toContain('--timeout 60');
+      expect(downCommand[0]).toContain('--remove-orphans');
+      expect(downCommand[0]).not.toContain('--volumes');
+    }
+    expect(lifecycleSources).not.toMatch(/docker[^\n]*\bprune\b/);
 
     const playwrightConfig = fs.readFileSync(
       path.join(process.cwd(), 'playwright.config.ts'),
       'utf8',
     );
     expect(playwrightConfig).toMatch(
-      /command: 'bun run docker:webserver',[\s\S]*?gracefulShutdown:\s*\{\s*signal:\s*'SIGTERM',\s*timeout:\s*60_000,?\s*\}/,
+      /command: 'bun run docker:webserver',[\s\S]*?gracefulShutdown:\s*\{\s*signal:\s*'SIGTERM',\s*timeout:\s*90_000,?\s*\}/,
     );
     expect(playwrightConfig).not.toContain(
       "command: 'bun run docker:start:foreground'",
@@ -272,7 +306,7 @@ describe('evaluateRuntimePreflight', () => {
       "const listOnly = process.argv.includes('--list');",
     );
     expect(playwrightConfig).toContain(': listOnly');
-    expect(playwrightConfig).toContain("? [['dot']]");
+    expect(playwrightConfig).toContain("? [['dot'], completeRunReporter]");
     expect(playwrightConfig).toContain("['html', { open: 'never' }]");
     expect(playwrightConfig).toContain(
       "['./tests/support/reporters/documentation-reporter.ts']",
@@ -295,12 +329,17 @@ describe('evaluateRuntimePreflight', () => {
     expect(dbService).toContain('NEON_API_KEY:');
     expect(dbService).toContain('NEON_PROJECT_ID:');
     expect(dbService).toContain('restart: "no"');
+    expect(dbService).toContain('stop_grace_period: 60s');
     expect(dbService).not.toContain('restart: on-failure');
     expect(dbService).toContain(neonMetadataMount);
     expect(dbService).toContain(
       'chown -R postgres:postgres /tmp/.neon_local && exec /usr/local/bin/startup.sh',
     );
     expect(dbExpirationService).toContain(neonMetadataMount);
+    expect(dbExpirationService).toContain(
+      'bun helpers/testing/set-neon-local-branch-expiration.ts',
+    );
+    expect(dbExpirationService).not.toContain('|| true');
     expect(composeFile).toContain('\n  neon-local-metadata:\n');
     expect(composeFile).not.toContain(
       '${NEON_LOCAL_METADATA_DIR:-./.neon_local}',

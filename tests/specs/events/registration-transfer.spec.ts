@@ -15,6 +15,11 @@ import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 test.use({ storageState: userStateFile, trace: 'on-first-retry' });
 
+// These flows reuse the same two authenticated user fixtures and intentionally
+// exercise user row locks. Keep the tests independent, but run this file in
+// order so fullyParallel does not create a fixture-only cross-transfer deadlock.
+test.describe.configure({ mode: 'default' });
+
 test('transfers a free registration through a private claim URL', async ({
   browser,
   database,
@@ -86,6 +91,9 @@ test('transfers a free registration through a private claim URL', async ({
       name: 'Create transfer link',
     });
     await expect(createTransferLink).toBeVisible();
+    // SSR exposes the action before Angular attaches its click listener.
+    // Event replay removes `jsaction` once the mutation is interactive.
+    await expect(createTransferLink).not.toHaveAttribute('jsaction', /click/);
     await createTransferLink.click();
     await expect(
       page.getByRole('heading', { name: 'Private transfer link created' }),
@@ -126,9 +134,11 @@ test('transfers a free registration through a private claim URL', async ({
     await expect(
       recipientPage.page.getByText('Private transfer scenario'),
     ).toBeVisible();
-    await recipientPage.page
-      .getByRole('button', { name: 'Claim registration' })
-      .click();
+    const claimRegistration = recipientPage.page.getByRole('button', {
+      name: 'Claim registration',
+    });
+    await expect(claimRegistration).not.toHaveAttribute('jsaction', /click/);
+    await claimRegistration.click();
     await expect(
       recipientPage.page.getByRole('heading', { name: 'Transfer complete' }),
     ).toBeVisible();
@@ -300,10 +310,14 @@ test('offers a paid registration privately while rejecting a source self-claim',
   try {
     await page.goto(`/events/${eventId}`);
     await waitForRegistrationPage(page);
-    await expect(
-      page.getByRole('button', { name: 'Create transfer link' }),
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'Create transfer link' }).click();
+    const createTransferLink = page.getByRole('button', {
+      name: 'Create transfer link',
+    });
+    await expect(createTransferLink).toBeVisible();
+    // Waiting at the action boundary prevents an SSR-only click from consuming
+    // the test timeout before its cleanup can use the database fixture.
+    await expect(createTransferLink).not.toHaveAttribute('jsaction', /click/);
+    await createTransferLink.click();
     const claimUrl = await page.getByLabel('Claim link').inputValue();
     const claimPath = new URL(claimUrl).pathname;
 
@@ -321,7 +335,11 @@ test('offers a paid registration privately while rejecting a source self-claim',
     await expect(
       page.getByRole('heading', { name: 'Review before you claim' }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Claim registration' }).click();
+    const claimRegistration = page.getByRole('button', {
+      name: 'Claim registration',
+    });
+    await expect(claimRegistration).not.toHaveAttribute('jsaction', /click/);
+    await claimRegistration.click();
     await expect(
       page.getByRole('heading', { name: 'Claim did not complete' }),
     ).toBeVisible();
@@ -635,6 +653,9 @@ test('cancels a paid non-Stripe registration into one pending manual refund', as
       name: 'Cancel registration',
     });
     await expect(cancelRegistration).toBeVisible();
+    // The server-rendered control is visible before its cancellation mutation
+    // is live. Wait for Angular event replay to release the click marker.
+    await expect(cancelRegistration).not.toHaveAttribute('jsaction', /click/);
     await cancelRegistration.click();
 
     await expect

@@ -11,20 +11,17 @@ test.use({ storageState: gaStateFile });
 
 const tenantSearchLabel = 'Search tenants';
 
-const readFirstTenantRowValue = async (
-  page: Page,
-  label: string,
-): Promise<string> => {
-  const value = await page
-    .locator('dt', { hasText: label })
-    .first()
-    .locator('..')
-    .locator('dd')
-    .textContent();
-
-  expect(value?.trim()).toBeTruthy();
-  return value?.trim() ?? '';
+const fillTenantSearch = async (page: Page, value: string) => {
+  const tenantList = page.locator('app-tenant-list');
+  await expect(tenantList).not.toHaveAttribute('ngh', /.*/);
+  const searchInput = tenantList.getByLabel(tenantSearchLabel);
+  await expect(searchInput).toBeEditable();
+  await searchInput.fill(value);
+  await expect(searchInput).toHaveValue(value);
 };
+
+const firstTenantRowValue = (page: Page, label: string) =>
+  page.locator('dt', { hasText: label }).first().locator('..').locator('dd');
 
 type GlobalAdminTenantDocRow = Pick<
   typeof schema.tenants.$inferSelect,
@@ -62,8 +59,8 @@ const expectGlobalAdminTenantRows = async (
   }
 };
 
-const readFirstTenantPrimaryDomain = async (page: Page): Promise<string> =>
-  readFirstTenantRowValue(page, 'Primary domain');
+const firstTenantPrimaryDomain = (page: Page) =>
+  firstTenantRowValue(page, 'Primary domain');
 
 const tenantForm = (page: Page) => page.locator('form').first();
 
@@ -169,21 +166,18 @@ Platform administrators can review, create, and edit tenants from the **Platform
     await expect(
       page.getByRole('link', { name: 'Create tenant' }),
     ).toHaveAttribute('href', '/global-admin/tenants/create');
-    await expect(page.getByLabel(tenantSearchLabel)).toBeVisible();
     const primaryDomain = documentedTenant.domain;
-    await page.getByLabel(tenantSearchLabel).fill(primaryDomain);
+    await fillTenantSearch(page, primaryDomain);
     await expectGlobalAdminTenantRows(page, documentedTenant);
-    expect(await readFirstTenantPrimaryDomain(page)).toBe(primaryDomain);
-    await page.getByLabel(tenantSearchLabel).fill('no-such-tenant');
+    await expect(firstTenantPrimaryDomain(page)).toHaveText(primaryDomain);
+    await fillTenantSearch(page, 'no-such-tenant');
     await expect(
       page.getByRole('heading', { name: 'No tenants match this search' }),
     ).toBeVisible();
-    await page.getByLabel(tenantSearchLabel).fill(primaryDomain);
+    await fillTenantSearch(page, primaryDomain);
     await expect(page.getByText(primaryDomain).first()).toBeVisible();
     if (documentedTenant.stripeAccountId) {
-      await page
-        .getByLabel(tenantSearchLabel)
-        .fill(documentedTenant.stripeAccountId);
+      await fillTenantSearch(page, documentedTenant.stripeAccountId);
       await expect(
         page.getByText(documentedTenant.stripeAccountId).first(),
       ).toBeVisible();
@@ -273,7 +267,7 @@ Platform administrators can review, create, and edit tenants from the **Platform
       page.getByRole('heading', { level: 1, name: 'Tenants' }),
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants$/);
-    await page.getByLabel(tenantSearchLabel).fill(createdTenantDomain);
+    await fillTenantSearch(page, createdTenantDomain);
     await expect(page.getByText(createdTenantDomain).first()).toBeVisible();
     const reviewTenantLink = page
       .locator('app-tenant-list > div')

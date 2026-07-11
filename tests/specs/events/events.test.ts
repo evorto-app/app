@@ -126,6 +126,7 @@ test('event authoring controls expose accessible names and keyboard interaction'
   await expect(
     page.getByRole('heading', { name: draftEvent.title }),
   ).toBeVisible({ timeout: 20_000 });
+  await page.waitForLoadState('networkidle');
   await expect(page.getByRole('link', { name: 'Back to event' })).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Open event actions' }),
@@ -155,16 +156,19 @@ test('event authoring controls expose accessible names and keyboard interaction'
   const roleInput = roleSelect.getByRole('combobox', {
     name: 'Selected Roles',
   });
-  for (let remaining = initialRoleCount; remaining > 0; remaining -= 1) {
-    await roleInput.focus();
-    await page.keyboard.press('Backspace');
-    await expect(roleChips.last().getByRole('gridcell').first()).toBeFocused();
-    await page.keyboard.press('Delete');
-    await expect(roleChips).toHaveCount(remaining - 1);
-  }
+  await expect(roleInput).not.toHaveAttribute('jsaction', /keydown/);
+  await expect(roleInput).not.toHaveClass(/mat-input-server/);
   const emptyChipGrid = roleSelect.locator('mat-chip-grid');
-  await expect(emptyChipGrid).not.toHaveAttribute('role');
-  await expect(emptyChipGrid).not.toHaveAttribute('aria-label');
+  await expect(async () => {
+    const currentRoleCount = await roleChips.count();
+    for (let remaining = currentRoleCount; remaining > 0; remaining -= 1) {
+      await roleInput.press('Backspace');
+      await page.keyboard.press('Delete');
+      await expect(roleChips).toHaveCount(remaining - 1);
+    }
+    await expect(emptyChipGrid).not.toHaveAttribute('role');
+    await expect(emptyChipGrid).not.toHaveAttribute('aria-label');
+  }).toPass({ timeout: 15_000 });
   await expect(roleInput).toHaveAccessibleName('Selected Roles');
   await roleInput.fill('accessibility-state-check');
   await expect(emptyChipGrid).toHaveAttribute('role', 'grid');
@@ -312,14 +316,23 @@ test('event edit form hides selected roles in autocomplete', async ({
     );
   }
 
-  const unselectedRole = roles.find(
-    (role) => !registrationOption.roleIds.includes(role.id),
-  );
-  if (!unselectedRole) {
+  const roleSearchScenario = roles
+    .filter((role) => !registrationOption.roleIds.includes(role.id))
+    .flatMap((role) => {
+      const searchTerm = Array.from(selectedRole.name.toLocaleLowerCase()).find(
+        (character) =>
+          /[\p{L}\p{N}]/u.test(character) &&
+          role.name.toLocaleLowerCase().includes(character),
+      );
+
+      return searchTerm ? [{ role, searchTerm }] : [];
+    })[0];
+  if (!roleSearchScenario) {
     throw new Error(
-      `Expected seeded draft event "${draftEvent.title}" to have an unselected role for autocomplete`,
+      `Expected seeded draft event "${draftEvent.title}" to have an unselected role sharing a search term with "${selectedRole.name}"`,
     );
   }
+  const { role: unselectedRole, searchTerm } = roleSearchScenario;
 
   await page.goto(`/events/${draftEvent.id}/edit`);
   await expect(page).toHaveURL(`/events/${draftEvent.id}/edit`);
@@ -337,7 +350,7 @@ test('event edit form hides selected roles in autocomplete', async ({
   ).toBeVisible();
 
   const roleInput = registrationOptionEditor.getByPlaceholder('Add Role...');
-  await roleInput.click();
+  await expect(roleInput).not.toHaveClass(/mat-input-server/);
   const roleListbox = page.getByRole('listbox', { name: 'Selected Roles' });
   const selectedRoleOption = roleListbox.getByRole('option', {
     exact: true,
@@ -347,9 +360,13 @@ test('event edit form hides selected roles in autocomplete', async ({
     exact: true,
     name: unselectedRole.name,
   });
-  await expect(roleListbox).toBeVisible();
-  await expect(unselectedRoleOption).toBeVisible();
-  await expect(selectedRoleOption).toHaveCount(0);
+  await expect(async () => {
+    await roleInput.fill(searchTerm);
+    await expect(roleInput).toHaveValue(searchTerm);
+    await expect(roleListbox).toBeVisible();
+    await expect(unselectedRoleOption).toBeVisible();
+    await expect(selectedRoleOption).toHaveCount(0);
+  }).toPass({ timeout: 15_000 });
 
   await unselectedRoleOption.click();
   await expect(
@@ -358,7 +375,9 @@ test('event edit form hides selected roles in autocomplete', async ({
     }),
   ).toBeVisible();
 
-  await roleInput.click();
-  await expect(roleListbox).toBeVisible();
-  await expect(unselectedRoleOption).toHaveCount(0);
+  await expect(async () => {
+    await roleInput.fill(searchTerm);
+    await expect(roleInput).toHaveValue(searchTerm);
+    await expect(unselectedRoleOption).toHaveCount(0);
+  }).toPass({ timeout: 15_000 });
 });

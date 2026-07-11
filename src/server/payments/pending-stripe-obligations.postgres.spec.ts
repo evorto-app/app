@@ -12,8 +12,10 @@ import { tenants, transactions } from '../../db/schema';
 import { lockTenantStripeAccount } from './pending-stripe-obligations';
 
 const databaseUrl = process.env['DATABASE_URL'];
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
+}
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
-const describeWithPostgres = databaseUrl ? describe : describe.skip;
 
 type TestDatabase = NodePgDatabase<typeof relations>;
 
@@ -48,19 +50,17 @@ const waitForBlockedTenantLock = async (pool: Pool) => {
   throw new Error('Timed out waiting for blocked tenant Stripe account lock');
 };
 
-describeWithPostgres('pending Stripe obligation account serialization', () => {
+describe('pending Stripe obligation account serialization', () => {
   let database: TestDatabase;
   let pool: Pool;
   const tenantIds: string[] = [];
 
   beforeAll(() => {
-    if (!databaseUrl) return;
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
     database = drizzle({ client: pool, relations });
   });
 
   afterAll(async () => {
-    if (!databaseUrl) return;
     for (const tenantId of tenantIds) {
       await database
         .delete(transactions)
@@ -71,7 +71,6 @@ describeWithPostgres('pending Stripe obligation account serialization', () => {
   });
 
   it('makes a concurrent account update observe and reject a newly committed obligation', async () => {
-    if (!databaseUrl) return;
     const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
     const tenantId = `tenant-${suffix}`.slice(0, 20);
     const transactionId = `claim-${suffix}`.slice(0, 20);

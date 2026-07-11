@@ -75,7 +75,9 @@ test('add a valid template icon and explain invalid icon names', async ({
   }
 
   await page.goto(`/templates/create/${category.id}`);
-  await page.getByRole('button', { name: 'Change Icon' }).click();
+  const changeIconButton = page.getByRole('button', { name: 'Change Icon' });
+  await expect(changeIconButton).not.toHaveAttribute('jsaction', /click/);
+  await changeIconButton.click();
   const iconDialog = page.locator('app-icon-selector-dialog');
   const searchInput = iconDialog.getByLabel('Search');
 
@@ -299,10 +301,13 @@ test('template create form hides selected roles in autocomplete', async ({
   await expect(page).toHaveURL('/templates/create');
 
   const organizerRoleInput = page.getByPlaceholder('Add Role...').first();
-  await organizerRoleInput.fill('a');
-
+  await expect(organizerRoleInput).not.toHaveClass(/mat-input-server/);
   const roleOptions = page.locator('mat-option');
-  await expect(roleOptions.first()).toBeVisible();
+  await expect(async () => {
+    await organizerRoleInput.fill('a');
+    await expect(organizerRoleInput).toHaveValue('a');
+    await expect(roleOptions.first()).toBeVisible();
+  }).toPass({ timeout: 15_000 });
 
   const firstOption = roleOptions.first();
   const firstRoleText = await firstOption.textContent();
@@ -313,11 +318,13 @@ test('template create form hides selected roles in autocomplete', async ({
 
   await firstOption.click();
 
-  await organizerRoleInput.fill(selectedRoleName);
-  await expect(
-    page.getByRole('option', {
-      exact: true,
-      name: selectedRoleName,
-    }),
-  ).toHaveCount(0);
+  const selectedRoleOption = page.getByRole('option', {
+    exact: true,
+    name: selectedRoleName,
+  });
+  await expect(async () => {
+    await organizerRoleInput.fill(selectedRoleName);
+    await expect(organizerRoleInput).toHaveValue(selectedRoleName);
+    await expect(selectedRoleOption).toHaveCount(0);
+  }).toPass({ timeout: 15_000 });
 });

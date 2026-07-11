@@ -41,12 +41,11 @@ build_and_start_compose() {
       break
     fi
     if [ "${start_status}" = "124" ]; then
-      echo "::warning::Docker Compose build/start timed out. Pruning builder state and retrying once."
+      echo "::warning::Docker Compose build/start timed out. Cleaning project-scoped Compose objects and retrying once."
     else
-      echo "::warning::Docker Compose build/start failed with status ${start_status}. Pruning builder state and retrying once."
+      echo "::warning::Docker Compose build/start failed with status ${start_status}. Cleaning project-scoped Compose objects and retrying once."
     fi
     timeout 90s node_modules/.bin/dotenv -c dev -- docker compose down --timeout 60 --remove-orphans || true
-    docker builder prune -af || true
   done
   if [ "${start_status}" = "124" ]; then
     echo "::error::Docker Compose build/start timed out before the workflow step timeout"

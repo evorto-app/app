@@ -33,8 +33,10 @@ import {
 import { purchaseRegistrationAddon } from './addon-purchase.service';
 
 const databaseUrl = process.env['DATABASE_URL'];
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
+}
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
-const describeWithPostgres = databaseUrl ? describe : describe.skip;
 
 interface Fixture {
   readonly addOnId: string;
@@ -363,21 +365,19 @@ const completedSession = (fixture: Fixture): Stripe.Checkout.Session => {
   } as Stripe.Checkout.Session;
 };
 
-describeWithPostgres('post-registration add-on purchase concurrency', () => {
+describe('post-registration add-on purchase concurrency', () => {
   let database: TestDatabase;
   const fixtures: Fixture[] = [];
   let layer: ReturnType<typeof makeLayer>;
   let pool: Pool;
 
   beforeAll(() => {
-    if (!databaseUrl) return;
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
     database = drizzle({ client: pool, relations });
     layer = makeLayer(databaseUrl);
   });
 
   afterAll(async () => {
-    if (!databaseUrl) return;
     for (const fixture of fixtures.toReversed()) {
       await cleanFixture(database, fixture);
     }
@@ -385,7 +385,6 @@ describeWithPostgres('post-registration add-on purchase concurrency', () => {
   });
 
   it('keeps a paid reservation invisible until exact Checkout completion', async () => {
-    if (!databaseUrl) return;
     const fixture = await seedFixture(database, { paid: true, stock: 0 });
     fixtures.push(fixture);
     const { orderId, registrationId, transactionId } =
@@ -444,7 +443,6 @@ describeWithPostgres('post-registration add-on purchase concurrency', () => {
   });
 
   it('makes a free operation retry idempotent and serializes the last stock unit', async () => {
-    if (!databaseUrl) return;
     const fixture = await seedFixture(database, {
       paid: false,
       registrationCount: 2,
@@ -520,7 +518,6 @@ describeWithPostgres('post-registration add-on purchase concurrency', () => {
   });
 
   it('serializes completion against expiry without double-granting or releasing stock', async () => {
-    if (!databaseUrl) return;
     const fixture = await seedFixture(database, {
       paid: true,
       reservationExpiresAt: new Date(Date.now() - 60_000),

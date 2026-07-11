@@ -34,7 +34,7 @@ export const eventRegistrationAddonPurchaseOrderWindow = pgEnum(
 export const eventRegistrationAddonPurchaseOrderOperationUniqueIndexName =
   'event_registration_addon_purchase_orders_operation_unique';
 export const pendingEventRegistrationAddonPurchaseOrderUniqueIndexName =
-  'event_registration_addon_purchase_orders_pending_registration_unique';
+  'event_registration_addon_purchase_orders_pending_registration_u';
 
 /**
  * Durable intent and stock reservation for an optional add-on bought after the

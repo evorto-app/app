@@ -24,8 +24,10 @@ import {
 } from './index';
 
 const databaseUrl = process.env['DATABASE_URL'];
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
+}
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
-const describeWithPostgres = databaseUrl ? describe : describe.skip;
 
 interface LimitFixture {
   readonly categoryId: string;
@@ -276,23 +278,17 @@ const registrationInput = (
   },
 });
 
-describeWithPostgres('tenant active-registration limit concurrency', () => {
+describe('tenant active-registration limit concurrency', () => {
   let database: TestDatabase;
   const fixtures: LimitFixture[] = [];
   let pool: Pool;
 
   beforeAll(() => {
-    if (!databaseUrl) {
-      return;
-    }
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
     database = drizzle({ client: pool, relations });
   });
 
   afterAll(async () => {
-    if (!databaseUrl) {
-      return;
-    }
     for (const fixture of fixtures.toReversed()) {
       await cleanLimitFixture(database, fixture);
     }
@@ -300,9 +296,6 @@ describeWithPostgres('tenant active-registration limit concurrency', () => {
   });
 
   it('allows only one simultaneous registration across different events at a limit of one', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const fixture = await seedLimitFixture(database);
     fixtures.push(fixture);
     const serviceLayer = makeServiceLayer(databaseUrl);

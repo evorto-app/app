@@ -1,12 +1,11 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
-
 import {
   DEFAULT_E2E_NOW_ISO,
   DEFAULT_E2E_SEED_KEY,
 } from '@shared/testing/deterministic-test-defaults';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -19,6 +18,35 @@ describe('CI quality source', () => {
 
     expect(source).toContain(`E2E_NOW_ISO: "${DEFAULT_E2E_NOW_ISO}"`);
     expect(source).toContain(`E2E_SEED_KEY: ${DEFAULT_E2E_SEED_KEY}`);
+  });
+
+  it('uses a redirect-safe SSR application readiness endpoint', () => {
+    const playwrightConfig = readSource('playwright.config.ts');
+    const serverSource = readSource('src/server.ts');
+
+    expect(playwrightConfig).toContain(
+      "import { APPLICATION_READINESS_PATH } from '@server/http/application-readiness'",
+    );
+    expect(playwrightConfig).toContain(
+      'new URL(\n    APPLICATION_READINESS_PATH,\n    environment.BASE_URL,\n  ).toString()',
+    );
+    expect(playwrightConfig).toContain('url: readinessUrl');
+    expect(serverSource).toContain('applicationReadinessRouteLayer');
+    expect(serverSource).toContain('createApplicationReadinessSsrRequest');
+    expect(serverSource).toContain('createApplicationReadinessResponse');
+
+    for (const sourcePath of [
+      '.github/workflows/e2e-baseline.yml',
+      '.github/workflows/esncard-release-certification.yml',
+    ]) {
+      const workflow = readSource(sourcePath);
+
+      expect(workflow).toContain('APP_READY_PATH: /readyz');
+      expect(workflow).toContain('--write-out \'%{http_code}\' "${ready_url}"');
+      expect(workflow).toContain('if [ "${ready_status}" = "204" ]; then');
+      expect(workflow).not.toContain('curl --fail --location');
+      expect(workflow).not.toContain('APP_READY_PATH: /robots.txt');
+    }
   });
 
   it('collects only the explicit non-secret Docker service log allowlist', () => {
@@ -64,6 +92,10 @@ describe('CI quality source', () => {
     expect(source).toContain('bun run lint');
     expect(source).toContain('git diff --exit-code');
     expect(source).toContain('bun run test:unit:server');
+    expect(source).toContain('name: PostgreSQL integration tests');
+    expect(source).toContain('postgres:17.10-alpine3.23@sha256:');
+    expect(source).toContain('POSTGRES_INTEGRATION_DISPOSABLE: "true"');
+    expect(source).toContain('bun run test:integration:postgres');
     expect(source).toMatch(/run: bun run test:unit\n/u);
     expect(source).toContain('bun run build:app');
   });

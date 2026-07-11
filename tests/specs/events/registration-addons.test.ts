@@ -175,13 +175,20 @@ test('registers with a free add-on and required registration question', async ({
     await expect(
       participantRegistrationCard.getByRole('button', { name: 'Register' }),
     ).toBeDisabled();
-    await participantRegistrationCard.getByLabel('Quantity').fill('2');
-    await participantRegistrationCard
-      .getByLabel(questionTitle)
-      .fill('Vegetarian snack, please.');
-    await participantRegistrationCard
-      .getByRole('button', { name: 'Register' })
-      .click();
+    const quantityInput = participantRegistrationCard.getByLabel('Quantity');
+    const questionInput = participantRegistrationCard.getByLabel(questionTitle);
+    const registerButton = participantRegistrationCard.getByRole('button', {
+      name: 'Register',
+    });
+    // SSR controls accept DOM input before Angular attaches its live handlers.
+    // Event replay removes `jsaction` once this action is safely interactive.
+    await expect(registerButton).not.toHaveAttribute('jsaction', /click/);
+    await quantityInput.fill('2');
+    await expect(quantityInput).toHaveValue('2');
+    await questionInput.fill('Vegetarian snack, please.');
+    await expect(questionInput).toHaveValue('Vegetarian snack, please.');
+    await expect(registerButton).toBeEnabled();
+    await registerButton.click();
 
     await waitForRegistrationStatus(page);
     const activeRegistration = page.locator('app-event-active-registration');
@@ -376,15 +383,21 @@ test('buys a free add-on after registration on mobile and explains the before-ev
     ).toHaveCount(0);
     await expect(duringOnlyAddOnRow.getByRole('button')).toHaveCount(0);
 
-    await freeAddOnRow
-      .getByLabel(`Quantity for ${scenario.addOns.free.title}`, { exact: true })
-      .fill('2');
+    const freeAddOnQuantity = freeAddOnRow.getByLabel(
+      `Quantity for ${scenario.addOns.free.title}`,
+      { exact: true },
+    );
     const addToTicketButton = freeAddOnRow.getByRole('button', {
       exact: true,
       name: 'Add to ticket',
     });
-    await addToTicketButton.focus();
-    await page.keyboard.press('Enter');
+    // Wait for Angular's live click listener before changing its controlled
+    // input; otherwise hydration restores the server-rendered quantity of 1.
+    await expect(addToTicketButton).not.toHaveAttribute('jsaction', /click/);
+    await freeAddOnQuantity.fill('2');
+    await expect(freeAddOnQuantity).toHaveValue('2');
+    await expect(addToTicketButton).toBeEnabled();
+    await addToTicketButton.press('Enter');
 
     await expect(freeAddOnRow.getByRole('status')).toContainText(
       `2 × ${scenario.addOns.free.title} added to your ticket.`,

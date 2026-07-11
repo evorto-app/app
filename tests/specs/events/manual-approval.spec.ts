@@ -78,12 +78,18 @@ const applyForApproval = async (
       'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
     ),
   ).toBeVisible();
-  await registrationCard
-    .getByRole('button', { name: 'Apply for approval' })
-    .click();
+  const applyButton = registrationCard.getByRole('button', {
+    name: 'Apply for approval',
+  });
+  // SSR exposes the application action before Angular attaches its live click
+  // listener. Event replay removes `jsaction` once the action is interactive.
+  await expect(applyButton).not.toHaveAttribute('jsaction', /click/, {
+    timeout: 20_000,
+  });
+  await applyButton.click();
   await expect(
     page.getByText('Your registration is pending organizer approval.'),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect(
     page.getByRole('button', { name: 'Apply for approval' }),
   ).toHaveCount(0);
@@ -182,10 +188,13 @@ test.describe('Manual approval registrations', () => {
         name: 'Approve application',
       });
       await expect(approveButton).toBeEnabled();
+      await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
+        timeout: 20_000,
+      });
       await approveButton.click();
       await expect(
         organizer.page.getByText('Registration confirmed'),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 20_000 });
       await expect(approveButton).toHaveCount(0);
 
       await expect
@@ -282,12 +291,15 @@ test.describe('Manual approval registrations', () => {
       const approveButton = organizer.page.getByRole('button', {
         name: 'Approve application',
       });
+      await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
+        timeout: 20_000,
+      });
       await approveButton.click();
       await expect(
         organizer.page.getByText(
           'Application approved. Payment is required before confirmation.',
         ),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 20_000 });
       await expect(organizer.page.getByText('Payment pending')).toBeVisible();
       await expect(
         organizer.page.getByRole('button', { name: 'Approve application' }),
@@ -470,6 +482,9 @@ test.describe('Manual approval registrations', () => {
         name: 'Retry payment setup',
       });
       await expect(retryButton).toBeEnabled();
+      await expect(retryButton).not.toHaveAttribute('jsaction', /click/, {
+        timeout: 20_000,
+      });
 
       await page.reload();
       await waitForRegistrationStatus(page);
@@ -485,7 +500,7 @@ test.describe('Manual approval registrations', () => {
         organizer.page.getByText(
           'Application approved. Payment is required before confirmation.',
         ),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 20_000 });
       await expect(organizer.page.getByText('Payment pending')).toBeVisible();
       await expect(retryButton).toHaveCount(0);
 
@@ -545,6 +560,9 @@ test.describe('Manual approval registrations', () => {
       await expect
         .poll(readCancellationState)
         .toEqual(pendingCancellationState);
+      // SSR exposes the cancellation action before Angular attaches its live
+      // click listener. Event replay removes `jsaction` after hydration.
+      await expect(cancelRegistration).not.toHaveAttribute('jsaction', /click/);
       await cancelRegistration.click();
       await expect(
         cancellationSucceeded.or(recoverableCancellationFailure).first(),
@@ -556,6 +574,10 @@ test.describe('Manual approval registrations', () => {
         await waitForRegistrationStatus(page);
         await expect(payNow).toBeVisible();
         await expect(cancelRegistration).toBeEnabled();
+        await expect(cancelRegistration).not.toHaveAttribute(
+          'jsaction',
+          /click/,
+        );
         await expect(recoverableCancellationFailure).toHaveCount(0);
         await cancelRegistration.click();
         await expect(

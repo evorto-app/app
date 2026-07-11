@@ -42,6 +42,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/finance/finance-overview.doc.ts [finance]
   - docs/finance/inclusive-tax-rates.doc.ts [finance]
   - docs/finance/receipt-review-reimbursement.doc.ts [finance]
+  - docs/finance/receipt-submission.doc.ts [finance]
   - docs/profile/discounts.doc.ts [finance]
   - docs/profile/user-profile.doc.ts
   - docs/roles/about-permissions.doc.ts
@@ -300,9 +301,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   new Auth0-backed tenant account, verifying profile arrival, tenant assignment,
   default role assignment, and cleanup.
 - `specs/profile/user-profile-live-esncard.spec.ts` is collected by
-  the dedicated `local-chrome-live-esncard` project and skips locally without
-  `E2E_LIVE_ESN_CARD_IDENTIFIER`. It is the functional integration path for
-  live external ESNcard add, refresh, and remove provider outcomes. Use
+  the dedicated `local-chrome-live-esncard` project and fails its explicit
+  precondition without `E2E_LIVE_ESN_CARD_IDENTIFIER`. It is the functional
+  integration path for live external ESNcard add, refresh, and remove provider
+  outcomes. Use
   `E2E_LIVE_ESN_CARD_IDENTIFIER=... bun run test:e2e:live-esncard` to run only
   this provider path locally when a valid live identifier is available. The
   protected release-certification environment must supply an approved
@@ -325,9 +327,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   page-backed runtime is available.
 - Page-backed local execution requires the Playwright Chromium cache installed
   by `bun run test:e2e:install`.
-- `helpers/testing/playwright-skip-inventory.spec.ts` keeps all Playwright
-  `test.skip` and `test.fixme` usage allowlisted with a local reason for each
-  entry, so new fixture-state gaps do not become silent placeholders.
+- `helpers/testing/playwright-skip-inventory.spec.ts` requires the Playwright
+  `test.skip` and `test.fixme` inventory to remain empty, so credential or
+  fixture preconditions fail explicitly instead of becoming silent
+  placeholders.
 
 ## Stabilization Coverage Watchlist
 
@@ -377,11 +380,12 @@ and the release-gated live ESNcard provider credential path.
   - Live external ESNcard add, refresh, and remove provider outcomes with
     readable error states are now represented by
     `specs/profile/user-profile-live-esncard.spec.ts`, an external-provider-tagged
-    Playwright path gated locally by `E2E_LIVE_ESN_CARD_IDENTIFIER`. It stays
-    out of deterministic baseline CI, while the Release workflow calls the
-    protected, fail-closed ESNcard certification workflow and also runs the
-    existing provider-error UI coverage. The dedicated live-provider project
-    needs no ESNcard API key or unrelated Auth0 Management/Cloudflare provider
+    Playwright path with a fail-closed
+    `E2E_LIVE_ESN_CARD_IDENTIFIER` credential preflight. It stays out of
+    deterministic baseline CI, while the Release workflow calls the protected,
+    fail-closed ESNcard certification workflow and also runs the existing
+    provider-error UI coverage. The dedicated live-provider project needs no
+    ESNcard API key or unrelated Auth0 Management/Cloudflare provider
     credentials.
     Generated discounts docs now include a helper-backed baseline note for
     readable ESNcard statuses, pending save/refresh/remove labels, shared
@@ -483,6 +487,20 @@ and the release-gated live ESNcard provider credential path.
     receipt submit dialog now has focused local coverage for required and
     supported files, tenant-allowed countries, invalid amount/date inputs,
     attachment-name fallback, and cents normalization before submit.
+    `docs/finance/receipt-submission.doc.ts` starts from visible **Events**
+    navigation, opens the exact seeded event and organizer receipt section,
+    demonstrates missing-file and deposit/alcohol-over-total recovery, uploads
+    a PDF, and reads back the tenant/event/submitter-bound upload plus every
+    persisted amount. It then proves the organizer card, personal profile card,
+    absence of a submission email, and the denial/read-isolation boundary for
+    a regular member of the same tenant. The shared
+    `support/utils/receipt-submission.ts` navigation and dialog flow also backs
+    the functional submission spec so the guide and regression path cannot
+    silently diverge. The readback accepts any configured HTTP(S) S3-compatible
+    endpoint while requiring the exact tenant/event/user-bound bucket-key
+    suffix. Database rows are deleted in-test, while volume-less MinIO test
+    objects are discarded with the Compose container instead of risking a
+    cleanup request against a developer-configured or remote R2 endpoint.
   - Keep paid-registration webhook counter coverage aligned with buyer-plus-guest
     spot counts. Local shared coverage pins the capacity count helper used by
     webhook completion/expiry updates; Stripe replay specs remain
@@ -704,12 +722,14 @@ and the release-gated live ESNcard provider credential path.
   update, covering seeded profile discount-card state plus the paid registration
   ESN discount label, price component, and payment button.
 - `tests/specs/admin/global-admin-tenants.spec.ts` and
-  `tests/specs/permissions/global-admin-route-guard.spec.ts` passed together
-  against a rebuilt Docker runtime with system Chrome using existing storage
-  states and `--no-deps`, covering the global-admin tenant list/create/detail/
-  edit workflow and allow/deny route guards. The full dependency run is still
-  subject to live Auth0 login availability; on the slow network it timed out in
-  authentication setup before app assertions ran.
+  `tests/specs/permissions/global-admin-route-guard.spec.ts` cover the
+  global-admin tenant list/create/detail/edit workflow and allow/deny route
+  guards as part of the complete application baseline.
+- `src/app/core/app-query-client.spec.ts` proves separate Angular application
+  injectors cannot share cached permissions or data.
+- `src/app/events/events.routes.spec.ts` proves organizer and edit routes
+  register their functional guards directly instead of returning guard
+  functions from lazy wrappers.
 - `specs/seed/seed-baseline.test.ts` fails explicitly when the core scenario
   handles point at missing event or registration-option rows.
 - `docs/events/register.doc.ts` fails explicitly when the regular-user fixture
@@ -724,10 +744,9 @@ and the release-gated live ESNcard provider credential path.
   transactions stay omitted from that surface.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
 - Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
-- Playwright skip/fixme usage is locally audited; add new entries only when
-  the gap is intentionally credential-gated or an honest Browser-backed
-  stabilization placeholder, and record the reason in
-  `helpers/testing/playwright-skip-inventory.spec.ts`.
+- Playwright skip/fixme inventory must remain empty. Credential-dependent
+  projects fail their selected-run preflight when credentials are unavailable;
+  they are not represented as skipped tests.
 - Playwright list/discovery output is intentionally readable:
   `helpers/testing/playwright-skip-inventory.spec.ts` guards that real spec/doc
   titles no longer include placeholder `@track`, `@req`, or `@doc` metadata.

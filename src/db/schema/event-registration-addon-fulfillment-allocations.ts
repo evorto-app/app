@@ -33,7 +33,7 @@ export const eventRegistrationAddonFulfillmentAllocations = pgTable(
   },
   (table) => [
     check(
-      'event_registration_addon_fulfillment_allocations_quantity_positive',
+      'event_registration_addon_fulfillment_allocations_quantity_posit',
       sql`${table.quantity} > 0`,
     ),
     check(
@@ -67,7 +67,7 @@ export const eventRegistrationAddonFulfillmentAllocations = pgTable(
       name: 'event_registration_addon_fulfillment_allocations_lot_fk',
     }),
     uniqueIndex(
-      'event_registration_addon_fulfillment_allocations_included_unique',
+      'event_registration_addon_fulfillment_allocations_included_uniqu',
     )
       .on(table.fulfillmentEventId)
       .where(sql`${table.source} = 'included'`),

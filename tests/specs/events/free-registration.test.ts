@@ -101,7 +101,11 @@ test('register for a free event as regular user', async ({
     await page.goto(`/events/${targetEventId}`);
     await expect(page).toHaveURL(`/events/${targetEventId}`);
     await waitForRegistrationPage(page);
-    await page.getByRole('button', { name: 'Register' }).first().click();
+    const registerButton = page
+      .getByRole('button', { name: 'Register' })
+      .first();
+    await expect(registerButton).not.toHaveAttribute('jsaction', /click/);
+    await registerButton.click();
 
     // After registering, the status refetches; wait for the loading indicator
     await page

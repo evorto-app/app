@@ -120,9 +120,13 @@ From here you can open the edit dialog to update your profile details.
 `,
     });
 
-    await expect(
-      page.getByRole('button', { name: 'Edit profile' }),
-    ).toBeVisible();
+    const editProfileButton = page.getByRole('button', {
+      name: 'Edit profile',
+    });
+    await expect(editProfileButton).toBeVisible();
+    // SSR exposes the button before Angular attaches its live click listener.
+    // Event replay removes `jsaction` once the hydrated action is interactive.
+    await expect(editProfileButton).not.toHaveAttribute('jsaction', /click/);
 
     // Take a screenshot of the entire profile component
     await takeScreenshot(
@@ -141,8 +145,8 @@ The form uses inline validation, and the save button is only enabled when both n
 `,
     });
 
-    await page.getByRole('button', { name: 'Edit profile' }).click();
-    const editDialog = page.locator('mat-dialog-container');
+    await editProfileButton.click();
+    const editDialog = page.getByRole('dialog', { name: 'Edit profile' });
     await expect(editDialog).toBeVisible();
     await takeScreenshot(testInfo, editDialog, page, 'Edit profile dialog');
 
@@ -165,7 +169,7 @@ The notification email is user-managed and may differ from the Auth0 login email
 `,
     });
 
-    await page.getByRole('button', { name: 'Edit profile' }).click();
+    await editProfileButton.click();
     await expect(editDialog).toBeVisible();
     await page
       .getByRole('textbox', { name: 'Notification email' })

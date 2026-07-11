@@ -130,6 +130,11 @@
           "builder": "@angular/build:unit-test",
           "options": {
             "include": ["src/app/**/*.spec.ts", "src/shared/**/*.spec.ts"],
+            "reporters": [
+              "default",
+              "helpers/testing/complete-vitest-run-reporter.ts"
+            ],
+            "runnerConfig": "vitest.angular.config.ts",
             "tsConfig": "tsconfig.spec.json"
           }
         },

@@ -45,8 +45,10 @@ import {
 } from './index';
 
 const databaseUrl = process.env['DATABASE_URL'];
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required for PostgreSQL integration tests');
+}
 const neonLocalProxy = process.env['NEON_LOCAL_PROXY'] === 'true';
-const describeWithPostgres = databaseUrl ? describe : describe.skip;
 
 interface CapturedStripeRequest {
   readonly idempotencyKey: string;
@@ -711,23 +713,17 @@ const assertEquivalentStripeRequests = (
   expect(new Set(requests.map((request) => request.requestData)).size).toBe(1);
 };
 
-describeWithPostgres('database registration concurrency invariants', () => {
+describe('database registration concurrency invariants', () => {
   let database: TestDatabase;
   const fixtures: Fixture[] = [];
   let pool: Pool;
 
   beforeAll(() => {
-    if (!databaseUrl) {
-      return;
-    }
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
     database = drizzle({ client: pool, relations });
   });
 
   afterAll(async () => {
-    if (!databaseUrl) {
-      return;
-    }
     for (const fixture of fixtures.toReversed()) {
       await cleanFixture(database, fixture);
     }
@@ -735,9 +731,6 @@ describeWithPostgres('database registration concurrency invariants', () => {
   });
 
   it('rejects an active-registration duplicate even when its tenant id is forged', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const fixture = await seedFixture(database);
     fixtures.push(fixture);
     const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
@@ -777,9 +770,6 @@ describeWithPostgres('database registration concurrency invariants', () => {
   });
 
   it('rejects a pending-payment duplicate even when its tenant id is forged', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const fixture = await seedFixture(database);
     fixtures.push(fixture);
     await database.insert(transactions).values({
@@ -827,9 +817,6 @@ describeWithPostgres('database registration concurrency invariants', () => {
   });
 
   it('serializes free duplicate registration through tenant membership without consuming stock twice', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const fixture = await prepareDirectRegistrationFixture(database);
     fixtures.push(fixture);
     await database
@@ -898,15 +885,12 @@ describeWithPostgres('database registration concurrency invariants', () => {
   }, 30_000);
 });
 
-describeWithPostgres('paid manual approval concurrency', () => {
+describe('paid manual approval concurrency', () => {
   let database: TestDatabase;
   const fixtures: Fixture[] = [];
   let pool: Pool;
 
   beforeAll(() => {
-    if (!databaseUrl) {
-      return;
-    }
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
     database = drizzle({ client: pool, relations });
   });
@@ -919,16 +903,10 @@ describeWithPostgres('paid manual approval concurrency', () => {
   });
 
   afterAll(async () => {
-    if (!databaseUrl) {
-      return;
-    }
     await pool.end();
   });
 
   it('shares one durable claim, reservation, email, and Stripe session across simultaneous approvals', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const fixture = await seedFixture(database);
     fixtures.push(fixture);
     const { promise: createGate, resolve: releaseCreates } =
@@ -995,9 +973,6 @@ describeWithPostgres('paid manual approval concurrency', () => {
   }, 30_000);
 
   it('reuses the original claim and checkout snapshot after an ambiguous Stripe failure', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const fixture = await seedFixture(database);
     fixtures.push(fixture);
     const fakeHttpClient = new IdempotentStripeHttpClient();
@@ -1061,9 +1036,6 @@ describeWithPostgres('paid manual approval concurrency', () => {
   }, 30_000);
 
   it('re-reads a concurrently created claim during cancellation and expires an unbindable session', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const fixture = await seedFixture(database);
     fixtures.push(fixture);
     const { promise: createGate, resolve: releaseCreates } =
@@ -1139,15 +1111,12 @@ describeWithPostgres('paid manual approval concurrency', () => {
   }, 30_000);
 });
 
-describeWithPostgres('direct paid registration concurrency', () => {
+describe('direct paid registration concurrency', () => {
   let database: TestDatabase;
   const fixtures: Fixture[] = [];
   let pool: Pool;
 
   beforeAll(() => {
-    if (!databaseUrl) {
-      return;
-    }
     pool = new Pool(createNodePgPoolConfig({ databaseUrl, neonLocalProxy }));
     database = drizzle({ client: pool, relations });
   });
@@ -1160,16 +1129,10 @@ describeWithPostgres('direct paid registration concurrency', () => {
   });
 
   afterAll(async () => {
-    if (!databaseUrl) {
-      return;
-    }
     await pool.end();
   });
 
   it('keeps one durable registration, reservation, add-on purchase, claim, and Stripe session across simultaneous attempts', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const fixture = await prepareDirectRegistrationFixture(database);
     fixtures.push(fixture);
     const { promise: createGate, resolve: releaseCreates } =
@@ -1256,9 +1219,6 @@ describeWithPostgres('direct paid registration concurrency', () => {
   }, 30_000);
 
   it('retries an ambiguous direct Checkout attempt with the same claim and request snapshot', async () => {
-    if (!databaseUrl) {
-      return;
-    }
     const fixture = await prepareDirectRegistrationFixture(database);
     fixtures.push(fixture);
     const fakeHttpClient = new IdempotentStripeHttpClient();

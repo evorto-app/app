@@ -3,6 +3,7 @@ import { Effect, Layer } from 'effect';
 
 import { Database } from '../../db';
 import {
+  resolveAuthenticationContext,
   resolvePlatformAuthority,
   resolveRequestPermissions,
   resolveTenantContext,
@@ -62,6 +63,12 @@ const createPreparedDatabase = ({
 });
 
 describe('request-context-resolver', () => {
+  it('keeps session cookies out of the request context authentication state', () => {
+    expect(resolveAuthenticationContext({ isAuthenticated: true })).toEqual({
+      isAuthenticated: true,
+    });
+  });
+
   it.effect(
     'resolves the tenant from a non-local host before a tenant cookie',
     () =>

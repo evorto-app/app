@@ -18,10 +18,12 @@ export default defineConfig({
     },
   },
   test: {
+    allowOnly: false,
     environment: 'node',
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
+      '**/*.postgres.spec.ts',
       'src/app/**/*.spec.ts',
       'tests/**',
     ],
@@ -29,6 +31,10 @@ export default defineConfig({
       'helpers/**/*.spec.ts',
       'src/db/**/*.spec.ts',
       'src/server/**/*.spec.ts',
+    ],
+    reporters: [
+      'default',
+      resolveFromRoot('helpers/testing/complete-vitest-run-reporter.ts'),
     ],
   },
 });

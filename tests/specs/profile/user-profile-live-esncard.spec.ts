@@ -13,10 +13,6 @@ test.setTimeout(120_000);
 // The identifier is an approved non-production credential. Keep it out of
 // traces and value-bearing assertions even though GitHub masks secret logs.
 test.use({ storageState: userStateFile, trace: 'off' });
-test.skip(
-  !liveEsnCardIdentifier,
-  'E2E_LIVE_ESN_CARD_IDENTIFIER is required for live ESNcard provider coverage',
-);
 
 test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async ({
   database,
@@ -27,7 +23,7 @@ test('adds, refreshes, and removes a live ESN card @needs-live-esncard', async (
   void discounts;
   if (!liveEsnCardIdentifier) {
     throw new Error(
-      'Live ESNcard certification started without its required identifier',
+      'E2E_LIVE_ESN_CARD_IDENTIFIER is required for live ESNcard provider coverage',
     );
   }
   const regularUser = usersToAuthenticate.find(
