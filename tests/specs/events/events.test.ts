@@ -1,5 +1,5 @@
 import { organizerStateFile } from '../../../helpers/user-data';
-import type { Locator } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { DateTime } from 'luxon';
 import { expect, test } from '../../support/fixtures/axe-test';
 
@@ -9,6 +9,41 @@ test.use({
   storageState: organizerStateFile,
   timezoneId: 'America/Los_Angeles',
 });
+
+const eventOptionEditorByTitle = async (
+  page: Page,
+  title: string,
+): Promise<Locator> => {
+  const editors = page.locator('app-event-registration-option-editor');
+  const titleInputs = editors.getByRole('textbox', {
+    name: 'Option name',
+    exact: true,
+  });
+  let matchingIndex = -1;
+
+  await expect
+    .poll(
+      async () => {
+        const titles = await titleInputs.evaluateAll((elements) =>
+          elements.map((element) => {
+            if (!(element instanceof HTMLInputElement)) {
+              throw new Error('Expected an event option title input');
+            }
+            return element.value;
+          }),
+        );
+        matchingIndex = titles.indexOf(title);
+        return matchingIndex;
+      },
+      {
+        message: `Expected event registration option "${title}"`,
+        timeout: 15_000,
+      },
+    )
+    .toBeGreaterThanOrEqual(0);
+
+  return editors.nth(matchingIndex);
+};
 
 test('event list icon actions are named and keyboard operable', async ({
   makeAxeBuilder,
@@ -96,9 +131,17 @@ test('event authoring controls expose accessible names and keyboard interaction'
     page.getByRole('button', { name: 'Open event actions' }),
   ).toBeVisible();
 
-  const roleSelect = page.locator('app-role-select').first();
+  const registrationOptionEditor = await eventOptionEditorByTitle(
+    page,
+    registrationOption.title,
+  );
+  const roleSelect = registrationOptionEditor.locator('app-role-select');
+  await expect(roleSelect).toHaveCount(1);
   await expect(
-    roleSelect.getByRole('button', { name: `Remove ${selectedRole.name}` }),
+    roleSelect.getByRole('button', {
+      name: `Remove ${selectedRole.name}`,
+      exact: true,
+    }),
   ).toBeAttached();
   const authoringAccessibilityScan = await makeAxeBuilder()
     .include('app-event-edit > div:first-child')
@@ -259,32 +302,10 @@ test('event edit form hides selected roles in autocomplete', async ({
   await expect(
     page.getByRole('heading', { name: draftEvent.title }),
   ).toBeVisible({ timeout: 20_000 });
-  const registrationOptionEditors: Locator = page.locator(
-    'app-event-registration-option-editor',
+  const registrationOptionEditor = await eventOptionEditorByTitle(
+    page,
+    registrationOption.title,
   );
-  await expect(registrationOptionEditors).toHaveCount(
-    draftEvent.registrationOptions.length,
-  );
-  let registrationOptionEditor: Locator | undefined;
-  for (
-    let index = 0;
-    index < draftEvent.registrationOptions.length;
-    index += 1
-  ) {
-    const candidate = registrationOptionEditors.nth(index);
-    const optionTitle = await candidate
-      .getByRole('textbox', { name: 'Option name' })
-      .inputValue();
-    if (optionTitle === registrationOption.title) {
-      registrationOptionEditor = candidate;
-      break;
-    }
-  }
-  if (!registrationOptionEditor) {
-    throw new Error(
-      `Expected editor for registration option "${registrationOption.title}"`,
-    );
-  }
   await expect(
     registrationOptionEditor.getByRole('button', {
       name: `Remove ${selectedRole.name}`,

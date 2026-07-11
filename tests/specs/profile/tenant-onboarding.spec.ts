@@ -256,17 +256,16 @@ test('a tenant admin publishes a version and is immediately required to re-accep
 
   try {
     await admin.page.goto('/admin/onboarding');
+    const settings = admin.page.locator('app-onboarding-settings');
     await expect(
-      admin.page.getByRole('main').getByRole('heading', {
+      settings.getByRole('heading', {
         level: 1,
         name: 'Tenant onboarding',
       }),
     ).toBeVisible();
-    await expect(
-      admin.page.getByText(
-        'Every tenant user, including you, must accept that version',
-      ),
-    ).toBeVisible();
+    await expect(settings.getByRole('note')).toContainText(
+      'Publishing changed policy text or a changed link immediately requires every tenant user, including you, to accept the new version before using protected tenant features.',
+    );
     await admin.page
       .getByRole('textbox', { name: 'Privacy policy text' })
       .fill('Updated privacy policy for the current academic year.');

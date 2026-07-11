@@ -76,11 +76,9 @@ Use **Admin Tools** -> **Tenant onboarding**. The account needs **admin:changeSe
     await expect(
       settings.getByRole('heading', { level: 1, name: 'Tenant onboarding' }),
     ).toBeVisible();
-    await expect(
-      settings.getByText(
-        'Every tenant user, including you, must accept that version',
-      ),
-    ).toBeVisible();
+    await expect(settings.getByRole('note')).toContainText(
+      'Publishing changed policy text or a changed link immediately requires every tenant user, including you, to accept the new version before using protected tenant features.',
+    );
     await takeScreenshot(
       testInfo,
       settings,

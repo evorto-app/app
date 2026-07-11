@@ -504,37 +504,75 @@ test.describe('Manual approval registrations', () => {
 
       await page.reload();
       await waitForRegistrationStatus(page);
-      await expect(page.getByRole('link', { name: 'Pay now' })).toBeVisible();
-      await page.getByRole('button', { name: 'Cancel registration' }).click();
-      await expect(
-        page.getByRole('button', { name: 'Apply for approval' }),
-      ).toBeVisible();
-      await expect
-        .poll(async () => {
-          const persistedRegistration =
-            await database.query.eventRegistrations.findFirst({
-              where: { id: registration.id },
-            });
-          const persistedTransaction =
-            await database.query.transactions.findFirst({
-              where: { id: transactionId },
-            });
-          const option =
-            await database.query.eventRegistrationOptions.findFirst({
-              columns: { reservedSpots: true },
-              where: { id: scenario.optionId },
-            });
-          return {
-            registrationStatus: persistedRegistration?.status,
-            reservedSpots: option?.reservedSpots,
-            transactionStatus: persistedTransaction?.status,
-          };
-        })
-        .toEqual({
-          registrationStatus: 'CANCELLED',
-          reservedSpots: 0,
-          transactionStatus: 'cancelled',
+      const payNow = page.getByRole('link', { name: 'Pay now' });
+      const cancelRegistration = page.getByRole('button', {
+        name: 'Cancel registration',
+      });
+      const cancellationSucceeded = page.getByRole('button', {
+        name: 'Apply for approval',
+      });
+      const recoverableCancellationFailure = page
+        .getByRole('alert')
+        .getByText(
+          /^(?:Checkout cancellation could not be confirmed|Stripe did not confirm Checkout cancellation), so this request did not cancel the registration or release its reserved spots\. Refresh before retrying\.$/,
+        );
+      const readCancellationState = async () => {
+        const persistedRegistration =
+          await database.query.eventRegistrations.findFirst({
+            where: { id: registration.id },
+          });
+        const persistedTransaction =
+          await database.query.transactions.findFirst({
+            where: { id: transactionId },
+          });
+        const option = await database.query.eventRegistrationOptions.findFirst({
+          columns: { reservedSpots: true },
+          where: { id: scenario.optionId },
         });
+        return {
+          registrationStatus: persistedRegistration?.status,
+          reservedSpots: option?.reservedSpots,
+          transactionStatus: persistedTransaction?.status,
+        };
+      };
+      const pendingCancellationState = {
+        registrationStatus: 'PENDING',
+        reservedSpots: 1,
+        transactionStatus: 'pending',
+      };
+
+      await expect(payNow).toBeVisible();
+      await expect
+        .poll(readCancellationState)
+        .toEqual(pendingCancellationState);
+      await cancelRegistration.click();
+      await expect(
+        cancellationSucceeded.or(recoverableCancellationFailure).first(),
+      ).toBeVisible({ timeout: 15_000 });
+
+      if (await recoverableCancellationFailure.isVisible()) {
+        expect(await readCancellationState()).toEqual(pendingCancellationState);
+        await page.reload();
+        await waitForRegistrationStatus(page);
+        await expect(payNow).toBeVisible();
+        await expect(cancelRegistration).toBeEnabled();
+        await expect(recoverableCancellationFailure).toHaveCount(0);
+        await cancelRegistration.click();
+        await expect(
+          cancellationSucceeded.or(recoverableCancellationFailure).first(),
+        ).toBeVisible({ timeout: 15_000 });
+        expect(
+          await recoverableCancellationFailure.isVisible(),
+          'Expected refreshed Checkout cancellation retry to succeed',
+        ).toBe(false);
+      }
+
+      await expect(cancellationSucceeded).toBeVisible();
+      await expect.poll(readCancellationState).toEqual({
+        registrationStatus: 'CANCELLED',
+        reservedSpots: 0,
+        transactionStatus: 'cancelled',
+      });
       expect(
         await database
           .select({ id: schema.transactions.id })
