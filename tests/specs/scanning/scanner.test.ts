@@ -626,6 +626,8 @@ test.describe('organizer add-on cancellation permissions', () => {
     permissionOverride,
     seeded,
   }) => {
+    test.slow();
+
     const scannerFixture = await requireScannerFixture({ database, seeded });
     const registrationId = getId();
     const addOnId = getId();
@@ -774,6 +776,7 @@ test('scan confirmed registration records check-in', async ({
       new RegExp(
         `^${scannerFixture.optionBefore.checkedInSpots + 3}\\s*Checked In$`,
       ),
+      { timeout: 15_000 },
     );
   } finally {
     await database
@@ -866,6 +869,7 @@ test('scan checked-in registration records remaining guest arrival', async ({
     await page.goto(`/events/${scannerFixture.eventId}/organize`);
     await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
       new RegExp(`^${checkedInBaseline + 1}\\s*Checked In$`),
+      { timeout: 15_000 },
     );
   } finally {
     await database

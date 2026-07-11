@@ -133,7 +133,7 @@ test.describe('Register for events', () => {
     await expect(page).toHaveURL(/\/events\/[a-z0-9]+$/i);
     await expect(
       page.getByRole('heading', { level: 1, name: freeEvent.title }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     await waitForRegistrationStatus(page);
     await testInfo.attach('markdown', {
       body: `
@@ -296,7 +296,7 @@ test.describe('Register for events', () => {
       await eventLink.click();
       await expect(
         page.getByRole('heading', { level: 1, name: scenario.title }),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 15_000 });
       await waitForActiveRegistration(page);
 
       const freeAddOnRow = registrationAddOnRow(

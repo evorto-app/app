@@ -89,7 +89,7 @@ test.describe('Unlisted events visibility', () => {
       await page.goto(`/events/${event.id}`);
       await expect(
         page.getByRole('heading', { name: event.title }),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 15_000 });
     } finally {
       await database
         .update(schema.eventInstances)

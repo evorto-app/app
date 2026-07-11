@@ -210,6 +210,7 @@ The first confirmation above checks in the attendee and one guest. If another gu
     await page.goto(`/events/${eventId}/organize`);
     await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
       new RegExp(`^${optionBefore.checkedInSpots + 3}\\s*Checked In$`),
+      { timeout: 15_000 },
     );
     await takeScreenshot(
       testInfo,

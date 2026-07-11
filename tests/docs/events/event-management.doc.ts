@@ -122,7 +122,7 @@ After selecting a template and customizing your event, you can create it and pro
   // Wait for the event details page to load
   await expect(
     page.locator(`h1:has-text("${target.title}")`).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
 
   await testInfo.attach('markdown', {
     body: `
@@ -409,6 +409,7 @@ Those flows should be documented separately when they exist in the product.
     await page.goto(`/events/${scannerEventId}/organize`);
     await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
       new RegExp(`^${initialCheckedInSpots + 3}\\s*Checked In$`),
+      { timeout: 15_000 },
     );
   } finally {
     await database

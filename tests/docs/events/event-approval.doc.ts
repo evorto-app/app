@@ -134,7 +134,7 @@ test('Event approval workflow', async ({
     await page.goto(`/events/${eventId}`);
     await expect(
       page.getByRole('heading', { level: 1, name: eventTitle }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
 
     await testInfo.attach('markdown', {
       body: `

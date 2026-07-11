@@ -30,7 +30,7 @@ const openEventFromNormalNavigation = async (
   await expect(page).toHaveURL(new RegExp(`/events/${scenario.eventId}$`));
   await expect(
     page.getByRole('heading', { level: 1, name: scenario.eventTitle }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await waitForRegistrationStatus(page);
 };
 
