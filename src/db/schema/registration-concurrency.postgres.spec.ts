@@ -317,9 +317,11 @@ const runRegistration = (
   );
 
 const runCancellation = ({
+  expectedPaymentPending = false,
   fixture,
   serviceLayer,
 }: {
+  expectedPaymentPending?: boolean;
   fixture: Fixture;
   serviceLayer: ReturnType<typeof makeServiceLayer>;
 }) => {
@@ -380,7 +382,11 @@ const runCancellation = ({
 
   return Effect.runPromise(
     eventRegistrationHandlers['events.cancelRegistration'](
-      { registrationId: fixture.registrationId },
+      {
+        expectedPaymentPending,
+        expectedStatus: 'PENDING',
+        registrationId: fixture.registrationId,
+      },
       { headers: Headers.empty },
     ).pipe(
       Effect.match({
@@ -1070,7 +1076,7 @@ describe('paid manual approval concurrency', () => {
           error: expect.objectContaining({
             _tag: 'EventRegistrationConflictError',
             message:
-              'Payment setup changed while cancellation was starting, so this request did not cancel the registration or release its reserved spots. Refresh, then retry cancellation.',
+              'Registration status or payment state changed after confirmation, so nothing was cancelled, no refund was created, and no spots or inventory were released. Refresh, review the current registration, then confirm again.',
           }),
           status: 'failure',
         }),
@@ -1082,9 +1088,13 @@ describe('paid manual approval concurrency', () => {
         status: 'success',
         value: { status: 'paymentPending' },
       });
-      expect(await runCancellation({ fixture, serviceLayer })).toEqual({
-        status: 'success',
-      });
+      expect(
+        await runCancellation({
+          expectedPaymentPending: true,
+          fixture,
+          serviceLayer,
+        }),
+      ).toEqual({ status: 'success' });
       expect(fakeHttpClient.expiredSessionIds).toEqual(
         fakeHttpClient.createdSessionIds,
       );

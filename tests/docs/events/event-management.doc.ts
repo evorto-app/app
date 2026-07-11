@@ -1,3 +1,5 @@
+import type { Route } from '@playwright/test';
+
 import { and, eq } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 
@@ -270,7 +272,7 @@ Note: The event created from the template already has registration options confi
     registrationOptionEditor.getByRole('button', {
       name: `Remove ${selectedRole.name}`,
     }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   const roleInput = registrationOptionEditor.getByPlaceholder('Add Role...');
   const roleListbox = page.getByRole('listbox', { name: 'Selected Roles' });
   const selectedRoleOption = roleListbox.getByRole('option', {
@@ -368,12 +370,109 @@ Organizers check in attendees from the dedicated QR scanner. Attendees open thei
 
 Check-in is available to event organizers and users with event-wide organize access during the current check-in window. The scanner shows a future-event warning before that window opens. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview. When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.
 Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits a Stripe refund when the paid registration has a stored Stripe payment reference. Older or manually seeded payment records still create a pending manual refund record for organizer follow-up.
-For unpaid registrations, organizers can transfer a not-yet-checked-in participant registration to another eligible tenant member. Paid registration transfer shows as unavailable in the organizer overview until the resale money flow is handled.
+For unpaid registrations, organizers can transfer a not-yet-checked-in participant registration directly to another eligible tenant member. Eligible Stripe-paid registrations use the participant's private transfer link so the recipient can confirm current eligibility, answer current questions, and pay the current price before ownership changes. A successful separately paid add-on or a non-Stripe registration payment currently blocks private transfer because Evorto cannot yet reconcile every source refund safely. The organizer overview intentionally does not directly reassign a paid ticket.
 
-It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning, participant self-service resale, paid registration transfer, or participant-facing refund controls.
-Those flows should be documented separately when they exist in the product.
+It does not currently include attendee export, attendee messaging, or manual check-in controls outside QR scanning. Participant cancellation and private free or paid transfer are covered in the dedicated Registration Cancellation and Registration Transfer guides.
 `,
   });
+
+  let organizerOverviewFailureCount = 0;
+  let receiptFailureCount = 0;
+  const failOrganizerPageDataOnce = async (route: Route) => {
+    const request = route.request();
+    const requestBody = request.postData() ?? '';
+    if (
+      organizerOverviewFailureCount === 0 &&
+      request.method() === 'POST' &&
+      requestBody.includes('events.getOrganizeOverview')
+    ) {
+      organizerOverviewFailureCount += 1;
+      await route.abort('failed');
+      return;
+    }
+    if (
+      receiptFailureCount === 0 &&
+      request.method() === 'POST' &&
+      requestBody.includes('finance.receipts.byEvent')
+    ) {
+      receiptFailureCount += 1;
+      await route.abort('failed');
+      return;
+    }
+
+    await route.fallback();
+  };
+
+  await page.route('**/rpc/**', failOrganizerPageDataOnce);
+  await page.goto(`/events/${target.id}/organize`);
+  const organizerLoadAlert = page.getByRole('alert').filter({
+    hasText: 'Participant data could not be loaded',
+  });
+  const receiptLoadAlert = page.getByRole('alert').filter({
+    hasText: 'Receipts could not be loaded',
+  });
+  const addReceiptButton = page.getByRole('button', { name: 'Add receipt' });
+  await expect(organizerLoadAlert).toBeVisible({ timeout: 20_000 });
+  await expect(receiptLoadAlert).toBeVisible({ timeout: 20_000 });
+  expect(organizerOverviewFailureCount).toBe(1);
+  expect(receiptFailureCount).toBe(1);
+  await expect(organizerLoadAlert).toContainText(
+    'Participant data could not be loaded',
+  );
+  await expect(organizerLoadAlert).toContainText(
+    'Do not treat the missing counts as zero or as current event data.',
+  );
+  await expect(page.getByText('Registered', { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Cancel registration' }),
+  ).toHaveCount(0);
+  await expect(addReceiptButton).toBeDisabled();
+  await expect(
+    page.getByText('Receipt history must load before a receipt can be added.'),
+  ).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-event-organize'),
+    page,
+    'Organizer overview explains unavailable participant data',
+  );
+
+  await testInfo.attach('markdown', {
+    body: `
+### Recover when participant data does not load
+
+If the organizer overview request fails, Evorto hides every registration count and participant action. The warning explicitly says that missing counts are **not zero** and must not be treated as current event data.
+
+1. Do not cancel, transfer, or approve a registration based on an empty-looking page.
+2. Check that your network connection is available.
+3. Select **Try again** in the warning.
+4. Wait for the **Overview** and **Participants** sections to return before continuing.
+
+Receipt history has its own warning and **Try again** action. A receipt-loading warning means existing receipts may still be present; it is not a verified empty list. **Add receipt** stays unavailable until that history loads, preventing a duplicate submission based on incomplete information.
+`,
+  });
+
+  await organizerLoadAlert.getByRole('button', { name: 'Try again' }).click();
+  await expect(organizerLoadAlert).toHaveCount(0);
+  await expect(
+    page.getByRole('heading', { name: 'Overview', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId('event-organize-registered-stat'),
+  ).toBeVisible();
+  await expect(receiptLoadAlert).toContainText(
+    'Existing receipt records may still be present.',
+  );
+  const verifiedNoReceipts = page.getByText(
+    'No receipts submitted for this event yet.',
+    { exact: true },
+  );
+  await expect(verifiedNoReceipts).toHaveCount(0);
+  await receiptLoadAlert.getByRole('button', { name: 'Try again' }).click();
+  await expect(receiptLoadAlert).toHaveCount(0);
+  await expect(verifiedNoReceipts).toBeVisible();
+  await expect(addReceiptButton).toBeEnabled();
+  await page.unroute('**/rpc/**', failOrganizerPageDataOnce);
 
   const scannerEventId = seeded.scenario.events.past.eventId;
   const [scannerRegistrationOption] = await database

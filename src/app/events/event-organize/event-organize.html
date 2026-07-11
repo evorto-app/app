@@ -1,314 +1,392 @@
 <div class="bg-surface text-on-surface p-4 lg:h-full lg:rounded-t-lg">
   <div class="mb-4 flex w-full flex-row items-center gap-2">
-    <a [routerLink]="['/events', eventId()]" mat-icon-button>
+    <a
+      [routerLink]="['/events', eventId()]"
+      aria-label="Back to event"
+      mat-icon-button
+    >
       <fa-icon [icon]="faArrowLeft" />
     </a>
-    <h1 class="title-large">{{ event()?.title || "Loading..." }}</h1>
+    <h1 class="title-large">
+      {{ eventQuery.isSuccess() ? eventQuery.data().title : "Organize event" }}
+    </h1>
     <div class="grow"></div>
-    @if (event()) {
-      <span class="text-surface-variant text-sm">
-        {{ event()!.start | date: "shortDate" }} •
-        {{ event()!.start | date: "shortTime" }}
+    @if (eventQuery.isSuccess()) {
+      <span class="text-on-surface-variant text-sm">
+        {{ eventQuery.data().start | date: "shortDate" }} •
+        {{ eventQuery.data().start | date: "shortTime" }}
       </span>
     }
   </div>
 
   <main class="lg:overflow-y-auto">
-    <div class="grid gap-8">
-      <!-- Quick Stats Cards -->
-      <section>
-        <h2 class="title-large mb-4">Overview</h2>
-        <div class="text-on-surface-container grid grid-cols-3 gap-4">
-          <div class="bg-surface-container rounded-lg p-4 text-center">
-            <div class="flex flex-col items-center justify-center lg:flex-row">
-              <div class="text-2xl font-bold">{{ stats().registered }}</div>
-              <div class="text-lg font-bold">/{{ stats().capacity }}</div>
-            </div>
-            <div class="text-sm">Registered</div>
-          </div>
-          <div
-            data-testid="event-organize-checked-in-stat"
-            class="bg-surface-container flex flex-col justify-center rounded-lg p-4 text-center"
-          >
-            <div class="text-2xl font-bold">{{ stats().checkedIn }}</div>
-            <div class="text-sm">Checked In</div>
-          </div>
-          <div
-            class="bg-surface-container flex flex-col justify-center rounded-lg p-4 text-center"
-          >
-            <div class="text-2xl font-bold">
-              {{ stats().capacityPercentage | percent: "1.0-0" }}
-            </div>
-            <div class="text-sm">Capacity</div>
-          </div>
+    @if (eventQuery.isPending()) {
+      <div
+        role="status"
+        aria-live="polite"
+        class="bg-surface-container text-on-surface flex cursor-progress flex-col gap-2 rounded-2xl p-4"
+      >
+        <h2 class="title-medium">Loading event operations…</h2>
+        <p class="body-medium">
+          Participant counts and actions will appear after the event loads.
+        </p>
+      </div>
+    } @else if (eventQuery.isError()) {
+      <div
+        role="alert"
+        class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
+      >
+        <div>
+          <h2 class="title-medium">Event operations could not be loaded</h2>
+          <p class="body-medium mt-1">
+            Event details are unavailable, so participant and receipt actions
+            are hidden. Check your connection and try again.
+          </p>
         </div>
-      </section>
-
-      <!-- Management Section -->
-      <section class="grid gap-4">
-        <h2 class="title-large">Participants</h2>
-        @for (
-          registrationOption of organizerOverviewQuery.data();
-          track registrationOption.registrationOptionId
-        ) {
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="eventQuery.isFetching()"
+          (click)="eventQuery.refetch()"
+        >
+          {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+        </button>
+      </div>
+    } @else if (eventQuery.isSuccess()) {
+      <div class="grid gap-8">
+        @if (organizerOverviewQuery.isPending()) {
           <div
-            class="bg-surface-container text-on-surface-container grid gap-2 rounded-lg p-4"
+            role="status"
+            aria-live="polite"
+            class="bg-surface-container text-on-surface flex cursor-progress flex-col gap-2 rounded-2xl p-4"
           >
-            <h3 class="title-medium">
-              {{ registrationOption.registrationOptionTitle }}
-            </h3>
-            @for (user of registrationOption.users; track user.userId) {
-              @let approvalInFlight = approvalPending(user.registrationId);
+            <h2 class="title-medium">Loading participant data…</h2>
+            <p class="body-medium">
+              Current registration counts and participant actions are being
+              prepared.
+            </p>
+          </div>
+        } @else if (organizerOverviewQuery.isError()) {
+          <div
+            role="alert"
+            data-testid="event-organize-overview-error"
+            class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
+          >
+            <div>
+              <h2 class="title-medium">Participant data could not be loaded</h2>
+              <p class="body-medium mt-1">
+                Registration counts and participant actions are unavailable. Do
+                not treat the missing counts as zero or as current event data.
+                Check your connection and try again.
+              </p>
+            </div>
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="organizerOverviewQuery.isFetching()"
+              (click)="organizerOverviewQuery.refetch()"
+            >
+              {{
+                organizerOverviewQuery.isFetching() ? "Retrying…" : "Try again"
+              }}
+            </button>
+          </div>
+        } @else if (organizerOverviewQuery.isSuccess()) {
+          <!-- Quick Stats Cards -->
+          <section>
+            <h2 class="title-large mb-4">Overview</h2>
+            <div class="text-on-surface-container grid grid-cols-3 gap-4">
               <div
-                class="flex flex-wrap items-center justify-between gap-2 rounded bg-surface-container-high px-3 py-2"
-                [attr.aria-busy]="approvalInFlight || null"
+                data-testid="event-organize-registered-stat"
+                class="bg-surface-container rounded-lg p-4 text-center"
               >
-                <div class="grid gap-1">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p>{{ user.firstName }} {{ user.lastName }}</p>
-                    @if (user.appliedDiscountType === "esnCard") {
-                      <span
-                        class="bg-primary-container text-on-primary-container rounded px-2 py-1 text-xs"
-                      >
-                        ESNcard discount
-                      </span>
-                    }
-                    @if (user.checkedIn) {
-                      <span class="rounded bg-surface px-2 py-1 text-xs">
-                        Checked in
-                      </span>
-                    }
-                    @if (user.paymentSetupRequired) {
-                      <span
-                        class="bg-error-container text-on-error-container rounded px-2 py-1 text-xs"
-                      >
-                        Payment setup needs retry
-                      </span>
-                    } @else if (user.manualApprovalAvailable) {
-                      <span
-                        class="bg-tertiary-container text-on-tertiary-container rounded px-2 py-1 text-xs"
-                      >
-                        Awaiting approval
-                      </span>
-                    } @else if (user.paymentPending) {
-                      <span
-                        class="bg-secondary-container text-on-secondary-container rounded px-2 py-1 text-xs"
-                      >
-                        Payment pending
-                      </span>
-                    }
-                  </div>
-                  @if (user.addonPurchases.length > 0) {
-                    <p class="body-small text-on-surface-variant">
-                      Add-ons:
-                      @for (
-                        addOnPurchase of user.addonPurchases;
-                        track $index
-                      ) {
-                        <span>
-                          {{ addOnPurchase.quantity }} x {{ addOnPurchase.title
-                          }}{{ $last ? "" : ", " }}
-                        </span>
-                      }
-                    </p>
-                  }
+                <div
+                  class="flex flex-col items-center justify-center lg:flex-row"
+                >
+                  <div class="text-2xl font-bold">{{ stats().registered }}</div>
+                  <div class="text-lg font-bold">/{{ stats().capacity }}</div>
                 </div>
-                @if (!registrationOption.organizingRegistration) {
-                  <div class="flex flex-wrap gap-2">
-                    @if (user.manualApprovalAvailable) {
-                      <button
-                        mat-flat-button
-                        type="button"
-                        (click)="approveRegistration(user)"
-                        [disabled]="
-                          organizerRegistrationApprovalDisabled({
-                            manualApprovalAvailable:
-                              user.manualApprovalAvailable,
-                            mutationPending:
-                              approveRegistrationMutation.isPending() ||
-                              transferRegistrationMutation.isPending() ||
-                              cancelRegistrationMutation.isPending(),
-                          })
-                        "
-                      >
-                        {{
-                          organizerRegistrationApprovalLabel({
-                            approvalPending: approvalInFlight,
-                            paymentSetupRequired: user.paymentSetupRequired,
-                          })
-                        }}
-                      </button>
+                <div class="text-sm">Registered</div>
+              </div>
+              <div
+                data-testid="event-organize-checked-in-stat"
+                class="bg-surface-container flex flex-col justify-center rounded-lg p-4 text-center"
+              >
+                <div class="text-2xl font-bold">{{ stats().checkedIn }}</div>
+                <div class="text-sm">Checked In</div>
+              </div>
+              <div
+                class="bg-surface-container flex flex-col justify-center rounded-lg p-4 text-center"
+              >
+                <div class="text-2xl font-bold">
+                  {{ stats().capacityPercentage | percent: "1.0-0" }}
+                </div>
+                <div class="text-sm">Capacity</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Management Section -->
+          <section class="grid gap-4">
+            <h2 class="title-large">Participants</h2>
+            @for (
+              registrationOption of organizerOverviewQuery.data();
+              track registrationOption.registrationOptionId
+            ) {
+              <div
+                class="bg-surface-container text-on-surface-container grid gap-2 rounded-lg p-4"
+              >
+                <h3 class="title-medium">
+                  {{ registrationOption.registrationOptionTitle }}
+                </h3>
+                @for (user of registrationOption.users; track user.userId) {
+                  @let approvalInFlight = approvalPending(user.registrationId);
+                  <div
+                    class="flex flex-wrap items-center justify-between gap-2 rounded bg-surface-container-high px-3 py-2"
+                    [attr.aria-busy]="approvalInFlight || null"
+                  >
+                    <div class="grid gap-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p>{{ user.firstName }} {{ user.lastName }}</p>
+                        @if (user.appliedDiscountType === "esnCard") {
+                          <span
+                            class="bg-primary-container text-on-primary-container rounded px-2 py-1 text-xs"
+                          >
+                            ESNcard discount
+                          </span>
+                        }
+                        @if (user.checkedIn) {
+                          <span class="rounded bg-surface px-2 py-1 text-xs">
+                            Checked in
+                          </span>
+                        }
+                        @if (user.paymentSetupRequired) {
+                          <span
+                            class="bg-error-container text-on-error-container rounded px-2 py-1 text-xs"
+                          >
+                            Payment setup needs retry
+                          </span>
+                        } @else if (user.manualApprovalAvailable) {
+                          <span
+                            class="bg-tertiary-container text-on-tertiary-container rounded px-2 py-1 text-xs"
+                          >
+                            Awaiting approval
+                          </span>
+                        } @else if (user.paymentPending) {
+                          <span
+                            class="bg-secondary-container text-on-secondary-container rounded px-2 py-1 text-xs"
+                          >
+                            Payment pending
+                          </span>
+                        }
+                      </div>
+                      @if (user.addonPurchases.length > 0) {
+                        <p class="body-small text-on-surface-variant">
+                          Add-ons:
+                          @for (
+                            addOnPurchase of user.addonPurchases;
+                            track $index
+                          ) {
+                            <span>
+                              {{ addOnPurchase.quantity }} x
+                              {{ addOnPurchase.title }}{{ $last ? "" : ", " }}
+                            </span>
+                          }
+                        </p>
+                      }
+                    </div>
+                    @if (!registrationOption.organizingRegistration) {
+                      <div class="flex flex-wrap gap-2">
+                        @if (user.manualApprovalAvailable) {
+                          <button
+                            mat-flat-button
+                            type="button"
+                            (click)="approveRegistration(user)"
+                            [disabled]="
+                              organizerRegistrationApprovalDisabled({
+                                manualApprovalAvailable:
+                                  user.manualApprovalAvailable,
+                                mutationPending:
+                                  approveRegistrationMutation.isPending() ||
+                                  transferRegistrationMutation.isPending() ||
+                                  cancelRegistrationMutation.isPending(),
+                              })
+                            "
+                          >
+                            {{
+                              organizerRegistrationApprovalLabel({
+                                approvalPending: approvalInFlight,
+                                paymentSetupRequired: user.paymentSetupRequired,
+                              })
+                            }}
+                          </button>
+                        }
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          (click)="openTransferDialog(user)"
+                          [disabled]="
+                            organizerRegistrationTransferDisabled({
+                              checkedIn: user.checkedIn,
+                              mutationPending:
+                                approveRegistrationMutation.isPending() ||
+                                transferRegistrationMutation.isPending() ||
+                                cancelRegistrationMutation.isPending(),
+                              transferAvailable: user.transferAvailable,
+                            })
+                          "
+                        >
+                          {{
+                            user.transferAvailable
+                              ? "Transfer registration"
+                              : "Transfer unavailable"
+                          }}
+                        </button>
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          (click)="cancelRegistration(user)"
+                          [disabled]="
+                            organizerRegistrationActionDisabled({
+                              checkedIn: user.checkedIn,
+                              mutationPending:
+                                approveRegistrationMutation.isPending() ||
+                                cancelRegistrationMutation.isPending() ||
+                                transferRegistrationMutation.isPending(),
+                            })
+                          "
+                        >
+                          Cancel registration
+                        </button>
+                      </div>
                     }
-                    <button
-                      mat-stroked-button
-                      type="button"
-                      (click)="openTransferDialog(user)"
-                      [disabled]="
-                        organizerRegistrationTransferDisabled({
-                          checkedIn: user.checkedIn,
-                          mutationPending:
-                            approveRegistrationMutation.isPending() ||
-                            transferRegistrationMutation.isPending() ||
-                            cancelRegistrationMutation.isPending(),
-                          transferAvailable: user.transferAvailable,
-                        })
-                      "
-                    >
-                      {{
-                        user.transferAvailable
-                          ? "Transfer registration"
-                          : "Transfer unavailable"
-                      }}
-                    </button>
-                    <button
-                      mat-stroked-button
-                      type="button"
-                      (click)="cancelRegistration(user)"
-                      [disabled]="
-                        organizerRegistrationActionDisabled({
-                          checkedIn: user.checkedIn,
-                          mutationPending:
-                            approveRegistrationMutation.isPending() ||
-                            cancelRegistrationMutation.isPending() ||
-                            transferRegistrationMutation.isPending(),
-                        })
-                      "
-                    >
-                      Cancel registration
-                    </button>
                   </div>
+                } @empty {
+                  <p class="body-medium text-on-surface-variant">
+                    No registrations in this option yet.
+                  </p>
                 }
               </div>
+            } @empty {
+              <div class="bg-surface-container rounded-lg p-4">
+                No participant registrations yet.
+              </div>
             }
-          </div>
-        }
-        <!--        <table mat-table [dataSource]="organizerTableContent()">-->
-        <!--          <ng-container matColumnDef="name">-->
-        <!--            <th mat-header-cell *matHeaderCellDef>Name</th>-->
-        <!--            <td mat-cell *matCellDef="let user">-->
-        <!--              {{ user.name }}-->
-        <!--            </td>-->
-        <!--          </ng-container>-->
-        <!--          <ng-container matColumnDef="email">-->
-        <!--            <th mat-header-cell *matHeaderCellDef>Email</th>-->
-        <!--            <td mat-cell *matCellDef="let user">-->
-        <!--              {{ user.email }}-->
-        <!--            </td>-->
-        <!--          </ng-container>-->
-        <!--          <ng-container matColumnDef="checkin">-->
-        <!--            <th mat-header-cell *matHeaderCellDef>Check in status</th>-->
-        <!--            <td mat-cell *matCellDef="let user">-->
-        <!--              {{ user.checkin }}-->
-        <!--            </td></ng-container-->
-        <!--          >-->
-        <!--          <ng-container matColumnDef="registration-option">-->
-        <!--            <td-->
-        <!--              mat-cell-->
-        <!--              [colSpan]="organizerTableColumns().length"-->
-        <!--              *matCellDef="let registrationOption"-->
-        <!--            >-->
-        <!--              {{ registrationOption.title }}-->
-        <!--            </td></ng-container-->
-        <!--          >-->
-        <!--          <tr mat-header-row *matHeaderRowDef="organizerTableColumns()"></tr>-->
-        <!--          <tr-->
-        <!--            mat-row-->
-        <!--            *matRowDef="-->
-        <!--              let row;-->
-        <!--              columns: organizerTableColumns();-->
-        <!--              when: showOrganizerRow-->
-        <!--            "-->
-        <!--          ></tr>-->
-        <!--          <tr-->
-        <!--            mat-row-->
-        <!--            *matRowDef="-->
-        <!--              let row;-->
-        <!--              columns: ['registration-option'];-->
-        <!--              when: showRegistrationOptionRow-->
-        <!--            "-->
-        <!--          ></tr>-->
-        <!--        </table>-->
-      </section>
-
-      <section class="grid gap-4">
-        <div class="flex items-center justify-between gap-4">
-          <h2 class="title-large">Receipts</h2>
-          <button
-            mat-raised-button
-            color="primary"
-            (click)="openReceiptDialog()"
-            [disabled]="
-              receiptSubmissionActionDisabled({
-                submissionUnavailable: !!receiptSubmissionUnavailableMessage(),
-                submitPending: submitReceiptMutation.isPending(),
-                uploadPending: receiptOriginalUploadMutation.isPending(),
-              })
-            "
-          >
-            Add receipt
-          </button>
-        </div>
-        @if (receiptSubmissionUnavailableMessage(); as message) {
-          <p class="text-on-surface-variant text-sm">
-            {{ message }}
-          </p>
+          </section>
         }
 
-        @if (receiptsByEventQuery.isPending()) {
-          <div class="bg-surface-container rounded-lg p-4">
-            Loading receipts...
+        <section class="grid gap-4">
+          <div class="flex items-center justify-between gap-4">
+            <h2 class="title-large">Receipts</h2>
+            <button
+              mat-raised-button
+              color="primary"
+              (click)="openReceiptDialog()"
+              [disabled]="
+                receiptSubmissionActionDisabled({
+                  submissionUnavailable:
+                    !!receiptSubmissionUnavailableMessage(),
+                  submitPending: submitReceiptMutation.isPending(),
+                  uploadPending: receiptOriginalUploadMutation.isPending(),
+                })
+              "
+            >
+              Add receipt
+            </button>
           </div>
-        } @else if (receiptsByEventQuery.isError()) {
-          <div
-            class="bg-error-container text-on-error-container rounded-lg p-4"
-          >
-            Failed to load receipts.
-          </div>
-        } @else if (receiptsByEventQuery.data()?.length === 0) {
-          <div class="bg-surface-container rounded-lg p-4">
-            No receipts submitted for this event yet.
-          </div>
-        } @else {
-          <div class="grid gap-3">
-            @for (receipt of receiptsByEventQuery.data(); track receipt.id) {
-              <article class="bg-surface-container rounded-lg p-4">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <h3 class="title-medium">{{ receipt.attachmentFileName }}</h3>
-                  <span class="rounded bg-surface px-2 py-1 text-xs uppercase">
-                    {{ receipt.status }}
-                  </span>
-                </div>
-                <p class="text-on-surface-variant text-sm">
-                  Submitted by {{ receipt.submittedByFirstName }}
-                  {{ receipt.submittedByLastName }} on
-                  {{ receipt.createdAt | date: "medium" }}
+          @if (receiptSubmissionUnavailableMessage(); as message) {
+            <p class="text-on-surface-variant text-sm">
+              {{ message }}
+            </p>
+          }
+
+          @if (receiptsByEventQuery.isPending()) {
+            <div
+              role="status"
+              aria-live="polite"
+              class="bg-surface-container rounded-lg p-4"
+            >
+              Loading receipts…
+            </div>
+          } @else if (receiptsByEventQuery.isError()) {
+            <div
+              role="alert"
+              class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-lg p-4"
+            >
+              <div>
+                <h3 class="title-medium">Receipts could not be loaded</h3>
+                <p class="body-medium mt-1">
+                  Existing receipt records may still be present. Check your
+                  connection and try again before treating this list as empty.
                 </p>
-                <div class="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-3">
-                  <p>
-                    Total:
-                    {{ receipt.totalAmount | receiptAmount: receipt.currency }}
-                  </p>
-                  <p>
-                    Tax:
-                    {{ receipt.taxAmount | receiptAmount: receipt.currency }}
-                  </p>
-                  <p>Date: {{ receipt.receiptDate | date: "mediumDate" }}</p>
-                </div>
-                @if (receipt.previewImageUrl) {
-                  <a
-                    [href]="receipt.previewImageUrl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="mt-2 inline-block text-sm underline"
+              </div>
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="receiptsByEventQuery.isFetching()"
+                (click)="receiptsByEventQuery.refetch()"
+              >
+                {{
+                  receiptsByEventQuery.isFetching() ? "Retrying…" : "Try again"
+                }}
+              </button>
+            </div>
+          } @else if (receiptsByEventQuery.data()?.length === 0) {
+            <div class="bg-surface-container rounded-lg p-4">
+              No receipts submitted for this event yet.
+            </div>
+          } @else {
+            <div class="grid gap-3">
+              @for (receipt of receiptsByEventQuery.data(); track receipt.id) {
+                <article class="bg-surface-container rounded-lg p-4">
+                  <div
+                    class="flex flex-wrap items-center justify-between gap-2"
                   >
-                    Open preview
-                  </a>
-                }
-              </article>
-            }
-          </div>
-        }
-      </section>
-    </div>
+                    <h3 class="title-medium">
+                      {{ receipt.attachmentFileName }}
+                    </h3>
+                    <span
+                      class="rounded bg-surface px-2 py-1 text-xs uppercase"
+                    >
+                      {{ receipt.status }}
+                    </span>
+                  </div>
+                  <p class="text-on-surface-variant text-sm">
+                    Submitted by {{ receipt.submittedByFirstName }}
+                    {{ receipt.submittedByLastName }} on
+                    {{ receipt.createdAt | date: "medium" }}
+                  </p>
+                  <div
+                    class="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-3"
+                  >
+                    <p>
+                      Total:
+                      {{
+                        receipt.totalAmount | receiptAmount: receipt.currency
+                      }}
+                    </p>
+                    <p>
+                      Tax:
+                      {{ receipt.taxAmount | receiptAmount: receipt.currency }}
+                    </p>
+                    <p>Date: {{ receipt.receiptDate | date: "mediumDate" }}</p>
+                  </div>
+                  @if (receipt.previewImageUrl) {
+                    <a
+                      [href]="receipt.previewImageUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="mt-2 inline-block text-sm underline"
+                    >
+                      Open preview
+                    </a>
+                  }
+                </article>
+              }
+            </div>
+          }
+        </section>
+      </div>
+    }
   </main>
 </div>

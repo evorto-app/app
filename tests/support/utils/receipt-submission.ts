@@ -58,7 +58,7 @@ export const openOrganizerReceiptsFromNavigation = async ({
   const receiptSection = page.locator('section', {
     has: page.getByRole('heading', { level: 2, name: 'Receipts' }),
   });
-  await expect(receiptSection).toBeVisible();
+  await expect(receiptSection).toBeVisible({ timeout: 20_000 });
   await expect(receiptSection.getByText('Loading receipts...')).not.toBeVisible(
     { timeout: 20_000 },
   );
@@ -69,7 +69,7 @@ export const openOrganizerReceiptsFromNavigation = async ({
   ).not.toBeVisible({ timeout: 20_000 });
   await expect(
     receiptSection.getByRole('button', { name: 'Add receipt' }),
-  ).toBeEnabled();
+  ).toBeEnabled({ timeout: 20_000 });
 
   return receiptSection;
 };

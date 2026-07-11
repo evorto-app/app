@@ -12,7 +12,6 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
@@ -32,6 +31,10 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { ReceiptAmountPipe } from '../../finance/shared/receipt-amount.pipe';
+import {
+  type RegistrationCancellationConfirmationData,
+  RegistrationCancellationConfirmationDialogComponent,
+} from '../registration-cancellation-confirmation-dialog.component';
 import {
   ReceiptSubmitDialogComponent,
   ReceiptSubmitDialogResult,
@@ -152,7 +155,6 @@ export const receiptSubmissionActionDisabled = ({
     PercentPipe,
     ReceiptAmountPipe,
     RouterLink,
-    MatTableModule,
   ],
   selector: 'app-event-organize',
   templateUrl: './event-organize.html',
@@ -185,25 +187,6 @@ export class EventOrganize {
     organizerRegistrationApprovalLabel;
   protected readonly organizerRegistrationTransferDisabled =
     organizerRegistrationTransferDisabled;
-  protected readonly organizerTableColumns = signal([
-    'name',
-    'email',
-    'checkin',
-  ]);
-  protected readonly organizerTableContent = computed(() => {
-    const overview = this.organizerOverviewQuery.data();
-    if (!overview) return [];
-    return overview
-      .filter((registrationOption) => registrationOption.organizingRegistration)
-      .flatMap((registrationOption) => [
-        {
-          title: registrationOption.registrationOptionTitle,
-          type: 'Registration Option',
-        },
-        ...registrationOption.users,
-      ]);
-  });
-
   protected readonly receiptOriginalUploadMutation = injectMutation(() =>
     this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
   );
@@ -219,6 +202,10 @@ export class EventOrganize {
     const event = this.event();
     if (!event) {
       return 'Receipts can be added after the event has loaded.';
+    }
+
+    if (!this.receiptsByEventQuery.isSuccess()) {
+      return 'Receipt history must load before a receipt can be added.';
     }
 
     return null;
@@ -316,12 +303,54 @@ export class EventOrganize {
     );
   }
 
-  protected cancelRegistration(
+  protected async cancelRegistration(
     registration: Pick<
       EventOrganizeParticipant,
-      'checkedIn' | 'registrationId'
+      | 'checkedIn'
+      | 'firstName'
+      | 'lastName'
+      | 'paymentPending'
+      | 'registrationId'
+      | 'status'
     >,
-  ) {
+  ): Promise<void> {
+    const expectedPaymentPending = registration.paymentPending;
+    const expectedStatus = registration.status;
+    if (expectedStatus === 'CANCELLED') {
+      return;
+    }
+    if (
+      organizerRegistrationActionDisabled({
+        checkedIn: registration.checkedIn,
+        mutationPending:
+          this.approveRegistrationMutation.isPending() ||
+          this.cancelRegistrationMutation.isPending() ||
+          this.transferRegistrationMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
+    const confirmed = await firstValueFrom(
+      this.dialog
+        .open<
+          RegistrationCancellationConfirmationDialogComponent,
+          RegistrationCancellationConfirmationData,
+          boolean
+        >(RegistrationCancellationConfirmationDialogComponent, {
+          data: {
+            actor: 'organizer',
+            participantName: `${registration.firstName} ${registration.lastName}`,
+            paymentPending: expectedPaymentPending,
+            status: expectedStatus,
+          },
+          width: 'min(32rem, calc(100vw - 2rem))',
+        })
+        .afterClosed(),
+    );
+    if (confirmed !== true) {
+      return;
+    }
     if (
       organizerRegistrationActionDisabled({
         checkedIn: registration.checkedIn,
@@ -337,10 +366,24 @@ export class EventOrganize {
     this.cancelRegistrationMutation.mutate(
       {
         eventId: this.eventId(),
+        expectedPaymentPending,
+        expectedStatus,
         registrationId: registration.registrationId,
       },
       {
-        onError: (error) => {
+        onError: async (error) => {
+          await Promise.allSettled([
+            this.queryClient.invalidateQueries({
+              queryKey: this.rpc.events.getOrganizeOverview.queryKey({
+                eventId: this.eventId(),
+              }),
+            }),
+            this.queryClient.invalidateQueries({
+              queryKey: this.rpc.events.findOne.queryKey({
+                id: this.eventId(),
+              }),
+            }),
+          ]);
           this.notifications.showError(
             getErrorMessage(error, 'Failed to cancel registration'),
           );

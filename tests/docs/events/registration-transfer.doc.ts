@@ -93,7 +93,7 @@ This guide uses two signed-in participant accounts that belong to the same tenan
 - the current ticket owner, who has a confirmed registration; and
 - a different intended recipient, whose current tenant roles are eligible for the registration option.
 
-Neither account needs organizer or administrator permission for this participant transfer. A paid transfer additionally requires the tenant's connected Stripe account to be available. Platform-administrator permission is only needed if a refund later requires operator recovery.
+Neither account needs organizer or administrator permission for this participant transfer. A paid transfer additionally requires a supported successful Stripe registration payment and the tenant's connected Stripe account. A non-Stripe registration payment or a successful separately paid add-on currently blocks the offer because Evorto cannot yet reconcile every source refund safely. Platform-administrator permission is only needed if a supported transfer's refund later requires operator recovery.
 
 Only a confirmed registration that has not been checked in can be transferred. The tenant or event option may close transfers a configured number of hours before the event starts.
 
@@ -243,7 +243,7 @@ The completed transfer cancels the previous owner's registration, confirms the r
 
 ## What paid transfers add
 
-For a paid transfer, **Claim registration** opens Stripe Checkout on the tenant's connected account and includes the platform application fee. The recipient is confirmed first; only then is the source registration cancelled and its persisted refund queued.
+For a supported Stripe-paid transfer without a separately paid add-on, **Claim registration** opens Stripe Checkout on the tenant's connected account and includes the platform application fee. The recipient is confirmed first; only then is the source registration cancelled and its persisted refund queued. Non-Stripe source payments and successful post-registration add-on payment sources remain blocked rather than risking a partial refund.
 
 - **Transfer complete — refund processing** means the recipient owns the ticket and the source refund is still running asynchronously.
 - **Transfer complete — refund needs attention** still means the recipient owns the ticket. A platform administrator must use the recovery action to requeue the existing refund; the participant must not pay or claim again.
@@ -323,7 +323,7 @@ test('Complete a paid transfer and recover its source refund', async ({
 # Complete a paid registration transfer
 
 {% callout type="note" title="Before you start" %}
-This guide continues after a current ticket owner has created a private transfer and the intended recipient, signed in to the same tenant with an eligible account, has started the paid claim. The tenant's connected Stripe account must be available. If you still need to create the private offer, start with [Transfer a registration with a private link](/docs/transfer-a-registration-with-a-private-link).
+This guide continues after a current ticket owner has created a supported Stripe-paid private transfer and the intended recipient, signed in to the same tenant with an eligible account, has started the claim. The tenant's connected Stripe account must be available, the source registration payment must be Stripe-backed, and no successful separately paid add-on source may exist. Non-Stripe and multi-source paid tickets stay blocked rather than receiving a partial refund. If you still need to create the private offer, start with [Transfer a registration with a private link](/docs/transfer-a-registration-with-a-private-link).
 {% /callout %}
 
 After a recipient claims a paid registration, Evorto keeps one Stripe Checkout attached to that private offer. The recipient reservation is not a ticket yet, and the previous owner keeps their confirmed ticket until payment succeeds.

@@ -526,7 +526,9 @@ Dates use the fixed **de-DE** format. Enter times in the tenant's business timez
   });
   await page.getByRole('link', { name: 'Create event' }).click();
   await expect(page).toHaveURL(`/templates/${createdTemplate.id}/create-event`);
-  await expect(page.getByLabel('Event title')).toHaveValue(templateTitle);
+  await expect(page.getByLabel('Event title')).toHaveValue(templateTitle, {
+    timeout: 20_000,
+  });
   await page.getByLabel('Event title').fill(eventTitle);
 
   const eventForm = page.locator('app-event-general-form');

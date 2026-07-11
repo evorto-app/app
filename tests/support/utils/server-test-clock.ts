@@ -22,6 +22,13 @@ export const latestServerOrWallNow = (): Date => {
   return (serverNow > wallNow ? serverNow : wallNow).toJSDate();
 };
 
+export const earliestServerOrWallNow = (): Date => {
+  const serverNow = readServerNow();
+  const wallNow = DateTime.utc();
+
+  return (serverNow < wallNow ? serverNow : wallNow).toJSDate();
+};
+
 export const futureServerEventWindow = (
   options: {
     closeRegistrationInDays?: number;

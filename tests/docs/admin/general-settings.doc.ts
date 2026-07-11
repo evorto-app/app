@@ -1,8 +1,6 @@
-import { eq } from 'drizzle-orm';
 import { Buffer } from 'node:buffer';
 
 import { adminStateFile } from '../../../helpers/user-data';
-import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
@@ -18,13 +16,13 @@ test('Manage tenant general settings @admin', async ({
   page,
   tenant,
 }, testInfo) => {
-  const originalTenant = await database.query.tenants.findFirst({
+  const tenantRecord = await database.query.tenants.findFirst({
     where: { id: tenant.id },
   });
-  if (!originalTenant) {
+  if (!tenantRecord) {
     throw new Error('Expected generated general-settings docs tenant');
   }
-  expect(originalTenant.domain).toBe(tenant.domain);
+  expect(tenantRecord.domain).toBe(tenant.domain);
   const documentedEmailSenderName = 'Documentation Operations';
   const documentedEmailSenderEmail = `operations+${tenant.id}@example.org`;
   const documentedStripeAccountId = `acct_docs_${tenant.id}`;
@@ -33,7 +31,7 @@ test('Manage tenant general settings @admin', async ({
   const documentedCancellationDeadlineHours = 96;
   const documentedRefundFeesOnCancellation = false;
 
-  try {
+  await test.step('Document tenant general settings', async () => {
     await page.goto('.');
 
     await testInfo.attach('markdown', {
@@ -298,23 +296,5 @@ Tax rates are managed on the separate **Tax Rates** page.
 One-domain-per-tenant remains the current relaunch scope in the application schema. The page exposes the active primary domain for operator review and explains that the secure HTTPS origin is derived from its normalized value. Tenant admins can maintain supported currency, timezone, email reply-to settings, Stripe account id, registration limits, uploaded or externally hosted logo/favicon assets, legal links, and hosted legal text, while an in-app deferred-settings summary keeps custom-domain verification visible and the formatting locale remains read-only. Currency and timezone changes are only accepted before event or payment data exists for the tenant. When one of those accepted changes is saved, Evorto reloads the app so bootstrap-level formatting defaults use the new tenant settings.
 `,
     });
-  } finally {
-    await database
-      .update(schema.tenants)
-      .set({
-        cancellationDeadlineHoursBeforeStart:
-          originalTenant.cancellationDeadlineHoursBeforeStart,
-        emailSenderEmail: originalTenant.emailSenderEmail,
-        emailSenderName: originalTenant.emailSenderName,
-        faviconUrl: originalTenant.faviconUrl,
-        logoUrl: originalTenant.logoUrl,
-        maxActiveRegistrationsPerUser:
-          originalTenant.maxActiveRegistrationsPerUser,
-        refundFeesOnCancellation: originalTenant.refundFeesOnCancellation,
-        stripeAccountId: originalTenant.stripeAccountId,
-        transferDeadlineHoursBeforeStart:
-          originalTenant.transferDeadlineHoursBeforeStart,
-      })
-      .where(eq(schema.tenants.id, originalTenant.id));
-  }
+  });
 });

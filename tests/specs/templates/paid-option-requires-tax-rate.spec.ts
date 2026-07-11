@@ -27,25 +27,19 @@ const taxRateSelectForRegistrationOption = (
   participantOptionForm: ReturnType<Page['locator']>,
 ) => participantOptionForm.getByLabel('Inclusive tax rate');
 
-const ensureLastRegistrationOptionHasRole = async (
+const waitForLastRegistrationOptionRole = async (
   page: Page,
   roleName: string,
 ) => {
   const participantOptionForm = page
     .locator('app-template-registration-option-editor')
     .last();
-  if (
-    (await participantOptionForm.getByText(roleName, { exact: true }).count()) >
-    0
-  ) {
-    return;
-  }
-
-  await participantOptionForm.getByPlaceholder('Add Role...').fill(roleName);
-  await page.getByRole('option', { exact: true, name: roleName }).click();
   await expect(
-    participantOptionForm.getByText(roleName, { exact: true }),
-  ).toBeVisible();
+    participantOptionForm.getByRole('button', {
+      exact: true,
+      name: `Remove ${roleName}`,
+    }),
+  ).toBeVisible({ timeout: 20_000 });
 };
 
 test.describe('Template Tax Rate Validation', () => {
@@ -118,7 +112,7 @@ test.describe('Template Tax Rate Validation', () => {
       title: templateTitle,
     });
     await enablePaymentForLastRegistrationOption(page);
-    await ensureLastRegistrationOptionHasRole(page, defaultUserRole.name);
+    await waitForLastRegistrationOptionRole(page, defaultUserRole.name);
     const participantOptionForm = page
       .locator('app-template-registration-option-editor')
       .last();

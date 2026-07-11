@@ -71,6 +71,16 @@ export type EventsRegistrationStatus = Schema.Schema.Type<
   typeof EventsRegistrationStatus
 >;
 
+export const EventsCancellableRegistrationStatus = literalUnion(
+  'CONFIRMED',
+  'PENDING',
+  'WAITLIST',
+);
+
+export type EventsCancellableRegistrationStatus = Schema.Schema.Type<
+  typeof EventsCancellableRegistrationStatus
+>;
+
 export const EventsWritableRegistrationMode = literalUnion(
   'application',
   'fcfs',
@@ -100,6 +110,8 @@ export const EventsCancelRegistration = asRpcMutation(
   Rpc.make('events.cancelRegistration', {
     error: EventsCancelPendingRegistrationError,
     payload: Schema.Struct({
+      expectedPaymentPending: Schema.Boolean,
+      expectedStatus: EventsCancellableRegistrationStatus,
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Void,
@@ -111,6 +123,8 @@ export const EventsCancelEventRegistration = asRpcMutation(
     error: EventsCheckInRegistrationError,
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
+      expectedPaymentPending: Schema.Boolean,
+      expectedStatus: EventsCancellableRegistrationStatus,
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Void,

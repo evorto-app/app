@@ -1959,6 +1959,204 @@ describe('event registration cancellation handlers', () => {
   });
 
   it.effect(
+    'rejects an already-stale confirmation before reconciliation or cancellation side effects',
+    () =>
+      Effect.gen(function* () {
+        const retrieveCharge = vi.fn();
+        const retrievePaymentIntent = vi.fn();
+        const stripe = {
+          ...createStripeClientDouble(),
+          charges: { retrieve: retrieveCharge },
+          paymentIntents: { retrieve: retrievePaymentIntent },
+        };
+        const database = {
+          insert: vi.fn(),
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  addonPurchases: [
+                    {
+                      addonId: 'addon-1',
+                      purchasedQuantity: 1,
+                      quantity: 1,
+                    },
+                  ],
+                  id: 'registration-1',
+                  status: 'CONFIRMED',
+                  transactions: [
+                    {
+                      amount: 2500,
+                      appFee: null,
+                      id: 'transaction-1',
+                      method: 'stripe',
+                      status: 'successful',
+                      stripeAccountId: 'acct_123',
+                      stripeChargeId: null,
+                      stripeFee: null,
+                      stripeNetAmount: null,
+                      stripePaymentIntentId: 'pi_123',
+                      type: 'registration',
+                    },
+                  ],
+                }),
+            },
+          },
+          select: vi.fn(),
+          transaction: vi.fn(),
+          update: vi.fn(),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.cancelRegistration'
+        ](
+          {
+            expectedPaymentPending: true,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(createContextLayer({ database, stripe })),
+        );
+
+        expect(error).toBeInstanceOf(EventRegistrationConflictError);
+        expect(error.message).toContain(
+          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+        );
+        expect(database.select).not.toHaveBeenCalled();
+        expect(database.insert).not.toHaveBeenCalled();
+        expect(database.update).not.toHaveBeenCalled();
+        expect(database.transaction).not.toHaveBeenCalled();
+        expect(retrieveCharge).not.toHaveBeenCalled();
+        expect(retrievePaymentIntent).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'rejects a registration status change after confirmation before any cancellation write',
+    () =>
+      Effect.gen(function* () {
+        const update = vi.fn();
+        const insert = vi.fn();
+        const tx = {
+          ...createCancellationTransactionSelect({ status: 'PENDING' }),
+          insert,
+          update,
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  addonPurchases: [],
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'CONFIRMED',
+                  transactions: [],
+                  userId: 'scanner-1',
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.cancelRegistration'
+        ](
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error).toBeInstanceOf(EventRegistrationConflictError);
+        expect(error.message).toContain(
+          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+        );
+        expect(update).not.toHaveBeenCalled();
+        expect(insert).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'rejects a registration payment-state change after confirmation before any cancellation write',
+    () =>
+      Effect.gen(function* () {
+        const update = vi.fn();
+        const insert = vi.fn();
+        const tx = {
+          ...createCancellationTransactionSelect({
+            status: 'PENDING',
+            transactions: [
+              {
+                id: 'transaction-1',
+                method: 'cash',
+                status: 'pending',
+                type: 'registration',
+              },
+            ],
+          }),
+          insert,
+          update,
+        };
+        const database = {
+          query: {
+            eventRegistrations: {
+              findFirst: () =>
+                Effect.succeed({
+                  addonPurchases: [],
+                  checkInTime: null,
+                  event: {
+                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                  },
+                  eventId: 'event-1',
+                  guestCount: 0,
+                  id: 'registration-1',
+                  registrationOptionId: 'option-1',
+                  status: 'PENDING',
+                  transactions: [],
+                  userId: 'scanner-1',
+                }),
+            },
+          },
+          transaction: vi.fn((callback: (tx: typeof tx) => unknown) =>
+            callback(tx),
+          ),
+        };
+
+        const error = yield* eventRegistrationHandlers[
+          'events.cancelRegistration'
+        ](
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'PENDING',
+            registrationId: 'registration-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+
+        expect(error).toBeInstanceOf(EventRegistrationConflictError);
+        expect(error.message).toContain(
+          'nothing was cancelled, no refund was created, and no spots or inventory were released',
+        );
+        expect(update).not.toHaveBeenCalled();
+        expect(insert).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
     'blocks participant cancellation at the configured tenant deadline without mutating state',
     () =>
       Effect.gen(function* () {
@@ -1991,7 +2189,14 @@ describe('event registration cancellation handlers', () => {
 
         const error = yield* eventRegistrationHandlers[
           'events.cancelRegistration'
-        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
+        ](
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(
           Effect.flip,
           Effect.provide(
             createContextLayer({
@@ -2078,7 +2283,12 @@ describe('event registration cancellation handlers', () => {
         };
 
         yield* eventRegistrationHandlers['events.cancelEventRegistration'](
-          { eventId: 'event-1', registrationId: 'registration-1' },
+          {
+            eventId: 'event-1',
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(
           Effect.provide(
@@ -2133,7 +2343,12 @@ describe('event registration cancellation handlers', () => {
         const error = yield* eventRegistrationHandlers[
           'events.cancelEventRegistration'
         ](
-          { eventId: 'event-1', registrationId: 'registration-1' },
+          {
+            eventId: 'event-1',
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
@@ -2249,7 +2464,11 @@ describe('event registration cancellation handlers', () => {
         };
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
-          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(
           Effect.provide(
@@ -2280,7 +2499,11 @@ describe('event registration cancellation handlers', () => {
         });
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
-          { registrationId: 'registration-1' },
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 
@@ -2308,7 +2531,11 @@ describe('event registration cancellation handlers', () => {
         });
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
-          { registrationId: 'registration-1' },
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 
@@ -2445,7 +2672,11 @@ describe('event registration cancellation handlers', () => {
         };
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
-          { registrationId: 'registration-1' },
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 
@@ -2913,7 +3144,11 @@ describe('event registration cancellation handlers', () => {
         const error = yield* eventRegistrationHandlers[
           'events.cancelRegistration'
         ](
-          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          {
+            expectedPaymentPending: true,
+            expectedStatus: 'PENDING',
+            registrationId: 'registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
@@ -2977,7 +3212,11 @@ describe('event registration cancellation handlers', () => {
         const error = yield* eventRegistrationHandlers[
           'events.cancelRegistration'
         ](
-          { registrationId: 'recipient-registration-1' },
+          {
+            expectedPaymentPending: true,
+            expectedStatus: 'PENDING',
+            registrationId: 'recipient-registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(
           Effect.flip,
@@ -3036,10 +3275,14 @@ describe('event registration cancellation handlers', () => {
 
         const error = yield* eventRegistrationHandlers[
           'events.cancelRegistration'
-        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
-          Effect.flip,
-          Effect.provide(createContextLayer({ database })),
-        );
+        ](
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toContain('active transfer');
@@ -3119,7 +3362,14 @@ describe('event registration cancellation handlers', () => {
 
         const error = yield* eventRegistrationHandlers[
           'events.cancelRegistration'
-        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
+        ](
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'PENDING',
+            registrationId: 'registration-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(
           Effect.provide(
             createContextLayer({
               database,
@@ -3134,7 +3384,7 @@ describe('event registration cancellation handlers', () => {
         );
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toBe(
-          'Payment setup changed while cancellation was starting, so this request did not cancel the registration or release its reserved spots. Refresh, then retry cancellation.',
+          'Registration status or payment state changed after confirmation, so nothing was cancelled, no refund was created, and no spots or inventory were released. Refresh, review the current registration, then confirm again.',
         );
         expect(updatedTables).toEqual([]);
         expect(updateSets).toEqual([]);
@@ -3217,7 +3467,14 @@ describe('event registration cancellation handlers', () => {
 
         const error = yield* eventRegistrationHandlers[
           'events.cancelRegistration'
-        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
+        ](
+          {
+            expectedPaymentPending: true,
+            expectedStatus: 'PENDING',
+            registrationId: 'registration-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(
           Effect.flip,
           Effect.provide(
             createContextLayer({
@@ -3341,7 +3598,11 @@ describe('event registration cancellation handlers', () => {
         } as Stripe.Checkout.Session);
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
-          { registrationId: 'registration-1' },
+          {
+            expectedPaymentPending: true,
+            expectedStatus: 'PENDING',
+            registrationId: 'registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(
           Effect.provide(
@@ -3445,7 +3706,14 @@ describe('event registration cancellation handlers', () => {
 
         const error = yield* eventRegistrationHandlers[
           'events.cancelRegistration'
-        ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
+        ](
+          {
+            expectedPaymentPending: true,
+            expectedStatus: 'PENDING',
+            registrationId: 'registration-1',
+          },
+          emptyHandlerOptions,
+        ).pipe(
           Effect.flip,
           Effect.provide(
             createContextLayer({
@@ -3461,14 +3729,14 @@ describe('event registration cancellation handlers', () => {
 
         expect(error['_tag']).toBe('EventRegistrationConflictError');
         expect(error.message).toContain(
-          'payment state changed while cancellation was being processed',
+          'nothing was cancelled, no refund was created, and no spots or inventory were released',
         );
         expect(updateSets).toEqual([
           {
             stripeCheckoutCancellationRequestedAt: expect.any(Date),
           },
         ]);
-        expect(database.transaction).toHaveBeenCalledTimes(2);
+        expect(database.transaction).toHaveBeenCalledOnce();
       }),
   );
 
@@ -3517,7 +3785,11 @@ describe('event registration cancellation handlers', () => {
         };
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
-          { registrationId: 'registration-1' },
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'PENDING',
+            registrationId: 'registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 
@@ -3536,7 +3808,11 @@ describe('event registration cancellation handlers', () => {
         const stripe = createStripeClientDouble();
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
-          { registrationId: 'registration-1' },
+          {
+            expectedPaymentPending: true,
+            expectedStatus: 'PENDING',
+            registrationId: 'registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(
           Effect.provide(
@@ -3596,10 +3872,14 @@ describe('event registration cancellation handlers', () => {
 
       const error = yield* eventRegistrationHandlers[
         'events.cancelRegistration'
-      ]({ registrationId: 'registration-1' }, emptyHandlerOptions).pipe(
-        Effect.flip,
-        Effect.provide(createContextLayer({ database })),
-      );
+      ](
+        {
+          expectedPaymentPending: false,
+          expectedStatus: 'CONFIRMED',
+          registrationId: 'registration-1',
+        },
+        emptyHandlerOptions,
+      ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
       expect(error.message).toBe(
@@ -3658,7 +3938,11 @@ describe('event registration cancellation handlers', () => {
         };
 
         yield* eventRegistrationHandlers['events.cancelRegistration'](
-          { registrationId: 'registration-1' },
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'WAITLIST',
+            registrationId: 'registration-1',
+          },
           emptyHandlerOptions,
         ).pipe(Effect.provide(createContextLayer({ database })));
 

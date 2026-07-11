@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-07-10
+Updated: 2026-07-12
 
 ## How to Use This Inventory
 
@@ -36,6 +36,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/events/manual-approval.doc.ts [stripe]
   - docs/events/event-management.doc.ts
   - docs/events/register.doc.ts [stripe]
+  - docs/events/registration-cancellation.doc.ts
   - docs/events/registration-transfer.doc.ts
   - docs/events/unlisted-admin.doc.ts
   - docs/events/unlisted-user.doc.ts
@@ -680,6 +681,11 @@ and the release-gated live ESNcard provider credential path.
     applies search before pagination, so multi-role users do not collapse page
     size.
 - Registrations:
+  - `docs/events/registration-cancellation.doc.ts` covers ordinary paid
+    participant cancellation, organizer cancellation, guest-capacity release,
+    manual-refund recording, cancellation and waitlist emails, deadline denial,
+    and confirmation safety; it also documents permission/tenant boundaries and
+    retry/idempotency guidance without claiming a new denial test.
   - `specs/events/manual-approval.spec.ts` and
     `docs/events/manual-approval.doc.ts` now cover application creation, free
     approval, paid approval and Checkout completion, exactly-one payment/email

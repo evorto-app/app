@@ -29,11 +29,16 @@ import {
   injectMutation,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { normalizeStripeCheckoutUrl } from '../../core/stripe-checkout-url';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
+import {
+  type RegistrationCancellationConfirmationData,
+  RegistrationCancellationConfirmationDialogComponent,
+} from '../registration-cancellation-confirmation-dialog.component';
 import {
   clampRegistrationAddonQuantity,
   reconcileRegistrationAddonPurchaseAttempts,
@@ -389,7 +394,48 @@ export class EventActiveRegistrationComponent {
     });
   }
 
-  cancelRegistration(registration: EventsRegistrationStatusRecord): void {
+  async cancelRegistration(
+    registration: EventsRegistrationStatusRecord,
+  ): Promise<void> {
+    const expectedPaymentPending = registration.paymentPending;
+    const expectedStatus = registration.status;
+    if (expectedStatus === 'CANCELLED') {
+      return;
+    }
+    if (
+      recipientTransferCheckoutPending(registration) ||
+      registrationCancellationActionDisabled({
+        addonPurchasePending:
+          this.purchaseRegistrationAddonMutation.isPending() ||
+          registrationHasPendingAddonPayment(registration),
+        cancellationPending: this.cancelRegistrationMutation.isPending(),
+        transferPending:
+          this.transferRegistrationMutation.isPending() ||
+          this.cancelTransferMutation.isPending(),
+      })
+    ) {
+      return;
+    }
+
+    const confirmed = await firstValueFrom(
+      this.dialog
+        .open<
+          RegistrationCancellationConfirmationDialogComponent,
+          RegistrationCancellationConfirmationData,
+          boolean
+        >(RegistrationCancellationConfirmationDialogComponent, {
+          data: {
+            actor: 'participant',
+            paymentPending: expectedPaymentPending,
+            status: expectedStatus,
+          },
+          width: 'min(32rem, calc(100vw - 2rem))',
+        })
+        .afterClosed(),
+    );
+    if (confirmed !== true) {
+      return;
+    }
     if (
       recipientTransferCheckoutPending(registration) ||
       registrationCancellationActionDisabled({
@@ -407,9 +453,14 @@ export class EventActiveRegistrationComponent {
 
     this.cancelRegistrationMutation.mutate(
       {
+        expectedPaymentPending,
+        expectedStatus,
         registrationId: registration.id,
       },
       {
+        onError: async () => {
+          await this.invalidateOwnerQueries(false);
+        },
         onSuccess: async () => {
           await this.invalidateOwnerQueries(false);
         },

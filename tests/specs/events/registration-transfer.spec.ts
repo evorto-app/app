@@ -659,6 +659,10 @@ test('cancels a paid non-Stripe registration into one pending manual refund', as
     // is live. Wait for Angular event replay to release the click marker.
     await expect(cancelRegistration).not.toHaveAttribute('jsaction', /click/);
     await cancelRegistration.click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Confirm cancellation' })
+      .click();
 
     await expect
       .poll(async () => {

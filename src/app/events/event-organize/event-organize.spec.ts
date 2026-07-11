@@ -182,6 +182,44 @@ describe('event organizer approval template', () => {
   });
 });
 
+describe('event organizer query-state template', () => {
+  it('hides operational counts and actions until their queries succeed', () => {
+    const template = readSource(
+      'src/app/events/event-organize/event-organize.html',
+    );
+
+    expect(template).toContain('aria-label="Back to event"');
+    expect(template).toContain('@if (eventQuery.isPending())');
+    expect(template).toContain('@else if (eventQuery.isError())');
+    expect(template).toContain('@else if (organizerOverviewQuery.isSuccess())');
+    expect(template).toContain('Participant data could not be loaded');
+    expect(template).toContain(
+      'not treat the missing counts as zero or as current event data',
+    );
+    expect(template).toContain('(click)="organizerOverviewQuery.refetch()"');
+    expect(template).toContain('(click)="receiptsByEventQuery.refetch()"');
+
+    const source = readSource(
+      'src/app/events/event-organize/event-organize.ts',
+    );
+    expect(source).toContain('if (!this.receiptsByEventQuery.isSuccess())');
+    expect(source).toContain(
+      'Receipt history must load before a receipt can be added.',
+    );
+  });
+
+  it('binds organizer cancellation to the confirmed participant state', () => {
+    const source = readSource(
+      'src/app/events/event-organize/event-organize.ts',
+    );
+
+    expect(source).toContain(
+      'const expectedPaymentPending = registration.paymentPending',
+    );
+    expect(source).toContain('const expectedStatus = registration.status');
+  });
+});
+
 describe('receiptSubmissionActionDisabled', () => {
   it('blocks receipt submission while unavailable, uploading, or submitting', () => {
     expect(

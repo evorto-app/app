@@ -1,9 +1,7 @@
 import { expect } from '@playwright/test';
-import { eq } from 'drizzle-orm';
 import { Buffer } from 'node:buffer';
 
 import { adminStateFile } from '../../../helpers/user-data';
-import * as schema from '../../../src/db/schema';
 import { test } from '../../support/fixtures/parallel-test';
 
 test.setTimeout(120_000);
@@ -42,7 +40,7 @@ test('tenant admin updates relaunch general settings @admin', async ({
   const termsText = `Hosted terms text ${suffix}`;
   const buyEsnCardUrl = `https://esncard.example.org/${tenant.id}`;
 
-  try {
+  await test.step('Update tenant general settings', async () => {
     await page.goto('/admin/settings');
     const generalSettings = page.locator('app-general-settings');
 
@@ -239,28 +237,5 @@ test('tenant admin updates relaunch general settings @admin', async ({
     await expect(refundFeesToggle).not.toBeChecked();
     await expect(logoUrlInput).toHaveValue(logoUrl);
     await expect(faviconUrlInput).toHaveValue(faviconUrl);
-  } finally {
-    await database
-      .update(schema.tenants)
-      .set({
-        cancellationDeadlineHoursBeforeStart:
-          tenant.cancellationDeadlineHoursBeforeStart,
-        discountProviders: tenant.discountProviders,
-        emailSenderEmail: tenant.emailSenderEmail,
-        emailSenderName: tenant.emailSenderName,
-        faviconUrl: tenant.faviconUrl,
-        legalNoticeText: tenant.legalNoticeText,
-        logoUrl: tenant.logoUrl,
-        maxActiveRegistrationsPerUser: tenant.maxActiveRegistrationsPerUser,
-        refundFeesOnCancellation: tenant.refundFeesOnCancellation,
-        privacyPolicyUrl: tenant.privacyPolicyUrl,
-        seoDescription: tenant.seoDescription,
-        seoTitle: tenant.seoTitle,
-        stripeAccountId: tenant.stripeAccountId,
-        termsText: tenant.termsText,
-        transferDeadlineHoursBeforeStart:
-          tenant.transferDeadlineHoursBeforeStart,
-      })
-      .where(eq(schema.tenants.id, tenant.id));
-  }
+  });
 });

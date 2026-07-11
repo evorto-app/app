@@ -16,6 +16,7 @@ import {
   EventRegistrationInternalError,
   EventRegistrationNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
+import { type EventsCancellableRegistrationStatus } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 import {
   and,
   eq,
@@ -574,6 +575,28 @@ const activeRegistrationTransferConflict = () =>
       'This registration has an active transfer. Resolve or cancel the transfer before changing the registration.',
   });
 
+const registrationCancellationStateChangedConflict = () =>
+  new EventRegistrationConflictError({
+    message:
+      'Registration status or payment state changed after confirmation, so nothing was cancelled, no refund was created, and no spots or inventory were released. Refresh, review the current registration, then confirm again.',
+  });
+
+const registrationCancellationStateChanged = ({
+  expectedPaymentPending,
+  expectedStatus,
+  paymentPending,
+  status,
+}: {
+  readonly expectedPaymentPending: boolean | undefined;
+  readonly expectedStatus: EventsCancellableRegistrationStatus | undefined;
+  readonly paymentPending: boolean;
+  readonly status: 'CANCELLED' | EventsCancellableRegistrationStatus;
+}): boolean =>
+  status !== 'CANCELLED' &&
+  ((expectedStatus !== undefined && status !== expectedStatus) ||
+    (expectedPaymentPending !== undefined &&
+      paymentPending !== expectedPaymentPending));
+
 const findActiveRegistrationTransfer = (
   database: DatabaseClient,
   input: { readonly registrationId: string; readonly tenantId: string },
@@ -683,6 +706,8 @@ export interface CancelRegistrationForTenantArguments {
   readonly enforceParticipantDeadline: boolean;
   readonly executiveUserId: null | string;
   readonly expectedEventId?: string;
+  readonly expectedPaymentPending?: boolean;
+  readonly expectedStatus?: EventsCancellableRegistrationStatus;
   readonly expectedUserId?: string;
   readonly expiredCheckout?: {
     readonly sessionId: string;
@@ -728,6 +753,8 @@ export const cancelRegistrationForTenant = Effect.fn(
   enforceParticipantDeadline,
   executiveUserId,
   expectedEventId,
+  expectedPaymentPending,
+  expectedStatus,
   expectedUserId,
   expiredCheckout,
   onCancelled = () => Effect.void,
@@ -833,6 +860,24 @@ export const cancelRegistrationForTenant = Effect.fn(
         message: 'Registration not found',
       }),
     );
+  }
+
+  // This fast-fail is intentionally non-authoritative: it prevents an already
+  // stale confirmation from starting reconciliation work, while the row-locked
+  // check below remains the concurrency authority.
+  const preflightPaymentPending = registration.transactions.some(
+    (transaction) =>
+      transaction.status === 'pending' && transaction.type === 'registration',
+  );
+  if (
+    registrationCancellationStateChanged({
+      expectedPaymentPending,
+      expectedStatus,
+      paymentPending: preflightPaymentPending,
+      status: registration.status,
+    })
+  ) {
+    return yield* Effect.fail(registrationCancellationStateChangedConflict());
   }
 
   if (expiredCheckout && registration.status === 'CANCELLED') {
@@ -1137,6 +1182,23 @@ export const cancelRegistrationForTenant = Effect.fn(
               currentTransaction.method === 'stripe' &&
               currentTransaction.type === 'registration',
           );
+          const paymentPending = lockedRegistrationTransactions.some(
+            (currentTransaction) =>
+              currentTransaction.status === 'pending' &&
+              currentTransaction.type === 'registration',
+          );
+          if (
+            registrationCancellationStateChanged({
+              expectedPaymentPending,
+              expectedStatus,
+              paymentPending,
+              status: lockedRegistration.status,
+            })
+          ) {
+            return yield* Effect.fail(
+              registrationCancellationStateChangedConflict(),
+            );
+          }
           const pendingAddonTransaction = lockedRegistrationTransactions.find(
             (currentTransaction) =>
               currentTransaction.status === 'pending' &&
@@ -2131,6 +2193,10 @@ export const cancelRegistrationForTenant = Effect.fn(
       enforceParticipantDeadline,
       executiveUserId,
       ...(expectedEventId && { expectedEventId }),
+      ...(expectedPaymentPending !== undefined && {
+        expectedPaymentPending,
+      }),
+      ...(expectedStatus && { expectedStatus }),
       ...(expectedUserId && { expectedUserId }),
       expiredCheckout: {
         sessionId: stripeCheckoutSessionId,
@@ -2166,10 +2232,14 @@ export const cancelRegistrationForTenant = Effect.fn(
 
 const cancelRegistration = Effect.fn('cancelRegistration')(function* ({
   eventId,
+  expectedPaymentPending,
+  expectedStatus,
   registrationId,
   requireOrganizerAccess = false,
 }: {
   eventId?: string;
+  expectedPaymentPending: boolean;
+  expectedStatus: EventsCancellableRegistrationStatus;
   registrationId: string;
   requireOrganizerAccess?: boolean;
 }) {
@@ -2204,6 +2274,8 @@ const cancelRegistration = Effect.fn('cancelRegistration')(function* ({
     enforceParticipantDeadline: !requireOrganizerAccess,
     executiveUserId: user.id,
     ...(eventId && { expectedEventId: eventId }),
+    expectedPaymentPending,
+    expectedStatus,
     ...(!requireOrganizerAccess && { expectedUserId: user.id }),
     registrationId,
     targetTenant: tenant,
@@ -2819,16 +2891,32 @@ export const eventRegistrationHandlers = {
         },
       });
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
-  'events.cancelEventRegistration': ({ eventId, registrationId }, _options) =>
+  'events.cancelEventRegistration': (
+    { eventId, expectedPaymentPending, expectedStatus, registrationId },
+    _options,
+  ) =>
     cancelRegistration({
       eventId,
+      expectedPaymentPending,
+      expectedStatus,
       registrationId,
       requireOrganizerAccess: true,
     }),
   'events.cancelPendingRegistration': ({ registrationId }, _options) =>
-    cancelRegistration({ registrationId }),
-  'events.cancelRegistration': ({ registrationId }, _options) =>
-    cancelRegistration({ registrationId }),
+    cancelRegistration({
+      expectedPaymentPending: false,
+      expectedStatus: 'PENDING',
+      registrationId,
+    }),
+  'events.cancelRegistration': (
+    { expectedPaymentPending, expectedStatus, registrationId },
+    _options,
+  ) =>
+    cancelRegistration({
+      expectedPaymentPending,
+      expectedStatus,
+      registrationId,
+    }),
   'events.cancelRegistrationAddon': (
     {
       operationKey,

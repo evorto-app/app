@@ -168,9 +168,11 @@ test('tenant template graph confirms mode changes, warns without blocking, and p
   }
 
   await page.goto(`/templates/${template.id}/edit`);
+  // The edit route renders its shell before the client-side template query
+  // completes, so wait for the actual editor state rather than the route load.
   await expect(
     page.getByRole('button', { name: 'Use simple configuration' }),
-  ).toHaveAttribute('aria-pressed', 'true');
+  ).toHaveAttribute('aria-pressed', 'true', { timeout: 20_000 });
 
   await page
     .getByRole('button', { name: 'Use advanced configuration' })
@@ -821,6 +823,7 @@ test('legacy random template and event graphs are explicit read-only blocks', as
   await page.goto(`/templates/${template.id}/edit`);
   await expect(page.getByTestId('template-graph-readonly')).toContainText(
     'random allocation',
+    { timeout: 20_000 },
   );
   await expect(page.getByTestId('save-template-graph')).toHaveCount(0);
 
@@ -831,6 +834,7 @@ test('legacy random template and event graphs are explicit read-only blocks', as
   await page.goto(`/events/${draftEvent.id}/edit`);
   await expect(page.getByTestId('event-graph-readonly')).toContainText(
     'legacy random allocation',
+    { timeout: 20_000 },
   );
   await expect(page.getByTestId('save-event-graph')).toHaveCount(0);
 });

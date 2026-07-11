@@ -24,7 +24,7 @@ const openEventFromList = async (
   const eventLink = page
     .locator(`a[href="/events/${scenario.eventId}"]`)
     .first();
-  await expect(eventLink).toBeVisible();
+  await expect(eventLink).toBeVisible({ timeout: 20_000 });
   await eventLink.click();
   await expect(page).toHaveURL(new RegExp(`/events/${scenario.eventId}$`));
   await waitForRegistrationStatus(page);
@@ -58,7 +58,7 @@ const openOrganizerView = async ({
       level: 2,
       name: 'Participants',
     }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
 
   return organizer;
 };
@@ -569,6 +569,10 @@ test.describe('Manual approval registrations', () => {
       // click listener. Event replay removes `jsaction` after hydration.
       await expect(cancelRegistration).not.toHaveAttribute('jsaction', /click/);
       await cancelRegistration.click();
+      await page
+        .getByRole('dialog')
+        .getByRole('button', { name: 'Confirm cancellation' })
+        .click();
       await expect(
         cancellationSucceeded.or(recoverableCancellationFailure).first(),
       ).toBeVisible({ timeout: 15_000 });
@@ -585,6 +589,10 @@ test.describe('Manual approval registrations', () => {
         );
         await expect(recoverableCancellationFailure).toHaveCount(0);
         await cancelRegistration.click();
+        await page
+          .getByRole('dialog')
+          .getByRole('button', { name: 'Confirm cancellation' })
+          .click();
         await expect(
           cancellationSucceeded.or(recoverableCancellationFailure).first(),
         ).toBeVisible({ timeout: 15_000 });

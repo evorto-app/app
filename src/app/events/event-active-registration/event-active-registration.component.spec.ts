@@ -12,6 +12,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
+import { of, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -420,6 +421,7 @@ const purchaseAddon = vi.fn();
 const cancelRegistration = vi.fn();
 const cancelTransfer = vi.fn();
 const createTransfer = vi.fn();
+const dialogOpen = vi.fn();
 
 const normalizeText = (
   fixture: ComponentFixture<EventActiveRegistrationComponent>,
@@ -445,6 +447,8 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     cancelTransfer.mockReset();
     cancelTransfer.mockResolvedValue(undefined);
     createTransfer.mockReset();
+    dialogOpen.mockReset();
+    dialogOpen.mockReturnValue({ afterClosed: () => of(false) });
     queryClient = new QueryClient({
       defaultOptions: {
         mutations: { retry: false },
@@ -487,7 +491,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
             userEventsQueryKey: () => ['user-events'],
           },
         },
-        { provide: MatDialog, useValue: { open: vi.fn() } },
+        { provide: MatDialog, useValue: { open: dialogOpen } },
       ],
     }).compileComponents();
   });
@@ -507,6 +511,62 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     fixture.detectChanges();
     return fixture;
   };
+
+  it('requires explicit confirmation before cancelling a registration', async () => {
+    const fixture = render(registrationStatus());
+
+    findButton(fixture, 'Cancel registration')?.click();
+
+    await vi.waitFor(() => expect(dialogOpen).toHaveBeenCalledOnce());
+    expect(cancelRegistration).not.toHaveBeenCalled();
+    expect(dialogOpen.mock.calls[0]?.[1]).toMatchObject({
+      data: {
+        actor: 'participant',
+        paymentPending: false,
+        status: 'CONFIRMED',
+      },
+    });
+  });
+
+  it('cancels only after the confirmation dialog resolves true', async () => {
+    dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+    const fixture = render(registrationStatus());
+
+    findButton(fixture, 'Cancel registration')?.click();
+
+    await vi.waitFor(() => expect(cancelRegistration).toHaveBeenCalledOnce());
+    expect(cancelRegistration.mock.calls[0]?.[0]).toEqual({
+      expectedPaymentPending: false,
+      expectedStatus: 'CONFIRMED',
+      registrationId: 'registration-1',
+    });
+  });
+
+  it('binds delayed confirmation to the state the participant reviewed', async () => {
+    const dialogResult = new Subject<boolean>();
+    dialogOpen.mockReturnValue({ afterClosed: () => dialogResult });
+    const pendingApplication = registrationStatus({
+      paymentPending: false,
+      status: 'PENDING',
+    });
+    const fixture = render(pendingApplication);
+
+    findButton(fixture, 'Cancel registration')?.click();
+    await vi.waitFor(() => expect(dialogOpen).toHaveBeenCalledOnce());
+    fixture.componentRef.setInput('registrations', [
+      registrationStatus({ paymentPending: false, status: 'CONFIRMED' }),
+    ]);
+    fixture.detectChanges();
+    dialogResult.next(true);
+    dialogResult.complete();
+
+    await vi.waitFor(() => expect(cancelRegistration).toHaveBeenCalledOnce());
+    expect(cancelRegistration.mock.calls[0]?.[0]).toEqual({
+      expectedPaymentPending: false,
+      expectedStatus: 'PENDING',
+      registrationId: 'registration-1',
+    });
+  });
 
   it('adds a free add-on, announces completion, and invalidates owner queries', async () => {
     purchaseAddon.mockResolvedValue({

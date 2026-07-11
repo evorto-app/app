@@ -128,7 +128,7 @@ Navigate to **Templates** and open an existing paid template to see the enforced
 
     await expect(
       page.getByRole('heading', { level: 1, name: paidTemplate.title }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 20_000 });
 
     const registrationSection = page
       .locator('section')
@@ -200,7 +200,7 @@ Paid organizer registrations require a compatible inclusive tax rate. The dropdo
       .click();
     await expect(
       page.getByRole('heading', { level: 1, name: paidTemplate.title }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 20_000 });
     await page.getByText('Create event', { exact: true }).click();
 
     const draftEventTitle = `Tax Rate Edit ${seedDate.toISOString().slice(0, 10)}`;

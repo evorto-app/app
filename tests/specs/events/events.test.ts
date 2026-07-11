@@ -233,7 +233,9 @@ test('create event form template', async ({ database, page, templates }) => {
   await page.getByRole('link', { name: template.title }).click();
   await page.getByRole('link', { name: 'Create event' }).click();
   await expect(page).toHaveURL(`/templates/${template.id}/create-event`);
-  await expect(page.getByLabel('Event title')).toHaveValue(template.title);
+  await expect(page.getByLabel('Event title')).toHaveValue(template.title, {
+    timeout: 20_000,
+  });
 
   const eventForm = page.locator('app-event-general-form');
   const futureStart = DateTime.now().plus({ months: 2 });

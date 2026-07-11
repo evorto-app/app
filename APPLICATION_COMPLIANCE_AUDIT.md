@@ -1,665 +1,669 @@
-# Full Application Compliance Audit
-
-Audit date: 2026-07-09
-Remediation updated: 2026-07-10
-Audit baseline: `origin/main` at `9545a2c68d2` (`feat: implement relaunch registration decisions (#83)`)
-Remediation baseline: `origin/main` at `df7c2c0143b307bb17d7e763ccf9ef13e6646b30`
-Scope: static, folder-by-folder review of the application, server/runtime, data layer, shared contracts, tests, CI, and product documentation.
-
-## Outcome
-
-The application has a strong tenant/permission/registration foundation, but it is **not ready to be treated as a full production replacement** against the root product, architecture, and quality documents until the remaining P0/P1 items below are resolved or explicitly re-scoped. SCAN-001 is resolved in the current remediation branch. The highest remaining risks are payment integrity races/trust gaps, absent product-required notification types and paid resale, and unimplemented onboarding/tenant-runtime behavior.
-
-## Method and constraints
-
-- Read the root product, architecture, and quality documents plus the nearest module guidance.
-- Reviewed `src/app`, `src/server`, `src/db`, `src/shared`, `tests`, `helpers`, root tooling, and CI configuration. The source surface includes 439 TypeScript/HTML/SCSS application files.
-- Applied the requested Effect, Uncodixfy, and Material 3 reviews. Material findings are adapted to Angular Material and the project’s `--mat-sys-*`/Tailwind bridge; this is not an `@material/web` audit.
-- Ran the safe documentation-discovery command: `bun run test:e2e:docs -- --list`. It found 31 docs/setup tests in 19 files, including the `@finance` documents that CI currently filters out.
-- The initial audit did not start Docker or run destructive database commands. Remediation now uses an isolated, freshly seeded worktree Compose stack, Playwright, generated-documentation screenshots, and an in-app Browser baseline. The authenticated Browser scanner walkthrough remains pending the user signing in to the open in-app Browser and returning control.
-- The requested Effect skill and its guides now use this repository’s approved `repos/effect` vendor location; no second vendor or symlink is maintained.
-- Consolidated the prior stabilization ledger into the root documents, this audit, and the concise `QUALITY.md` manual review queue. The historical ledger is intentionally removed rather than retained as a second release-truth document.
-
-## Severity definitions
-
-| Severity | Meaning                                                                                                                      |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| P0       | Direct release blocker: can prevent a core workflow or cause immediate payment/security harm.                                |
-| P1       | High-risk product, payment, security, or verification failure that must be resolved before a production-replacement release. |
-| P2       | Material correctness, UX, resilience, or release-confidence gap; schedule in the next stabilization batch.                   |
-| P3       | Important conformance or maintainability cleanup with bounded immediate impact.                                              |
-
-## Findings at a glance
-
-| ID         | Severity | Area                | Short finding                                                                                              |
-| ---------- | -------- | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| SCAN-001   | P0       | Check-in            | **Resolved 2026-07-10:** first-party camera policy and scanner entry coverage are restored.                |
-| PAY-001    | P0       | Payments            | Concurrent manual approval can create multiple Checkout sessions for one registration.                     |
-| PAY-002    | P1       | Payments            | Webhooks trust session metadata without proving local transaction/session ownership.                       |
-| SEC-001    | P1       | Runtime             | RPC and Stripe webhooks buffer unbounded request bodies.                                                   |
-| EVT-001    | P1       | Event review        | The application keeps a durable `REJECTED` state despite the accepted return-to-draft lifecycle.           |
-| PROD-001   | P1       | Notifications       | Most email notifications required by `PRODUCT.md` have no producer or outbox kind.                         |
-| PROD-002   | P1       | Registrations       | Paid transfer/resale remains intentionally unavailable, but is required for the production replacement.    |
-| ESN-001    | P1       | ESNcard             | Live external ESNcard add, refresh, and remove verification is required but remains credential-gated.      |
-| FIN-001    | P1       | Finance UI          | Receipt amounts are rendered as EUR even when the tenant currency is CZK or AUD.                           |
-| ONB-001    | P1       | Tenant onboarding   | Accepted privacy/onboarding/home-tenant rules have no model, form, or server enforcement.                  |
-| TEN-001    | P1       | Tenant settings     | Fixed `de-DE` formatting and tenant currency/timezone are not consistently applied at runtime.             |
-| ADMIN-001  | P1       | Platform admin      | Platform admins have broad permissions but cannot perform normal tenant actions without tenant membership. |
-| CI-001     | P1       | CI/docs             | CI silently excludes all `@finance` generated docs despite those flows being product-facing.               |
-| TEST-001   | P1       | Manual approval     | The newly supported application/manual-approval journey has no page-backed spec or generated doc.          |
-| TEST-002   | P1       | Roles               | Existing-user role assignment has no mutation/readback browser or docs coverage.                           |
-| SEC-002    | P2       | Links               | Approval emails and Stripe return URLs trust caller-provided `Origin`.                                     |
-| OPS-001    | P2       | Notifications       | A process crash can leave outbox rows permanently in `sending`.                                            |
-| OPS-002    | P2       | Test infrastructure | Neon Local restart/expiry gaps can leave remote branches or deleted-worktree Compose projects behind.      |
-| DATA-001   | P2       | Tenancy             | Cross-tenant role/registration tuple integrity is enforced in handlers but not by database constraints.    |
-| UX-001     | P2       | Permissions         | Template actions are visible even when the user lacks the corresponding capability.                        |
-| UX-002     | P2       | Resilience          | Several core views have no first-load error/retry state.                                                   |
-| UX-003     | P2       | Location            | Location-provider/configuration failures are presented as “no results.”                                    |
-| UI-001     | P2       | Theming             | The Material/Tailwind semantic success/warning token bridge is incomplete.                                 |
-| A11Y-001   | P2       | Accessibility       | Reusable icon selection and several icon-only actions lack keyboard or accessible-name support.            |
-| TEST-003   | P1       | Release confidence  | CI has E2E and an implicit Docker build, but no branch protection, lint, unit, or Knope quality gate.      |
-| TEST-004   | P2       | Coverage            | New tenant operational settings and the global Email Outbox lack durable UI/docs coverage.                 |
-| EFFECT-001 | P3       | Contracts           | The tenant settings RPC accepts `defaultLocation` through `Schema.Any`.                                    |
-| EFFECT-002 | P3       | Tests               | One server Effect test bypasses the project’s preferred `it.effect` runtime.                               |
-
-## Release blockers and high-risk findings
-
-### SCAN-001 — Global security policy makes QR check-in unusable
-
-**Severity:** P0
-**Status:** Resolved on 2026-07-10 in `codex/production-readiness-compliance`
-**Why it matters:** QR scanning is a core organizer workflow.
-
-**Original evidence**
-
-- `src/server/http/security-headers.ts:4` sends `Permissions-Policy: camera=(), geolocation=(), microphone=()`.
-- `src/server.ts:381-398` applies that header through global middleware, with no scanner-route exception.
-- `src/app/scanning/scanner/scanner.component.ts:106-139` creates `QrScanner` and calls `scanner.start()`.
-
-`camera=()` denies camera access to the document itself, so browser permission cannot make the scanner work. The component’s retry guidance therefore sends an organizer toward a browser setting that cannot fix the policy-level denial.
-
-**Resolution evidence**
-
-1. `src/server/http/security-headers.ts` now permits `camera=(self)` while keeping microphone and geolocation denied; `security-headers.spec.ts` locks the exact policy.
-2. The scanner exposes accessible loading, ready, and failure states and keeps the camera preview bounded on wide layouts.
-3. Check-in timing is server-authoritative: the scan RPC returns the timing issue, the UI no longer compares against its own wall clock, and successful check-in records the same configured server instant used for eligibility.
-4. Worktree runtime generation passes one deterministic clock and seed key to database setup, the app container, and Playwright so seeded event windows cannot drift from server decisions.
-5. `tests/specs/scanning/scanner.test.ts` verifies allowed and denied camera paths through a deterministic canvas-backed `MediaStream`, in addition to the registration, guest, timing, and persisted-counter cases.
-6. `tests/docs/scanning/check-in.doc.ts` starts from the visible **Scanner** navigation item, proves camera startup, and documents attendee verification, partial guest arrival, duplicate scans, persistence, recovery, permissions, and ticket security.
-7. The documentation screenshot helper now disables animations for capture, preventing Angular view-transition crossfades from mixing the previous and current pages.
-
-### PAY-001 — Concurrent manual approval can create duplicate payments
-
-**Severity:** P0
-**Why it matters:** Two organizers can approve the same pending application concurrently, leading to duplicate capacity reservations, two Checkout sessions, and potentially two charges.
-
-**Evidence**
-
-- `src/server/effect/rpc/handlers/events/event-registration.service.ts:465-476` checks for a pending transaction before entering the approval transaction.
-- `src/server/effect/rpc/handlers/events/event-registration.service.ts:571-670` reserves capacity but leaves a paid application registration in `PENDING`; the conditional status update therefore does not claim the approval.
-- `src/server/effect/rpc/handlers/events/event-registration.service.ts:729-867` creates the Checkout session and pending transaction later, outside that reservation transaction.
-- `src/server/http/stripe-webhook.web-handler.ts:481-513` marks a transaction successful before it discovers whether the registration was already confirmed by another event.
-
-**Fix direction**
-
-1. Atomically claim approval with a distinct state or a durable lease before any Stripe call.
-2. Create/record exactly one live registration-payment transaction under the same lock, then reuse its Checkout session/idempotency key.
-3. Add a database constraint for one live pending registration payment and a concurrency test with two simultaneous approvals.
-
-### PAY-002 — Checkout webhook handling does not prove local payment ownership
-
-**Severity:** P1
-**Why it matters:** Stripe is the payment source of truth, but the completion and expiry handlers can mutate a registration based on webhook metadata that is not tied back to the expected local Checkout session.
-
-**Evidence**
-
-- `src/server/http/stripe-webhook.web-handler.ts:80-120` accepts complete metadata even when no local transaction is found for the session/payment intent.
-- `src/server/http/stripe-webhook.web-handler.ts:481-536` conditionally updates a transaction only by id/status/tenant, ignores whether it changed a row, then confirms the registration.
-- The completion/expiry paths do not require the expected `stripeCheckoutSessionId`, expected payment intent, registration id, amount/currency, or connected account event to match before changing registration/capacity state.
-
-**Fix direction**
-
-1. Resolve a pending transaction by the received Checkout session id, then verify tenant, registration id, payment intent, amount, currency, and connected account.
-2. Make the transaction conditional update return a row; do not touch the registration unless that row proves the webhook owns the pending local payment.
-3. Apply equivalent correlation checks to expiry and replay handling.
-4. Add negative webhook tests for validly signed but unrelated sessions, mismatched metadata, mismatched account, and duplicate completion/expiry events.
-
-### SEC-001 — RPC/webhook bodies are buffered without a size limit
-
-**Severity:** P1
-**Why it matters:** A resolvable tenant accepts unauthenticated requests to `/rpc`; an oversized body is buffered before authentication, schema decoding, or downstream upload-size checks.
-
-**Evidence**
-
-- `src/server/effect/rpc/app-rpcs.request-handler.ts:80-97` calls `request.arrayBuffer()` for every non-GET RPC request.
-- `src/server.ts:338-363` resolves tenant context for `/rpc` but does not require authentication before body handling.
-- No application source supplies Effect’s `HttpIncomingMessage.MaxBodySize`; the vendored Effect default is `undefined` in `repos/effect/packages/effect/src/unstable/http/HttpIncomingMessage.ts:109-118`.
-- `src/server/http/stripe-webhook.web-handler.ts:251-264` likewise consumes the complete body before its nominal 200 KB check.
-
-**Fix direction**
-
-1. Enforce a global pre-buffer `Content-Length`/stream limit, with lower limits for RPC and webhook routes.
-2. Give base64 asset and receipt paths explicit, documented endpoint limits before decoding.
-3. Add boundary tests for missing/misleading `Content-Length`, streamed oversized bodies, and acceptable valid payloads.
-
-### EVT-001 — Event rejection retains a stale durable lifecycle state
-
-**Severity:** P1
-**Why it matters:** The accepted product lifecycle is `draft` → `pending review` → `published`; a negative review returns the event to draft with feedback. The current state machine stores `REJECTED`, forcing creators and reviewers through a separate lifecycle that the product no longer wants.
-
-**Evidence**
-
-- `src/db/schema/event-instances.ts:18-23` includes `REJECTED` in the persisted event-status enum.
-- `src/server/effect/rpc/handlers/events/events-review.handlers.ts:51` writes `REJECTED` on a negative review.
-- `src/shared/rpc-contracts/app-rpcs/events.rpcs.ts:31-38`, `src/app/events/guards/event-edit.guard.ts:24-31`, and generated event-review documentation all expose that state.
-
-**Fix direction**
-
-Replace the negative-review transition with `DRAFT` plus persisted reviewer feedback. Remove `REJECTED` from the schema/contracts/UI, preserve the feedback/audit record, and update the lifecycle, route, unit, Playwright, and generated-documentation coverage together.
-
-### PROD-001 — Required notification workflows are mostly absent
-
-**Severity:** P1
-**Why it matters:** `PRODUCT.md:339-344,365-372` explicitly puts successful
-registration with an authenticated ticket link, waitlist availability, event and
-registration cancellation, transfer completion, and receipt review in scope.
-
-**Evidence**
-
-- `src/db/schema/email-outbox.ts:20-23` permits only `manualApproval` and `receiptReviewed` kinds.
-- `src/server/notifications/email-delivery.ts:151-202` exposes producers only for those two kinds.
-- `src/server/effect/rpc/handlers/finance/finance-receipts.handlers.ts:662-714` correctly queues receipt-reviewed email transactionally, but no alternate outbound or in-app producer exists for the remaining in-scope transitions.
-
-**Fix direction**
-
-1. Add idempotent outbox kinds and transactional producers for confirmed registration (including an authenticated ticket link), waitlist availability, participant/admin cancellation, event cancellation when implemented, and transfer completion.
-2. Render every customer-facing template with React Email while keeping recipient, retry, idempotency, and failure-observability rules in the outbox/delivery boundary.
-3. Cover each producer with a unit/handler test and at least one page-backed documentation flow where the workflow is user-facing.
-
-### PROD-002 — Paid transfer/resale is still unavailable
-
-**Severity:** P1
-**Why it matters:** `PRODUCT.md:227-251` requires a transfer/resale flow that
-accepts recipient payment, cancels the original registration, and refunds it
-through Stripe.
-
-**Evidence**
-
-- `src/server/effect/rpc/handlers/events/events-registration.handlers.ts:695-700` and `:1156-1178` reject paid transfer until refund/resale handling exists.
-- `src/app/events/event-active-registration/event-active-registration.component.ts:98-102` tells users that paid registration transfer/resale is not automatic.
-
-**Fix direction**
-
-This is an accepted paid-event launch requirement. Define the recipient payment,
-original-registration cancellation, Stripe refund timing/failure recovery,
-resale eligibility, and audit trail; then implement the complete state machine
-and documentation. Use the tenant's Stripe Connect account for every payment
-and refund request, attaching its account id as the connected-account context.
-Evorto adds its application fee; cancellation/fee-refund timing defaults belong
-to the tenant and may be overridden per registration option. The recipient
-completes the current selected option's full flow and eligibility check rather
-than inheriting the original participant's price, discount, or answers. Confirm
-the recipient before cancelling/refunding the original registration. A
-non-fee-refund amount returns the payment less applicable fees so the tenant is
-net zero; seed transfer-until-event-start, five-day cancellation, and fee-refund
-defaults for new tenants.
-
-### ESN-001 — Live ESNcard provider coverage is a release requirement
-
-**Severity:** P1
-**Why it matters:** Enabled tenant ESNcard programs need live external add,
-refresh, and remove verification. A credential-gated optional run cannot prove
-that the provider works in the production-replacement release.
-
-**Evidence**
-
-- `QUALITY.md:203-205` currently records the provider under the manual review
-  queue and names the credentialed test command.
-- `tests/specs/profile/user-profile-live-esncard.spec.ts` contains the existing
-  live-provider coverage path, but it cannot be treated as optional for this
-  release requirement.
-
-**Fix direction**
-
-Provision an approved non-production provider identity and credential path for
-CI/release verification. Exercise add, refresh, remove, errors, and the
-user-visible provider state with a live integration test; document the required
-credential ownership and rotation procedure without exposing secrets.
-
-### FIN-001 — Tenant-configurable money is displayed as EUR in receipt flows
-
-**Severity:** P1
-**Why it matters:** The tenant can use EUR, CZK, or AUD, but finance UI labels and values can show a euro symbol regardless of tenant currency.
-
-**Evidence**
-
-- `src/app/app.config.ts:89-92` supplies `DEFAULT_CURRENCY_CODE` from tenant configuration.
-- EUR/€ is hard-coded in `src/app/finance/shared/receipt-form/receipt-form-fields.component.html:25-72`, `src/app/finance/receipt-approval-list/receipt-approval-list.component.html:34`, `src/app/finance/receipt-refund-list/receipt-refund-list.component.html:39-45`, `src/app/events/event-organize/event-organize.html:275-277`, and `src/app/profile/user-profile/user-profile.component.ts:213-214`.
-
-**Fix direction**
-
-Use `CurrencyPipe`/the injected tenant currency consistently for field labels, lists, totals, and profile summaries. Add CZK/AUD rendering coverage alongside the current EUR flows.
-
-### ONB-001 — Accepted tenant onboarding and home-tenant rules are not implemented
-
-**Severity:** P1
-**Why it matters:** The accepted relaunch rule is automatic tenant joining after privacy-policy acceptance and required tenant-wide answers, with a home-tenant warning. The current flow joins immediately and has no records for those obligations or for a home tenant.
-
-**Evidence**
-
-- `src/shared/rpc-contracts/app-rpcs/users.rpcs.ts:44-49` accepts only name and communication-email fields for account creation.
-- `src/app/core/create-account/create-account.component.html:20-72` presents only those fields.
-- `src/server/effect/rpc/handlers/users.handlers.ts:317-461` immediately creates the tenant membership and default roles after authentication.
-- `src/db/schema/users.ts:20-110` has neither a home-tenant relation nor tenant-onboarding acceptance/answer records.
-
-**Fix direction**
-
-Model versioned privacy acceptance and tenant-scoped required-question answers.
-Collect and validate them before the membership transaction, preserve their audit
-trail, and make that first completed membership the home tenant. Add the
-home-tenant warning and an explicit profile action to change it; a later
-automatic cross-tenant join must never overwrite it. Every policy change must
-require re-acceptance and inform the tenant administrator who made the change.
-Support only short-text and selection-list tenant questions. Resolve current
-requirements for every authenticated tenant user and require immediate
-completion when information or policy acceptance is missing.
-
-### TEN-001 — Fixed formatting locale and tenant currency/timezone are not applied at runtime
-
-**Severity:** P1
-**Why it matters:** The product uses fixed `de-DE` formatting while currency and business timezone remain tenant settings. The current application provides the tenant currency to Angular, but does not consistently apply the fixed locale or tenant timezone.
-
-**Evidence**
-
-- `src/db/schema/tenants.ts:23-71` stores currency, locale, and timezone, but the current tenant-locales enum does not include fixed `de-DE`.
-- `src/app/app.config.ts:89-92` supplies `DEFAULT_CURRENCY_CODE`, but does not provide tenant `LOCALE_ID`, a date/time default zone, or Luxon zone configuration.
-- `src/app/admin/general-settings/general-settings.component.ts:230-247` reloads after a locale/timezone edit even though the runtime does not apply those values consistently.
-- `src/server/effect/rpc/handlers/admin.handlers.ts:162-205` locks tenant-admin edits after event/payment data exists, while `src/server/effect/rpc/handlers/global-admin.handlers.ts:100-190` has no equivalent guarded/audited override path.
-
-**Fix direction**
-
-Fix the formatting locale to `de-DE` and remove it as a tenant-editable choice.
-Support the Section App currency set (`EUR`, `CZK`, `AUD`) and IANA tenant
-timezones with `Europe/Berlin` as the default. Wire the fixed locale, tenant
-currency, and tenant timezone safely through SSR, Angular/Material formatting,
-Luxon conversion, and server-side business-time calculations. Keep recorded
-transaction currency and event instants immutable; make any post-data
-platform-admin override explicit and auditable.
-
-### ADMIN-001 — Platform administrator policy exceeds the current tenant-membership boundary
-
-**Severity:** P1
-**Why it matters:** The accepted policy lets platform administrators perform any tenant operation at any time. The current runtime grants broad permissions, but the normal tenant UI and user-context flows still require a tenant assignment.
-
-**Evidence**
-
-- `src/server/context/request-context-resolver.ts:42-58` grants a global administrator `ALL_PERMISSIONS` and `globalAdmin:manageTenants`.
-- `src/app/app.routes.ts:14-46` wraps normal event, admin, finance, profile, and scanner routes in `userAccountGuard`; only `/global-admin` avoids that guard.
-- `src/app/core/guards/user-account.guard.ts:8-18` redirects an authenticated but unassigned user to `/create-account`.
-- `src/app/global-admin/global-admin.routes.ts:5-49` currently exposes tenant and Email Outbox operations only.
-
-**Fix direction**
-
-Represent platform-administrator authority explicitly in request context, route guards, and server authorization rather than treating it as an ordinary tenant role. Allow the intended direct platform operations without a tenant membership, log each cross-tenant action with actor and target tenant, and keep user-context actions distinct from platform actions.
-
-Use application/API append-only audit entries with actor, target tenant, action,
-before/after data, reason, and timestamp. Keep authorization in the Effect
-server layer; do not claim database-level RLS or privilege enforcement.
-
-### CI-001 — CI excludes product-facing finance docs
-
-**Severity:** P1
-**Why it matters:** Finance/receipts are high-risk product workflows, and local documentation discovery includes them.
-
-**Evidence**
-
-- `.github/workflows/e2e-baseline.yml:182-187` runs the docs project with `--grep-invert "@finance"`.
-- `tests/docs/finance/finance-overview.doc.ts:11`, `tests/docs/finance/receipt-review-reimbursement.doc.ts:14`, and `tests/docs/finance/inclusive-tax-rates.doc.ts` are therefore omitted, as is `tests/docs/profile/discounts.doc.ts:62`.
-- `bun run test:e2e:docs -- --list` on this audit branch found those tests locally, proving the CI exclusion is not a discovery limitation.
-
-**Fix direction**
-
-Remove the inversion and repair any failure it reveals. If a real external dependency remains, split only that explicit integration path into a separate job and keep deterministic finance docs in baseline CI.
-
-### TEST-001 — Manual approval has no complete page-backed journey
-
-**Severity:** P1
-**Why it matters:** The application/manual-approval mode now has participant application copy and organizer approval UI, but no durable flow proves the end-to-end behavior.
-
-**Evidence**
-
-- `src/app/events/event-registration-option/event-registration-option.component.ts:93-100` presents the application behavior.
-- `src/app/events/event-organize/event-organize.html:79-126` exposes organizer approval.
-- `tests/test-inventory.md:30-83` has no manual-approval spec/doc entry.
-
-**Fix direction**
-
-Add a seeded participant-application → organizer-approval → free confirmation or paid Checkout → outbox-visible path, with capacity and duplicate-approval negative cases. Generate product documentation from the same flow.
-
-### TEST-002 — Existing-user role assignment is not verified in the browser
-
-**Severity:** P1
-**Why it matters:** Roles/capabilities are a core tenant safety boundary. The server handler is covered, but the discoverable UI has no durable mutation/readback proof.
-
-**Evidence**
-
-- The UI mutates assignments in `src/app/admin/user-list/user-list.component.ts:96-114`.
-- `tests/specs/admin/roles-management.spec.ts:20-34` only asserts that role controls are visible.
-- `tests/docs/roles/roles.doc.ts:42-75` likewise documents visibility rather than changing a role and reading it back.
-
-**Fix direction**
-
-Use a disposable role and tenant user in a functional spec and generated doc: change the selection, assert the persisted assignment and updated UI, clean up, and cover the unauthorized/read-only view.
-
-## Stabilization and quality findings
-
-### SEC-002 — Request `Origin` can select email and Checkout destinations
-
-**Severity:** P2
-
-`src/server/effect/rpc/app-rpcs.request-handler.ts:30-60` preserves original request headers. `src/server/effect/rpc/handlers/events/event-registration.service.ts:86-96` trusts `headers['origin']` without validating it against the tenant, then uses it for approval emails (`:566`) and Stripe success/cancel URLs (`:801-817`). An authorized or compromised organizer can choose a phishing destination for an applicant.
-
-**Fix direction:** normalize the tenant's persisted primary domain and derive
-its production public origin as HTTPS. Only a platform administrator may change
-the saved tenant host. Use an explicit loopback runtime origin in development;
-never trust caller-controlled `Origin`, forwarded-host, or request headers.
-
-### OPS-001 — Claimed outbox messages can remain permanently stuck in `sending`
-
-**Severity:** P2
-
-`src/server/notifications/email-delivery.ts:307-326` changes a row to `sending`; later polling at `:328-344` selects only `queued` and `failed`. A crash after claim and before terminal update loses the notification indefinitely.
-
-**Fix direction:** add a claim lease timestamp and stale-claim recovery. Reclaim safely with the existing Resend idempotency key and cover restart/crash recovery.
-
-### OPS-002 — Neon Local cleanup has restart and deleted-worktree gaps
-
-**Severity:** P2
-
-Read-only runtime inspection found an active Neon Local container whose Compose
-labels refer to a deleted worktree, plus remote ephemeral branches without an
-expiration. The primary Playwright cause is resolved: `playwright.config.ts`
-now gives a `docker:webserver` process it started a 60-second `SIGTERM` shutdown
-window, while `reuseExistingServer` keeps pre-existing user-owned stacks
-untouched.
-
-The remaining gaps are independent of that fix. Compose project names are
-derived from each checkout path, so stopping one checkout cannot clean an old
-project. `db-expiration` runs only once, a later `db` restart can create another
-branch without an expiry, and `docker-compose.yml` currently suppresses expiry
-failures with `|| true`.
-
-**Fix direction:** surface bounded typed expiration failures, make branch-expiry
-installation follow every Neon Local branch creation, warn about Compose
-projects whose worktree no longer exists, and add lifecycle coverage for owned
-versus reused stacks. Existing orphaned containers or remote branches must be
-listed for deliberate operator cleanup rather than deleted automatically.
-
-### DATA-001 — Important tenant boundaries lack database-level tuple constraints
-
-**Severity:** P2
-
-`src/db/schema/users.ts:96-109` can pair a role with a tenant membership from another tenant; handler checks reduce the risk, but request-context permission resolution can consume that role if bad data enters the database. Similarly, `src/db/schema/event-registrations.ts:16-40` independently stores tenant, event, and option references, while event options are keyed only to event in `src/db/schema/event-registration-options.ts:14-42`.
-
-**Fix direction:** model tenant-aware composite keys/foreign keys or use database-enforced tuple checks. Preserve handler validation as defense in depth and add direct constraint tests.
-
-### UX-001 — Template pages expose actions that direct server guards will deny
-
-**Severity:** P2
-
-- `src/app/templates/template-list/template-list.component.html:12-24` always shows “Manage categories”; `src/app/templates/categories/category-list/category-list.component.html:8-17,76-82` always exposes creation/edit actions.
-- `src/server/effect/rpc/handlers/template-categories.handlers.ts:65-67,101-103` correctly requires `templates:manageCategories`.
-- `src/app/templates/template-details/template-details.component.html:27-42` always shows Edit/Create event, while `src/app/templates/templates.routes.ts:45-65` guards those routes.
-
-**Fix direction:** use the corresponding capability directives for actions, offer a deliberate read-only category view, and surface denied mutation errors instead of leaving users at a dead end.
-
-### UX-002 — Core first-load failures have no user-visible error/retry state
-
-**Severity:** P2
-
-Examples include `src/app/templates/template-create-event/template-create-event.component.html:5-63`, `src/app/admin/user-list/user-list.component.html:21-86`, `src/app/finance/transaction-list/transaction-list.component.html:4-123`, and `src/app/core/create-account/create-account.component.html:10-78`. They handle pending/success but leave initial query failures blank or misleading.
-
-**Fix direction:** standardize pending/error/success branches with a readable `role="alert"` state and retry/refetch action for every primary data query.
-
-### UX-003 — Location failures are silently transformed into no results
-
-**Severity:** P2
-
-`src/app/core/location-search.ts:76-100` raises meaningful Maps configuration/provider failures, but `src/app/shared/components/controls/location-selector/location-selector-dialog/location-selector-dialog.ts:50-66` catches every search failure as an empty list. Place-detail failures at `:72-79` are unhandled.
-
-**Fix direction:** show a retryable provider/configuration state, preserve diagnostics in logs, and distinguish an empty response from a failed search.
-
-### UI-001 — Semantic success/warning tokens are not consistently bridged into Tailwind
-
-**Severity:** P2
-
-`src/tailwind.css:60-78` maps Material color/shape tokens but does not define the `success`/`warning` names used by components. `src/styles.scss:29-36,254-259` and consumers such as `src/app/shared/components/event-status/event-status.component.ts:5-18` reference undefined semantic tokens.
-
-**Fix direction:** derive one consistent success/warning vocabulary from existing `--app-*` tokens, map it into Tailwind, replace ambiguous spellings, and add visual/token regression coverage.
-
-### A11Y-001 — Reusable controls have keyboard and accessible-name gaps
-
-**Severity:** P2
-
-- `src/app/shared/components/controls/icon-selector/icon-selector-dialog/icon-selector-dialog.component.html:12-22` uses clickable `div` elements rather than buttons.
-- `src/app/shared/components/controls/role-select/role-select.component.html:5-10` builds a removal label from an object, which can announce as `[object Object]`.
-- Several icon-only actions lack explicit accessible names, including `src/app/events/event-edit/event-edit.html:2-13` and `src/app/events/event-list/event-list.component.html:20-29`.
-
-**Fix direction:** use native buttons, explicit labels, and keyboard/accessible-name tests for all reusable controls.
-
-### TEST-003 — PR quality gates are incomplete and `main` is not protected
-
-**Severity:** P1
-
-The repository-owned E2E workflow at `.github/workflows/e2e-baseline.yml:3-8,163-188`
-runs Playwright on pull requests and its Docker image build implicitly runs
-`build:app`. It does not invoke `lint`, `test:unit`, or `test:unit:server`.
-No tracked workflow validates Knope/change files, and
-`.github/workflows/release.yml:3-17` is a placeholder. The GitHub branch-
-protection API returned `404 Branch not protected` for `main` during this audit,
-so the existing Actions run is not a required merge gate.
-
-**Fix direction:** add a PR quality workflow for lint, the app build, both unit
-suites, and Knope/change-file validation; then configure those checks plus the
-baseline E2E workflow as required status checks for `main`. Verify the settings
-in GitHub after configuration rather than inferring protection from tracked YAML.
-
-### TEST-004 — Tenant operations and Email Outbox lack durable product coverage
-
-**Severity:** P2
-
-`tests/specs/admin/general-settings.spec.ts:48-107` does not persist/assert email sender, Stripe account, or registration limit settings; `tests/docs/admin/general-settings.doc.ts:37-59` only describes them. The discoverable `/global-admin/email-outbox` route in `src/app/global-admin/global-admin.routes.ts:30-36` has no Playwright or generated documentation coverage.
-
-**Fix direction:** add persisted settings readbacks and Email Outbox allow/deny, empty, queued, error, and retry-state coverage.
-
-## Effect and architecture conformance
-
-### EFFECT-001 — Tenant settings RPC uses `Schema.Any` at an API boundary
-
-**Severity:** P3
-
-`src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts:232-256` accepts `defaultLocation` as `Schema.NullOr(Schema.Any)`, even though `src/types/custom/tenant.ts:72-82` already has a typed optional `GoogleLocation` schema. The handler validates its reconstructed tenant later, but the RPC contract should reject malformed input at the boundary.
-
-**Fix direction:** use the `GoogleLocation` schema directly in the RPC input and add malformed-location contract coverage.
-
-### EFFECT-002 — One Effect test bypasses the preferred Effect test runtime
-
-**Severity:** P3
-
-`src/server/integrations/cloudflare-r2.spec.ts:53-65` wraps an Effect with `Effect.runPromise` inside a plain async test while nearby tests use `it.effect`.
-
-**Fix direction:** convert the failure assertion to `it.effect` and retain typed failure/scope behavior.
-
-## Material 3, Angular Material, and Uncodixfy snapshot
-
-Static MD3/UX score: **63/100** (adapted to Angular Material and Tailwind Material system tokens).
-
-| Area              | Score | Evidence                                                                        |
-| ----------------- | ----: | ------------------------------------------------------------------------------- |
-| Color tokens      |  5/10 | Strong `--mat-sys-*` foundation; semantic success/warning bridge is incomplete. |
-| Typography        |  7/10 | Material roles are widely used; a few raw utility-text paths remain.            |
-| Shape/elevation   |  8/10 | Token-mapped radii and surface usage are generally consistent.                  |
-| Components        |  7/10 | Angular Material fits the application; a few form/conformance gaps remain.      |
-| Layout/navigation |  7/10 | Responsive navigation and list/detail patterns are sound.                       |
-| Motion            |  6/10 | Conservative behavior; no major static violation found.                         |
-| Accessibility     |  3/10 | Camera policy, missing names, and non-button controls are material blockers.    |
-| Theming           |  5/10 | The Material/Tailwind bridge exists but semantic states need repair.            |
-
-Uncodixfy assessment: **mostly compliant**. The app avoids decorative gradients, glass panels, faux dashboards, and gratuitous motion. Operational cards and status surfaces generally have a product reason. Minor drift includes a few eyebrow/uppercase labels and generic status-card patterns; these are lower priority than functional/accessibility issues.
-
-## Current strengths to preserve
-
-- Tenant resolution fails closed for unknown hosts; server-generated RPC context overwrites client identity/permission headers.
-- Registration writes use tenant-scoped option lookup, role eligibility, and conditional capacity updates.
-- QR rendering is owner/organizer-scoped, and the scanner independently enforces tenant-scoped organizer authorization.
-- Receipt review queues email through a transactional outbox rather than direct fire-and-forget delivery.
-- Template add-on/question authoring and template-to-event copying have generated-doc persistence/readback coverage.
-- The skip/fixme inventory is required to stay empty; selected
-  credential-dependent runs fail preflight instead of reporting skipped tests.
-- Angular Material, system tokens, OnPush components, signals, native control flow, and responsive two-column patterns are broadly established.
-
-## Explicitly deferred scope — not counted as a defect by itself
-
-- Automated custom-domain verification and multi-domain tenant automation.
-- An end-user impersonation UI; platform administrators instead use explicit,
-  auditable platform authority.
-- Automatic event archival behavior, including its retention and data-handling
-  rules.
-- Budgeting, receipt-category planning, and payout-provider integration.
-
-These remain valid only if product-facing UI and generated documentation
-continue to state them honestly.
-
-## Decisions recorded
-
-- The listed customer-facing notifications remain launch scope. Render their
-  templates with React Email while retaining transactional outbox delivery.
-- Paid transfer/resale, including recipient payment and Stripe refund handling,
-  is required before a paid-event production replacement launch.
-- The first completed tenant membership becomes a user's home tenant. Users can
-  change it only through an explicit profile action.
-- Production public links use the HTTPS origin derived from the tenant record's
-  normalized primary domain; development uses an explicit loopback runtime
-  origin, and only a platform administrator may change the saved tenant host.
-- Payments and refunds use the tenant's Stripe Connect account. Evorto attaches
-  that account id to the Stripe request and adds only its application fee.
-- Waitlist messages are informative and never reserve capacity or hold checkout.
-- Cancellation/transfer timing and fee-refund rules default to tenant settings
-  and may be overridden per registration option. New tenants default to transfer
-  until event start, five-day cancellation, and fee refund enabled.
-- Transfer recipients complete the current registration option's full flow and
-  eligibility check; they do not inherit price, discount, or answers. Recipient
-  confirmation precedes original-registration cancellation/refund.
-- A non-fee-refund refund returns the payment less applicable fees so the tenant
-  is net zero.
-- Tenant currencies are `EUR`, `CZK`, and `AUD`; tenant timezones are IANA
-  names with `Europe/Berlin` as the default.
-- Every privacy-policy change requires re-acceptance, and required short-text
-  or selection-list answers are checked and collected for every tenant user.
-- Platform actions have actor, target, action, before/after, reason, and
-  timestamp in application/API append-only audit entries.
-- Live ESNcard add, refresh, and remove verification is required for release.
-- Codex in-app Browser walkthroughs remain the requested manual-review tool and
-  complement, rather than replace, Playwright coverage.
-- The Effect skill bundle uses the repository's `repos/effect` vendor path.
-- Templates and events own independent simple/advanced registration
-  configuration. Event creation snapshots template configuration; later template
-  edits do not modify existing events.
-- Simple configuration remains the default. Advanced configuration is an
-  arbitrary named option list, with non-blocking warnings when it lacks an
-  organizing or non-organizing option. Every mode change requires explicit
-  confirmation; returning to simple mode additionally requires exactly one of
-  each.
-- Add-ons are advanced, reusable registration-option configuration. An add-on
-  can attach to multiple options through explicit multi-selection, with included
-  entitlement quantity distinct from optional purchase quantity.
-- Included add-ons are automatically granted, stock-reserved, and priced into
-  the registration option. Optional units remain purchasable independently,
-  including alongside an included quantity.
-- Every add-on is redeemable from a scanned registration with immediate undo.
-  The organizer scan view supplies the overview; organizer/check-in access
-  governs redemption.
-- Guests remain a capacity-aware registration feature rather than an ordinary
-  stock add-on. They retain option-price and partial-check-in behavior.
-- Stock is editable for future registrations without rewriting settled
-  entitlement records. A separate unilateral-cancellation capability governs
-  registration/add-on cancellation and optional refunds; redeemed and included
-  units are never refunded as ordinary add-on purchases.
-
-The headline policy decisions are recorded. CI/release enforcement is an
-implementation task: TEST-003 records the verified absence of branch protection
-and required quality checks.
-
-## Registration configuration delivery status
-
-The ordinary tenant registration-graph authoring slice is implemented. Templates
-and draft events now persist their own simple/advanced mode, use stable option
-arrays, model included and optional add-on quantities separately, and expose
-typed graph RPCs backed by tenant and permission checks.
-
-The server creates an atomic event-owned snapshot of template mode, options,
-discounts, questions, add-ons, and mappings. Mode transitions preserve persisted
-option IDs; an advanced graph must first be saved with exactly one organizing
-and one non-organizing option before a separate confirmed switch to simple.
-Legacy random allocation remains readable but cannot be rewritten through these
-authoring RPCs.
-
-The ordinary Angular editors use page-owned Signal Forms with shallow option,
-question, and add-on arrays. Advanced graphs allow zero or many options and show
-warning-only missing-category diagnostics. Add-ons stay hidden in simple mode
-without being deleted. Focused unit, functional Playwright, generated-document
-source, and inventory coverage now pin mode confirmation, mapping quantities,
-snapshot independence, and legacy-random blocking.
-
-Participant post-registration add-on purchase is now delivered through the
-authenticated, tenant-scoped server path: free orders fulfill atomically, while
-paid orders reserve stock without exposing an entitlement until the exact
-Stripe Checkout completes. The active ticket explains before/during sales
-windows, preserves the same pending Checkout across reloads, and blocks
-cancellation or transfer while payment is pending. Focused Playwright coverage
-pins the mobile/accessibility surface, pending and settled database state, and
-production-finalizer settlement; the registration guide documents the same
-owner journey from the ordinary event list.
-
-Authentication plus current-user/tenant forwarding is pinned by focused handler
-and RPC unit/source evidence. The free Playwright path exercises that page RPC.
-For paid initiation, Playwright deliberately calls the production
-`purchaseRegistrationAddon` service under the exact fixture owner/tenant and
-real Database/Stripe layers rather than claiming a browser-level Stripe launch.
-Its fail-closed Stripe client validates the connected-account Checkout POST and
-idempotency key, preserves the production-created pending fields, then validates
-the completion-session and expanded-charge reads that persist the real fee
-snapshot. No test helper writes the paid stock reservation, order, or
-transaction directly.
-
-Platform compatibility event mutations are aligned with the ordinary graph
-updater: they apply the mapping diff, persist simple mode, enforce the typed
-paid-price guard, and record the event mode in audit state. Existing focused
-unit and source evidence pins those compatibility guarantees.
-
-Separate follow-up remains only for the broader unilateral
-cancellation/refund capability.
-
-## Recommended execution order
-
-1. **Payment/security containment:** SCAN-001 is complete; continue with PAY-001, PAY-002, and SEC-001, with targeted regression tests before any broad refactor.
-2. **Product-release commitments:** EVT-001, PROD-001, PROD-002, ESN-001,
-   FIN-001, ONB-001, TEN-001, ADMIN-001, and manual-approval coverage.
-3. **Truthful release evidence:** CI-001, TEST-001 through TEST-003, including
-   the required CI/branch-protection work in TEST-003.
-4. **Permission and user-state quality:** UX-001 through UX-003, UI-001, A11Y-001, OPS-001, DATA-001, and TEST-004.
-5. **Effect cleanup:** EFFECT-001 and EFFECT-002 alongside the closest touched feature work.
+# Application Production-Readiness Compliance Ledger
+
+Ledger updated: 2026-07-12
+
+Previous fully validated baseline: `codex/production-readiness-compliance` at
+`cc5bfff361ed881e4a508113a044dd6ae2cfdd9e`
+
+`origin/main` at that validation point:
+`ae92ec96bfa5683a2b3b78ea8c1a2ee48f47ea73`
+(`0` commits behind)
+
+Current candidate: an uncommitted working tree on top of the validated baseline.
+It has no candidate commit SHA or complete-suite result yet. The full local gate
+must run from a clean worktree at a local candidate commit. If a gate failure
+requires any edit, amend or create a new local candidate commit and rerun the
+entire gate on that exact commit. Nothing may be pushed or used to update the
+draft PR until that clean exact-commit gate is fully green.
+
+Draft review: [PR #91](https://github.com/evorto-app/app/pull/91)
+
+Scope: application, server/runtime, data layer, shared contracts, tests,
+generated product documentation, repository-owned CI, and externally configured
+release gates.
+
+## Release decision
+
+**Not yet ready to declare a complete production replacement.**
+
+The original audit's broad implementation findings are mostly remediated. Commit
+`cc5bfff361ed881e4a508113a044dd6ae2cfdd9e` has a completely green local baseline
+and matching repository-owned CI, with zero skipped or otherwise incomplete
+collected tests. Those results are the **previous validated baseline**, not a
+result for the current uncommitted candidate.
+
+The candidate implements fail-closed organizer participant/receipt loading,
+explicit participant/waitlist/organizer cancellation confirmation, and a
+substantial page-backed cancellation guide. These are pending the complete local
+gate and therefore are not marked resolved yet.
+
+The highest-risk application boundary is paid registration transfer: automatic
+paid transfer is deliberately Stripe-only and still rejects separately paid
+add-ons, while the product decision for non-Stripe/manual sources is unresolved.
+The highest-risk evidence gaps are the unrun live ESNcard and Auth0-backed paths,
+unresolved production scope and test contracts for Cloudflare Images and Google
+Maps, the incomplete authenticated Browser review queue, and missing organizer/
+helper signup evidence. GitHub's current `main` ruleset also does not make the
+green checks mandatory.
+
+## How to read this ledger
+
+| Status                | Meaning                                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Open**              | Required product behavior or evidence is absent.                                                            |
+| **Partial**           | The original failure is substantially remediated, but a narrower release-relevant gap remains.              |
+| **External**          | Repository work is present, but completion needs credentials, infrastructure policy, legal approval, or UI. |
+| **Candidate**         | Implementation is present only in the uncommitted candidate and still needs the complete local gate.        |
+| **Resolved**          | Current source plus focused and broad evidence close the original finding.                                  |
+| **Accepted deferral** | Explicitly out of current product scope; it must not be represented as delivered.                           |
+
+| Severity | Meaning                                                                                                |
+| -------- | ------------------------------------------------------------------------------------------------------ |
+| P0       | Immediate release stop for a core workflow or direct payment/security harm.                            |
+| P1       | Product, payment, integration, or release-evidence failure that blocks a production-replacement claim. |
+| P2       | Material correctness, resilience, documentation, or operational gap to close during stabilization.     |
+
+This document distinguishes a green automated baseline from externally gated
+release evidence. It does not convert unavailable credentials into skips and it
+does not treat source inspection as proof of a live provider or Browser journey.
+
+Server-side Effect authorization remains the source of truth. Row-level security
+is not planned as a parallel authorization system. Database tuple constraints
+provide data-integrity defense in depth without replacing server tenant and
+capability checks.
+
+## Active findings and gates
+
+| ID           | Severity | Status    | Area                  | Remaining work                                                                                                     |
+| ------------ | -------- | --------- | --------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| PROD-002     | P1       | Partial   | Paid transfer         | Automatic paid transfer is Stripe-only; separately paid add-ons are blocked and manual-source policy is undecided. |
+| PROD-003     | P1       | Open      | Organizer signup      | Organizer/helper options exist, but the complete end-user signup, exclusivity, access, and docs journey is absent. |
+| DOC-001      | P1       | Partial   | Cancellation/refund   | Candidate docs cover core participant/organizer paths; Stripe, add-on, and refund-state journeys remain.           |
+| ESN-001      | P1       | External  | Live ESNcard          | The protected environment, approved identifier secret, and successful candidate certification run are absent.      |
+| AUTH-001     | P1       | External  | Auth0 integration     | Credential-backed account creation/integration projects have not passed on the current candidate.                  |
+| PROVIDER-001 | P1       | Open      | Conditional providers | Production scope/config is undecided; advertised integration coverage and collected tests are inconsistent.        |
+| REL-001      | P1       | Partial   | Release enforcement   | CI and Fly deploy exist, but `main` does not require checks and Knope release automation is a placeholder.         |
+| BROWSER-001  | P1       | Partial   | Manual acceptance     | Organizer overview passed authenticated desktop/compact review; the full six-area queue and camera remain open.    |
+| LEGAL-001    | P1       | External  | Legal content         | Legal/privacy settings are implemented, but production text and policy approval are not recorded.                  |
+| OPS-001      | P2       | Partial   | Email outbox          | Leased delivery is crash-safe and exhausted mail is visible, but there is no supported audited requeue path.       |
+| OPS-002      | P2       | Partial   | Neon Local lifecycle  | Active disposable branch expiry is verified at 24 hours; owned deletion remains pending after the full gate.       |
+| UX-002       | P2       | Candidate | Load recovery         | Candidate UI makes event, participant, and receipt query failures fail closed with explicit retry.                 |
+| UX-004       | P2       | Candidate | Cancellation safety   | Expected-state RPC/locked checks and no-write tests are implemented; the complete local gate remains.              |
+| DOC-002      | P2       | Partial   | Product docs          | Waitlist outbox/content is proven; delivered-inbox follow-up and unknown-domain guidance remain.                   |
+
+No known P0 finding remains open in the current tree, but the candidate's full
+gate is still pending. The P1 rows above prevent a production-replacement
+declaration.
+
+## Active finding details
+
+### PROD-002 — Paid transfer has a bounded Stripe-only source policy
+
+The dedicated transfer state machine now covers private offer credentials,
+recipient eligibility and current-price review, recipient Stripe Checkout,
+connected-account ownership, source cancellation, persisted refund obligations,
+terminal refund failure, and operator requeue. Functional and generated-doc
+coverage exercise those states in
+[`tests/specs/events/registration-transfer.spec.ts`](tests/specs/events/registration-transfer.spec.ts)
+and
+[`tests/docs/events/registration-transfer.doc.ts`](tests/docs/events/registration-transfer.doc.ts).
+
+The supported automatic boundary is narrower than “every paid registration”:
+
+- free source registrations can transfer;
+- direct organizer reassignment remains free-only; a paid transfer uses the
+  recipient's private claim and current-flow eligibility/payment review;
+- an automatically paid source transfer requires exactly one supported Stripe
+  registration payment source;
+- a successful separately paid add-on blocks transfer until every source refund
+  can be reconciled safely; and
+- a successful non-Stripe registration payment is rejected with **Only
+  Stripe-paid registrations can use automatic paid transfer**.
+
+That boundary is explicit in
+[`src/server/registrations/registration-transfer.service.ts`](src/server/registrations/registration-transfer.service.ts).
+Source guards lock the paid-add-on behavior in
+[`src/server/registrations/addon-purchase-mutation-guards.source.spec.ts`](src/server/registrations/addon-purchase-mutation-guards.source.spec.ts).
+
+The current product boundary must be stated as **Stripe-only automatic paid
+transfer without separately paid add-ons**, not generic paid transfer. Supporting
+separately paid add-ons would require one atomic, auditable plan for the original
+registration payment and every successful add-on source, with exact
+connected-account refund amounts, fee allocation, idempotency generations,
+compensation, terminal failure recovery, and mixed-source tests. A transfer must
+never silently drop add-on value.
+
+A separate decision is required for successful non-Stripe/manual registration
+payments: either accept them as explicitly unsupported for private paid transfer,
+or design a manual settlement workflow with ownership, completion, rollback, and
+audit semantics. Do not imply that the existing cancellation manual-refund record
+also makes manual-source transfer safe.
+
+### PROD-003 — Organizer/helper signup is not a complete proven journey
+
+The schema and authoring surfaces model organizing registration options, and the
+registration page distinguishes participant options from organizer/helper
+options. The product requirement is broader: a tenant member must be able to
+sign up as an organizer/helper, remain mutually exclusive with participant
+registration for the same event, obtain the intended organizer access, and see
+the correct ticket/profile/management states.
+
+The current docs mention **Sign up as organizer/helper** in
+[`tests/docs/events/register.doc.ts`](tests/docs/events/register.doc.ts), but do
+not execute and read back that journey. Add a page-backed functional spec and a
+novice generated guide that cover simple and advanced organizer categories,
+role eligibility, capacity, participant/organizer exclusivity, confirmed access
+to the organizer surface, cancellation, and cleanup.
+
+### DOC-001 — Cancellation and refund documentation is substantial but incomplete
+
+The uncommitted candidate adds
+[`tests/docs/events/registration-cancellation.doc.ts`](tests/docs/events/registration-cancellation.doc.ts)
+and links it from the maintained inventory. It executes participant cancellation
+of a confirmed paid non-Stripe registration into a pending manual refund,
+participant deadline denial, organizer cancellation of a free registration,
+guest-capacity release, cancellation and waitlist email creation, persisted
+readback, and the visible confirmation flow. This is a meaningful page-backed
+novice journey, pending the full local gate.
+
+The same guide **explains**, but does not independently execute, cross-tenant and
+permission denial, repeated-request idempotency, transient retry, live Stripe
+refund delivery, or paid add-on allocation recovery. Keep those statements
+clearly labeled as policy/recovery guidance unless a focused page-backed case or
+provider run supplies the corresponding evidence.
+
+The candidate also adds explicit confirmation for participant, waitlist, and
+organizer cancellation via
+[`src/app/events/registration-cancellation-confirmation-dialog.component.ts`](src/app/events/registration-cancellation-confirmation-dialog.component.ts).
+**Keep registration** receives initial focus and the mutation proceeds only after
+an affirmative confirmation.
+
+The remaining documentation/evidence must execute and visibly explain:
+
+1. a real or fail-closed Stripe cancellation refund claim and its provider-side
+   outcome, not only the deterministic non-Stripe manual-refund path;
+2. registration cancellation with separately paid add-ons, including included,
+   redeemed, cancelled, unredeemed, and refundable quantities;
+3. participant-visible and operator-visible refund progression through pending,
+   retrying, successful, terminal failure, and audited recovery; and
+4. the resulting participant profile/ticket state for those refund outcomes.
+
+Keep deterministic database readback and literal recovery language. A queued
+claim or pending manual refund must never be documented as money already returned.
+
+### ESN-001 — Live ESNcard certification is configured but not operable
+
+The repository contains a fail-closed reusable workflow at
+[`.github/workflows/esncard-release-certification.yml`](.github/workflows/esncard-release-certification.yml)
+and the provider test at
+[`tests/specs/profile/user-profile-live-esncard.spec.ts`](tests/specs/profile/user-profile-live-esncard.spec.ts).
+The Release and Fly deploy workflows call the certification job.
+
+As inspected on 2026-07-11, the GitHub environment
+`esncard-release-certification` does not exist, so there is no approved
+non-production `E2E_LIVE_ESN_CARD_IDENTIFIER`, reviewer policy, or successful
+certification run. Completion requires the environment and secret to be
+provisioned, the add/refresh/remove/provider-error flow to pass at the exact
+release commit, and credential ownership/rotation to be documented. No secret or
+identifier value belongs in this ledger or test artifacts.
+
+### AUTH-001 — Auth0-backed integration evidence is not candidate-green
+
+Baseline authentication and session behavior has unit and Playwright coverage,
+but the credential-backed integration projects are intentionally separate from
+the baseline. The account-creation path in
+[`tests/specs/profile/create-account.spec.ts`](tests/specs/profile/create-account.spec.ts)
+requires Auth0 Management credentials and fails preflight when they are absent.
+
+Run `bun run test:e2e:integration` locally with the approved provider credentials
+on the exact release candidate. Every collected integration test must pass with
+the same zero-incomplete-outcome rule as the baseline before CI or release is
+attempted.
+
+### PROVIDER-001 — Provider evidence depends on the production configuration
+
+Cloudflare Images and Google Maps integration code exists, but live evidence is
+a release gate only when the approved production configuration enables those
+providers or the release product scope depends on their workflows. The previous
+1,677-test baseline does not prove either provider. Current unit coverage
+validates Cloudflare configuration and Google Maps initialization/search/error
+mapping in
+[`src/server/config/cloudflare-images-config.spec.ts`](src/server/config/cloudflare-images-config.spec.ts)
+and
+[`src/app/core/location-search.spec.ts`](src/app/core/location-search.spec.ts).
+That is not provider-side proof.
+
+[`tests/README.md`](tests/README.md) documents an `@needs-cloudflare`
+integration tag and provider credentials, but no current Playwright source uses
+that tag. That advertised-but-uncollected tag is a test-contract defect regardless
+of whether Cloudflare is enabled: either add the promised test or correct the
+documentation/preflight contract.
+
+First record the intended production configuration and product scope. If
+Cloudflare Images is enabled, add a credential-gated journey that proves direct
+upload, delivery, persisted reference, and owned test-asset cleanup. If Google
+Maps-backed location search is enabled, add a credential-gated provider journey
+that proves loader initialization, autocomplete, place details, coordinates,
+empty results, and provider failure, then record the matching Browser
+walkthrough. If either provider is deliberately disabled, document the supported
+fallback and remove claims that its live path is required. Never convert a
+required enabled-provider run into skips because credentials are unavailable.
+
+### REL-001 — Green checks are not yet enforced release policy
+
+Repository-owned quality workflows now run Knope/change-file validation,
+PostgreSQL 17 integration tests, lint, server and Angular unit suites, the build,
+functional Playwright, and generated docs. See
+[`.github/workflows/pr-quality.yml`](.github/workflows/pr-quality.yml) and
+[`.github/workflows/e2e-baseline.yml`](.github/workflows/e2e-baseline.yml).
+
+External inspection on 2026-07-11 found GitHub ruleset
+[`13125535`](https://github.com/evorto-app/app/settings/rules/13125535) active for
+the default branch. It protects linear history and destructive updates and
+enforces squash-only pull requests, but it does not require the quality/E2E/
+security checks, an approving review, or resolved review threads. Configure and
+verify those requirements in GitHub rather than inferring them from workflow
+YAML.
+
+Application deployment is not a placeholder:
+[`.github/workflows/fly-deploy.yml`](.github/workflows/fly-deploy.yml) applies
+the schema and deploys to Fly after live ESNcard certification on `main`.
+
+The separate
+[`.github/workflows/release.yml`](.github/workflows/release.yml) correctly
+depends on live ESNcard certification, but its Knope release job only echoes **Add
+publish/deploy steps for Knope releases.** Treat that as missing version,
+changelog, and GitHub-release automation—not as evidence that Fly deployment is
+absent. Replace it with the agreed Knope release actions and verify the resulting
+version/changelog/release artifacts.
+
+### BROWSER-001 — Manual in-app Browser acceptance remains incomplete
+
+The durable queue is defined in [`QUALITY.md`](QUALITY.md). The completed
+Playwright flows do not replace the explicitly requested in-app Browser review.
+Partial evidence is recorded: the authenticated organizer overview was opened and
+reviewed at desktop and compact widths. That proves the page's basic responsive
+happy-path presentation, not the fail-once network states, destructive mutations,
+or the rest of the application.
+
+There is still no recorded complete pass through:
+
+1. anonymous event discovery and a direct unlisted link;
+2. participant registration/profile states;
+3. organizer authoring, event management, check-in, guest handling, and add-on
+   redemption/undo;
+4. tenant administration and finance;
+5. platform tenant-scoped operations;
+6. live ESNcard provider states.
+
+The camera policy and synthetic Playwright media stream are valuable regression
+evidence, but are not real-device proof. Complete one real phone/tablet camera
+permission, scan, denied-permission recovery, and persisted-result walkthrough.
+When camera emulation is unreliable, use a deterministic scanner-result URL for
+the rest of the organizer integration review, as recorded in `QUALITY.md`.
+
+### LEGAL-001 — Legal approval is outside automated proof
+
+Tenant-hosted legal/privacy fields and routes have implementation and test
+coverage. Production readiness still requires an authorized owner to approve
+the actual terms, privacy text, re-acceptance policy, company/controller details,
+and jurisdiction-specific obligations. Record the approved version and effective
+date; a passing UI test proves rendering and persistence, not legal sufficiency.
+
+### OPS-001 — Exhausted email has no supported recovery mutation
+
+The original crash-loss issue is resolved. Delivery claims now have leases,
+expired `sending` rows are reclaimable without consuming another attempt, and
+retry/exhaustion metadata is tested in
+[`src/server/notifications/email-outbox-lease.spec.ts`](src/server/notifications/email-outbox-lease.spec.ts)
+and
+[`src/server/notifications/email-delivery.spec.ts`](src/server/notifications/email-delivery.spec.ts).
+The global UI and generated guide make exhausted rows observable in
+[`tests/specs/admin/email-outbox.spec.ts`](tests/specs/admin/email-outbox.spec.ts)
+and
+[`tests/docs/admin/email-outbox.doc.ts`](tests/docs/admin/email-outbox.doc.ts).
+
+The UI is intentionally read-only and there is no supported RPC/operation to
+requeue exhausted email. Add a platform-authorized mutation with required reason,
+tenant/row targeting, idempotent state transition, append-only audit evidence,
+and page-backed allow/deny/retry coverage.
+
+One product/security decision is still required before implementation: should a
+requeue preserve the immutable original recipient, or may an operator correct
+the recipient on the exhausted record? Do not infer that authority. If
+correction is allowed, preserve the original value in the audit record and
+define which identity/profile source is authoritative.
+
+### OPS-002 — Neon expiry is verified; owned deletion remains pending
+
+Playwright-owned Compose stacks now have bounded shutdown and provenance rules,
+`docker:resume` refuses incomplete initialization, and the Neon expiration helper
+fails more visibly. Lifecycle behavior is covered in
+[`helpers/testing/docker-lifecycle.spec.ts`](helpers/testing/docker-lifecycle.spec.ts).
+
+Runtime inspection on 2026-07-12 verifies that the active disposable Neon branch
+has a 24-hour expiration. That closes the expiration uncertainty for this branch,
+but does not prove end-of-run deletion. The branch and current project resources
+are intentionally still present while the full local gate is pending.
+
+After the clean exact-commit full gate completes, stop the owned project and
+confirm project-scoped container, network, volume, and remote Neon branch
+deletion. Inventory any older project or branch separately and delete it only
+after confirming ownership. Do not use broad Docker or Neon cleanup that could
+affect another checkout or user-owned stack.
+
+### UX-002 — Organizer and receipt query failures are fail-closed in the candidate
+
+The user list, finance transaction list, and template-to-event creation paths now
+have explicit first-load error and retry behavior with durable coverage in
+[`tests/specs/resilience/core-load-recovery.spec.ts`](tests/specs/resilience/core-load-recovery.spec.ts).
+
+The uncommitted candidate updates
+[`src/app/events/event-organize/event-organize.html`](src/app/events/event-organize/event-organize.html)
+to gate counts and participant actions on successful event/overview data. Event,
+participant, and receipt failures now use explicit `role="alert"` states and
+retry actions; the participant message says missing counts are not zero, and the
+receipt message says existing records may still be present. The back action has
+an accessible name. Focused component, fail-once functional Playwright, and
+generated event-management coverage are present in the working tree.
+
+This implementation is **pending the complete local gate**. Until that gate
+passes, keep UX-002 as Candidate rather than Resolved and do not inherit the
+previous 1,677-test result.
+
+### UX-004 — Destructive registration cancellation requires confirmation
+
+The uncommitted candidate routes participant cancellation, leaving a waitlist,
+and organizer cancellation through the shared Material dialog in
+[`src/app/events/registration-cancellation-confirmation-dialog.component.ts`](src/app/events/registration-cancellation-confirmation-dialog.component.ts).
+The copy distinguishes pending applications, pending payment reservations,
+confirmed tickets, waitlists, and organizer context; **Keep registration** is the
+initial focus, and current client-side in-flight guards are checked again after
+confirmation.
+
+The candidate now implements the stale-state precondition end to end. The typed
+participant and organizer RPC payloads in
+[`src/shared/rpc-contracts/app-rpcs/events.rpcs.ts`](src/shared/rpc-contracts/app-rpcs/events.rpcs.ts)
+carry `expectedStatus` and `expectedPaymentPending`. The handlers in
+[`src/server/effect/rpc/handlers/events/events-registration.handlers.ts`](src/server/effect/rpc/handlers/events/events-registration.handlers.ts)
+fast-fail input that is already stale before reconciliation, then compare it
+authoritatively after locking the registration and its payment transactions. A
+precondition conflict leaves registration, capacity, inventory, refund, and
+email state unchanged. In the pending-Checkout race, the handler may first
+persist the durable Checkout-cancellation marker and attempt Stripe expiry before
+the second locked pass observes that payment completed; it still does not cancel
+the registration or release/refund anything. Focused no-write coverage is present in
+[`src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts`](src/server/effect/rpc/handlers/events/events-registration.handlers.spec.ts),
+and schema coverage pins the payload contract in
+[`src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts`](src/server/effect/rpc/handlers/events/events-rpcs.schema.spec.ts).
+
+Participant and organizer callers preserve the reviewed values across a delayed
+dialog, send them with the mutation, and invalidate the relevant queries on an
+error so the user can review current state. This is implemented **as Candidate
+evidence pending the clean exact-commit full gate**; it is not yet a resolved
+validated-baseline claim.
+
+### DOC-002 — Smaller documentation truth gaps remain
+
+- The candidate
+  [`registration-cancellation.doc.ts`](tests/docs/events/registration-cancellation.doc.ts)
+  page-backs the capacity-releasing action and proves the **waitlist spot
+  available** outbox row, recipient, rendered content, and non-reservation
+  wording. Existing
+  [`email-outbox-kind-source.spec.ts`](helpers/testing/email-outbox-kind-source.spec.ts)
+  coverage also pins its transactional producer. The narrower remaining gap is
+  provider delivery into a real recipient inbox followed by that recipient
+  opening the event, leaving the waitlist, and successfully registering while
+  capacity is still available.
+- Unknown-tenant/domain failure is fail-closed in server context resolution, but
+  no novice-facing generated guide explains the result or next action.
+- The candidate corrects
+  [`tests/docs/events/event-management.doc.ts`](tests/docs/events/event-management.doc.ts)
+  to say automatic paid transfer is limited to supported Stripe sources and is
+  blocked by a separately paid add-on or non-Stripe source. Keep that correction
+  pending validation rather than carrying the old “all paid transfer is
+  unavailable” statement forward.
+
+## Resolved original findings
+
+The following rows close the stale claims from the 2026-07-09 audit. A resolved
+row is not an assertion that every adjacent product area is perfect; narrower
+remaining gaps are retained above.
+
+| ID                     | Resolution evidence                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SCAN-001               | First-party camera policy, accessible scanner states, deterministic media tests, and generated guide: [`security-headers.spec.ts`](src/server/http/security-headers.spec.ts), [`scanner.test.ts`](tests/specs/scanning/scanner.test.ts), [`check-in.doc.ts`](tests/docs/scanning/check-in.doc.ts).                                                                                        |
+| PAY-001                | Manual approval has a durable single-payment claim and concurrency coverage: [`registration-concurrency.postgres.spec.ts`](src/db/schema/registration-concurrency.postgres.spec.ts), [`manual-approval.spec.ts`](tests/specs/events/manual-approval.spec.ts).                                                                                                                             |
+| PAY-002                | Webhook completion/expiry is correlated to local payment ownership with negative/replay coverage: [`stripe-webhook.web-handler.spec.ts`](src/server/http/stripe-webhook.web-handler.spec.ts), [`stripe-webhook-replay.spec.ts`](tests/specs/finance/stripe-webhook-replay.spec.ts).                                                                                                       |
+| SEC-001                | RPC and webhook bodies are bounded before full buffering, including misleading/missing length cases: [`request-body.ts`](src/server/http/request-body.ts), [`request-body.spec.ts`](src/server/http/request-body.spec.ts).                                                                                                                                                                |
+| EVT-001                | Negative event review returns to draft with feedback; `REJECTED` is absent from the runtime contract: [`events-review.handlers.spec.ts`](src/server/effect/rpc/handlers/events/events-review.handlers.spec.ts), [`event-approval.doc.ts`](tests/docs/events/event-approval.doc.ts).                                                                                                       |
+| PROD-001               | Typed transactional outbox kinds/producers cover registration confirmation, cancellation, transfer, waitlist availability, manual approval, and receipt review: [`email-outbox.ts`](src/db/schema/email-outbox.ts), [`email-outbox-kind-source.spec.ts`](helpers/testing/email-outbox-kind-source.spec.ts).                                                                               |
+| FIN-001                | Receipt and transaction amounts use stored/tenant currency with EUR/CZK/AUD coverage: [`tenant-currency-integrity.postgres.spec.ts`](src/server/tenant-currency-integrity.postgres.spec.ts), [`receipts-flows.spec.ts`](tests/specs/finance/receipts-flows.spec.ts).                                                                                                                      |
+| ONB-001                | Versioned privacy answers, home tenant, routes, service rules, specs, and generated docs are present: [`tenant-onboarding.service.ts`](src/server/onboarding/tenant-onboarding.service.ts), [`tenant-onboarding.spec.ts`](tests/specs/profile/tenant-onboarding.spec.ts), [`tenant-onboarding.doc.ts`](tests/docs/users/tenant-onboarding.doc.ts).                                        |
+| TEN-001                | Fixed `de-DE`, tenant IANA timezone, and EUR/CZK/AUD runtime formatting are centralized and tested: [`tenant-runtime.ts`](src/app/core/tenant-runtime.ts), [`tenant-runtime.spec.ts`](src/app/core/tenant-runtime.spec.ts).                                                                                                                                                               |
+| ADMIN-001              | Platform authority uses explicit target-scoped operations and append-only audit entries rather than implicit tenant membership: [`platform-operation.service.ts`](src/server/effect/rpc/handlers/shared/platform-operation.service.ts), [`platform-tenant-operations.spec.ts`](tests/specs/admin/platform-tenant-operations.spec.ts).                                                     |
+| CI-001                 | Finance docs are no longer filtered; the baseline runs the full documentation project and completeness reporter: [`e2e-baseline.yml`](.github/workflows/e2e-baseline.yml), [`generated-docs-source.spec.ts`](helpers/testing/generated-docs-source.spec.ts).                                                                                                                              |
+| TEST-001               | Manual approval now has full free/paid/retry page-backed coverage and a generated guide: [`manual-approval.spec.ts`](tests/specs/events/manual-approval.spec.ts), [`manual-approval.doc.ts`](tests/docs/events/manual-approval.doc.ts).                                                                                                                                                   |
+| TEST-002               | Existing-user role assignment/removal has permission, UI, database-readback, and docs coverage: [`user-role-assignment.spec.ts`](tests/specs/admin/user-role-assignment.spec.ts), [`roles.doc.ts`](tests/docs/roles/roles.doc.ts).                                                                                                                                                        |
+| SEC-002                | Public links and Stripe returns use validated tenant-derived origins rather than caller `Origin`: [`tenant-outbound-url.ts`](src/server/tenant-outbound-url.ts), [`tenant-outbound-url.spec.ts`](src/server/tenant-outbound-url.spec.ts).                                                                                                                                                 |
+| DATA-001               | Tenant-aware role/registration tuple constraints have PostgreSQL integration coverage: [`tenant-boundary-constraints.postgres.spec.ts`](src/db/schema/tenant-boundary-constraints.postgres.spec.ts).                                                                                                                                                                                      |
+| UX-001                 | Template/category actions are capability-gated and read-only users get deliberate states: [`template-actions-permissions.spec.ts`](tests/specs/templates/template-actions-permissions.spec.ts).                                                                                                                                                                                           |
+| UX-003                 | Location search distinguishes empty results from provider/config failures and supports retryable errors: [`location-search.ts`](src/app/core/location-search.ts), [`location-search.spec.ts`](src/app/core/location-search.spec.ts).                                                                                                                                                      |
+| UI-001                 | Success/warning roles are bridged through semantic Material/Tailwind tokens and rendered across themes/contrast modes: [`_semantic-state-colors.scss`](src/_semantic-state-colors.scss), [`semantic-theme-colors.test.ts`](tests/specs/smoke/semantic-theme-colors.test.ts).                                                                                                              |
+| A11Y-001               | Original icon selector, role chip, and icon-action name gaps have native control and accessible-name coverage: [`icon-selector-dialog.component.spec.ts`](src/app/shared/components/controls/icon-selector/icon-selector-dialog/icon-selector-dialog.component.spec.ts), [`role-select.component.spec.ts`](src/app/shared/components/controls/role-select/role-select.component.spec.ts). |
+| TEST-004               | Tenant operation settings and global Email Outbox have persisted readbacks, access states, functional tests, and guides: [`general-settings.spec.ts`](tests/specs/admin/general-settings.spec.ts), [`email-outbox.spec.ts`](tests/specs/admin/email-outbox.spec.ts), [`email-outbox.doc.ts`](tests/docs/admin/email-outbox.doc.ts).                                                       |
+| EFFECT-001, EFFECT-002 | `Schema.Any` is removed from the tenant settings boundary and the Cloudflare R2 Effect test uses the project runtime: [`admin.rpcs.ts`](src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts), [`cloudflare-r2.spec.ts`](src/server/integrations/cloudflare-r2.spec.ts).                                                                                                                       |
+
+The original TEST-003, PROD-002, OPS-001, OPS-002, and UX-002 findings are only
+partially closed and therefore remain in the active ledger under their current
+narrower statements.
+
+## Material 3, Angular, Effect, and Uncodixfy snapshot
+
+The previous static numeric score is retired because it no longer describes the
+remediated branch and implied more precision than the audit supported.
+
+- Angular Material, Material system tokens, OnPush components, signals, native
+  control flow, and responsive list/detail layouts are broadly established.
+- The semantic success/warning bridge and the original reusable-control
+  accessibility defects are resolved.
+- The candidate's organizer and receipt load states use restrained Material
+  error containers, ordinary controls, truthful copy, and retry actions. They are
+  implemented pending full validation, not an invitation for visual restyling.
+  Continue to avoid decorative dashboards, gradients, glass panels, excessive
+  card nesting, or gratuitous motion.
+- Effect RPC and Schema boundaries are typed, expected failures use tagged error
+  channels, and payment/notification services retain explicit ownership and
+  idempotency. The remaining outbox work is an authorized/audited product
+  operation, not a reason to bypass the service boundary.
+
+## Delivered capability and documentation evidence
+
+The current branch includes production-shaped implementations and durable
+coverage for:
+
+- simple and advanced template/event registration graphs with stable option IDs,
+  organizer/participant categories, questions, discounts, add-ons, and atomic
+  template-to-event snapshots;
+- free and paid registrations, manual approval, waitlists, cancellation,
+  transfer/refund recovery for supported sources, guests, registration-time and
+  post-registration add-ons, scanner check-in, fulfillment, and undo;
+- tenant onboarding/home tenant, settings, roles, finance, receipts, currencies,
+  platform target-scoped operations, and audit entries;
+- transactional customer notifications, leased delivery, retry/exhaustion
+  observability, and product-facing Email Outbox documentation;
+- full repository-owned baseline test collection with runtime enforcement against
+  skips, fixmes, todos, focused tests, expected failures, retries/flakes, and
+  interrupted tests.
+
+[`tests/test-inventory.md`](tests/test-inventory.md) is the maintained coverage
+map. The previous validated baseline collected 41 documentation tests from the
+then-current documentation sources. The candidate adds a cancellation guide,
+but no new candidate collection or pass count is claimed until the complete
+local gate runs. This ledger remains the source of truth for release gaps; the
+inventory does not waive the active rows above.
+
+## Recorded decisions and accepted deferrals
+
+### Decisions that remain binding
+
+- Server Effect authorization is authoritative; no RLS layer is planned.
+- The current supported automatic transfer boundary is a free registration or
+  one Stripe-paid registration source with no successful separately paid add-on.
+  Connected-account refund ownership and operator recovery remain mandatory;
+  add-on value must never be discarded or silently excluded.
+- Customer-facing email templates use React Email and the transactional outbox.
+- Waitlist availability messages are informative and never reserve capacity.
+- The first completed tenant membership becomes the home tenant; privacy-policy
+  changes require current required answers and re-acceptance.
+- Tenant currencies are EUR, CZK, and AUD; dates use fixed `de-DE` formatting and
+  tenant IANA timezone.
+- Platform operations require an explicit target, reason, actor, before/after
+  state, and append-only audit entry.
+- In-app Browser review complements Playwright; synthetic camera input does not
+  replace real-device verification.
+- Live ESNcard add, refresh, remove, and provider-error verification is a release
+  gate, not an optional skipped project.
+- Templates and events own independent simple/advanced registration graphs;
+  event creation snapshots the template and later template edits do not rewrite
+  the event.
+
+### Decision still required
+
+- For exhausted email recovery, choose whether operators may correct the
+  recipient on the original outbox record or may only requeue its immutable
+  recipient. Record the security, audit, and idempotency consequences before
+  implementing the mutation.
+- For a successful non-Stripe/manual registration payment, choose whether paid
+  transfer remains explicitly unsupported or receives a dedicated manual
+  settlement workflow. A cancellation manual-refund record is not, by itself, a
+  safe transfer settlement protocol.
+
+### Accepted deferrals
+
+The following remain explicitly out of current scope and are not defects by
+themselves:
+
+- anonymous/guest registration without an account;
+- private invite-only events;
+- strict reservation-queue waitlists;
+- automatic event archival;
+- push notifications;
+- sophisticated budgeting and receipt-category planning;
+- automated custom-domain verification and multi-domain tenant automation;
+- an end-user impersonation UI; platform administrators use explicit audited
+  target-scoped authority instead;
+- payout-provider integration beyond the current Stripe-connected payment and
+  refund boundary.
+
+Product UI and docs must continue to state these boundaries honestly.
+
+## Execution order
+
+1. Finish the remaining candidate edits, create a local candidate commit, and
+   require a clean worktree. Run the complete local gate on that exact commit. If
+   any failure requires an edit, amend or create a new local candidate commit and
+   rerun the entire gate from the start. Do not push or trigger CI until the
+   clean exact-commit run is fully green with zero incomplete outcomes.
+2. Complete organizer/helper signup coverage and the remaining Stripe, add-on,
+   and refund-state cancellation documentation journeys.
+3. Record the non-Stripe/manual-source transfer decision. If separately paid
+   add-ons enter the supported boundary, implement multi-source refunds with
+   terminal recovery and PostgreSQL concurrency evidence first.
+4. Resolve the exhausted-email recipient decision, then add a platform-authorized,
+   reasoned, audited requeue operation and page-backed coverage.
+5. Prove waitlist email delivery into a recipient inbox and the recipient's
+   follow-up registration path; add the unknown-domain guidance.
+6. Record the production Cloudflare Images and Google Maps configuration. Close
+   the advertised `@needs-cloudflare` test-contract gap and, for every enabled
+   provider, add live evidence. Then run the exact-candidate Auth0/required-
+   provider projects locally with approved credentials before CI.
+7. Complete the authenticated in-app Browser queue at desktop and compact widths,
+   followed by real-device camera verification. Convert any discovered defect
+   into Playwright/docs coverage.
+8. Provision and approve the live ESNcard environment/secret, execute exact-candidate
+   certification, approve production legal text, require the verified checks and
+   review policy on `main`, and replace the Knope placeholder with tested version,
+   changelog, and GitHub-release automation. Keep the existing Fly deploy path
+   distinct.
+9. After the full gate, stop the owned stack and verify Compose plus remote Neon
+   branch deletion, then inventory and deliberately clean only confirmed stale
+   resources. The active branch's 24-hour expiration is already verified.
+
+CI speed work may continue after correctness is preserved—for example, caching
+or safe job decomposition—but it is an optimization, not a substitute for any
+release gate and must not reduce test collection.
+
+Before any push, PR update, or other CI-triggering action: finish edits, make a
+local candidate commit, require a clean worktree, and run the complete local
+equivalent of every affected CI suite on that exact commit. Every collected test
+must pass with zero incomplete outcomes. If anything changes afterward, amend or
+recommit and rerun the complete gate on the new exact commit. Missing services or
+credentials are blockers to resolve locally, not reasons to let CI try first.
+No push is allowed before that exact-commit run is green.
 
 ## Validation record
 
-- `git fetch --no-tags origin` and rebase completed; the remediation branch starts from `origin/main` at `df7c2c0143b307bb17d7e763ccf9ef13e6646b30`.
-- `gh api repos/evorto-app/app/branches/main/protection` returned `404 Branch not protected`; repository workflow review found E2E and implicit Docker build coverage but no lint, unit, or Knope/change-file gate.
-- `bun run test:e2e:docs -- --list` passed: 31 docs/setup tests in 19 files, with finance docs visible locally.
-- `bun run lint` and the application/Docker production build passed for the scanner remediation.
-- The complete Angular/shared unit suite passed: 52 files and 302 tests.
-- The complete server/helper Vitest suite passed after the latest-main rebase: 53 files and 375 tests.
-- Focused server clock/scan coverage proves configured-clock eligibility, the exact persisted check-in timestamp, and typed failure for an invalid clock value.
-- Scanner functional Playwright passed all 4 cases, including canvas-backed camera success and permission denial.
-- The dedicated check-in generated-documentation journey passed and its five screenshots were visually reviewed; the camera view shows only the settled Scanner page.
-- Documentation reporter/view-transition coverage passed all 8 focused cases, including a ten-second transition plus an unrelated infinite animation.
-- The in-app Browser reached the anonymous event page and Auth0 login. The authenticated scanner walkthrough remains open at the sign-in page for the user to complete before returning control.
+### Previous fully validated baseline
+
+The canonical local baseline passed on commit
+`cc5bfff361ed881e4a508113a044dd6ae2cfdd9e`:
+
+| Suite                              |    Passed | Incomplete outcomes |
+| ---------------------------------- | --------: | ------------------: |
+| Server/helper Vitest               |       898 |                   0 |
+| Angular/shared Vitest              |       559 |                   0 |
+| PostgreSQL 17 integration          |        34 |                   0 |
+| Functional Playwright baseline     |       145 |                   0 |
+| Generated-documentation Playwright |        41 |                   0 |
+| **Total**                          | **1,677** |               **0** |
+
+Frozen dependency installation, Knope validation, formatting, lint/clean-tree
+check, and the production application build also passed. Worktree-owned runtime
+resources were removed after the run; that does not claim historical OPS-002
+cleanup.
+
+### Previous-baseline CI confirmation
+
+The same pushed commit has green GitHub results for CodeQL analysis and aggregate,
+CodeRabbit, Git Town, Knope/change files, PostgreSQL integration, lint/unit/build,
+and Playwright E2E. CI recorded all 145 functional and 41 documentation tests and
+green cleanup. These checks confirm the already-green local baseline; they do not
+close REL-001 until GitHub requires them. They also do not validate the current
+uncommitted candidate.
+
+### Current uncommitted candidate
+
+The working tree contains candidate changes after `cc5bfff361e`, including
+organizer/receipt fail-closed recovery, cancellation confirmation with a locked
+expected-state server guard, and the cancellation guide. It has no candidate
+commit SHA, complete-suite pass count, or CI result. Do not copy the previous
+1,677 count onto this candidate. Run and
+record the entire local gate only after the edits are committed locally and the
+worktree is clean. If validation causes another edit, amend/recommit and rerun the
+entire gate for the resulting exact commit before any push.
+
+Partial manual Browser evidence exists for the authenticated organizer overview
+at desktop and compact widths. It does not constitute the complete six-area
+Browser queue or real-device camera evidence.
+
+### Explicitly not claimed
+
+- No current-candidate `bun run test:e2e:integration` Auth0-backed pass is
+  recorded.
+- No Cloudflare Images live upload/delivery/cleanup path is currently collected.
+- No Google Maps live loader/search/place-details verification is recorded.
+- No live `bun run test:e2e:live-esncard:release` pass is recorded.
+- No authenticated six-area in-app Browser walkthrough is recorded.
+- No real-device camera walkthrough is recorded.
+- No production legal approval is recorded.
+- No required-check/review/thread-resolution policy is configured on `main`.
+- No real Knope version/changelog/GitHub-release action has replaced the release
+  placeholder. Fly deployment exists separately.
+- No full local gate for the current uncommitted candidate is recorded.
+
+These are open release-evidence or policy items, not skipped tests and not implied
+by the previous 1,677 green baseline results. Cloudflare Images and Google Maps
+become live-provider release gates only when the approved production
+configuration enables them; the advertised-but-uncollected test contract still
+must be reconciled either way.

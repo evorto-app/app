@@ -54,7 +54,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("page.getByPlaceholder('acct_...')");
     expect(source).toContain('await page.reload()');
     expect(source).toContain('Expected generated general-settings docs tenant');
-    expect(source).toContain('.update(schema.tenants)');
+    expect(source).toContain("from '../../support/fixtures/parallel-test'");
+    expect(source).not.toContain('} finally {');
+    expect(source).not.toContain('.update(schema.tenants)');
     expect(source).toContain(
       'The generated journey below changes all seven fields and the uploaded brand assets on its disposable tenant, saves them, checks the stored tenant row, reloads the page, and checks that the same values are read back.',
     );
@@ -693,6 +695,16 @@ describe('generated docs source current behavior', () => {
     expect(paidTransferScenarioSource).toContain(
       'markRegistrationTransferRefundRequeued(tx',
     );
+    expect(registrationPageSource).toContain(
+      "const eventDetailsSelector = 'app-event-list router-outlet + ng-component'",
+    );
+    expect(registrationPageSource).toContain(':not([aria-busy="true"])');
+    expect(registrationPageSource).toContain(
+      ".getByText('Loading event ...', { exact: true })",
+    );
+    expect(registrationPageSource).toContain(
+      ".getByText('Failed to load event.', { exact: true })",
+    );
     expect(registrationPageSource).toContain('level: 2');
     expect(registrationPageSource).toContain("name: 'Registration'");
     expect(registrationPageSource).toContain(
@@ -706,6 +718,18 @@ describe('generated docs source current behavior', () => {
         ".getByText('Loading registration status')",
       ),
     );
+    expect(
+      registrationPageSource.indexOf(':not([aria-busy="true"])'),
+    ).toBeLessThan(
+      registrationPageSource.indexOf(
+        ".getByText('Loading event ...', { exact: true })",
+      ),
+    );
+    expect(
+      registrationPageSource.indexOf(
+        ".getByText('Failed to load event.', { exact: true })",
+      ),
+    ).toBeLessThan(registrationPageSource.indexOf("name: 'Registration'"));
     expect(source).not.toContain(
       'Paid registration transfer and resale are not automatic yet.',
     );
@@ -728,8 +752,9 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('waitlistRegistration.questionAnswers');
     expect(source).toContain(
-      'Participants can leave the waitlist before the event starts, which cancels the waitlist registration and releases the waitlist position.',
+      'Review the **Leave the waitlist?** confirmation; **Keep registration** receives focus by default.',
     );
+    expect(source).toContain('Confirm before giving up a waitlist position');
     expect(source).toContain('fullOptionAfterLeaving.waitlistSpots');
     expect(source).not.toContain('Register button stays available');
     expect(source).not.toContain('paid transfers are automatic');
@@ -846,13 +871,19 @@ describe('generated docs source current behavior', () => {
       'Older or manually seeded payment records still create a pending manual refund record for organizer follow-up.',
     );
     expect(source).toContain(
-      'Paid registration transfer shows as unavailable in the organizer overview until the resale money flow is handled.',
+      'A successful separately paid add-on or a non-Stripe registration payment currently blocks private transfer because Evorto cannot yet reconcile every source refund safely.',
     );
     expect(source).toContain(
-      'It does not currently include attendee export, attendee messaging, manual check-in controls outside QR scanning',
+      'It does not currently include attendee export, attendee messaging, or manual check-in controls outside QR scanning',
     );
     expect(source).toContain(
       'Role picker behavior: already selected roles are hidden from suggestions to avoid duplicate eligibility entries.',
+    );
+    expect(source).toContain(
+      'If the organizer overview request fails, Evorto hides every registration count and participant action.',
+    );
+    expect(source).toContain(
+      'Receipt history has its own warning and **Try again** action.',
     );
     expect(source).toContain(
       'Expected seeded event-management docs draft event "${draftEvent.title}" to have selected registration roles',

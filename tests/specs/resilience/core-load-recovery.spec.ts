@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 
 import { adminStateFile } from '../../../helpers/user-data';
-import { expect, test } from '../../support/fixtures/parallel-test';
+import { expect, test } from '../../support/fixtures/axe-test';
 
 test.setTimeout(120_000);
 test.use({ storageState: adminStateFile });
@@ -107,4 +107,55 @@ test('template event creation explains a first-load failure and recovers on retr
     }),
   ).toBeVisible();
   await expect(page.getByLabel('Event title')).toHaveValue(template.title);
+});
+
+test('organizer overview never presents failed participant data as zero and recovers on retry @events @resilience', async ({
+  events,
+  makeAxeBuilder,
+  page,
+  seeded,
+}) => {
+  const event = events.find(
+    (candidate) => candidate.id === seeded.scenario.events.freeOpen.eventId,
+  );
+  if (!event) {
+    throw new Error(
+      'Expected the seeded free event for organizer load-recovery coverage',
+    );
+  }
+
+  await page.goto('/events', { waitUntil: 'networkidle' });
+  const failureCount = await failRpcOnce(page, 'events.getOrganizeOverview');
+
+  await navigateClientSide(page, `/events/${event.id}/organize`);
+  await expect.poll(failureCount).toBe(1);
+
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('Participant data could not be loaded');
+  await expect(alert).toContainText(
+    'Do not treat the missing counts as zero or as current event data.',
+  );
+  await expect(page.getByText('Registered', { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Cancel registration' }),
+  ).toHaveCount(0);
+
+  const backLink = page.getByRole('link', { name: 'Back to event' });
+  await expect(backLink).toBeVisible();
+  const failedStateAccessibilityScan = await makeAxeBuilder()
+    .include('app-event-organize')
+    .analyze();
+  expect(failedStateAccessibilityScan.violations).toEqual([]);
+
+  await alert.getByRole('button', { name: 'Try again' }).click();
+  await expect(alert).toHaveCount(0);
+  await expect(
+    page.getByRole('heading', { name: 'Overview', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('Registered', { exact: true })).toBeVisible();
+
+  await backLink.focus();
+  await expect(backLink).toBeFocused();
+  await backLink.press('Enter');
+  await expect(page).toHaveURL(`/events/${event.id}`);
 });

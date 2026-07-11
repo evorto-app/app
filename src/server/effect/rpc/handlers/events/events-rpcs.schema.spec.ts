@@ -7,6 +7,9 @@ import {
   EventGraphRegistrationOptionInput,
   EventReviewStatus,
   EventsApproveRegistrationResult,
+  EventsCancelEventRegistration,
+  EventsCancellableRegistrationStatus,
+  EventsCancelRegistration,
   EventsCreateRegistrationOptionInput,
   EventsFindOneAddon,
   EventsFindOneRegistrationOption,
@@ -256,6 +259,46 @@ describe('events RPC registration status schema', () => {
         userId: 'user-1',
       }),
     ).not.toThrow();
+  });
+});
+
+describe('events RPC cancellation precondition schema', () => {
+  it('accepts only cancellable registration statuses', () => {
+    for (const status of ['CONFIRMED', 'PENDING', 'WAITLIST']) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsCancellableRegistrationStatus)(status),
+      ).not.toThrow();
+    }
+
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCancellableRegistrationStatus)(
+        'CANCELLED',
+      ),
+    ).toThrow();
+  });
+
+  it('requires the confirmed status and payment state on both cancellation RPCs', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCancelRegistration.payloadSchema)({
+        expectedPaymentPending: false,
+        expectedStatus: 'CONFIRMED',
+        registrationId: 'registration-1',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCancelEventRegistration.payloadSchema)({
+        eventId: 'event-1',
+        expectedPaymentPending: true,
+        expectedStatus: 'PENDING',
+        registrationId: 'registration-1',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCancelRegistration.payloadSchema)({
+        expectedStatus: 'CONFIRMED',
+        registrationId: 'registration-1',
+      }),
+    ).toThrow();
   });
 });
 

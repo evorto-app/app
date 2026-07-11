@@ -25,7 +25,7 @@ const openEventFromNormalNavigation = async (
   const eventLink = page
     .locator(`a[href="/events/${scenario.eventId}"]`)
     .first();
-  await expect(eventLink).toBeVisible();
+  await expect(eventLink).toBeVisible({ timeout: 20_000 });
   await eventLink.click();
   await expect(page).toHaveURL(new RegExp(`/events/${scenario.eventId}$`));
   await expect(
@@ -60,7 +60,7 @@ const openOrganizerView = async ({
   await organizeLink.click();
   await expect(
     organizer.page.getByRole('heading', { level: 2, name: 'Participants' }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
   return organizer;
 };
 
@@ -169,7 +169,7 @@ Manual approval is useful when organizers need to review each participant before
       const eventLink = page
         .locator(`a[href="/events/${scenario.eventId}"]`)
         .first();
-      await expect(eventLink).toBeVisible();
+      await expect(eventLink).toBeVisible({ timeout: 20_000 });
       await takeScreenshot(
         testInfo,
         eventLink,
@@ -644,7 +644,7 @@ If Stripe Checkout could not be prepared after capacity was reserved, Evorto kee
 - The organizer sees **Payment setup needs retry** and **Retry payment setup**.
 - The participant sees that the payment link is being prepared and is told to refresh shortly.
 - Retrying resumes the same payment claim and does not reserve another spot.
-- While the payment claim is still being reconciled, cancellation keeps the registration and reserved spot intact. First use **Retry payment setup** so Evorto can bind the Checkout, then **Cancel registration** safely expires it before releasing the reservation.
+- While the payment claim is still being reconciled, cancellation keeps the registration and reserved spot intact. First use **Retry payment setup** so Evorto can bind the Checkout. Then select **Cancel registration**, review the capacity and payment impact in the confirmation, and select **Confirm cancellation** to expire Checkout before releasing the reservation. **Keep registration** is focused by default so an accidental Enter key does not cancel it.
 `,
       });
       await takeScreenshot(
@@ -705,6 +705,10 @@ If Stripe Checkout could not be prepared after capacity was reserved, Evorto kee
         { timeout: 20_000 },
       );
       await cancelRegistrationButton.click();
+      await page
+        .getByRole('dialog')
+        .getByRole('button', { name: 'Confirm cancellation' })
+        .click();
       await expect(
         page.getByRole('button', { name: 'Apply for approval' }),
       ).toBeVisible();

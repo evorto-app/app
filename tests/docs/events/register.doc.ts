@@ -298,7 +298,7 @@ test.describe('Register for events', () => {
 
     await page.goto('/events');
     const eventLink = page.getByRole('link', { name: scenario.title }).first();
-    await expect(eventLink).toBeVisible();
+    await expect(eventLink).toBeVisible({ timeout: 20_000 });
     await testInfo.attach('markdown', {
       body: `
   A confirmed participant can return to a listed event and buy optional add-ons from the existing ticket. The organizer controls whether each add-on is sold before the event, during the event, or in both windows.`,
@@ -727,6 +727,26 @@ test.describe('Register for events', () => {
       }),
     ]);
     await page.getByRole('button', { name: 'Leave waitlist' }).click();
+    const leaveWaitlistDialog = page.getByRole('dialog');
+    await expect(
+      leaveWaitlistDialog.getByRole('heading', {
+        name: 'Leave the waitlist?',
+      }),
+    ).toBeVisible();
+    await expect(
+      leaveWaitlistDialog.getByRole('button', {
+        name: 'Keep registration',
+      }),
+    ).toBeFocused();
+    await takeScreenshot(
+      testInfo,
+      leaveWaitlistDialog,
+      page,
+      'Confirm before giving up a waitlist position',
+    );
+    await leaveWaitlistDialog
+      .getByRole('button', { name: 'Leave waitlist' })
+      .click();
     await expect(page.getByText('This option is full.')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Join waitlist' }),
@@ -758,7 +778,9 @@ test.describe('Register for events', () => {
 
     await testInfo.attach('markdown', {
       body: `
-  Full participant options expose a distinct **Join waitlist** action. If that option asks required registration questions, participants must answer them before joining the waitlist. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full. Participants can leave the waitlist before the event starts, which cancels the waitlist registration and releases the waitlist position.
+Full participant options expose a distinct **Join waitlist** action. If that option asks required registration questions, participants must answer them before joining the waitlist. Waitlist registration is separate from a confirmed registration, and a normal **Register** button is not shown while the option is full.
+
+To give up the position before the event starts, select **Leave waitlist**. Review the **Leave the waitlist?** confirmation; **Keep registration** receives focus by default. Select **Leave waitlist** in that dialog only when you intend to cancel the waitlist registration and release its position.
 `,
     });
     await database

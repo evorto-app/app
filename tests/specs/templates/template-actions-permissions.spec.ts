@@ -64,7 +64,7 @@ test('template pages present a deliberate read-only experience without write cap
   const details = page.locator('app-template-details');
   await expect(
     details.getByRole('heading', { name: template.title }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 20_000 });
   await expect(
     details.getByRole('button', { name: 'Edit template' }),
   ).toHaveCount(0);

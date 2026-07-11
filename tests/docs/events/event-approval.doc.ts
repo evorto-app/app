@@ -254,17 +254,17 @@ The screenshot captures the controls where reviewers publish or return the event
     expect(returnedEvent.reviewedAt).not.toBeNull();
 
     await page.goto(`/events/${eventId}`);
+    const returnedDraftStatusSurface = eventStatusSurface(page, [
+      'Draft',
+      `Review feedback: ${reviewFeedback}`,
+    ]);
+    await expect(returnedDraftStatusSurface).toBeVisible({ timeout: 20_000 });
     await expect(
       page.locator('app-event-status').getByText('Draft', { exact: true }),
     ).toBeVisible();
     await expect(
       page.getByText(`Review feedback: ${reviewFeedback}`),
     ).toBeVisible();
-    const returnedDraftStatusSurface = eventStatusSurface(page, [
-      'Draft',
-      `Review feedback: ${reviewFeedback}`,
-    ]);
-    await expect(returnedDraftStatusSurface).toBeVisible();
     await testInfo.attach('markdown', {
       body: `
 ## 3. Return-to-draft feedback on event details
