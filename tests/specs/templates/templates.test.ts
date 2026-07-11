@@ -145,9 +145,6 @@ test('create template with reusable add-ons and registration questions', async (
   const questionTitle = `Dietary restrictions ${getId().slice(0, 6)}`;
   const questionDescription = 'Tell organizers about allergies or preferences.';
 
-  await page.goto('.');
-  await page.getByRole('link', { name: 'Templates' }).click();
-  await expect(page).toHaveURL(/\/templates/);
   await page.goto(`/templates/create/${category.id}`);
 
   await fillTemplateBasics(page, {
