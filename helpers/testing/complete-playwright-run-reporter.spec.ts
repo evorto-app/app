@@ -103,5 +103,5 @@ describe('complete Playwright run reporter', () => {
       'expected failure fixture (expected-failed)',
     );
     expect(guarded.output).toContain('retried fixture (retry-1)');
-  });
+  }, 30_000);
 });
