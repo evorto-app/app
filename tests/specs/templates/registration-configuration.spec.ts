@@ -114,13 +114,13 @@ const confirmEventMode = async (
   mode: 'advanced' | 'simple',
 ): Promise<void> => {
   const modeButton = page.getByTestId(`event-mode-${mode}`);
-  await expect(modeButton).not.toHaveAttribute('jsaction', /click/);
+  await expect(modeButton).toBeEnabled({ timeout: 15_000 });
   await modeButton.click();
   await expect(
     page.getByRole('heading', {
       name: 'Change registration configuration?',
     }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await page
     .getByRole('button', { name: `Use ${mode} mode`, exact: true })
     .click();
@@ -501,10 +501,11 @@ test('draft event graph supports arbitrary options and preserves hidden add-ons 
 
   await page.goto(`/events/${event.id}/edit`);
   const simpleModeButton = page.getByTestId('event-mode-simple');
-  await expect(simpleModeButton).not.toHaveAttribute('jsaction', /click/);
+  await expect(simpleModeButton).toBeEnabled({ timeout: 15_000 });
   await simpleModeButton.click();
   await expect(page.getByRole('alert')).toContainText(
     'Simple mode requires exactly one organizing and one non-organizing registration option.',
+    { timeout: 15_000 },
   );
   await expect(
     page.getByRole('heading', {

@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -161,6 +162,7 @@ export class EventEdit {
     EventEditIconUsage.make({ eventId: this.eventId() }),
   );
   protected readonly loadBlock = signal<null | string>(null);
+  protected readonly modeControlsInteractive = signal(false);
   protected readonly optionChoices = computed(() =>
     this.eventModel().registrationOptions.map((option) => ({
       key: option.key,
@@ -180,6 +182,8 @@ export class EventEdit {
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
   constructor() {
+    afterNextRender(() => this.modeControlsInteractive.set(true));
+
     effect(() => {
       if (!this.eventQuery.isSuccess()) return;
       const event = this.eventQuery.data();
@@ -344,7 +348,11 @@ export class EventEdit {
 
   protected async requestModeChange(simpleModeEnabled: boolean): Promise<void> {
     const model = this.eventModel();
-    if (model.simpleModeEnabled === simpleModeEnabled || this.loadBlock()) {
+    if (
+      !this.modeControlsInteractive() ||
+      model.simpleModeEnabled === simpleModeEnabled ||
+      this.loadBlock()
+    ) {
       return;
     }
     this.graphActionMessage.set(null);

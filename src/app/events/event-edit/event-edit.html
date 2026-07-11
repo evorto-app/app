@@ -150,6 +150,7 @@
                 type="button"
                 mat-button
                 data-testid="event-mode-simple"
+                [disabled]="!modeControlsInteractive()"
                 [attr.aria-pressed]="eventModel().simpleModeEnabled"
                 [class.bg-primary-container]="eventModel().simpleModeEnabled"
                 (click)="requestModeChange(true)"
@@ -160,6 +161,7 @@
                 type="button"
                 mat-button
                 data-testid="event-mode-advanced"
+                [disabled]="!modeControlsInteractive()"
                 [attr.aria-pressed]="!eventModel().simpleModeEnabled"
                 [class.bg-primary-container]="!eventModel().simpleModeEnabled"
                 (click)="requestModeChange(false)"
