@@ -1,5 +1,1 @@
-What can we do to reduce the skipped tests to 0?
-
----
-
 Add to our docs as a general guideline, tests HAVE TO pass ENTIRELY locally before a CI run is even attempted.
