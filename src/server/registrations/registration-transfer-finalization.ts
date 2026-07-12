@@ -723,8 +723,9 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
       id: users.id,
     })
     .from(users)
-    .where(inArray(users.id, [transfer.sourceUserId, transfer.recipientUserId]))
-    .for('update');
+    .where(
+      inArray(users.id, [transfer.sourceUserId, transfer.recipientUserId]),
+    );
   const event = eventRows[0];
   const tenant = tenantRows[0];
   const sourceUser = ownerRows.find(

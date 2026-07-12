@@ -8,7 +8,7 @@ import {
   expect,
   it,
 } from '@effect/vitest';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
@@ -887,6 +887,112 @@ describe('database registration concurrency invariants', () => {
         await membershipLock.query('ROLLBACK').catch(() => null);
       }
       membershipLock.release();
+    }
+  }, 30_000);
+
+  it('keeps transfer notification reads out of inverse shared-user lock cycles', async () => {
+    const fixture = await prepareDirectRegistrationFixture(database);
+    fixtures.push(fixture);
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+    const recipientUserId = makeId('recipient', suffix);
+    const recipientMembershipId = makeId('membership', suffix);
+    const sourceRegistrationId = makeId('source-reg', suffix);
+    const recipientRegistrationId = makeId('recipient-reg', suffix);
+
+    await database.insert(users).values({
+      auth0Id: `auth0|recipient-${suffix}`,
+      communicationEmail: `recipient-${suffix}@example.com`,
+      email: `recipient-${suffix}@example.com`,
+      firstName: 'Recipient',
+      id: recipientUserId,
+      lastName: 'Tester',
+    });
+    await database.insert(usersToTenants).values({
+      id: recipientMembershipId,
+      tenantId: fixture.tenantId,
+      userId: recipientUserId,
+    });
+
+    const transferClient = await pool.connect();
+    const registrationClient = await pool.connect();
+    let registrationTransactionOpen = false;
+    let transferTransactionOpen = false;
+
+    try {
+      await transferClient.query('BEGIN');
+      transferTransactionOpen = true;
+      await transferClient.query("SET LOCAL lock_timeout = '5s'");
+      await registrationClient.query('BEGIN');
+      registrationTransactionOpen = true;
+      await registrationClient.query("SET LOCAL lock_timeout = '5s'");
+
+      await transferClient.query(
+        'SELECT id FROM users WHERE id = $1 FOR UPDATE',
+        [recipientUserId],
+      );
+      const registrationInsert = registrationClient.query(
+        `
+          /* inverse-user-lock-regression */
+          INSERT INTO event_registrations
+            (id, "tenantId", "eventId", "registrationOptionId", status, "userId")
+          VALUES
+            ($1, $2, $3, $4, 'PENDING', $5),
+            ($6, $2, $3, $4, 'WAITLIST', $7)
+        `,
+        [
+          sourceRegistrationId,
+          fixture.tenantId,
+          fixture.eventId,
+          fixture.optionId,
+          fixture.userId,
+          recipientRegistrationId,
+          recipientUserId,
+        ],
+      );
+
+      await waitForBlockedQueries(pool, 'inverse-user-lock-regression', 1);
+      const sourceUserRead = await transferClient.query<{ email: string }>(
+        'SELECT email FROM users WHERE id = $1',
+        [fixture.userId],
+      );
+      expect(sourceUserRead.rows).toHaveLength(1);
+      expect(sourceUserRead.rows[0]?.email).toContain('@example.com');
+
+      await transferClient.query('COMMIT');
+      transferTransactionOpen = false;
+      await registrationInsert;
+      await registrationClient.query('COMMIT');
+      registrationTransactionOpen = false;
+
+      const insertedRegistrations =
+        await database.query.eventRegistrations.findMany({
+          where: {
+            id: { in: [sourceRegistrationId, recipientRegistrationId] },
+            tenantId: fixture.tenantId,
+          },
+        });
+      expect(insertedRegistrations).toHaveLength(2);
+    } finally {
+      if (registrationTransactionOpen) {
+        await registrationClient.query('ROLLBACK').catch(() => null);
+      }
+      if (transferTransactionOpen) {
+        await transferClient.query('ROLLBACK').catch(() => null);
+      }
+      registrationClient.release();
+      transferClient.release();
+      await database
+        .delete(eventRegistrations)
+        .where(
+          inArray(eventRegistrations.id, [
+            sourceRegistrationId,
+            recipientRegistrationId,
+          ]),
+        );
+      await database
+        .delete(usersToTenants)
+        .where(eq(usersToTenants.id, recipientMembershipId));
+      await database.delete(users).where(eq(users.id, recipientUserId));
     }
   }, 30_000);
 });

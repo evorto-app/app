@@ -1814,14 +1814,13 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           if (memberships.length !== 1 || !membership) {
             return { _tag: 'NotMember' as const };
           }
-          const lockedRecipients = yield* tx
+          const recipientUsers = yield* tx
             .select({
               communicationEmail: users.communicationEmail,
               email: users.email,
             })
             .from(users)
-            .where(eq(users.id, user.id))
-            .for('update');
+            .where(eq(users.id, user.id));
           const lockedRoleAssignments = yield* tx
             .select({ roleId: rolesToTenantUsers.roleId })
             .from(rolesToTenantUsers)
@@ -1856,10 +1855,10 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               ),
             )
             .for('update');
-          const lockedRecipient = lockedRecipients[0];
+          const recipientUser = recipientUsers[0];
           const lockedOption = lockedTerms[0];
           if (
-            !lockedRecipient ||
+            !recipientUser ||
             !lockedOption ||
             lockedOption.eventStatus !== 'APPROVED' ||
             lockedOption.optionEventId !== transfer.eventId
@@ -2116,14 +2115,14 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               currency: lockedTenant.currency,
               id: paymentTransactionId,
               request: {
-                customerEmail: lockedRecipient.email,
+                customerEmail: recipientUser.email,
                 eventTitle: lockedOption.eventTitle,
                 eventUrl,
                 expiresAt: checkoutExpiresAt,
                 lineItems: checkoutLineItems,
                 notificationEmail:
-                  lockedRecipient.communicationEmail?.trim() ||
-                  lockedRecipient.email,
+                  recipientUser.communicationEmail?.trim() ||
+                  recipientUser.email,
               },
               stripeAccountId: lockedStripeAccountId,
             };
@@ -2469,7 +2468,6 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             })
             .from(users)
             .where(eq(users.id, transfer.sourceUserId))
-            .for('update')
             .limit(1);
           const sourceUser = sourceUsers[0];
           if (!sourceUser) {
@@ -2493,9 +2491,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             recipientUserId: user.id,
             registrationId: recipientRegistrationId,
             tenant: lockedTenant,
-            to:
-              lockedRecipient.communicationEmail?.trim() ||
-              lockedRecipient.email,
+            to: recipientUser.communicationEmail?.trim() || recipientUser.email,
           });
           const completedAt = new Date();
           const nextStatus = refundClaimId ? 'refund_pending' : 'completed';

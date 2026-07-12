@@ -11,6 +11,30 @@ const readSource = (sourcePath: string): string =>
   readFileSync(path.join(repositoryRoot, sourcePath), 'utf8');
 
 describe('generated docs source current behavior', () => {
+  it('seeds cancellation users without a multi-user foreign-key lock cycle', () => {
+    const source = readSource(
+      'tests/docs/events/registration-cancellation.doc.ts',
+    );
+    const scenarioStart = source.indexOf(
+      "test('Cancel a confirmed paid registration and understand its refund'",
+    );
+    const transactionStart = source.indexOf(
+      'await database.insert(schema.transactions)',
+      scenarioStart,
+    );
+    const scenarioSeed = source.slice(scenarioStart, transactionStart);
+
+    expect(
+      scenarioSeed.match(
+        /database\.insert\(schema\.eventRegistrations\)\.values\(\{/gu,
+      ),
+    ).toHaveLength(2);
+    expect(scenarioSeed).not.toContain(
+      'database.insert(schema.eventRegistrations).values([',
+    );
+    expect(scenarioSeed).not.toContain('.transaction(');
+  });
+
   it('keeps tenant general-settings docs aligned with implemented branding and legal routes', () => {
     const source = readSource('tests/docs/admin/general-settings.doc.ts');
 

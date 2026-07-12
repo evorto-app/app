@@ -269,6 +269,11 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   requeues its next idempotency generation, and that cancelling a paid
   non-Stripe registration creates exactly one pending manual refund and
   releases confirmed capacity.
+- `src/db/schema/registration-concurrency.postgres.spec.ts` recreates the
+  inverse shared-user lock timing between a transfer notification read and a
+  parallel multi-user registration insert. It proves the point-in-time email
+  read completes without a global user-row write lock, releases the blocked
+  insert, and commits both registrations under a bounded lock timeout.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted

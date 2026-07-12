@@ -155,6 +155,36 @@ describe('registration transfer claim lock source', () => {
     expect(lockedClaim).toContain('currency: paymentClaim.currency');
   });
 
+  it('does not lock global notification user rows across tenant transfer work', () => {
+    const service = readSiblingSource('./registration-transfer.service.ts');
+    const finalization = readSiblingSource(
+      './registration-transfer-finalization.ts',
+    );
+    const claim = service.slice(
+      service.indexOf('const claimResult = yield* Database.use'),
+      service.indexOf('switch (claimResult._tag)'),
+    );
+    const recipientUserQuery = claim.slice(
+      claim.indexOf('const recipientUsers'),
+      claim.indexOf('const lockedRoleAssignments'),
+    );
+    const sourceUserQuery = claim.slice(
+      claim.indexOf('const sourceUsers'),
+      claim.indexOf('const sourceUser ='),
+    );
+    const finalizationUserQuery = finalization.slice(
+      finalization.indexOf('const ownerRows'),
+      finalization.indexOf('const event ='),
+    );
+
+    expect(recipientUserQuery).toContain('.from(users)');
+    expect(recipientUserQuery).not.toContain(".for('update')");
+    expect(sourceUserQuery).toContain('.from(users)');
+    expect(sourceUserQuery).not.toContain(".for('update')");
+    expect(finalizationUserQuery).toContain('.from(users)');
+    expect(finalizationUserQuery).not.toContain(".for('update')");
+  });
+
   it('reconciles persisted Checkout status and authorizes only transfer-bound cancellation', () => {
     const source = readSiblingSource('./registration-transfer.service.ts');
     const cancellation = source.slice(

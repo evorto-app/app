@@ -124,26 +124,26 @@ test.describe('Participant registration cancellation', () => {
         title: 'Paid participant',
         waitlistSpots: 1,
       });
-      await database.insert(schema.eventRegistrations).values([
-        {
-          basePriceAtRegistration: 2400,
-          eventId,
-          guestCount: 1,
-          id: registrationId,
-          registrationOptionId: optionId,
-          status: 'CONFIRMED',
-          tenantId: tenant.id,
-          userId: participant.id,
-        },
-        {
-          eventId,
-          id: waitlistRegistrationId,
-          registrationOptionId: optionId,
-          status: 'WAITLIST',
-          tenantId: tenant.id,
-          userId: waitlistedParticipant.id,
-        },
-      ]);
+      // Keep shared authenticated-user FK locks in separate autocommit
+      // statements so parallel guides cannot form a cross-user lock cycle.
+      await database.insert(schema.eventRegistrations).values({
+        basePriceAtRegistration: 2400,
+        eventId,
+        guestCount: 1,
+        id: registrationId,
+        registrationOptionId: optionId,
+        status: 'CONFIRMED',
+        tenantId: tenant.id,
+        userId: participant.id,
+      });
+      await database.insert(schema.eventRegistrations).values({
+        eventId,
+        id: waitlistRegistrationId,
+        registrationOptionId: optionId,
+        status: 'WAITLIST',
+        tenantId: tenant.id,
+        userId: waitlistedParticipant.id,
+      });
       await database.insert(schema.transactions).values({
         amount: 2400,
         currency: tenant.currency,
