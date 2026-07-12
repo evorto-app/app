@@ -59,6 +59,7 @@ export class PlatformFinanceReceiptRecord extends Schema.Class<PlatformFinanceRe
   previewImageUrl: Schema.NullOr(Schema.NonEmptyString),
   purchaseCountry: Schema.NonEmptyString,
   receiptDate: Schema.NonEmptyString,
+  receiptEvidenceAvailable: Schema.Boolean,
   refundedAt: Schema.NullOr(Schema.NonEmptyString),
   refundTransactionId: Schema.NullOr(Schema.NonEmptyString),
   rejectionReason: Schema.NullOr(Schema.String),

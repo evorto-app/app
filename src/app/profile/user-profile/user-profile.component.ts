@@ -104,6 +104,15 @@ export const profileEventGuestLabel = (guestCount: number): null | string => {
     : `Includes ${guestCount} guests`;
 };
 
+export const profileEventAudienceLabel = (event: {
+  organizingRegistration: boolean;
+}): string =>
+  event.organizingRegistration ? 'Organizer/helper' : 'Participant';
+
+export const profileEventPassLabel = (event: {
+  organizingRegistration: boolean;
+}): string => (event.organizingRegistration ? 'Pass' : 'Ticket');
+
 export const profileEventNextStepLabel = (event: {
   checkoutUrl: null | string;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
@@ -146,29 +155,51 @@ export const profileEventContinuePaymentUrl = (event: {
 export const profileEventActionNote = (event: {
   checkInTime?: null | string;
   checkoutUrl: null | string;
+  organizingRegistration: boolean;
   paymentState: 'cancelled' | 'notRequired' | 'pending' | 'recorded';
   status: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): string => {
   if (profileEventContinuePaymentUrl(event)) {
+    if (event.organizingRegistration) {
+      return 'Continue payment from this card to confirm your organizer/helper registration. Organizer access starts after payment succeeds.';
+    }
+
     return 'Continue payment from this card, or open the event page for registration details.';
   }
 
   switch (event.status) {
     case 'CONFIRMED': {
       if (event.checkInTime) {
+        if (event.organizingRegistration) {
+          return 'You are checked in. Open the event page for organizer/helper pass details. Cancellation is no longer available after check-in.';
+        }
+
         return 'You are checked in. Open the event page for ticket details. Cancellation and transfer are no longer available after check-in.';
       }
 
-      return 'Open the event page for ticket access, participant cancellation, and unpaid self-service transfer when available.';
+      if (event.organizingRegistration) {
+        return 'Open the event page for your organizer/helper pass, event management access, and current cancellation details.';
+      }
+
+      return 'Open the event page for ticket access and the current availability of cancellation and unpaid self-service transfer.';
     }
     case 'PENDING': {
       if (event.paymentState === 'pending') {
-        return 'Payment setup is still in progress. Open the event page for the latest payment link or to cancel the registration.';
+        if (event.organizingRegistration) {
+          return 'Payment setup is still in progress. Open the event page for the latest payment link. Organizer access starts only after payment succeeds.';
+        }
+
+        return 'Payment setup is still in progress. Open the event page for the latest payment link and current cancellation status.';
       }
-      return 'Open the event page for pending-registration details and available cancellation actions.';
+
+      if (event.organizingRegistration) {
+        return 'Open the event page for organizer/helper application and cancellation status. Organizer access starts only after approval and any required payment.';
+      }
+
+      return 'Open the event page for pending-registration details and current cancellation status.';
     }
     case 'WAITLIST': {
-      return 'Open the event page for waitlist details and the leave-waitlist action.';
+      return 'Open the event page for waitlist details and current cancellation status.';
     }
   }
 };
@@ -323,7 +354,6 @@ export class UserProfileComponent {
   protected readonly faPencil = faPencil;
   protected readonly faReceipt = faReceipt;
   protected readonly faRightFromBracket = faRightFromBracket;
-
   protected readonly faTags = faTags;
   protected readonly faUser = faUser;
 
@@ -337,18 +367,21 @@ export class UserProfileComponent {
       (card) => card.type === 'esnCard' && card.status === 'verified',
     );
   });
+
   protected readonly myReceiptsQuery = injectQuery(() =>
     this.rpc.finance.receipts.my.queryOptions(),
   );
   protected readonly profileEditActionDisabled = profileEditActionDisabled;
   protected readonly profileEventActionNote = profileEventActionNote;
+  protected readonly profileEventAudienceLabel = profileEventAudienceLabel;
   protected readonly profileEventContinuePaymentUrl =
     profileEventContinuePaymentUrl;
   protected readonly profileEventDetailActionLabel =
     profileEventDetailActionLabel;
   protected readonly profileEventGuestLabel = profileEventGuestLabel;
-
   protected readonly profileEventNextStepLabel = profileEventNextStepLabel;
+
+  protected readonly profileEventPassLabel = profileEventPassLabel;
   protected readonly profileReceiptStatusLabel = profileReceiptStatusLabel;
   protected readonly refreshCardMutation = injectMutation(() =>
     this.rpc.discounts.refreshMyCard.mutationOptions(),

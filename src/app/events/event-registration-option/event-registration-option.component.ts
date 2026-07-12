@@ -83,6 +83,19 @@ export const registrationOptionAudienceCopy = (
   label: string;
   primaryAction: string;
 } => {
+  if (
+    option.organizingRegistration &&
+    option.registrationMode === 'application'
+  ) {
+    return {
+      actionSuffix: 'apply as organizer/helper',
+      helperText:
+        'Applying does not confirm organizer access. An organizer reviews your application first; if this option has a fee, payment starts only after approval.',
+      label: 'Organizer/helper application',
+      primaryAction: 'Apply as organizer/helper',
+    };
+  }
+
   if (option.organizingRegistration) {
     return {
       actionSuffix: 'sign up as organizer/helper',
@@ -334,6 +347,9 @@ export class EventRegistrationOptionComponent {
       this.registrationOption().registrationMode !== 'application' &&
       this.selectedTotalPrice() > 0,
   );
+  protected readonly registrationModeSupported = computed(
+    () => this.registrationOption().registrationMode !== 'random',
+  );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),
   });
@@ -430,16 +446,7 @@ export class EventRegistrationOptionComponent {
       },
       {
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.getRegistrationStatus.queryKey({
-              eventId: registrationOption.eventId,
-            }),
-          });
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.findOne.queryKey({
-              id: registrationOption.eventId,
-            }),
-          });
+          await this.refreshRegistrationState(registrationOption.eventId);
         },
       },
     );
@@ -474,16 +481,7 @@ export class EventRegistrationOptionComponent {
       },
       {
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.getRegistrationStatus.queryKey({
-              eventId: registrationOption.eventId,
-            }),
-          });
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.findOne.queryKey({
-              id: registrationOption.eventId,
-            }),
-          });
+          await this.refreshRegistrationState(registrationOption.eventId);
         },
       },
     );
@@ -542,5 +540,25 @@ export class EventRegistrationOptionComponent {
 
   protected errorMessage(error: unknown): string {
     return getErrorMessage(error, 'Unknown error');
+  }
+
+  private async refreshRegistrationState(eventId: string): Promise<void> {
+    await Promise.all([
+      this.queryClient.invalidateQueries({
+        queryKey: this.rpc.events.getRegistrationStatus.queryKey({ eventId }),
+      }),
+      this.queryClient.invalidateQueries({
+        queryKey: this.rpc.events.findOne.queryKey({ id: eventId }),
+      }),
+      this.queryClient.invalidateQueries({
+        queryKey: this.rpc.events.canOrganize.queryKey({ eventId }),
+      }),
+      this.queryClient.invalidateQueries({
+        queryKey: this.rpc.users.canUseScanner.queryKey(),
+      }),
+      this.queryClient.invalidateQueries({
+        queryKey: this.rpc.users.events.queryKey(),
+      }),
+    ]);
   }
 }

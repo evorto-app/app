@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  eventOrganizeCapabilities,
   groupEventsByTenantDay,
   organizeOverviewAccessAllowed,
   organizerRegistrationApprovalState,
@@ -29,6 +30,40 @@ describe('organizeOverviewAccessAllowed', () => {
         permissions: [],
       }),
     ).toBe(false);
+  });
+
+  it('keeps receipt access separate from registration-management capabilities', () => {
+    expect(
+      eventOrganizeCapabilities({
+        confirmedOrganizerRegistration: false,
+        permissions: ['finance:manageReceipts'],
+      }),
+    ).toEqual({
+      canApproveRegistrations: false,
+      canCancelRegistrations: false,
+      canTransferRegistrations: false,
+      canViewOverview: true,
+    });
+  });
+
+  it('requires the explicit cancellation permission even for confirmed organizers', () => {
+    expect(
+      eventOrganizeCapabilities({
+        confirmedOrganizerRegistration: true,
+        permissions: [],
+      }),
+    ).toEqual({
+      canApproveRegistrations: true,
+      canCancelRegistrations: false,
+      canTransferRegistrations: true,
+      canViewOverview: true,
+    });
+    expect(
+      eventOrganizeCapabilities({
+        confirmedOrganizerRegistration: true,
+        permissions: ['events:cancelRegistrations'],
+      }).canCancelRegistrations,
+    ).toBe(true);
   });
 });
 

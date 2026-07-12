@@ -149,6 +149,7 @@ export const UsersEventSummaryRecord = Schema.Struct({
   end: Schema.String,
   eventId: Schema.NonEmptyString,
   guestCount: Schema.Number,
+  organizingRegistration: Schema.Boolean,
   paymentState: literalUnion('cancelled', 'notRequired', 'pending', 'recorded'),
   registrationId: Schema.NonEmptyString,
   registrationOptionTitle: Schema.NonEmptyString,

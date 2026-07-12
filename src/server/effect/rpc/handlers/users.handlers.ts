@@ -370,6 +370,7 @@ export const userHandlers = {
             },
             registrationOption: {
               columns: {
+                organizingRegistration: true,
                 title: true,
               },
             },
@@ -422,6 +423,8 @@ export const userHandlers = {
           ),
           event: registration.event,
           guestCount: registration.guestCount,
+          organizingRegistration:
+            registration.registrationOption.organizingRegistration,
           paymentState: resolveRegistrationPaymentState(
             registration.transactions,
           ),
@@ -445,6 +448,7 @@ export const userHandlers = {
           end: registration.event.end.toISOString(),
           eventId: registration.event.id,
           guestCount: registration.guestCount,
+          organizingRegistration: registration.organizingRegistration,
           paymentState: registration.paymentState,
           registrationId: registration.registrationId,
           registrationOptionTitle: registration.registrationOptionTitle,

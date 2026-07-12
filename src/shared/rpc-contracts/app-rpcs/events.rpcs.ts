@@ -438,10 +438,19 @@ export const EventsGetOrganizeOverviewUser = Schema.Struct({
 });
 
 export const EventsGetOrganizeOverviewOption = Schema.Struct({
+  canApproveRegistrations: Schema.Boolean,
+  canCancelRegistrations: Schema.Boolean,
+  canTransferRegistrations: Schema.Boolean,
   organizingRegistration: Schema.Boolean,
   registrationOptionId: Schema.NonEmptyString,
   registrationOptionTitle: Schema.NonEmptyString,
   users: Schema.Array(EventsGetOrganizeOverviewUser),
+});
+
+export const EventsGetOrganizeOverviewStats = Schema.Struct({
+  capacity: NonNegativeInteger,
+  checkedIn: NonNegativeInteger,
+  registered: NonNegativeInteger,
 });
 
 export const EventsGetOrganizeOverview = asRpcQuery(
@@ -450,7 +459,10 @@ export const EventsGetOrganizeOverview = asRpcQuery(
     payload: Schema.Struct({
       eventId: Schema.NonEmptyString,
     }),
-    success: Schema.Array(EventsGetOrganizeOverviewOption),
+    success: Schema.Struct({
+      registrationOptions: Schema.Array(EventsGetOrganizeOverviewOption),
+      stats: EventsGetOrganizeOverviewStats,
+    }),
   }),
 );
 
@@ -544,6 +556,13 @@ export const EventsRegistrationTransferBlockedReason = Schema.Literals([
   'deadlinePassed',
 ]);
 
+export const EventsRegistrationCancellationBlockedReason = Schema.Literals([
+  'none',
+  'checkedIn',
+  'eventStarted',
+  'deadlinePassed',
+]);
+
 export const EventsRegistrationStatusRecord = Schema.Struct({
   activeTransfer: Schema.NullOr(
     Schema.Struct({
@@ -570,10 +589,13 @@ export const EventsRegistrationStatusRecord = Schema.Struct({
     Schema.NullOr(Schema.Literal('esnCard')),
   ),
   basePriceAtRegistration: Schema.optional(Schema.NullOr(Schema.Number)),
+  cancellationAvailable: Schema.Boolean,
+  cancellationBlockedReason: EventsRegistrationCancellationBlockedReason,
   checkoutUrl: Schema.optional(Schema.NullOr(Schema.String)),
   discountAmount: Schema.optional(Schema.NullOr(Schema.Number)),
   guestCount: Schema.Number,
   id: Schema.NonEmptyString,
+  organizingRegistration: Schema.Boolean,
   paymentPending: Schema.Boolean,
   registeredDescription: Schema.optional(Schema.NullOr(Schema.String)),
   registrationAddOns: Schema.Array(EventsRegistrationAddonRecord),

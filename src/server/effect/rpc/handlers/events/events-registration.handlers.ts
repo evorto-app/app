@@ -410,6 +410,49 @@ export const hasReachedRegistrationCancellationDeadline = ({
   now.getTime() >=
   eventStart.getTime() - deadlineHoursBeforeStart * 60 * 60 * 1000;
 
+export const registrationCancellationAvailability = (input: {
+  readonly checkInTime: Date | null;
+  readonly deadlineHoursBeforeStart: number;
+  readonly eventStart: Date;
+  readonly now: Date;
+}): {
+  readonly cancellationAvailable: boolean;
+  readonly cancellationBlockedReason:
+    'checkedIn' | 'deadlinePassed' | 'eventStarted' | 'none';
+} => {
+  if (input.checkInTime !== null) {
+    return {
+      cancellationAvailable: false,
+      cancellationBlockedReason: 'checkedIn',
+    };
+  }
+
+  if (input.eventStart.getTime() <= input.now.getTime()) {
+    return {
+      cancellationAvailable: false,
+      cancellationBlockedReason: 'eventStarted',
+    };
+  }
+
+  if (
+    hasReachedRegistrationCancellationDeadline({
+      deadlineHoursBeforeStart: input.deadlineHoursBeforeStart,
+      eventStart: input.eventStart,
+      now: input.now,
+    })
+  ) {
+    return {
+      cancellationAvailable: false,
+      cancellationBlockedReason: 'deadlinePassed',
+    };
+  }
+
+  return {
+    cancellationAvailable: true,
+    cancellationBlockedReason: 'none',
+  };
+};
+
 export const registrationCancellationStripeRefundTerms = ({
   grossAmount,
   refundFeesOnCancellation,
@@ -766,7 +809,7 @@ export const cancelRegistrationForTenant = Effect.fn(
   Database | StripeClient
 > {
   const stripe = yield* StripeClient;
-  const now = new Date();
+  const now = yield* registrationHandlerNow;
 
   const registration = yield* databaseEffect((database) =>
     database.query.eventRegistrations.findFirst({
@@ -3499,6 +3542,8 @@ export const eventRegistrationHandlers = {
             },
             registrationOption: {
               columns: {
+                cancellationDeadlineHoursBeforeStart: true,
+                organizingRegistration: true,
                 price: true,
                 registeredDescription: true,
                 title: true,
@@ -3695,6 +3740,10 @@ export const eventRegistrationHandlers = {
             `Registration option missing for registration ${registration.id}`,
           );
         }
+        const event = registration.event;
+        if (!event) {
+          throw new Error(`Event missing for registration ${registration.id}`);
+        }
 
         const registrationTransaction = registration.transactions.find(
           (transaction) =>
@@ -3854,6 +3903,15 @@ export const eventRegistrationHandlers = {
             tenant.transferDeadlineHoursBeforeStart ??
             0,
         });
+        const cancellationAvailability = registrationCancellationAvailability({
+          checkInTime: registration.checkInTime,
+          deadlineHoursBeforeStart: resolveCancellationDeadlineHoursBeforeStart(
+            registrationOption.cancellationDeadlineHoursBeforeStart,
+            tenant.cancellationDeadlineHoursBeforeStart,
+          ),
+          eventStart: event.start,
+          now,
+        });
 
         return {
           activeTransfer,
@@ -3871,6 +3929,7 @@ export const eventRegistrationHandlers = {
           appliedDiscountedPrice: discountedPrice,
           appliedDiscountType,
           basePriceAtRegistration,
+          ...cancellationAvailability,
           checkoutUrl: registration.transactions.find(
             (transaction) =>
               transaction.method === 'stripe' &&
@@ -3879,6 +3938,7 @@ export const eventRegistrationHandlers = {
           discountAmount,
           guestCount: registration.guestCount,
           id: registration.id,
+          organizingRegistration: registrationOption.organizingRegistration,
           paymentPending: registration.transactions.some(
             (transaction) =>
               transaction.status === 'pending' &&

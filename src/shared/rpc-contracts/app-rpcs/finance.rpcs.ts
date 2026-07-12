@@ -117,6 +117,7 @@ export const FinanceReceiptForApprovalRecord = extendStruct(
   Schema.Struct({
     eventStart: Schema.NonEmptyString,
     eventTitle: Schema.NonEmptyString,
+    receiptEvidenceAvailable: Schema.Boolean,
   }),
 );
 export type FinanceReceiptForApprovalRecord = Schema.Schema.Type<

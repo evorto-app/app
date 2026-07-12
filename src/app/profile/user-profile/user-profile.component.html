@@ -132,6 +132,12 @@
                     </div>
                     <dl class="grid gap-1 text-sm">
                       <div>
+                        <dt class="text-on-surface-variant inline">Type:</dt>
+                        <dd class="inline">
+                          {{ profileEventAudienceLabel(event) }}
+                        </dd>
+                      </div>
+                      <div>
                         <dt class="text-on-surface-variant inline">Option:</dt>
                         <dd class="inline">
                           {{ event.registrationOptionTitle }}
@@ -191,7 +197,7 @@
                       @if (event.status === "CONFIRMED" && !event.checkInTime) {
                         <div>
                           <dt class="text-on-surface-variant inline">
-                            Ticket:
+                            {{ profileEventPassLabel(event) }}:
                           </dt>
                           <dd class="inline">Available on the event page.</dd>
                         </div>

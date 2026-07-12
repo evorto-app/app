@@ -55,16 +55,33 @@ const hasSuccessfulPaidRegistrationTransaction = (
       transaction.status === 'successful' && transaction.amount > 0,
   );
 
-export const organizeOverviewAccessAllowed = ({
+export const eventOrganizeCapabilities = ({
   confirmedOrganizerRegistration,
   permissions,
 }: {
   confirmedOrganizerRegistration: boolean;
   permissions: readonly Permission[];
-}): boolean =>
-  includesPermission('events:organizeAll', permissions) ||
-  includesPermission('finance:manageReceipts', permissions) ||
-  confirmedOrganizerRegistration;
+}) => {
+  const canManageRegistrations =
+    includesPermission('events:organizeAll', permissions) ||
+    confirmedOrganizerRegistration;
+
+  return {
+    canApproveRegistrations: canManageRegistrations,
+    canCancelRegistrations:
+      canManageRegistrations &&
+      includesPermission('events:cancelRegistrations', permissions),
+    canTransferRegistrations: canManageRegistrations,
+    canViewOverview:
+      canManageRegistrations ||
+      includesPermission('finance:manageReceipts', permissions),
+  };
+};
+
+export const organizeOverviewAccessAllowed = (input: {
+  confirmedOrganizerRegistration: boolean;
+  permissions: readonly Permission[];
+}): boolean => eventOrganizeCapabilities(input).canViewOverview;
 
 const canOrganizeEvent = Effect.fn('Events.canOrganizeEvent')(function* ({
   eventId,
@@ -994,6 +1011,24 @@ export const eventQueryHandlers = {
         );
       }
 
+      const registrationOptionAggregates = yield* databaseEffect((database) =>
+        database
+          .select({
+            checkedInSpots: eventRegistrationOptions.checkedInSpots,
+            confirmedSpots: eventRegistrationOptions.confirmedSpots,
+            spots: eventRegistrationOptions.spots,
+          })
+          .from(eventRegistrationOptions)
+          .innerJoin(
+            eventInstances,
+            and(
+              eq(eventInstances.id, eventRegistrationOptions.eventId),
+              eq(eventInstances.tenantId, tenant.id),
+            ),
+          )
+          .where(eq(eventRegistrationOptions.eventId, eventId)),
+      );
+
       const registrations = yield* databaseEffect((database) =>
         database.query.eventRegistrations.findMany({
           columns: {
@@ -1070,6 +1105,15 @@ export const eventQueryHandlers = {
               registration.registrationOption.registrationMode ===
                 'application')),
       );
+      const capabilities = eventOrganizeCapabilities({
+        confirmedOrganizerRegistration: registrationsWithRelations.some(
+          (registration) =>
+            registration.status === 'CONFIRMED' &&
+            registration.user.id === user.id &&
+            registration.registrationOption.organizingRegistration,
+        ),
+        permissions: user.permissions,
+      });
 
       type Registration = (typeof registrationsWithRelations)[number];
       const groupedRegistrations = groupBy(
@@ -1094,97 +1138,117 @@ export const eventQueryHandlers = {
         );
       });
 
-      return sortedOptions.map(([registrationOptionId, registrationRows]) => {
-        const sortedUsers = registrationRows
-          .toSorted((registrationA, registrationB) => {
-            if (
-              (registrationA.checkInTime === null) !==
-              (registrationB.checkInTime === null)
-            ) {
-              return registrationA.checkInTime === null ? -1 : 1;
-            }
+      const registrationOptions = sortedOptions.map(
+        ([registrationOptionId, registrationRows]) => {
+          const sortedUsers = registrationRows
+            .toSorted((registrationA, registrationB) => {
+              if (
+                (registrationA.checkInTime === null) !==
+                (registrationB.checkInTime === null)
+              ) {
+                return registrationA.checkInTime === null ? -1 : 1;
+              }
 
-            const firstNameCompare = registrationA.user.firstName.localeCompare(
-              registrationB.user.firstName,
-            );
-            if (firstNameCompare !== 0) {
-              return firstNameCompare;
-            }
+              const firstNameCompare =
+                registrationA.user.firstName.localeCompare(
+                  registrationB.user.firstName,
+                );
+              if (firstNameCompare !== 0) {
+                return firstNameCompare;
+              }
 
-            return registrationA.user.lastName.localeCompare(
-              registrationB.user.lastName,
-            );
-          })
-          .map((registration) => {
-            const registrationOption = registration.registrationOption;
-            const approvalState = organizerRegistrationApprovalState({
-              registrationMode: registrationOption.registrationMode,
-              registrationStatus: registration.status,
-              transactions: registration.transactions,
+              return registrationA.user.lastName.localeCompare(
+                registrationB.user.lastName,
+              );
+            })
+            .map((registration) => {
+              const registrationOption = registration.registrationOption;
+              const approvalState = organizerRegistrationApprovalState({
+                registrationMode: registrationOption.registrationMode,
+                registrationStatus: registration.status,
+                transactions: registration.transactions,
+              });
+              const discountedPriceFromTransaction =
+                registration.transactions.find(
+                  (transaction) =>
+                    transaction.amount < registrationOption.price,
+                )?.amount;
+              const appliedDiscountedPrice =
+                registration.appliedDiscountedPrice ??
+                discountedPriceFromTransaction ??
+                null;
+              const appliedDiscountType =
+                registration.appliedDiscountType ??
+                (appliedDiscountedPrice === null ? null : ('esnCard' as const));
+              const basePriceAtRegistration =
+                registration.basePriceAtRegistration ??
+                (appliedDiscountedPrice === null
+                  ? null
+                  : registrationOption.price);
+              const discountAmount =
+                registration.discountAmount ??
+                (appliedDiscountedPrice === null
+                  ? null
+                  : registrationOption.price - appliedDiscountedPrice);
+
+              return {
+                addonPurchases: registration.addonPurchases.flatMap(
+                  (purchase) =>
+                    purchase.addOn
+                      ? [
+                          {
+                            quantity: purchase.quantity,
+                            title: purchase.addOn.title,
+                            unitPrice: purchase.unitPrice,
+                          },
+                        ]
+                      : [],
+                ),
+                appliedDiscountedPrice,
+                appliedDiscountType,
+                basePriceAtRegistration,
+                checkedIn: registration.checkInTime !== null,
+                checkInTime: registration.checkInTime?.toISOString() ?? null,
+                discountAmount,
+                email: registration.user.email,
+                firstName: registration.user.firstName,
+                lastName: registration.user.lastName,
+                ...approvalState,
+                registrationId: registration.id,
+                status: registration.status,
+                transferAvailable:
+                  organizerRegistrationTransferAvailable({
+                    checkInTime: registration.checkInTime,
+                    eventStart: registration.event?.start ?? null,
+                    transactions: registration.transactions,
+                  }) && registration.status === 'CONFIRMED',
+                userId: registration.user.id,
+              };
             });
-            const discountedPriceFromTransaction =
-              registration.transactions.find(
-                (transaction) => transaction.amount < registrationOption.price,
-              )?.amount;
-            const appliedDiscountedPrice =
-              registration.appliedDiscountedPrice ??
-              discountedPriceFromTransaction ??
-              null;
-            const appliedDiscountType =
-              registration.appliedDiscountType ??
-              (appliedDiscountedPrice === null ? null : ('esnCard' as const));
-            const basePriceAtRegistration =
-              registration.basePriceAtRegistration ??
-              (appliedDiscountedPrice === null
-                ? null
-                : registrationOption.price);
-            const discountAmount =
-              registration.discountAmount ??
-              (appliedDiscountedPrice === null
-                ? null
-                : registrationOption.price - appliedDiscountedPrice);
 
-            return {
-              addonPurchases: registration.addonPurchases.flatMap((purchase) =>
-                purchase.addOn
-                  ? [
-                      {
-                        quantity: purchase.quantity,
-                        title: purchase.addOn.title,
-                        unitPrice: purchase.unitPrice,
-                      },
-                    ]
-                  : [],
-              ),
-              appliedDiscountedPrice,
-              appliedDiscountType,
-              basePriceAtRegistration,
-              checkedIn: registration.checkInTime !== null,
-              checkInTime: registration.checkInTime?.toISOString() ?? null,
-              discountAmount,
-              email: registration.user.email,
-              firstName: registration.user.firstName,
-              lastName: registration.user.lastName,
-              ...approvalState,
-              registrationId: registration.id,
-              status: registration.status,
-              transferAvailable:
-                organizerRegistrationTransferAvailable({
-                  checkInTime: registration.checkInTime,
-                  eventStart: registration.event?.start ?? null,
-                  transactions: registration.transactions,
-                }) && registration.status === 'CONFIRMED',
-              userId: registration.user.id,
-            };
-          });
+          return {
+            canApproveRegistrations: capabilities.canApproveRegistrations,
+            canCancelRegistrations: capabilities.canCancelRegistrations,
+            canTransferRegistrations: capabilities.canTransferRegistrations,
+            organizingRegistration:
+              registrationRows[0].registrationOption.organizingRegistration,
+            registrationOptionId,
+            registrationOptionTitle:
+              registrationRows[0].registrationOption.title,
+            users: sortedUsers,
+          };
+        },
+      );
+      const stats = { capacity: 0, checkedIn: 0, registered: 0 };
+      for (const option of registrationOptionAggregates) {
+        stats.capacity += option.spots;
+        stats.checkedIn += option.checkedInSpots;
+        stats.registered += option.confirmedSpots;
+      }
 
-        return {
-          organizingRegistration:
-            registrationRows[0].registrationOption.organizingRegistration,
-          registrationOptionId,
-          registrationOptionTitle: registrationRows[0].registrationOption.title,
-          users: sortedUsers,
-        };
-      });
+      return {
+        registrationOptions,
+        stats,
+      };
     }),
 } satisfies Partial<AppRpcHandlers>;

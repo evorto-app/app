@@ -4,15 +4,19 @@
     track registration.id;
     let first = $first
   ) {
+    @let audience = registrationAudienceCopy(registration);
     <article
       class="grid grid-cols-1 gap-4 py-5 @md:grid-cols-2"
       [class.border-outline-variant]="!first"
       [class.border-t]="!first"
       [class.pt-0]="first"
     >
-      <h3 class="title-medium @md:col-span-2">
-        {{ registration.registrationOptionTitle }}
-      </h3>
+      <div class="grid gap-1 @md:col-span-2">
+        <p class="label-medium text-primary">{{ audience.audienceLabel }}</p>
+        <h3 class="title-medium">
+          {{ registration.registrationOptionTitle }}
+        </h3>
+      </div>
       @if (registration.guestCount > 0) {
         <p class="body-medium text-on-surface-variant @md:col-span-2">
           Includes {{ registration.guestCount }}
@@ -42,8 +46,8 @@
             registrationCheckoutUrl(registration.checkoutUrl);
             as registrationCheckoutUrl
           ) {
-            <div class="text-warning @md:col-span-2">
-              Complete payment to confirm your registration.
+            <div class="text-warning @md:col-span-2" role="status">
+              {{ audience.paymentPendingStatus }}
             </div>
             <a [href]="registrationCheckoutUrl" mat-flat-button> Pay now </a>
           } @else if (registration.checkoutUrl) {
@@ -61,36 +65,35 @@
             </div>
           }
         } @else {
-          <div class="text-warning @md:col-span-2">
-            Your registration is pending organizer approval.
+          <div class="text-warning @md:col-span-2" role="status">
+            {{ audience.pendingApprovalStatus }}
           </div>
         }
       } @else if (registration.status === "WAITLIST") {
-        <div class="text-warning @md:col-span-2">
+        <div class="text-warning @md:col-span-2" role="status">
           You are currently on the waitlist. We will contact you if a spot
           becomes available.
         </div>
       } @else if (registration.status === "CONFIRMED") {
+        <div class="text-success @md:col-span-2" role="status">
+          {{ audience.confirmedStatus }}
+        </div>
         @if (registration.registeredDescription) {
           <div
             class="prose dark:prose-invert max-w-none @md:col-span-2"
             [innerHtml]="registration.registeredDescription"
           ></div>
-        } @else {
-          <div class="text-success @md:col-span-2">
-            Your registration is confirmed
-          </div>
         }
         <div
           class="bg-surface-container-high text-on-surface flex flex-col gap-4 rounded-lg p-4"
         >
-          <p class="title-medium">Your event ticket</p>
+          <p class="title-medium">{{ audience.passHeading }}</p>
           <img
             ngSrc="/qr/registration/{{ registration.id }}"
             priority
             width="200"
             height="200"
-            alt="QR code for the registration"
+            [alt]="audience.qrAlt"
           />
         </div>
       }
@@ -417,30 +420,32 @@
           <p class="body-small text-on-surface-variant">
             {{ cancellation.helperText }}
           </p>
-          @if (registrationHasPendingAddonPayment(registration)) {
-            <p class="body-small text-on-surface-variant" role="status">
-              Finish or let the pending add-on checkout expire before cancelling
-              this registration.
-            </p>
+          @if (cancellation.buttonLabel; as cancellationButtonLabel) {
+            @if (registrationHasPendingAddonPayment(registration)) {
+              <p class="body-small text-on-surface-variant" role="status">
+                Finish or let the pending add-on checkout expire before
+                cancelling this registration.
+              </p>
+            }
+            <button
+              type="button"
+              mat-stroked-button
+              (click)="cancelRegistration(registration)"
+              [disabled]="
+                registrationCancellationActionDisabled({
+                  addonPurchasePending:
+                    purchaseRegistrationAddonMutation.isPending() ||
+                    registrationHasPendingAddonPayment(registration),
+                  cancellationPending: cancelRegistrationMutation.isPending(),
+                  transferPending:
+                    transferRegistrationMutation.isPending() ||
+                    cancelTransferMutation.isPending(),
+                })
+              "
+            >
+              {{ cancellationButtonLabel }}
+            </button>
           }
-          <button
-            type="button"
-            mat-stroked-button
-            (click)="cancelRegistration(registration)"
-            [disabled]="
-              registrationCancellationActionDisabled({
-                addonPurchasePending:
-                  purchaseRegistrationAddonMutation.isPending() ||
-                  registrationHasPendingAddonPayment(registration),
-                cancellationPending: cancelRegistrationMutation.isPending(),
-                transferPending:
-                  transferRegistrationMutation.isPending() ||
-                  cancelTransferMutation.isPending(),
-              })
-            "
-          >
-            {{ cancellation.buttonLabel }}
-          </button>
         </div>
       }
 

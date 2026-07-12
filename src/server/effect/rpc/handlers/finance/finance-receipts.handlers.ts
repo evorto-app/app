@@ -39,6 +39,8 @@ import {
   validateReceiptCountryForTenant,
 } from './finance.shared';
 import {
+  ensureReceiptEvidenceAvailableForApproval,
+  hasValidReceiptUploadBinding,
   withSignedReceiptPreviewUrl,
   withSignedReceiptPreviewUrls,
 } from './receipt-media.service';
@@ -75,6 +77,46 @@ const financeReceiptUploadJoin = and(
   eq(financeReceipts.eventId, financeReceiptUploads.eventId),
   eq(financeReceipts.submittedByUserId, financeReceiptUploads.uploadedByUserId),
 );
+
+const loadReceiptEvidenceForApproval = Effect.fn(
+  'FinanceReceipts.loadReceiptEvidenceForApproval',
+)(function* (tenantId: string, receiptId: string) {
+  const receiptRows = yield* databaseEffect((database) =>
+    database
+      .select(financeReceiptView)
+      .from(financeReceipts)
+      .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
+      .where(
+        and(
+          eq(financeReceipts.id, receiptId),
+          eq(financeReceipts.tenantId, tenantId),
+        ),
+      )
+      .limit(1),
+  );
+  const receipt = receiptRows[0];
+  if (!receipt) {
+    return yield* new FinanceReceiptNotFoundError({
+      id: receiptId,
+      message: 'Receipt not found',
+      resource: 'receipt',
+    });
+  }
+  if (receipt.status !== 'submitted') {
+    return yield* new RpcBadRequestError({
+      message:
+        receipt.status === 'refunded'
+          ? 'Refunded receipts cannot be reviewed again'
+          : 'Only submitted receipts can be reviewed',
+      reason:
+        receipt.status === 'refunded'
+          ? 'refundedReceipt'
+          : 'receiptAlreadyReviewed',
+    });
+  }
+
+  return yield* ensureReceiptEvidenceAvailableForApproval(receipt);
+});
 
 export const financeReceiptSubmitterEmail = (submitter: {
   submittedByCommunicationEmail: null | string;
@@ -366,6 +408,7 @@ export const financeReceiptsHandlers = {
         ...normalizeFinanceReceiptBaseRecord(signedReceipt),
         eventStart: signedReceipt.eventStart.toISOString(),
         eventTitle: signedReceipt.eventTitle,
+        receiptEvidenceAvailable: signedReceipt.receiptEvidenceAvailable,
         submittedByEmail: financeReceiptSubmitterEmail(signedReceipt),
         submittedByFirstName: signedReceipt.submittedByFirstName,
         submittedByLastName: signedReceipt.submittedByLastName,
@@ -654,11 +697,17 @@ export const financeReceiptsHandlers = {
         );
       }
 
+      const approvalEvidence =
+        input.status === 'approved'
+          ? yield* loadReceiptEvidenceForApproval(tenant.id, input.id)
+          : null;
+
       return yield* financeDatabaseEffect((database) =>
         database.transaction((tx) =>
           Effect.gen(function* () {
             const receiptRows = yield* tx
               .select({
+                attachmentUploadId: financeReceipts.attachmentUploadId,
                 eventTitle: eventInstances.title,
                 id: financeReceipts.id,
                 status: financeReceipts.status,
@@ -699,6 +748,46 @@ export const financeReceiptsHandlers = {
                     : 'receiptAlreadyReviewed',
               });
             }
+            if (
+              approvalEvidence &&
+              receiptRecord.attachmentUploadId !==
+                approvalEvidence.attachmentUploadId
+            ) {
+              return yield* new RpcBadRequestError({
+                message: 'Receipt evidence changed before approval',
+                reason: 'receiptEvidenceUnavailable',
+              });
+            }
+            if (approvalEvidence) {
+              const lockedEvidenceRows = yield* tx
+                .select(financeReceiptView)
+                .from(financeReceipts)
+                .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
+                .where(
+                  and(
+                    eq(financeReceipts.id, input.id),
+                    eq(financeReceipts.tenantId, tenant.id),
+                    eq(
+                      financeReceipts.attachmentUploadId,
+                      approvalEvidence.attachmentUploadId,
+                    ),
+                  ),
+                )
+                .limit(1)
+                .for('share', { of: financeReceiptUploads });
+              const lockedEvidence = lockedEvidenceRows[0];
+              if (
+                !lockedEvidence ||
+                !hasValidReceiptUploadBinding(lockedEvidence) ||
+                lockedEvidence.attachmentStorageKey !==
+                  approvalEvidence.storageKey
+              ) {
+                return yield* new RpcBadRequestError({
+                  message: 'Receipt evidence changed before approval',
+                  reason: 'receiptEvidenceUnavailable',
+                });
+              }
+            }
 
             const updatedRows = yield* tx
               .update(financeReceipts)
@@ -724,6 +813,12 @@ export const financeReceiptsHandlers = {
                   eq(financeReceipts.tenantId, tenant.id),
                   eq(financeReceipts.id, input.id),
                   eq(financeReceipts.status, 'submitted'),
+                  approvalEvidence
+                    ? eq(
+                        financeReceipts.attachmentUploadId,
+                        approvalEvidence.attachmentUploadId,
+                      )
+                    : undefined,
                 ),
               )
               .returning({

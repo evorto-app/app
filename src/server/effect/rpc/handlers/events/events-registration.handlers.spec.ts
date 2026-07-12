@@ -40,6 +40,7 @@ import {
   mapRegistrationMutationInternalError,
   planNonStripeCancellationRefund,
   registrationAddonPurchaseAvailability,
+  registrationCancellationAvailability,
   registrationCancellationStripeRefundTerms,
   registrationTransferBlockedReason,
   resolveCancellationDeadlineHoursBeforeStart,
@@ -1391,6 +1392,8 @@ describe('event registration owner add-on status', () => {
           guestCount: 0,
           id: 'registration-1',
           registrationOption: {
+            cancellationDeadlineHoursBeforeStart: null,
+            organizingRegistration: false,
             price: 1200,
             registeredDescription: null,
             title: 'Participant',
@@ -1593,6 +1596,9 @@ describe('event registration owner add-on status', () => {
         );
         expect(availableRegistration).toEqual(
           expect.objectContaining({
+            cancellationAvailable: true,
+            cancellationBlockedReason: 'none',
+            organizingRegistration: false,
             transferAvailable: true,
             transferBlockedReason: 'none',
           }),
@@ -1844,6 +1850,82 @@ describe('event registration cancellation handlers', () => {
     expect(resolveCancellationDeadlineHoursBeforeStart(0, 120)).toBe(0);
     expect(resolveRefundFeesOnCancellation(null, true)).toBe(true);
     expect(resolveRefundFeesOnCancellation(false, true)).toBe(false);
+  });
+
+  it('derives owner cancellation availability from the effective deadline', () => {
+    const eventStart = new Date('2026-09-19T09:00:00.000Z');
+    const beforeDeadline = new Date('2026-09-18T08:59:59.999Z');
+    const atDeadline = new Date('2026-09-18T09:00:00.000Z');
+
+    expect(
+      registrationCancellationAvailability({
+        checkInTime: null,
+        deadlineHoursBeforeStart: resolveCancellationDeadlineHoursBeforeStart(
+          null,
+          24,
+        ),
+        eventStart,
+        now: beforeDeadline,
+      }),
+    ).toEqual({
+      cancellationAvailable: true,
+      cancellationBlockedReason: 'none',
+    });
+    expect(
+      registrationCancellationAvailability({
+        checkInTime: null,
+        deadlineHoursBeforeStart: resolveCancellationDeadlineHoursBeforeStart(
+          null,
+          24,
+        ),
+        eventStart,
+        now: atDeadline,
+      }),
+    ).toEqual({
+      cancellationAvailable: false,
+      cancellationBlockedReason: 'deadlinePassed',
+    });
+    expect(
+      registrationCancellationAvailability({
+        checkInTime: null,
+        deadlineHoursBeforeStart: resolveCancellationDeadlineHoursBeforeStart(
+          0,
+          24,
+        ),
+        eventStart,
+        now: atDeadline,
+      }),
+    ).toEqual({
+      cancellationAvailable: true,
+      cancellationBlockedReason: 'none',
+    });
+  });
+
+  it('reports check-in and event start before the deadline fallback', () => {
+    const eventStart = new Date('2026-09-19T09:00:00.000Z');
+
+    expect(
+      registrationCancellationAvailability({
+        checkInTime: new Date('2026-09-18T08:00:00.000Z'),
+        deadlineHoursBeforeStart: 48,
+        eventStart,
+        now: new Date('2026-09-18T09:00:00.000Z'),
+      }),
+    ).toEqual({
+      cancellationAvailable: false,
+      cancellationBlockedReason: 'checkedIn',
+    });
+    expect(
+      registrationCancellationAvailability({
+        checkInTime: null,
+        deadlineHoursBeforeStart: 0,
+        eventStart,
+        now: eventStart,
+      }),
+    ).toEqual({
+      cancellationAvailable: false,
+      cancellationBlockedReason: 'eventStarted',
+    });
   });
 
   it('source-splits non-Stripe refunds and protects redeemed or previously non-refunded add-ons', () => {
@@ -2160,6 +2242,8 @@ describe('event registration cancellation handlers', () => {
     'blocks participant cancellation at the configured tenant deadline without mutating state',
     () =>
       Effect.gen(function* () {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-07-01T09:00:00.000Z'));
         const database = {
           query: {
             eventRegistrations: {
@@ -2167,7 +2251,7 @@ describe('event registration cancellation handlers', () => {
                 Effect.succeed({
                   checkInTime: null,
                   event: {
-                    start: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                    start: new Date('2026-09-19T09:00:00.000Z'),
                   },
                   eventId: 'event-1',
                   guestCount: 0,
@@ -2198,12 +2282,14 @@ describe('event registration cancellation handlers', () => {
           emptyHandlerOptions,
         ).pipe(
           Effect.flip,
+          Effect.ensuring(Effect.sync(() => vi.useRealTimers())),
           Effect.provide(
             createContextLayer({
               database,
+              nowIso: '2026-09-18T09:00:00.000Z',
               tenant: {
                 ...tenant,
-                cancellationDeadlineHoursBeforeStart: 120,
+                cancellationDeadlineHoursBeforeStart: 24,
               },
               user: createUser({
                 permissions: ['events:cancelRegistrations'],

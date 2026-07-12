@@ -74,6 +74,12 @@ replace it with aspirational documentation.
   later action that queues a `receiptReviewed` email; reimbursement remains a
   separate manual money-transfer workflow documented in
   `docs/finance/receipt-review-reimbursement.doc.ts`.
+- Approval fixtures upload the real sample PDF to the worktree's host-mapped
+  MinIO service before inserting the bound database rows. The functional flow
+  also keeps one deliberately missing object to prove that approval fails
+  closed while rejection remains available. These helpers require the
+  generated `MINIO_HOST_PORT` and never use developer or remote `S3_ENDPOINT`
+  values.
 - The documentation readback accepts any configured HTTP(S) S3-compatible
   endpoint while requiring the exact tenant/event/user-bound bucket-key suffix.
   Receipt/upload database rows are deleted by the journey. The Docker MinIO

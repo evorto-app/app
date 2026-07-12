@@ -5,8 +5,11 @@ import * as Headers from 'effect/unstable/http/Headers';
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
   eventAddons,
+  eventInstances,
   eventRegistrationOptionDiscounts,
+  eventRegistrationOptions,
   eventRegistrationQuestions,
+  eventRegistrations,
 } from '../../../../../db/schema';
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
@@ -52,21 +55,38 @@ const createUser = (permissions: readonly Permission[] = []) => ({
 
 const createEventQueryDatabase = ({
   organizerRegistration = false,
+  registrationOptionAggregates = [],
 }: {
   organizerRegistration?: boolean;
+  registrationOptionAggregates?: readonly {
+    checkedInSpots: number;
+    confirmedSpots: number;
+    spots: number;
+  }[];
 } = {}) => {
   const attendeeQuery = vi.fn(() => Effect.succeed([]));
+  const aggregateQuery = {
+    innerJoin: vi.fn(() => aggregateQuery),
+    where: vi.fn(() => Effect.succeed([...registrationOptionAggregates])),
+  };
+  const organizerLookup = vi.fn(() =>
+    Effect.succeed(organizerRegistration ? [{ id: 'registration-1' }] : []),
+  );
   const organizerQuery = {
-    from: () => organizerQuery,
     innerJoin: () => organizerQuery,
-    limit: vi.fn(() =>
-      Effect.succeed(organizerRegistration ? [{ id: 'registration-1' }] : []),
-    ),
+    limit: organizerLookup,
     where: () => organizerQuery,
   };
-  const select = vi.fn(() => organizerQuery);
+  const select = vi.fn(() => ({
+    from: (table: unknown) => {
+      if (table === eventRegistrations) return organizerQuery;
+      if (table === eventRegistrationOptions) return aggregateQuery;
+      throw new Error('Unexpected organizer overview select table');
+    },
+  }));
 
   return {
+    aggregateQuery,
     attendeeQuery,
     database: {
       query: {
@@ -76,6 +96,7 @@ const createEventQueryDatabase = ({
       },
       select,
     },
+    organizerLookup,
     select,
   };
 };
@@ -341,7 +362,10 @@ describe('organizer overview authorization', () => {
       ).pipe(Effect.provide(layer));
 
       expect(canOrganize).toBe(true);
-      expect(overview).toEqual([]);
+      expect(overview).toEqual({
+        registrationOptions: [],
+        stats: { capacity: 0, checkedIn: 0, registered: 0 },
+      });
       expect(attendeeQuery).toHaveBeenCalledOnce();
     }),
   );
@@ -351,7 +375,8 @@ describe('organizer overview authorization', () => {
     'finance:manageReceipts' as const,
   ])('allows tenant-wide organizer authority through %s', (permission) =>
     Effect.gen(function* () {
-      const { attendeeQuery, database, select } = createEventQueryDatabase();
+      const { attendeeQuery, database, organizerLookup } =
+        createEventQueryDatabase();
 
       const overview = yield* eventQueryHandlers['events.getOrganizeOverview'](
         { eventId: 'event-1' },
@@ -365,9 +390,46 @@ describe('organizer overview authorization', () => {
         ),
       );
 
-      expect(overview).toEqual([]);
-      expect(select).not.toHaveBeenCalled();
+      expect(overview).toEqual({
+        registrationOptions: [],
+        stats: { capacity: 0, checkedIn: 0, registered: 0 },
+      });
+      expect(organizerLookup).not.toHaveBeenCalled();
       expect(attendeeQuery).toHaveBeenCalledOnce();
     }),
+  );
+
+  it.effect(
+    'derives stats from every tenant-scoped option, including role-hidden options without registrations',
+    () =>
+      Effect.gen(function* () {
+        const { aggregateQuery, database } = createEventQueryDatabase({
+          registrationOptionAggregates: [
+            { checkedInSpots: 1, confirmedSpots: 2, spots: 4 },
+            { checkedInSpots: 0, confirmedSpots: 1, spots: 2 },
+          ],
+        });
+
+        const overview = yield* eventQueryHandlers[
+          'events.getOrganizeOverview'
+        ]({ eventId: 'event-1' }, emptyHandlerOptions).pipe(
+          Effect.provide(
+            createContextLayer({
+              database,
+              user: createUser(['events:organizeAll']),
+            }),
+          ),
+        );
+
+        expect(overview).toEqual({
+          registrationOptions: [],
+          stats: { capacity: 6, checkedIn: 1, registered: 3 },
+        });
+        expect(aggregateQuery.innerJoin).toHaveBeenCalledWith(
+          eventInstances,
+          expect.anything(),
+        );
+        expect(aggregateQuery.where).toHaveBeenCalledOnce();
+      }),
   );
 });

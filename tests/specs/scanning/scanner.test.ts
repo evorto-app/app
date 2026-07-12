@@ -779,9 +779,7 @@ test('scan confirmed registration records check-in', async ({
 
     await page.goto(`/events/${scannerFixture.eventId}/organize`);
     await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
-      new RegExp(
-        `^${scannerFixture.optionBefore.checkedInSpots + 3}\\s*Checked In$`,
-      ),
+      String(scannerFixture.optionBefore.checkedInSpots + 3),
       { timeout: 15_000 },
     );
   } finally {
@@ -877,7 +875,7 @@ test('scan checked-in registration records remaining guest arrival', async ({
 
     await page.goto(`/events/${scannerFixture.eventId}/organize`);
     await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
-      new RegExp(`^${checkedInBaseline + 1}\\s*Checked In$`),
+      String(checkedInBaseline + 1),
       { timeout: 15_000 },
     );
   } finally {

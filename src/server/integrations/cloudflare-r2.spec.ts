@@ -5,6 +5,7 @@ import { objectStorageConfig } from '../config/object-storage-config';
 import {
   getObjectFromR2,
   getSignedReceiptObjectUrlFromR2,
+  receiptObjectExistsInR2,
   uploadReceiptOriginalToR2,
 } from './cloudflare-r2';
 
@@ -42,6 +43,7 @@ describe('cloudflare-r2', () => {
       ['S3_ACCESS_KEY_ID', 'test-key'],
       ['S3_BUCKET', 'test-bucket'],
       ['S3_ENDPOINT', 'https://s3.example.test'],
+      ['S3_PUBLIC_ENDPOINT', 'https://public-s3.example.test'],
       ['S3_REGION', 'auto'],
       ['S3_SECRET_ACCESS_KEY', 'test-secret'],
     ]),
@@ -152,8 +154,13 @@ describe('cloudflare-r2', () => {
     it.effect('presigns receipt objects with default and custom expiry', () =>
       Effect.gen(function* () {
         const presign = vi.fn(() => 'https://signed.example.com/object');
+        const endpoints: string[] = [];
 
         class FakeS3Client {
+          constructor(config: { endpoint: string }) {
+            endpoints.push(config.endpoint);
+          }
+
           file() {
             return {
               arrayBuffer: vi.fn(async () => new ArrayBuffer(0)),
@@ -175,6 +182,10 @@ describe('cloudflare-r2', () => {
 
         expect(defaultUrl).toBe('https://signed.example.com/object');
         expect(customUrl).toBe('https://signed.example.com/object');
+        expect(endpoints).toEqual([
+          'https://public-s3.example.test',
+          'https://public-s3.example.test',
+        ]);
         expect(presign).toHaveBeenNthCalledWith(1, {
           contentDisposition: 'inline',
           expiresIn: 900,
@@ -185,6 +196,83 @@ describe('cloudflare-r2', () => {
           expiresIn: 30,
           method: 'GET',
         });
+      }),
+    );
+
+    it.effect('wraps receipt URL signing failures', () =>
+      Effect.gen(function* () {
+        class FakeS3Client {
+          file() {
+            return {
+              presign: vi.fn(() => {
+                throw new Error('signing unavailable');
+              }),
+            };
+          }
+        }
+
+        bunRuntime.S3Client = FakeS3Client;
+
+        const error = yield* getSignedReceiptObjectUrlFromR2({
+          key: 'receipts/tenant-1/receipt.pdf',
+        }).pipe(Effect.flip);
+
+        expect(error['_tag']).toBe('RpcInternalServerError');
+        expect(error.message).toContain('URL signing failed');
+      }),
+    );
+
+    it.effect.each([true, false])(
+      'uses a HEAD-backed existence check and returns %s',
+      (expected) =>
+        Effect.gen(function* () {
+          const exists = vi.fn(async () => expected);
+
+          class FakeS3Client {
+            file() {
+              return {
+                arrayBuffer: vi.fn(async () => new ArrayBuffer(0)),
+                exists,
+                presign: vi.fn(() => 'https://signed.example.com/object'),
+                write: vi.fn(async () => 0),
+              };
+            }
+          }
+
+          bunRuntime.S3Client = FakeS3Client;
+
+          const result = yield* receiptObjectExistsInR2({
+            key: 'receipts/tenant-1/receipt.pdf',
+          });
+
+          expect(result).toBe(expected);
+          expect(exists).toHaveBeenCalledOnce();
+        }),
+    );
+
+    it.effect('wraps receipt existence transport failures', () =>
+      Effect.gen(function* () {
+        class FakeS3Client {
+          file() {
+            return {
+              arrayBuffer: vi.fn(async () => new ArrayBuffer(0)),
+              exists: vi.fn(async () => {
+                throw new Error('storage offline');
+              }),
+              presign: vi.fn(() => 'https://signed.example.com/object'),
+              write: vi.fn(async () => 0),
+            };
+          }
+        }
+
+        bunRuntime.S3Client = FakeS3Client;
+
+        const error = yield* receiptObjectExistsInR2({
+          key: 'receipts/tenant-1/receipt.pdf',
+        }).pipe(Effect.flip);
+
+        expect(error['_tag']).toBe('RpcInternalServerError');
+        expect(error.message).toContain('existence check failed');
       }),
     );
 

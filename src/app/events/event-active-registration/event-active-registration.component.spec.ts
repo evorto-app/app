@@ -26,6 +26,7 @@ import {
   EventActiveRegistrationOperations,
   recipientTransferCheckoutPending,
   registrationActiveTransferStatusCopy,
+  registrationAudienceCopy,
   registrationCancellationActionDisabled,
   registrationCancellationCopy,
   registrationDeferredActionCopy,
@@ -83,10 +84,13 @@ const registrationStatus = (
   appliedDiscountedPrice: null,
   appliedDiscountType: null,
   basePriceAtRegistration: 0,
+  cancellationAvailable: true,
+  cancellationBlockedReason: 'none',
   checkoutUrl: null,
   discountAmount: 0,
   guestCount: 0,
   id: 'registration-1',
+  organizingRegistration: false,
   paymentPending: false,
   registeredDescription: null,
   registrationAddOns: [registrationAddon()],
@@ -103,6 +107,8 @@ describe('registrationCancellationCopy', () => {
     expect(
       registrationCancellationCopy({
         activeTransfer: null,
+        cancellationAvailable: true,
+        cancellationBlockedReason: 'none',
         guestCount: 2,
         paymentPending: true,
         status: 'PENDING',
@@ -118,6 +124,8 @@ describe('registrationCancellationCopy', () => {
     expect(
       registrationCancellationCopy({
         activeTransfer: null,
+        cancellationAvailable: true,
+        cancellationBlockedReason: 'none',
         guestCount: 0,
         paymentPending: false,
         status: 'CONFIRMED',
@@ -137,6 +145,8 @@ describe('registrationCancellationCopy', () => {
         status: 'checkout_pending' as const,
         transferId: 'transfer-1',
       },
+      cancellationAvailable: true,
+      cancellationBlockedReason: 'none' as const,
       guestCount: 1,
       paymentPending: true,
       status: 'PENDING' as const,
@@ -144,6 +154,54 @@ describe('registrationCancellationCopy', () => {
 
     expect(recipientTransferCheckoutPending(registration)).toBe(true);
     expect(registrationCancellationCopy(registration)).toBeNull();
+  });
+
+  it('explains a passed cancellation deadline without presenting an action', () => {
+    expect(
+      registrationCancellationCopy({
+        activeTransfer: null,
+        cancellationAvailable: false,
+        cancellationBlockedReason: 'deadlinePassed',
+        guestCount: 0,
+        paymentPending: false,
+        status: 'CONFIRMED',
+      }),
+    ).toEqual({
+      buttonLabel: null,
+      helperText:
+        'The cancellation deadline has passed. No cancellation, refund, or spot release has been made.',
+    });
+  });
+});
+
+describe('registrationAudienceCopy', () => {
+  it('labels confirmed organizer/helper access and its QR pass explicitly', () => {
+    expect(
+      registrationAudienceCopy(
+        registrationStatus({ organizingRegistration: true }),
+      ),
+    ).toEqual({
+      audienceLabel: 'Organizer/helper',
+      confirmedStatus: 'Organizer/helper registration confirmed',
+      passHeading: 'Your organizer/helper pass',
+      paymentPendingStatus:
+        'Complete payment to confirm your organizer/helper registration. Organizer access starts only after payment succeeds.',
+      pendingApprovalStatus:
+        'Organizer/helper application pending. Organizer access starts only after approval and any required payment.',
+      qrAlt: 'QR code for the organizer/helper registration',
+    });
+  });
+
+  it('keeps explicit organizer/helper confirmation visible beside custom registered copy', () => {
+    const template = readSource(
+      'src/app/events/event-active-registration/event-active-registration.component.html',
+    );
+
+    expect(template).toContain('{{ audience.confirmedStatus }}');
+    expect(template).toContain('@if (registration.registeredDescription)');
+    expect(template).not.toContain(
+      '@if (registration.registeredDescription) {\n          <div\n            class="prose dark:prose-invert max-w-none @md:col-span-2"\n            [innerHtml]="registration.registeredDescription"\n          ></div>\n        } @else',
+    );
   });
 });
 
@@ -418,6 +476,7 @@ describe('active registration template source', () => {
 });
 
 const purchaseAddon = vi.fn();
+const canOrganize = vi.fn();
 const cancelRegistration = vi.fn();
 const cancelTransfer = vi.fn();
 const createTransfer = vi.fn();
@@ -442,6 +501,8 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
 
   beforeEach(async () => {
     purchaseAddon.mockReset();
+    canOrganize.mockReset();
+    canOrganize.mockResolvedValue(true);
     cancelRegistration.mockReset();
     cancelRegistration.mockResolvedValue(undefined);
     cancelTransfer.mockReset();
@@ -452,10 +513,11 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     queryClient = new QueryClient({
       defaultOptions: {
         mutations: { retry: false },
-        queries: { gcTime: 0, retry: false },
+        queries: { gcTime: Infinity, retry: false },
       },
     });
     vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
+    vi.spyOn(queryClient, 'resetQueries');
 
     await TestBed.configureTestingModule({
       imports: [EventActiveRegistrationComponent],
@@ -480,6 +542,14 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
               'event-details',
               eventId,
             ],
+            eventOrganizerAccessQueryKey: (eventId: string) => [
+              'event-organizer-access',
+              eventId,
+            ],
+            eventOrganizerAccessQueryOptions: (eventId: string) => ({
+              queryFn: canOrganize,
+              queryKey: ['event-organizer-access', eventId],
+            }),
             purchaseRegistrationAddon: () => ({
               mutationFn: purchaseAddon,
               mutationKey: ['purchase-registration-addon'],
@@ -488,6 +558,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
               'registration-status',
               eventId,
             ],
+            scannerAccessQueryKey: () => ['scanner-access'],
             userEventsQueryKey: () => ['user-events'],
           },
         },
@@ -540,6 +611,81 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       expectedStatus: 'CONFIRMED',
       registrationId: 'registration-1',
     });
+  });
+
+  it('keeps independently granted organizer authority after organizer/helper cancellation', async () => {
+    dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+    canOrganize.mockResolvedValue(true);
+    queryClient.setQueryData(['event-organizer-access', 'event-1'], true);
+    const fixture = render(
+      registrationStatus({ organizingRegistration: true }),
+    );
+
+    findButton(fixture, 'Cancel registration')?.click();
+
+    await vi.waitFor(() => {
+      expect(cancelRegistration).toHaveBeenCalledOnce();
+      expect(canOrganize).toHaveBeenCalledOnce();
+      expect(
+        queryClient.getQueryData(['event-organizer-access', 'event-1']),
+      ).toBe(true);
+    });
+  });
+
+  it('removes event-scoped organizer authority when the cancelled registration was its source', async () => {
+    dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+    canOrganize.mockResolvedValue(false);
+    queryClient.setQueryData(['event-organizer-access', 'event-1'], true);
+    const fixture = render(
+      registrationStatus({ organizingRegistration: true }),
+    );
+
+    findButton(fixture, 'Cancel registration')?.click();
+
+    await vi.waitFor(() => {
+      expect(cancelRegistration).toHaveBeenCalledOnce();
+      expect(canOrganize).toHaveBeenCalledOnce();
+      expect(
+        queryClient.getQueryData(['event-organizer-access', 'event-1']),
+      ).toBe(false);
+    });
+  });
+
+  it('fails organizer authority closed to unknown when its authoritative refresh fails', async () => {
+    dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+    canOrganize.mockRejectedValue(new Error('Authority unavailable'));
+    queryClient.setQueryData(['event-organizer-access', 'event-1'], true);
+    const fixture = render(
+      registrationStatus({ organizingRegistration: true }),
+    );
+
+    findButton(fixture, 'Cancel registration')?.click();
+
+    await vi.waitFor(() => {
+      expect(cancelRegistration).toHaveBeenCalledOnce();
+      expect(canOrganize).toHaveBeenCalledOnce();
+      expect(
+        queryClient.getQueryData(['event-organizer-access', 'event-1']),
+      ).toBeUndefined();
+    });
+  });
+
+  it('renders the server-derived deadline explanation and guards cancellation', async () => {
+    const registration = registrationStatus({
+      cancellationAvailable: false,
+      cancellationBlockedReason: 'deadlinePassed',
+    });
+    const fixture = render(registration);
+
+    expect(normalizeText(fixture)).toContain(
+      'The cancellation deadline has passed. No cancellation, refund, or spot release has been made.',
+    );
+    expect(findButton(fixture, 'Cancel registration')).toBeUndefined();
+
+    await fixture.componentInstance.cancelRegistration(registration);
+
+    expect(dialogOpen).not.toHaveBeenCalled();
+    expect(cancelRegistration).not.toHaveBeenCalled();
   });
 
   it('binds delayed confirmation to the state the participant reviewed', async () => {
@@ -601,6 +747,14 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     );
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith(
       { exact: true, queryKey: ['event-details', 'event-1'] },
+      { throwOnError: true },
+    );
+    expect(queryClient.resetQueries).toHaveBeenCalledWith(
+      { exact: true, queryKey: ['event-organizer-access', 'event-1'] },
+      { throwOnError: true },
+    );
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith(
+      { exact: true, queryKey: ['scanner-access'] },
       { throwOnError: true },
     );
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith(

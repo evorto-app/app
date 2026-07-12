@@ -377,6 +377,21 @@ describe('evaluateRuntimePreflight', () => {
       'STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret',
     );
     expect(evortoService).toContain('S3_ENDPOINT: http://minio:9000');
+    expect(evortoService).toContain(
+      'S3_PUBLIC_ENDPOINT: "http://localhost:${MINIO_HOST_PORT:-9000}"',
+    );
+    expect(evortoService).toContain(
+      'S3_ACCESS_KEY_ID: "${MINIO_ROOT_USER:-minioadmin}"',
+    );
+    expect(evortoService).toContain(
+      'S3_SECRET_ACCESS_KEY: "${MINIO_ROOT_PASSWORD:-minioadmin}"',
+    );
+    expect(evortoService).not.toContain(
+      'S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:-minioadmin}"',
+    );
+    expect(evortoService).not.toContain(
+      'S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-minioadmin}"',
+    );
     expect(evortoService).toContain('NODE_ENV: "development"');
     expect(evortoService).toContain('SSR_RPC_ORIGIN: http://localhost:4200');
     expect(evortoService).not.toContain(
@@ -400,6 +415,23 @@ describe('evaluateRuntimePreflight', () => {
 
     expect(composeFile).toContain('FONT_AWESOME_TOKEN:');
     expect(composeFile).toContain('environment: FONT_AWESOME_TOKEN');
+  });
+
+  it('keeps receipt approval fixtures pinned to worktree-local MinIO', () => {
+    const source = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        'helpers/testing/upload-local-receipt-object.ts',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain('MINIO_HOST_PORT');
+    expect(source).toContain('http://127.0.0.1:${minioHostPort}');
+    expect(source).toContain('MINIO_ROOT_USER');
+    expect(source).toContain('MINIO_ROOT_PASSWORD');
+    expect(source).not.toContain("process.env['S3_ENDPOINT']");
+    expect(source).not.toContain('cloudflarestorage.com');
   });
 
   it('reports all docker startup blockers before mutating containers', () => {

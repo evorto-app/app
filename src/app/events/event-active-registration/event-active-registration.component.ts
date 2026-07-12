@@ -95,6 +95,14 @@ export class EventActiveRegistrationOperations {
     return this.rpc.events.findOne.queryKey({ id: eventId });
   }
 
+  eventOrganizerAccessQueryKey(eventId: string) {
+    return this.rpc.events.canOrganize.queryKey({ eventId });
+  }
+
+  eventOrganizerAccessQueryOptions(eventId: string) {
+    return this.rpc.events.canOrganize.queryOptions({ eventId });
+  }
+
   purchaseRegistrationAddon() {
     return this.rpc.events.purchaseRegistrationAddon.mutationOptions();
   }
@@ -103,10 +111,48 @@ export class EventActiveRegistrationOperations {
     return this.rpc.events.getRegistrationStatus.queryKey({ eventId });
   }
 
+  scannerAccessQueryKey() {
+    return this.rpc.users.canUseScanner.queryKey();
+  }
+
   userEventsQueryKey() {
     return this.rpc.users.events.queryKey();
   }
 }
+
+export const registrationAudienceCopy = (
+  registration: Pick<
+    EventsRegistrationStatusRecord,
+    'organizingRegistration' | 'paymentPending' | 'status'
+  >,
+): {
+  audienceLabel: string;
+  confirmedStatus: string;
+  passHeading: string;
+  paymentPendingStatus: string;
+  pendingApprovalStatus: string;
+  qrAlt: string;
+} =>
+  registration.organizingRegistration
+    ? {
+        audienceLabel: 'Organizer/helper',
+        confirmedStatus: 'Organizer/helper registration confirmed',
+        passHeading: 'Your organizer/helper pass',
+        paymentPendingStatus:
+          'Complete payment to confirm your organizer/helper registration. Organizer access starts only after payment succeeds.',
+        pendingApprovalStatus:
+          'Organizer/helper application pending. Organizer access starts only after approval and any required payment.',
+        qrAlt: 'QR code for the organizer/helper registration',
+      }
+    : {
+        audienceLabel: 'Participant',
+        confirmedStatus: 'Your registration is confirmed',
+        passHeading: 'Your event ticket',
+        paymentPendingStatus: 'Complete payment to confirm your registration.',
+        pendingApprovalStatus:
+          'Your registration is pending organizer approval.',
+        qrAlt: 'QR code for the registration',
+      };
 
 export const recipientTransferCheckoutPending = (registration: {
   activeTransfer: EventsRegistrationStatusRecord['activeTransfer'];
@@ -118,11 +164,13 @@ export const recipientTransferCheckoutPending = (registration: {
 
 export const registrationCancellationCopy = (registration: {
   activeTransfer: EventsRegistrationStatusRecord['activeTransfer'];
+  cancellationAvailable: boolean;
+  cancellationBlockedReason: EventsRegistrationStatusRecord['cancellationBlockedReason'];
   guestCount: number;
   paymentPending: boolean;
   status: EventsRegistrationStatus;
 }): null | {
-  buttonLabel: string;
+  buttonLabel: null | string;
   helperText: string;
 } => {
   const pendingSpotNoun =
@@ -132,6 +180,39 @@ export const registrationCancellationCopy = (registration: {
 
   if (recipientTransferCheckoutPending(registration)) {
     return null;
+  }
+
+  if (!registration.cancellationAvailable) {
+    switch (registration.cancellationBlockedReason) {
+      case 'checkedIn': {
+        return {
+          buttonLabel: null,
+          helperText:
+            'This registration has already been checked in and can no longer be cancelled.',
+        };
+      }
+      case 'deadlinePassed': {
+        return {
+          buttonLabel: null,
+          helperText:
+            'The cancellation deadline has passed. No cancellation, refund, or spot release has been made.',
+        };
+      }
+      case 'eventStarted': {
+        return {
+          buttonLabel: null,
+          helperText:
+            'The event has started, so this registration can no longer be cancelled.',
+        };
+      }
+      case 'none': {
+        return {
+          buttonLabel: null,
+          helperText:
+            'Cancellation is currently unavailable. Refresh the event page for the latest status.',
+        };
+      }
+    }
   }
 
   if (registration.status === 'PENDING') {
@@ -359,6 +440,7 @@ export class EventActiveRegistrationComponent {
     registrationAddonHasCanonicalPendingOrder;
   protected readonly registrationAddonPurchaseBlockedCopy =
     registrationAddonPurchaseBlockedCopy;
+  protected readonly registrationAudienceCopy = registrationAudienceCopy;
   protected readonly registrationCancellationActionDisabled =
     registrationCancellationActionDisabled;
   protected readonly registrationHasPendingAddonPayment =
@@ -399,10 +481,11 @@ export class EventActiveRegistrationComponent {
   ): Promise<void> {
     const expectedPaymentPending = registration.paymentPending;
     const expectedStatus = registration.status;
-    if (expectedStatus === 'CANCELLED') {
+    if (expectedStatus === 'CANCELLED' || !registration.cancellationAvailable) {
       return;
     }
     if (
+      !registration.cancellationAvailable ||
       recipientTransferCheckoutPending(registration) ||
       registrationCancellationActionDisabled({
         addonPurchasePending:
@@ -764,6 +847,11 @@ export class EventActiveRegistrationComponent {
     const registrationStatusQueryKey =
       this.operations.registrationStatusQueryKey(eventId);
     const eventDetailsQueryKey = this.operations.eventDetailsQueryKey(eventId);
+    const eventOrganizerAccessQueryKey =
+      this.operations.eventOrganizerAccessQueryKey(eventId);
+    const eventOrganizerAccessQueryOptions =
+      this.operations.eventOrganizerAccessQueryOptions(eventId);
+    const scannerAccessQueryKey = this.operations.scannerAccessQueryKey();
     const userEventsQueryKey = this.operations.userEventsQueryKey();
     const previousOwnerStatus =
       this.queryClient.getQueryData<RegistrationStatusQueryData>(
@@ -773,21 +861,34 @@ export class EventActiveRegistrationComponent {
       this.queryClient.getQueryState(registrationStatusQueryKey)
         ?.dataUpdatedAt ?? 0;
 
-    const [registrationStatusResult, eventDetailsResult, userEventsResult] =
-      await Promise.allSettled([
-        this.queryClient.invalidateQueries(
-          { exact: true, queryKey: registrationStatusQueryKey },
-          { throwOnError: true },
-        ),
-        this.queryClient.invalidateQueries(
-          { exact: true, queryKey: eventDetailsQueryKey },
-          { throwOnError: true },
-        ),
-        this.queryClient.invalidateQueries(
-          { exact: true, queryKey: userEventsQueryKey },
-          { throwOnError: true },
-        ),
-      ]);
+    const [
+      registrationStatusResult,
+      eventDetailsResult,
+      eventOrganizerAccessResult,
+      scannerAccessResult,
+      userEventsResult,
+    ] = await Promise.allSettled([
+      this.queryClient.invalidateQueries(
+        { exact: true, queryKey: registrationStatusQueryKey },
+        { throwOnError: true },
+      ),
+      this.queryClient.invalidateQueries(
+        { exact: true, queryKey: eventDetailsQueryKey },
+        { throwOnError: true },
+      ),
+      this.refreshOrganizerAccess(
+        eventOrganizerAccessQueryKey,
+        eventOrganizerAccessQueryOptions,
+      ),
+      this.queryClient.invalidateQueries(
+        { exact: true, queryKey: scannerAccessQueryKey },
+        { throwOnError: true },
+      ),
+      this.queryClient.invalidateQueries(
+        { exact: true, queryKey: userEventsQueryKey },
+        { throwOnError: true },
+      ),
+    ]);
 
     if (registrationStatusResult.status === 'fulfilled' && reconcileAttempts) {
       const ownerStatus =
@@ -808,6 +909,8 @@ export class EventActiveRegistrationComponent {
     return (
       registrationStatusResult.status === 'fulfilled' &&
       eventDetailsResult.status === 'fulfilled' &&
+      eventOrganizerAccessResult.status === 'fulfilled' &&
+      scannerAccessResult.status === 'fulfilled' &&
       userEventsResult.status === 'fulfilled'
     );
   }
@@ -831,6 +934,24 @@ export class EventActiveRegistrationComponent {
 
       this.clearLocalCheckoutUrl(key);
       this.clearPurchaseNotice(key);
+    }
+  }
+
+  private async refreshOrganizerAccess(
+    queryKey: ReturnType<
+      EventActiveRegistrationOperations['eventOrganizerAccessQueryKey']
+    >,
+    queryOptions: ReturnType<
+      EventActiveRegistrationOperations['eventOrganizerAccessQueryOptions']
+    >,
+  ): Promise<void> {
+    await this.queryClient.resetQueries(
+      { exact: true, queryKey },
+      { throwOnError: true },
+    );
+
+    if (this.queryClient.getQueryData<boolean>(queryKey) === undefined) {
+      await this.queryClient.fetchQuery(queryOptions);
     }
   }
 

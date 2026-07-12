@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -14,6 +16,39 @@ import {
   registrationQuestionAnswerPayload,
   registrationQuestionsMissingRequired,
 } from './event-registration-option.component';
+
+const readSource = (sourcePath: string): string =>
+  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
+
+describe('unsupported registration mode template', () => {
+  it('shows the warning before add-ons, questions, authentication, or write controls', () => {
+    const template = readSource(
+      'src/app/events/event-registration-option/event-registration-option.component.html',
+    );
+    const guardIndex = template.indexOf('@if (!registrationModeSupported())');
+    const supportedModeBranchIndex = template.indexOf('} @else {', guardIndex);
+
+    expect(guardIndex).toBeGreaterThan(-1);
+    expect(template.lastIndexOf('@if (!registrationModeSupported())')).toBe(
+      guardIndex,
+    );
+    expect(supportedModeBranchIndex).toBeGreaterThan(guardIndex);
+
+    for (const editableMarker of [
+      '@if (addOns().length',
+      '@if (registrationOption().questions.length',
+      '@if (authenticationQuery.isPending())',
+      '<input',
+      '<textarea',
+      '<button',
+      'href="/forward-login',
+    ]) {
+      expect(template.indexOf(editableMarker)).toBeGreaterThan(
+        supportedModeBranchIndex,
+      );
+    }
+  });
+});
 
 describe('registrationOptionAudienceCopy', () => {
   it('keeps participant options on registration copy', () => {
@@ -56,6 +91,21 @@ describe('registrationOptionAudienceCopy', () => {
         'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
       label: 'Manual approval option',
       primaryAction: 'Apply for approval',
+    });
+  });
+
+  it('explains approval and deferred access for organizer/helper applications', () => {
+    expect(
+      registrationOptionAudienceCopy({
+        organizingRegistration: true,
+        registrationMode: 'application',
+      }),
+    ).toEqual({
+      actionSuffix: 'apply as organizer/helper',
+      helperText:
+        'Applying does not confirm organizer access. An organizer reviews your application first; if this option has a fee, payment starts only after approval.',
+      label: 'Organizer/helper application',
+      primaryAction: 'Apply as organizer/helper',
     });
   });
 });

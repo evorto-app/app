@@ -5,10 +5,12 @@ import {
   isStripeCheckoutUrl,
   profileEditActionDisabled,
   profileEventActionNote,
+  profileEventAudienceLabel,
   profileEventContinuePaymentUrl,
   profileEventDetailActionLabel,
   profileEventGuestLabel,
   profileEventNextStepLabel,
+  profileEventPassLabel,
   profileReceiptStatusLabel,
   profileSectionFromFragment,
   profileUserAfterEdit,
@@ -46,31 +48,34 @@ describe('profile event labels', () => {
       profileEventActionNote({
         checkInTime: null,
         checkoutUrl: null,
+        organizingRegistration: false,
         paymentState: 'recorded',
         status: 'CONFIRMED',
       }),
     ).toBe(
-      'Open the event page for ticket access, participant cancellation, and unpaid self-service transfer when available.',
+      'Open the event page for ticket access and the current availability of cancellation and unpaid self-service transfer.',
     );
     expect(
       profileEventActionNote({
         checkInTime: null,
         checkoutUrl: null,
+        organizingRegistration: false,
         paymentState: 'notRequired',
         status: 'PENDING',
       }),
     ).toBe(
-      'Open the event page for pending-registration details and available cancellation actions.',
+      'Open the event page for pending-registration details and current cancellation status.',
     );
     expect(
       profileEventActionNote({
         checkInTime: null,
         checkoutUrl: null,
+        organizingRegistration: false,
         paymentState: 'notRequired',
         status: 'WAITLIST',
       }),
     ).toBe(
-      'Open the event page for waitlist details and the leave-waitlist action.',
+      'Open the event page for waitlist details and current cancellation status.',
     );
   });
 
@@ -79,6 +84,7 @@ describe('profile event labels', () => {
       profileEventActionNote({
         checkInTime: '2026-02-01T10:30:00.000Z',
         checkoutUrl: null,
+        organizingRegistration: false,
         paymentState: 'recorded',
         status: 'CONFIRMED',
       }),
@@ -92,6 +98,7 @@ describe('profile event labels', () => {
       profileEventActionNote({
         checkInTime: null,
         checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_123',
+        organizingRegistration: false,
         paymentState: 'pending',
         status: 'PENDING',
       }),
@@ -102,11 +109,50 @@ describe('profile event labels', () => {
       profileEventActionNote({
         checkInTime: null,
         checkoutUrl: null,
+        organizingRegistration: false,
         paymentState: 'pending',
         status: 'PENDING',
       }),
     ).toBe(
-      'Payment setup is still in progress. Open the event page for the latest payment link or to cancel the registration.',
+      'Payment setup is still in progress. Open the event page for the latest payment link and current cancellation status.',
+    );
+  });
+
+  it('identifies organizer/helper registrations and their available pass', () => {
+    const organizerRegistration = { organizingRegistration: true };
+
+    expect(profileEventAudienceLabel(organizerRegistration)).toBe(
+      'Organizer/helper',
+    );
+    expect(profileEventPassLabel(organizerRegistration)).toBe('Pass');
+    expect(
+      profileEventActionNote({
+        checkInTime: null,
+        checkoutUrl: null,
+        organizingRegistration: true,
+        paymentState: 'notRequired',
+        status: 'CONFIRMED',
+      }),
+    ).toBe(
+      'Open the event page for your organizer/helper pass, event management access, and current cancellation details.',
+    );
+    expect(
+      profileEventActionNote({
+        checkInTime: null,
+        checkoutUrl: null,
+        organizingRegistration: true,
+        paymentState: 'notRequired',
+        status: 'PENDING',
+      }),
+    ).toBe(
+      'Open the event page for organizer/helper application and cancellation status. Organizer access starts only after approval and any required payment.',
+    );
+
+    expect(profileEventAudienceLabel({ organizingRegistration: false })).toBe(
+      'Participant',
+    );
+    expect(profileEventPassLabel({ organizingRegistration: false })).toBe(
+      'Ticket',
     );
   });
 

@@ -29,6 +29,7 @@ jobs:
       NEON_LOCAL_METADATA_DIR: /tmp/neon-local-metadata
       NEON_LOCAL_METADATA_WAIT_SECONDS: 180
       NEON_LOCAL_PROXY: true
+      MINIO_HOST_PORT: 9000
       NO_WEBSERVER: true
       DATABASE_URL: postgresql://neon:npg@localhost:55432/appdb?sslmode=require
       E2E_NOW_ISO: "2026-09-15T12:00:00.000Z"

@@ -18,6 +18,7 @@ type BunS3ClientConstructor = new (config: {
 
 interface BunS3File {
   arrayBuffer(): Promise<ArrayBuffer>;
+  exists(): Promise<boolean>;
   presign(input?: {
     contentDisposition?: string;
     expiresIn?: number;
@@ -36,6 +37,7 @@ interface ObjectStorageRuntimeConfig {
   endpoint: string;
   keyId: string;
   keySecret: string;
+  publicEndpoint: string;
   region: string;
 }
 
@@ -63,6 +65,7 @@ const resolveObjectStorageConfig = () =>
       endpoint: environment.endpoint,
       keyId: environment.accessKeyId,
       keySecret: environment.secretAccessKey,
+      publicEndpoint: environment.publicEndpoint,
       region: environment.region,
     })),
   );
@@ -125,17 +128,43 @@ export const getObjectFromR2 = (input: { key: string }) =>
     return new Uint8Array(body);
   });
 
+export const receiptObjectExistsInR2 = (input: { key: string }) =>
+  Effect.gen(function* () {
+    const config = yield* resolveObjectStorageConfig();
+    const client = buildS3Client(config);
+
+    return yield* Effect.tryPromise({
+      catch: (cause) =>
+        new RpcInternalServerError({
+          cause,
+          message: `R2 existence check failed for key ${input.key}`,
+        }),
+      try: () => client.file(input.key).exists(),
+    });
+  });
+
 export const getSignedReceiptObjectUrlFromR2 = (input: {
   expiresInSeconds?: number;
   key: string;
 }) =>
   Effect.gen(function* () {
     const config = yield* resolveObjectStorageConfig();
-    const client = buildS3Client(config);
+    const client = buildS3Client({
+      ...config,
+      endpoint: config.publicEndpoint,
+    });
 
-    return client.file(input.key).presign({
-      contentDisposition: 'inline',
-      expiresIn: input.expiresInSeconds ?? 60 * 15,
-      method: 'GET',
+    return yield* Effect.try({
+      catch: (cause) =>
+        new RpcInternalServerError({
+          cause,
+          message: `R2 URL signing failed for key ${input.key}`,
+        }),
+      try: () =>
+        client.file(input.key).presign({
+          contentDisposition: 'inline',
+          expiresIn: input.expiresInSeconds ?? 60 * 15,
+          method: 'GET',
+        }),
     });
   });

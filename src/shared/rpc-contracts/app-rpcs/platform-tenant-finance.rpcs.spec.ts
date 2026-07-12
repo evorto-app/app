@@ -159,6 +159,7 @@ describe('platform tenant finance RPC schemas', () => {
       previewImageUrl: 'https://signed.example.org/receipt',
       purchaseCountry: 'DE',
       receiptDate: '2026-07-09T00:00:00.000Z',
+      receiptEvidenceAvailable: true,
       refundedAt: null,
       refundTransactionId: null,
       rejectionReason: null,

@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
+import path from 'node:path';
 
-import { addConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
+import { addAvailableConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
 import {
   adminStateFile,
@@ -9,6 +10,7 @@ import {
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { expectReceiptPdfPreviewAvailable } from '../../support/utils/receipt-submission';
 
 test.use({ storageState: adminStateFile });
 
@@ -49,19 +51,23 @@ test('Review and reimburse receipts @finance', async ({
       })
       .where(eq(schema.users.id, organizerUser.id));
 
-    receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
-      eventId,
-      fileName: receiptFileName,
-      mimeType: 'application/pdf',
-      sizeBytes: 1024,
-      tenantId: tenant.id,
-      uploadedByUserId: organizerUser.id,
-    });
+    const receiptUpload = await addAvailableConsumedFinanceReceiptUpload(
+      database,
+      {
+        eventId,
+        fileName: receiptFileName,
+        mimeType: 'application/pdf',
+        sourceFilePath: path.resolve('tests/fixtures/sample-receipt.pdf'),
+        tenantId: tenant.id,
+        uploadedByUserId: organizerUser.id,
+      },
+    );
+    receiptUploadId = receiptUpload.id;
     await database.insert(schema.financeReceipts).values({
       alcoholAmount: 150,
       attachmentFileName: receiptFileName,
       attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 1024,
+      attachmentSizeBytes: receiptUpload.sizeBytes,
       attachmentUploadId: receiptUploadId,
       currency: tenant.currency,
       depositAmount: 150,
@@ -111,6 +117,8 @@ Open a receipt from the approval queue to inspect the attachment metadata, submi
       page.getByRole('heading', { level: 1, name: 'Review receipt' }),
     ).toBeVisible();
     await expect(page.getByText(receiptFileName)).toBeVisible();
+    await expectReceiptPdfPreviewAvailable({ page });
+    await expect(page.getByRole('button', { name: 'Approve' })).toBeEnabled();
     await takeScreenshot(
       testInfo,
       page.locator('app-receipt-approval-detail'),

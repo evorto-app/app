@@ -13,6 +13,58 @@ export const formatTenantCurrency = (
     style: 'currency',
   }).format(amountInMinorUnits / 100);
 
+export const expectReceiptPdfPreviewAvailable = async ({
+  page,
+}: {
+  page: Page;
+}): Promise<void> => {
+  const preview = page.locator('iframe[title="Receipt preview"]');
+  await expect(preview).toBeVisible();
+
+  const previewUrl = await preview.getAttribute('src');
+  if (!previewUrl) {
+    throw new Error('Expected the receipt preview to have a signed URL');
+  }
+
+  expect(new URL(previewUrl).hostname).not.toBe('minio');
+  const iframe = await preview.elementHandle();
+  if (!iframe) {
+    throw new Error('Expected the receipt preview iframe to be attached');
+  }
+
+  await iframe.evaluate((element) => {
+    (element as HTMLIFrameElement).src = 'about:blank';
+  });
+  await expect
+    .poll(async () => (await iframe.contentFrame())?.url())
+    .toBe('about:blank');
+
+  const browserResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url() === previewUrl &&
+      response.request().resourceType() === 'document',
+  );
+  await iframe.evaluate((element, source) => {
+    (element as HTMLIFrameElement).src = source;
+  }, previewUrl);
+
+  const browserResponse = await browserResponsePromise;
+  expect(browserResponse.status()).toBe(200);
+  expect(browserResponse.headers()['content-type']).toContain(
+    'application/pdf',
+  );
+  await expect
+    .poll(async () => (await iframe.contentFrame())?.url())
+    .toBe(previewUrl);
+
+  const response = await page.request.get(previewUrl);
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toContain('application/pdf');
+  const body = await response.body();
+  expect(body.byteLength).toBeGreaterThan(4);
+  expect(body.toString('ascii', 0, 4)).toBe('%PDF');
+};
+
 export const openEventFromEventsNavigation = async ({
   eventId,
   eventTitle,

@@ -47,9 +47,30 @@ describe('object-storage-config', () => {
         accessKeyId: 'test-key',
         bucket: 'test-bucket',
         endpoint: 'https://s3.example.test',
+        publicEndpoint: 'https://s3.example.test',
         region: 'auto',
         secretAccessKey: 'test-secret',
       });
     }),
+  );
+
+  it.effect(
+    'uses an explicit public endpoint for browser-facing signatures',
+    () =>
+      Effect.gen(function* () {
+        const provider = providerFromEntries([
+          ['S3_ACCESS_KEY_ID', 'test-key'],
+          ['S3_BUCKET', 'test-bucket'],
+          ['S3_ENDPOINT', 'http://minio:9000'],
+          ['S3_PUBLIC_ENDPOINT', 'http://localhost:9039'],
+          ['S3_REGION', 'us-east-1'],
+          ['S3_SECRET_ACCESS_KEY', 'test-secret'],
+        ]);
+
+        expect(yield* readObjectStorageConfig(provider)).toMatchObject({
+          endpoint: 'http://minio:9000',
+          publicEndpoint: 'http://localhost:9039',
+        });
+      }),
   );
 });

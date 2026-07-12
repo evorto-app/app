@@ -240,7 +240,7 @@ The registration consists of the following settings:
 - **Registration fee**: The registration fee for this registration. This field is only visible if the payment is required.
 - **ESNcard discounted price**: Optional discounted pricing for tenants with the ESNcard discount provider enabled. Leave it empty when this template registration should use the standard price only.
 - **Selected roles**: The roles that are selected for this registration. Users can only see and use the registration if they have one of the selected roles.
-- **Registration mode**: First come first serve is the only selectable mode for now. The first user to register will get the registration.
+- **Registration mode**: **First come, first served** confirms an eligible signup when capacity is available. **Manual approval** saves a pending application for an organizer to review; if the option is paid, payment starts only after approval and confirmation waits for successful payment.
 - **Registration start**: The offset in hours for when the registration should start. For example 168 hours means that the registration will start 7 days before the event starts.
 - **Registration end**: The offset in hours for when the registration should end. For example 24 hours means that the registration will end 1 day before the event starts.
 - **Role picker behavior**: Roles that are already selected are hidden from autocomplete suggestions to prevent duplicates.
@@ -288,6 +288,27 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
     'Organizer payment fields visible',
   );
   await paymentToggle.click();
+
+  await testInfo.attach('markdown', {
+    body: `
+Choose **Manual approval** when an organizer must review this category before confirming it. This works for participant and organizer/helper options. Applications do not reserve capacity or grant organizer access while pending.
+`,
+  });
+  const organizerRegistrationMode = organizerRegistrationForm.getByRole(
+    'combobox',
+    { name: 'Registration mode' },
+  );
+  await organizerRegistrationMode.click();
+  await page
+    .getByRole('option', { exact: true, name: 'Manual approval' })
+    .click();
+  await expect(organizerRegistrationMode).toContainText('Manual approval');
+  await takeScreenshot(
+    testInfo,
+    organizerRegistrationForm,
+    page,
+    'Manual approval organizer option',
+  );
 
   await testInfo.attach('markdown', {
     body: `
@@ -455,6 +476,15 @@ You will be redirected to the detail page for that template.
       'Expected template docs flow to persist a participant registration option',
     );
   }
+  const organizerRegistrationOption = registrationOptions.find(
+    (option) => option.organizingRegistration,
+  );
+  if (!organizerRegistrationOption) {
+    throw new Error(
+      'Expected template docs flow to persist an organizer registration option',
+    );
+  }
+  expect(organizerRegistrationOption.registrationMode).toBe('application');
 
   const addOn = await database.query.templateEventAddons.findFirst({
     where: {

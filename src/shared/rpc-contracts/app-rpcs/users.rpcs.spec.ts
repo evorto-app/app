@@ -30,6 +30,7 @@ describe('users RPC input schemas', () => {
         end: '2026-03-01T11:00:00.000Z',
         eventId: 'event-1',
         guestCount: 0,
+        organizingRegistration: false,
         paymentState: 'recorded',
         registrationId: 'registration-1',
         registrationOptionTitle: 'Participant',

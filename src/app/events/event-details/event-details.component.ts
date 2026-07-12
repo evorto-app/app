@@ -59,6 +59,22 @@ export const registrationOptionsState = (event: {
     : 'none';
 };
 
+export const eventRegistrationOptionGroups = <
+  TOption extends { organizingRegistration: boolean },
+>(
+  registrationOptions: readonly TOption[],
+): {
+  organizerOptions: readonly TOption[];
+  participantOptions: readonly TOption[];
+} => ({
+  organizerOptions: registrationOptions.filter(
+    (option) => option.organizingRegistration,
+  ),
+  participantOptions: registrationOptions.filter(
+    (option) => !option.organizingRegistration,
+  ),
+});
+
 export const eventReviewActionDisabled = ({
   canReview,
   controlsInteractive,
@@ -249,6 +265,11 @@ export class EventDetailsComponent {
     eventSubmitForReviewActionDisabled;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly registrationOptionGroups = computed(() =>
+    eventRegistrationOptionGroups(
+      this.eventQuery.data()?.registrationOptions ?? [],
+    ),
+  );
   protected readonly registrationOptionsState = computed(() => {
     const event = this.eventQuery.data();
     return event ? registrationOptionsState(event) : 'none';

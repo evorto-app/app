@@ -270,21 +270,76 @@
             } @else {
               @switch (registrationOptionsState()) {
                 @case ("visible") {
-                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    @for (
-                      registrationOption of eventQuery.data()
-                        .registrationOptions;
-                      track registrationOption.id
+                  <div class="grid gap-6">
+                    @if (
+                      registrationOptionGroups().organizerOptions.length > 0
                     ) {
-                      <app-event-registration-option
-                        [addOns]="
-                          eventAddonsForRegistrationOption(
-                            eventQuery.data(),
-                            registrationOption.id
-                          )
-                        "
-                        [registrationOption]="registrationOption"
-                      />
+                      <section
+                        aria-label="Organizer/helper opportunities"
+                        class="border-outline-variant grid gap-4 rounded-xl border p-4"
+                      >
+                        <div class="grid gap-1">
+                          <p class="title-medium">
+                            Organizer/helper opportunities
+                          </p>
+                          <p class="body-medium text-on-surface-variant">
+                            Confirmed organizer/helper registrations grant event
+                            management access. Applications require approval and
+                            any required payment first.
+                          </p>
+                        </div>
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          @for (
+                            registrationOption of registrationOptionGroups()
+                              .organizerOptions;
+                            track registrationOption.id
+                          ) {
+                            <app-event-registration-option
+                              [addOns]="
+                                eventAddonsForRegistrationOption(
+                                  eventQuery.data(),
+                                  registrationOption.id
+                                )
+                              "
+                              [registrationOption]="registrationOption"
+                            />
+                          }
+                        </div>
+                      </section>
+                    }
+                    @if (
+                      registrationOptionGroups().participantOptions.length > 0
+                    ) {
+                      <section
+                        aria-label="Participant registration options"
+                        class="grid gap-4"
+                      >
+                        <div class="grid gap-1">
+                          <p class="title-medium">
+                            Participant registration options
+                          </p>
+                          <p class="body-medium text-on-surface-variant">
+                            Choose how you want to attend this event.
+                          </p>
+                        </div>
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          @for (
+                            registrationOption of registrationOptionGroups()
+                              .participantOptions;
+                            track registrationOption.id
+                          ) {
+                            <app-event-registration-option
+                              [addOns]="
+                                eventAddonsForRegistrationOption(
+                                  eventQuery.data(),
+                                  registrationOption.id
+                                )
+                              "
+                              [registrationOption]="registrationOption"
+                            />
+                          }
+                        </div>
+                      </section>
                     }
                   </div>
                 }

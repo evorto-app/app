@@ -431,6 +431,13 @@ describe('generated docs source current behavior', () => {
       '**Selected roles**: The roles that are selected for this registration.',
     );
     expect(source).toContain(
+      '**Manual approval** saves a pending application for an organizer to review',
+    );
+    expect(source).toContain("name: 'Manual approval'");
+    expect(source).toContain(
+      "expect(organizerRegistrationOption.registrationMode).toBe('application')",
+    );
+    expect(source).toContain(
       'Role selection also avoids duplicate entries by hiding already selected roles from the autocomplete list.',
     );
     expect(source).toContain(
@@ -792,6 +799,47 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain(
       'payment approval immediately creates a ticket',
     );
+  });
+
+  it('keeps organizer and helper signup docs role-aware and behavior-backed', () => {
+    const source = readSource('tests/docs/events/organizer-signup.doc.ts');
+    const scenarioSource = readSource(
+      'tests/support/utils/organizer-signup-scenario.ts',
+    );
+
+    expect(source).toContain('# Sign up as an organizer or helper');
+    expect(source).toContain(
+      'Organizer/helper registrations never include guests or a waitlist.',
+    );
+    expect(source).toContain(
+      'Evorto allows one active registration per person and event',
+    );
+    expect(source).toContain('Organizer/helper registration confirmed');
+    expect(source).toContain('Your organizer/helper pass');
+    expect(source).toContain('Organizer/helper team');
+    expect(source).toContain('Participant registrations');
+    expect(source).toContain('Type** as **Organizer/helper');
+    expect(source).toContain('A saved or copied organizer URL');
+    expect(source).toContain(
+      'page.goto(`/events/${scenario.event.id}/organize`)',
+    );
+    expect(source).toContain('page).toHaveURL(/\\/403$/)');
+    expect(source).toContain(
+      '# Apply for an advanced organizer or helper category',
+    );
+    expect(source).toContain('Organizer/helper application pending');
+    expect(source).toContain('Approve application');
+    expect(source).toContain(
+      'Paid organizer/helper categories are outside this guide.',
+    );
+    expect(source).toContain('seedOrganizerSignupScenario');
+    expect(source).toContain('takeScreenshot');
+    expect(scenarioSource).toContain("mode: 'advanced' | 'simple'");
+    expect(scenarioSource).toContain("simpleModeEnabled: mode === 'simple'");
+    expect(scenarioSource).toContain("registrationMode: 'application'");
+    expect(scenarioSource).toContain('organizingRegistration: true');
+    expect(scenarioSource).toContain('cancellationDeadlineHoursBeforeStart: 0');
+    expect(source).not.toContain('organizer access starts on application');
   });
 
   it('keeps event approval docs backed by deterministic lifecycle persistence checks', () => {

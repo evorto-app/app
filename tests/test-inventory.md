@@ -34,6 +34,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/admin/platform-tenant-operations.doc.ts [admin, globalAdmin]
   - docs/events/event-approval.doc.ts
   - docs/events/manual-approval.doc.ts [stripe]
+  - docs/events/organizer-signup.doc.ts
   - docs/events/event-management.doc.ts
   - docs/events/register.doc.ts [stripe]
   - docs/events/registration-cancellation.doc.ts
@@ -68,6 +69,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/events/free-registration.test.ts
   - specs/events/manual-approval.spec.ts [stripe]
   - specs/events/negative-registration-states.spec.ts
+  - specs/events/organizer-signup.spec.ts
   - specs/events/registration-addons.test.ts
   - specs/events/registration-transfer.spec.ts
   - specs/events/unlisted-visibility.test.ts
@@ -230,6 +232,13 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   setup retry, and pending-payment cancellation with capacity release. The
   shared scenario helper restores registrations, event timing, option mode and
   counters, transactions, and approval outbox rows.
+- `specs/events/organizer-signup.spec.ts` creates disposable simple and
+  advanced events with separate participant and organizer/helper categories.
+  It proves role-filtered choices, no organizer guests or waitlist, capacity,
+  participant/organizer exclusivity, immediate event-scoped access and removal,
+  profile/pass copy, responsive grouped organizer operations, pending advanced
+  applications, authorized approval, email/counter persistence, Axe checks,
+  direct-URL denial, and deterministic cleanup.
 - `specs/events/registration-addons.test.ts` adds page-backed coverage for a
   registration-time add-on and required question selected on a seeded free
   event, including required answer gating, persisted add-on purchase, persisted
@@ -278,6 +287,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   shows the fresh, retry, and session-ready organizer states, and documents
   participant refresh, cancellation, tenant scope, and the current lack of a
   separate rejection action.
+- `docs/events/organizer-signup.doc.ts` generates beginner workflows for a
+  direct organizer/helper signup and a role-filtered advanced application. It
+  explains prerequisites, distinct participant choices, capacity and
+  exclusivity, profile/pass state, grouped event management, authorized
+  approval, cancellation-driven access loss, and the protected copied-URL
+  boundary while executing and screenshotting both journeys.
 - Active-registration component coverage pins participant cancellation and
   self-service transfer action disabling while either write is pending or the
   transfer is unavailable.
@@ -474,13 +489,19 @@ and the release-gated live ESNcard provider credential path.
     groups and ledger transactions cannot mix or replace recorded currencies,
     that approval/rejection actions stay disabled while the
     form is invalid, receipt details are loading, or the review mutation is
-    pending, that reimbursement recording stays disabled while the refund
+    pending, that receipt approval additionally requires the exact
+    tenant/event/submitter-bound object to pass a storage existence check while
+    rejection remains available without that object, that reimbursement
+    recording stays disabled while the refund
     mutation is pending, and that finance receipt contact details prefer the
     submitter's notification email with login email fallback.
     `docs/finance/receipt-review-reimbursement.doc.ts` now follows the exact
-    seeded receipt through approval and reimbursement by id/file name, reads the
-    approved/refunded state back, and restores the seeded receipt plus generated
-    reimbursement transaction after the documentation journey.
+    seeded receipt through a real MinIO-backed preview, approval, and
+    reimbursement by id/file name, reads the approved/refunded state back, and
+    restores the seeded receipt plus generated reimbursement transaction after
+    the documentation journey. The functional finance flow also seeds a scoped
+    upload row with no object and proves approval is disabled while rejection
+    still succeeds.
   - Keep event-organizer receipt submission action coverage aligned with the
     two-step upload-plus-submit flow. Local app coverage now pins that Add
     receipt remains disabled while the event has not loaded yet, while the

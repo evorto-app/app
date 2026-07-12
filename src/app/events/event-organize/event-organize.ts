@@ -46,37 +46,86 @@ import {
 } from './registration-transfer-dialog.component';
 
 interface EventOrganizeStatsInput {
-  registrationOptions?: readonly {
-    checkedInSpots: number;
-    confirmedSpots: number;
-    spots: number;
-  }[];
+  capacity: number;
+  checkedIn: number;
+  registered: number;
 }
 
 export const computeEventOrganizeStats = (
-  eventData?: EventOrganizeStatsInput | null,
+  serverStats?: EventOrganizeStatsInput | null,
 ) => {
-  const registrationOptions = eventData?.registrationOptions ?? [];
-  const totalCapacity = registrationOptions.reduce(
-    (sum, option) => sum + option.spots,
-    0,
-  );
-  const totalRegistered = registrationOptions.reduce(
-    (sum, option) => sum + option.confirmedSpots,
-    0,
-  );
-  const totalCheckedIn = registrationOptions.reduce(
-    (sum, option) => sum + option.checkedInSpots,
-    0,
-  );
+  const capacity = serverStats?.capacity ?? 0;
+  const checkedIn = serverStats?.checkedIn ?? 0;
+  const registered = serverStats?.registered ?? 0;
 
   return {
-    capacity: totalCapacity,
-    capacityPercentage: totalCapacity > 0 ? totalRegistered / totalCapacity : 0,
-    checkedIn: totalCheckedIn,
-    registered: totalRegistered,
+    capacity,
+    capacityPercentage: capacity > 0 ? registered / capacity : 0,
+    checkedIn,
+    registered,
   };
 };
+
+interface EventOrganizeStateQueryKeys {
+  eventDetails: readonly unknown[];
+  organizerAccess: readonly unknown[];
+  organizerOverview: readonly unknown[];
+  registrationStatus: readonly unknown[];
+  scannerAccess: readonly unknown[];
+  userEvents: readonly unknown[];
+}
+
+interface ExactQueryInvalidator {
+  invalidateQueries(
+    filters: { exact: true; queryKey: readonly unknown[] },
+    options: { throwOnError: true },
+  ): Promise<unknown>;
+}
+
+export const invalidateEventOrganizeStateQueries = async (
+  queryClient: ExactQueryInvalidator,
+  queryKeys: EventOrganizeStateQueryKeys,
+): Promise<void> => {
+  await Promise.all(
+    [
+      queryKeys.organizerOverview,
+      queryKeys.eventDetails,
+      queryKeys.registrationStatus,
+      queryKeys.organizerAccess,
+      queryKeys.scannerAccess,
+      queryKeys.userEvents,
+    ].map((queryKey) =>
+      queryClient.invalidateQueries(
+        { exact: true, queryKey },
+        { throwOnError: true },
+      ),
+    ),
+  );
+};
+
+export const groupEventOrganizeRegistrationOptions = <
+  RegistrationOption extends { organizingRegistration: boolean },
+>(
+  registrationOptions: readonly RegistrationOption[],
+) =>
+  [
+    {
+      emptyMessage: 'No organizer/helper registrations yet.',
+      id: 'organizer-helper-team',
+      options: registrationOptions.filter(
+        (option) => option.organizingRegistration,
+      ),
+      title: 'Organizer/helper team',
+    },
+    {
+      emptyMessage: 'No participant registrations yet.',
+      id: 'participant-registrations',
+      options: registrationOptions.filter(
+        (option) => !option.organizingRegistration,
+      ),
+      title: 'Participant registrations',
+    },
+  ] as const;
 
 export interface EventOrganizeParticipant {
   addonPurchases: readonly {
@@ -190,12 +239,12 @@ export class EventOrganize {
   protected readonly receiptOriginalUploadMutation = injectMutation(() =>
     this.rpc.finance.receiptMedia.uploadOriginal.mutationOptions(),
   );
-
   protected readonly receiptsByEventQuery = injectQuery(() =>
     this.rpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),
     }),
   );
+
   protected readonly receiptSubmissionActionDisabled =
     receiptSubmissionActionDisabled;
   protected readonly receiptSubmissionUnavailableMessage = computed(() => {
@@ -210,8 +259,13 @@ export class EventOrganize {
 
     return null;
   });
+  protected readonly registrationGroups = computed(() =>
+    groupEventOrganizeRegistrationOptions(
+      this.organizerOverviewQuery.data()?.registrationOptions ?? [],
+    ),
+  );
   protected readonly stats = computed(() =>
-    computeEventOrganizeStats(this.event()),
+    computeEventOrganizeStats(this.organizerOverviewQuery.data()?.stats),
   );
 
   protected readonly submitReceiptMutation = injectMutation(() =>
@@ -278,16 +332,7 @@ export class EventOrganize {
         },
         onSettled: async () => {
           try {
-            await this.queryClient.invalidateQueries({
-              queryKey: this.rpc.events.getOrganizeOverview.queryKey({
-                eventId: this.eventId(),
-              }),
-            });
-            await this.queryClient.invalidateQueries({
-              queryKey: this.rpc.events.findOne.queryKey({
-                id: this.eventId(),
-              }),
-            });
+            await this.invalidateOrganizerState();
           } finally {
             this.approvalPendingRegistrationId.set(null);
           }
@@ -372,33 +417,16 @@ export class EventOrganize {
       },
       {
         onError: async (error) => {
-          await Promise.allSettled([
-            this.queryClient.invalidateQueries({
-              queryKey: this.rpc.events.getOrganizeOverview.queryKey({
-                eventId: this.eventId(),
-              }),
-            }),
-            this.queryClient.invalidateQueries({
-              queryKey: this.rpc.events.findOne.queryKey({
-                id: this.eventId(),
-              }),
-            }),
-          ]);
-          this.notifications.showError(
-            getErrorMessage(error, 'Failed to cancel registration'),
-          );
+          try {
+            await this.invalidateOrganizerState();
+          } finally {
+            this.notifications.showError(
+              getErrorMessage(error, 'Failed to cancel registration'),
+            );
+          }
         },
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.getOrganizeOverview.queryKey({
-              eventId: this.eventId(),
-            }),
-          });
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.findOne.queryKey({
-              id: this.eventId(),
-            }),
-          });
+          await this.invalidateOrganizerState();
           this.notifications.showSuccess('Registration cancelled');
         },
       },
@@ -531,16 +559,7 @@ export class EventOrganize {
           );
         },
         onSuccess: async () => {
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.getOrganizeOverview.queryKey({
-              eventId: this.eventId(),
-            }),
-          });
-          await this.queryClient.invalidateQueries({
-            queryKey: this.rpc.events.findOne.queryKey({
-              id: this.eventId(),
-            }),
-          });
+          await this.invalidateOrganizerState();
           this.notifications.showSuccess('Registration transferred');
         },
       },
@@ -556,6 +575,22 @@ export class EventOrganize {
     index: number,
     row: { type?: string },
   ) => row?.type === 'Registration Option';
+
+  private invalidateOrganizerState(): Promise<void> {
+    const eventId = this.eventId();
+    return invalidateEventOrganizeStateQueries(this.queryClient, {
+      eventDetails: this.rpc.events.findOne.queryKey({ id: eventId }),
+      organizerAccess: this.rpc.events.canOrganize.queryKey({ eventId }),
+      organizerOverview: this.rpc.events.getOrganizeOverview.queryKey({
+        eventId,
+      }),
+      registrationStatus: this.rpc.events.getRegistrationStatus.queryKey({
+        eventId,
+      }),
+      scannerAccess: this.rpc.users.canUseScanner.queryKey(),
+      userEvents: this.rpc.users.events.queryKey(),
+    });
+  }
 
   private async prepareAttachment(file: File, attachmentName: string) {
     const originalUpload = await this.uploadReceiptOriginal(file);

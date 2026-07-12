@@ -1,9 +1,12 @@
+import { QueryClient } from '@tanstack/angular-query-experimental';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
   computeEventOrganizeStats,
+  groupEventOrganizeRegistrationOptions,
+  invalidateEventOrganizeStateQueries,
   organizerRegistrationActionDisabled,
   organizerRegistrationApprovalDisabled,
   organizerRegistrationApprovalLabel,
@@ -16,21 +19,12 @@ const readSource = (sourcePath: string): string =>
   readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
 
 describe('computeEventOrganizeStats', () => {
-  it('sums capacity, confirmed registrations, and scanner-updated checked-in spots', () => {
+  it('uses the server-provided unfiltered aggregates for organizer statistics', () => {
     expect(
       computeEventOrganizeStats({
-        registrationOptions: [
-          {
-            checkedInSpots: 3,
-            confirmedSpots: 5,
-            spots: 10,
-          },
-          {
-            checkedInSpots: 2,
-            confirmedSpots: 4,
-            spots: 8,
-          },
-        ],
+        capacity: 18,
+        checkedIn: 5,
+        registered: 9,
       }),
     ).toEqual({
       capacity: 18,
@@ -40,13 +34,103 @@ describe('computeEventOrganizeStats', () => {
     });
   });
 
-  it('keeps empty organizer stats stable before the event query resolves', () => {
+  it('keeps empty organizer stats stable before the overview query resolves', () => {
     expect(computeEventOrganizeStats()).toEqual({
       capacity: 0,
       capacityPercentage: 0,
       checkedIn: 0,
       registered: 0,
     });
+  });
+});
+
+describe('invalidateEventOrganizeStateQueries', () => {
+  it('invalidates every exact self-facing cache after an organizer action', async () => {
+    const queryClient = new QueryClient();
+    const queryKeys = {
+      eventDetails: ['events', 'findOne', 'event-1'],
+      organizerAccess: ['events', 'canOrganize', 'event-1'],
+      organizerOverview: ['events', 'getOrganizeOverview', 'event-1'],
+      registrationStatus: ['events', 'getRegistrationStatus', 'event-1'],
+      scannerAccess: ['users', 'canUseScanner'],
+      userEvents: ['users', 'events'],
+    } as const;
+    const exactQueryKeys = Object.values(queryKeys);
+    const nestedOverviewKey = [...queryKeys.organizerOverview, 'nested'];
+
+    for (const queryKey of [...exactQueryKeys, nestedOverviewKey]) {
+      queryClient.setQueryData(queryKey, 'stale');
+    }
+
+    await invalidateEventOrganizeStateQueries(queryClient, queryKeys);
+
+    for (const queryKey of exactQueryKeys) {
+      expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(true);
+    }
+    expect(queryClient.getQueryState(nestedOverviewKey)?.isInvalidated).toBe(
+      false,
+    );
+  });
+
+  it('maps the helper to the complete organizer self-action RPC cache set', () => {
+    const source = readSource(
+      'src/app/events/event-organize/event-organize.ts',
+    );
+
+    for (const queryKeyBuilder of [
+      'this.rpc.events.getOrganizeOverview.queryKey',
+      'this.rpc.events.findOne.queryKey',
+      'this.rpc.events.getRegistrationStatus.queryKey',
+      'this.rpc.events.canOrganize.queryKey',
+      'this.rpc.users.canUseScanner.queryKey',
+      'this.rpc.users.events.queryKey',
+    ]) {
+      expect(source).toContain(queryKeyBuilder);
+    }
+    expect(source).toContain(
+      'return invalidateEventOrganizeStateQueries(this.queryClient',
+    );
+    expect(
+      source.match(/await this\.invalidateOrganizerState\(\)/g),
+    ).toHaveLength(4);
+  });
+});
+
+describe('groupEventOrganizeRegistrationOptions', () => {
+  it('separates the organizer/helper team from participant registrations without changing option order', () => {
+    const organizerOption = {
+      id: 'organizer-option',
+      organizingRegistration: true,
+    };
+    const participantOptionA = {
+      id: 'participant-option-a',
+      organizingRegistration: false,
+    };
+    const participantOptionB = {
+      id: 'participant-option-b',
+      organizingRegistration: false,
+    };
+
+    const groups = groupEventOrganizeRegistrationOptions([
+      participantOptionA,
+      organizerOption,
+      participantOptionB,
+    ]);
+
+    expect(groups).toEqual([
+      {
+        emptyMessage: 'No organizer/helper registrations yet.',
+        id: 'organizer-helper-team',
+        options: [organizerOption],
+        title: 'Organizer/helper team',
+      },
+      {
+        emptyMessage: 'No participant registrations yet.',
+        id: 'participant-registrations',
+        options: [participantOptionA, participantOptionB],
+        title: 'Participant registrations',
+      },
+    ]);
   });
 });
 
@@ -170,15 +254,50 @@ describe('organizerRegistrationApprovalLabel', () => {
 });
 
 describe('event organizer approval template', () => {
-  it('only renders available approval actions and exposes the in-flight row state', () => {
+  it('renders organizer/helper approval only when the server grants approval access', () => {
     const template = readSource(
       'src/app/events/event-organize/event-organize.html',
     );
 
-    expect(template).toContain('@if (user.manualApprovalAvailable)');
+    expect(template).toContain('registrationOption.canApproveRegistrations &&');
+    expect(template).toContain('user.manualApprovalAvailable');
     expect(template).not.toContain('@if (user.status === "PENDING")');
+    expect(template).not.toContain(
+      '@if (!registrationOption.organizingRegistration)',
+    );
     expect(template).toContain('[attr.aria-busy]="approvalInFlight || null"');
     expect(template).toContain('Payment setup needs retry');
+  });
+
+  it('hides transfer and cancellation actions unless their server capabilities are present', () => {
+    const template = readSource(
+      'src/app/events/event-organize/event-organize.html',
+    );
+
+    expect(template).toContain(
+      '@if (registrationOption.canTransferRegistrations)',
+    );
+    expect(template).toContain(
+      '@if (registrationOption.canCancelRegistrations)',
+    );
+  });
+});
+
+describe('event organizer overview structure', () => {
+  it('uses semantic registration groups and a compact responsive definition list', () => {
+    const template = readSource(
+      'src/app/events/event-organize/event-organize.html',
+    );
+
+    expect(template).toContain(
+      '@for (group of registrationGroups(); track group.id)',
+    );
+    expect(template).toContain('[attr.aria-labelledby]="group.id"');
+    expect(template).toContain('<dl');
+    expect(template).toContain('<dt');
+    expect(template).toContain('<dd');
+    expect(template).toContain('@sm:grid-cols-3');
+    expect(template).not.toContain('<!-- Quick Stats Cards -->');
   });
 });
 

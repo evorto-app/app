@@ -78,6 +78,24 @@ interface SelectedReceiptContext {
   receipt: PlatformFinanceReceiptWithSubmitterRecord;
 }
 
+export const platformReceiptEvidenceUnavailableNotice =
+  'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.';
+
+export const platformReceiptReviewDisabled = ({
+  evidenceAvailable,
+  formInvalid,
+  mutationPending,
+  status,
+}: {
+  evidenceAvailable: boolean;
+  formInvalid: boolean;
+  mutationPending: boolean;
+  status: 'approved' | 'rejected';
+}): boolean =>
+  formInvalid ||
+  mutationPending ||
+  (status === 'approved' && !evidenceAvailable);
+
 const emptyReview = (): ReceiptReviewModel => ({
   alcoholAmount: 0,
   depositAmount: 0,
@@ -170,6 +188,10 @@ export class PlatformFinanceComponent {
   protected readonly approvalQueueQuery = injectQuery(() =>
     this.operations.approvalQueue(this.tenantId()),
   );
+  protected readonly platformReceiptEvidenceUnavailableNotice =
+    platformReceiptEvidenceUnavailableNotice;
+  protected readonly platformReceiptReviewDisabled =
+    platformReceiptReviewDisabled;
   protected readonly receiptCountryConfig = computed(() =>
     this.approvalQueueQuery.isSuccess()
       ? this.approvalQueueQuery.data().tenantContext.receiptCountryConfig
@@ -436,6 +458,12 @@ export class PlatformFinanceComponent {
 
     void submit(this.reviewForm, async () => {
       const review = this.reviewModel();
+      const evidenceAvailable =
+        this.selectedReceipt()?.receipt.receiptEvidenceAvailable ?? false;
+      if (review.status === 'approved' && !evidenceAvailable) {
+        this.notifications.showError(platformReceiptEvidenceUnavailableNotice);
+        return;
+      }
       try {
         await this.reviewMutation.mutateAsync({
           alcoholAmount: review.alcoholAmount,

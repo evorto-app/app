@@ -40,6 +40,9 @@ export const receiptReviewSuccessMessage = (
 export const receiptReviewNotificationNotice =
   'Approving or rejecting this receipt queues an email to the submitter after saving.';
 
+export const receiptEvidenceUnavailableNotice =
+  'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.';
+
 export const receiptReviewActionDisabled = ({
   formInvalid,
   mutationPending,
@@ -49,6 +52,16 @@ export const receiptReviewActionDisabled = ({
   mutationPending: boolean;
   receiptPending: boolean;
 }): boolean => formInvalid || receiptPending || mutationPending;
+
+export const receiptApprovalDisabled = ({
+  evidenceAvailable,
+  ...reviewState
+}: {
+  evidenceAvailable: boolean;
+  formInvalid: boolean;
+  mutationPending: boolean;
+  receiptPending: boolean;
+}): boolean => !evidenceAvailable || receiptReviewActionDisabled(reviewState);
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -102,6 +115,9 @@ export class ReceiptApprovalDetailComponent {
     return receipt.attachmentMimeType === 'application/pdf';
   });
 
+  protected readonly receiptApprovalDisabled = receiptApprovalDisabled;
+  protected readonly receiptEvidenceUnavailableNotice =
+    receiptEvidenceUnavailableNotice;
   protected readonly receiptReviewActionDisabled = receiptReviewActionDisabled;
   protected readonly receiptReviewNotificationNotice =
     receiptReviewNotificationNotice;
@@ -169,15 +185,23 @@ export class ReceiptApprovalDetailComponent {
 
   private async review(status: 'approved' | 'rejected'): Promise<void> {
     const formInvalid = this.form.invalid;
-    if (
-      receiptReviewActionDisabled({
-        formInvalid,
-        mutationPending: this.reviewMutation.isPending(),
-        receiptPending: this.receiptQuery.isPending(),
-      })
-    ) {
+    const reviewState = {
+      formInvalid,
+      mutationPending: this.reviewMutation.isPending(),
+      receiptPending: this.receiptQuery.isPending(),
+    };
+    const evidenceAvailable =
+      this.receiptQuery.data()?.receiptEvidenceAvailable ?? false;
+    const actionDisabled =
+      status === 'approved'
+        ? receiptApprovalDisabled({ evidenceAvailable, ...reviewState })
+        : receiptReviewActionDisabled(reviewState);
+    if (actionDisabled) {
       if (formInvalid || this.receiptQuery.isPending()) {
         this.form.markAllAsTouched();
+      }
+      if (status === 'approved' && !evidenceAvailable) {
+        this.notifications.showError(receiptEvidenceUnavailableNotice);
       }
       return;
     }

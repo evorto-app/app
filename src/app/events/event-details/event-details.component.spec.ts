@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   eventAddonPurchaseTiming,
   eventAddonsForRegistrationOption,
+  eventRegistrationOptionGroups,
   eventRegistrationOptionTitle,
   eventReviewActionDisabled,
   eventSubmitForReviewActionDisabled,
@@ -41,6 +42,26 @@ describe('registrationOptionsState', () => {
         registrationOptionsHiddenByEligibility: false,
       }),
     ).toBe('none');
+  });
+});
+
+describe('eventRegistrationOptionGroups', () => {
+  it('keeps organizer/helper opportunities separate from participant registration options', () => {
+    const organizerOption = {
+      id: 'organizer-option',
+      organizingRegistration: true,
+    };
+    const participantOption = {
+      id: 'participant-option',
+      organizingRegistration: false,
+    };
+
+    expect(
+      eventRegistrationOptionGroups([participantOption, organizerOption]),
+    ).toEqual({
+      organizerOptions: [organizerOption],
+      participantOptions: [participantOption],
+    });
   });
 });
 
@@ -238,5 +259,16 @@ describe('EventDetails template', () => {
 
     expect(template).toContain('Return to draft');
     expect(template).not.toContain('REJECTED');
+  });
+
+  it('labels organizer/helper and participant registration choices as distinct groups', () => {
+    const template = readSource(
+      'src/app/events/event-details/event-details.component.html',
+    );
+
+    expect(template).toContain('aria-label="Organizer/helper opportunities"');
+    expect(template).toContain('Organizer/helper opportunities');
+    expect(template).toContain('aria-label="Participant registration options"');
+    expect(template).toContain('Participant registration options');
   });
 });

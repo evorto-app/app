@@ -52,6 +52,8 @@ import {
   validateReceiptCountryForTenant,
 } from '../finance/finance.shared';
 import {
+  ensureReceiptEvidenceAvailableForApproval,
+  hasValidReceiptUploadBinding,
   withSignedReceiptPreviewUrl,
   withSignedReceiptPreviewUrls,
 } from '../finance/receipt-media.service';
@@ -69,7 +71,9 @@ type DatabaseTransaction = Parameters<
 
 type FinanceReceiptRow = Parameters<
   typeof normalizeFinanceReceiptBaseRecord
->[0];
+>[0] & {
+  readonly receiptEvidenceAvailable: boolean;
+};
 
 interface FinanceReceiptSubmitterRow extends FinanceReceiptRow {
   readonly submittedByCommunicationEmail: null | string;
@@ -203,6 +207,37 @@ const financeReceiptUploadJoin = and(
   eq(financeReceipts.submittedByUserId, financeReceiptUploads.uploadedByUserId),
 );
 
+const loadReceiptEvidenceForApproval = Effect.fn(
+  'PlatformTenantFinance.loadReceiptEvidenceForApproval',
+)(function* (targetTenantId: string, receiptId: string) {
+  const receiptRows = yield* databaseEffect((database) =>
+    database
+      .select(financeReceiptView)
+      .from(financeReceipts)
+      .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
+      .where(
+        and(
+          eq(financeReceipts.id, receiptId),
+          eq(financeReceipts.tenantId, targetTenantId),
+        ),
+      )
+      .limit(1),
+  );
+  const receipt = receiptRows[0];
+  if (!receipt) {
+    return yield* receiptNotFound(receiptId);
+  }
+  if (receipt.status !== 'submitted') {
+    return yield* new RpcBadRequestError({
+      message:
+        'This receipt has already been reviewed. Refresh the queue before taking another action.',
+      reason: 'receiptAlreadyReviewed',
+    });
+  }
+
+  return yield* ensureReceiptEvidenceAvailableForApproval(receipt);
+});
+
 export const payoutDetailsVersion = (
   payoutType: Schema.Schema.Type<typeof PlatformFinancePayoutType>,
   payoutReference: string,
@@ -299,6 +334,7 @@ const toPlatformReceiptRecord = (receipt: FinanceReceiptRow) => {
     previewImageUrl: normalized.previewImageUrl,
     purchaseCountry: normalized.purchaseCountry,
     receiptDate: normalized.receiptDate,
+    receiptEvidenceAvailable: receipt.receiptEvidenceAvailable,
     refundedAt: normalized.refundedAt,
     refundTransactionId: normalized.refundTransactionId,
     rejectionReason: normalized.rejectionReason,
@@ -506,13 +542,13 @@ export const platformReimbursementReceiptUpdate = (input: {
   status: 'refunded' as const,
 });
 
-const runPlatformRead = <A>(
+const runPlatformRead = <A, R>(
   targetTenantId: string,
   allowedPermission: Permission,
   read: (
     database: DatabaseClient,
     tenant: Tenant,
-  ) => Effect.Effect<A, RpcBadRequestError>,
+  ) => Effect.Effect<A, RpcBadRequestError, R>,
 ) =>
   Effect.gen(function* () {
     const operation = yield* resolvePlatformRead(targetTenantId);
@@ -592,6 +628,13 @@ const reviewReceipt = (input: PlatformFinanceReceiptReviewInput) =>
     return yield* providePlatformOperation(
       Effect.gen(function* () {
         yield* RpcAccess.ensurePermission('finance:approveReceipts');
+        const approvalEvidence =
+          input.status === 'approved'
+            ? yield* loadReceiptEvidenceForApproval(
+                input.targetTenantId,
+                input.id,
+              )
+            : null;
 
         return yield* databaseEffect((database) =>
           database.transaction((transaction) =>
@@ -621,6 +664,47 @@ const reviewReceipt = (input: PlatformFinanceReceiptReviewInput) =>
                     'This receipt has already been reviewed. Refresh the queue before taking another action.',
                   reason: 'receiptAlreadyReviewed',
                 });
+              }
+              if (
+                approvalEvidence &&
+                before.attachmentUploadId !==
+                  approvalEvidence.attachmentUploadId
+              ) {
+                return yield* new RpcBadRequestError({
+                  message: 'Receipt evidence changed before approval',
+                  reason: 'receiptEvidenceUnavailable',
+                });
+              }
+              if (approvalEvidence) {
+                const lockedEvidenceRows = yield* transaction
+                  .select(financeReceiptView)
+                  .from(financeReceipts)
+                  .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
+                  .where(
+                    and(
+                      eq(financeReceipts.id, input.id),
+                      eq(financeReceipts.tenantId, input.targetTenantId),
+                      eq(
+                        financeReceipts.attachmentUploadId,
+                        approvalEvidence.attachmentUploadId,
+                      ),
+                    ),
+                  )
+                  .limit(1)
+                  .for('share', { of: financeReceiptUploads })
+                  .pipe(Effect.orDie);
+                const lockedEvidence = lockedEvidenceRows[0];
+                if (
+                  !lockedEvidence ||
+                  !hasValidReceiptUploadBinding(lockedEvidence) ||
+                  lockedEvidence.attachmentStorageKey !==
+                    approvalEvidence.storageKey
+                ) {
+                  return yield* new RpcBadRequestError({
+                    message: 'Receipt evidence changed before approval',
+                    reason: 'receiptEvidenceUnavailable',
+                  });
+                }
               }
 
               const normalized = yield* validateReceiptReviewInput(
@@ -685,6 +769,12 @@ const reviewReceipt = (input: PlatformFinanceReceiptReviewInput) =>
                     eq(financeReceipts.id, input.id),
                     eq(financeReceipts.tenantId, input.targetTenantId),
                     eq(financeReceipts.status, 'submitted'),
+                    approvalEvidence
+                      ? eq(
+                          financeReceipts.attachmentUploadId,
+                          approvalEvidence.attachmentUploadId,
+                        )
+                      : undefined,
                   ),
                 )
                 .returning()

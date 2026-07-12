@@ -158,6 +158,14 @@
               Open receipt preview
             </a>
           }
+          @if (!selected.receipt.receiptEvidenceAvailable) {
+            <p
+              role="alert"
+              class="bg-error-container text-on-error-container mt-3 p-3 text-sm"
+            >
+              {{ platformReceiptEvidenceUnavailableNotice }}
+            </p>
+          }
           <div class="mt-4 grid gap-3 sm:grid-cols-2">
             <mat-form-field>
               <mat-label
@@ -270,7 +278,14 @@
             <button
               mat-flat-button
               type="submit"
-              [disabled]="reviewForm().invalid() || reviewMutation.isPending()"
+              [disabled]="
+                platformReceiptReviewDisabled({
+                  evidenceAvailable: selected.receipt.receiptEvidenceAvailable,
+                  formInvalid: reviewForm().invalid(),
+                  mutationPending: reviewMutation.isPending(),
+                  status: reviewForm.status().value(),
+                })
+              "
             >
               {{ reviewMutation.isPending() ? "Saving..." : "Save decision" }}
             </button>

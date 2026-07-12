@@ -415,6 +415,7 @@ describe('userHandlers', () => {
             guestCount: 0,
             id: 'registration-waitlist',
             registrationOption: {
+              organizingRegistration: false,
               title: 'Waitlist option',
             },
             status: 'WAITLIST',
@@ -434,6 +435,7 @@ describe('userHandlers', () => {
             guestCount: 0,
             id: 'registration-cancelled-payment',
             registrationOption: {
+              organizingRegistration: false,
               title: 'Participant',
             },
             status: 'PENDING',
@@ -468,6 +470,7 @@ describe('userHandlers', () => {
             guestCount: 2,
             id: 'registration-2',
             registrationOption: {
+              organizingRegistration: false,
               title: 'Standard',
             },
             status: 'PENDING',
@@ -494,6 +497,7 @@ describe('userHandlers', () => {
             guestCount: 0,
             id: 'registration-1',
             registrationOption: {
+              organizingRegistration: false,
               title: 'Participant',
             },
             status: 'CONFIRMED',
@@ -543,6 +547,7 @@ describe('userHandlers', () => {
           end: '2026-01-01T11:00:00.000Z',
           eventId: 'event-waitlist',
           guestCount: 0,
+          organizingRegistration: false,
           paymentState: 'notRequired',
           registrationId: 'registration-waitlist',
           registrationOptionTitle: 'Waitlist option',
@@ -558,6 +563,7 @@ describe('userHandlers', () => {
           end: '2026-01-15T11:00:00.000Z',
           eventId: 'event-cancelled-payment',
           guestCount: 0,
+          organizingRegistration: false,
           paymentState: 'cancelled',
           registrationId: 'registration-cancelled-payment',
           registrationOptionTitle: 'Participant',
@@ -573,6 +579,7 @@ describe('userHandlers', () => {
           end: '2026-02-01T11:00:00.000Z',
           eventId: 'event-1',
           guestCount: 0,
+          organizingRegistration: false,
           paymentState: 'recorded',
           registrationId: 'registration-1',
           registrationOptionTitle: 'Participant',
@@ -594,6 +601,7 @@ describe('userHandlers', () => {
           end: '2026-03-01T11:00:00.000Z',
           eventId: 'event-2',
           guestCount: 2,
+          organizingRegistration: false,
           paymentState: 'pending',
           registrationId: 'registration-2',
           registrationOptionTitle: 'Standard',

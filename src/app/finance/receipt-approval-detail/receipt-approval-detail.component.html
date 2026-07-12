@@ -44,7 +44,11 @@
           <div
             class="bg-surface-container text-on-surface-variant flex min-h-64 items-center justify-center rounded-xl p-4"
           >
-            No preview image available
+            {{
+              receipt.receiptEvidenceAvailable
+                ? "No preview available"
+                : "Receipt evidence unavailable"
+            }}
           </div>
         }
         <p class="text-on-surface-variant mt-3 text-sm">
@@ -59,6 +63,14 @@
         >
           {{ receiptReviewNotificationNotice }}
         </p>
+        @if (!receipt.receiptEvidenceAvailable) {
+          <p
+            role="alert"
+            class="bg-error-container text-on-error-container mb-4 rounded-xl p-3 text-sm"
+          >
+            {{ receiptEvidenceUnavailableNotice }}
+          </p>
+        }
         <app-receipt-form-fields
           [currencyCode]="receipt.currency"
           [form]="form"
@@ -97,7 +109,8 @@
             color="primary"
             (click)="approve()"
             [disabled]="
-              receiptReviewActionDisabled({
+              receiptApprovalDisabled({
+                evidenceAvailable: receipt.receiptEvidenceAvailable,
                 formInvalid: form.invalid,
                 mutationPending: reviewMutation.isPending(),
                 receiptPending: receiptQuery.isPending(),

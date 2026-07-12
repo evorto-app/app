@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@effect/vitest';
+import { describe, expect, it, vi } from '@effect/vitest';
 import {
   PlatformFinanceReceiptApprovalDetail,
   PlatformFinanceReceiptApprovalDetailRecord,
@@ -11,9 +11,16 @@ import {
   PlatformFinanceReimbursementReceipt,
   PlatformFinanceTenantContext,
 } from '@shared/rpc-contracts/app-rpcs/platform-tenant-finance.rpcs';
-import { Effect, Schema } from 'effect';
+import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
+import { Effect, Layer, Schema } from 'effect';
 import { readFileSync } from 'node:fs';
 
+import { Database } from '../../../../../db';
+import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
+import { Tenant } from '../../../../../types/custom/tenant';
+import { ReceiptMediaServiceUnavailableError } from '../finance/finance.errors';
+import { ReceiptMediaService } from '../finance/receipt-media.service';
+import { RpcAccess } from '../shared/rpc-access.service';
 import {
   canPlatformReviewReceipt,
   payoutDetailsVersion,
@@ -43,6 +50,7 @@ const receiptWithSubmitterInput = (
   previewImageUrl: 'https://example.test/receipt.pdf',
   purchaseCountry: 'DE',
   receiptDate: '2026-07-09',
+  receiptEvidenceAvailable: true,
   refundedAt: null,
   refundTransactionId: null,
   rejectionReason: null,
@@ -63,6 +71,76 @@ const tenantContext = () =>
     receiptCountryConfig: { allowOther: false, receiptCountries: ['DE'] },
     targetTenantId: 'tenant-1',
   });
+
+const platformAuthority = PlatformAdministratorAuthority.make({
+  actorEmail: 'platform@example.org',
+  actorId: 'auth0|platform-admin',
+  kind: 'platformAdministrator',
+});
+
+const targetTenant = Tenant.make({
+  cancellationDeadlineHoursBeforeStart: 120,
+  currency: 'EUR',
+  defaultLocation: undefined,
+  discountProviders: { esnCard: { config: {}, status: 'disabled' } },
+  domain: 'target.example.org',
+  emailSenderEmail: undefined,
+  emailSenderName: undefined,
+  faviconUrl: undefined,
+  id: 'tenant-1',
+  legalNoticeText: undefined,
+  legalNoticeUrl: undefined,
+  locale: 'de-DE',
+  logoUrl: undefined,
+  maxActiveRegistrationsPerUser: 0,
+  name: 'Target tenant',
+  privacyPolicyText: undefined,
+  privacyPolicyUrl: undefined,
+  receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
+  refundFeesOnCancellation: true,
+  seoDescription: undefined,
+  seoTitle: undefined,
+  stripeAccountId: undefined,
+  termsText: undefined,
+  termsUrl: undefined,
+  theme: 'evorto',
+  timezone: 'Europe/Berlin',
+  transferDeadlineHoursBeforeStart: 0,
+});
+
+const submittedReceiptEvidence = {
+  alcoholAmount: 0,
+  attachmentFileName: 'receipt.pdf',
+  attachmentMimeType: 'application/pdf',
+  attachmentStorageKey: 'receipts/tenant-1/event-1/user-1/upload-1-receipt.pdf',
+  attachmentStorageUrl: 'https://storage.example.test/receipt.pdf',
+  attachmentUploadConsumedAt: new Date('2026-07-10T08:00:00.000Z'),
+  attachmentUploadedAt: new Date('2026-07-10T07:59:00.000Z'),
+  attachmentUploadedByUserId: 'user-1',
+  attachmentUploadEventId: 'event-1',
+  attachmentUploadId: 'upload-1',
+  attachmentUploadTenantId: 'tenant-1',
+  createdAt: new Date('2026-07-10T08:00:00.000Z'),
+  currency: 'EUR' as const,
+  depositAmount: 0,
+  eventId: 'event-1',
+  hasAlcohol: false,
+  hasDeposit: false,
+  id: 'receipt-1',
+  previewImageUrl: null,
+  purchaseCountry: 'DE',
+  receiptDate: new Date('2026-07-09T00:00:00.000Z'),
+  refundedAt: null,
+  refundTransactionId: null,
+  rejectionReason: null,
+  reviewedAt: null,
+  status: 'submitted' as const,
+  submittedByUserId: 'user-1',
+  taxAmount: 190,
+  tenantId: 'tenant-1',
+  totalAmount: 1190,
+  updatedAt: new Date('2026-07-10T08:00:00.000Z'),
+};
 
 describe('platform tenant finance handlers', () => {
   it('exports only the dedicated target-scoped finance methods', () => {
@@ -89,8 +167,114 @@ describe('platform tenant finance handlers', () => {
         '.innerJoin(financeReceiptUploads, financeReceiptUploadJoin)',
       ).length - 1;
 
-    expect(scopedUploadJoinCount).toBe(3);
+    expect(scopedUploadJoinCount).toBe(5);
   });
+
+  it('checks evidence only for approval and revalidates it under the mutation lock', () => {
+    const source = readFileSync(
+      new URL('platform-tenant-finance.handlers.ts', import.meta.url),
+      'utf8',
+    );
+    const approvalCheck = source.indexOf("input.status === 'approved'");
+    const evidenceLoad = source.indexOf(
+      'loadReceiptEvidenceForApproval(',
+      approvalCheck,
+    );
+    const transactionStart = source.indexOf(
+      'database.transaction(',
+      evidenceLoad,
+    );
+    const lockedEvidence = source.indexOf(
+      'hasValidReceiptUploadBinding(lockedEvidence)',
+      transactionStart,
+    );
+    const receiptUpdate = source.indexOf(
+      '.update(financeReceipts)',
+      lockedEvidence,
+    );
+
+    expect(approvalCheck).toBeGreaterThan(-1);
+    expect(evidenceLoad).toBeGreaterThan(approvalCheck);
+    expect(transactionStart).toBeGreaterThan(evidenceLoad);
+    expect(lockedEvidence).toBeGreaterThan(transactionStart);
+    expect(receiptUpdate).toBeGreaterThan(lockedEvidence);
+  });
+
+  it.effect(
+    'blocks platform approval before mutation when evidence cannot be signed',
+    () =>
+      Effect.gen(function* () {
+        const transaction = vi.fn();
+        const database = {
+          query: {
+            tenants: {
+              findFirst: () => Effect.succeed(targetTenant),
+            },
+          },
+          select: () => ({
+            from: () => ({
+              innerJoin: () => ({
+                where: () => ({
+                  limit: () => Effect.succeed([submittedReceiptEvidence]),
+                }),
+              }),
+            }),
+          }),
+          transaction,
+        };
+        const error = yield* platformTenantFinanceHandlers[
+          'platform.finance.receipts.review'
+        ](
+          {
+            alcoholAmount: 0,
+            depositAmount: 0,
+            hasAlcohol: false,
+            hasDeposit: false,
+            id: 'receipt-1',
+            purchaseCountry: 'DE',
+            reason: 'Review submitted evidence',
+            receiptDate: '2026-07-09',
+            status: 'approved',
+            targetTenantId: 'tenant-1',
+            taxAmount: 190,
+            totalAmount: 1190,
+          },
+          { headers: {} } as never,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(
+              RpcAccess.Default,
+              Layer.succeed(RpcRequestContext, {
+                authData: { sub: platformAuthority.actorId },
+                authenticated: true,
+                permissions: [],
+                platformAuthority,
+                tenant: targetTenant,
+                user: null,
+                userAssigned: false,
+              }),
+              Layer.succeed(Database, database as never),
+              Layer.succeed(ReceiptMediaService, {
+                objectExists: () => Effect.succeed(true),
+                signedPreviewUrl: () =>
+                  Effect.fail(
+                    new ReceiptMediaServiceUnavailableError({
+                      message: 'Receipt storage is unavailable',
+                    }),
+                  ),
+                uploadOriginal: () =>
+                  Effect.dieMessage('Unexpected receipt upload'),
+              }),
+            ),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.reason).toBe('receiptEvidenceUnavailable');
+        expect(transaction).not.toHaveBeenCalled();
+      }),
+  );
 
   it('constructs every nested finance RPC class at its handler boundary', () => {
     const source = readFileSync(

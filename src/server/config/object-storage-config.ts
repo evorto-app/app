@@ -14,6 +14,7 @@ export const objectStorageStateConfig = Config.all({
     ),
   ),
   S3_ENDPOINT: optionalTrimmedString('S3_ENDPOINT'),
+  S3_PUBLIC_ENDPOINT: optionalTrimmedString('S3_PUBLIC_ENDPOINT'),
   S3_REGION: optionalTrimmedString('S3_REGION').pipe(
     Config.map((value) =>
       Option.match(value, {
@@ -29,6 +30,7 @@ export interface ObjectStorageConfig {
   accessKeyId: string;
   bucket: string;
   endpoint: string;
+  publicEndpoint: string;
   region: string;
   secretAccessKey: string;
 }
@@ -103,6 +105,7 @@ export const objectStorageConfig = Effect.gen(function* () {
     accessKeyId,
     bucket: state.S3_BUCKET,
     endpoint,
+    publicEndpoint: Option.getOrElse(state.S3_PUBLIC_ENDPOINT, () => endpoint),
     region: state.S3_REGION,
     secretAccessKey,
   } satisfies ObjectStorageConfig;
